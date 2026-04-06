@@ -1,0 +1,234 @@
+import type { ThingRangesResponse, ThingStates, RangeDto, RangeEvaluation, InheritedRangeSetDto, PropertyBindingDto } from '../../types/vos';
+import { Badge } from '../common/Badge';
+import { WindmillSpinner } from '../common/WindmillSpinner';
+import { stateColor, rangeBindingColor } from '../../utils/rangeHelpers';
+
+/** A relationship's ranges + states, bundled for display in the thing's Ranges tab. */
+export interface RelationshipRangesEntry {
+  relationshipId: string;
+  relationshipName: string;
+  /** e.g. "Subject → Predicate → Target" */
+  label: string;
+  rangesData: ThingRangesResponse;
+  statesData: ThingStates;
+}
+
+interface Props {
+  rangesData: ThingRangesResponse | null;
+  statesData: ThingStates | null;
+  loading: boolean;
+  onSelectNode: (id: string) => void;
+  /** Ranges from the thing's relationships (optional). */
+  relationshipRanges?: RelationshipRangesEntry[];
+}
+
+export function RangesTabContent({ rangesData, statesData, loading, onSelectNode, relationshipRanges }: Props) {
+  if (loading) return (
+    <div className="flex items-center justify-center py-4">
+      <WindmillSpinner size={24} />
+    </div>
+  );
+
+  if (!statesData) return <p className="text-zinc-500 text-xs italic">No range data available</p>;
+
+  return (
+    <>
+      {statesData.OutOfBoundsCount > 0 && (
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-red-500/10 border border-red-500/20">
+          <span className="inline-block w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+          <span className="text-xs text-red-400">
+            {statesData.OutOfBoundsCount} binding{statesData.OutOfBoundsCount !== 1 ? 's' : ''} out of bounds
+          </span>
+        </div>
+      )}
+
+      <div>
+        <h4 className="text-xs font-semibold text-zinc-500 mb-1">
+          Current States ({statesData.CurrentStates.length})
+        </h4>
+        {statesData.CurrentStates.length === 0 ? (
+          <p className="text-zinc-500 text-xs italic">No active states</p>
+        ) : (
+          <div className="flex flex-wrap gap-1">
+            {statesData.CurrentStates.map((s) => (
+              <Badge key={s} label={s} color={stateColor(s, rangesData)} dot />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {rangesData && (
+        <div>
+          <h4 className="text-xs font-semibold text-zinc-500 mb-1">
+            Own Ranges ({rangesData.OwnRanges.length})
+          </h4>
+          {rangesData.OwnRanges.length === 0 ? (
+            <p className="text-zinc-500 text-xs italic">No own ranges</p>
+          ) : (
+            <div className="space-y-1">
+              {rangesData.OwnRanges.map((r) => (
+                <RangeItem
+                  key={r.Name}
+                  range={r}
+                  evaluation={statesData.RangeEvaluations.find((e) => e.RangeName === r.Name)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {rangesData && rangesData.InheritedRanges.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-zinc-500 mb-1">Inherited Ranges</h4>
+          {rangesData.InheritedRanges.map((irs) => (
+            <InheritedRangeGroupView
+              key={irs.SourceId}
+              set={irs}
+              evaluations={statesData.RangeEvaluations}
+              onSelectNode={onSelectNode}
+            />
+          ))}
+        </div>
+      )}
+
+      {relationshipRanges && relationshipRanges.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold text-zinc-500 mb-1">
+            Relationship Ranges ({relationshipRanges.length})
+          </h4>
+          <div className="space-y-2">
+            {relationshipRanges.map((entry) => (
+              <RelationshipRangesGroup key={entry.relationshipId} entry={entry} />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function RangeItem({ range, evaluation }: { range: RangeDto; evaluation?: RangeEvaluation }) {
+  const hasDeviations = range.Bindings?.some((b) => b.IsActive && b.IsInBounds === false);
+  return (
+    <div className="py-1 border-b border-zinc-800 last:border-0">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium">{range.Name}</span>
+        <div className="flex items-center gap-1">
+          {hasDeviations && <Badge label="out of bounds" color="red" dot />}
+          {!hasDeviations && range.ActiveBindings > 0 && (
+            <span className="text-[10px] text-zinc-500">
+              {range.ActiveBindings} binding{range.ActiveBindings !== 1 ? 's' : ''}
+            </span>
+          )}
+          {evaluation && (
+            evaluation.Error
+              ? <Badge label="error" color="red" />
+              : <Badge label={evaluation.IsActive ? 'active' : 'inactive'} color={evaluation.IsActive ? 'green' : 'gray'} dot />
+          )}
+        </div>
+      </div>
+      <p className="text-[10px] font-mono text-zinc-500 mt-0.5 break-all">{range.Criteria}</p>
+      {evaluation?.Error && (
+        <p className="text-[10px] text-red-400 mt-0.5">{evaluation.Error}</p>
+      )}
+      {range.Bindings?.length > 0 && (
+        <div className="mt-1 space-y-0.5">
+          {range.Bindings.map((b) => (
+            <BindingRow key={b.PropertyName} binding={b} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BindingRow({ binding: b }: { binding: PropertyBindingDto }) {
+  const outOfBounds = b.IsActive && b.IsInBounds === false;
+  const dotColor = outOfBounds ? 'bg-red-500' : b.IsActive ? 'bg-green-500' : 'bg-zinc-600';
+
+  return (
+    <div className={`flex items-start gap-1.5 text-[10px] py-0.5 rounded ${outOfBounds ? 'bg-red-500/10' : ''}`}>
+      <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 mt-[3px] ${dotColor}`} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="font-medium text-zinc-300">{b.PropertyName}</span>
+          <span className="font-mono text-zinc-500">{b.BoundsDescription}</span>
+          {b.GuardCriteria && (
+            <span className="text-zinc-600 italic">when {b.GuardCriteria}</span>
+          )}
+        </div>
+        {b.IsActive && b.CurrentValue !== undefined && b.CurrentValue !== null && (
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className={`font-mono ${outOfBounds ? 'text-red-400 font-semibold' : 'text-zinc-400'}`}>
+              = {String(b.CurrentValue)}
+            </span>
+            {outOfBounds && b.DeviationDelta != null && (
+              <span className="text-red-400/70">
+                ({b.DeviationDelta > 0 ? '+' : ''}{Number(b.DeviationDelta).toFixed(1)} off)
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InheritedRangeGroupView({ set, evaluations, onSelectNode }: {
+  set: InheritedRangeSetDto;
+  evaluations: RangeEvaluation[];
+  onSelectNode: (id: string) => void;
+}) {
+  return (
+    <div className="pl-2 border-l-2 border-zinc-700 mb-2">
+      <button
+        onClick={() => onSelectNode(set.SourceId)}
+        className="text-xs text-amber-400 hover:underline mb-1 block"
+      >
+        from {set.SourceName}
+      </button>
+      {set.Ranges.map((r) => (
+        <RangeItem key={r.Name} range={r} evaluation={evaluations.find((e) => e.RangeName === r.Name)} />
+      ))}
+      {set.Inherited.map((nested) => (
+        <InheritedRangeGroupView
+          key={nested.SourceId}
+          set={nested}
+          evaluations={evaluations}
+          onSelectNode={onSelectNode}
+        />
+      ))}
+    </div>
+  );
+}
+
+function RelationshipRangesGroup({ entry }: { entry: RelationshipRangesEntry }) {
+  const { statesData, rangesData } = entry;
+  const totalOob = statesData.OutOfBoundsCount;
+
+  return (
+    <div className="pl-2 border-l-2 border-blue-500/30 mb-2">
+      <div className="flex items-center gap-1 mb-1">
+        <span className="text-xs text-blue-400 font-medium truncate">{entry.label}</span>
+        {totalOob > 0 && <Badge label={`${totalOob} oob`} color="red" dot />}
+      </div>
+
+      {statesData.CurrentStates.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1">
+          {statesData.CurrentStates.map((s) => (
+            <Badge key={s} label={s} color={rangeBindingColor(rangesData.OwnRanges.find((r) => r.Name === s))} dot />
+          ))}
+        </div>
+      )}
+
+      {rangesData.OwnRanges.map((r) => (
+        <RangeItem
+          key={r.Name}
+          range={r}
+          evaluation={statesData.RangeEvaluations.find((e) => e.RangeName === r.Name)}
+        />
+      ))}
+    </div>
+  );
+}
