@@ -1,0 +1,19 @@
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import '@react-sigma/core/lib/style.css'
+import './sigma-overrides.css'
+import './index.css'
+import App from './App.tsx'
+import { useUiStore } from './stores/uiStore'
+
+// Expose Zustand store for screenshot capture script & dev tools
+if (import.meta.env.DEV) {
+  (window as any).__vosStore = useUiStore;
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
