@@ -1,0 +1,98 @@
+# ============================================================
+# Azure DevOps Pipeline for VillageOS Temporal Graph Database
+# ============================================================
+# This pipeline:
+# - Triggers on all branch updates and pull requests
+# - Builds the .NET 8 solution
+# - Runs all 207 tests (Core, Application, Infrastructure)
+# - Publishes test results and code coverage to Azure DevOps
+# - Packages and publishes to NuGet (main branch only)
+# ============================================================
+
+trigger:
+  branches:
+    include:
+      - '*'  # Trigger on all branches
+
+pr:
+  branches:
+    include:
+      - '*'  # Trigger on all pull requests
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  buildConfiguration: 'Release'
+  testResultsDirectory: '$(Agent.TempDirectory)/TestResults'
+
+steps:
+- task: UseDotNet@2
+  displayName: 'Install .NET SDK'
+  inputs:
+    packageType: 'sdk'
+    version: '8.x'
+
+- script: dotnet tool install -g dotnet-reportgenerator-globaltool
+  displayName: 'Install ReportGenerator'
+  continueOnError: true
+
+- script: dotnet restore
+  displayName: 'Restore NuGet Packages'
+
+- script: dotnet build --configuration $(buildConfiguration) --no-restore
+  displayName: 'Build Solution'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Run Tests with Coverage'
+  inputs:
+    command: 'test'
+    projects: '**/*Tests.csproj'
+    arguments: '--configuration $(buildConfiguration) --no-build --logger trx --results-directory $(testResultsDirectory) --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
+    publishTestResults: false
+
+- task: PublishTestResults@2
+  displayName: 'Publish Test Results'
+  inputs:
+    testResultsFormat: 'VSTest'
+    testResultsFiles: '$(testResultsDirectory)/**/*.trx'
+    mergeTestResults: true
+    failTaskOnFailedTests: true
+    testRunTitle: 'VillageOS Tests - $(Build.SourceBranchName)'
+  condition: always()
+
+- task: PublishCodeCoverageResults@2
+  displayName: 'Publish Code Coverage'
+  inputs:
+    codecoverageTool: 'Cobertura'
+    summaryFileLocation: '$(testResultsDirectory)/**/coverage.cobertura.xml'
+  condition: succeededOrFailed()
+
+- script: |
+    echo "========================================"
+    echo "Build Summary for $(Build.SourceBranchName)"
+    echo "========================================"
+    echo "Build Number: $(Build.BuildNumber)"
+    echo "Build ID: $(Build.BuildId)"
+    echo "Repository: $(Build.Repository.Name)"
+    echo "Commit: $(Build.SourceVersion)"
+    echo "Triggered By: $(Build.RequestedFor)"
+    echo "========================================"
+  displayName: 'Build Summary'
+  condition: always()
+
+# --------------------------------------------
+# ONLY RUN ON MAIN MERGE
+# --------------------------------------------
+- script: dotnet pack --configuration $(buildConfiguration) --no-build -o ./nupkgs
+  displayName: 'Pack NuGet Package'
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+- task: DotNetCoreCLI@2
+  displayName: 'Push NuGet Package to Azure Artifacts'
+  inputs:
+    command: 'push'
+    packagesToPush: 'nupkgs/*.nupkg'
+    publishVstsFeed: 'NuGetPackages'
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
