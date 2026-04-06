@@ -2,14 +2,14 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useModelStore } from './modelStore';
 import type { VosThing, VosRelationship } from '../types/vos';
 
-const thing = (id: string, name: string): VosThing => ({
-  Id: id, Name: name, OwnProperties: {}, InheritedProperties: {},
-});
+const thing = (id: string, name: string) => ({
+  Id: id, Name: name, Properties: {}, OwnProperties: {}, InheritedProperties: {},
+}) as unknown as VosThing;
 
-const rel = (id: string, name: string): VosRelationship => ({
+const rel = (id: string, name: string) => ({
   Id: id, Name: name, SubjectId: 's', PredicateId: 'p', TargetId: 't',
-  SubjectName: 'S', PredicateName: 'P', TargetName: 'T', OwnProperties: {},
-});
+  SubjectName: 'S', PredicateName: 'P', TargetName: 'T', Properties: {}, OwnProperties: {},
+}) as unknown as VosRelationship;
 
 beforeEach(() => {
   useModelStore.getState().clear();

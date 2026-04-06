@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useSigma } from '@react-sigma/core';
 import { useUiStore } from '../../stores/uiStore';
 import { useModelStore } from '../../stores/modelStore';
+import type { VosRelationship } from '../../types/vos';
 import { hashStringToIndex, LOGICAL_PALETTE, resolvePredicateColor } from '../../utils/colors';
 import { computeOrbitPosition, ORBIT_RADIUS_CONTAINMENT, CONTAINMENT_NAMES } from '../../utils/nodeVisibility';
 
