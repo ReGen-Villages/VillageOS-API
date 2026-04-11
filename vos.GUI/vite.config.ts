@@ -6,7 +6,11 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
-    outDir: '../Ducati.Broker/wwwroot',
+    // Output directory is configurable via VOS_BROKER_WWWROOT env var.
+    // Default `dist/` is a local build; set VOS_BROKER_WWWROOT to an absolute
+    // path (e.g. /path/to/VillageOS/vos.Broker/wwwroot) to build directly into
+    // a broker's wwwroot for local development.
+    outDir: process.env.VOS_BROKER_WWWROOT || 'dist',
     emptyOutDir: true,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {

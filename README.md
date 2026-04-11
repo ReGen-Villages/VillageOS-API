@@ -54,12 +54,24 @@ dotnet test
 ```bash
 cd vos.GUI
 npm ci
-npm run dev      # Development server
-npm run build    # Production build
+npm run dev      # Development server on :5173 (proxies /api + /vosHub to https://localhost:7243)
+npm run build    # Production build into ./dist
 npm test         # Run tests
 ```
 
-The GUI connects to the VillageOS broker at `https://localhost:5001` by default.
+The GUI connects to the VillageOS broker at `https://localhost:7243` by default.
+
+#### Building directly into a broker's wwwroot
+
+Set `VOS_BROKER_WWWROOT` to an absolute path to have `npm run build` emit the
+bundle straight into a broker's static file directory, e.g.:
+
+```bash
+VOS_BROKER_WWWROOT=/absolute/path/to/VillageOS/vos.Broker/wwwroot npm run build
+```
+
+When the env var is unset, the build lands in `vos.GUI/dist/` as a normal
+local artifact.
 
 ## Documentation
 
