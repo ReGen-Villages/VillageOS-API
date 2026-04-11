@@ -62,7 +62,7 @@ public class BrokerClient : BrokerClientBase
                 }
 
                 _hubConnection = new HubConnectionBuilder()
-                    .WithUrl($"{BrokerUrl}/ducatiHub", options =>
+                    .WithUrl($"{BrokerUrl}/vosHub", options =>
                     {
                         options.AccessTokenProvider = () => Task.FromResult<string?>(token);
                     })
