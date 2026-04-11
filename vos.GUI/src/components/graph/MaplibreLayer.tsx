@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useSigma } from '@react-sigma/core';
-import type { Map as MaplibreMap } from 'maplibre-gl';
+import { LngLatBounds, type Map as MaplibreMap } from 'maplibre-gl';
 import bindMaplibreLayer from '@sigma/layer-maplibre';
 import type { VosThing } from '../../types/vos';
 import { useUiStore } from '../../stores/uiStore';
 import { hashStringToIndex, INSTANCE_PALETTE } from '../../utils/colors';
 import { isGeoNode, computeOrbitPosition, ORBIT_RADIUS_FANOUT } from '../../utils/nodeVisibility';
+import { setMapInstance } from '../../lib/mapInstance';
 
 const FOOTPRINT_SOURCE = 'building-footprints';
 const FOOTPRINT_FILL_LAYER = 'building-footprints-fill';
@@ -14,6 +15,34 @@ const FOOTPRINT_EXTRUSION_LAYER = 'building-footprints-extrusion';
 
 const CARTO_DARK_STYLE =
   'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+
+/**
+ * Minimum bbox span (in degrees) we will let MapLibre fitBounds collapse to.
+ * 0.005 deg ≈ 500 m at mid-latitudes ≈ MapLibre zoom 16, where Carto vector
+ * tiles still exist. Without this floor, fitting a bbox of 1-2 nodes at
+ * near-identical coordinates pushes MapLibre to zoom 22 and the user sees a
+ * solid background because no vector tiles exist at that zoom.
+ */
+const MIN_BBOX_SPAN_DEG = 0.005;
+
+/**
+ * If the given bounds span less than {@link MIN_BBOX_SPAN_DEG} on either axis,
+ * return a new bounds expanded around the original center to that minimum.
+ * Idempotent for already-large bounds.
+ */
+function enlargeDegenerateBounds(bounds: LngLatBounds): LngLatBounds {
+  const ne = bounds.getNorthEast();
+  const sw = bounds.getSouthWest();
+  const lngSpan = ne.lng - sw.lng;
+  const latSpan = ne.lat - sw.lat;
+  if (lngSpan >= MIN_BBOX_SPAN_DEG && latSpan >= MIN_BBOX_SPAN_DEG) return bounds;
+  const center = bounds.getCenter();
+  const half = MIN_BBOX_SPAN_DEG / 2;
+  return new LngLatBounds(
+    [Math.min(sw.lng, center.lng - half), Math.min(sw.lat, center.lat - half)],
+    [Math.max(ne.lng, center.lng + half), Math.max(ne.lat, center.lat + half)],
+  );
+}
 
 interface Props {
   things: VosThing[];
@@ -59,6 +88,10 @@ export function MaplibreLayer({ things }: Props) {
   const pitchRef = useRef(0);
   /** Suppresses moveend events to prevent Map→Sigma feedback during pitch changes. */
   const suppressMoveEndRef = useRef(false);
+  /** While true, fitBounds calls enlarge degenerate bboxes to MIN_BBOX_SPAN_DEG.
+   *  Cleared once the initial tile-load window elapses so user-driven zoom/pan
+   *  is not clamped by the floor (Bug #5166). */
+  const floorDegenerateBoundsRef = useRef(true);
 
   // ── Bind / unbind the map layer ────────────────────────────────────────
   useEffect(() => {
@@ -67,6 +100,7 @@ export function MaplibreLayer({ things }: Props) {
       if (bindingRef.current) {
         bindingRef.current.clean();
         bindingRef.current = null;
+        setMapInstance(null);
 
         // Belt-and-suspenders: remove any leftover maplibre DOM elements
         // that sigma.killLayer may have missed
@@ -149,6 +183,10 @@ export function MaplibreLayer({ things }: Props) {
     });
 
     bindingRef.current = binding;
+    // Expose the map instance to GraphToolbar so its zoom/fit buttons can
+    // act on MapLibre directly in map mode (Bug #5166). Cleared in the cleanup
+    // below when the layer is torn down.
+    setMapInstance(binding.map);
     // Expose for debugging (dev only)
     if (import.meta.env.DEV) (window as any).__maplibreMap = binding.map;
 
@@ -188,12 +226,35 @@ export function MaplibreLayer({ things }: Props) {
     };
     const origFitBounds = map.fitBounds.bind(map);
     map.fitBounds = (bounds: any, opts?: any, ...rest: any[]) => {
+      // After the initial tile-load window, suppress the sigma→map sync loop's
+      // fitBounds calls (Bug #5166). @sigma/layer-maplibre always passes
+      // {duration: 0} from syncMapWithSigma; GraphToolbar's user-driven calls
+      // pass a nonzero duration. Without this guard, every user pan/zoom
+      // gets clamped back by the next afterRender sync.
+      if (!floorDegenerateBoundsRef.current && opts?.duration === 0) return map;
+
       // When pitched, suppress moveend permanently to prevent syncSigmaWithMap
       // from reading the wider pitched viewport bounds.  fitBounds fires moveend
       // ASYNCHRONOUSLY, so we can't just bracket the call — the flag must stay
       // on until pitch returns to 0 (handled by the toggle effect).
       if (pitchRef.current > 0) suppressMoveEndRef.current = true;
-      const result = origFitBounds(bounds, { ...opts, pitch: pitchRef.current }, ...rest);
+      // Floor degenerate bboxes so 1-2 near-coincident nodes don't collapse
+      // the camera to MapLibre's max zoom (Bug #5165). Applies to every
+      // fitBounds call that makes it past the sync-loop suppression above —
+      // initial bind, the user's "Fit to viewport" button, etc. fitBounds
+      // accepts both LngLatBounds and array-of-corners forms, so we normalise
+      // to LngLatBounds first.
+      let boundsObj: LngLatBounds;
+      if (bounds instanceof LngLatBounds) {
+        boundsObj = bounds;
+      } else if (Array.isArray(bounds) && bounds.length === 2) {
+        boundsObj = new LngLatBounds(bounds[0] as [number, number], bounds[1] as [number, number]);
+      } else {
+        // Unknown shape — pass through unchanged.
+        return origFitBounds(bounds, { ...opts, pitch: pitchRef.current }, ...rest);
+      }
+      const enlarged = enlargeDegenerateBounds(boundsObj);
+      const result = origFitBounds(enlarged, { ...opts, pitch: pitchRef.current }, ...rest);
       return result;
     };
 
@@ -202,9 +263,14 @@ export function MaplibreLayer({ things }: Props) {
     // fitBounds → moveend → syncSigma cycle is so CPU-intensive that
     // MapLibre never gets a chance to fetch and render tiles. Suppressing
     // moveend for a few seconds breaks the loop so tiles can load.
+    // The same window also enables the degenerate-bbox floor so the initial
+    // auto-fit lands at a sensible zoom when only 1-2 nodes are visible;
+    // after the window elapses the floor is lifted to let user zoom work.
     suppressMoveEndRef.current = true;
+    floorDegenerateBoundsRef.current = true;
     const tileLoadTimeout = setTimeout(() => {
       if (pitchRef.current === 0) suppressMoveEndRef.current = false;
+      floorDegenerateBoundsRef.current = false;
     }, 4000);
 
     // Log map state after load for debugging
@@ -249,6 +315,7 @@ export function MaplibreLayer({ things }: Props) {
       if (bindingRef.current) {
         bindingRef.current.clean();
         bindingRef.current = null;
+        setMapInstance(null);
         // Post-cleanup refresh for Safari context recovery
         requestAnimationFrame(() => {
           try {

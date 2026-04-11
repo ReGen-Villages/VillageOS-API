@@ -93,6 +93,13 @@ interface UiState {
   showAllThings: boolean;
   toggleShowAllThings: () => void;
 
+  // ── Hide orphan sites (Revit template-default sites from linked families) ────
+  // When true (default), the map view only shows surface things under the primary
+  // IfcSite (things stamped __IsPrimarySurface by the broker). When false, all
+  // surface things are visible including the Revit-default project-base sites.
+  hideOrphanSites: boolean;
+  toggleHideOrphanSites: () => void;
+
   // ── Fan-out overlapping nodes ──────────────────────────────────
   pendingFanOut: { centerId: string; nodeIds: string[] } | null;
   setPendingFanOut: (fanOut: { centerId: string; nodeIds: string[] } | null) => void;
@@ -233,6 +240,9 @@ export const useUiStore = create<UiState>((set) => ({
   // ── Show all things (bypass surface filter in map mode) ────────────────
   showAllThings: false,
   toggleShowAllThings: () => set((s) => ({ showAllThings: !s.showAllThings })),
+
+  hideOrphanSites: true,
+  toggleHideOrphanSites: () => set((s) => ({ hideOrphanSites: !s.hideOrphanSites })),
 
   // ── Fan-out overlapping nodes ─────────────────────────────────────────
   pendingFanOut: null,

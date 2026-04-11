@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import { useSigma } from '@react-sigma/core';
-import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, X, Layers, Map, ScanSearch, Unplug, Box } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, X, Layers, Map, ScanSearch, Unplug, Box, EyeOff, Eye } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
+import { getMapInstance } from '../../lib/mapInstance';
 
 /**
  * Graph toolbar with zoom, fit, re-layout, and clustering controls.
@@ -24,20 +25,58 @@ export function GraphToolbar({ hasGeoNodes }: { hasGeoNodes: boolean }) {
   const setThreeDEnabled = useUiStore((s) => s.setThreeDEnabled);
   const isSpreadActive = useUiStore((s) => s.isSpreadActive);
   const toggleSpreadActive = useUiStore((s) => s.toggleSpreadActive);
+  const hideOrphanSites = useUiStore((s) => s.hideOrphanSites);
+  const toggleHideOrphanSites = useUiStore((s) => s.toggleHideOrphanSites);
 
   const activePredicates = predicateStats.filter((s) => activePredicateIds.has(s.predicateId));
 
+  // In map mode, route zoom/fit through the MapLibre map directly. Using
+  // Sigma's camera triggers @sigma/layer-maplibre's sync loop which re-clamps
+  // the view on every afterRender (Bug #5166). In non-map mode, fall back to
+  // Sigma's animated camera.
   const handleZoomIn = useCallback(() => {
+    const map = getMapInstance();
+    if (mapEnabled && map) {
+      map.zoomIn({ duration: 200 });
+      return;
+    }
     sigma.getCamera().animatedZoom({ duration: 200 });
-  }, [sigma]);
+  }, [sigma, mapEnabled]);
 
   const handleZoomOut = useCallback(() => {
+    const map = getMapInstance();
+    if (mapEnabled && map) {
+      map.zoomOut({ duration: 200 });
+      return;
+    }
     sigma.getCamera().animatedUnzoom({ duration: 200 });
-  }, [sigma]);
+  }, [sigma, mapEnabled]);
 
   const handleFit = useCallback(() => {
+    const map = getMapInstance();
+    if (mapEnabled && map) {
+      // Compute a bbox from every visible geo node and fit to it. The Sigma
+      // sync path would go through the floor-clamped fitBounds; calling map
+      // directly bypasses that.
+      const graph = sigma.getGraph();
+      let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+      let count = 0;
+      graph.forEachNode((_, attrs) => {
+        if (typeof attrs.lat === 'number' && typeof attrs.lng === 'number') {
+          if (attrs.lat < minLat) minLat = attrs.lat;
+          if (attrs.lat > maxLat) maxLat = attrs.lat;
+          if (attrs.lng < minLng) minLng = attrs.lng;
+          if (attrs.lng > maxLng) maxLng = attrs.lng;
+          count++;
+        }
+      });
+      if (count > 0) {
+        map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 40, duration: 300 });
+      }
+      return;
+    }
     sigma.getCamera().animatedReset({ duration: 300 });
-  }, [sigma]);
+  }, [sigma, mapEnabled]);
 
   const handleRelayout = useCallback(() => {
     // When map is active, positions are managed by MapLibre — relayout is a no-op
@@ -127,6 +166,19 @@ export function GraphToolbar({ hasGeoNodes }: { hasGeoNodes: boolean }) {
         >
           <ScanSearch size={16} />
         </button>
+        {mapEnabled && (
+          <button
+            onClick={toggleHideOrphanSites}
+            title={hideOrphanSites ? 'Show orphan sites' : 'Hide orphan sites'}
+            className={`p-1.5 rounded transition-colors ${
+              hideOrphanSites
+                ? 'bg-blue-600/30 text-blue-400 hover:bg-blue-600/40'
+                : 'hover:bg-zinc-700 text-zinc-300 hover:text-white'
+            }`}
+          >
+            {hideOrphanSites ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        )}
         {mapEnabled && (
           <button
             onClick={() => setThreeDEnabled(!threeDEnabled)}

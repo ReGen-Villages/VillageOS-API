@@ -259,6 +259,7 @@ export function GraphPage() {
   const mapEnabled = useUiStore((s) => s.mapEnabled);
   const showAllThings = useUiStore((s) => s.showAllThings);
   const toggleShowAllThings = useUiStore((s) => s.toggleShowAllThings);
+  const hideOrphanSites = useUiStore((s) => s.hideOrphanSites);
   const [togglingShowAll, setTogglingShowAll] = useState(false);
 
   const { graphThings, graphRelationships } = useMemo(() => {
@@ -288,11 +289,16 @@ export function GraphPage() {
     }
 
     // Surface things have __IsSurface=true (stamped by broker at seed load).
-    // These are outermost physical things — the only ones relevant for the
-    // map view. Including all 8K+ things overwhelms WebGL (4 contexts → crash).
+    // When hideOrphanSites is on (default), filter further to __IsPrimarySurface:
+    // only things under the primary IfcSite, which the broker propagates from the
+    // importer's __IsPrimarySite stamp. This hides Revit template-default sites
+    // that come attached to imported family instances.
     const surfaceIds = new Set<string>();
     for (const t of things) {
-      if (t.Properties?.__IsSurface === true) {
+      const included = hideOrphanSites
+        ? t.Properties?.__IsPrimarySurface === true
+        : t.Properties?.__IsSurface === true;
+      if (included) {
         surfaceIds.add(t.Id);
       }
     }
@@ -323,7 +329,7 @@ export function GraphPage() {
     );
 
     return { graphThings: gt, graphRelationships: gr };
-  }, [mapEnabled, showAllThings, things, relationships]);
+  }, [mapEnabled, showAllThings, hideOrphanSites, things, relationships]);
 
   // Filter for graph display — show matched nodes + their direct neighbors for context
   const searchOptions = useMemo(

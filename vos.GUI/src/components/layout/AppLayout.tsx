@@ -27,7 +27,7 @@ export function AppLayout() {
   }, [on, pushEvent]);
 
   return (
-    <div className="flex h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+    <div className="flex h-dvh bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
       <Sidebar />
       <main className="flex-1 overflow-hidden">
         <Outlet />
