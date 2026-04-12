@@ -6,7 +6,7 @@ export const PROPERTY_TYPES = [
   { label: 'float', value: 'float' },
   { label: 'bool', value: 'bool' },
   { label: 'decimal', value: 'decimal' },
-  { label: 'DateTime', value: 'System.DateTime' },
-  { label: 'Guid', value: 'System.Guid' },
+  { label: 'DateTime', value: 'datetime' },
+  { label: 'Guid', value: 'guid' },
 ];
 

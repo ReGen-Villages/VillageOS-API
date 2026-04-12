@@ -2,7 +2,7 @@ import type { VosThing, VosRelationship, InheritedPropertySet } from '../types/v
 
 /**
  * Unwrap a single typed property value.
- * The broker serializes properties as { typeInfo: "System.String", value: "..." }.
+ * The broker serializes properties as { typeInfo: "vos.String", value: "..." }.
  * The GUI works with raw values, so we extract just the `value` field.
  */
 export function unwrapPropertyValue(v: unknown): unknown {

@@ -12,7 +12,7 @@ describe('unwrapProperties', () => {
   });
 
   it('extracts value from typed envelope', () => {
-    const props = { name: { typeInfo: 'System.String', value: 'Alice' } };
+    const props = { name: { typeInfo: 'vos.String', value: 'Alice' } };
     expect(unwrapProperties(props)).toEqual({ name: 'Alice' });
   });
 
@@ -23,19 +23,19 @@ describe('unwrapProperties', () => {
 
   it('handles mixed typed and plain values', () => {
     const props = {
-      typed: { typeInfo: 'System.Double', value: 3.14 },
+      typed: { typeInfo: 'vos.Double', value: 3.14 },
       plain: 'hello',
     };
     expect(unwrapProperties(props)).toEqual({ typed: 3.14, plain: 'hello' });
   });
 
   it('handles null value inside envelope', () => {
-    const props = { empty: { typeInfo: 'System.String', value: null } };
+    const props = { empty: { typeInfo: 'vos.String', value: null } };
     expect(unwrapProperties(props)).toEqual({ empty: null });
   });
 
   it('handles boolean envelope', () => {
-    const props = { flag: { typeInfo: 'System.Boolean', value: true } };
+    const props = { flag: { typeInfo: 'vos.Boolean', value: true } };
     expect(unwrapProperties(props)).toEqual({ flag: true });
   });
 
@@ -56,7 +56,7 @@ describe('unwrapThing', () => {
   it('unwraps own properties', () => {
     const thing: VosThing = {
       ...baseThing,
-      Properties: { temp: { typeInfo: 'System.Double', value: 36.6 } },
+      Properties: { temp: { typeInfo: 'vos.Double', value: 36.6 } },
     };
     const result = unwrapThing(thing);
     expect(result.Properties).toEqual({ temp: 36.6 });
@@ -70,7 +70,7 @@ describe('unwrapThing', () => {
           SourceId: 'p1',
           SourceName: 'Parent',
           InheritedAt: '2024-01-01',
-          Properties: { inherited: { typeInfo: 'System.Int32', value: 99 } },
+          Properties: { inherited: { typeInfo: 'vos.Integer', value: 99 } },
         },
       },
     };
@@ -103,7 +103,7 @@ describe('unwrapRelationship', () => {
   it('unwraps relationship properties', () => {
     const rel: VosRelationship = {
       ...baseRel,
-      Properties: { weight: { typeInfo: 'System.Double', value: 0.5 } },
+      Properties: { weight: { typeInfo: 'vos.Double', value: 0.5 } },
     };
     const result = unwrapRelationship(rel);
     expect(result.Properties).toEqual({ weight: 0.5 });

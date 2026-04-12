@@ -20,7 +20,7 @@ export function inferType(val: unknown): string {
  * Infer the broker type string from user-entered text.
  * Always uses 'double' for numeric text so that decimal values are never
  * rejected when the previous value happened to be a whole number
- * (e.g. System.Decimal 1.0 → JS integer 1 → inferType returns "int" →
+ * (e.g. vos.Decimal 1.0 → JS integer 1 → inferType returns "int" →
  * broker rejects "0.5" as invalid int).
  */
 export function inferTypeFromText(text: string): string {

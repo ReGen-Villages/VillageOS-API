@@ -2,7 +2,7 @@
  * Geometry dispatcher — unified entry point for geometry parsing.
  *
  * All geometry properties are IFC mesh data (pre-tessellated by the Xbim importer).
- * The broker sends geometry as { typeInfo: "Ducati.Core.IfcGeometry", value: {...} }
+ * The broker sends geometry as { typeInfo: "vos.IfcGeometry", value: {...} }
  * which is unwrapped by propertyMapper to just the IFC mesh data object.
  */
 
