@@ -94,9 +94,10 @@ interface UiState {
   toggleShowAllThings: () => void;
 
   // ── Hide orphan sites (Revit template-default sites from linked families) ────
-  // When true (default), the map view only shows surface things under the primary
-  // IfcSite (things stamped __IsPrimarySurface by the broker). When false, all
-  // surface things are visible including the Revit-default project-base sites.
+  // When true (default), the map view only shows surface things stamped
+  // __IsMapSurfaceThing by the IFC importer (things inside the primary IfcSite's
+  // spatial subtree). When false, all surface things are visible including the
+  // Revit-default project-base sites.
   hideOrphanSites: boolean;
   toggleHideOrphanSites: () => void;
 

@@ -289,14 +289,15 @@ export function GraphPage() {
     }
 
     // Surface things have __IsSurface=true (stamped by broker at seed load).
-    // When hideOrphanSites is on (default), filter further to __IsPrimarySurface:
-    // only things under the primary IfcSite, which the broker propagates from the
-    // importer's __IsPrimarySite stamp. This hides Revit template-default sites
-    // that come attached to imported family instances.
+    // When hideOrphanSites is on (default), filter further to __IsMapSurfaceThing:
+    // only things inside the primary IfcSite's spatial subtree, which the IFC
+    // importer stamps directly during its native spatial walk. This hides
+    // Revit template-default sites that come attached to imported family
+    // instances but aren't part of the real project's spatial hierarchy.
     const surfaceIds = new Set<string>();
     for (const t of things) {
       const included = hideOrphanSites
-        ? t.Properties?.__IsPrimarySurface === true
+        ? t.Properties?.__IsMapSurfaceThing === true
         : t.Properties?.__IsSurface === true;
       if (included) {
         surfaceIds.add(t.Id);
