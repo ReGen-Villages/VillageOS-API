@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { SigmaCanvas } from '../components/graph/SigmaCanvas';
+import { GraphSearchBar } from '../components/graph/GraphSearchBar';
 import { NodeDetailPanel } from '../components/panels/NodeDetailPanel';
 import { EdgeDetailPanel } from '../components/panels/EdgeDetailPanel';
 import { ResizablePanel } from '../components/panels/ResizablePanel';
@@ -12,14 +13,13 @@ import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { useSignalR } from '../hooks/useSignalR';
 import { useFlashTimer } from '../hooks/useFlashTimer';
+import { useGraphData } from '../hooks/useGraphData';
 import { toast } from '../components/common/Toast';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import type { VosThing, VosRelationship } from '../types/vos';
-import { filterGraph } from '../utils/searchFilter';
 import { isGraphAffectingProperty, applyThingPropertyUpdate, applyRelationshipPropertyUpdate, isVisibleRelationship } from '../utils/propertyUpdates';
-import { isContainmentPredicate } from '../utils/nodeVisibility';
 import { useAuth } from '../hooks/useAuth';
-import { Search, X, LogOut, ArrowLeftRight, Plus, Loader2, Layers } from 'lucide-react';
+import { LogOut, ArrowLeftRight, Loader2, Layers } from 'lucide-react';
 
 export function GraphPage() {
   const { logout, switchModel, modelName } = useAuth();
@@ -54,10 +54,6 @@ export function GraphPage() {
   const thingMap = useMemo(() => new Map(things.map((t) => [t.Id, t])), [things]);
   const thingMapRef = useRef(thingMap);
   thingMapRef.current = thingMap;
-  const hasGeoNodes = useMemo(() => things.some((t) =>
-    (typeof t.Properties?.latitude === 'number' && typeof t.Properties?.longitude === 'number') ||
-    t.Properties?.geometry != null,
-  ), [things]);
 
   // Clear stale predicate/map state on mount so a fresh view starts clean.
   // The mapEnabled reset is critical: MaplibreLayer needs a false→true
@@ -68,13 +64,6 @@ export function GraphPage() {
     useUiStore.getState().clearPredicateIds();
     useUiStore.getState().setMapEnabled(false);
   }, []);
-
-  // After mount reset, derive mapEnabled from current data.
-  useEffect(() => {
-    if (things.length > 0 && hasGeoNodes) {
-      useUiStore.getState().setMapEnabled(true);
-    }
-  }, [things, hasGeoNodes]);
 
   // Fetch full thing detail (including inherited properties) when a node is selected.
   // Only re-fetches on node selection change — live property updates come via SignalR / setDetailThing.
@@ -251,199 +240,38 @@ export function GraphPage() {
   };
 
   const loadingPhase = useUiStore((s) => s.loadingPhase);
-
-  // ── Map-mode graph reduction ─────────────────────────────────────────
-  // When map is active, only load geo-relevant nodes into Sigma to avoid
-  // overwhelming WebGL (8K nodes + 12K edges + 4 WebGL contexts → crash).
-  // Keep: surface nodes, predicate things, type targets (via "is").
   const mapEnabled = useUiStore((s) => s.mapEnabled);
   const showAllThings = useUiStore((s) => s.showAllThings);
   const toggleShowAllThings = useUiStore((s) => s.toggleShowAllThings);
   const hideOrphanSites = useUiStore((s) => s.hideOrphanSites);
   const [togglingShowAll, setTogglingShowAll] = useState(false);
 
-  const { graphThings, graphRelationships } = useMemo(() => {
-    if (!mapEnabled) return { graphThings: things, graphRelationships: relationships };
+  const {
+    filteredThings, filteredRelationships, matchCount, hasGeoNodes, searchOptions,
+  } = useGraphData({
+    things, relationships, searchQuery, caseSensitive, exactMatch, useRegex,
+    mapEnabled, showAllThings, hideOrphanSites,
+  });
 
-    // Show all physical things (have geometry/footprint) instead of just surface things
-    if (showAllThings) {
-      const geoIds = new Set<string>();
-      for (const t of things) {
-        if (t.Properties?.geometry != null || t.Properties?.footprint != null) {
-          geoIds.add(t.Id);
-        }
-      }
-      // Also keep predicates + type targets for color classification
-      const keepIds = new Set(geoIds);
-      for (const r of relationships) keepIds.add(r.PredicateId);
-      const thingNameMap = new Map(things.map((t) => [t.Id, t.Name]));
-      for (const r of relationships) {
-        const predName = thingNameMap.get(r.PredicateId)?.toLowerCase();
-        if (predName === 'is' && geoIds.has(r.SubjectId)) {
-          keepIds.add(r.TargetId);
-        }
-      }
-      const gt = things.filter((t) => keepIds.has(t.Id));
-      const gr = relationships.filter((r) => keepIds.has(r.SubjectId) && keepIds.has(r.TargetId));
-      return { graphThings: gt, graphRelationships: gr };
+  // After mount reset, derive mapEnabled from current data.
+  useEffect(() => {
+    if (things.length > 0 && hasGeoNodes) {
+      useUiStore.getState().setMapEnabled(true);
     }
-
-    // Surface things have __IsSurface=true (stamped by broker at seed load).
-    // When hideOrphanSites is on (default), filter further to __IsMapSurfaceThing:
-    // only things inside the primary IfcSite's spatial subtree, which the IFC
-    // importer stamps directly during its native spatial walk. This hides
-    // Revit template-default sites that come attached to imported family
-    // instances but aren't part of the real project's spatial hierarchy.
-    const surfaceIds = new Set<string>();
-    for (const t of things) {
-      const included = hideOrphanSites
-        ? t.Properties?.__IsMapSurfaceThing === true
-        : t.Properties?.__IsSurface === true;
-      if (included) {
-        surfaceIds.add(t.Id);
-      }
-    }
-
-    // Also keep predicate things and type targets (for color classification).
-    // Skip contains/aggregates neighbors — those are thousands of IFC sub-elements.
-    const keepIds = new Set(surfaceIds);
-    for (const r of relationships) keepIds.add(r.PredicateId);
-
-    // Non-geo neighbors of surface nodes: include both endpoints of any
-    // relationship touching a surface node, EXCEPT containment predicates
-    // (thousands of IFC sub-elements that would overwhelm WebGL).
-    // Containment predicates are identified by their __IsMapContainmentPredicate
-    // flag stamped by the IFC importer — no predicate-name hardcoding.
-    const thingMap = new Map(things.map((t) => [t.Id, t]));
-    const skipPredicates = new Set<string>();
-    for (const [id, t] of thingMap) {
-      if (isContainmentPredicate(t.Properties)) skipPredicates.add(id);
-    }
-    for (const r of relationships) {
-      if (skipPredicates.has(r.PredicateId)) continue;
-      if (surfaceIds.has(r.SubjectId)) keepIds.add(r.TargetId);
-      if (surfaceIds.has(r.TargetId)) keepIds.add(r.SubjectId);
-    }
-    const gt = things.filter((t) => keepIds.has(t.Id));
-    const gr = relationships.filter(
-      (r) => keepIds.has(r.SubjectId) && keepIds.has(r.TargetId),
-    );
-
-    return { graphThings: gt, graphRelationships: gr };
-  }, [mapEnabled, showAllThings, hideOrphanSites, things, relationships]);
-
-  // Filter for graph display — show matched nodes + their direct neighbors for context
-  const searchOptions = useMemo(
-    () => ({ caseSensitive, exactMatch, useRegex }),
-    [caseSensitive, exactMatch, useRegex],
-  );
-  const { filteredThings, filteredRelationships, matchCount } = useMemo(
-    () => filterGraph(searchQuery, graphThings, graphRelationships, searchOptions),
-    [searchQuery, searchOptions, graphThings, graphRelationships],
-  );
+  }, [things, hasGeoNodes]);
 
   return (
     <div className="h-full relative">
-      {/* Search bar */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
-        <Search size={14} className="text-zinc-400 flex-shrink-0" />
-        <input
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={useRegex ? 'Regex pattern...' : 'Search things (comma = list)...'}
-          className="bg-transparent text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none w-56"
-        />
-        <button
-          onClick={() => setCaseSensitive((v) => !v)}
-          title="Match case"
-          className={`px-1 py-0.5 text-xs font-semibold rounded transition-colors flex-shrink-0 ${
-            caseSensitive
-              ? 'bg-blue-600 text-white'
-              : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
-          }`}
-        >
-          Aa
-        </button>
-        <button
-          onClick={() => setExactMatch((v) => !v)}
-          title="Exact match"
-          className={`px-1 py-0.5 text-xs font-semibold rounded transition-colors flex-shrink-0 ${
-            exactMatch
-              ? 'bg-blue-600 text-white'
-              : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
-          }`}
-        >
-          =
-        </button>
-        <button
-          onClick={() => setUseRegex((v) => !v)}
-          title="Regular expression"
-          className={`px-1 py-0.5 text-xs font-semibold rounded transition-colors flex-shrink-0 ${
-            useRegex
-              ? 'bg-blue-600 text-white'
-              : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
-          }`}
-        >
-          .*
-        </button>
-        {searchQuery && (
-          <>
-            <button
-              onClick={() => setSearchQuery('')}
-              title="Clear search"
-              className="text-zinc-500 hover:text-zinc-300 transition-colors flex-shrink-0"
-            >
-              <X size={14} />
-            </button>
-            <span className="text-xs text-zinc-500 flex-shrink-0">
-              {matchCount} found
-            </span>
-          </>
-        )}
-        <div className="w-px h-4 bg-zinc-600 flex-shrink-0" />
-        <button
-          onClick={() => setShowCreateThing((v) => !v)}
-          title="Create thing"
-          className={`p-0.5 rounded transition-colors flex-shrink-0 ${
-            showCreateThing
-              ? 'bg-emerald-600 text-white'
-              : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
-          }`}
-        >
-          <Plus size={14} />
-        </button>
-      </div>
-      {showCreateThing && (
-        <div className="absolute top-12 left-3 z-10 flex items-center gap-2 bg-zinc-800/90 backdrop-blur rounded-lg px-3 py-1.5">
-          <input
-            autoFocus
-            value={newThingName}
-            onChange={(e) => setNewThingName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleCreateThing();
-              if (e.key === 'Escape') { setShowCreateThing(false); setNewThingName(''); }
-            }}
-            placeholder="New thing name..."
-            disabled={creatingThing}
-            className="bg-transparent text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none w-48"
-          />
-          <button
-            onClick={handleCreateThing}
-            disabled={!newThingName.trim() || creatingThing}
-            className="p-0.5 rounded text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-30 transition-colors flex-shrink-0"
-            title="Create"
-          >
-            {creatingThing ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          </button>
-          <button
-            onClick={() => { setShowCreateThing(false); setNewThingName(''); }}
-            className="text-zinc-500 hover:text-zinc-300 transition-colors flex-shrink-0"
-            title="Cancel"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
+      <GraphSearchBar
+        searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+        caseSensitive={caseSensitive} setCaseSensitive={setCaseSensitive}
+        exactMatch={exactMatch} setExactMatch={setExactMatch}
+        useRegex={useRegex} setUseRegex={setUseRegex}
+        matchCount={matchCount}
+        showCreateThing={showCreateThing} setShowCreateThing={setShowCreateThing}
+        newThingName={newThingName} setNewThingName={setNewThingName}
+        creatingThing={creatingThing} onCreateThing={handleCreateThing}
+      />
 
       {/* Top-right: model name + switch / logout */}
       <div className="absolute top-3 right-3 z-10 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
