@@ -26,7 +26,7 @@ export function Sidebar() {
       <div className="p-4 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
         {!isCollapsed && (
           <div>
-            <h1 className="text-lg font-bold text-zinc-900 dark:text-white tracking-wide">DUCATI</h1>
+            <h1 className="text-lg font-bold text-zinc-900 dark:text-white tracking-wide">VILLAGEOS</h1>
             {modelName ? (
               <span className="text-xs text-blue-500 dark:text-blue-400">{modelName}</span>
             ) : (
