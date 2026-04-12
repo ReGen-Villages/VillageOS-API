@@ -4,15 +4,11 @@ import { LngLatBounds, type Map as MaplibreMap } from 'maplibre-gl';
 import bindMaplibreLayer from '@sigma/layer-maplibre';
 import type { VosThing } from '../../types/vos';
 import { useUiStore } from '../../stores/uiStore';
-import { hashStringToIndex, INSTANCE_PALETTE } from '../../utils/colors';
-import { isGeoNode, computeOrbitPosition, ORBIT_RADIUS_FANOUT } from '../../utils/nodeVisibility';
+import { isGeoNode } from '../../utils/nodeVisibility';
 import { setMapInstance } from '../../lib/mapInstance';
 import { enlargeDegenerateBounds } from '../../lib/bboxFloor';
-
-const FOOTPRINT_SOURCE = 'building-footprints';
-const FOOTPRINT_FILL_LAYER = 'building-footprints-fill';
-const FOOTPRINT_LINE_LAYER = 'building-footprints-line';
-const FOOTPRINT_EXTRUSION_LAYER = 'building-footprints-extrusion';
+import { useMapFootprintLayers, FOOTPRINT_FILL_LAYER, FOOTPRINT_LINE_LAYER, FOOTPRINT_EXTRUSION_LAYER } from '../../hooks/useMapFootprintLayers';
+import { useMapNodeOrbit } from '../../hooks/useMapNodeOrbit';
 
 const CARTO_DARK_STYLE =
   'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
@@ -38,7 +34,6 @@ interface MapBinding {
 export function MaplibreLayer({ things }: Props) {
   const sigma = useSigma();
   const mapEnabled = useUiStore((s) => s.mapEnabled);
-  const selectedNodeId = useUiStore((s) => s.selectedNodeId);
   const threeDEnabled = useUiStore((s) => s.threeDEnabled);
   const bindingRef = useRef<MapBinding | null>(null);
 
@@ -47,17 +42,6 @@ export function MaplibreLayer({ things }: Props) {
   // re-run on property-only changes (coordinate sync, footprint rebuild).
   const thingIds = useMemo(() => things.map((t) => t.Id).join(','), [things]);
 
-  // Footprint fingerprint — only changes when footprint properties change
-  const footprintFingerprint = useMemo(
-    () =>
-      things
-        .filter((t) => typeof t.Properties?.footprint === 'string')
-        .map((t) => `${t.Id}:${(t.Properties.footprint as string).length}`)
-        .join('|'),
-    [things],
-  );
-  /** Tracks which non-geo nodes currently have _orbitLat/_orbitLng attrs. */
-  const orbitingNodesRef = useRef<Set<string>>(new Set());
   /** Target pitch injected into fitBounds calls (see pitch patch below). */
   const pitchRef = useRef(0);
   /** Suppresses moveend events to prevent Map→Sigma feedback during pitch changes. */
@@ -303,103 +287,8 @@ export function MaplibreLayer({ things }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapEnabled, sigma]);
 
-  // ── Add GeoJSON footprint layer when map is ready ─────────────────────
-  useEffect(() => {
-    const binding = bindingRef.current;
-    if (!mapEnabled || !binding) return;
-
-    const map = binding.map;
-
-    function addFootprints() {
-      // Collect footprint features from pre-computed footprint properties
-      const features: GeoJSON.Feature[] = [];
-      for (const t of things) {
-        const fpProp = t.Properties?.footprint;
-        if (typeof fpProp === 'string') {
-          try {
-            const geometry = JSON.parse(fpProp) as GeoJSON.Geometry;
-            const color = INSTANCE_PALETTE[hashStringToIndex(t.Name, INSTANCE_PALETTE.length)];
-            features.push({
-              type: 'Feature',
-              properties: {
-                name: t.Name,
-                height: typeof t.Properties?.height === 'number' ? t.Properties.height : 10,
-                color,
-              },
-              geometry,
-            });
-          } catch {
-            // Skip malformed footprint JSON
-          }
-        }
-      }
-
-      const geojson: GeoJSON.FeatureCollection = {
-        type: 'FeatureCollection',
-        features,
-      };
-
-      // Remove existing layers/source if present (data reload)
-      if (map.getLayer(FOOTPRINT_EXTRUSION_LAYER)) map.removeLayer(FOOTPRINT_EXTRUSION_LAYER);
-      if (map.getLayer(FOOTPRINT_FILL_LAYER)) map.removeLayer(FOOTPRINT_FILL_LAYER);
-      if (map.getLayer(FOOTPRINT_LINE_LAYER)) map.removeLayer(FOOTPRINT_LINE_LAYER);
-      if (map.getSource(FOOTPRINT_SOURCE)) map.removeSource(FOOTPRINT_SOURCE);
-
-      // Read current 3D state to set correct initial visibility.
-      // The 3D toggle effect may have already run before the map loaded
-      // (and thus before these layers exist). Reading from the store at
-      // creation time ensures layers start with the right visibility.
-      const is3D = useUiStore.getState().threeDEnabled;
-
-      map.addSource(FOOTPRINT_SOURCE, {
-        type: 'geojson',
-        data: geojson,
-      });
-
-      map.addLayer({
-        id: FOOTPRINT_FILL_LAYER,
-        type: 'fill',
-        source: FOOTPRINT_SOURCE,
-        paint: {
-          'fill-color': ['get', 'color'],
-          'fill-opacity': 0.08,
-        },
-        layout: { visibility: is3D ? 'none' : 'visible' },
-      });
-
-      map.addLayer({
-        id: FOOTPRINT_LINE_LAYER,
-        type: 'line',
-        source: FOOTPRINT_SOURCE,
-        paint: {
-          'line-color': ['get', 'color'],
-          'line-width': 1,
-          'line-opacity': 0.5,
-        },
-        layout: { visibility: is3D ? 'none' : 'visible' },
-      });
-
-      map.addLayer({
-        id: FOOTPRINT_EXTRUSION_LAYER,
-        type: 'fill-extrusion',
-        source: FOOTPRINT_SOURCE,
-        paint: {
-          'fill-extrusion-color': ['get', 'color'],
-          'fill-extrusion-height': ['get', 'height'],
-          'fill-extrusion-base': 0,
-          'fill-extrusion-opacity': 0.75,
-        },
-        layout: { visibility: is3D ? 'visible' : 'none' },
-      });
-    }
-
-    // The map may or may not be loaded yet
-    if (map.loaded()) {
-      addFootprints();
-    } else {
-      map.once('load', addFootprints);
-    }
-  }, [mapEnabled, footprintFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Footprint layers managed by extracted hook
+  useMapFootprintLayers(bindingRef.current?.map ?? null, mapEnabled, things);
 
   // ── Re-sync graph coordinates when nodes are added/removed ────────────
   const loadingPhase = useUiStore((s) => s.loadingPhase);
@@ -459,68 +348,8 @@ export function MaplibreLayer({ things }: Props) {
     }
   }, [mapEnabled, threeDEnabled, sigma]);
 
-  // ── Orbit non-geo neighbors around selected node ─────────────────────
-  // When a node is selected on the map, its logical (non-geo) neighbors
-  // are revealed by the NodeReducer. Without repositioning, they all pile
-  // up at the village center.  This effect computes lat/lng offsets to
-  // place them in a circle around the selected node (or its geo centroid)
-  // so they are clearly visible.
-  const pendingFanOut = useUiStore((s) => s.pendingFanOut);
-
-  // Reset the orbit tracking set on selection change.
-  // NodeReducer handles all orbital positioning; this effect only clears the
-  // set so the fan-out effect (below) starts fresh for each selection.
-  useEffect(() => {
-    orbitingNodesRef.current.clear();
-  }, [selectedNodeId]);
-
-  // ── Fan-out overlapping nodes on click ──────────────────────────────
-  // When GraphEvents detects overlapping nodes and sets pendingFanOut,
-  // position them in a radial pattern around the clicked node's location.
-  useEffect(() => {
-    const binding = bindingRef.current;
-    if (!pendingFanOut || !mapEnabled || !binding) return;
-
-    const graph = sigma.getGraph();
-    const { centerId, nodeIds } = pendingFanOut;
-    if (!graph.hasNode(centerId)) {
-      useUiStore.getState().setPendingFanOut(null);
-      return;
-    }
-
-    // Find the center node's current lat/lng (could be orbit or geo)
-    const centerAttrs = graph.getNodeAttributes(centerId);
-    let cLat: number;
-    let cLng: number;
-    if (typeof centerAttrs._orbitLat === 'number' && typeof centerAttrs._orbitLng === 'number') {
-      cLat = centerAttrs._orbitLat as number;
-      cLng = centerAttrs._orbitLng as number;
-    } else if (typeof centerAttrs.lat === 'number' && typeof centerAttrs.lng === 'number') {
-      cLat = centerAttrs.lat as number;
-      cLng = centerAttrs.lng as number;
-    } else {
-      useUiStore.getState().setPendingFanOut(null);
-      return;
-    }
-
-    const allNodes = [centerId, ...nodeIds];
-    const prev = orbitingNodesRef.current;
-    allNodes.forEach((nodeId, i) => {
-      if (!graph.hasNode(nodeId)) return;
-      const pos = computeOrbitPosition(cLat, cLng, i, allNodes.length, ORBIT_RADIUS_FANOUT);
-      graph.setNodeAttribute(nodeId, '_orbitLat', pos.lat);
-      graph.setNodeAttribute(nodeId, '_orbitLng', pos.lng);
-      prev.add(nodeId);
-    });
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        binding.updateGraphCoordinates(graph);
-      });
-    });
-
-    useUiStore.getState().setPendingFanOut(null);
-  }, [pendingFanOut, mapEnabled, sigma]);
+  // Orbit + fan-out managed by extracted hook
+  useMapNodeOrbit(sigma, mapEnabled, bindingRef);
 
   return null;
 }
