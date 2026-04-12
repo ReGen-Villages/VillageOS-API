@@ -99,10 +99,11 @@ steps:
 # --------------------------------------------
 # MIRROR TO GITHUB (develop and main only)
 # --------------------------------------------
-# Requires pipeline variable GITHUB_PAT (secret) with repo scope
+# Requires pipeline variable GITHUB_PAT (secret) — fine-grained PAT with
+# Contents:Read+Write on regenrob/VillageOS-API, or a classic token with repo scope.
 # Set in Azure DevOps > Pipelines > Edit > Variables
 - script: |
-    git remote add github https://$(GITHUB_PAT)@github.com/regenrob/VillageOS-API.git 2>/dev/null || true
+    git remote add github https://x-access-token:$(GITHUB_PAT)@github.com/regenrob/VillageOS-API.git 2>/dev/null || true
     git push github HEAD:$(Build.SourceBranchName) --force
   displayName: 'Mirror to GitHub'
   condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
