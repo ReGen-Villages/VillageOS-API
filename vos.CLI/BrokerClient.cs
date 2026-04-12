@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace vos.CLI;
 
 /// <summary>
-/// HTTP client for communicating with the Ducati Broker.
+/// HTTP client for communicating with the VillageOS Broker.
 /// </summary>
 public class BrokerClient
 {
@@ -153,6 +153,16 @@ public class BrokerClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    public virtual async Task<JsonElement?> GetRelationshipAsync(Guid id)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/relationships/{id}");
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<JsonElement> CreateRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId)
     {
         await SetAuthHeaderAsync();
@@ -169,6 +179,24 @@ public class BrokerClient
     {
         await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_brokerUrl}/api/relationships/{id}");
+        return response.IsSuccessStatusCode;
+    }
+
+    public virtual async Task<JsonElement> SetRelationshipPropertyAsync(Guid relId, string name, string type, object? value)
+    {
+        await SetAuthHeaderAsync();
+        var content = new StringContent(
+            JsonSerializer.Serialize(new { Name = name, Type = type, Value = value }),
+            Encoding.UTF8, "application/json");
+        var response = await _httpClient.PutAsync($"{_brokerUrl}/api/relationships/{relId}/properties", content);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<bool> DeleteRelationshipPropertyAsync(Guid relId, string propertyName)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.DeleteAsync($"{_brokerUrl}/api/relationships/{relId}/properties/{Uri.EscapeDataString(propertyName)}");
         return response.IsSuccessStatusCode;
     }
 
@@ -244,6 +272,97 @@ public class BrokerClient
         await SetAuthHeaderAsync();
         var response = await _httpClient.DeleteAsync($"{_brokerUrl}/api/model");
         response.EnsureSuccessStatusCode();
+    }
+
+    // ==================== Library Seed Operations ====================
+
+    public virtual async Task<JsonElement> GetSeedStatusAsync()
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/broker/seed-status");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> ListLibrarySeedsAsync()
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/broker/library-seeds");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> LoadLibrarySeedAsync(string name)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/broker/library-seeds/{Uri.EscapeDataString(name)}/load", null);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> SaveLibrarySeedAsync(string name)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.PutAsync($"{_brokerUrl}/api/broker/library-seeds/{Uri.EscapeDataString(name)}", null);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> ReloadSeedsAsync()
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/broker/seeds/reload", null);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    // ==================== Endpoint Operations ====================
+
+    public virtual async Task<JsonElement> GetEndpointsAsync()
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/endpoints");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    // ==================== Model Management Operations ====================
+
+    public virtual async Task<JsonElement> ListModelsAsync()
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/models");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> SwitchModelAsync(Guid modelId)
+    {
+        await SetAuthHeaderAsync();
+        var content = new StringContent(
+            JsonSerializer.Serialize(new { ModelId = modelId }),
+            Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/auth/switch-model", content);
+        response.EnsureSuccessStatusCode();
+        _cachedToken = null;
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>();
+        if (result.TryGetProperty("token", out var tokenElem))
+        {
+            _cachedToken = tokenElem.GetString();
+            _tokenExpiry = DateTime.UtcNow.AddMinutes(4);
+        }
+        return result;
+    }
+
+    public virtual async Task<JsonElement> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
+    {
+        await SetAuthHeaderAsync();
+        var content = new StringContent(
+            JsonSerializer.Serialize(new { CurrentPassword = currentPassword, NewPassword = newPassword }),
+            Encoding.UTF8, "application/json");
+        var response = await _httpClient.PutAsync($"{_brokerUrl}/api/auth/users/{userId}/password", content);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
     // ==================== Property Mode Operations ====================

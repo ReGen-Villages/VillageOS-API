@@ -185,7 +185,7 @@ public class CommandHandlerTests
         await handler.RunAsync();
 
         var output = writer.ToString();
-        Assert.Contains("Ducati Console", output);
+        Assert.Contains("VillageOS CLI", output);
         Assert.Contains("Connected to broker", output);
     }
 
@@ -214,7 +214,7 @@ public class CommandHandlerTests
         await handler.RunAsync();
 
         // Should complete without error
-        Assert.Contains("Ducati Console", writer.ToString());
+        Assert.Contains("VillageOS CLI", writer.ToString());
     }
 
     [Fact]
@@ -443,7 +443,7 @@ public class CommandHandlerTests
         await handler.RunAsync();
 
         // Should complete without error - whitespace lines are ignored
-        Assert.Contains("Ducati Console", writer.ToString());
+        Assert.Contains("VillageOS CLI", writer.ToString());
     }
 
     #endregion

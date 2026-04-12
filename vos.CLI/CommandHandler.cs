@@ -24,10 +24,12 @@ namespace vos.CLI
             _writer.WriteLine("Basic Operations:");
             _writer.WriteLine("  create thing <name>                         - Create a new thing");
             _writer.WriteLine("  create property <thing> <name> <type> <val> - Add a property to a thing");
+            _writer.WriteLine("  create rel-property <relId> <name> <type> <val> - Add a property to a relationship");
             _writer.WriteLine("  create relation <subj> <pred> <target>      - Add a relationship");
             _writer.WriteLine("  delete thing <thing>                        - Delete a thing");
             _writer.WriteLine("  delete relationship <id>                    - Delete a relationship by ID");
             _writer.WriteLine("  delete property <thing> <name>              - Delete a property from a thing");
+            _writer.WriteLine("  delete rel-property <relId> <name>          - Delete a property from a relationship");
             _writer.WriteLine("  set <thing> <name> <value>                  - Set a property value");
             _writer.WriteLine();
             _writer.WriteLine("Querying:");
@@ -86,8 +88,24 @@ namespace vos.CLI
             _writer.WriteLine("  config mode get <thing> <prop>              - Get property mode");
             _writer.WriteLine("  config mode set <thing> <prop> <ModeName>   - Set property mode");
             _writer.WriteLine();
+            _writer.WriteLine("Seed Management:");
+            _writer.WriteLine("  seeds status                                - Show seed loading status");
+            _writer.WriteLine("  seeds list                                  - List available library seeds");
+            _writer.WriteLine("  seeds load <name>                           - Load a library seed by name");
+            _writer.WriteLine("  seeds save <name>                           - Save current model as a library seed");
+            _writer.WriteLine("  seeds reload                                - Reload seeds from disk");
+            _writer.WriteLine();
             _writer.WriteLine("Model Management:");
+            _writer.WriteLine("  model list                                  - List available models");
+            _writer.WriteLine("  model switch <id|name>                      - Switch to a different model");
             _writer.WriteLine("  clear model                                 - Clear all things and relationships");
+            _writer.WriteLine();
+            _writer.WriteLine("Broker:");
+            _writer.WriteLine("  broker status                               - Show broker seed status");
+            _writer.WriteLine("  broker endpoints                            - List registered endpoint services");
+            _writer.WriteLine();
+            _writer.WriteLine("User Management:");
+            _writer.WriteLine("  user change-password <userId>               - Change a user's password");
             _writer.WriteLine();
             _writer.WriteLine("Other:");
             _writer.WriteLine("  shutdown                                    - Shut down the broker");
@@ -161,11 +179,15 @@ namespace vos.CLI
             ["state"] = async (_, a) => await new StateCommandHandler(a, _writer, _broker).ExecuteAsync(),
             ["shutdown"] = async (_, _) => await ShutdownBrokerAsync(),
             ["clear"] = async (_, a) => await ClearModelAsync(a),
+            ["seeds"] = async (_, a) => await new SeedCommandHandler(a, _writer, _broker).ExecuteAsync(),
+            ["broker"] = async (_, a) => await new BrokerStatusCommandHandler(a, _writer, _broker).ExecuteAsync(),
+            ["model"] = async (_, a) => await new ModelCommandHandler(a, _writer, _broker).ExecuteAsync(),
+            ["user"] = async (_, a) => await new UserCommandHandler(a, _reader, _writer, _broker).ExecuteAsync(),
         };
 
         public async Task RunAsync()
         {
-            _writer.WriteLine($"Ducati Console - Connected to broker at {_brokerUrl}");
+            _writer.WriteLine($"VillageOS CLI - Connected to broker at {_brokerUrl}");
             _writer.WriteLine("Type 'help' to see available commands.");
 
             // Test broker connection

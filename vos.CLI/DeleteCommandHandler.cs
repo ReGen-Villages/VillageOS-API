@@ -53,6 +53,10 @@ namespace vos.CLI
                         await DeletePropertyAsync(tok);
                         break;
 
+                    case "rel-property":
+                        await DeleteRelPropertyAsync(tok);
+                        break;
+
                     default:
                         ShowUsage();
                         break;
@@ -157,11 +161,32 @@ namespace vos.CLI
             }
         }
 
+        private async Task DeleteRelPropertyAsync(string[] tok)
+        {
+            if (tok.Length < 2)
+            {
+                _writer.WriteLine("Usage: delete rel-property <relationshipId> <propertyName>");
+                return;
+            }
+
+            if (!Guid.TryParse(tok[0], out var relId))
+            {
+                _writer.WriteLine("Error: relationship must be specified by GUID.");
+                return;
+            }
+
+            if (await _broker.DeleteRelationshipPropertyAsync(relId, tok[1]))
+                _writer.WriteLine($"Deleted property '{tok[1]}' from relationship {relId}");
+            else
+                _writer.WriteLine($"Property '{tok[1]}' not found on relationship {relId}");
+        }
+
         private void ShowUsage()
         {
             _writer.WriteLine("Usage: delete thing <nameOrId> [--showguids]               - Delete a thing by name or ID");
             _writer.WriteLine("       delete relationship <id> [--showguids]              - Delete a relationship by ID");
             _writer.WriteLine("       delete property <thing> <propName> [--showguids]    - Delete a property from a thing");
+            _writer.WriteLine("       delete rel-property <relId> <propName>              - Delete a property from a relationship");
             _writer.WriteLine();
             _writer.WriteLine("Note: <thing> can be either a GUID or a unique name.");
             _writer.WriteLine();

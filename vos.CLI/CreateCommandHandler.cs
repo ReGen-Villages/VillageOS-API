@@ -50,6 +50,9 @@ namespace vos.CLI
                     case "relation":
                         await CreateRelationAsync(args);
                         break;
+                    case "rel-property":
+                        await CreateRelPropertyAsync(args);
+                        break;
                     default:
                         ShowUsage();
                         break;
@@ -154,10 +157,29 @@ namespace vos.CLI
             _writer.WriteLine($"Created Relationship: {subjectDisplay} --[{predicateName}]--> {targetDisplay}{relIdDisplay}");
         }
 
+        private async Task CreateRelPropertyAsync(string[] tok)
+        {
+            if (tok.Length < 4)
+            {
+                _writer.WriteLine("Usage: create rel-property <relationshipId> <name> <type> <value>");
+                return;
+            }
+
+            if (!Guid.TryParse(tok[0], out var relId))
+            {
+                _writer.WriteLine("Error: relationship must be specified by GUID.");
+                return;
+            }
+
+            await _broker.SetRelationshipPropertyAsync(relId, tok[1], tok[2], tok[3]);
+            _writer.WriteLine($"Added property '{tok[1]}' to relationship {relId}");
+        }
+
         private void ShowUsage()
         {
             _writer.WriteLine("Usage: create thing <name> [--showguids]                                   - Create a new thing");
             _writer.WriteLine("       create property <thing> <name> <type> <value> [--showguids]         - Add a property to a thing");
+            _writer.WriteLine("       create rel-property <relId> <name> <type> <value>                   - Add a property to a relationship");
             _writer.WriteLine("       create relation <subject> <predicate> <target> [--showguids]        - Create a relationship");
             _writer.WriteLine();
             _writer.WriteLine("Note: <thing>, <subject>, <predicate>, <target> can be either a GUID or a unique name.");
