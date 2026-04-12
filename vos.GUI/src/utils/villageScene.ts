@@ -53,11 +53,11 @@ export function prepareVillageScene(
   const buildings: BuildingMesh[] = [];
   const thingsById = new Map(things.map((t) => [t.Id, t]));
 
-  // Find spatial predicate IDs if relationships are provided
+  // Find spatial predicate IDs via __IsMapContainmentPredicate flag (not name)
   const spatialPredicateIds = new Set<string>();
   if (relationships) {
     for (const t of things) {
-      if (t.Name === 'contains' || t.Name === 'aggregates') {
+      if (t.Properties?.__IsMapContainmentPredicate === true) {
         spatialPredicateIds.add(t.Id);
       }
     }

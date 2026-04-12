@@ -14,8 +14,10 @@ export const ORBIT_RADIUS_CONTAINMENT = 0.00015;
 /** Orbit radius for fan-out of overlapping nodes (~165 m). */
 export const ORBIT_RADIUS_FANOUT = 0.0015;
 
-/** Predicate names that represent structural containment. */
-export const CONTAINMENT_NAMES = new Set(['contains', 'aggregates']);
+/** Check whether a thing is a containment predicate (stamped by the IFC importer). */
+export function isContainmentPredicate(props: Record<string, unknown> | undefined): boolean {
+  return props?.__IsMapContainmentPredicate === true;
+}
 
 /** Check whether a raw VosThing has latitude/longitude properties. */
 export function hasGeoProperties(props: Record<string, unknown>): boolean {

@@ -40,10 +40,9 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
     const isIfcThing = typeof thing.Properties?.ifcClass === 'string';
     if (!isIfcThing) return [];
 
-    const spatialPredicateNames = new Set(['contains', 'aggregates']);
     const spatialPredicateIds = new Set<string>();
     for (const [, t] of allThings) {
-      if (spatialPredicateNames.has(t.Name)) spatialPredicateIds.add(t.Id);
+      if (t.Properties?.__IsMapContainmentPredicate === true) spatialPredicateIds.add(t.Id);
     }
     if (spatialPredicateIds.size === 0) return [];
 

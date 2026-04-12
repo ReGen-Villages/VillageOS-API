@@ -17,7 +17,7 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import type { VosThing, VosRelationship } from '../types/vos';
 import { filterGraph } from '../utils/searchFilter';
 import { isGraphAffectingProperty, applyThingPropertyUpdate, applyRelationshipPropertyUpdate, isVisibleRelationship } from '../utils/propertyUpdates';
-import { CONTAINMENT_NAMES } from '../utils/nodeVisibility';
+import { isContainmentPredicate } from '../utils/nodeVisibility';
 import { useAuth } from '../hooks/useAuth';
 import { Search, X, LogOut, ArrowLeftRight, Plus, Loader2, Layers } from 'lucide-react';
 
@@ -310,14 +310,14 @@ export function GraphPage() {
     for (const r of relationships) keepIds.add(r.PredicateId);
 
     // Non-geo neighbors of surface nodes: include both endpoints of any
-    // relationship touching a surface node, EXCEPT contains/aggregates
-    // children (thousands of IFC sub-elements that would overwhelm WebGL).
-    // This ensures both incoming and outgoing edges are in the graph so
-    // they appear when a surface node is selected.
-    const thingNameMap = new Map(things.map((t) => [t.Id, t.Name]));
+    // relationship touching a surface node, EXCEPT containment predicates
+    // (thousands of IFC sub-elements that would overwhelm WebGL).
+    // Containment predicates are identified by their __IsMapContainmentPredicate
+    // flag stamped by the IFC importer — no predicate-name hardcoding.
+    const thingMap = new Map(things.map((t) => [t.Id, t]));
     const skipPredicates = new Set<string>();
-    for (const [id, name] of thingNameMap) {
-      if (CONTAINMENT_NAMES.has(name?.toLowerCase())) skipPredicates.add(id);
+    for (const [id, t] of thingMap) {
+      if (isContainmentPredicate(t.Properties)) skipPredicates.add(id);
     }
     for (const r of relationships) {
       if (skipPredicates.has(r.PredicateId)) continue;

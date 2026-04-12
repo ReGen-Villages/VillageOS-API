@@ -4,7 +4,7 @@ import { useUiStore } from '../../stores/uiStore';
 import { useModelStore } from '../../stores/modelStore';
 import type { VosRelationship } from '../../types/vos';
 import { hashStringToIndex, LOGICAL_PALETTE, resolvePredicateColor } from '../../utils/colors';
-import { computeOrbitPosition, ORBIT_RADIUS_CONTAINMENT, CONTAINMENT_NAMES } from '../../utils/nodeVisibility';
+import { computeOrbitPosition, ORBIT_RADIUS_CONTAINMENT, isContainmentPredicate } from '../../utils/nodeVisibility';
 
 /** Max containment children to inject (avoids overwhelming WebGL). */
 const MAX_CHILDREN = 50;
@@ -50,11 +50,11 @@ export function ContainmentExpander() {
     const selAttrs = graph.getNodeAttributes(selectedNodeId);
     if (!selAttrs.hasGeometry) return;
 
-    // ── Identify containment predicate IDs ────────────────────────────
+    // ── Identify containment predicate IDs via __IsMapContainmentPredicate flag ──
     const thingMap = new Map(things.map((t) => [t.Id, t]));
     const containsPredicateIds = new Set<string>();
     for (const t of things) {
-      if (CONTAINMENT_NAMES.has(t.Name.toLowerCase())) {
+      if (isContainmentPredicate(t.Properties)) {
         containsPredicateIds.add(t.Id);
       }
     }
