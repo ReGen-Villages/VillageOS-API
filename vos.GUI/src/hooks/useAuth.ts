@@ -73,6 +73,23 @@ export function useAuthState(): AuthState {
     });
   }, []);
 
+  // On mount, attempt to restore a prior session from the HttpOnly cookie.
+  // If the cookie exists and the JWT inside is still valid, the broker returns
+  // the token + user + model and we skip the login form entirely.
+  useEffect(() => {
+    if (apiClient.isAuthenticated()) return;
+    apiClient.restoreSession().then((restored) => {
+      if (restored) {
+        setUser(apiClient.getUser());
+        setModelId(apiClient.getModelId());
+        setModelName(apiClient.getModelName());
+        setAuthFailed(false);
+      }
+    }).catch(() => {
+      // No session to restore — user will see login form
+    });
+  }, []);
+
   // If VITE_API_KEY is set, try token exchange on mount (auto-login)
   useEffect(() => {
     if (import.meta.env.VITE_API_KEY && !apiClient.isAuthenticated()) {

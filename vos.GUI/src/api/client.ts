@@ -60,6 +60,7 @@ class ApiClient {
     const resp = await fetch(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(body),
     });
     if (!resp.ok) {
@@ -69,6 +70,26 @@ class ApiClient {
     const data = await resp.json();
     this.applyTokenResponse(data);
     return this.currentUser!;
+  }
+
+  /**
+   * Attempt to restore a session from an HttpOnly cookie set during a prior login.
+   * If the cookie exists and the JWT inside it is still valid, the broker returns
+   * the token + user + model and we restore in-memory state without re-entering
+   * credentials. Returns true if restored, false if no valid session.
+   */
+  async restoreSession(): Promise<boolean> {
+    try {
+      const resp = await fetch(`${BASE_URL}/api/auth/restore-session`, {
+        credentials: 'include',
+      });
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      this.applyTokenResponse(data);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
