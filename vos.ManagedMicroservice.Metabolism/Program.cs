@@ -34,7 +34,7 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    Log.Information("Ducati '{Mode}' Metabolism Service — Port: {Port}, Broker: {BrokerUrl}",
+    Log.Information("VOS '{Mode}' Metabolism Service — Port: {Port}, Broker: {BrokerUrl}",
         mode, servicePort, brokerUrl);
 
     var builder = WebApplication.CreateBuilder(args);
