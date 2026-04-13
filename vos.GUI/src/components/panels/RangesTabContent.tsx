@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import type { ThingRangesResponse, ThingStates, RangeDto, RangeEvaluation, InheritedRangeSetDto, PropertyBindingDto } from '../../types/vos';
 import { Badge } from '../common/Badge';
 import { WindmillSpinner } from '../common/WindmillSpinner';
 import { stateColor, rangeBindingColor } from '../../utils/rangeHelpers';
+import { rangeApi } from '../../api/rangeApi';
+import { toast } from '../common/Toast';
+import { Trash2, Plus, Check, X } from 'lucide-react';
 
 /** A relationship's ranges + states, bundled for display in the thing's Ranges tab. */
 export interface RelationshipRangesEntry {
@@ -20,9 +24,15 @@ interface Props {
   onSelectNode: (id: string) => void;
   /** Ranges from the thing's relationships (optional). */
   relationshipRanges?: RelationshipRangesEntry[];
+  /** The entity ID (thing or relationship) — required for range CRUD. */
+  entityId?: string;
+  /** Whether CRUD operations are enabled (only for things, not inherited). */
+  editable?: boolean;
+  /** Callback after a range is created or deleted. */
+  onRangeChanged?: () => void;
 }
 
-export function RangesTabContent({ rangesData, statesData, loading, onSelectNode, relationshipRanges }: Props) {
+export function RangesTabContent({ rangesData, statesData, loading, onSelectNode, relationshipRanges, entityId, editable, onRangeChanged }: Props) {
   if (loading) return (
     <div className="flex items-center justify-center py-4">
       <WindmillSpinner size={24} />
@@ -33,6 +43,10 @@ export function RangesTabContent({ rangesData, statesData, loading, onSelectNode
 
   return (
     <>
+      {editable && entityId && (
+        <CreateRangeForm thingId={entityId} onCreated={onRangeChanged} />
+      )}
+
       {statesData.OutOfBoundsCount > 0 && (
         <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-red-500/10 border border-red-500/20">
           <span className="inline-block w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
@@ -71,6 +85,15 @@ export function RangesTabContent({ rangesData, statesData, loading, onSelectNode
                   key={r.Name}
                   range={r}
                   evaluation={statesData.RangeEvaluations.find((e) => e.RangeName === r.Name)}
+                  onDelete={editable && entityId ? async () => {
+                    try {
+                      await rangeApi.delete(entityId, r.Name);
+                      toast.success(`Range "${r.Name}" deleted`);
+                      onRangeChanged?.();
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : 'Delete failed');
+                    }
+                  } : undefined}
                 />
               ))}
             </div>
@@ -108,13 +131,22 @@ export function RangesTabContent({ rangesData, statesData, loading, onSelectNode
   );
 }
 
-function RangeItem({ range, evaluation }: { range: RangeDto; evaluation?: RangeEvaluation }) {
+function RangeItem({ range, evaluation, onDelete }: { range: RangeDto; evaluation?: RangeEvaluation; onDelete?: () => void }) {
   const hasDeviations = range.Bindings?.some((b) => b.IsActive && b.IsInBounds === false);
   return (
     <div className="py-1 border-b border-zinc-800 last:border-0">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium">{range.Name}</span>
         <div className="flex items-center gap-1">
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="p-0.5 rounded text-zinc-600 hover:text-red-400 hover:bg-red-900/20 transition-colors"
+              title={`Delete range "${range.Name}"`}
+            >
+              <Trash2 size={10} />
+            </button>
+          )}
           {hasDeviations && <Badge label="out of bounds" color="red" dot />}
           {!hasDeviations && range.ActiveBindings > 0 && (
             <span className="text-[10px] text-zinc-500">
@@ -199,6 +231,90 @@ function InheritedRangeGroupView({ set, evaluations, onSelectNode }: {
           onSelectNode={onSelectNode}
         />
       ))}
+    </div>
+  );
+}
+
+function CreateRangeForm({ thingId, onCreated }: { thingId: string; onCreated?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [criteria, setCriteria] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const validateAndSave = async () => {
+    if (!name.trim() || !criteria.trim()) return;
+    setSaving(true);
+    setValidationError(null);
+    try {
+      const result = await rangeApi.validateCriteria(criteria);
+      if (!result.IsValid) {
+        setValidationError(result.Error || 'Invalid criteria syntax');
+        setSaving(false);
+        return;
+      }
+      await rangeApi.create(thingId, { Name: name.trim(), Criteria: criteria.trim() });
+      toast.success(`Range "${name}" created`);
+      setName('');
+      setCriteria('');
+      setOpen(false);
+      onCreated?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create range');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+      >
+        <Plus size={12} /> Add Range
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-2 p-2 rounded border border-zinc-700 bg-zinc-800/50">
+      <div>
+        <label className="block text-[10px] font-medium text-zinc-500 mb-0.5">Name</label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. overheating"
+          className="w-full px-2 py-1 text-xs rounded border border-zinc-600 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+      <div>
+        <label className="block text-[10px] font-medium text-zinc-500 mb-0.5">Criteria</label>
+        <input
+          value={criteria}
+          onChange={(e) => { setCriteria(e.target.value); setValidationError(null); }}
+          placeholder="e.g. temp > 100 AND rpm < 5000"
+          className="w-full px-2 py-1 text-xs font-mono rounded border border-zinc-600 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        {validationError && (
+          <p className="text-[10px] text-red-400 mt-0.5">{validationError}</p>
+        )}
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={validateAndSave}
+          disabled={saving || !name.trim() || !criteria.trim()}
+          className="flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          <Check size={10} /> {saving ? 'Saving...' : 'Create'}
+        </button>
+        <button
+          onClick={() => { setOpen(false); setName(''); setCriteria(''); setValidationError(null); }}
+          className="flex items-center gap-1 px-2 py-0.5 text-xs rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
+        >
+          <X size={10} /> Cancel
+        </button>
+      </div>
     </div>
   );
 }

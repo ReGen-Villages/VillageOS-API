@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { PropertyVersionsResponse, ModelMutations } from '../types/vos';
+import type { PropertyVersionsResponse, ModelMutations, ThingMutations, RelationshipMutations } from '../types/vos';
 
 function timeParams(start?: string, end?: string): string {
   const params = new URLSearchParams();
@@ -17,4 +17,10 @@ export const temporalApi = {
 
   getModelMutations: (start?: string, end?: string) =>
     apiClient.get<ModelMutations>(`/api/mutations${timeParams(start, end)}`),
+
+  getThingMutations: (thingId: string, start?: string, end?: string) =>
+    apiClient.get<ThingMutations>(`/api/things/${thingId}/mutations${timeParams(start, end)}`),
+
+  getRelationshipMutations: (relId: string, start?: string, end?: string) =>
+    apiClient.get<RelationshipMutations>(`/api/relationships/${relId}/mutations${timeParams(start, end)}`),
 };

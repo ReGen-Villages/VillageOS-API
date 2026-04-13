@@ -11,7 +11,8 @@ import { useSignalR } from '../hooks/useSignalR';
 import { useActivityStore } from '../stores/activityStore';
 import { useModelStore } from '../stores/modelStore';
 import { toast } from '../components/common/Toast';
-import { Power, PanelRightOpen, LogOut, ArrowLeftRight, FileCode2 } from 'lucide-react';
+import { PropertyModePanel } from '../components/dashboard/PropertyModePanel';
+import { Power, PanelRightOpen, LogOut, ArrowLeftRight, FileCode2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { RegenLogo } from '../components/auth/RegenLogo';
 
@@ -112,6 +113,15 @@ export function DashboardPage() {
     }
   };
 
+  const handleReloadSeeds = async () => {
+    try {
+      await brokerApi.reloadSeeds();
+      toast.success('Seeds reloaded from disk');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Reload failed');
+    }
+  };
+
   const handleShutdown = async () => {
     setShowShutdown(false);
     try {
@@ -148,6 +158,13 @@ export function DashboardPage() {
           >
             <FileCode2 size={14} />
           </a>
+          <button
+            onClick={handleReloadSeeds}
+            title="Reload seeds from disk"
+            className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+          >
+            <RefreshCw size={14} />
+          </button>
           <button
             onClick={() => setShowShutdown(true)}
             title="Shutdown broker"
@@ -187,6 +204,7 @@ export function DashboardPage() {
           <ServicesPanel services={services} onStart={handleStartService} onStop={handleStopService} />
           <EndpointServicesPanel endpoints={endpointServices} />
           <DaemonsPanel daemons={daemons} onStop={handleStopDaemon} />
+          <PropertyModePanel />
         </div>
         {!feedCollapsed && (
           <div className="lg:col-span-1 lg:sticky lg:top-6">

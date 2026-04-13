@@ -244,6 +244,9 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               loading={rangesLoading}
               onSelectNode={onSelectNode}
               relationshipRanges={relRangesEntries}
+              entityId={thing.Id}
+              editable
+              onRangeChanged={refreshRanges}
             />
           </div>
         )}

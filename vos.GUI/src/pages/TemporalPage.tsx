@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { temporalApi } from '../api/temporalApi';
 import { modelApi } from '../api/modelApi';
 import { thingApi } from '../api/thingApi';
+import { relationshipApi } from '../api/relationshipApi';
 import { toast } from '../components/common/Toast';
-import type { ModelMutations, PropertyVersionsResponse, VosThing, TemporalSnapshot } from '../types/vos';
+import type { ModelMutations, ThingMutations, RelationshipMutations, PropertyVersionsResponse, VosThing, VosRelationship, TemporalSnapshot } from '../types/vos';
+import { stateApi } from '../api/stateApi';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import clsx from 'clsx';
 
-const tabs = ['Mutations', 'Snapshot', 'Property History'] as const;
+const tabs = ['Mutations', 'Thing Mutations', 'Relationship Mutations', 'Snapshot', 'Property History', 'State Query'] as const;
 type Tab = typeof tabs[number];
 
 export function TemporalPage() {
@@ -35,8 +37,11 @@ export function TemporalPage() {
       </div>
 
       {tab === 'Mutations' && <MutationsPanel />}
+      {tab === 'Thing Mutations' && <ThingMutationsPanel />}
+      {tab === 'Relationship Mutations' && <RelationshipMutationsPanel />}
       {tab === 'Snapshot' && <SnapshotPanel />}
       {tab === 'Property History' && <PropertyHistoryPanel />}
+      {tab === 'State Query' && <StateQueryPanel />}
     </div>
   );
 }
@@ -126,6 +131,198 @@ function MutationsPanel() {
               </div>
             ))}
             {Object.keys(mutations.ThingMutations).length === 0 && (
+              <p className="text-sm text-zinc-500">No mutations in this time range.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Thing Mutations Panel ───────────────────────────────────────────────────
+
+function ThingMutationsPanel() {
+  const [things, setThings] = useState<VosThing[]>([]);
+  const [thingId, setThingId] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [mutations, setMutations] = useState<ThingMutations | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const loadThings = useCallback(async () => {
+    try { setThings(await thingApi.getAll()); } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { loadThings(); }, [loadThings]);
+
+  const loadMutations = async () => {
+    if (!thingId) return;
+    setLoading(true);
+    try {
+      const data = await temporalApi.getThingMutations(thingId, startTime || undefined, endTime || undefined);
+      setMutations(data);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load thing mutations');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl space-y-4">
+      <p className="text-xs text-zinc-500">
+        View property mutations for a specific thing. Select a thing and optionally narrow by time range.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Thing</label>
+          <select
+            value={thingId}
+            onChange={(e) => { setThingId(e.target.value); setMutations(null); }}
+            className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select a thing...</option>
+            {things.map((t) => <option key={t.Id} value={t.Id}>{t.Name}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-3 items-end">
+        <div>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Start Time</label>
+          <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)}
+            className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">End Time</label>
+          <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)}
+            className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <button onClick={loadMutations} disabled={loading || !thingId}
+          className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+          {loading ? 'Loading...' : 'Query'}
+        </button>
+      </div>
+
+      {mutations && (
+        <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+          <div className="flex justify-between text-sm mb-3">
+            <span className="text-zinc-500">
+              <strong className="text-zinc-200">{mutations.ThingName}</strong> — {mutations.Mutations.length} mutation{mutations.Mutations.length !== 1 ? 's' : ''}
+            </span>
+            <span className="text-zinc-500 text-xs">
+              {formatDateTime(mutations.StartTime)} — {formatDateTime(mutations.EndTime)}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {mutations.Mutations.map((m, i) => (
+              <div key={i} className="text-xs text-zinc-400">
+                <span className="font-mono text-zinc-500">{formatDateTime(m.Timestamp)}</span>
+                {' '}
+                <span className="text-amber-400">{m.PropertyName}</span>
+                {': '}
+                <span className="text-red-400">{formatPropertyValue(m.OldValue)}</span>
+                {' → '}
+                <span className="text-emerald-400">{formatPropertyValue(m.NewValue)}</span>
+              </div>
+            ))}
+            {mutations.Mutations.length === 0 && (
+              <p className="text-sm text-zinc-500">No mutations in this time range.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Relationship Mutations Panel ───────────────────────────────────────────
+
+function RelationshipMutationsPanel() {
+  const [relationships, setRelationships] = useState<VosRelationship[]>([]);
+  const [relId, setRelId] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [mutations, setMutations] = useState<RelationshipMutations | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const loadRels = useCallback(async () => {
+    try { setRelationships(await relationshipApi.getAll()); } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { loadRels(); }, [loadRels]);
+
+  const loadMutations = async () => {
+    if (!relId) return;
+    setLoading(true);
+    try {
+      const data = await temporalApi.getRelationshipMutations(relId, startTime || undefined, endTime || undefined);
+      setMutations(data);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load relationship mutations');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedRel = relationships.find((r) => r.Id === relId);
+
+  return (
+    <div className="max-w-3xl space-y-4">
+      <p className="text-xs text-zinc-500">
+        View property mutations on a specific relationship edge. Select a relationship and optionally narrow by time range.
+      </p>
+      <div>
+        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Relationship</label>
+        <select
+          value={relId}
+          onChange={(e) => { setRelId(e.target.value); setMutations(null); }}
+          className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Select a relationship...</option>
+          {relationships.map((r) => <option key={r.Id} value={r.Id}>{r.Name}</option>)}
+        </select>
+      </div>
+      <div className="flex gap-3 items-end">
+        <div>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Start Time</label>
+          <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)}
+            className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">End Time</label>
+          <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)}
+            className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <button onClick={loadMutations} disabled={loading || !relId}
+          className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+          {loading ? 'Loading...' : 'Query'}
+        </button>
+      </div>
+
+      {mutations && (
+        <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+          <div className="flex justify-between text-sm mb-3">
+            <span className="text-zinc-500">
+              <strong className="text-zinc-200">{mutations.RelationshipName || selectedRel?.Name}</strong> — {mutations.Mutations.length} mutation{mutations.Mutations.length !== 1 ? 's' : ''}
+            </span>
+            <span className="text-zinc-500 text-xs">
+              {formatDateTime(mutations.StartTime)} — {formatDateTime(mutations.EndTime)}
+            </span>
+          </div>
+          <div className="space-y-1">
+            {mutations.Mutations.map((m, i) => (
+              <div key={i} className="text-xs text-zinc-400">
+                <span className="font-mono text-zinc-500">{formatDateTime(m.Timestamp)}</span>
+                {' '}
+                <span className="text-amber-400">{m.PropertyName}</span>
+                {': '}
+                <span className="text-red-400">{formatPropertyValue(m.OldValue)}</span>
+                {' → '}
+                <span className="text-emerald-400">{formatPropertyValue(m.NewValue)}</span>
+              </div>
+            ))}
+            {mutations.Mutations.length === 0 && (
               <p className="text-sm text-zinc-500">No mutations in this time range.</p>
             )}
           </div>
@@ -339,6 +536,75 @@ function PropertyHistoryPanel() {
               <p className="text-sm text-zinc-500">No versions in this time range.</p>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── State Query Panel ──────────────────────────────────────────────────────
+
+function StateQueryPanel() {
+  const [stateName, setStateName] = useState('');
+  const [results, setResults] = useState<Array<{ Id: string; Name: string }> | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const query = async () => {
+    if (!stateName.trim()) return;
+    setLoading(true);
+    try {
+      const data = await stateApi.getThingsInState(stateName.trim());
+      setResults(data.Things);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to query state');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl space-y-4">
+      <p className="text-xs text-zinc-500">
+        Find all things currently matching a specific state. States are determined by range evaluations — a thing is "in" a state when its range criteria evaluate to active.
+      </p>
+      <div className="flex gap-3 items-end">
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">State Name</label>
+          <input
+            type="text"
+            value={stateName}
+            onChange={(e) => setStateName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && query()}
+            placeholder="e.g. overheating"
+            className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <button
+          onClick={query}
+          disabled={loading || !stateName.trim()}
+          className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {loading ? 'Loading...' : 'Query'}
+        </button>
+      </div>
+
+      {results !== null && (
+        <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+          <div className="text-sm text-zinc-500 mb-3">
+            <strong className="text-zinc-200">{results.length}</strong> thing{results.length !== 1 ? 's' : ''} in state <strong className="text-amber-400">{stateName}</strong>
+          </div>
+          {results.length === 0 ? (
+            <p className="text-sm text-zinc-500">No things are currently in this state.</p>
+          ) : (
+            <div className="space-y-1">
+              {results.map((t) => (
+                <div key={t.Id} className="flex items-baseline gap-2 text-xs">
+                  <span className="text-zinc-300">{t.Name}</span>
+                  <span className="font-mono text-zinc-600 text-[10px]">{t.Id}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

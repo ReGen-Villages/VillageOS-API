@@ -193,6 +193,35 @@ export interface EffectiveProperty {
   InheritedFrom?: string;
 }
 
+// Range CRUD request/response
+
+export interface CreateRangeRequest {
+  Name: string;
+  Criteria: string;
+  Property?: string;
+  Bounds?: { Min?: number; Max?: number };
+}
+
+export interface CriteriaValidationResult {
+  IsValid: boolean;
+  Error?: string;
+}
+
+// State query
+
+export interface ThingsInStateResponse {
+  StateName: string;
+  Things: Array<{ Id: string; Name: string }>;
+}
+
+// Property mode configuration
+
+export interface PropertyModeConfig {
+  Mode: string;
+  RingBufferSize?: number;
+  SampleRate?: number;
+}
+
 // Temporal snapshot
 export interface TemporalSnapshot {
   Timestamp: string;

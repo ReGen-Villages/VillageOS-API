@@ -45,4 +45,7 @@ export const brokerApi = {
       `/api/broker/library-seeds/${encodeURIComponent(name)}`,
       {},
     ),
+
+  reloadSeeds: () =>
+    apiClient.post<{ message: string }>('/api/broker/seeds/reload'),
 };
