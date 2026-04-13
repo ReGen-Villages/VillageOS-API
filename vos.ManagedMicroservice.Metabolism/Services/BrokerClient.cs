@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 namespace vos.ManagedMicroservice.Metabolism.Services;
 
 /// <summary>
-/// HTTP client for communicating with the Ducati Broker (Metabolism-specific operations).
+/// HTTP client for communicating with the VOS Broker (Metabolism-specific operations).
 /// Adds SignalR subscription and quantity endpoint support on top of shared base.
 /// </summary>
 public class BrokerClient : BrokerClientBase
