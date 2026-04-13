@@ -19,7 +19,7 @@ public class IntegrationTests : IDisposable
     public IntegrationTests()
     {
         _originalDirectory = Directory.GetCurrentDirectory();
-        _testDirectory = Path.Combine(Path.GetTempPath(), $"DucatiTests_{Guid.NewGuid()}");
+        _testDirectory = Path.Combine(Path.GetTempPath(), $"VosTests_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testDirectory);
 
         _brokerMock = new Mock<BrokerClient>(BrokerUrl) { CallBase = false };

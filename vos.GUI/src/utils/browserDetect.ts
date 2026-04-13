@@ -1,7 +1,7 @@
 /**
  * Browser detection utilities for feature gating.
  *
- * Safari has a strict WebGL context limit (~4). The Ducati GUI already
+ * Safari has a strict WebGL context limit (~4). The VOS GUI already
  * uses 4 contexts (Sigma 3 + MapLibre 1), so Three.js 3D rendering
  * requires at least 1 more — only safe on Chrome/Firefox (~16 limit).
  */

@@ -5,7 +5,7 @@ using vos.Microservice.Shared;
 namespace vos.ManagedMicroservice.EndpointCaller.Services;
 
 /// <summary>
-/// HTTP client for communicating with the Ducati Broker.
+/// HTTP client for communicating with the VOS Broker.
 /// </summary>
 public class BrokerClient : BrokerClientBase, IEndpointBrokerClient
 {

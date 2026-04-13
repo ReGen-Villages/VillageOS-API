@@ -31,7 +31,7 @@ public record CliArgs(int Port, string BrokerUrl, string? Token = null, string? 
     public static string UsageMessage =>
         "Usage: dotnet run -- --port=<port> --brokerUrl=<url> [--token=<jwt>] [--signingKey=<base64>]\n" +
         "  --port       Port number for the service to listen on\n" +
-        "  --brokerUrl  URL of the Ducati Broker\n" +
+        "  --brokerUrl  URL of the VOS Broker\n" +
         "  --token      Service JWT token for authenticating with the broker (optional)\n" +
         "  --signingKey Base64-encoded signing key for validating broker requests (optional)";
 }

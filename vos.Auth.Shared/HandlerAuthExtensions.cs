@@ -20,7 +20,7 @@ public static class HandlerAuthExtensions
         this WebApplicationBuilder builder,
         string base64SigningKey,
         string issuer = "VillageOS",
-        string audience = "DucatiClients")
+        string audience = "VosClients")
     {
         var keyBytes = Convert.FromBase64String(base64SigningKey);
         var keyString = Encoding.UTF8.GetString(keyBytes);

@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace vos.Microservice.Shared;
 
 /// <summary>
-/// Base class for microservice BrokerClients that communicate with the Ducati Broker.
+/// Base class for microservice BrokerClients that communicate with the VOS Broker.
 /// Provides shared token management, registration, deregistration, and authenticated HTTP helpers.
 /// Used by IsHandler, Metabolism, and IntegrationRegistry handler services.
 /// </summary>

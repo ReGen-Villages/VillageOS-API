@@ -33,7 +33,7 @@ Log.Logger = new LoggerConfiguration()
 try
 {
 
-Log.Information("Ducati Echo Endpoint Service — Port: {Port}, Broker: {BrokerUrl}", servicePort, brokerUrl);
+Log.Information("VillageOS Echo Endpoint Service — Port: {Port}, Broker: {BrokerUrl}", servicePort, brokerUrl);
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();

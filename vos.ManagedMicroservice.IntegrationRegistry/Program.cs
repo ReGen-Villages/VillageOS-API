@@ -35,7 +35,7 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    Log.Information("Ducati IntegrationRegistry Service - Port: {Port}, Broker: {BrokerUrl}", servicePort, brokerUrl);
+    Log.Information("VillageOS IntegrationRegistry Service - Port: {Port}, Broker: {BrokerUrl}", servicePort, brokerUrl);
 
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();

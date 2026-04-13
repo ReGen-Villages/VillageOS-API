@@ -6,7 +6,7 @@ using vos.ManagedMicroservice.IntegrationRegistry.Models;
 namespace vos.ManagedMicroservice.IntegrationRegistry.Services;
 
 /// <summary>
-/// HTTP client for communicating with the Ducati Broker.
+/// HTTP client for communicating with the VOS Broker.
 /// Extends BrokerClientBase for shared token management.
 /// Adds IntegrationRegistry-specific operations (thing/relationship CRUD).
 /// </summary>
