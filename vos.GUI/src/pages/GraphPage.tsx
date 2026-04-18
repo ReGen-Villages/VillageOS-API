@@ -19,7 +19,7 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import type { VosThing, VosRelationship } from '../types/vos';
 import { isGraphAffectingProperty, applyThingPropertyUpdate, applyRelationshipPropertyUpdate, isVisibleRelationship } from '../utils/propertyUpdates';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, ArrowLeftRight, Loader2, Layers } from 'lucide-react';
+import { LogOut, ArrowLeftRight, Loader2 } from 'lucide-react';
 
 export function GraphPage() {
   const { logout, switchModel, modelName } = useAuth();
@@ -55,14 +55,8 @@ export function GraphPage() {
   const thingMapRef = useRef(thingMap);
   thingMapRef.current = thingMap;
 
-  // Clear stale predicate/map state on mount so a fresh view starts clean.
-  // The mapEnabled reset is critical: MaplibreLayer needs a false→true
-  // transition to create a fresh binding. Without it, the binding may be
-  // created before Sigma has processed the graph, and MapLibre never
-  // fetches tiles.
   useEffect(() => {
     useUiStore.getState().clearPredicateIds();
-    useUiStore.getState().setMapEnabled(false);
   }, []);
 
   // Fetch full thing detail (including inherited properties) when a node is selected.
@@ -240,25 +234,12 @@ export function GraphPage() {
   };
 
   const loadingPhase = useUiStore((s) => s.loadingPhase);
-  const mapEnabled = useUiStore((s) => s.mapEnabled);
-  const showAllThings = useUiStore((s) => s.showAllThings);
-  const toggleShowAllThings = useUiStore((s) => s.toggleShowAllThings);
-  const hideOrphanSites = useUiStore((s) => s.hideOrphanSites);
-  const [togglingShowAll, setTogglingShowAll] = useState(false);
 
   const {
-    filteredThings, filteredRelationships, matchCount, hasGeoNodes, searchOptions,
+    filteredThings, filteredRelationships, matchCount, searchOptions,
   } = useGraphData({
     things, relationships, searchQuery, caseSensitive, exactMatch, useRegex,
-    mapEnabled, showAllThings, hideOrphanSites,
   });
-
-  // After mount reset, derive mapEnabled from current data.
-  useEffect(() => {
-    if (things.length > 0 && hasGeoNodes) {
-      useUiStore.getState().setMapEnabled(true);
-    }
-  }, [things, hasGeoNodes]);
 
   return (
     <div className="h-full relative">
@@ -276,29 +257,6 @@ export function GraphPage() {
       {/* Top-right: model name + switch / logout */}
       <div className="absolute top-3 right-3 z-10 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
         {modelName && <span className="text-xs text-zinc-400 mr-1">{modelName}</span>}
-        {mapEnabled && (
-          <button
-            onClick={() => {
-              if (togglingShowAll) return;
-              setTogglingShowAll(true);
-              // Defer toggle so spinner renders before the expensive recompute
-              setTimeout(() => {
-                toggleShowAllThings();
-                // Clear after a frame to let React finish the re-render
-                requestAnimationFrame(() => setTogglingShowAll(false));
-              }, 0);
-            }}
-            disabled={togglingShowAll}
-            title={showAllThings ? 'Show surface things only' : 'Show all things'}
-            className={`p-1.5 rounded transition-colors ${
-              showAllThings
-                ? 'bg-blue-600 text-white'
-                : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700'
-            }`}
-          >
-            {togglingShowAll ? <Loader2 size={14} className="animate-spin" /> : <Layers size={14} />}
-          </button>
-        )}
         <button
           onClick={switchModel}
           title="Switch model"
@@ -327,7 +285,7 @@ export function GraphPage() {
       )}
 
       <ErrorBoundary>
-        <SigmaCanvas things={filteredThings} relationships={filteredRelationships} searchQuery={searchQuery} searchOptions={searchOptions} hasGeoNodes={hasGeoNodes} />
+        <SigmaCanvas things={filteredThings} relationships={filteredRelationships} searchQuery={searchQuery} searchOptions={searchOptions} />
       </ErrorBoundary>
 
       {/* Radial predicate menu — positioned over the graph */}

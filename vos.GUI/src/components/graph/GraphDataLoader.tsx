@@ -17,8 +17,7 @@ interface Props {
  * Distinguishes structural changes (nodes/edges added or removed) from
  * property-only changes.  Full `loadGraph()` only runs for structural
  * changes; property changes update Sigma node attributes in-place to
- * avoid destroying the layout, resetting the camera, or triggering
- * MapLibre coordinate re-sync.
+ * avoid destroying the layout or resetting the camera.
  */
 export function GraphDataLoader({ things, relationships }: Props) {
   const sigma = useSigma();

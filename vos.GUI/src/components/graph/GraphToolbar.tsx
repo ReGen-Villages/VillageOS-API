@@ -1,87 +1,41 @@
 import { useCallback } from 'react';
 import { useSigma } from '@react-sigma/core';
-import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, X, Layers, Map, ScanSearch, Unplug, Box, EyeOff, Eye } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, X, Layers, ScanSearch, Unplug } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
-import { getMapInstance } from '../../lib/mapInstance';
 
 /**
  * Graph toolbar with zoom, fit, re-layout, and clustering controls.
  * Must be rendered as a child of <SigmaContainer>.
  */
-export function GraphToolbar({ hasGeoNodes }: { hasGeoNodes: boolean }) {
+export function GraphToolbar() {
   const sigma = useSigma();
   const activePredicateIds = useUiStore((s) => s.activePredicateIds);
   const predicateStats = useUiStore((s) => s.predicateStats);
   const clearPredicateIds = useUiStore((s) => s.clearPredicateIds);
   const isLayoutFrozen = useUiStore((s) => s.isLayoutFrozen);
   const toggleLayoutFrozen = useUiStore((s) => s.toggleLayoutFrozen);
-  const mapEnabled = useUiStore((s) => s.mapEnabled);
-  const setMapEnabled = useUiStore((s) => s.setMapEnabled);
   const semanticZoomEnabled = useUiStore((s) => s.semanticZoomEnabled);
   const setSemanticZoomEnabled = useUiStore((s) => s.setSemanticZoomEnabled);
   const expandedLogicalParents = useUiStore((s) => s.expandedLogicalParents);
   const clearLogicalExpansions = useUiStore((s) => s.clearLogicalExpansions);
-  const threeDEnabled = useUiStore((s) => s.threeDEnabled);
-  const setThreeDEnabled = useUiStore((s) => s.setThreeDEnabled);
   const isSpreadActive = useUiStore((s) => s.isSpreadActive);
   const toggleSpreadActive = useUiStore((s) => s.toggleSpreadActive);
-  const hideOrphanSites = useUiStore((s) => s.hideOrphanSites);
-  const toggleHideOrphanSites = useUiStore((s) => s.toggleHideOrphanSites);
 
   const activePredicates = predicateStats.filter((s) => activePredicateIds.has(s.predicateId));
 
-  // In map mode, route zoom/fit through the MapLibre map directly. Using
-  // Sigma's camera triggers @sigma/layer-maplibre's sync loop which re-clamps
-  // the view on every afterRender (Bug #5166). In non-map mode, fall back to
-  // Sigma's animated camera.
   const handleZoomIn = useCallback(() => {
-    const map = getMapInstance();
-    if (mapEnabled && map) {
-      map.zoomIn({ duration: 200 });
-      return;
-    }
     sigma.getCamera().animatedZoom({ duration: 200 });
-  }, [sigma, mapEnabled]);
+  }, [sigma]);
 
   const handleZoomOut = useCallback(() => {
-    const map = getMapInstance();
-    if (mapEnabled && map) {
-      map.zoomOut({ duration: 200 });
-      return;
-    }
     sigma.getCamera().animatedUnzoom({ duration: 200 });
-  }, [sigma, mapEnabled]);
+  }, [sigma]);
 
   const handleFit = useCallback(() => {
-    const map = getMapInstance();
-    if (mapEnabled && map) {
-      // Compute a bbox from every visible geo node and fit to it. The Sigma
-      // sync path would go through the floor-clamped fitBounds; calling map
-      // directly bypasses that.
-      const graph = sigma.getGraph();
-      let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-      let count = 0;
-      graph.forEachNode((_, attrs) => {
-        if (typeof attrs.lat === 'number' && typeof attrs.lng === 'number') {
-          if (attrs.lat < minLat) minLat = attrs.lat;
-          if (attrs.lat > maxLat) maxLat = attrs.lat;
-          if (attrs.lng < minLng) minLng = attrs.lng;
-          if (attrs.lng > maxLng) maxLng = attrs.lng;
-          count++;
-        }
-      });
-      if (count > 0) {
-        map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 40, duration: 300 });
-      }
-      return;
-    }
     sigma.getCamera().animatedReset({ duration: 300 });
-  }, [sigma, mapEnabled]);
+  }, [sigma]);
 
   const handleRelayout = useCallback(() => {
-    // When map is active, positions are managed by MapLibre — relayout is a no-op
-    if (mapEnabled) return;
-
     // Randomise positions slightly to force the layout to re-settle
     const graph = sigma.getGraph();
     graph.forEachNode((node) => {
@@ -92,7 +46,7 @@ export function GraphToolbar({ hasGeoNodes }: { hasGeoNodes: boolean }) {
       }
     });
     sigma.refresh();
-  }, [sigma, mapEnabled]);
+  }, [sigma]);
 
   const handleOpenRadialMenu = useCallback(() => {
     // Open radial menu at viewport centre
@@ -118,10 +72,10 @@ export function GraphToolbar({ hasGeoNodes }: { hasGeoNodes: boolean }) {
         <ToolButton icon={RefreshCw} label="Re-layout" onClick={handleRelayout} />
         <button
           onClick={toggleSpreadActive}
-          disabled={mapEnabled || isLayoutFrozen}
+          disabled={isLayoutFrozen}
           title={isSpreadActive ? 'Disable spread mode' : 'Spread nodes apart'}
           className={`p-1.5 rounded transition-colors ${
-            mapEnabled || isLayoutFrozen
+            isLayoutFrozen
               ? 'text-zinc-600 cursor-not-allowed'
               : isSpreadActive
                 ? 'bg-blue-600/30 text-blue-400 hover:bg-blue-600/40'
@@ -142,20 +96,6 @@ export function GraphToolbar({ hasGeoNodes }: { hasGeoNodes: boolean }) {
           {isLayoutFrozen ? <Play size={16} /> : <Pause size={16} />}
         </button>
         <button
-          onClick={() => hasGeoNodes && setMapEnabled(!mapEnabled)}
-          disabled={!hasGeoNodes}
-          title={!hasGeoNodes ? 'No geometry in model' : mapEnabled ? 'Hide map' : 'Show map'}
-          className={`p-1.5 rounded transition-colors ${
-            !hasGeoNodes
-              ? 'text-zinc-600 cursor-not-allowed'
-              : mapEnabled
-                ? 'bg-blue-600/30 text-blue-400 hover:bg-blue-600/40'
-                : 'hover:bg-zinc-700 text-zinc-300 hover:text-white'
-          }`}
-        >
-          <Map size={16} />
-        </button>
-        <button
           onClick={() => setSemanticZoomEnabled(!semanticZoomEnabled)}
           title={semanticZoomEnabled ? 'Disable semantic zoom' : 'Enable semantic zoom'}
           className={`p-1.5 rounded transition-colors ${
@@ -166,32 +106,6 @@ export function GraphToolbar({ hasGeoNodes }: { hasGeoNodes: boolean }) {
         >
           <ScanSearch size={16} />
         </button>
-        {mapEnabled && (
-          <button
-            onClick={toggleHideOrphanSites}
-            title={hideOrphanSites ? 'Show orphan sites' : 'Hide orphan sites'}
-            className={`p-1.5 rounded transition-colors ${
-              hideOrphanSites
-                ? 'bg-blue-600/30 text-blue-400 hover:bg-blue-600/40'
-                : 'hover:bg-zinc-700 text-zinc-300 hover:text-white'
-            }`}
-          >
-            {hideOrphanSites ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-        )}
-        {mapEnabled && (
-          <button
-            onClick={() => setThreeDEnabled(!threeDEnabled)}
-            title={threeDEnabled ? 'Disable 3D buildings' : 'Enable 3D buildings'}
-            className={`p-1.5 rounded transition-colors ${
-              threeDEnabled
-                ? 'bg-blue-600/30 text-blue-400 hover:bg-blue-600/40'
-                : 'hover:bg-zinc-700 text-zinc-300 hover:text-white'
-            }`}
-          >
-            <Box size={16} />
-          </button>
-        )}
         {expandedLogicalParents.size > 0 && (
           <button
             onClick={clearLogicalExpansions}

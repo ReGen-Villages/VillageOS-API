@@ -67,28 +67,8 @@ const { _resetLoadGuard } = await import('./useModelLoader');
 
 function resetStores() {
   useModelStore.setState({ things: [], relationships: [], loaded: false });
-  useUiStore.setState({ loadingPhase: 'idle', mapEnabled: false });
+  useUiStore.setState({ loadingPhase: 'idle' });
   _resetLoadGuard();
-}
-
-/**
- * Simulate the map-enable logic from GraphPage's useEffect:
- *   setMapEnabled(things.length > 0 && hasGeoNodes)
- *
- * This is the exact logic that determines whether the map tiles appear.
- * If this returns true, MaplibreLayer will create a binding and render
- * the carto dark-matter tiles.
- */
-function computeMapEnabled(things: VosThing[]): boolean {
-  return (
-    things.length > 0 &&
-    things.some(
-      (t) =>
-        (typeof t.Properties?.latitude === 'number' &&
-          typeof t.Properties?.longitude === 'number') ||
-        t.Properties?.geometry != null,
-    )
-  );
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -159,56 +139,16 @@ describe('useModelLoader (phased loading)', () => {
     });
   });
 
-  describe('map enable — REGRESSION GUARD', () => {
-    it('mapEnabled is TRUE when things have geo data (lat/lng)', () => {
-      const things = [surfaceThing]; // has latitude + longitude
-      expect(computeMapEnabled(things)).toBe(true);
-    });
+  it('dashboard stats are non-zero after phased loading', async () => {
+    vi.mocked(thingApi.getSurfaceThings).mockResolvedValue([surfaceThing]);
+    vi.mocked(relationshipApi.getAll).mockResolvedValue([relationship]);
+    vi.mocked(thingApi.getRemainingThings).mockResolvedValue([remainingThing]);
 
-    it('mapEnabled is TRUE when things have geometry property', () => {
-      const thingWithGeo: VosThing = {
-        Id: 'g1',
-        Name: 'Geo Thing',
-        Properties: { geometry: '{"type":"cityjson"}' },
-      };
-      expect(computeMapEnabled([thingWithGeo])).toBe(true);
-    });
+    const { loadModelPhased } = await import('./useModelLoader');
+    await loadModelPhased();
 
-    it('mapEnabled is FALSE when things array is empty', () => {
-      expect(computeMapEnabled([])).toBe(false);
-    });
-
-    it('mapEnabled is FALSE when no things have geo data', () => {
-      expect(computeMapEnabled([remainingThing])).toBe(false);
-    });
-
-    it('mapEnabled transitions correctly through loading phases', async () => {
-      vi.mocked(thingApi.getSurfaceThings).mockResolvedValue([surfaceThing]);
-      vi.mocked(relationshipApi.getAll).mockResolvedValue([]);
-      vi.mocked(thingApi.getRemainingThings).mockResolvedValue([remainingThing]);
-
-      // Before loading: no things, map should be disabled
-      expect(computeMapEnabled(useModelStore.getState().things)).toBe(false);
-
-      const { loadModelPhased } = await import('./useModelLoader');
-      await loadModelPhased();
-
-      // After loading: geo things present, map should be enabled
-      expect(computeMapEnabled(useModelStore.getState().things)).toBe(true);
-    });
-
-    it('dashboard stats are non-zero after phased loading', async () => {
-      vi.mocked(thingApi.getSurfaceThings).mockResolvedValue([surfaceThing]);
-      vi.mocked(relationshipApi.getAll).mockResolvedValue([relationship]);
-      vi.mocked(thingApi.getRemainingThings).mockResolvedValue([remainingThing]);
-
-      const { loadModelPhased } = await import('./useModelLoader');
-      await loadModelPhased();
-
-      const { things, relationships } = useModelStore.getState();
-      // These are the same values ModelStatsCard reads
-      expect(things.length).toBeGreaterThan(0);
-      expect(relationships.length).toBeGreaterThan(0);
-    });
+    const { things, relationships } = useModelStore.getState();
+    expect(things.length).toBeGreaterThan(0);
+    expect(relationships.length).toBeGreaterThan(0);
   });
 });

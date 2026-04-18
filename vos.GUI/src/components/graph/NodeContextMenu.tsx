@@ -28,7 +28,6 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
   const selectNode = useUiStore((s) => s.selectNode);
   const toggleNodeExpanded = useUiStore((s) => s.toggleNodeExpanded);
   const toggleLogicalExpansion = useUiStore((s) => s.toggleLogicalExpansion);
-  const mapEnabled = useUiStore((s) => s.mapEnabled);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape
@@ -99,7 +98,7 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
   const hasLogicalChildren = hasGeometry && relationships.some(
     (r) => r.SubjectId === nodeId && !things.find((t) => t.Id === r.TargetId)?.Properties?.geometry,
   );
-  const showLogicalToggle = hasGeometry && !mapEnabled && hasLogicalChildren;
+  const showLogicalToggle = hasGeometry && hasLogicalChildren;
   const showView3D = hasGeometry && canSupport3D();
   const nodeName = thing?.Name || nodeId;
 

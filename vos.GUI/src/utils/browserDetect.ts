@@ -1,9 +1,9 @@
 /**
  * Browser detection utilities for feature gating.
  *
- * Safari has a strict WebGL context limit (~4). The VOS GUI already
- * uses 4 contexts (Sigma 3 + MapLibre 1), so Three.js 3D rendering
- * requires at least 1 more — only safe on Chrome/Firefox (~16 limit).
+ * Safari has a strict WebGL context limit (~4). Sigma uses 3 contexts,
+ * so Three.js 3D rendering requires at least 1 more — only safe on
+ * Chrome/Firefox (~16 limit).
  */
 
 export function isSafari(): boolean {
@@ -14,7 +14,7 @@ export function isSafari(): boolean {
 
 /**
  * Returns true if the browser can support the additional WebGL context(s)
- * needed for Three.js 3D rendering alongside Sigma + MapLibre.
+ * needed for Three.js 3D rendering alongside Sigma.
  */
 export function canSupport3D(): boolean {
   return !isSafari();

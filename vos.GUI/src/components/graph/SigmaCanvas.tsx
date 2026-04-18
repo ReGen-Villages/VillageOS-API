@@ -5,8 +5,6 @@ import type { VosThing, VosRelationship } from '../../types/vos';
 import type { SearchOptions } from '../../utils/searchFilter';
 import { BRIGHT_EDGE_COLOR } from '../../utils/reducerHelpers';
 import { GraphDataLoader } from './GraphDataLoader';
-import { ContainmentExpander } from './ContainmentExpander';
-import { MaplibreLayer } from './MaplibreLayer';
 import { ClusterComputer } from './ClusterComputer';
 import { GraphEvents } from './GraphEvents';
 import { LayoutController } from './LayoutController';
@@ -66,7 +64,6 @@ interface Props {
   relationships: VosRelationship[];
   searchQuery: string;
   searchOptions: SearchOptions;
-  hasGeoNodes: boolean;
 }
 
 /**
@@ -335,30 +332,14 @@ const SIGMA_SETTINGS = {
 };
 
 /**
- * Container style forces a GPU-composited stacking context.
- *
- * Safari renders overlapping WebGL canvases and position:absolute divs
- * differently from Chrome. Without an explicit compositing hint, the
- * MapLibre div (inserted by @sigma/layer-maplibre with position:absolute)
- * can stack above Sigma's WebGL canvases, causing nodes/edges to disappear
- * behind the map layer or mouse events to be intercepted.
- *
- * `transform: translateZ(0)` promotes this container to its own compositor
- * layer, ensuring child z-order is respected on all browsers.
- *
- * The `willChange: 'transform'` hint prevents ghost trails during animation
- * by ensuring proper layer isolation and frame clearing.
+ * Container style forces a GPU-composited stacking context to prevent
+ * ghost trails during animation and ensure Safari respects child z-order.
  */
 const CONTAINER_STYLE: React.CSSProperties = {
   width: '100%',
   height: '100%',
-  // No background here — let CSS --sigma-background-color: transparent take effect
-  // so MapLibre tiles are visible behind Sigma's WebGL canvases.
-  // The page bg (bg-zinc-950 on AppLayout) provides the dark look.
-  // Safari compositing fix — force GPU-composited stacking context
   transform: 'translateZ(0)',
   WebkitTransform: 'translateZ(0)',
-  // Prevent ghost trails by isolating the rendering layer
   willChange: 'transform',
   // Ensure proper opacity composition
   isolation: 'isolate',
@@ -372,7 +353,7 @@ const CONTAINER_STYLE: React.CSSProperties = {
  * because the default Graph() it creates is simple (no parallel edges),
  * which breaks when importing our multi-edge data.
  */
-export function SigmaCanvas({ things, relationships, searchQuery, searchOptions, hasGeoNodes }: Props) {
+export function SigmaCanvas({ things, relationships, searchQuery, searchOptions }: Props) {
   // Stable graph instance — SigmaContainer uses this as its internal graph.
   // Must be multi+directed to support parallel relationships.
   const graph = useMemo(() => new Graph({ multi: true, type: 'directed' }), []);
@@ -384,15 +365,13 @@ export function SigmaCanvas({ things, relationships, searchQuery, searchOptions,
       settings={SIGMA_SETTINGS}
     >
       <GraphDataLoader things={things} relationships={relationships} />
-      <ContainmentExpander />
-      <MaplibreLayer things={things} />
       <ClusterComputer />
       <GraphEvents />
       <LayoutController />
       <LogicalNodeController />
       <WebGLContextGuard />
       <NodeReducer searchQuery={searchQuery} searchOptions={searchOptions} />
-      <GraphToolbar hasGeoNodes={hasGeoNodes} />
+      <GraphToolbar />
     </SigmaContainer>
   );
 }

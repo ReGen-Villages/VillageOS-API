@@ -6,31 +6,9 @@
  * which is unwrapped by propertyMapper to just the IFC mesh data object.
  */
 
-import {
-  parseIfcCentroid,
-  parseIfcFootprint,
-  parseIfcSolidMesh,
-} from './ifcMeshParser';
+import { parseIfcSolidMesh } from './ifcMeshParser';
 
 export type { SolidMeshData } from './ifcMeshParser';
-
-/**
- * Extract the centroid lat/lng from IFC geometry data.
- */
-export function parseCentroid(geometryValue: unknown): { lat: number; lng: number } | null {
-  return parseIfcCentroid(geometryValue);
-}
-
-/**
- * Extract a GeoJSON footprint Feature from IFC geometry data.
- */
-export function parseFootprint(
-  geometryValue: unknown,
-  thingName?: string,
-  color?: string,
-): GeoJSON.Feature | null {
-  return parseIfcFootprint(geometryValue, thingName, color);
-}
 
 /**
  * Extract Three.js-compatible mesh data from IFC geometry data.

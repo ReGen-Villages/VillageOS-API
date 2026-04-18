@@ -416,7 +416,6 @@ function LogicalChildrenSection({ thingId, relationships, allThings, hasGeometry
 }) {
   const expandedLogicalParents = useUiStore((s) => s.expandedLogicalParents);
   const toggleLogicalExpansion = useUiStore((s) => s.toggleLogicalExpansion);
-  const mapEnabled = useUiStore((s) => s.mapEnabled);
 
   const logicalChildren = useMemo(() => {
     if (!hasGeometry) return [];
@@ -447,20 +446,18 @@ function LogicalChildrenSection({ thingId, relationships, allThings, hasGeometry
         <h4 className="text-xs font-semibold text-zinc-500">
           Logical Nodes ({logicalChildren.length})
         </h4>
-        {!mapEnabled && (
-          <button
-            onClick={() => toggleLogicalExpansion(thingId)}
-            className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-              expandedLogicalParents.has(thingId)
-                ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
-            }`}
-            title={expandedLogicalParents.has(thingId) ? 'Hide in graph' : 'Show in graph'}
-          >
-            {expandedLogicalParents.has(thingId) ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-            {expandedLogicalParents.has(thingId) ? 'Shown' : 'Hidden'}
-          </button>
-        )}
+        <button
+          onClick={() => toggleLogicalExpansion(thingId)}
+          className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+            expandedLogicalParents.has(thingId)
+              ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30'
+              : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
+          }`}
+          title={expandedLogicalParents.has(thingId) ? 'Hide in graph' : 'Show in graph'}
+        >
+          {expandedLogicalParents.has(thingId) ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+          {expandedLogicalParents.has(thingId) ? 'Shown' : 'Hidden'}
+        </button>
       </div>
       {logicalChildren.map((child) => (
         <button

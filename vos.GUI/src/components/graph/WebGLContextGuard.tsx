@@ -3,17 +3,16 @@ import { useSigma } from '@react-sigma/core';
 
 /**
  * Renderless component that watches for WebGL context loss on all canvases
- * inside the Sigma container (including MapLibre's dynamically-added canvas)
- * and attempts recovery.
+ * inside the Sigma container and attempts recovery.
  *
- * Safari is aggressive about reclaiming WebGL contexts when multiple are active
- * (Sigma creates 3 + MapLibre adds 1 = 4 total). When a context is lost,
- * Sigma cannot recover automatically (sigma.js #1321). This guard:
+ * Safari is aggressive about reclaiming WebGL contexts when multiple are
+ * active (Sigma uses 3). When a context is lost, Sigma cannot recover
+ * automatically (sigma.js #1321). This guard:
  *
  * 1. Listens for `webglcontextlost` on all canvas elements in the container
  * 2. Calls `preventDefault()` to signal the browser we want to recover
  * 3. On `webglcontextrestored`, triggers `sigma.refresh()` to re-render
- * 4. Uses MutationObserver to also guard dynamically-added canvases (MapLibre)
+ * 4. Uses MutationObserver to also guard dynamically-added canvases
  *
  * Must be rendered as a child of <SigmaContainer>.
  */
@@ -115,7 +114,7 @@ export function WebGLContextGuard() {
     // Watch all existing canvases (Sigma's 3 canvases)
     container.querySelectorAll('canvas').forEach(watchCanvas);
 
-    // Watch for dynamically-added canvases (MapLibre's canvas)
+    // Watch for dynamically-added canvases
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {

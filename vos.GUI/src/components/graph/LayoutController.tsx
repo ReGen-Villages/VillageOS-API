@@ -21,12 +21,11 @@ function killSupervisor(ref: React.MutableRefObject<ForceSupervisor | FA2Supervi
  *
  * For **small graphs** (< FA2_THRESHOLD nodes): uses graphology-layout-force
  * which supports `shouldSkipNode`, `shouldSkipEdge`, and `isNodeFixed`
- * callbacks needed for predicate clustering and map geo-pinning.
+ * callbacks needed for predicate clustering.
  *
  * For **large graphs** (>= FA2_THRESHOLD nodes): uses ForceAtlas2 with
  * Barnes-Hut approximation running in a real Web Worker, so the main thread
- * stays responsive.  FA2 uses a `fixed` node attribute for geo-pinning
- * instead of a callback.
+ * stays responsive.
  *
  * Must be rendered as a child of <SigmaContainer>.
  */
@@ -38,7 +37,6 @@ export function LayoutController() {
   const activePredicateKey = [...activePredicateIds].sort().join(',');
   const isLayoutFrozen = useUiStore((s) => s.isLayoutFrozen);
   const isSpreadActive = useUiStore((s) => s.isSpreadActive);
-  const mapEnabled = useUiStore((s) => s.mapEnabled);
   const layoutSettings = useUiStore((s) => s.layoutSettings);
 
   // Either supervisor type — both have start()/stop()/kill()
@@ -57,20 +55,7 @@ export function LayoutController() {
     const isClustering = activePredicateIds.size > 0;
     const isLargeGraph = graph.order >= FA2_THRESHOLD;
 
-    // ── ForceAtlas2 path (large graphs) ─────────────────────────────────
-    // FA2 runs in a real Web Worker with Barnes-Hut O(N log N) repulsion,
-    // keeping the main thread responsive for 10K+ node graphs.
-    // FA2 doesn't support shouldSkipNode/Edge callbacks, but that's fine:
-    // predicate clustering is handled visually by NodeReducer, and FA2's
-    // natural force-directed behavior already groups connected nodes.
     if (isLargeGraph) {
-      // FA2 uses a `fixed` node attribute — only set when map is on
-      if (mapEnabled) {
-        graph.forEachNode((node, attrs) => {
-          if (attrs.hasGeometry) graph.setNodeAttribute(node, 'fixed', true);
-        });
-      }
-
       const baseGravity = layoutSettings.gravity * 10000;
       const gravity = isSpreadActive ? baseGravity * 0.1 : baseGravity;
 
@@ -85,7 +70,7 @@ export function LayoutController() {
         },
       });
 
-      if (!isLayoutFrozen && !mapEnabled) {
+      if (!isLayoutFrozen) {
         supervisor.start();
       }
       supervisorRef.current = supervisor;
@@ -96,9 +81,6 @@ export function LayoutController() {
     }
 
     // ── Simple force layout path (small graphs or clustering) ──────────
-    // When clustering, build a set of nodes that participate in at least one
-    // active-predicate edge. Nodes outside this set are excluded from the
-    // simulation entirely so they don't repel the visible cluster.
     let clusterNodeIds: Set<string> | null = null;
     if (isClustering) {
       clusterNodeIds = new Set<string>();
@@ -116,20 +98,10 @@ export function LayoutController() {
     const gravity = isSpreadActive ? layoutSettings.gravity * 0.1 : layoutSettings.gravity;
 
     const supervisor = new ForceSupervisor(graph, {
-      isNodeFixed: (_key: string, attrs: Record<string, unknown>) => {
-        // Only pin geo nodes when the map is active (MapLibre controls positions)
-        const isMapOn = useUiStore.getState().mapEnabled;
-        if (isMapOn && attrs.hasGeometry) return true;
-        return false;
-      },
-
-      // When clustering: skip nodes not connected by any active predicate edge
       shouldSkipNode: clusterNodeIds
         ? (key: string) => !clusterNodeIds!.has(key)
         : undefined,
 
-      // When clustering: skip edges that don't match any active predicate,
-      // so only predicate-matching edges create attraction forces
       shouldSkipEdge: isClustering
         ? (_edge: string, attrs: Record<string, unknown>) =>
             !activePredicateIds.has(attrs.predicateId as string)
@@ -144,8 +116,7 @@ export function LayoutController() {
       },
     });
 
-    // Only start if layout is not frozen and map is not enabled
-    if (!isLayoutFrozen && !mapEnabled) {
+    if (!isLayoutFrozen) {
       supervisor.start();
     }
     supervisorRef.current = supervisor;
@@ -153,14 +124,10 @@ export function LayoutController() {
     return () => {
       killSupervisor(supervisorRef);
     };
-    // Note: isLayoutFrozen is intentionally read but not in the dep array —
-    // we don't want to recreate the supervisor when freeze toggles.
-    // The second useEffect handles start/stop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sigma, activePredicateKey, mapEnabled, layoutKey, isSpreadActive]);
+  }, [sigma, activePredicateKey, layoutKey, isSpreadActive]);
 
-  // Stop / start the supervisor when freeze or map toggle changes.
-  // Also toggle expensive Sigma settings for large graphs.
+  // Stop / start the supervisor when freeze toggle changes.
   useEffect(() => {
     const supervisor = supervisorRef.current;
     if (!supervisor) return;
@@ -168,10 +135,8 @@ export function LayoutController() {
     const graph = sigma.getGraph();
     const isLarge = graph.order >= FA2_THRESHOLD;
 
-    if (isLayoutFrozen || mapEnabled) {
+    if (isLayoutFrozen) {
       supervisor.stop();
-      // Force a final refresh after stopping to ensure no pending frames
-      // are left that could race with MapLibre coordinate updates
       requestAnimationFrame(() => {
         sigma.refresh();
       });
@@ -179,13 +144,12 @@ export function LayoutController() {
       supervisor.start();
     }
 
-    // For large graphs, disable costly per-frame work while layout is running
     if (isLarge) {
-      const layoutRunning = !isLayoutFrozen && !mapEnabled;
+      const layoutRunning = !isLayoutFrozen;
       sigma.setSetting('enableEdgeEvents', !layoutRunning);
       sigma.setSetting('renderEdgeLabels', !layoutRunning);
     }
-  }, [isLayoutFrozen, mapEnabled, sigma]);
+  }, [isLayoutFrozen, sigma]);
 
   return null;
 }

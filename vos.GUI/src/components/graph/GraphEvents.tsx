@@ -24,11 +24,9 @@ function tryExpandCluster(nodeId: string): boolean {
   return false;
 }
 
-/** If the node is a geo parent with logical children (non-map mode), toggle expansion. */
+/** If the node is a geo parent with logical children, toggle expansion. */
 function tryToggleLogicalExpansion(nodeId: string, sigma: Sigma): void {
   const state = useUiStore.getState();
-  if (state.mapEnabled) return;
-
   const graph = sigma.getGraph();
   if (!graph.hasNode(nodeId)) return;
 
@@ -58,20 +56,15 @@ function fanOutOverlappingNodes(nodeId: string, sigma: Sigma): void {
 
   if (overlapping.length === 0) return;
 
-  const state = useUiStore.getState();
-  if (state.mapEnabled) {
-    state.setPendingFanOut({ centerId: nodeId, nodeIds: overlapping });
-  } else {
-    const cx = graph.getNodeAttribute(nodeId, 'x') as number;
-    const cy = graph.getNodeAttribute(nodeId, 'y') as number;
-    const allNodes = [nodeId, ...overlapping];
-    const angleStep = (2 * Math.PI) / allNodes.length;
-    allNodes.forEach((id, i) => {
-      const angle = angleStep * i - Math.PI / 2;
-      graph.setNodeAttribute(id, 'x', cx + FAN_RADIUS * Math.cos(angle));
-      graph.setNodeAttribute(id, 'y', cy + FAN_RADIUS * Math.sin(angle));
-    });
-  }
+  const cx = graph.getNodeAttribute(nodeId, 'x') as number;
+  const cy = graph.getNodeAttribute(nodeId, 'y') as number;
+  const allNodes = [nodeId, ...overlapping];
+  const angleStep = (2 * Math.PI) / allNodes.length;
+  allNodes.forEach((id, i) => {
+    const angle = angleStep * i - Math.PI / 2;
+    graph.setNodeAttribute(id, 'x', cx + FAN_RADIUS * Math.cos(angle));
+    graph.setNodeAttribute(id, 'y', cy + FAN_RADIUS * Math.sin(angle));
+  });
 }
 
 /** Convert a mouse event to container-relative coordinates. */

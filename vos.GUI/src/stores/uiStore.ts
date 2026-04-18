@@ -28,10 +28,6 @@ interface UiState {
   setHoveredNodeId: (id: string | null) => void;
   setDetailPanelWidth: (width: number) => void;
 
-  // ── Map / geo ─────────────────────────────────────────────────────
-  mapEnabled: boolean;
-  setMapEnabled: (enabled: boolean) => void;
-
   // ── Predicate clustering ───────────────────────────────────────────
   activePredicateIds: Set<string>;
   clusterMap: ClusterMap | null;
@@ -54,10 +50,6 @@ interface UiState {
   nodeContextMenuNodeId: string | null;
   openNodeContextMenu: (opts: { nodeId: string; position: { x: number; y: number } }) => void;
   closeNodeContextMenu: () => void;
-
-  // ── 3D View ─────────────────────────────────────────────────────
-  threeDEnabled: boolean;
-  setThreeDEnabled: (enabled: boolean) => void;
 
   // ── Layout freeze ────────────────────────────────────────────────
   isLayoutFrozen: boolean;
@@ -89,26 +81,6 @@ interface UiState {
   loadingPhase: 'idle' | 'surface' | 'remaining' | 'done';
   setLoadingPhase: (phase: 'idle' | 'surface' | 'remaining' | 'done') => void;
 
-  // ── Show all things (bypass surface filter in map mode) ────────
-  showAllThings: boolean;
-  toggleShowAllThings: () => void;
-
-  // ── Hide orphan sites (Revit template-default sites from linked families) ────
-  // When true (default), the map view only shows surface things stamped
-  // __IsMapSurfaceThing by the IFC importer (things inside the primary IfcSite's
-  // spatial subtree). When false, all surface things are visible including the
-  // Revit-default project-base sites.
-  hideOrphanSites: boolean;
-  toggleHideOrphanSites: () => void;
-
-  // ── Fan-out overlapping nodes ──────────────────────────────────
-  pendingFanOut: { centerId: string; nodeIds: string[] } | null;
-  setPendingFanOut: (fanOut: { centerId: string; nodeIds: string[] } | null) => void;
-
-  // ── Containment expansion (on-demand children in map mode) ────
-  containmentVersion: number;
-  bumpContainmentVersion: () => void;
-
   togglePredicateId: (id: string) => void;
   clearPredicateIds: () => void;
   setPredicateIds: (ids: Set<string>) => void;
@@ -136,10 +108,6 @@ export const useUiStore = create<UiState>((set) => ({
     localStorage.setItem(PANEL_WIDTH_KEY, String(clamped));
     set({ detailPanelWidth: clamped });
   },
-
-  // ── Map / geo ────────────────────────────────────────────────────────
-  mapEnabled: false,
-  setMapEnabled: (enabled) => set({ mapEnabled: enabled }),
 
   // ── Predicate clustering ─────────────────────────────────────────────
   activePredicateIds: new Set<string>(),
@@ -181,10 +149,6 @@ export const useUiStore = create<UiState>((set) => ({
     set({ nodeContextMenuOpen: true, nodeContextMenuPosition: position, nodeContextMenuNodeId: nodeId, radialMenuOpen: false, radialMenuPosition: null }),
   closeNodeContextMenu: () =>
     set({ nodeContextMenuOpen: false, nodeContextMenuPosition: null, nodeContextMenuNodeId: null }),
-
-  // ── 3D View ──────────────────────────────────────────────────────────
-  threeDEnabled: false,
-  setThreeDEnabled: (enabled) => set({ threeDEnabled: enabled }),
 
   // ── Layout freeze ──────────────────────────────────────────────────
   isLayoutFrozen: false,
@@ -237,21 +201,6 @@ export const useUiStore = create<UiState>((set) => ({
   // ── Multi-phase loading ──────────────────────────────────────────────────
   loadingPhase: 'idle' as const,
   setLoadingPhase: (phase) => set({ loadingPhase: phase }),
-
-  // ── Show all things (bypass surface filter in map mode) ────────────────
-  showAllThings: false,
-  toggleShowAllThings: () => set((s) => ({ showAllThings: !s.showAllThings })),
-
-  hideOrphanSites: true,
-  toggleHideOrphanSites: () => set((s) => ({ hideOrphanSites: !s.hideOrphanSites })),
-
-  // ── Fan-out overlapping nodes ─────────────────────────────────────────
-  pendingFanOut: null,
-  setPendingFanOut: (fanOut) => set({ pendingFanOut: fanOut }),
-
-  // ── Containment expansion ──────────────────────────────────────────────
-  containmentVersion: 0,
-  bumpContainmentVersion: () => set((s) => ({ containmentVersion: s.containmentVersion + 1 })),
 
   togglePredicateId: (id) =>
     set((state) => {

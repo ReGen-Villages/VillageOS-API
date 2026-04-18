@@ -3,15 +3,11 @@ import {
   withAlpha,
   applySelectionHighlight,
   brightenEdge,
-  applyGeoNodeOpacity,
-  resolveNonGeoMapVisibility,
   computeClusterNodeStyle,
   applyNodeFlash,
   applyEdgeFlash,
   BRIGHT_EDGE_COLOR,
   BRIGHT_EDGE_SIZE,
-  GEO_OPACITY_SIZE_THRESHOLD,
-  GEO_SMALL_NODE_ALPHA,
 } from './reducerHelpers';
 import type { FlashSettings } from './guiSettings';
 import type { ClusterMap } from './predicateCluster';
@@ -73,76 +69,6 @@ describe('brightenEdge', () => {
     expect(result.size).toBe(BRIGHT_EDGE_SIZE);
     expect(result.forceLabel).toBe(true);
     expect(result.label).toBe('has');
-  });
-});
-
-// ── applyGeoNodeOpacity ──────────────────────────────────────────────────
-
-describe('applyGeoNodeOpacity', () => {
-  it('returns null for non-geo nodes', () => {
-    expect(applyGeoNodeOpacity({ hasGeometry: false, size: 3 })).toBeNull();
-  });
-
-  it('returns null for geo nodes above size threshold', () => {
-    expect(applyGeoNodeOpacity({ hasGeometry: true, size: GEO_OPACITY_SIZE_THRESHOLD + 1 })).toBeNull();
-  });
-
-  it('applies alpha to small geo nodes', () => {
-    const result = applyGeoNodeOpacity({ hasGeometry: true, size: 3, color: '#ff0000' });
-    expect(result).not.toBeNull();
-    expect(result!.color).toBe(withAlpha('#ff0000', GEO_SMALL_NODE_ALPHA));
-    expect(result!.zIndex).toBe(0);
-  });
-
-  it('uses fallback color when none provided', () => {
-    const result = applyGeoNodeOpacity({ hasGeometry: true, size: 3 });
-    expect(result).not.toBeNull();
-    expect(result!.color).toBe(withAlpha('#94a3b8', GEO_SMALL_NODE_ALPHA));
-  });
-
-  it('applies alpha at exact threshold', () => {
-    const result = applyGeoNodeOpacity({ hasGeometry: true, size: GEO_OPACITY_SIZE_THRESHOLD, color: '#00ff00' });
-    expect(result).not.toBeNull();
-  });
-});
-
-// ── resolveNonGeoMapVisibility ───────────────────────────────────────────
-
-describe('resolveNonGeoMapVisibility', () => {
-  it('returns null for geo nodes (caller handles)', () => {
-    const result = resolveNonGeoMapVisibility('n1', { hasGeometry: true }, null, new Set());
-    expect(result).toBeNull();
-  });
-
-  it('hides non-geo node when no selection', () => {
-    const result = resolveNonGeoMapVisibility('n1', { hasGeometry: false }, null, new Set());
-    expect(result).not.toBeNull();
-    expect(result!.hidden).toBe(true);
-  });
-
-  it('reveals non-geo node that is a selection neighbor', () => {
-    const neighbors = new Set(['n1']);
-    const result = resolveNonGeoMapVisibility('n1', { hasGeometry: false, color: '#abc' }, 'sel', neighbors);
-    expect(result).not.toBeNull();
-    expect(result!.hidden).toBeUndefined();
-    expect(result!.zIndex).toBe(2);
-  });
-
-  it('renders predicate-revealed node as small/dim (not hidden)', () => {
-    const revealed = new Set(['n1']);
-    const result = resolveNonGeoMapVisibility('n1', { hasGeometry: false, label: 'X', color: '#ff0000' }, null, new Set(), revealed);
-    expect(result).not.toBeNull();
-    expect(result!.hidden).toBeUndefined();
-    expect(result!.zIndex).toBe(1);
-    // Color should have alpha channel (60% opacity)
-    expect((result!.color as string).length).toBe(9);
-  });
-
-  it('hides non-geo node that is neither neighbor nor endpoint', () => {
-    const endpoints = new Set(['other']);
-    const result = resolveNonGeoMapVisibility('n1', { hasGeometry: false }, 'sel', new Set(), endpoints);
-    expect(result).not.toBeNull();
-    expect(result!.hidden).toBe(true);
   });
 });
 
@@ -265,12 +191,6 @@ describe('computeClusterNodeStyle', () => {
     expect(result.zIndex).toBe(10);
   });
 
-  it('applies geo opacity in map mode for expanded cluster', () => {
-    const cm = makeClusterMap();
-    const result = computeClusterNodeStyle('n1', { thingType: 'default', hasGeometry: true, size: 3, color: '#ff0000' }, cm, new Set(), new Set(), null, true);
-    expect((result.color as string).length).toBe(9); // has alpha appended
-  });
-
   it('does not dim node not in clusterMap at all', () => {
     const cm = makeClusterMap();
     const result = computeClusterNodeStyle('unknown', { thingType: 'default', color: '#ff0000' }, cm, new Set(), new Set(), null, false);
@@ -294,12 +214,4 @@ describe('computeClusterNodeStyle', () => {
     expect(result.label).toBe(' (2)');
   });
 
-  it('falls through to default when map mode on but node is not small geo', () => {
-    const cm = makeClusterMap();
-    // Node in expanded cluster, map mode on, large geo node (not small → geoResult null)
-    const result = computeClusterNodeStyle('n1', { thingType: 'default', hasGeometry: true, size: 10, color: '#ff0000' }, cm, new Set(), new Set(), null, true);
-    // applyGeoNodeOpacity returns null for size > threshold → falls through to default
-    expect(result.zIndex).toBe(1);
-    expect((result.color as string).length).toBe(7); // no alpha appended
-  });
 });
