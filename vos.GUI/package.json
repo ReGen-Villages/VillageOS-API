@@ -17,6 +17,7 @@
     "@react-sigma/core": "^5.0.6",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "@thatopen/fragments": "^3.4.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "graphology": "^0.26.0",
@@ -29,6 +30,7 @@
     "react-router-dom": "^7.13.0",
     "sigma": "^3.0.2",
     "three": "^0.182.0",
+    "web-ifc": "^0.0.77",
     "zustand": "^5.0.11"
   },
   "devDependencies": {

@@ -11,6 +11,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ de
 const TemporalPage = lazy(() => import('./pages/TemporalPage').then(m => ({ default: m.TemporalPage })));
 const PropertySearchPage = lazy(() => import('./pages/PropertySearchPage').then(m => ({ default: m.PropertySearchPage })));
 const ThingSearchPage = lazy(() => import('./pages/ThingSearchPage').then(m => ({ default: m.ThingSearchPage })));
+const ModelPage = lazy(() => import('./pages/ModelPage').then(m => ({ default: m.ModelPage })));
 
 /** Inner shell rendered only when authenticated — kicks off phased model loading. */
 function AuthenticatedApp() {
@@ -26,6 +27,7 @@ function AuthenticatedApp() {
             <Route path="/temporal" element={<TemporalPage />} />
             <Route path="/properties" element={<PropertySearchPage />} />
             <Route path="/things" element={<ThingSearchPage />} />
+            <Route path="/model" element={<ModelPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
