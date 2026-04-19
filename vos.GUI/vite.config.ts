@@ -22,8 +22,23 @@ export default defineConfig({
       },
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/three') || id.includes('node_modules/@react-three')) {
-            return 'vendor-three';
+          // three.js + @react-three/* + @thatopen/fragments + three-stdlib
+          // are only reachable through React.lazy imports (FragmentsViewer,
+          // BuildingDetail3D). Returning undefined opts out of the vendor
+          // catch-all so rollup places them in a lazy chunk loaded on demand
+          // when the Model or 3D-detail tabs mount.
+          //
+          // A previous version hoisted these into an eager `vendor-three`
+          // chunk, which produced a `vendor-three ↔ vendor` cycle (React
+          // came from vendor but vendor-three read React at top level) and
+          // broke the production bundle entirely — Bug #5296.
+          if (
+            id.includes('node_modules/three') ||
+            id.includes('node_modules/@react-three') ||
+            id.includes('node_modules/@thatopen') ||
+            id.includes('node_modules/three-stdlib')
+          ) {
+            return undefined;
           }
           if (id.includes('node_modules/maplibre-gl') || id.includes('node_modules/@sigma/layer-maplibre')) {
             return 'vendor-map';
