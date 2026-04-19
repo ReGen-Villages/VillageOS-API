@@ -9,10 +9,10 @@ Client tools, GUI, and microservices for the [VillageOS](https://dev.azure.com/R
 **vos.GUI** — React application for graph visualization and interaction.
 
 - Sigma.js v3 + graphology for graph rendering
-- Three.js for per-building 3D detail (code-split, lazy-loaded)
+- Three.js + `@thatopen/fragments` for the IFC Model viewer (Feature #5248, scaffold landed)
 - SignalR real-time updates with flash effects
 - Zustand state management
-- Dashboard, graph, temporal, and search pages
+- Dashboard, Graph, Model, Temporal, Things, and Properties pages
 
 ### CLI
 
