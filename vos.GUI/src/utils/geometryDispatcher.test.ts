@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseIfcSolidMesh } from './ifcMeshParser';
+import { parseSolidMesh } from './geometryDispatcher';
 
 // ── Test fixture: a simple box in y-up Three.js coords ──────────────
 
@@ -28,10 +28,10 @@ function makeBoxMeshData() {
   };
 }
 
-describe('parseIfcSolidMesh', () => {
+describe('parseSolidMesh', () => {
   it('converts arrays to typed arrays', () => {
     const data = makeBoxMeshData();
-    const mesh = parseIfcSolidMesh(data);
+    const mesh = parseSolidMesh(data);
     expect(mesh).not.toBeNull();
     expect(mesh!.positions).toBeInstanceOf(Float32Array);
     expect(mesh!.indices).toBeInstanceOf(Uint16Array);
@@ -44,17 +44,17 @@ describe('parseIfcSolidMesh', () => {
 
   it('returns null for empty positions', () => {
     const data = { ...makeBoxMeshData(), positions: [] };
-    expect(parseIfcSolidMesh(data)).toBeNull();
+    expect(parseSolidMesh(data)).toBeNull();
   });
 
   it('returns null for empty indices', () => {
     const data = { ...makeBoxMeshData(), indices: [] };
-    expect(parseIfcSolidMesh(data)).toBeNull();
+    expect(parseSolidMesh(data)).toBeNull();
   });
 
   it('returns null for invalid data', () => {
-    expect(parseIfcSolidMesh(null)).toBeNull();
-    expect(parseIfcSolidMesh({})).toBeNull();
-    expect(parseIfcSolidMesh(42)).toBeNull();
+    expect(parseSolidMesh(null)).toBeNull();
+    expect(parseSolidMesh({})).toBeNull();
+    expect(parseSolidMesh(42)).toBeNull();
   });
 });
