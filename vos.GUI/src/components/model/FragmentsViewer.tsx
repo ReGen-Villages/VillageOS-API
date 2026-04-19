@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { FragmentsModels, type FragmentsModel } from '@thatopen/fragments';
+import { LoadingOverlay } from './LoadingOverlay';
+import { ViewerToolbar, type CameraMode } from './ViewerToolbar';
 
 /**
  * Map of IFC GlobalId → VosThing GUID, produced by vos.Tools.IfcIngest and
@@ -11,6 +13,18 @@ import { FragmentsModels, type FragmentsModel } from '@thatopen/fragments';
  * Fragments element to its graph identity.
  */
 export type FragmentsMapping = Record<string, string>;
+
+interface ModelBounds {
+  center: THREE.Vector3;
+  size: THREE.Vector3;
+  minY: number;
+  maxY: number;
+  maxDim: number;
+}
+
+type LoadState =
+  | { kind: 'loading'; stage: string; progress: number }
+  | { kind: 'ready'; bounds: ModelBounds };
 
 interface FragmentsViewerProps {
   fragmentsBytes: ArrayBuffer;
@@ -21,39 +35,112 @@ interface FragmentsViewerProps {
 
 /**
  * Loads a ThatOpen Fragments .frag artifact into a three.js scene and
- * exposes click-to-pick resolution against the mapping sidecar.
+ * exposes click-to-pick, 2D plan toggle, and horizontal section cuts.
  *
- * Sub-tasks C + D of Feature #5248. Section cuts, 2D plan toggle, and
- * loading UX polish land in sub-task E.
+ * Sub-tasks C (loader), D (picking), and E (loading UX + plan + cuts) of
+ * Feature #5248.
  */
 export function FragmentsViewer({ fragmentsBytes, mapping, onPick }: FragmentsViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading', stage: 'fetching worker', progress: 0 });
+  const [cameraMode, setCameraMode] = useState<CameraMode>('3d');
+  const [sectionEnabled, setSectionEnabled] = useState(false);
+  const [sectionY, setSectionY] = useState<number>(0);
+
+  // The clipping plane is read from a ref by the Fragments worker via
+  // getClippingPlanesEvent, which is called every frame. Keep it in a ref
+  // so the worker sees current state without re-subscribing.
+  const clipPlanesRef = useRef<THREE.Plane[]>([]);
+  useEffect(() => {
+    if (sectionEnabled) {
+      const p = new THREE.Plane(new THREE.Vector3(0, -1, 0), sectionY);
+      clipPlanesRef.current = [p];
+    } else {
+      clipPlanesRef.current = [];
+    }
+  }, [sectionEnabled, sectionY]);
+
+  const onProgress = useCallback((stage: string, progress: number) => {
+    setLoadState((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading', stage, progress }));
+  }, []);
+
+  const onReady = useCallback((bounds: ModelBounds) => {
+    setLoadState({ kind: 'ready', bounds });
+    setSectionY(bounds.maxY); // start with the plane above everything
+  }, []);
+
+  const bounds = loadState.kind === 'ready' ? loadState.bounds : null;
 
   return (
-    <Canvas
-      camera={{ position: [15, 15, 15], fov: 45, near: 0.1, far: 10000 }}
-      className="w-full h-full"
-      data-testid="fragments-canvas"
-    >
-      <color attach="background" args={['#0f0f10']} />
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[30, 50, 20]} intensity={0.8} castShadow />
-      <OrbitControls
-        ref={orbitRef}
-        makeDefault
-        enableDamping
-        dampingFactor={0.08}
-      />
-      <FragmentsScene bytes={fragmentsBytes} orbitRef={orbitRef} mapping={mapping} onPick={onPick} />
-    </Canvas>
+    <div className="relative w-full h-full" data-testid="fragments-viewer">
+      <Canvas className="w-full h-full" data-testid="fragments-canvas">
+        <color attach="background" args={['#0f0f10']} />
+        <ambientLight intensity={0.6} />
+        <directionalLight position={[30, 50, 20]} intensity={0.8} castShadow />
+
+        <PerspectiveCamera
+          makeDefault={cameraMode === '3d'}
+          fov={45}
+          near={0.1}
+          far={10000}
+          position={[15, 15, 15]}
+        />
+        <OrthographicCamera
+          makeDefault={cameraMode === 'plan'}
+          near={-10000}
+          far={10000}
+          position={[0, 1, 0]}
+          zoom={1}
+        />
+        <OrbitControls
+          ref={orbitRef}
+          makeDefault
+          enableDamping
+          dampingFactor={0.08}
+          enableRotate={cameraMode === '3d'}
+        />
+
+        <FragmentsScene
+          bytes={fragmentsBytes}
+          orbitRef={orbitRef}
+          mapping={mapping}
+          onPick={onPick}
+          onProgress={onProgress}
+          onReady={onReady}
+          cameraMode={cameraMode}
+          clipPlanesRef={clipPlanesRef}
+        />
+      </Canvas>
+
+      {loadState.kind === 'loading' && <LoadingOverlay stage={loadState.stage} progress={loadState.progress} />}
+
+      {bounds && (
+        <ViewerToolbar
+          cameraMode={cameraMode}
+          onCameraModeChange={setCameraMode}
+          sectionEnabled={sectionEnabled}
+          onSectionEnabledChange={setSectionEnabled}
+          sectionY={sectionY}
+          onSectionYChange={setSectionY}
+          minY={bounds.minY}
+          maxY={bounds.maxY}
+        />
+      )}
+    </div>
   );
 }
+
+// ── Fragments scene ─────────────────────────────────────────────────────────
 
 interface FragmentsSceneProps {
   bytes: ArrayBuffer;
   orbitRef: React.MutableRefObject<OrbitControlsImpl | null>;
   mapping: FragmentsMapping;
   onPick: (vosGuid: string | null) => void;
+  onProgress: (stage: string, progress: number) => void;
+  onReady: (bounds: ModelBounds) => void;
+  cameraMode: CameraMode;
+  clipPlanesRef: React.MutableRefObject<THREE.Plane[]>;
 }
 
 const CLICK_MAX_DRAG_PX = 4;
@@ -69,17 +156,38 @@ const HIGHLIGHT_MATERIAL = {
  * Loads the Fragments model into the r3f scene. Runs inside <Canvas> so
  * useThree is available.
  */
-function FragmentsScene({ bytes, orbitRef, mapping, onPick }: FragmentsSceneProps) {
+function FragmentsScene({
+  bytes,
+  orbitRef,
+  mapping,
+  onPick,
+  onProgress,
+  onReady,
+  cameraMode,
+  clipPlanesRef,
+}: FragmentsSceneProps) {
   const { camera, gl, invalidate } = useThree();
   const [model, setModel] = useState<FragmentsModel | null>(null);
   const fragmentsRef = useRef<FragmentsModels | null>(null);
+  const boundsRef = useRef<ModelBounds | null>(null);
   const lastUpdateRef = useRef<number>(0);
   const highlightedRef = useRef<number | null>(null);
+
+  // Enable local clipping so scene objects respect the plane we pass to
+  // Fragments via getClippingPlanesEvent.
+  useEffect(() => {
+    const prev = gl.localClippingEnabled;
+    gl.localClippingEnabled = true;
+    return () => {
+      gl.localClippingEnabled = prev;
+    };
+  }, [gl]);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
+      onProgress('fetching worker', 0.05);
       const workerURL = await FragmentsModels.getWorker();
       if (cancelled) return;
 
@@ -89,18 +197,26 @@ function FragmentsScene({ bytes, orbitRef, mapping, onPick }: FragmentsSceneProp
       const loaded = await fragments.load(bytes, {
         modelId: 'village-os-model',
         camera: camera as THREE.PerspectiveCamera,
+        onProgress: ({ stage, progress }) => {
+          if (cancelled) return;
+          onProgress(stage, progress);
+        },
       });
       if (cancelled) {
         await fragments.dispose();
         return;
       }
+      // Per-model clipping planes — the worker calls this callback each
+      // frame, so it always sees the current ref value.
+      loaded.getClippingPlanesEvent = () => clipPlanesRef.current;
 
-      await fitCameraToModel(loaded, camera as THREE.PerspectiveCamera, orbitRef.current);
-      // Stream in tiles for the current camera view. Without this, model.object
-      // stays empty until an interaction triggers an internal view update.
+      const bounds = await computeBounds(loaded);
+      boundsRef.current = bounds;
+      await fitCameraToBounds(cameraMode, camera, bounds, orbitRef.current);
       await fragments.update(true);
       invalidate();
       setModel(loaded);
+      onReady(bounds);
     })().catch((err) => {
       if (!cancelled) console.error('Failed to load Fragments model', err);
     });
@@ -111,10 +227,17 @@ function FragmentsScene({ bytes, orbitRef, mapping, onPick }: FragmentsSceneProp
       fragmentsRef.current = null;
       if (fragments) void fragments.dispose();
     };
-  }, [bytes, camera, orbitRef, invalidate]);
+    // intentional: we only load once per bytes instance
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bytes]);
 
-  // Keep tiles fresh as the camera moves. Throttle to ~6Hz — the internal
-  // worker coalesces requests, and every-frame updates saturate it.
+  // Re-fit camera when the user toggles plan ↔ 3D.
+  useEffect(() => {
+    if (!model || !boundsRef.current) return;
+    void fitCameraToBounds(cameraMode, camera, boundsRef.current, orbitRef.current);
+    invalidate();
+  }, [cameraMode, camera, model, orbitRef, invalidate]);
+
   useFrame(({ clock }) => {
     const fragments = fragmentsRef.current;
     if (!fragments || !model) return;
@@ -124,10 +247,6 @@ function FragmentsScene({ bytes, orbitRef, mapping, onPick }: FragmentsSceneProp
     void fragments.update();
   });
 
-  // Click-to-pick: raycast the Fragments model on pointer click, look up the
-  // hit element's IFC GlobalId, and translate it to a VosThing via the
-  // mapping sidecar. Distinguish clicks from orbit drags by measuring
-  // pointer travel between down and up.
   useEffect(() => {
     if (!model) return;
     const canvas = gl.domElement;
@@ -142,8 +261,8 @@ function FragmentsScene({ bytes, orbitRef, mapping, onPick }: FragmentsSceneProp
     const onPointerUp = async (e: PointerEvent) => {
       const dx = Math.abs(e.clientX - downX);
       const dy = Math.abs(e.clientY - downY);
-      if (dx > CLICK_MAX_DRAG_PX || dy > CLICK_MAX_DRAG_PX) return; // was a drag
-      if (e.button !== 0) return; // primary only
+      if (dx > CLICK_MAX_DRAG_PX || dy > CLICK_MAX_DRAG_PX) return;
+      if (e.button !== 0) return;
 
       const rect = canvas.getBoundingClientRect();
       const mouse = new THREE.Vector2(
@@ -211,43 +330,62 @@ function FragmentsScene({ bytes, orbitRef, mapping, onPick }: FragmentsSceneProp
   return <primitive object={model.object} />;
 }
 
-/**
- * Frame the loaded model: position the camera so the bounding sphere fits
- * the view, and point OrbitControls at the model center so pan/rotate feel
- * natural.
- */
-async function fitCameraToModel(
-  model: FragmentsModel,
-  camera: THREE.PerspectiveCamera,
-  controls: OrbitControlsImpl | null,
-): Promise<void> {
-  const boxes = await model.getBoxes();
-  if (!boxes.length) return;
+// ── Camera framing + bounds ─────────────────────────────────────────────────
 
-  const total = boxes.reduce(
-    (acc, b) => acc.union(b),
-    new THREE.Box3().makeEmpty(),
-  );
+async function computeBounds(model: FragmentsModel): Promise<ModelBounds> {
+  const boxes = await model.getBoxes();
+  const total = boxes.reduce((acc, b) => acc.union(b), new THREE.Box3().makeEmpty());
   const center = new THREE.Vector3();
   const size = new THREE.Vector3();
   total.getCenter(center);
   total.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  return {
+    center,
+    size,
+    minY: total.min.y,
+    maxY: total.max.y,
+    maxDim,
+  };
+}
 
-  // Fit using the largest horizontal dimension — buildings are usually wide
-  // and flat, so the vertical axis rarely dominates the view.
-  const horizontal = Math.max(size.x, size.z, size.y) || 1;
-  const distance = horizontal / (2 * Math.tan((camera.fov * Math.PI) / 360)) * 1.2;
+async function fitCameraToBounds(
+  mode: CameraMode,
+  camera: THREE.Camera,
+  bounds: ModelBounds,
+  controls: OrbitControlsImpl | null,
+): Promise<void> {
+  const { center, size, maxDim } = bounds;
 
-  // Look from a 3/4 overhead angle so vertical structure is legible.
-  const offset = new THREE.Vector3(distance * 0.8, distance * 0.6, distance * 0.8);
-  camera.position.copy(center).add(offset);
-  camera.near = Math.max(distance / 1000, 0.01);
-  camera.far = distance * 1000;
-  camera.updateProjectionMatrix();
-  camera.lookAt(center);
+  if (mode === '3d' && camera instanceof THREE.PerspectiveCamera) {
+    const horizontal = Math.max(size.x, size.z, size.y) || 1;
+    const distance = (horizontal / (2 * Math.tan((camera.fov * Math.PI) / 360))) * 1.2;
+    const offset = new THREE.Vector3(distance * 0.8, distance * 0.6, distance * 0.8);
+    camera.position.copy(center).add(offset);
+    camera.near = Math.max(distance / 1000, 0.01);
+    camera.far = distance * 1000;
+    camera.updateProjectionMatrix();
+    camera.lookAt(center);
+  } else if (mode === 'plan' && camera instanceof THREE.OrthographicCamera) {
+    // Top-down view. Size the frustum to fit the XZ footprint with headroom.
+    const pad = 1.1;
+    const w = Math.max(size.x, size.z) * pad;
+    camera.left = -w / 2;
+    camera.right = w / 2;
+    camera.top = w / 2;
+    camera.bottom = -w / 2;
+    camera.near = -maxDim * 2;
+    camera.far = maxDim * 4;
+    camera.position.set(center.x, bounds.maxY + maxDim, center.z);
+    camera.up.set(0, 0, -1); // face north
+    camera.zoom = 1;
+    camera.updateProjectionMatrix();
+    camera.lookAt(center);
+  }
 
   if (controls) {
     controls.target.copy(center);
     controls.update();
   }
 }
+
