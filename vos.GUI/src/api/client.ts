@@ -304,6 +304,21 @@ class ApiClient {
     return resp.text();
   }
 
+  /**
+   * Fetches binary bytes (e.g. the Fragments .frag artifact).
+   * Returns null on 404 so callers can distinguish "not yet ingested" from real errors.
+   */
+  async getBytes(path: string): Promise<ArrayBuffer | null> {
+    const token = await this.ensureToken();
+    const resp = await fetch(`${BASE_URL}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
+    });
+    if (resp.status === 404) return null;
+    await this.assertOk(resp);
+    return resp.arrayBuffer();
+  }
+
   async post<T>(path: string, body?: unknown): Promise<T> {
     const resp = await fetch(`${BASE_URL}${path}`, {
       method: 'POST',
