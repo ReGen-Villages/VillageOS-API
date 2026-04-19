@@ -5,18 +5,28 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { FragmentsModels, type FragmentsModel } from '@thatopen/fragments';
 
+/**
+ * Map of IFC GlobalId → VosThing GUID, produced by vos.Tools.IfcIngest and
+ * served by the broker at /api/model/mapping. Used to resolve a picked
+ * Fragments element to its graph identity.
+ */
+export type FragmentsMapping = Record<string, string>;
+
 interface FragmentsViewerProps {
   fragmentsBytes: ArrayBuffer;
+  mapping: FragmentsMapping;
+  /** Fires with the VosThing GUID of the clicked element, or null when the click missed geometry. */
+  onPick: (vosGuid: string | null) => void;
 }
 
 /**
- * Loads a ThatOpen Fragments .frag artifact into a three.js scene.
+ * Loads a ThatOpen Fragments .frag artifact into a three.js scene and
+ * exposes click-to-pick resolution against the mapping sidecar.
  *
- * Sub-task C of Feature #5248: renders the IFC-derived Fragments produced by
- * vos.Tools.IfcIngest + fragments-converter. Picking, metadata panel wiring,
- * and section cuts land in follow-up sub-tasks (D and E).
+ * Sub-tasks C + D of Feature #5248. Section cuts, 2D plan toggle, and
+ * loading UX polish land in sub-task E.
  */
-export function FragmentsViewer({ fragmentsBytes }: FragmentsViewerProps) {
+export function FragmentsViewer({ fragmentsBytes, mapping, onPick }: FragmentsViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl | null>(null);
 
   return (
@@ -34,7 +44,7 @@ export function FragmentsViewer({ fragmentsBytes }: FragmentsViewerProps) {
         enableDamping
         dampingFactor={0.08}
       />
-      <FragmentsScene bytes={fragmentsBytes} orbitRef={orbitRef} />
+      <FragmentsScene bytes={fragmentsBytes} orbitRef={orbitRef} mapping={mapping} onPick={onPick} />
     </Canvas>
   );
 }
@@ -42,17 +52,29 @@ export function FragmentsViewer({ fragmentsBytes }: FragmentsViewerProps) {
 interface FragmentsSceneProps {
   bytes: ArrayBuffer;
   orbitRef: React.MutableRefObject<OrbitControlsImpl | null>;
+  mapping: FragmentsMapping;
+  onPick: (vosGuid: string | null) => void;
 }
+
+const CLICK_MAX_DRAG_PX = 4;
+
+const HIGHLIGHT_MATERIAL = {
+  color: new THREE.Color('#fde047'), // tailwind yellow-300
+  renderedFaces: 1,
+  opacity: 1,
+  transparent: false,
+};
 
 /**
  * Loads the Fragments model into the r3f scene. Runs inside <Canvas> so
  * useThree is available.
  */
-function FragmentsScene({ bytes, orbitRef }: FragmentsSceneProps) {
-  const { camera, invalidate } = useThree();
+function FragmentsScene({ bytes, orbitRef, mapping, onPick }: FragmentsSceneProps) {
+  const { camera, gl, invalidate } = useThree();
   const [model, setModel] = useState<FragmentsModel | null>(null);
   const fragmentsRef = useRef<FragmentsModels | null>(null);
   const lastUpdateRef = useRef<number>(0);
+  const highlightedRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,6 +123,89 @@ function FragmentsScene({ bytes, orbitRef }: FragmentsSceneProps) {
     lastUpdateRef.current = now;
     void fragments.update();
   });
+
+  // Click-to-pick: raycast the Fragments model on pointer click, look up the
+  // hit element's IFC GlobalId, and translate it to a VosThing via the
+  // mapping sidecar. Distinguish clicks from orbit drags by measuring
+  // pointer travel between down and up.
+  useEffect(() => {
+    if (!model) return;
+    const canvas = gl.domElement;
+    let downX = 0;
+    let downY = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      downX = e.clientX;
+      downY = e.clientY;
+    };
+
+    const onPointerUp = async (e: PointerEvent) => {
+      const dx = Math.abs(e.clientX - downX);
+      const dy = Math.abs(e.clientY - downY);
+      if (dx > CLICK_MAX_DRAG_PX || dy > CLICK_MAX_DRAG_PX) return; // was a drag
+      if (e.button !== 0) return; // primary only
+
+      const rect = canvas.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+
+      let hit;
+      try {
+        hit = await model.raycast({
+          camera: camera as THREE.PerspectiveCamera,
+          mouse,
+          dom: canvas,
+        });
+      } catch (err) {
+        console.error('raycast failed', err);
+        return;
+      }
+
+      if (!hit) {
+        await clearHighlight();
+        onPick(null);
+        return;
+      }
+
+      await applyHighlight(hit.localId);
+
+      let ifcGuid: string | null = null;
+      try {
+        const [g] = await model.getGuidsByLocalIds([hit.localId]);
+        ifcGuid = g ?? null;
+      } catch {
+        ifcGuid = null;
+      }
+
+      const vosGuid = ifcGuid ? (mapping[ifcGuid] ?? null) : null;
+      onPick(vosGuid);
+      invalidate();
+    };
+
+    const applyHighlight = async (localId: number) => {
+      if (highlightedRef.current === localId) return;
+      if (highlightedRef.current != null) {
+        await model.highlight(undefined, HIGHLIGHT_MATERIAL);
+      }
+      await model.highlight([localId], HIGHLIGHT_MATERIAL);
+      highlightedRef.current = localId;
+    };
+
+    const clearHighlight = async () => {
+      if (highlightedRef.current == null) return;
+      await model.highlight(undefined, HIGHLIGHT_MATERIAL);
+      highlightedRef.current = null;
+    };
+
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup', onPointerUp);
+    return () => {
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointerup', onPointerUp);
+    };
+  }, [model, camera, gl, mapping, onPick, invalidate]);
 
   if (!model) return null;
   return <primitive object={model.object} />;

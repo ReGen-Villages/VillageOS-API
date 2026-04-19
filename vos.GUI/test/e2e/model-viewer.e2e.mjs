@@ -194,6 +194,53 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
       `ok — pre-orbit: ${rendered.nonBackgroundSamples}/${rendered.totalSamples} rendered samples, ` +
         `post-orbit: ${afterOrbit.nonBackgroundSamples}/${rendered.totalSamples}, renderer: ${rendered.renderer}`,
     );
+
+    // ── Assert click-to-pick resolves an element and shows the metadata panel ─
+    // Click a canvas pixel that definitely landed on geometry in the post-orbit
+    // sample. Raycasting the exact pixel we just read gives us a reliable hit.
+    const hitPoint = await page.evaluate((sel) => {
+      const canvas = document.querySelector(sel);
+      const rect = canvas.getBoundingClientRect();
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+      // Scan the centre-ish region for a pixel that isn't the dark background.
+      const pixel = new Uint8Array(4);
+      for (let r = 0; r < 200; r += 20) {
+        for (let theta = 0; theta < 360; theta += 30) {
+          const rad = (theta * Math.PI) / 180;
+          const px = Math.floor(canvas.width / 2 + r * Math.cos(rad));
+          const py = Math.floor(canvas.height / 2 + r * Math.sin(rad));
+          gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+          if (pixel[0] > 40 || pixel[1] > 40 || pixel[2] > 40) {
+            // Note: readPixels is (0,0) at bottom-left; clientY is top-left.
+            const cssX = rect.left + (px / canvas.width) * rect.width;
+            const cssY = rect.top + ((canvas.height - py) / canvas.height) * rect.height;
+            return { cssX, cssY };
+          }
+        }
+      }
+      return null;
+    }, canvasSel);
+
+    if (hitPoint) {
+      await page.evaluate(
+        ({ sel, x, y }) => {
+          const canvas = document.querySelector(sel);
+          const opts = { clientX: x, clientY: y, button: 0, pointerId: 99, bubbles: true };
+          canvas.dispatchEvent(new PointerEvent('pointerdown', opts));
+          canvas.dispatchEvent(new PointerEvent('pointerup', opts));
+        },
+        { sel: canvasSel, x: hitPoint.cssX, y: hitPoint.cssY },
+      );
+
+      // The metadata panel is rendered outside the canvas. Allow up to 3s for
+      // the raycast + mapping lookup + /api/things fetch.
+      await page.waitForSelector('[data-testid=fragments-metadata-panel]', { timeout: 3000 });
+      // eslint-disable-next-line no-console
+      console.log('ok — pick resolved to a VosThing; metadata panel mounted');
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('skip — could not find a rendered pixel to click; pick coverage not asserted');
+    }
   } finally {
     await browser.close();
   }

@@ -1,6 +1,8 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
+import type { FragmentsMapping } from '../components/model/FragmentsViewer';
+import { FragmentsMetadataPanel } from '../components/model/FragmentsMetadataPanel';
 
 const FragmentsViewer = lazy(() =>
   import('../components/model/FragmentsViewer').then((m) => ({ default: m.FragmentsViewer })),
@@ -10,29 +12,34 @@ type ViewerState =
   | { status: 'loading' }
   | { status: 'empty' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; bytes: ArrayBuffer };
+  | { status: 'ready'; bytes: ArrayBuffer; mapping: FragmentsMapping };
 
 /**
  * Model page — renders the IFC-derived Fragments artifact produced by
- * vos.Tools.IfcIngest. Fetches bytes from the broker's JWT-scoped endpoint
- * and hands them to the Fragments viewer. If the artifact is not present
- * (broker returns 404), the original placeholder is shown.
+ * vos.Tools.IfcIngest. Fetches bytes + mapping sidecar from the broker's
+ * JWT-scoped endpoints. Click-to-pick resolves an element's IFC GlobalId
+ * through the mapping into a VosThing GUID and shows its metadata.
  */
 export function ModelPage() {
   const { modelId } = useAuth();
   const [state, setState] = useState<ViewerState>({ status: 'loading' });
+  const [selectedThingId, setSelectedThingId] = useState<string | null>(null);
 
   // Re-fetch whenever the JWT-scoped model changes (e.g. via /api/auth/switch-model).
   // Without a modelId dep, switching models leaves the previous .frag on screen.
   useEffect(() => {
     let cancelled = false;
     setState({ status: 'loading' });
-    apiClient
-      .getBytes('/api/model/fragments')
-      .then((bytes) => {
+    setSelectedThingId(null);
+
+    Promise.all([
+      apiClient.getBytes('/api/model/fragments'),
+      apiClient.get<FragmentsMapping>('/api/model/mapping').catch(() => ({})),
+    ])
+      .then(([bytes, mapping]) => {
         if (cancelled) return;
         if (bytes === null) setState({ status: 'empty' });
-        else setState({ status: 'ready', bytes });
+        else setState({ status: 'ready', bytes, mapping });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -46,20 +53,35 @@ export function ModelPage() {
     };
   }, [modelId]);
 
+  const handlePick = useCallback((vosGuid: string | null) => {
+    setSelectedThingId(vosGuid);
+  }, []);
+
+  const closePanel = useCallback(() => setSelectedThingId(null), []);
+
   return (
     <div className="h-full flex flex-col p-6">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Model</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          3D viewer for the IFC-derived Fragments artifact.
+          3D viewer for the IFC-derived Fragments artifact. Click an element to inspect.
         </p>
       </header>
 
       {state.status === 'ready' ? (
-        <div className="flex-1 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
-          <Suspense fallback={<LoadingPlaceholder />}>
-            <FragmentsViewer fragmentsBytes={state.bytes} />
-          </Suspense>
+        <div className="flex-1 flex min-h-0 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
+          <div className="flex-1 min-w-0">
+            <Suspense fallback={<LoadingPlaceholder />}>
+              <FragmentsViewer
+                fragmentsBytes={state.bytes}
+                mapping={state.mapping}
+                onPick={handlePick}
+              />
+            </Suspense>
+          </div>
+          {selectedThingId && (
+            <FragmentsMetadataPanel thingId={selectedThingId} onClose={closePanel} />
+          )}
         </div>
       ) : state.status === 'loading' ? (
         <LoadingPlaceholder />
