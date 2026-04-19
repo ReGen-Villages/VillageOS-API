@@ -133,12 +133,38 @@ class ApiClient {
     }
   }
 
-  /** Clear stored credentials and cancel any pending refresh. */
-  logout() {
+  /**
+   * Clear stored credentials and cancel any pending refresh.
+   *
+   * Also tells the broker to clear the HttpOnly session cookie via
+   * POST /api/auth/session/logout. Without this, a subsequent page refresh
+   * would succeed in restoreSession() and silently log the user back in
+   * (Bug #5290).
+   *
+   * Best-effort: local state is cleared even if the network call fails, so
+   * the user isn't stuck signed in from the UI's perspective. Bearer JWTs
+   * themselves can't be revoked before their exp claim without a server-side
+   * blacklist — clearing the HttpOnly cookie is what prevents
+   * restoreSession() from handing the token back on the next page load.
+   */
+  async logout(): Promise<void> {
     if (this.refreshTimer) {
       clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
     }
+
+    if (this.token) {
+      try {
+        await fetch(`${BASE_URL}/api/auth/session/logout`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${this.token}` },
+          credentials: 'include',
+        });
+      } catch {
+        // Best-effort — network failure shouldn't leave the UI signed in.
+      }
+    }
+
     this.token = null;
     this.tokenExpiry = null;
     this.currentUser = null;
@@ -163,7 +189,7 @@ class ApiClient {
         await this.refreshToken();
       } catch {
         // Refresh failed — auth required
-        this.logout();
+        void this.logout();
         if (this.onAuthRequired) this.onAuthRequired();
       }
     }, refreshAt);

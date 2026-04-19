@@ -18,7 +18,7 @@ export interface AuthState {
   switchModel: () => Promise<void>;
   saveSeed: (name: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   error: string | null;
   loading: boolean;
 }
@@ -177,14 +177,19 @@ export function useAuthState(): AuthState {
     }
   }, [stopPolling, startSeedPolling]);
 
-  const logout = useCallback(() => {
-    apiClient.logout();
+  const logout = useCallback(async () => {
+    // Clear UI state immediately so the user sees the login form without
+    // waiting for the network round-trip. The broker-side cookie clear
+    // (Bug #5290) happens in apiClient.logout() and is awaited so callers
+    // that want to be sure the cookie is gone (e.g. before a programmatic
+    // navigation) can rely on it.
     useModelStore.getState().clear();
     setUser(null);
     setModelId(null);
     setModelName(null);
     setAvailableModels(null);
     setError(null);
+    await apiClient.logout();
   }, []);
 
   /** Show the seed library picker. Fetches available seeds from the library folder. */

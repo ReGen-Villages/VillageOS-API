@@ -129,12 +129,49 @@ describe('ApiClient', () => {
       await apiClient.login('testuser', 'pass');
       expect(apiClient.isAuthenticated()).toBe(true);
 
-      apiClient.logout();
+      // Logout also calls the broker to clear the session cookie.
+      fetchSpy.mockResolvedValueOnce(mockResponse(200, '{}'));
+      await apiClient.logout();
 
       expect(apiClient.isAuthenticated()).toBe(false);
       expect(apiClient.getUser()).toBeNull();
       expect(apiClient.getModelId()).toBeNull();
       expect(apiClient.getModelName()).toBeNull();
+    });
+
+    it('calls POST /api/auth/session/logout on the broker (Bug #5290)', async () => {
+      fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse));
+      await apiClient.login('testuser', 'pass');
+      fetchSpy.mockClear();
+
+      fetchSpy.mockResolvedValueOnce(mockResponse(200, '{}'));
+      await apiClient.logout();
+
+      const calls = fetchSpy.mock.calls as ReadonlyArray<[string, RequestInit?]>;
+      const logoutCall = calls.find((c) => String(c[0]).endsWith('/api/auth/session/logout'));
+      expect(logoutCall, 'expected a POST to /api/auth/session/logout').toBeDefined();
+      expect(logoutCall![1]?.method).toBe('POST');
+      const authHeader = (logoutCall![1]?.headers as Record<string, string> | undefined)?.Authorization;
+      expect(authHeader).toMatch(/^Bearer /);
+    });
+
+    it('clears local state even when broker logout fails', async () => {
+      fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse));
+      await apiClient.login('testuser', 'pass');
+
+      fetchSpy.mockRejectedValueOnce(new Error('network down'));
+      await apiClient.logout();
+
+      expect(apiClient.isAuthenticated()).toBe(false);
+      expect(apiClient.getUser()).toBeNull();
+    });
+
+    it('skips the broker call when no token is stored', async () => {
+      // Fresh client, never logged in — logout should be a pure no-op.
+      fetchSpy.mockClear();
+      await apiClient.logout();
+
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -281,14 +318,18 @@ describe('ApiClient', () => {
       vi.useFakeTimers();
 
       fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse)); // login
+      fetchSpy.mockResolvedValueOnce(mockResponse(200, '{}'));          // logout → session/logout
 
       await apiClient.login('testuser', 'pass');
-      apiClient.logout();
+      await apiClient.logout();
 
       // Advance past when refresh would fire — should NOT call fetch again
       await vi.advanceTimersByTimeAsync(25 * 60 * 1000);
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1); // only the login call
+      // Login + logout, no refresh call
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const urls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+      expect(urls.some((u: string) => u.endsWith('/api/auth/refresh'))).toBe(false);
     });
   });
 
