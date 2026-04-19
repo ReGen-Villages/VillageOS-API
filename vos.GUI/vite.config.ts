@@ -23,22 +23,29 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           // three.js + @react-three/* + @thatopen/fragments + three-stdlib
-          // are only reachable through React.lazy imports (FragmentsViewer,
-          // BuildingDetail3D). Returning undefined opts out of the vendor
-          // catch-all so rollup places them in a lazy chunk loaded on demand
-          // when the Model or 3D-detail tabs mount.
+          // go into a single `vendor-three` chunk. Without an explicit rule,
+          // rollup duplicated three.js across FragmentsViewer, OrbitControls,
+          // and vendor chunks — each carrying its own `class Camera`
+          // definition, so `instanceof Camera` checks across chunks failed.
+          // That broke OrbitControls zoom events and Fragments raycast
+          // picking — Bug #5297.
           //
-          // A previous version hoisted these into an eager `vendor-three`
-          // chunk, which produced a `vendor-three ↔ vendor` cycle (React
-          // came from vendor but vendor-three read React at top level) and
-          // broke the production bundle entirely — Bug #5296.
+          // The earlier Bug #5296 variant split the same group into an
+          // eager chunk that clashed with React (cycle vendor ↔ vendor-three
+          // → React is undefined). Because nothing in this app statically
+          // imports three (every entry point is React.lazy), the named
+          // chunk remains in the lazy graph and the cycle doesn't recur.
+          // Match the whole three.js ecosystem: three itself, three-stdlib,
+          // three-mesh-bvh (Fragments uses it internally for raycasting),
+          // @react-three/*, @thatopen/* — all must share a single chunk or
+          // `instanceof Camera` checks across three.js module instances
+          // break raycasting + OrbitControls. Any `three-*` prefix qualifies.
           if (
-            id.includes('node_modules/three') ||
-            id.includes('node_modules/@react-three') ||
-            id.includes('node_modules/@thatopen') ||
-            id.includes('node_modules/three-stdlib')
+            /node_modules\/three(-[\w-]+)?\//.test(id) ||
+            id.includes('node_modules/@react-three/') ||
+            id.includes('node_modules/@thatopen/')
           ) {
-            return undefined;
+            return 'vendor-three';
           }
           if (id.includes('node_modules/maplibre-gl') || id.includes('node_modules/@sigma/layer-maplibre')) {
             return 'vendor-map';
