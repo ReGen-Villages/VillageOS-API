@@ -8,6 +8,18 @@
  */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * @react-sigma/core ships its own stylesheet that hardcodes
+ * `.react-sigma { background: rgb(255, 255, 255); }`. That paints
+ * solid white over AppLayout's themed bg, so the Graph page never
+ * darkens when the user toggles the theme (Bug #5330). Make the
+ * wrapper transparent so AppLayout's bg-white / dark:bg-zinc-950
+ * shows through.
+ */
+.react-sigma {
+  background: transparent !important;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
