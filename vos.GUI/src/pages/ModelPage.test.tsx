@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { ModelPage } from './ModelPage';
 
-// FragmentsViewer pulls in @react-three/fiber + @thatopen/fragments which
-// need WebGL and a worker. jsdom has neither, so we stub the whole component
-// and expose the onPick callback so tests can simulate a pick.
+// FragmentsViewer pulls in @react-three/fiber + @thatopen/fragments which need
+// WebGL and a worker. jsdom has neither, so we stub the whole component and
+// expose the onPick callback so tests can simulate a pick.
 let capturedOnPick: ((id: string | null) => void) | null = null;
 vi.mock('../components/model/FragmentsViewer', () => ({
   FragmentsViewer: ({
@@ -27,14 +27,26 @@ vi.mock('../components/model/FragmentsViewer', () => ({
   },
 }));
 
-// FragmentsMetadataPanel is simple (fetches thingApi.get + renders). Stub it
-// so ModelPage tests don't also exercise thingApi.
-vi.mock('../components/model/FragmentsMetadataPanel', () => ({
-  FragmentsMetadataPanel: ({ thingId, onClose }: { thingId: string; onClose: () => void }) => (
-    <aside data-testid="fragments-metadata-panel" data-thing-id={thingId}>
+// NodeDetailPanel has its own test suite; stub it here so we only assert that
+// ModelPage mounts the *same* component the GraphPage uses (Bug #5308).
+vi.mock('../components/panels/NodeDetailPanel', () => ({
+  NodeDetailPanel: ({
+    thing,
+    onClose,
+  }: {
+    thing: { Id: string; Name?: string };
+    onClose: () => void;
+  }) => (
+    <aside data-testid="node-detail-panel" data-thing-id={thing.Id} data-thing-name={thing.Name}>
       <button data-testid="close-panel" onClick={onClose}>x</button>
     </aside>
   ),
+}));
+
+// ResizablePanel reads pointer state from useUiStore; for these tests we only
+// care that its children render, so collapse it to a passthrough.
+vi.mock('../components/panels/ResizablePanel', () => ({
+  ResizablePanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('../api/client', () => ({
@@ -42,7 +54,11 @@ vi.mock('../api/client', () => ({
 }));
 
 vi.mock('../api/thingApi', () => ({
-  thingApi: { getAll: vi.fn() },
+  thingApi: { getAll: vi.fn(), get: vi.fn(), deleteProperty: vi.fn() },
+}));
+
+vi.mock('../api/relationshipApi', () => ({
+  relationshipApi: { getAll: vi.fn() },
 }));
 
 let mockModelId: string | null = 'model-1';
@@ -53,35 +69,41 @@ vi.mock('../hooks/useAuth', () => ({
 // Import after mocks so the mocked module is used.
 import { apiClient } from '../api/client';
 import { thingApi } from '../api/thingApi';
+import { relationshipApi } from '../api/relationshipApi';
+import { useUiStore } from '../stores/uiStore';
 const mockGetBytes = vi.mocked(apiClient.getBytes);
 const mockGetAll = vi.mocked(thingApi.getAll);
+const mockGet = vi.mocked(thingApi.get);
+const mockRelGetAll = vi.mocked(relationshipApi.getAll);
 
 describe('ModelPage', () => {
   beforeEach(() => {
     mockGetBytes.mockReset();
     mockGetAll.mockReset();
+    mockGet.mockReset();
+    mockRelGetAll.mockReset();
     mockGetAll.mockResolvedValue([]);
+    mockRelGetAll.mockResolvedValue([]);
     mockModelId = 'model-1';
     capturedOnPick = null;
+    // Reset shared selection state so cross-test bleed-through can't mask bugs.
+    useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null });
   });
 
   it('renders the Model heading', async () => {
     mockGetBytes.mockResolvedValue(null);
-    mockGetAll.mockResolvedValue([]);
     render(<ModelPage />);
     expect(screen.getByRole('heading', { name: /model/i })).toBeInTheDocument();
   });
 
   it('shows loading state while fetching', () => {
     mockGetBytes.mockImplementation(() => new Promise(() => {}));
-    mockGetAll.mockResolvedValue([]);
     render(<ModelPage />);
     expect(screen.getByTestId('model-viewer-loading')).toBeInTheDocument();
   });
 
   it('shows empty placeholder when broker returns 404', async () => {
     mockGetBytes.mockResolvedValue(null);
-    mockGetAll.mockResolvedValue([]);
     render(<ModelPage />);
     await waitFor(() => {
       expect(screen.getByTestId('model-viewer-placeholder')).toBeInTheDocument();
@@ -91,7 +113,9 @@ describe('ModelPage', () => {
   it('mounts FragmentsViewer with bytes + mapping when loaded', async () => {
     const bytes = new Uint8Array([0xDE, 0xAD, 0xBE, 0xEF]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGetAll.mockResolvedValue([{ Id: 'vos-guid-1', Name: 'T', Properties: { ifcGlobalId: '2UMzzDFwXBAe1ciOx9dLWU' } }]);
+    mockGetAll.mockResolvedValue([
+      { Id: 'vos-guid-1', Name: 'T', Properties: { ifcGlobalId: '2UMzzDFwXBAe1ciOx9dLWU' } },
+    ]);
     render(<ModelPage />);
     await waitFor(() => {
       expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument();
@@ -103,7 +127,6 @@ describe('ModelPage', () => {
 
   it('shows error placeholder when fetch throws', async () => {
     mockGetBytes.mockRejectedValue(new Error('network down'));
-    mockGetAll.mockResolvedValue([]);
     render(<ModelPage />);
     await waitFor(() => {
       expect(screen.getByTestId('model-viewer-error')).toBeInTheDocument();
@@ -113,7 +136,6 @@ describe('ModelPage', () => {
 
   it('re-fetches when the JWT-scoped model changes', async () => {
     mockGetBytes.mockResolvedValue(null);
-    mockGetAll.mockResolvedValue([]);
     const { rerender } = render(<ModelPage />);
     await waitFor(() => expect(mockGetBytes).toHaveBeenCalledTimes(1));
 
@@ -122,43 +144,76 @@ describe('ModelPage', () => {
     await waitFor(() => expect(mockGetBytes).toHaveBeenCalledTimes(2));
   });
 
-  it('renders metadata panel when viewer picks an element', async () => {
+  // Regression test for Bug #5308: the model page must mount NodeDetailPanel
+  // (the same component the GraphPage uses) — never a duplicate panel.
+  it('mounts NodeDetailPanel (not a duplicate panel) when viewer picks an element', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGetAll.mockResolvedValue([{ Id: 'vos-guid-1', Name: 'T', Properties: { ifcGlobalId: 'ifc1' } }]);
+    mockGetAll.mockResolvedValue([
+      { Id: 'vos-guid-1', Name: 'LivingRoom_101', Properties: { ifcGlobalId: 'ifc1' } },
+    ]);
+    mockGet.mockResolvedValue({
+      Id: 'vos-guid-1',
+      Name: 'LivingRoom_101',
+      Properties: { ifcGlobalId: 'ifc1', wall_color: 'white' },
+    });
+
     render(<ModelPage />);
     await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
-    expect(screen.queryByTestId('fragments-metadata-panel')).toBeNull();
+    expect(screen.queryByTestId('node-detail-panel')).toBeNull();
 
     await act(async () => capturedOnPick!('vos-guid-1'));
-    const panel = await screen.findByTestId('fragments-metadata-panel');
+    const panel = await screen.findByTestId('node-detail-panel');
     expect(panel.getAttribute('data-thing-id')).toBe('vos-guid-1');
+    expect(panel.getAttribute('data-thing-name')).toBe('LivingRoom_101');
+    expect(mockGet).toHaveBeenCalledWith('vos-guid-1');
   });
 
-  it('hides metadata panel when pick misses geometry', async () => {
+  it('hides the detail panel when pick misses geometry', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGetAll.mockResolvedValue([]);
+    mockGetAll.mockResolvedValue([{ Id: 'vos-guid-1', Name: 'T', Properties: {} }]);
+    mockGet.mockResolvedValue({ Id: 'vos-guid-1', Name: 'T', Properties: {} });
+
     render(<ModelPage />);
     await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
 
     await act(async () => capturedOnPick!('vos-guid-1'));
-    expect(await screen.findByTestId('fragments-metadata-panel')).toBeInTheDocument();
+    expect(await screen.findByTestId('node-detail-panel')).toBeInTheDocument();
 
     await act(async () => capturedOnPick!(null));
-    await waitFor(() => expect(screen.queryByTestId('fragments-metadata-panel')).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId('node-detail-panel')).toBeNull());
   });
 
-  it('hides metadata panel when close button is clicked', async () => {
+  it('hides the detail panel when close button is clicked', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGetAll.mockResolvedValue([]);
+    mockGetAll.mockResolvedValue([{ Id: 'vos-guid-1', Name: 'T', Properties: {} }]);
+    mockGet.mockResolvedValue({ Id: 'vos-guid-1', Name: 'T', Properties: {} });
+
     render(<ModelPage />);
     await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
 
     await act(async () => capturedOnPick!('vos-guid-1'));
     const closeBtn = await screen.findByTestId('close-panel');
     await act(async () => closeBtn.click());
-    await waitFor(() => expect(screen.queryByTestId('fragments-metadata-panel')).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId('node-detail-panel')).toBeNull());
+  });
+
+  it('drives selection through useUiStore so it stays in sync with the GraphPage', async () => {
+    const bytes = new Uint8Array([0x01]).buffer;
+    mockGetBytes.mockResolvedValue(bytes);
+    mockGetAll.mockResolvedValue([{ Id: 'vos-guid-1', Name: 'T', Properties: {} }]);
+    mockGet.mockResolvedValue({ Id: 'vos-guid-1', Name: 'T', Properties: {} });
+
+    render(<ModelPage />);
+    await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
+    expect(useUiStore.getState().selectedNodeId).toBeNull();
+
+    await act(async () => capturedOnPick!('vos-guid-1'));
+    await waitFor(() => expect(useUiStore.getState().selectedNodeId).toBe('vos-guid-1'));
+
+    await act(async () => capturedOnPick!(null));
+    await waitFor(() => expect(useUiStore.getState().selectedNodeId).toBeNull());
   });
 });
