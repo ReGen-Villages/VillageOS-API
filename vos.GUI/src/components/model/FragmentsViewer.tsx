@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
+import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import { FragmentsModels, type FragmentsModel } from '@thatopen/fragments';
@@ -73,25 +73,27 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick }: FragmentsVi
 
   return (
     <div className="relative w-full h-full" data-testid="fragments-viewer">
-      <Canvas className="w-full h-full" data-testid="fragments-canvas">
+      <Canvas
+        className="w-full h-full"
+        data-testid="fragments-canvas"
+        camera={{ position: [15, 15, 15], fov: 45, near: 0.1, far: 10000 }}
+      >
         <color attach="background" args={['#0f0f10']} />
         <ambientLight intensity={0.6} />
         <directionalLight position={[30, 50, 20]} intensity={0.8} castShadow />
 
-        <PerspectiveCamera
-          makeDefault={cameraMode === '3d'}
-          fov={45}
-          near={0.1}
-          far={10000}
-          position={[15, 15, 15]}
-        />
-        <OrthographicCamera
-          makeDefault={cameraMode === 'plan'}
-          near={-10000}
-          far={10000}
-          position={[0, 1, 0]}
-          zoom={1}
-        />
+        {/*
+         * Using the Canvas's built-in default camera rather than drei's
+         * <PerspectiveCamera makeDefault> + <OrthographicCamera makeDefault>
+         * pair. Swapping between two drei cameras broke
+         * FragmentsModel.raycast (Bug #5298) — the raycast returned null for
+         * every click even after updateMatrixWorld / useCamera fixes. The
+         * single-camera setup from sub-task D is known to pick correctly.
+         *
+         * Plan mode is now emulated by repositioning the same perspective
+         * camera directly above the model and narrowing the FOV for a
+         * near-orthographic look, instead of swapping to OrthographicCamera.
+         */}
         <OrbitControls
           ref={orbitRef}
           makeDefault
@@ -264,11 +266,12 @@ function FragmentsScene({
       if (dx > CLICK_MAX_DRAG_PX || dy > CLICK_MAX_DRAG_PX) return;
       if (e.button !== 0) return;
 
-      const rect = canvas.getBoundingClientRect();
-      const mouse = new THREE.Vector2(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1,
-      );
+      // Fragments' raycaster runs the NDC conversion itself (see
+      // RaycastManager.screenToCast in @thatopen/fragments) — pass raw
+      // client-space pixel coordinates, not pre-normalised NDC, or the
+      // ray is computed from a mouse vector of (~0, ~0) and misses every
+      // piece of geometry (Bug #5298).
+      const mouse = new THREE.Vector2(e.clientX, e.clientY);
 
       let hit;
       try {
@@ -305,8 +308,11 @@ function FragmentsScene({
 
     const applyHighlight = async (localId: number) => {
       if (highlightedRef.current === localId) return;
+      // Note: model.highlight(undefined, ...) highlights EVERY item (Bug
+      // #5298 follow-up — the whole model turned yellow on the 2nd pick).
+      // Use resetHighlight() to clear the previous selection instead.
       if (highlightedRef.current != null) {
-        await model.highlight(undefined, HIGHLIGHT_MATERIAL);
+        await model.resetHighlight([highlightedRef.current]);
       }
       await model.highlight([localId], HIGHLIGHT_MATERIAL);
       highlightedRef.current = localId;
@@ -314,7 +320,7 @@ function FragmentsScene({
 
     const clearHighlight = async () => {
       if (highlightedRef.current == null) return;
-      await model.highlight(undefined, HIGHLIGHT_MATERIAL);
+      await model.resetHighlight([highlightedRef.current]);
       highlightedRef.current = null;
     };
 
@@ -355,33 +361,35 @@ async function fitCameraToBounds(
   bounds: ModelBounds,
   controls: OrbitControlsImpl | null,
 ): Promise<void> {
-  const { center, size, maxDim } = bounds;
+  if (!(camera instanceof THREE.PerspectiveCamera)) return;
 
-  if (mode === '3d' && camera instanceof THREE.PerspectiveCamera) {
+  const { center, size } = bounds;
+
+  if (mode === '3d') {
+    // Diagonal 3/4 overhead view framing the full model.
+    camera.fov = 45;
     const horizontal = Math.max(size.x, size.z, size.y) || 1;
     const distance = (horizontal / (2 * Math.tan((camera.fov * Math.PI) / 360))) * 1.2;
     const offset = new THREE.Vector3(distance * 0.8, distance * 0.6, distance * 0.8);
     camera.position.copy(center).add(offset);
     camera.near = Math.max(distance / 1000, 0.01);
     camera.far = distance * 1000;
-    camera.updateProjectionMatrix();
-    camera.lookAt(center);
-  } else if (mode === 'plan' && camera instanceof THREE.OrthographicCamera) {
-    // Top-down view. Size the frustum to fit the XZ footprint with headroom.
-    const pad = 1.1;
-    const w = Math.max(size.x, size.z) * pad;
-    camera.left = -w / 2;
-    camera.right = w / 2;
-    camera.top = w / 2;
-    camera.bottom = -w / 2;
-    camera.near = -maxDim * 2;
-    camera.far = maxDim * 4;
-    camera.position.set(center.x, bounds.maxY + maxDim, center.z);
-    camera.up.set(0, 0, -1); // face north
-    camera.zoom = 1;
-    camera.updateProjectionMatrix();
-    camera.lookAt(center);
+  } else {
+    // Plan mode: fake orthographic by lifting the same perspective camera
+    // straight above the model and narrowing its FOV. Using a single camera
+    // (rather than drei's OrthographicCamera) preserves Fragments picking
+    // (Bug #5298).
+    const horizontal = Math.max(size.x, size.z) || 1;
+    const planFov = 10;
+    const distance = horizontal / (2 * Math.tan((planFov * Math.PI) / 360)) * 1.1;
+    camera.fov = planFov;
+    camera.position.set(center.x, bounds.maxY + distance, center.z);
+    camera.near = Math.max(distance / 1000, 0.01);
+    camera.far = distance * 1000;
   }
+
+  camera.updateProjectionMatrix();
+  camera.lookAt(center);
 
   if (controls) {
     controls.target.copy(center);

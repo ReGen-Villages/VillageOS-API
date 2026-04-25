@@ -3,6 +3,7 @@ import { apiClient } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import type { FragmentsMapping } from '../components/model/FragmentsViewer';
 import { FragmentsMetadataPanel } from '../components/model/FragmentsMetadataPanel';
+import { thingApi } from '../api/thingApi';
 
 const FragmentsViewer = lazy(() =>
   import('../components/model/FragmentsViewer').then((m) => ({ default: m.FragmentsViewer })),
@@ -15,10 +16,27 @@ type ViewerState =
   | { status: 'ready'; bytes: ArrayBuffer; mapping: FragmentsMapping };
 
 /**
+ * Build the IFC-GlobalId → VosThing-Id map by scanning the broker's
+ * authoritative thing list rather than trusting the pre-baked
+ * .mapping.json sidecar. The sidecar is produced once at ingest time and
+ * drifts whenever the seed is regenerated (Bug #5298 follow-up) — building
+ * it from live data is self-healing.
+ */
+function buildMappingFromThings(things: { Id: string; Properties?: Record<string, unknown> }[]): FragmentsMapping {
+  const map: FragmentsMapping = {};
+  for (const t of things) {
+    const ifcId = t.Properties?.ifcGlobalId;
+    if (typeof ifcId === 'string' && ifcId.length > 0) map[ifcId] = t.Id;
+  }
+  return map;
+}
+
+/**
  * Model page — renders the IFC-derived Fragments artifact produced by
- * vos.Tools.IfcIngest. Fetches bytes + mapping sidecar from the broker's
- * JWT-scoped endpoints. Click-to-pick resolves an element's IFC GlobalId
- * through the mapping into a VosThing GUID and shows its metadata.
+ * vos.Tools.IfcIngest. Fetches .frag bytes from the broker and derives
+ * the IFC-GlobalId → VosThing-Id map from the current thing list (rather
+ * than the drift-prone .mapping.json sidecar). Click-to-pick resolves a
+ * raycast hit through that map and shows the thing's metadata.
  */
 export function ModelPage() {
   const { modelId } = useAuth();
@@ -34,12 +52,12 @@ export function ModelPage() {
 
     Promise.all([
       apiClient.getBytes('/api/model/fragments'),
-      apiClient.get<FragmentsMapping>('/api/model/mapping').catch(() => ({})),
+      thingApi.getAll().catch(() => []),
     ])
-      .then(([bytes, mapping]) => {
+      .then(([bytes, things]) => {
         if (cancelled) return;
         if (bytes === null) setState({ status: 'empty' });
-        else setState({ status: 'ready', bytes, mapping });
+        else setState({ status: 'ready', bytes, mapping: buildMappingFromThings(things) });
       })
       .catch((err: unknown) => {
         if (cancelled) return;

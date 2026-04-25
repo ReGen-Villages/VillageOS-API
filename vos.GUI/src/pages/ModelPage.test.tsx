@@ -41,6 +41,10 @@ vi.mock('../api/client', () => ({
   apiClient: { getBytes: vi.fn(), get: vi.fn() },
 }));
 
+vi.mock('../api/thingApi', () => ({
+  thingApi: { getAll: vi.fn() },
+}));
+
 let mockModelId: string | null = 'model-1';
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ modelId: mockModelId }),
@@ -48,34 +52,36 @@ vi.mock('../hooks/useAuth', () => ({
 
 // Import after mocks so the mocked module is used.
 import { apiClient } from '../api/client';
+import { thingApi } from '../api/thingApi';
 const mockGetBytes = vi.mocked(apiClient.getBytes);
-const mockGet = vi.mocked(apiClient.get);
+const mockGetAll = vi.mocked(thingApi.getAll);
 
 describe('ModelPage', () => {
   beforeEach(() => {
     mockGetBytes.mockReset();
-    mockGet.mockReset();
+    mockGetAll.mockReset();
+    mockGetAll.mockResolvedValue([]);
     mockModelId = 'model-1';
     capturedOnPick = null;
   });
 
   it('renders the Model heading', async () => {
     mockGetBytes.mockResolvedValue(null);
-    mockGet.mockResolvedValue({});
+    mockGetAll.mockResolvedValue([]);
     render(<ModelPage />);
     expect(screen.getByRole('heading', { name: /model/i })).toBeInTheDocument();
   });
 
   it('shows loading state while fetching', () => {
     mockGetBytes.mockImplementation(() => new Promise(() => {}));
-    mockGet.mockResolvedValue({});
+    mockGetAll.mockResolvedValue([]);
     render(<ModelPage />);
     expect(screen.getByTestId('model-viewer-loading')).toBeInTheDocument();
   });
 
   it('shows empty placeholder when broker returns 404', async () => {
     mockGetBytes.mockResolvedValue(null);
-    mockGet.mockResolvedValue({});
+    mockGetAll.mockResolvedValue([]);
     render(<ModelPage />);
     await waitFor(() => {
       expect(screen.getByTestId('model-viewer-placeholder')).toBeInTheDocument();
@@ -85,7 +91,7 @@ describe('ModelPage', () => {
   it('mounts FragmentsViewer with bytes + mapping when loaded', async () => {
     const bytes = new Uint8Array([0xDE, 0xAD, 0xBE, 0xEF]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGet.mockResolvedValue({ '2UMzzDFwXBAe1ciOx9dLWU': 'vos-guid-1' });
+    mockGetAll.mockResolvedValue([{ Id: 'vos-guid-1', Name: 'T', Properties: { ifcGlobalId: '2UMzzDFwXBAe1ciOx9dLWU' } }]);
     render(<ModelPage />);
     await waitFor(() => {
       expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument();
@@ -97,7 +103,7 @@ describe('ModelPage', () => {
 
   it('shows error placeholder when fetch throws', async () => {
     mockGetBytes.mockRejectedValue(new Error('network down'));
-    mockGet.mockResolvedValue({});
+    mockGetAll.mockResolvedValue([]);
     render(<ModelPage />);
     await waitFor(() => {
       expect(screen.getByTestId('model-viewer-error')).toBeInTheDocument();
@@ -107,7 +113,7 @@ describe('ModelPage', () => {
 
   it('re-fetches when the JWT-scoped model changes', async () => {
     mockGetBytes.mockResolvedValue(null);
-    mockGet.mockResolvedValue({});
+    mockGetAll.mockResolvedValue([]);
     const { rerender } = render(<ModelPage />);
     await waitFor(() => expect(mockGetBytes).toHaveBeenCalledTimes(1));
 
@@ -119,7 +125,7 @@ describe('ModelPage', () => {
   it('renders metadata panel when viewer picks an element', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGet.mockResolvedValue({ ifc1: 'vos-guid-1' });
+    mockGetAll.mockResolvedValue([{ Id: 'vos-guid-1', Name: 'T', Properties: { ifcGlobalId: 'ifc1' } }]);
     render(<ModelPage />);
     await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
     expect(screen.queryByTestId('fragments-metadata-panel')).toBeNull();
@@ -132,7 +138,7 @@ describe('ModelPage', () => {
   it('hides metadata panel when pick misses geometry', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGet.mockResolvedValue({});
+    mockGetAll.mockResolvedValue([]);
     render(<ModelPage />);
     await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
 
@@ -146,7 +152,7 @@ describe('ModelPage', () => {
   it('hides metadata panel when close button is clicked', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGet.mockResolvedValue({});
+    mockGetAll.mockResolvedValue([]);
     render(<ModelPage />);
     await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
 
