@@ -28,6 +28,13 @@ interface UiState {
   setHoveredNodeId: (id: string | null) => void;
   setDetailPanelWidth: (width: number) => void;
 
+  // ── States refresh counter ────────────────────────────────────────
+  // Bumped by useModelData on the broker's `StatesChanged` SignalR
+  // event so detail panels re-fetch ranges without each page owning a
+  // local subscription.
+  statesVersion: number;
+  bumpStatesVersion: () => void;
+
   // ── Predicate clustering ───────────────────────────────────────────
   activePredicateIds: Set<string>;
   clusterMap: ClusterMap | null;
@@ -104,6 +111,10 @@ export const useUiStore = create<UiState>((set) => ({
     localStorage.setItem(PANEL_WIDTH_KEY, String(clamped));
     set({ detailPanelWidth: clamped });
   },
+
+  // ── States refresh counter ────────────────────────────────────────
+  statesVersion: 0,
+  bumpStatesVersion: () => set((s) => ({ statesVersion: s.statesVersion + 1 })),
 
   // ── Predicate clustering ─────────────────────────────────────────────
   activePredicateIds: new Set<string>(),
