@@ -1,9 +1,10 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { AuthContext, useAuthState } from './hooks/useAuth';
 import { LoginForm } from './components/auth/LoginForm';
 import { ChangePasswordForm } from './components/auth/ChangePasswordForm';
+import { useThemeStore, attachThemeMediaListener } from './stores/themeStore';
 
 const GraphPage = lazy(() => import('./pages/GraphPage').then(m => ({ default: m.GraphPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -35,6 +36,18 @@ function AuthenticatedApp() {
 
 export default function App() {
   const auth = useAuthState();
+  const theme = useThemeStore((s) => s.theme);
+
+  // Mirror theme to <html class="dark"> so Tailwind's class-based dark variant
+  // (configured in index.css) flips, and live-follow OS preference until the
+  // user manually overrides via the toggle button.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') root.classList.add('dark');
+    else root.classList.remove('dark');
+  }, [theme]);
+
+  useEffect(() => attachThemeMediaListener(), []);
 
   if (!auth.isAuthenticated || auth.availableModels) {
     return (

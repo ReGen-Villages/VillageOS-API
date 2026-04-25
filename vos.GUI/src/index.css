@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/*
+ * Switch Tailwind's dark variant from prefers-color-scheme media to a
+ * class on the document root, so themeStore can override the OS theme.
+ * The store seeds itself from prefers-color-scheme on first load — see
+ * src/stores/themeStore.ts (Feature #5328).
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 body {
   margin: 0;
   min-height: 100vh;
