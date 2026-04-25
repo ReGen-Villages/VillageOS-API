@@ -240,7 +240,7 @@ export function GraphPage() {
   });
 
   return (
-    <div className="h-full relative bg-zinc-950">
+    <div className="h-full relative">
       <GraphSearchBar
         searchQuery={searchQuery} setSearchQuery={setSearchQuery}
         caseSensitive={caseSensitive} setCaseSensitive={setCaseSensitive}
