@@ -2,15 +2,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { resolveOutDir } from './build/resolveOutDir'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
-    // Output directory is configurable via VOS_BROKER_WWWROOT env var.
-    // Default `dist/` is a local build; set VOS_BROKER_WWWROOT to an absolute
-    // path (e.g. /path/to/VillageOS/vos.Broker/wwwroot) to build directly into
-    // a broker's wwwroot for local development.
-    outDir: process.env.VOS_BROKER_WWWROOT || 'dist',
+    // Resolution: VOS_BROKER_WWWROOT > sibling vos.Broker/wwwroot > dist/.
+    // The sibling auto-detect (Bug #5332) keeps `npm run build` from silently
+    // emitting to `dist/` while developers wonder why the broker URL still
+    // serves a stale bundle.
+    outDir: resolveOutDir({ guiRoot: __dirname }),
     emptyOutDir: true,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
