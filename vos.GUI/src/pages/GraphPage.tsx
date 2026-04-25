@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { SigmaCanvas } from '../components/graph/SigmaCanvas';
 import { GraphSearchBar } from '../components/graph/GraphSearchBar';
 import { NodeDetailPanel } from '../components/panels/NodeDetailPanel';
@@ -11,13 +11,11 @@ import { useUiStore } from '../stores/uiStore';
 import { useModelStore } from '../stores/modelStore';
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
-import { useSignalR } from '../hooks/useSignalR';
-import { useFlashTimer } from '../hooks/useFlashTimer';
+import { reloadModelData } from '../hooks/useModelData';
 import { useGraphData } from '../hooks/useGraphData';
 import { toast } from '../components/common/Toast';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import type { VosThing, VosRelationship } from '../types/vos';
-import { isGraphAffectingProperty, applyThingPropertyUpdate, applyRelationshipPropertyUpdate, isVisibleRelationship } from '../utils/propertyUpdates';
 import { useAuth } from '../hooks/useAuth';
 import { LogOut, ArrowLeftRight } from 'lucide-react';
 
@@ -25,15 +23,11 @@ export function GraphPage() {
   const { logout, switchModel, modelName } = useAuth();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
-  const setThings = useModelStore((s) => s.setThings);
-  const setRelationships = useModelStore((s) => s.setRelationships);
-  const updateThings = useModelStore((s) => s.updateThings);
   const [searchQuery, setSearchQuery] = useState('');
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [exactMatch, setExactMatch] = useState(false);
   const [useRegex, setUseRegex] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'thing' | 'relationship'; id: string; name: string } | null>(null);
-  const [statesVersion, setStatesVersion] = useState(0);
   const [showCreateThing, setShowCreateThing] = useState(false);
   const [newThingName, setNewThingName] = useState('');
   const [creatingThing, setCreatingThing] = useState(false);
@@ -42,12 +36,7 @@ export function GraphPage() {
   const selectedEdgeId = useUiStore((s) => s.selectedEdgeId);
   const selectNode = useUiStore((s) => s.selectNode);
   const selectEdge = useUiStore((s) => s.selectEdge);
-  const { on } = useSignalR();
-  const { triggerFlashNode, triggerFlashEdge } = useFlashTimer();
-
-  // Ref so SignalR callbacks can access current relationships without stale closures
-  const relationshipsRef = useRef(relationships);
-  relationshipsRef.current = relationships;
+  const statesVersion = useUiStore((s) => s.statesVersion);
 
   const [detailThing, setDetailThing] = useState<VosThing | null>(null);
   const [detailRelationship, setDetailRelationship] = useState<VosRelationship | null>(null);
@@ -60,7 +49,7 @@ export function GraphPage() {
   }, []);
 
   // Fetch full thing detail (including inherited properties) when a node is selected.
-  // Only re-fetches on node selection change — live property updates come via SignalR / setDetailThing.
+  // Re-runs when the underlying things array refreshes so live edits surface in the panel.
   useEffect(() => {
     if (!selectedNodeId) {
       setDetailThing(null);
@@ -79,97 +68,17 @@ export function GraphPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedNodeId]);
+  }, [selectedNodeId, things]);
 
-  // Sync detailRelationship when edge selection changes.
-  // Reads from ref to avoid depending on the relationships array.
+  // Sync detailRelationship to the latest relationships array when either
+  // the selection or the underlying data changes.
   useEffect(() => {
     if (!selectedEdgeId) {
       setDetailRelationship(null);
       return;
     }
-    setDetailRelationship(relationshipsRef.current.find((r) => r.Id === selectedEdgeId) || null);
-  }, [selectedEdgeId]);
-
-  const syncDetailPanels = useCallback((t: VosThing[], r: VosRelationship[]) => {
-    const selNode = useUiStore.getState().selectedNodeId;
-    if (selNode) {
-      const fresh = t.find((thing) => thing.Id === selNode);
-      if (fresh) {
-        setDetailThing((prev) => prev ? { ...prev, Properties: fresh.Properties } : fresh);
-      }
-    }
-    const selEdge = useUiStore.getState().selectedEdgeId;
-    if (selEdge) setDetailRelationship(r.find((rel) => rel.Id === selEdge) || null);
-  }, []);
-
-  // Full reload (used by SignalR callbacks and after mutations)
-  const loadData = useCallback(async () => {
-    try {
-      const [t, r] = await Promise.all([thingApi.getAll(), relationshipApi.getAll()]);
-      setThings(t);
-      setRelationships(r);
-      syncDetailPanels(t, r);
-    } catch (err) {
-      toast.error('Failed to load model');
-    }
-  }, [syncDetailPanels, setThings, setRelationships]);
-
-  // Initial load on mount
-  useEffect(() => { loadData(); }, [loadData]);
-
-  // SignalR live updates
-  useEffect(() => {
-    const unsubs = [
-      on('ThingCreated', () => loadData()),
-      on('ThingDeleted', () => loadData()),
-      on('RelationshipCreated', () => loadData()),
-      on('RelationshipDeleted', () => loadData()),
-      on('PropertyChanged', (...args: unknown[]) => {
-        const thingId = args[0] as string;
-        const propertyPath = args[1] as string | undefined;
-        const newValue = args[2] as unknown;
-        if (thingId && propertyPath !== undefined) {
-          triggerFlashNode(thingId);
-          // Only rebuild things array for properties that affect graph rendering (geometry).
-          // All other property changes are detail-panel concerns only — skip O(n) array rebuild.
-          if (isGraphAffectingProperty(propertyPath)) {
-            updateThings((prev) => prev.map((t) =>
-              t.Id === thingId ? applyThingPropertyUpdate(t, propertyPath, newValue) : t,
-            ));
-          }
-          setDetailThing((prev) =>
-            prev && prev.Id === thingId ? applyThingPropertyUpdate(prev, propertyPath, newValue) : prev,
-          );
-        }
-      }),
-      on('RelationshipPropertyChanged', (...args: unknown[]) => {
-        const relId = args[0] as string;
-        const propertyName = args[1] as string | undefined;
-        const newValue = args[2] as unknown;
-        if (relId && propertyName !== undefined) {
-          triggerFlashEdge(relId);
-          // Always update edge detail panel — O(1)
-          setDetailRelationship((prev) =>
-            prev && prev.Id === relId ? applyRelationshipPropertyUpdate(prev, propertyName, newValue) : prev,
-          );
-          // Only rebuild relationships array if this rel is visible in the node detail panel
-          const selNode = useUiStore.getState().selectedNodeId;
-          if (isVisibleRelationship(relId, selNode, relationshipsRef.current)) {
-            useModelStore.getState().updateRelationships((prev) => prev.map((r) =>
-              r.Id === relId ? applyRelationshipPropertyUpdate(r, propertyName, newValue) : r,
-            ));
-          }
-        }
-      }),
-      on('ModelChanged', () => loadData()),
-      on('ModelCleared', () => {
-        useModelStore.getState().clear();
-      }),
-      on('StatesChanged', () => setStatesVersion((v) => v + 1)),
-    ];
-    return () => unsubs.forEach((u) => u());
-  }, [on, loadData, triggerFlashNode, triggerFlashEdge, updateThings]);
+    setDetailRelationship(relationships.find((r) => r.Id === selectedEdgeId) || null);
+  }, [selectedEdgeId, relationships]);
 
   const handleDeleteThing = async () => {
     if (!deleteConfirm || deleteConfirm.type !== 'thing') return;
@@ -177,7 +86,7 @@ export function GraphPage() {
       await thingApi.remove(deleteConfirm.id);
       toast.success(`Deleted: ${deleteConfirm.name}`);
       selectNode(null);
-      loadData();
+      reloadModelData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Delete failed');
     }
@@ -190,7 +99,7 @@ export function GraphPage() {
       await relationshipApi.remove(deleteConfirm.id);
       toast.success('Relationship deleted');
       selectEdge(null);
-      loadData();
+      reloadModelData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Delete failed');
     }
@@ -201,7 +110,7 @@ export function GraphPage() {
     try {
       await thingApi.deleteProperty(thingId, propertyName);
       toast.success(`Deleted property: ${propertyName}`);
-      loadData();
+      reloadModelData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Delete failed');
     }
@@ -211,7 +120,7 @@ export function GraphPage() {
     try {
       await relationshipApi.deleteProperty(relationshipId, propertyName);
       toast.success(`Deleted property: ${propertyName}`);
-      loadData();
+      reloadModelData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Delete failed');
     }
@@ -225,7 +134,7 @@ export function GraphPage() {
       toast.success(`Created thing: ${newThingName.trim()}`);
       setNewThingName('');
       setShowCreateThing(false);
-      loadData();
+      reloadModelData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create thing');
     } finally {
@@ -295,7 +204,7 @@ export function GraphPage() {
             onClose={() => selectNode(null)}
             onSelectNode={selectNode}
             onDeleteProperty={handleDeleteProperty}
-            onPropertySet={loadData}
+            onPropertySet={reloadModelData}
             statesVersion={statesVersion}
           />
         </ResizablePanel>
@@ -315,7 +224,7 @@ export function GraphPage() {
               setDeleteConfirm({ type: 'relationship', id, name: detailRelationship.Name })
             }
             onDeleteProperty={handleDeleteRelProperty}
-            onPropertySet={loadData}
+            onPropertySet={reloadModelData}
             statesVersion={statesVersion}
           />
         </ResizablePanel>

@@ -4,6 +4,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { AuthContext, useAuthState } from './hooks/useAuth';
 import { LoginForm } from './components/auth/LoginForm';
 import { ChangePasswordForm } from './components/auth/ChangePasswordForm';
+import { useModelData } from './hooks/useModelData';
 
 const GraphPage = lazy(() => import('./pages/GraphPage').then(m => ({ default: m.GraphPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -12,8 +13,10 @@ const PropertySearchPage = lazy(() => import('./pages/PropertySearchPage').then(
 const ThingSearchPage = lazy(() => import('./pages/ThingSearchPage').then(m => ({ default: m.ThingSearchPage })));
 const ModelPage = lazy(() => import('./pages/ModelPage').then(m => ({ default: m.ModelPage })));
 
-/** Inner shell rendered only when authenticated. Each page loads the data it needs. */
+/** Inner shell rendered only when authenticated. Owns the live model-data
+ *  load so every page sees a populated store from mount (Feature #5329). */
 function AuthenticatedApp() {
+  useModelData();
   return (
     <BrowserRouter>
       <Suspense fallback={null}>

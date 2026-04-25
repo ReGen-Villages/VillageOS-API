@@ -54,11 +54,7 @@ vi.mock('../api/client', () => ({
 }));
 
 vi.mock('../api/thingApi', () => ({
-  thingApi: { getAll: vi.fn(), get: vi.fn(), deleteProperty: vi.fn() },
-}));
-
-vi.mock('../api/relationshipApi', () => ({
-  relationshipApi: { getAll: vi.fn() },
+  thingApi: { get: vi.fn(), deleteProperty: vi.fn() },
 }));
 
 let mockModelId: string | null = 'model-1';
@@ -69,25 +65,28 @@ vi.mock('../hooks/useAuth', () => ({
 // Import after mocks so the mocked module is used.
 import { apiClient } from '../api/client';
 import { thingApi } from '../api/thingApi';
-import { relationshipApi } from '../api/relationshipApi';
 import { useUiStore } from '../stores/uiStore';
+import { useModelStore } from '../stores/modelStore';
+import type { VosThing } from '../types/vos';
 const mockGetBytes = vi.mocked(apiClient.getBytes);
-const mockGetAll = vi.mocked(thingApi.getAll);
 const mockGet = vi.mocked(thingApi.get);
-const mockRelGetAll = vi.mocked(relationshipApi.getAll);
+
+function seedThings(things: VosThing[]) {
+  useModelStore.setState({ things, relationships: [] });
+}
 
 describe('ModelPage', () => {
   beforeEach(() => {
     mockGetBytes.mockReset();
-    mockGetAll.mockReset();
     mockGet.mockReset();
-    mockRelGetAll.mockReset();
-    mockGetAll.mockResolvedValue([]);
-    mockRelGetAll.mockResolvedValue([]);
     mockModelId = 'model-1';
     capturedOnPick = null;
     // Reset shared selection state so cross-test bleed-through can't mask bugs.
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null });
+    // Feature #5329: ModelPage now consumes things from the model store,
+    // populated by the app-shell-level useModelData hook. Tests seed it
+    // directly because they don't mount the AuthenticatedApp shell.
+    seedThings([]);
   });
 
   it('renders the Model heading', async () => {
@@ -110,10 +109,10 @@ describe('ModelPage', () => {
     });
   });
 
-  it('mounts FragmentsViewer with bytes + mapping when loaded', async () => {
+  it('mounts FragmentsViewer with bytes + mapping derived from the model store', async () => {
     const bytes = new Uint8Array([0xDE, 0xAD, 0xBE, 0xEF]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGetAll.mockResolvedValue([
+    seedThings([
       { Id: 'vos-guid-1', Name: 'T', Properties: { ifcGlobalId: '2UMzzDFwXBAe1ciOx9dLWU' } },
     ]);
     render(<ModelPage />);
@@ -134,7 +133,7 @@ describe('ModelPage', () => {
     expect(screen.getByText(/network down/i)).toBeInTheDocument();
   });
 
-  it('re-fetches when the JWT-scoped model changes', async () => {
+  it('re-fetches the .frag when the JWT-scoped model changes', async () => {
     mockGetBytes.mockResolvedValue(null);
     const { rerender } = render(<ModelPage />);
     await waitFor(() => expect(mockGetBytes).toHaveBeenCalledTimes(1));
@@ -149,7 +148,7 @@ describe('ModelPage', () => {
   it('mounts NodeDetailPanel (not a duplicate panel) when viewer picks an element', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGetAll.mockResolvedValue([
+    seedThings([
       { Id: 'vos-guid-1', Name: 'LivingRoom_101', Properties: { ifcGlobalId: 'ifc1' } },
     ]);
     mockGet.mockResolvedValue({
@@ -172,7 +171,7 @@ describe('ModelPage', () => {
   it('hides the detail panel when pick misses geometry', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGetAll.mockResolvedValue([{ Id: 'vos-guid-1', Name: 'T', Properties: {} }]);
+    seedThings([{ Id: 'vos-guid-1', Name: 'T', Properties: {} }]);
     mockGet.mockResolvedValue({ Id: 'vos-guid-1', Name: 'T', Properties: {} });
 
     render(<ModelPage />);
@@ -188,7 +187,7 @@ describe('ModelPage', () => {
   it('hides the detail panel when close button is clicked', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGetAll.mockResolvedValue([{ Id: 'vos-guid-1', Name: 'T', Properties: {} }]);
+    seedThings([{ Id: 'vos-guid-1', Name: 'T', Properties: {} }]);
     mockGet.mockResolvedValue({ Id: 'vos-guid-1', Name: 'T', Properties: {} });
 
     render(<ModelPage />);
@@ -203,7 +202,7 @@ describe('ModelPage', () => {
   it('drives selection through useUiStore so it stays in sync with the GraphPage', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
-    mockGetAll.mockResolvedValue([{ Id: 'vos-guid-1', Name: 'T', Properties: {} }]);
+    seedThings([{ Id: 'vos-guid-1', Name: 'T', Properties: {} }]);
     mockGet.mockResolvedValue({ Id: 'vos-guid-1', Name: 'T', Properties: {} });
 
     render(<ModelPage />);
