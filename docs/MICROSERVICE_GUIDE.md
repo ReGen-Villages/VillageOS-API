@@ -26,7 +26,7 @@ The VillageOS ManagedMicroservice is a minimal ASP.NET Core 8.0 web application 
 
 **Technology Stack:**
 - ASP.NET Core 8.0 (Minimal API)
-- .NET 8 SDK
+- .NET 10 SDK
 - JSON-based configuration
 - HTTP for localhost daemon communication; HTTPS for external broker API
 
@@ -36,7 +36,7 @@ The VillageOS ManagedMicroservice is a minimal ASP.NET Core 8.0 web application 
 
 ### Prerequisites
 
-- .NET 8.0 SDK installed
+- .NET 10.0 SDK installed
 - VillageOS Broker running (see [Broker Guide](https://dev.azure.com/ReGenVillages/VillageOS/_git/VillageOS?path=/docs/BROKER_GUIDE.md))
 
 ### Run the Example Service

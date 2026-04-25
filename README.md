@@ -35,7 +35,7 @@ Client tools, GUI, and microservices for the [VillageOS](https://dev.azure.com/R
 
 ## Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Node.js 20+](https://nodejs.org/) (for the GUI)
 
 ## Getting Started
