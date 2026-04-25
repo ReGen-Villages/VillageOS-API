@@ -8,14 +8,19 @@ const mockLogin = vi.fn();
 const mockRestoreSession = vi.fn().mockResolvedValue(false);
 const mockSetAuthRequiredCallback = vi.fn();
 const mockSetUserUpdatedCallback = vi.fn();
+// Stateful mocks for getUser / isAuthenticated so individual tests can simulate
+// "already logged in" state and exercise the logout flow. The real apiClient
+// reads these from a non-React field — that's exactly the source of Bug #5325.
+let mockInitialUser: { Id: string; Username: string; Role: string } | null = null;
+let mockIsAuth = false;
 vi.mock('../api/client', () => ({
   apiClient: {
     login: (u: string, p: string, m?: string) => mockLogin(u, p, m),
     logout: vi.fn().mockResolvedValue(undefined),
-    getUser: () => null,
+    getUser: () => mockInitialUser,
     getModelId: () => null,
     getModelName: () => null,
-    isAuthenticated: () => false,
+    isAuthenticated: () => mockIsAuth,
     setAuthRequiredCallback: (cb: () => void) => mockSetAuthRequiredCallback(cb),
     setUserUpdatedCallback: (cb: (u: unknown) => void) => mockSetUserUpdatedCallback(cb),
     restoreSession: () => mockRestoreSession(),
@@ -54,6 +59,8 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
     mockLogin.mockReset();
     mockGetSeedStatus.mockReset();
     mockRestoreSession.mockReset().mockResolvedValue(false);
+    mockInitialUser = null;
+    mockIsAuth = false;
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
   afterEach(() => {
@@ -110,5 +117,35 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
     });
     expect(result.current.error).toBeNull();
     expect(result.current.seedStatus?.CurrentFile).toBe('MarthasVineyard.seed.json');
+  });
+});
+
+describe('useAuthState logout: forces a re-render gate (Bug #5325)', () => {
+  beforeEach(() => {
+    mockLogin.mockReset();
+    mockGetSeedStatus.mockReset();
+    mockRestoreSession.mockReset().mockResolvedValue(false);
+    // Simulate "already logged in" — the hook reads getUser() at mount and
+    // isAuthenticated() at every render. The latter mirrors apiClient.token,
+    // a non-React field whose changes don't trigger re-renders by themselves.
+    mockInitialUser = { Id: 'u1', Username: 'admin', Role: 'admin' };
+    mockIsAuth = true;
+  });
+
+  it('flips isAuthenticated to false synchronously when logout is called', async () => {
+    const { result } = renderHook(() => useAuthState());
+    expect(result.current.isAuthenticated).toBe(true);
+
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    // The bug: with apiClient.isAuthenticated() still returning true (we
+    // deliberately leave mockIsAuth=true to mirror the real-world race where
+    // the in-memory token field clears AFTER the awaited broker round-trip),
+    // the hook must still flip isAuthenticated to false on its own React state
+    // — otherwise App.tsx never re-renders to the login form.
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(result.current.user).toBeNull();
   });
 });

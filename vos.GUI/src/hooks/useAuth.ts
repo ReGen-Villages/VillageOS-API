@@ -199,12 +199,19 @@ export function useAuthState(): AuthState {
     // (Bug #5290) happens in apiClient.logout() and is awaited so callers
     // that want to be sure the cookie is gone (e.g. before a programmatic
     // navigation) can rely on it.
+    //
+    // setAuthFailed(true) is the load-bearing call for Bug #5325: it forces
+    // the next render to evaluate isAuthenticated to false even though
+    // apiClient.isAuthenticated() (which reads a non-React field) still
+    // returns true until the awaited broker round-trip completes. login()
+    // resets authFailed back to false on success.
     useModelStore.getState().clear();
     setUser(null);
     setModelId(null);
     setModelName(null);
     setAvailableModels(null);
     setError(null);
+    setAuthFailed(true);
     await apiClient.logout();
   }, []);
 
