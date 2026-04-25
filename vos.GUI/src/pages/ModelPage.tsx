@@ -1,9 +1,14 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
-import type { FragmentsMapping } from '../components/model/FragmentsViewer';
-import { FragmentsMetadataPanel } from '../components/model/FragmentsMetadataPanel';
 import { thingApi } from '../api/thingApi';
+import { relationshipApi } from '../api/relationshipApi';
+import { useUiStore } from '../stores/uiStore';
+import { NodeDetailPanel } from '../components/panels/NodeDetailPanel';
+import { ResizablePanel } from '../components/panels/ResizablePanel';
+import { toast } from '../components/common/Toast';
+import type { VosThing, VosRelationship } from '../types/vos';
+import type { FragmentsMapping } from '../components/model/FragmentsViewer';
 
 const FragmentsViewer = lazy(() =>
   import('../components/model/FragmentsViewer').then((m) => ({ default: m.FragmentsViewer })),
@@ -13,16 +18,18 @@ type ViewerState =
   | { status: 'loading' }
   | { status: 'empty' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; bytes: ArrayBuffer; mapping: FragmentsMapping };
+  | {
+      status: 'ready';
+      bytes: ArrayBuffer;
+      mapping: FragmentsMapping;
+      things: VosThing[];
+      relationships: VosRelationship[];
+    };
 
-/**
- * Build the IFC-GlobalId → VosThing-Id map by scanning the broker's
- * authoritative thing list rather than trusting the pre-baked
- * .mapping.json sidecar. The sidecar is produced once at ingest time and
- * drifts whenever the seed is regenerated (Bug #5298 follow-up) — building
- * it from live data is self-healing.
- */
-function buildMappingFromThings(things: { Id: string; Properties?: Record<string, unknown> }[]): FragmentsMapping {
+// Build the IFC-GlobalId → VosThing-Id map by scanning the broker's authoritative
+// thing list rather than the pre-baked .mapping.json sidecar (which drifts whenever
+// the seed is regenerated — Bug #5298 follow-up).
+function buildMappingFromThings(things: VosThing[]): FragmentsMapping {
   const map: FragmentsMapping = {};
   for (const t of things) {
     const ifcId = t.Properties?.ifcGlobalId;
@@ -31,33 +38,40 @@ function buildMappingFromThings(things: { Id: string; Properties?: Record<string
   return map;
 }
 
-/**
- * Model page — renders the IFC-derived Fragments artifact produced by
- * vos.Tools.IfcIngest. Fetches .frag bytes from the broker and derives
- * the IFC-GlobalId → VosThing-Id map from the current thing list (rather
- * than the drift-prone .mapping.json sidecar). Click-to-pick resolves a
- * raycast hit through that map and shows the thing's metadata.
- */
 export function ModelPage() {
   const { modelId } = useAuth();
   const [state, setState] = useState<ViewerState>({ status: 'loading' });
-  const [selectedThingId, setSelectedThingId] = useState<string | null>(null);
+  const [detailThing, setDetailThing] = useState<VosThing | null>(null);
+
+  const selectedNodeId = useUiStore((s) => s.selectedNodeId);
+  const selectNode = useUiStore((s) => s.selectNode);
+
+  const loadModelData = useCallback(async () => {
+    const [bytes, things, relationships] = await Promise.all([
+      apiClient.getBytes('/api/model/fragments'),
+      thingApi.getAll().catch(() => [] as VosThing[]),
+      relationshipApi.getAll().catch(() => [] as VosRelationship[]),
+    ]);
+    return { bytes, things, relationships };
+  }, []);
 
   // Re-fetch whenever the JWT-scoped model changes (e.g. via /api/auth/switch-model).
-  // Without a modelId dep, switching models leaves the previous .frag on screen.
   useEffect(() => {
     let cancelled = false;
     setState({ status: 'loading' });
-    setSelectedThingId(null);
+    selectNode(null);
 
-    Promise.all([
-      apiClient.getBytes('/api/model/fragments'),
-      thingApi.getAll().catch(() => []),
-    ])
-      .then(([bytes, things]) => {
+    loadModelData()
+      .then(({ bytes, things, relationships }) => {
         if (cancelled) return;
         if (bytes === null) setState({ status: 'empty' });
-        else setState({ status: 'ready', bytes, mapping: buildMappingFromThings(things) });
+        else setState({
+          status: 'ready',
+          bytes,
+          mapping: buildMappingFromThings(things),
+          things,
+          relationships,
+        });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -69,13 +83,64 @@ export function ModelPage() {
     return () => {
       cancelled = true;
     };
-  }, [modelId]);
+  }, [modelId, loadModelData, selectNode]);
 
-  const handlePick = useCallback((vosGuid: string | null) => {
-    setSelectedThingId(vosGuid);
-  }, []);
+  // Fetch the full thing (with inherited properties) when selection changes —
+  // matches the GraphPage pattern so NodeDetailPanel sees the same shape from both views.
+  useEffect(() => {
+    if (!selectedNodeId) {
+      setDetailThing(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const thing = await thingApi.get(selectedNodeId);
+        if (!cancelled) setDetailThing(thing);
+      } catch {
+        if (cancelled) return;
+        if (state.status === 'ready') {
+          setDetailThing(state.things.find((t) => t.Id === selectedNodeId) ?? null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedNodeId, state]);
 
-  const closePanel = useCallback(() => setSelectedThingId(null), []);
+  const things = state.status === 'ready' ? state.things : null;
+  const relationships = state.status === 'ready' ? state.relationships : null;
+
+  const thingMap = useMemo(
+    () => new Map((things ?? []).map((t) => [t.Id, t])),
+    [things],
+  );
+
+  const handlePick = useCallback((vosGuid: string | null) => selectNode(vosGuid), [selectNode]);
+
+  const reload = useCallback(async () => {
+    try {
+      const { bytes, things: t, relationships: r } = await loadModelData();
+      if (bytes === null) {
+        setState({ status: 'empty' });
+        return;
+      }
+      setState({ status: 'ready', bytes, mapping: buildMappingFromThings(t), things: t, relationships: r });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reload model');
+    }
+  }, [loadModelData]);
+
+  const handleDeleteProperty = useCallback(async (thingId: string, propertyName: string) => {
+    try {
+      await thingApi.deleteProperty(thingId, propertyName);
+      toast.success(`Deleted property: ${propertyName}`);
+      await reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Delete failed');
+    }
+  }, [reload]);
 
   return (
     <div className="h-full flex flex-col p-6">
@@ -87,7 +152,7 @@ export function ModelPage() {
       </header>
 
       {state.status === 'ready' ? (
-        <div className="flex-1 flex min-h-0 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700">
+        <div className="flex-1 flex min-h-0 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 relative">
           <div className="flex-1 min-w-0">
             <Suspense fallback={<LoadingPlaceholder />}>
               <FragmentsViewer
@@ -97,8 +162,18 @@ export function ModelPage() {
               />
             </Suspense>
           </div>
-          {selectedThingId && (
-            <FragmentsMetadataPanel thingId={selectedThingId} onClose={closePanel} />
+          {detailThing && relationships && (
+            <ResizablePanel>
+              <NodeDetailPanel
+                thing={detailThing}
+                relationships={relationships}
+                allThings={thingMap}
+                onClose={() => selectNode(null)}
+                onSelectNode={selectNode}
+                onDeleteProperty={handleDeleteProperty}
+                onPropertySet={reload}
+              />
+            </ResizablePanel>
           )}
         </div>
       ) : state.status === 'loading' ? (
