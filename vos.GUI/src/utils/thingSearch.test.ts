@@ -302,7 +302,6 @@ describe('searchThings', () => {
         geometry: 'big-blob',
         footprint: 'big-blob',
         __geometry_envelope: 'big-blob',
-        __IsSurface: true,
         value: 42,
       });
       const localIndex = buildThingSearchIndex([thing], []);
@@ -325,7 +324,6 @@ describe('searchThings', () => {
         geometry: '{}',
         footprint: '{}',
         __geometry_envelope: '{}',
-        __IsSurface: true,
         realProp: 'visible',
       });
       const localIndex = buildThingSearchIndex([thing], []);
@@ -334,7 +332,6 @@ describe('searchThings', () => {
       expect(keys).not.toContain('geometry');
       expect(keys).not.toContain('footprint');
       expect(keys).not.toContain('__geometry_envelope');
-      expect(keys).not.toContain('__IsSurface');
       expect(keys).toContain('realProp');
     });
 
@@ -354,7 +351,10 @@ describe('THING_SEARCH_SKIP_KEYS', () => {
     expect(THING_SEARCH_SKIP_KEYS.has('geometry')).toBe(true);
     expect(THING_SEARCH_SKIP_KEYS.has('footprint')).toBe(true);
     expect(THING_SEARCH_SKIP_KEYS.has('__geometry_envelope')).toBe(true);
-    expect(THING_SEARCH_SKIP_KEYS.has('__IsSurface')).toBe(true);
+  });
+
+  it('does not contain the legacy __IsSurface key (Bug #5305)', () => {
+    expect(THING_SEARCH_SKIP_KEYS.has('__IsSurface')).toBe(false);
   });
 });
 

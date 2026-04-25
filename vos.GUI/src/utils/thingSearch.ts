@@ -6,7 +6,6 @@ export const THING_SEARCH_SKIP_KEYS = new Set([
   'geometry',
   'footprint',
   '__geometry_envelope',
-  '__IsSurface',
 ]);
 
 /** Max own properties shown inline per result row. */

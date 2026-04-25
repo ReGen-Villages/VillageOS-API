@@ -77,10 +77,6 @@ interface UiState {
   addFlashEdge: (id: string) => void;
   removeFlashEdge: (id: string) => void;
 
-  // ── Multi-phase loading ────────────────────────────────────────
-  loadingPhase: 'idle' | 'surface' | 'remaining' | 'done';
-  setLoadingPhase: (phase: 'idle' | 'surface' | 'remaining' | 'done') => void;
-
   togglePredicateId: (id: string) => void;
   clearPredicateIds: () => void;
   setPredicateIds: (ids: Set<string>) => void;
@@ -197,10 +193,6 @@ export const useUiStore = create<UiState>((set) => ({
       next.delete(id);
       return { flashingEdgeIds: next };
     }),
-
-  // ── Multi-phase loading ──────────────────────────────────────────────────
-  loadingPhase: 'idle' as const,
-  setLoadingPhase: (phase) => set({ loadingPhase: phase }),
 
   togglePredicateId: (id) =>
     set((state) => {
