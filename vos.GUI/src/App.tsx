@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { AuthContext, useAuthState } from './hooks/useAuth';
-import { useModelLoader } from './hooks/useModelLoader';
 import { LoginForm } from './components/auth/LoginForm';
 import { ChangePasswordForm } from './components/auth/ChangePasswordForm';
 
@@ -13,10 +12,8 @@ const PropertySearchPage = lazy(() => import('./pages/PropertySearchPage').then(
 const ThingSearchPage = lazy(() => import('./pages/ThingSearchPage').then(m => ({ default: m.ThingSearchPage })));
 const ModelPage = lazy(() => import('./pages/ModelPage').then(m => ({ default: m.ModelPage })));
 
-/** Inner shell rendered only when authenticated — kicks off phased model loading. */
+/** Inner shell rendered only when authenticated. Each page loads the data it needs. */
 function AuthenticatedApp() {
-  useModelLoader();
-
   return (
     <BrowserRouter>
       <Suspense fallback={null}>

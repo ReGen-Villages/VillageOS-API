@@ -8,19 +8,6 @@ export const thingApi = {
     return things.map(unwrapThing);
   },
 
-  // ── Phase loading (large models) ──────────────────────────────────────
-  /** Phase 1: Surface things without geometry — fast initial render using lat/lng. */
-  getSurfaceThings: async () => {
-    const things = await apiClient.get<VosThing[]>('/api/things/phase/surface');
-    return things.map(unwrapThing);
-  },
-
-  /** Phase 2: Remaining (non-surface) things. */
-  getRemainingThings: async () => {
-    const things = await apiClient.get<VosThing[]>('/api/things/phase/remaining');
-    return things.map(unwrapThing);
-  },
-
   get: async (id: string) => {
     const thing = await apiClient.get<VosThing>(`/api/things/${id}`);
     return unwrapThing(thing);

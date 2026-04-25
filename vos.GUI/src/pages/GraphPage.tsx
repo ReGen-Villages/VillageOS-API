@@ -19,7 +19,7 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import type { VosThing, VosRelationship } from '../types/vos';
 import { isGraphAffectingProperty, applyThingPropertyUpdate, applyRelationshipPropertyUpdate, isVisibleRelationship } from '../utils/propertyUpdates';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { LogOut, ArrowLeftRight } from 'lucide-react';
 
 export function GraphPage() {
   const { logout, switchModel, modelName } = useAuth();
@@ -115,8 +115,8 @@ export function GraphPage() {
     }
   }, [syncDetailPanels, setThings, setRelationships]);
 
-  // Model data is loaded at app level (useModelLoader in App.tsx).
-  // GraphPage just consumes the store data.
+  // Initial load on mount
+  useEffect(() => { loadData(); }, [loadData]);
 
   // SignalR live updates
   useEffect(() => {
@@ -233,8 +233,6 @@ export function GraphPage() {
     }
   };
 
-  const loadingPhase = useUiStore((s) => s.loadingPhase);
-
   const {
     filteredThings, filteredRelationships, matchCount, searchOptions,
   } = useGraphData({
@@ -272,17 +270,6 @@ export function GraphPage() {
           <LogOut size={14} />
         </button>
       </div>
-
-      {/* Loading phase indicator — top center, clear of controls */}
-      {loadingPhase !== 'idle' && loadingPhase !== 'done' && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-zinc-800/90 backdrop-blur rounded-lg px-3 py-1.5">
-          <Loader2 size={14} className="animate-spin text-blue-400" />
-          <span className="text-xs text-zinc-300">
-            {loadingPhase === 'surface' && 'Loading surface objects...'}
-            {loadingPhase === 'remaining' && 'Loading remaining objects...'}
-          </span>
-        </div>
-      )}
 
       <ErrorBoundary>
         <SigmaCanvas things={filteredThings} relationships={filteredRelationships} searchQuery={searchQuery} searchOptions={searchOptions} />
