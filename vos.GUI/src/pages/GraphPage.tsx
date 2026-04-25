@@ -18,6 +18,7 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import type { VosThing, VosRelationship } from '../types/vos';
 import { useAuth } from '../hooks/useAuth';
 import { LogOut, ArrowLeftRight } from 'lucide-react';
+import { ThemeToggleButton } from '../components/common/ThemeToggleButton';
 
 export function GraphPage() {
   const { logout, switchModel, modelName } = useAuth();
@@ -161,9 +162,10 @@ export function GraphPage() {
         creatingThing={creatingThing} onCreateThing={handleCreateThing}
       />
 
-      {/* Top-right: model name + switch / logout */}
+      {/* Top-right: model name + theme toggle + switch / logout */}
       <div className="absolute top-3 right-3 z-10 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
         {modelName && <span className="text-xs text-zinc-400 mr-1">{modelName}</span>}
+        <ThemeToggleButton />
         <button
           onClick={switchModel}
           title="Switch model"
