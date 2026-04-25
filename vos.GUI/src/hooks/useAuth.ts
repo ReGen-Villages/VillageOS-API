@@ -164,11 +164,27 @@ export function useAuthState(): AuthState {
         } catch { /* not a models response */ }
       }
       const msg = err instanceof Error ? err.message : 'Login failed';
-      // If "No models loaded", start polling seed status instead of showing error
+      // "No models loaded" can mean two very different things:
+      //   (a) a seed is currently being loaded at startup → poll and auto-retry
+      //   (b) the broker has nothing in its library and never will on its own
+      //       → must surface an actionable error instead of silently polling a
+      //         seed-status that will never reach Phase=Done (Bug #5324).
+      // Disambiguate by reading SeedLoadingStatus before deciding.
       if (msg.includes('No models loaded')) {
-        setError(null);
-        startSeedPolling(username, password);
-        return;
+        try {
+          const status = await brokerApi.getSeedStatus();
+          if (status.IsLoading) {
+            setError(null);
+            setSeedStatus(status);
+            startSeedPolling(username, password);
+            return;
+          }
+        } catch { /* fall through to actionable error */ }
+        setError(
+          'No models on broker. Drop a .seed.json into vos.Broker/seeds-library/ and reload, '
+          + 'or POST /api/broker/library-seeds/<name>/load.',
+        );
+        throw err;
       }
       setError(msg);
       throw err;
