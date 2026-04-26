@@ -219,3 +219,76 @@ describe('openRadialMenu', () => {
     expect(state.nodeContextMenuNodeId).toBeNull();
   });
 });
+
+describe('hiddenTypeIds — type filter (Feature #5362)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useUiStore.setState({
+      currentModelId: null,
+      hiddenTypeIds: new Set<string>(),
+    });
+  });
+
+  it('starts empty when no model is selected', () => {
+    expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
+  });
+
+  it('toggleHiddenType adds and removes ids', () => {
+    const { toggleHiddenType } = useUiStore.getState();
+    toggleHiddenType('t-wall');
+    expect(useUiStore.getState().hiddenTypeIds.has('t-wall')).toBe(true);
+    toggleHiddenType('t-wall');
+    expect(useUiStore.getState().hiddenTypeIds.has('t-wall')).toBe(false);
+  });
+
+  it('persists hidden ids per modelId', () => {
+    const { setCurrentModelId, toggleHiddenType } = useUiStore.getState();
+    setCurrentModelId('model-A');
+    toggleHiddenType('t-wall');
+    toggleHiddenType('t-door');
+
+    // Switch to a different model — store should clear (different localStorage key)
+    setCurrentModelId('model-B');
+    expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
+
+    // Switch back — persisted state restored
+    setCurrentModelId('model-A');
+    const restored = useUiStore.getState().hiddenTypeIds;
+    expect(restored.has('t-wall')).toBe(true);
+    expect(restored.has('t-door')).toBe(true);
+  });
+
+  it('clearHiddenTypeIds wipes the set and persists empty', () => {
+    const { setCurrentModelId, toggleHiddenType, clearHiddenTypeIds } = useUiStore.getState();
+    setCurrentModelId('m1');
+    toggleHiddenType('t-x');
+    expect(useUiStore.getState().hiddenTypeIds.size).toBe(1);
+    clearHiddenTypeIds();
+    expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
+    // Re-load model — should still be empty
+    useUiStore.getState().setCurrentModelId(null);
+    useUiStore.getState().setCurrentModelId('m1');
+    expect(useUiStore.getState().hiddenTypeIds.size).toBe(0);
+  });
+
+  it('setHiddenTypeIds replaces the entire set', () => {
+    const { setCurrentModelId, setHiddenTypeIds } = useUiStore.getState();
+    setCurrentModelId('m1');
+    setHiddenTypeIds(new Set(['a', 'b', 'c']));
+    expect([...useUiStore.getState().hiddenTypeIds].sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('does not persist when no model is selected', () => {
+    // Without a modelId, toggles still update in-memory state but skip
+    // localStorage so we don't pollute a global key.
+    useUiStore.setState({ currentModelId: null, hiddenTypeIds: new Set<string>() });
+    useUiStore.getState().toggleHiddenType('t-wall');
+    // No localStorage entry should exist for an unkeyed model
+    const allKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('vos-hidden-types:')) allKeys.push(k);
+    }
+    expect(allKeys).toEqual([]);
+  });
+});

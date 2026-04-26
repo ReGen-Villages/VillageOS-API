@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
-import { AuthContext, useAuthState } from './hooks/useAuth';
+import { AuthContext, useAuthState, useAuth } from './hooks/useAuth';
 import { LoginForm } from './components/auth/LoginForm';
 import { ChangePasswordForm } from './components/auth/ChangePasswordForm';
 import { useModelData } from './hooks/useModelData';
+import { useUiStore } from './stores/uiStore';
 import { useThemeStore, attachThemeMediaListener } from './stores/themeStore';
 
 const GraphPage = lazy(() => import('./pages/GraphPage').then(m => ({ default: m.GraphPage })));
@@ -18,6 +19,15 @@ const ModelPage = lazy(() => import('./pages/ModelPage').then(m => ({ default: m
  *  load so every page sees a populated store from mount (Feature #5329). */
 function AuthenticatedApp() {
   useModelData();
+  // Feature #5362 — push the active modelId into the UI store so the type
+  // filter (and any other per-model UI state) can load/persist its
+  // localStorage entry against the right key.
+  const { modelId } = useAuth();
+  const setCurrentModelId = useUiStore((s) => s.setCurrentModelId);
+  useEffect(() => {
+    setCurrentModelId(modelId);
+  }, [modelId, setCurrentModelId]);
+
   return (
     <BrowserRouter>
       <Suspense fallback={null}>

@@ -9,6 +9,34 @@ const MIN_PANEL_WIDTH = 240;
 const MAX_PANEL_WIDTH = 1600;
 
 const SHOW_EDGES_KEY = 'vos-show-all-edges';
+const HIDDEN_TYPES_KEY_PREFIX = 'vos-hidden-types:';
+
+/**
+ * Feature #5362 — load the persisted set of hidden type Thing ids for a model.
+ * Per-model so different models don't share filter state. Returns an empty
+ * Set when no model is selected or no persisted state exists.
+ */
+function loadHiddenTypeIds(modelId: string | null): Set<string> {
+  if (!modelId) return new Set<string>();
+  const raw = localStorage.getItem(HIDDEN_TYPES_KEY_PREFIX + modelId);
+  if (!raw) return new Set<string>();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set<string>();
+    return new Set<string>(parsed.filter((x): x is string => typeof x === 'string'));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function persistHiddenTypeIds(modelId: string | null, ids: Set<string>): void {
+  if (!modelId) return;
+  if (ids.size === 0) {
+    localStorage.removeItem(HIDDEN_TYPES_KEY_PREFIX + modelId);
+  } else {
+    localStorage.setItem(HIDDEN_TYPES_KEY_PREFIX + modelId, JSON.stringify([...ids]));
+  }
+}
 
 function loadPanelWidth(): number {
   const stored = localStorage.getItem(PANEL_WIDTH_KEY);
@@ -53,6 +81,20 @@ interface UiState {
   // useful on extremely dense graphs). Persisted to localStorage.
   showAllEdgesByDefault: boolean;
   toggleShowAllEdgesByDefault: () => void;
+
+  // ── Type filter (Feature #5362) ───────────────────────────────────
+  // Set of type Thing ids currently hidden. Domain-agnostic — any Thing
+  // that is the target of an `is` relationship is a "type" for purposes
+  // of this filter. Both the Graph page (Sigma) and the Model page
+  // (Fragments) consume this same set so the two views stay in sync.
+  // Persisted per-model via localStorage so different domains keep
+  // separate filter state across reloads.
+  currentModelId: string | null;
+  hiddenTypeIds: Set<string>;
+  setCurrentModelId: (modelId: string | null) => void;
+  toggleHiddenType: (typeId: string) => void;
+  setHiddenTypeIds: (ids: Set<string>) => void;
+  clearHiddenTypeIds: () => void;
 
   // ── Predicate clustering ───────────────────────────────────────────
   activePredicateIds: Set<string>;
@@ -141,6 +183,30 @@ export const useUiStore = create<UiState>((set) => ({
     const next = !s.showAllEdgesByDefault;
     localStorage.setItem(SHOW_EDGES_KEY, String(next));
     return { showAllEdgesByDefault: next };
+  }),
+
+  // ── Type filter (Feature #5362) ───────────────────────────────────
+  currentModelId: null,
+  hiddenTypeIds: new Set<string>(),
+  setCurrentModelId: (modelId) => set(() => ({
+    currentModelId: modelId,
+    // Re-load persisted filter state for the new model
+    hiddenTypeIds: loadHiddenTypeIds(modelId),
+  })),
+  toggleHiddenType: (typeId) => set((s) => {
+    const next = new Set(s.hiddenTypeIds);
+    if (next.has(typeId)) next.delete(typeId);
+    else next.add(typeId);
+    persistHiddenTypeIds(s.currentModelId, next);
+    return { hiddenTypeIds: next };
+  }),
+  setHiddenTypeIds: (ids) => set((s) => {
+    persistHiddenTypeIds(s.currentModelId, ids);
+    return { hiddenTypeIds: new Set(ids) };
+  }),
+  clearHiddenTypeIds: () => set((s) => {
+    persistHiddenTypeIds(s.currentModelId, new Set<string>());
+    return { hiddenTypeIds: new Set<string>() };
   }),
 
   // ── Predicate clustering ─────────────────────────────────────────────

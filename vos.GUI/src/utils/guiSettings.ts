@@ -10,11 +10,13 @@ export interface FlashSettings {
 /**
  * Force-layout settings extracted from the GUI_Settings type Thing.
  *
- * Bug #5361 added the second group (FA2 + node-size + edge-size knobs) so
- * the perf-critical parameters that used to be hard-coded constants are now
- * runtime-tunable through GUI_Settings, the same way attraction/repulsion/
- * gravity already were. Editing the GUI_Settings Thing in the broker (or in
- * the seed JSON) overrides any of these without a rebuild.
+ * Bug #5361 added the FA2 supervisor + node-size + edge-size knobs so the
+ * perf-critical parameters that used to be hard-coded constants are now
+ * runtime-tunable through GUI_Settings, the same way attraction / repulsion
+ * / gravity already were. Feature #5362 added classifyingProperty so the
+ * GUI can run against any domain ontology, not just IFC. Editing the
+ * GUI_Settings Thing on the broker (or in the seed JSON) overrides any of
+ * these without a rebuild.
  */
 export interface LayoutSettings {
   // Pre-existing user-tunable force coefficients
@@ -25,7 +27,7 @@ export interface LayoutSettings {
   maxMove: number;
   clusterRepulsion: number;
 
-  // FA2 supervisor knobs (Bug #5361) — all empirically validated against the
+  // FA2 supervisor knobs (Bug #5361) — empirically validated against the
   // 30k-node MV graph; defaults are in LAYOUT_DEFAULTS below.
   scalingRatioMultiplier: number;
   gravityMultiplier: number;
@@ -42,6 +44,19 @@ export interface LayoutSettings {
   // Edge sizing (Bug #5361) — flat width for all edges. Smaller = less visual
   // clutter when many edges share endpoints.
   edgeSize: number;
+
+  /**
+   * Feature #5362 — name of the Thing-property whose value drives the per-node
+   * color/bucket lookup and the per-element color in the BuildingDetail3D
+   * viewport. The system itself knows nothing about specific ontologies; pick
+   * whatever property the loaded model uses to identify class membership.
+   *
+   * Default `'ifcClass'` so IFC-imported seeds work out of the box. Any
+   * non-IFC deployment overrides via `GUI_Settings.ClassifyingProperty`.
+   * When the property is missing on a Thing, that Thing falls back to the
+   * default bucket color.
+   */
+  classifyingProperty: string;
 }
 
 export const LAYOUT_DEFAULTS: LayoutSettings = {
@@ -63,6 +78,8 @@ export const LAYOUT_DEFAULTS: LayoutSettings = {
   nodeSizeSlope: 0.4,
   // Edge sizing.
   edgeSize: 1,
+  // Default to "ifcClass" so IFC-imported seeds work out of the box.
+  classifyingProperty: 'ifcClass',
 };
 
 export const FLASH_DEFAULTS: FlashSettings = {
@@ -155,6 +172,8 @@ function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
     nodeSizeMax: toNumber(p['NodeSizeMax'], LAYOUT_DEFAULTS.nodeSizeMax),
     nodeSizeSlope: toNumber(p['NodeSizeSlope'], LAYOUT_DEFAULTS.nodeSizeSlope),
     edgeSize: toNumber(p['EdgeSize'], LAYOUT_DEFAULTS.edgeSize),
+    // Feature #5362 — domain-agnostic classifier property name
+    classifyingProperty: toString(p['ClassifyingProperty'], LAYOUT_DEFAULTS.classifyingProperty),
   };
 }
 
@@ -242,3 +261,7 @@ function toBoolean(v: unknown, fallback: boolean): boolean {
   return fallback;
 }
 
+function toString(v: unknown, fallback: string): string {
+  if (typeof v === 'string' && v.length > 0) return v;
+  return fallback;
+}

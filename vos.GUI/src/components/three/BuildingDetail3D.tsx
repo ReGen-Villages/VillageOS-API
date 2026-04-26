@@ -4,8 +4,9 @@
  * Renders a centered, auto-rotating building model with orbit controls.
  * Lazy-loaded when the "3D" tab is activated in NodeDetailPanel.
  *
- * For IFC things with child elements (via contains/aggregates), renders
- * multiple meshes colored by ifcClass hash.
+ * Things with child elements (via spatial-containment predicates) render
+ * multiple meshes colored by `colorKey` hash. The caller decides what
+ * string to put in `colorKey` — the viewer is domain-agnostic.
  */
 import { useMemo, useRef, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -17,7 +18,14 @@ import { hashStringToIndex, ELEMENT_COLORS } from '../../utils/colors';
 export interface ChildElement {
   geometryValue: unknown;
   name: string;
-  ifcClass?: string;
+  /**
+   * Arbitrary string used to deterministically pick a mesh color via
+   * hashing into ELEMENT_COLORS. Children sharing a colorKey share a
+   * color; the meaning of the key is the caller's choice (e.g. an IFC
+   * class for IFC seeds, a `kind` property for another domain). When
+   * absent the parent's `color` is used.
+   */
+  colorKey?: string;
 }
 
 interface BuildingDetail3DProps {
@@ -26,8 +34,8 @@ interface BuildingDetail3DProps {
   childElements?: ChildElement[];
 }
 
-function colorForIfcClass(ifcClass: string): string {
-  return ELEMENT_COLORS[hashStringToIndex(ifcClass, ELEMENT_COLORS.length)];
+function colorForKey(key: string): string {
+  return ELEMENT_COLORS[hashStringToIndex(key, ELEMENT_COLORS.length)];
 }
 
 /** Parse and center a single mesh, returning the Three.js geometry. */
@@ -83,8 +91,8 @@ function RotatingBuilding({
       for (const child of childElements) {
         const childMesh = parseSolidMesh(child.geometryValue);
         if (!childMesh) continue;
-        const childColor = child.ifcClass
-          ? colorForIfcClass(child.ifcClass)
+        const childColor = child.colorKey
+          ? colorForKey(child.colorKey)
           : color;
         allMeshes.push({ mesh: childMesh, color: childColor });
       }
