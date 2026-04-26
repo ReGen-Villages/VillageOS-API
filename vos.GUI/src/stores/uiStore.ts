@@ -8,7 +8,6 @@ const DEFAULT_PANEL_WIDTH = 320;
 const MIN_PANEL_WIDTH = 240;
 const MAX_PANEL_WIDTH = 1600;
 
-const SHOW_EDGES_KEY = 'vos-show-all-edges';
 const HIDDEN_TYPES_KEY_PREFIX = 'vos-hidden-types:';
 
 /**
@@ -47,15 +46,6 @@ function loadPanelWidth(): number {
   return DEFAULT_PANEL_WIDTH;
 }
 
-function loadShowAllEdges(): boolean {
-  const stored = localStorage.getItem(SHOW_EDGES_KEY);
-  // Default true — most users expect "show me the graph". Power users on
-  // dense graphs (24k+ edges) can flip to false via the toolbar toggle
-  // (Feature #5344).
-  if (stored === 'false') return false;
-  return true;
-}
-
 interface UiState {
   // ── Selection & hover ─────────────────────────────────────────────
   selectedNodeId: string | null;
@@ -74,13 +64,6 @@ interface UiState {
   statesVersion: number;
   bumpStatesVersion: () => void;
 
-  // ── Edge visibility (Feature #5344) ───────────────────────────────
-  // When true, every edge renders by default; search / predicate
-  // filters become opt-in restrictions. When false, edges hide unless
-  // touched by hover/selection/active filter (the original behavior,
-  // useful on extremely dense graphs). Persisted to localStorage.
-  showAllEdgesByDefault: boolean;
-  toggleShowAllEdgesByDefault: () => void;
 
   // ── Type filter (Feature #5362) ───────────────────────────────────
   // Set of type Thing ids currently hidden. Domain-agnostic — any Thing
@@ -176,14 +159,6 @@ export const useUiStore = create<UiState>((set) => ({
   // ── States refresh counter ────────────────────────────────────────
   statesVersion: 0,
   bumpStatesVersion: () => set((s) => ({ statesVersion: s.statesVersion + 1 })),
-
-  // ── Edge visibility (Feature #5344) ───────────────────────────────
-  showAllEdgesByDefault: loadShowAllEdges(),
-  toggleShowAllEdgesByDefault: () => set((s) => {
-    const next = !s.showAllEdgesByDefault;
-    localStorage.setItem(SHOW_EDGES_KEY, String(next));
-    return { showAllEdgesByDefault: next };
-  }),
 
   // ── Type filter (Feature #5362) ───────────────────────────────────
   currentModelId: null,

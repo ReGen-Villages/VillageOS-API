@@ -76,61 +76,49 @@ describe('edgeTouchesNode', () => {
   });
 });
 
-describe('decideEdgeDisplay (Feature #5344)', () => {
+describe('decideEdgeDisplay (Feature #5344, simplified by Bug #5364)', () => {
   const NEUTRAL = {
     endpointMatchesHover: false,
     endpointMatchesSelection: false,
     bothEndpointsInSearch: undefined,
     predicateInActiveFilter: undefined,
-    showAllByDefault: true,
   } as const;
 
-  describe('default mode (showAllByDefault = true)', () => {
-    it('shows edges when no filter is active', () => {
-      expect(decideEdgeDisplay(NEUTRAL)).toBe('show');
-    });
-
-    it('still brightens edges touching the hovered node', () => {
-      expect(decideEdgeDisplay({ ...NEUTRAL, endpointMatchesHover: true })).toBe('brighten');
-    });
-
-    it('still hides non-matching edges when search is active', () => {
-      expect(decideEdgeDisplay({ ...NEUTRAL, bothEndpointsInSearch: false })).toBe('hide');
-    });
-
-    it('still hides non-matching edges when predicate filter is active', () => {
-      expect(decideEdgeDisplay({ ...NEUTRAL, predicateInActiveFilter: false })).toBe('hide');
-    });
+  it('shows edges by default when no filter is active', () => {
+    expect(decideEdgeDisplay(NEUTRAL)).toBe('show');
   });
 
-  describe('quiet mode (showAllByDefault = false)', () => {
-    const QUIET = { ...NEUTRAL, showAllByDefault: false } as const;
-
-    it('hides edges by default (the original dense-graph behavior)', () => {
-      expect(decideEdgeDisplay(QUIET)).toBe('hide');
-    });
-
-    it('still brightens edges touching the hovered node', () => {
-      expect(decideEdgeDisplay({ ...QUIET, endpointMatchesHover: true })).toBe('brighten');
-    });
-
-    it('still shows edges touching the selected node', () => {
-      expect(decideEdgeDisplay({ ...QUIET, endpointMatchesSelection: true })).toBe('show');
-    });
-
-    it('still shows edges matching active predicate filter', () => {
-      expect(decideEdgeDisplay({ ...QUIET, predicateInActiveFilter: true })).toBe('show');
-    });
+  it('brightens edges touching the hovered node', () => {
+    expect(decideEdgeDisplay({ ...NEUTRAL, endpointMatchesHover: true })).toBe('brighten');
   });
 
-  it('hover beats selection beats search beats predicate beats default', () => {
+  it('shows edges touching the selected node', () => {
+    expect(decideEdgeDisplay({ ...NEUTRAL, endpointMatchesSelection: true })).toBe('show');
+  });
+
+  it('hides non-matching edges when search is active', () => {
+    expect(decideEdgeDisplay({ ...NEUTRAL, bothEndpointsInSearch: false })).toBe('hide');
+  });
+
+  it('shows matching edges when search is active', () => {
+    expect(decideEdgeDisplay({ ...NEUTRAL, bothEndpointsInSearch: true })).toBe('show');
+  });
+
+  it('hides non-matching edges when predicate filter is active', () => {
+    expect(decideEdgeDisplay({ ...NEUTRAL, predicateInActiveFilter: false })).toBe('hide');
+  });
+
+  it('shows matching edges when predicate filter is active', () => {
+    expect(decideEdgeDisplay({ ...NEUTRAL, predicateInActiveFilter: true })).toBe('show');
+  });
+
+  it('precedence: hover > selection > search > predicate > default', () => {
     // All conditions true, hover wins
     expect(decideEdgeDisplay({
       endpointMatchesHover: true,
       endpointMatchesSelection: true,
       bothEndpointsInSearch: true,
       predicateInActiveFilter: true,
-      showAllByDefault: false,
     })).toBe('brighten');
 
     // Search beats predicate
