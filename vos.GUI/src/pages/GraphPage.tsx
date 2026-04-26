@@ -1,5 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
-import { SigmaCanvas } from '../components/graph/SigmaCanvas';
+import { lazy, Suspense, useEffect, useState, useMemo, useRef } from 'react';
 import { GraphSearchBar } from '../components/graph/GraphSearchBar';
 import { NodeDetailPanel } from '../components/panels/NodeDetailPanel';
 import { EdgeDetailPanel } from '../components/panels/EdgeDetailPanel';
@@ -21,6 +20,16 @@ import { useAuth } from '../hooks/useAuth';
 import { LogOut, ArrowLeftRight } from 'lucide-react';
 import { ThemeToggleButton } from '../components/common/ThemeToggleButton';
 import { applyTypeFilter } from '../utils/typeFilter';
+
+// Feature #5362 — SigmaCanvas is lazy-loaded so the page commits (search bar,
+// type filter, top-right controls) BEFORE Sigma's mount-time work
+// (buildGraph + supervisor init + initial render of 30k+ nodes) starves the
+// main thread. The user can interact with the type filter immediately on cold
+// start, hide the heavy types they don't want, and the page reaches an
+// interactive state without ever rendering the full set.
+const SigmaCanvas = lazy(() =>
+  import('../components/graph/SigmaCanvas').then((m) => ({ default: m.SigmaCanvas })),
+);
 
 export function GraphPage() {
   const { logout, switchModel, modelName } = useAuth();
@@ -59,6 +68,17 @@ export function GraphPage() {
 
   useEffect(() => {
     useUiStore.getState().clearPredicateIds();
+  }, []);
+
+  // Feature #5362 — defer Sigma mount one tick so the page chrome (search
+  // bar + type filter + top-right controls) commits and paints first. On a
+  // 30k-node model the synchronous SigmaCanvas mount blocks the main thread
+  // for several seconds; without this defer the user can never reach the
+  // type filter to hide types and recover perf on cold start.
+  const [mountSigma, setMountSigma] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setMountSigma(true), 0);
+    return () => clearTimeout(id);
   }, []);
 
   // Fetch full thing detail (including inherited properties) when a node is selected.
@@ -201,7 +221,13 @@ export function GraphPage() {
       </div>
 
       <ErrorBoundary>
-        <SigmaCanvas things={filteredThings} relationships={filteredRelationships} searchQuery={searchQuery} searchOptions={searchOptions} />
+        {mountSigma ? (
+          <Suspense fallback={<SigmaPlaceholder />}>
+            <SigmaCanvas things={filteredThings} relationships={filteredRelationships} searchQuery={searchQuery} searchOptions={searchOptions} />
+          </Suspense>
+        ) : (
+          <SigmaPlaceholder />
+        )}
       </ErrorBoundary>
 
       {/* Radial predicate menu — positioned over the graph */}
@@ -259,6 +285,17 @@ export function GraphPage() {
         onConfirm={deleteConfirm?.type === 'thing' ? handleDeleteThing : handleDeleteRelationship}
         onCancel={() => setDeleteConfirm(null)}
       />
+    </div>
+  );
+}
+
+/** Lightweight placeholder shown while SigmaCanvas is loading or deferred
+ *  (Feature #5362). Plain DOM — no canvas, no WebGL, no JS work — so the
+ *  page chrome can paint and the user can interact with the type filter. */
+function SigmaPlaceholder() {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center text-zinc-500 text-sm pointer-events-none">
+      Loading graph…
     </div>
   );
 }
