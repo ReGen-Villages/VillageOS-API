@@ -1,29 +1,51 @@
 // Feature #5362 — discover the set of "type Things" in a loaded model and
-// count how many instances each one has.
+// count how many Things belong to each, plus a synthetic "(no type)" bucket
+// for Things without an `is` relation. The bucket-of-everything-else makes
+// the filter panel match the user's mental model: "None" means "show
+// nothing" — empty graph.
 //
 // Domain-agnostic by design. The system has no fixed vocabulary of types —
-// a "type" is simply any Thing that some other Thing `is`-relates to. This
-// matches the convention the existing graphologyMapper.buildRelationshipIndex
-// already uses to render type/instance roles, but exposed as a reusable utility
-// so the type-filter UI on the Graph page and the Model page can both consume it.
+// a "type" is simply any Thing that some other Thing `is`-relates to.
 
 import type { VosThing, VosRelationship } from '../types/vos';
 
 const IS_PREDICATE_NAME = 'is';
 
+/**
+ * Synthetic typeId for the "(no type)" bucket — Things in the graph that
+ * have no `is` relationship to any type (predicates, the GUI_Settings
+ * instance, any Thing the user created directly without classifying it).
+ * Treated as a first-class entry in the type-filter panel so users can hide
+ * them too: the panel's "None" action then matches "show nothing → empty
+ * graph".
+ *
+ * Reserved sentinel — guaranteed not to collide with any real Thing id
+ * because real ids are GUIDs.
+ */
+export const NO_TYPE_ID = '__noType__';
+
+/** Display name shown in the panel for the synthetic bucket. */
+export const NO_TYPE_NAME = '(no type)';
+
 export interface TypeStat {
-  /** Thing id of the type Thing (the target of one or more `is` relationships). */
+  /** Thing id of the type Thing, or NO_TYPE_ID for the synthetic bucket. */
   typeId: string;
-  /** Display name (the type Thing's Name). */
+  /** Display name (the type Thing's Name, or NO_TYPE_NAME). */
   name: string;
-  /** Number of distinct subject Things that `is`-relate to this type. */
+  /** Number of Things in this bucket. */
   instanceCount: number;
 }
 
 /**
- * Walk Things + Relationships, group every `is` relationship by its target,
- * and return one TypeStat per distinct type Thing. Sorted by descending
- * instance count then by name so the panel shows the heaviest types first.
+ * Walk Things + Relationships and group by `is`-target. Returns one TypeStat
+ * per distinct type Thing PLUS one entry under NO_TYPE_ID counting Things
+ * that have no `is` relation. Sorted by descending count then by name so the
+ * panel surfaces the heaviest buckets first; the synthetic bucket sorts
+ * naturally with the rest.
+ *
+ * Every Thing in `things` falls into exactly one bucket (its first-seen
+ * `is` target, or NO_TYPE_ID). Sum of all `instanceCount`s equals
+ * `things.length` — invariant the panel header relies on.
  *
  * Performance: O(N + M) — single pass over relationships plus a Map lookup.
  */
@@ -32,35 +54,45 @@ export function discoverTypes(
   relationships: VosRelationship[],
 ): TypeStat[] {
   const thingNames = new Map(things.map((t) => [t.Id, t.Name]));
-  // typeId -> Set<subjectId> so duplicate `is` relationships from the same
-  // subject only count once. (IFC models can emit multiple `is` rels for the
-  // same instance via Tier 2 type-info pathways.)
-  const typeToInstances = new Map<string, Set<string>>();
+  const instanceTypeIndex = buildInstanceTypeIndex(things, relationships);
 
-  for (const rel of relationships) {
-    const predName = thingNames.get(rel.PredicateId);
-    if (predName?.toLowerCase() !== IS_PREDICATE_NAME) continue;
-    let set = typeToInstances.get(rel.TargetId);
+  // typeId -> Set<thingId>. typeId is either a real type Thing id or
+  // NO_TYPE_ID for Things without a registered `is` target.
+  const buckets = new Map<string, Set<string>>();
+
+  // Type Things themselves count in their own bucket — selecting "None" must
+  // hide them too. So first, seed each type Thing into its own bucket.
+  for (const t of things) {
+    const typeId = instanceTypeIndex.get(t.Id);
+    const bucketKey = typeId && thingNames.has(typeId) ? typeId : NO_TYPE_ID;
+    let set = buckets.get(bucketKey);
     if (!set) {
       set = new Set<string>();
-      typeToInstances.set(rel.TargetId, set);
+      buckets.set(bucketKey, set);
     }
-    set.add(rel.SubjectId);
+    set.add(t.Id);
   }
 
   const out: TypeStat[] = [];
-  for (const [typeId, instanceSet] of typeToInstances) {
-    const name = thingNames.get(typeId);
-    if (!name) continue; // dangling reference — skip
-    out.push({ typeId, name, instanceCount: instanceSet.size });
+  for (const [typeId, members] of buckets) {
+    const name = typeId === NO_TYPE_ID ? NO_TYPE_NAME : thingNames.get(typeId);
+    if (!name) continue;
+    out.push({ typeId, name, instanceCount: members.size });
   }
-  out.sort((a, b) => b.instanceCount - a.instanceCount || a.name.localeCompare(b.name));
+  // Real types sort by count desc then name asc; the synthetic no-type bucket
+  // always sorts to the end so it doesn't displace meaningful types in the
+  // panel even when its count is high.
+  out.sort((a, b) => {
+    if (a.typeId === NO_TYPE_ID) return 1;
+    if (b.typeId === NO_TYPE_ID) return -1;
+    return b.instanceCount - a.instanceCount || a.name.localeCompare(b.name);
+  });
   return out;
 }
 
 /**
- * For each instance Thing, return the id of the type it `is`-relates to (or null).
- * If an instance has multiple `is` relationships, the first one wins — same
+ * For each Thing, return the id of the type it `is`-relates to (or null).
+ * If a Thing has multiple `is` relationships, the first one wins — same
  * behavior as graphologyMapper.buildRelationshipIndex's isSubjectToTypeName.
  */
 export function buildInstanceTypeIndex(
@@ -81,17 +113,20 @@ export function buildInstanceTypeIndex(
 
 /**
  * Filter Things + Relationships down to what should render after the user
- * has hidden `hiddenTypeIds`. An instance is hidden if its type is in the set;
- * a relationship is hidden if either endpoint is hidden OR if the relationship
- * is itself an `is` link to a hidden type Thing.
+ * has hidden `hiddenTypeIds`. A Thing is hidden when:
  *
- * The hidden type Things themselves stay visible — they're often hubs in the
- * graph and removing them confuses orientation. Hide individual instances, not
- * the labels.
+ *   - its type-Thing id is in `hiddenTypeIds` (instances), OR
+ *   - it has no `is` target AND NO_TYPE_ID is in `hiddenTypeIds`
+ *     (predicates, GUI_Settings, any unclassified Thing), OR
+ *   - the Thing is itself a hidden type Thing (so the type "label" hub
+ *     vanishes alongside its instances — selecting "None" yields an
+ *     empty graph).
  *
- * Pure function; the new arrays preserve original order. Returns the unfiltered
- * inputs (same references) when hiddenTypeIds is empty so React memoization
- * upstream doesn't pay a copy cost on the hot path.
+ * A relationship is dropped when either endpoint is hidden.
+ *
+ * Pure function; new arrays preserve original order. Returns the unfiltered
+ * inputs (same references) when hiddenTypeIds is empty so upstream React
+ * memoization doesn't pay a copy cost on the hot path.
  */
 export function applyTypeFilter(
   things: VosThing[],
@@ -101,15 +136,26 @@ export function applyTypeFilter(
   if (hiddenTypeIds.size === 0) return { things, relationships };
 
   const instanceTypeIndex = buildInstanceTypeIndex(things, relationships);
+  const noTypeHidden = hiddenTypeIds.has(NO_TYPE_ID);
 
-  const hiddenInstanceIds = new Set<string>();
-  for (const [instanceId, typeId] of instanceTypeIndex) {
-    if (hiddenTypeIds.has(typeId)) hiddenInstanceIds.add(instanceId);
+  const hiddenThingIds = new Set<string>();
+  for (const t of things) {
+    const typeId = instanceTypeIndex.get(t.Id);
+    if (typeId && hiddenTypeIds.has(typeId)) {
+      // Instance of a hidden type
+      hiddenThingIds.add(t.Id);
+    } else if (!typeId && noTypeHidden) {
+      // Has no `is` target AND the synthetic bucket is hidden
+      hiddenThingIds.add(t.Id);
+    } else if (hiddenTypeIds.has(t.Id)) {
+      // The Thing IS itself a hidden type Thing
+      hiddenThingIds.add(t.Id);
+    }
   }
 
-  const filteredThings = things.filter((t) => !hiddenInstanceIds.has(t.Id));
+  const filteredThings = things.filter((t) => !hiddenThingIds.has(t.Id));
   const filteredRels = relationships.filter(
-    (r) => !hiddenInstanceIds.has(r.SubjectId) && !hiddenInstanceIds.has(r.TargetId),
+    (r) => !hiddenThingIds.has(r.SubjectId) && !hiddenThingIds.has(r.TargetId),
   );
 
   return { things: filteredThings, relationships: filteredRels };

@@ -3,6 +3,8 @@ import {
   discoverTypes,
   buildInstanceTypeIndex,
   applyTypeFilter,
+  NO_TYPE_ID,
+  NO_TYPE_NAME,
 } from './typeFilter';
 import type { VosThing, VosRelationship } from '../types/vos';
 
@@ -33,26 +35,37 @@ const rels: VosRelationship[] = [
 ];
 
 describe('discoverTypes (Feature #5362)', () => {
-  it('returns one entry per type Thing with accurate counts', () => {
+  // Standard fixture has 7 Things: isP, wallType, doorType, w1..w3, d1.
+  // Bucketing — each Thing in exactly one bucket (its `is`-target or no-type):
+  //   Wall (t-wall): w1, w2, w3 → 3
+  //   Door (t-door): d1 → 1
+  //   no-type: isP, wallType, doorType → 3 (none has its own `is` relation)
+  it('returns one entry per type Thing PLUS the synthetic no-type bucket (no-type pinned last)', () => {
     const result = discoverTypes(things, rels);
     expect(result).toEqual([
       { typeId: 't-wall', name: 'Wall', instanceCount: 3 },
       { typeId: 't-door', name: 'Door', instanceCount: 1 },
+      { typeId: NO_TYPE_ID, name: NO_TYPE_NAME, instanceCount: 3 },
     ]);
   });
 
-  it('sorts by descending count, then by name alphabetically', () => {
+  it('sum of all instanceCounts equals things.length (every Thing counted exactly once)', () => {
+    const result = discoverTypes(things, rels);
+    const sum = result.reduce((s, t) => s + t.instanceCount, 0);
+    expect(sum).toBe(things.length);
+  });
+
+  it('real types sort by count desc then name asc; no-type bucket pinned last', () => {
     const extraType = thing('t-z', 'Zonal');
     const extraInst = thing('z1', 'Zonal-1');
     const extraRel = rel('r5', 'z1', 'p-is', 't-z');
     const r = discoverTypes([...things, extraType, extraInst], [...rels, extraRel]);
-    // Wall(3) first, then Door(1) and Zonal(1) tied — sorted alphabetically
-    expect(r.map((x) => x.name)).toEqual(['Wall', 'Door', 'Zonal']);
+    // Real types: Wall(3), Door(1), Zonal(1) → Wall, Door, Zonal (Door < Zonal alphabetically)
+    // no-type pinned last regardless of its count
+    expect(r.map((x) => x.name)).toEqual(['Wall', 'Door', 'Zonal', NO_TYPE_NAME]);
   });
 
   it('deduplicates duplicate `is` relationships from the same subject', () => {
-    // IFC pipelines can emit multiple `is` rels for the same instance
-    // (e.g. Tier 2 type-info pathway). Each subject should count once.
     const dupe = rel('rdup', 'w1', 'p-is', 't-wall');
     const r = discoverTypes(things, [...rels, dupe]);
     expect(r.find((x) => x.typeId === 't-wall')!.instanceCount).toBe(3);
@@ -62,25 +75,34 @@ describe('discoverTypes (Feature #5362)', () => {
     const hasP = thing('p-has', 'has');
     const containsRel = rel('rh', 'w1', 'p-has', 'd1');
     const r = discoverTypes([...things, hasP], [...rels, containsRel]);
-    expect(r).toHaveLength(2); // still just Wall + Door
+    // Bucket totals: Wall(3), Door(1), no-type(4 — isP, wallType, doorType, hasP)
+    expect(r.find((x) => x.typeId === NO_TYPE_ID)!.instanceCount).toBe(4);
   });
 
   it('is case-insensitive on the predicate name', () => {
     const isUpperPred = thing('p-IS', 'IS');
     const upperRel = rel('rU', 'w1', 'p-IS', 't-wall');
     const r = discoverTypes([...things, isUpperPred], [...rels, upperRel]);
+    // w1 already classified by 'is' (lowercase) — first-seen wins — count unchanged.
     expect(r.find((x) => x.typeId === 't-wall')!.instanceCount).toBe(3);
   });
 
-  it('skips dangling references (target id not in things)', () => {
-    const danglingRel = rel('rd', 'w1', 'p-is', 't-missing');
-    const r = discoverTypes(things, [...rels, danglingRel]);
+  it('treats Things with dangling `is` references as no-type (skips the missing target)', () => {
+    const w4 = thing('w4', 'Wall-4');
+    const danglingRel = rel('rd', 'w4', 'p-is', 't-missing');
+    const r = discoverTypes([...things, w4], [...rels, danglingRel]);
     expect(r.find((x) => x.typeId === 't-missing')).toBeUndefined();
+    // w4's dangling `is` collapses to no-type bucket — was 3 (isP, wallType, doorType) + w4 = 4
+    expect(r.find((x) => x.typeId === NO_TYPE_ID)!.instanceCount).toBe(4);
   });
 
   it('returns [] for empty input', () => {
     expect(discoverTypes([], [])).toEqual([]);
-    expect(discoverTypes(things, [])).toEqual([]);
+  });
+
+  it('returns one no-type entry when there are Things but no `is` relationships', () => {
+    const r = discoverTypes(things, []);
+    expect(r).toEqual([{ typeId: NO_TYPE_ID, name: NO_TYPE_NAME, instanceCount: things.length }]);
   });
 });
 
@@ -93,7 +115,6 @@ describe('buildInstanceTypeIndex (Feature #5362)', () => {
   });
 
   it('first-seen wins on multiple is relationships', () => {
-    // Same instance with two type assignments — first wins.
     const second = rel('r2nd', 'w1', 'p-is', 't-door');
     const idx = buildInstanceTypeIndex(things, [...rels, second]);
     expect(idx.get('w1')).toBe('t-wall');
@@ -107,38 +128,51 @@ describe('applyTypeFilter (Feature #5362)', () => {
     expect(result.relationships).toBe(rels);
   });
 
-  it('removes instances of hidden types', () => {
+  it('hides instances AND the type Thing itself when its bucket is hidden', () => {
     const result = applyTypeFilter(things, rels, new Set(['t-wall']));
     const ids = result.things.map((t) => t.Id);
-    expect(ids).toContain('t-wall');   // type Thing itself stays
-    expect(ids).toContain('t-door');
-    expect(ids).toContain('d1');
     expect(ids).not.toContain('w1');
     expect(ids).not.toContain('w2');
     expect(ids).not.toContain('w3');
+    expect(ids).not.toContain('t-wall');  // type Thing also gone
+    // Other buckets untouched
+    expect(ids).toContain('t-door');
+    expect(ids).toContain('d1');
+    expect(ids).toContain('p-is');        // no-type bucket not hidden
   });
 
-  it('drops relationships whose endpoints were filtered out', () => {
-    const haveContainment = thing('cT', 'Container');
-    const cInst = thing('c1', 'C-1');
-    const isCT = rel('rC', 'c1', 'p-is', 'cT');
-    // Container c1 contains wall w1 (gets dropped because w1 is hidden)
+  it('hides only no-type Things when only NO_TYPE_ID is hidden', () => {
+    const result = applyTypeFilter(things, rels, new Set([NO_TYPE_ID]));
+    const ids = result.things.map((t) => t.Id);
+    // No-type bucket = isP, wallType, doorType (all Things without an `is`)
+    expect(ids).not.toContain('p-is');
+    expect(ids).not.toContain('t-wall');
+    expect(ids).not.toContain('t-door');
+    // Classified instances survive — they have an `is` to a not-hidden type
+    expect(ids).toContain('w1');
+    expect(ids).toContain('d1');
+  });
+
+  it('drops relationships whose endpoints became hidden', () => {
     const hasP = thing('p-has', 'has');
-    const contains = rel('rContains', 'c1', 'p-has', 'w1');
-    const allThings = [...things, haveContainment, cInst, hasP];
-    const allRels = [...rels, isCT, contains];
-
-    const result = applyTypeFilter(allThings, allRels, new Set(['t-wall']));
+    const contains = rel('rContains', 'w1', 'p-has', 'w2');
+    const allRels = [...rels, contains];
+    const result = applyTypeFilter([...things, hasP], allRels, new Set(['t-wall']));
     const relIds = result.relationships.map((r) => r.Id);
-    expect(relIds).not.toContain('rContains');  // endpoint hidden
-    expect(relIds).toContain('rC');             // both endpoints visible
+    expect(relIds).not.toContain('rContains');  // both walls hidden
+    expect(relIds).not.toContain('r1');         // is-rel to hidden t-wall
+    expect(relIds).toContain('r4');             // d1 → t-door, both still visible
   });
 
-  it('keeps the type Thing visible even when its instances are hidden', () => {
-    // Hide all walls but the Wall type Thing should remain in the graph as an
-    // orientation hub.
-    const result = applyTypeFilter(things, rels, new Set(['t-wall']));
-    expect(result.things.find((t) => t.Id === 't-wall')).toBeDefined();
+  it('hiding ALL discovered types AND no-type yields an empty graph', () => {
+    // The "None" action in the panel computes this set: every typeId from
+    // discoverTypes including NO_TYPE_ID. Result must be zero Things and zero
+    // relationships — matches user expectation that "None" means "show
+    // nothing".
+    const allTypeIds = new Set(discoverTypes(things, rels).map((t) => t.typeId));
+    const result = applyTypeFilter(things, rels, allTypeIds);
+    expect(result.things).toEqual([]);
+    expect(result.relationships).toEqual([]);
   });
 
   it('hides multiple types at once', () => {
@@ -147,8 +181,10 @@ describe('applyTypeFilter (Feature #5362)', () => {
     expect(ids).not.toContain('w1');
     expect(ids).not.toContain('w2');
     expect(ids).not.toContain('d1');
-    // Type Things still present
-    expect(ids).toContain('t-wall');
-    expect(ids).toContain('t-door');
+    // Both type Things now also hidden (changed from prior behavior)
+    expect(ids).not.toContain('t-wall');
+    expect(ids).not.toContain('t-door');
+    // No-type bucket survives
+    expect(ids).toContain('p-is');
   });
 });
