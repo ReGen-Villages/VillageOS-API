@@ -9,6 +9,7 @@ import {
 } from './colors';
 import { computeNodeSize } from './nodeSize';
 import { LAYOUT_DEFAULTS, type LayoutSettings } from './guiSettings';
+import { resolveIfcClassColor } from './ifcClassPalette';
 
 // ── Relationship index (O(n+m) instead of O(n*m)) ────────────────────
 
@@ -102,6 +103,7 @@ export function buildGraph(
   things: VosThing[],
   relationships: VosRelationship[],
   predicateColors: Record<string, string> = {},
+  ifcClassColors: Record<string, string> = {},
   layoutSettings: LayoutSettings = LAYOUT_DEFAULTS,
 ): Graph {
   const sizeOpts = {
@@ -149,14 +151,22 @@ export function buildGraph(
     } else if (thingType === 'type') {
       color = ROLE_COLORS.type;
     } else {
-      // Instance node — derive colour from its "is" type name.
-      // Physical (geo) nodes use the vibrant INSTANCE_PALETTE;
-      // logical (non-geo) nodes use the softer LOGICAL_PALETTE.
-      const typeName = getInstanceTypeName(t, relIndex);
-      const palette = hasGeometry ? INSTANCE_PALETTE : LOGICAL_PALETTE;
-      color = typeName
-        ? palette[hashStringToIndex(typeName, palette.length)]
-        : ROLE_COLORS.noType;
+      // Bug/Feature #5340 — for IFC-sourced things, color by the curated
+      // class bucket (spatial / structural / opening / mep / port / ...).
+      // For non-IFC seeds (no ifcClass property) fall back to the vibrant
+      // or pastel hash palette so existing demos still render distinctly.
+      const ifcClass = typeof t.Properties?.ifcClass === 'string'
+        ? t.Properties.ifcClass
+        : null;
+      if (ifcClass) {
+        color = resolveIfcClassColor(ifcClass, ifcClassColors);
+      } else {
+        const typeName = getInstanceTypeName(t, relIndex);
+        const palette = hasGeometry ? INSTANCE_PALETTE : LOGICAL_PALETTE;
+        color = typeName
+          ? palette[hashStringToIndex(typeName, palette.length)]
+          : ROLE_COLORS.noType;
+      }
     }
 
     // Size: scale by relationship count (Bug #5361 — formula in computeNodeSize,
