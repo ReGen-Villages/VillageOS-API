@@ -5,32 +5,41 @@ import {
   FA2_GRAVITY_MULTIPLIER,
   FA2_SPREAD_GRAVITY_FACTOR,
   FA2_BARNES_HUT_THETA,
+  FA2_SLOW_DOWN,
+  FA2_STRONG_GRAVITY_MODE,
 } from './fa2Settings';
 import { LAYOUT_DEFAULTS } from './guiSettings';
 
 describe('resolveFA2Settings (Bug #5338 + Bug #5361)', () => {
-  it('produces the tuned defaults for the default LayoutSettings', () => {
+  it('produces the empirically-validated defaults (Bug #5361)', () => {
     const r = resolveFA2Settings(LAYOUT_DEFAULTS, /* isSpreadActive */ false);
-    // scalingRatio: repulsion 0.1 × 500 = 50 (was 10 before Bug #5338).
-    // The old value was visibly cramped on the 14k-node MV graph; kept at 50.
-    expect(r.scalingRatio).toBe(50);
-    // gravity: gravity 0.0001 × 10000 = 1.0. Bug #5338 lowered this to 0.3
-    // (multiplier 3000) for spread, but the weak gravity made the 14k-node
-    // graph slow to converge — Bug #5361 restored 10000 and recovered perf
-    // via barnesHutTheta instead.
+    // scalingRatio: repulsion 0.1 × 100 = 10. Bug #5338 raised this to 50 for
+    // spread on the then-14k-node graph, but Bug #5358 (material composites)
+    // doubled the count to ~30k and at that scale 50 produces unbounded
+    // expansion that gravity cannot counteract. Live-browser test confirmed
+    // 10 converges in ~12s; 50 never converges.
+    expect(r.scalingRatio).toBe(10);
+    // gravity: gravity 0.0001 × 10000 = 1.0. Combined with strongGravityMode
+    // this is the only setting that holds 30k nodes in a stable disc.
     expect(r.gravity).toBeCloseTo(1.0, 6);
   });
 
-  it('uses the optimized Barnes-Hut theta for large graphs (Bug #5361)', () => {
+  it('uses Barnes-Hut + strongGravityMode + damping for large-graph convergence (Bug #5361)', () => {
     const r = resolveFA2Settings(LAYOUT_DEFAULTS, false);
     expect(r.barnesHutOptimize).toBe(true);
-    // Bug #5361 — bumped from 0.5 to 1.2 to recover ~2-3x per-iteration
-    // speed on the 14k-node MV graph (Gephi default for optimized mode;
-    // Jacomy 2014 benchmark setting).
+    // theta 1.2 (Gephi default for optimized mode; Jacomy 2014 >10k benchmark
+    // setting). Per-iteration cost drops 2-3x vs the prior 0.5.
     expect(r.barnesHutTheta).toBe(1.2);
     expect(r.barnesHutTheta).toBe(FA2_BARNES_HUT_THETA);
-    expect(r.slowDown).toBe(5);
-    expect(r.strongGravityMode).toBe(false);
+    // slowDown 10 (was 5) — extra damping so the strong-gravity contraction
+    // phase doesn't overshoot equilibrium and oscillate.
+    expect(r.slowDown).toBe(10);
+    expect(r.slowDown).toBe(FA2_SLOW_DOWN);
+    // strongGravityMode true — gravity scales linearly with distance instead
+    // of inversely. THE key change: at 30k nodes, normal-mode gravity is too
+    // weak at large bounding-box widths to hold the graph against repulsion.
+    expect(r.strongGravityMode).toBe(true);
+    expect(r.strongGravityMode).toBe(FA2_STRONG_GRAVITY_MODE);
   });
 
   it('reduces gravity by FA2_SPREAD_GRAVITY_FACTOR in spread mode', () => {

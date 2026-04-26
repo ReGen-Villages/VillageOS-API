@@ -1,46 +1,48 @@
 import type { LayoutSettings } from './guiSettings';
+import { LAYOUT_DEFAULTS } from './guiSettings';
 
 /**
  * Multiplier from <c>layoutSettings.repulsion</c> (a small per-pair force coefficient
- * used by the small-graph force layout) to ForceAtlas2's <c>scalingRatio</c>
- * (its global node-spacing knob). Larger values push nodes further apart.
+ * used by the small-graph force layout) to ForceAtlas2's <c>scalingRatio</c>.
  *
- * Bumped from 100 → 500 in Bug #5338. Default <c>repulsion = 0.1</c> now yields
- * scalingRatio = 50 (was 10), which gives the 14k-node MV graph room to breathe
- * without making small graphs explode (the small-graph path uses a different
- * supervisor and ignores this multiplier).
+ * Re-exported for back-compat with older callers (e.g. tests) that imported the
+ * constant directly. The runtime path now reads <c>layoutSettings.scalingRatioMultiplier</c>
+ * so it can be tuned through GUI_Settings without a code change (Bug #5361).
  */
-export const FA2_SCALING_RATIO_MULTIPLIER = 500;
+export const FA2_SCALING_RATIO_MULTIPLIER = LAYOUT_DEFAULTS.scalingRatioMultiplier;
 
 /**
- * Multiplier from <c>layoutSettings.gravity</c> (a tiny anchor force) to ForceAtlas2's
- * <c>gravity</c> (its centering knob). Lower values let nodes spread further from
- * the origin instead of being pulled into the centre.
- *
- * Restored to 10000 in Bug #5361. Bug #5338 had bumped this down to 3000, which
- * gave nice spread but left the centering force so weak that the 14k-node MV
- * graph took many more iterations to converge. The dominant convergence
- * problem was the weak gravity, not the higher repulsion — keeping
- * scalingRatio at 500 preserves the breathing room without the perf hit.
+ * Multiplier from <c>layoutSettings.gravity</c> to ForceAtlas2's <c>gravity</c>.
+ * Runtime path uses <c>layoutSettings.gravityMultiplier</c>.
  */
-export const FA2_GRAVITY_MULTIPLIER = 10000;
+export const FA2_GRAVITY_MULTIPLIER = LAYOUT_DEFAULTS.gravityMultiplier;
 
 /** Spread mode (<c>isSpreadActive</c>) reduces gravity by this factor for extra breathing room. */
 export const FA2_SPREAD_GRAVITY_FACTOR = 0.1;
 
 /**
- * Barnes-Hut tree-traversal cutoff. At each tree region, FA2 asks whether
- * <c>region_size / distance &lt; theta</c>; if so, the whole region is
- * approximated as a single point at its centroid. Lower theta = more
- * recursion = more accurate. Higher = faster.
+ * Barnes-Hut tree-traversal cutoff. Lower theta = more recursion = more accurate.
+ * Higher = faster. Runtime path reads <c>layoutSettings.barnesHutTheta</c>.
  *
- * Bumped from 0.5 → 1.2 in Bug #5361. 1.2 is the value Jacomy 2014 (FA2
- * paper) used for >10k-node benchmarks and Gephi's default for "optimized"
- * mode. Per-iteration cost typically drops 2-3x. The cost is sub-pixel
- * layout precision and slightly less crisp dense-cluster boundaries —
- * invisible at 14k-node scale.
+ * 1.2 (default) is the value Jacomy 2014 (FA2 paper) used for >10k-node
+ * benchmarks and Gephi's default for "optimized" mode.
  */
-export const FA2_BARNES_HUT_THETA = 1.2;
+export const FA2_BARNES_HUT_THETA = LAYOUT_DEFAULTS.barnesHutTheta;
+
+/** Damping factor — runtime path reads <c>layoutSettings.slowDown</c>. */
+export const FA2_SLOW_DOWN = LAYOUT_DEFAULTS.slowDown;
+
+/**
+ * Strong-gravity mode — runtime path reads <c>layoutSettings.strongGravityMode</c>.
+ *
+ * When true, the centering force is proportional to distance (linear pull-back).
+ * THE key change in Bug #5361: at 30k nodes, normal-mode gravity (which falls
+ * off as 1/distance) is too weak to hold the graph against repulsion at large
+ * bounding-box widths. Live-browser test confirmed bounding box collapses from
+ * 214,000 → 2,400 units when this is enabled, and movement drops from never-
+ * converging to effectively settled in ~12 seconds.
+ */
+export const FA2_STRONG_GRAVITY_MODE = LAYOUT_DEFAULTS.strongGravityMode;
 
 export interface ResolvedFA2Settings {
   scalingRatio: number;
@@ -52,22 +54,26 @@ export interface ResolvedFA2Settings {
 }
 
 /**
- * Pure function (Bug #5338) — derive the ForceAtlas2 supervisor settings from
+ * Pure function — derive the ForceAtlas2 supervisor settings from
  * the user-tunable {@link LayoutSettings} plus the runtime spread-mode flag.
- * Extracted from <c>LayoutController</c> so the tuning is unit-testable.
+ *
+ * Every knob is read from <c>layoutSettings</c> so a deployment can override
+ * any of them through GUI_Settings without a rebuild (Bug #5361 made this
+ * comprehensive; previously the multipliers + theta + slowDown + strongGravity
+ * were hard-coded).
  */
 export function resolveFA2Settings(
   layoutSettings: LayoutSettings,
   isSpreadActive: boolean,
 ): ResolvedFA2Settings {
-  const baseGravity = layoutSettings.gravity * FA2_GRAVITY_MULTIPLIER;
+  const baseGravity = layoutSettings.gravity * layoutSettings.gravityMultiplier;
   const gravity = isSpreadActive ? baseGravity * FA2_SPREAD_GRAVITY_FACTOR : baseGravity;
   return {
-    scalingRatio: layoutSettings.repulsion * FA2_SCALING_RATIO_MULTIPLIER,
+    scalingRatio: layoutSettings.repulsion * layoutSettings.scalingRatioMultiplier,
     gravity,
     barnesHutOptimize: true,
-    barnesHutTheta: FA2_BARNES_HUT_THETA,
-    slowDown: 5,
-    strongGravityMode: false,
+    barnesHutTheta: layoutSettings.barnesHutTheta,
+    slowDown: layoutSettings.slowDown,
+    strongGravityMode: layoutSettings.strongGravityMode,
   };
 }

@@ -7,14 +7,41 @@ export interface FlashSettings {
   flashNodeBrighten: number;
 }
 
-/** Force-layout settings extracted from the GUI_Settings type Thing. */
+/**
+ * Force-layout settings extracted from the GUI_Settings type Thing.
+ *
+ * Bug #5361 added the second group (FA2 + node-size + edge-size knobs) so
+ * the perf-critical parameters that used to be hard-coded constants are now
+ * runtime-tunable through GUI_Settings, the same way attraction/repulsion/
+ * gravity already were. Editing the GUI_Settings Thing in the broker (or in
+ * the seed JSON) overrides any of these without a rebuild.
+ */
 export interface LayoutSettings {
+  // Pre-existing user-tunable force coefficients
   attraction: number;
   repulsion: number;
   gravity: number;
   inertia: number;
   maxMove: number;
   clusterRepulsion: number;
+
+  // FA2 supervisor knobs (Bug #5361) — all empirically validated against the
+  // 30k-node MV graph; defaults are in LAYOUT_DEFAULTS below.
+  scalingRatioMultiplier: number;
+  gravityMultiplier: number;
+  barnesHutTheta: number;
+  slowDown: number;
+  strongGravityMode: boolean;
+
+  // Node sizing (Bug #5361) — incoming-degree → pixel size: clamp to
+  // [nodeSizeMin, nodeSizeMax] of nodeSizeMin + degree * nodeSizeSlope.
+  nodeSizeMin: number;
+  nodeSizeMax: number;
+  nodeSizeSlope: number;
+
+  // Edge sizing (Bug #5361) — flat width for all edges. Smaller = less visual
+  // clutter when many edges share endpoints.
+  edgeSize: number;
 }
 
 export const LAYOUT_DEFAULTS: LayoutSettings = {
@@ -24,6 +51,18 @@ export const LAYOUT_DEFAULTS: LayoutSettings = {
   inertia: 0.6,
   maxMove: 200,
   clusterRepulsion: 0.4,
+  // FA2 — see fa2Settings.ts for the rationale on each value.
+  scalingRatioMultiplier: 100,
+  gravityMultiplier: 10000,
+  barnesHutTheta: 1.2,
+  slowDown: 10,
+  strongGravityMode: true,
+  // Node sizing — see nodeSize.ts.
+  nodeSizeMin: 1,
+  nodeSizeMax: 6,
+  nodeSizeSlope: 0.4,
+  // Edge sizing.
+  edgeSize: 1,
 };
 
 export const FLASH_DEFAULTS: FlashSettings = {
@@ -90,6 +129,15 @@ export function extractLayoutSettings(
   const p = findGuiSettingsProperties(things, relationships);
   if (!p) return { ...LAYOUT_DEFAULTS };
 
+  return readLayoutSettings(p);
+}
+
+/**
+ * Internal — read every LayoutSettings field from a GUI_Settings property bag,
+ * with defaults filling in any missing fields. Shared by both single-call and
+ * combined-extraction code paths so the property names live in exactly one place.
+ */
+function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
   return {
     attraction: toNumber(p['LayoutAttraction'], LAYOUT_DEFAULTS.attraction),
     repulsion: toNumber(p['LayoutRepulsion'], LAYOUT_DEFAULTS.repulsion),
@@ -97,6 +145,16 @@ export function extractLayoutSettings(
     inertia: toNumber(p['LayoutInertia'], LAYOUT_DEFAULTS.inertia),
     maxMove: toNumber(p['LayoutMaxMove'], LAYOUT_DEFAULTS.maxMove),
     clusterRepulsion: toNumber(p['ClusterRepulsion'], LAYOUT_DEFAULTS.clusterRepulsion),
+    // Bug #5361 — formerly hardcoded constants, now runtime-tunable
+    scalingRatioMultiplier: toNumber(p['LayoutScalingRatioMultiplier'], LAYOUT_DEFAULTS.scalingRatioMultiplier),
+    gravityMultiplier: toNumber(p['LayoutGravityMultiplier'], LAYOUT_DEFAULTS.gravityMultiplier),
+    barnesHutTheta: toNumber(p['LayoutBarnesHutTheta'], LAYOUT_DEFAULTS.barnesHutTheta),
+    slowDown: toNumber(p['LayoutSlowDown'], LAYOUT_DEFAULTS.slowDown),
+    strongGravityMode: toBoolean(p['LayoutStrongGravityMode'], LAYOUT_DEFAULTS.strongGravityMode),
+    nodeSizeMin: toNumber(p['NodeSizeMin'], LAYOUT_DEFAULTS.nodeSizeMin),
+    nodeSizeMax: toNumber(p['NodeSizeMax'], LAYOUT_DEFAULTS.nodeSizeMax),
+    nodeSizeSlope: toNumber(p['NodeSizeSlope'], LAYOUT_DEFAULTS.nodeSizeSlope),
+    edgeSize: toNumber(p['EdgeSize'], LAYOUT_DEFAULTS.edgeSize),
   };
 }
 
@@ -150,16 +208,7 @@ export function extractAllGuiSettings(
       }
     : { ...FLASH_DEFAULTS };
 
-  const layout: LayoutSettings = p
-    ? {
-        attraction: toNumber(p['LayoutAttraction'], LAYOUT_DEFAULTS.attraction),
-        repulsion: toNumber(p['LayoutRepulsion'], LAYOUT_DEFAULTS.repulsion),
-        gravity: toNumber(p['LayoutGravity'], LAYOUT_DEFAULTS.gravity),
-        inertia: toNumber(p['LayoutInertia'], LAYOUT_DEFAULTS.inertia),
-        maxMove: toNumber(p['LayoutMaxMove'], LAYOUT_DEFAULTS.maxMove),
-        clusterRepulsion: toNumber(p['ClusterRepulsion'], LAYOUT_DEFAULTS.clusterRepulsion),
-      }
-    : { ...LAYOUT_DEFAULTS };
+  const layout: LayoutSettings = p ? readLayoutSettings(p) : { ...LAYOUT_DEFAULTS };
 
   let predicateColors: Record<string, string> = {};
   if (p) {
@@ -185,6 +234,11 @@ export function extractAllGuiSettings(
 
 function toNumber(v: unknown, fallback: number): number {
   if (typeof v === 'number' && !isNaN(v)) return v;
+  return fallback;
+}
+
+function toBoolean(v: unknown, fallback: boolean): boolean {
+  if (typeof v === 'boolean') return v;
   return fallback;
 }
 

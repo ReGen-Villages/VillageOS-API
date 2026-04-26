@@ -7,6 +7,8 @@ import {
   hashStringToIndex,
   resolvePredicateColor,
 } from './colors';
+import { computeNodeSize } from './nodeSize';
+import { LAYOUT_DEFAULTS, type LayoutSettings } from './guiSettings';
 
 // ── Relationship index (O(n+m) instead of O(n*m)) ────────────────────
 
@@ -100,7 +102,14 @@ export function buildGraph(
   things: VosThing[],
   relationships: VosRelationship[],
   predicateColors: Record<string, string> = {},
+  layoutSettings: LayoutSettings = LAYOUT_DEFAULTS,
 ): Graph {
+  const sizeOpts = {
+    min: layoutSettings.nodeSizeMin,
+    max: layoutSettings.nodeSizeMax,
+    slope: layoutSettings.nodeSizeSlope,
+  };
+  const edgeSize = layoutSettings.edgeSize;
   const graph = new Graph({ multi: true, type: 'directed' });
   const thingMap = new Map(things.map((t) => [t.Id, t]));
 
@@ -150,8 +159,9 @@ export function buildGraph(
         : ROLE_COLORS.noType;
     }
 
-    // Size: scale by relationship count (sigma uses pixel sizes directly)
-    const size = Math.max(3, Math.min(15, 3 + relCount * 1.5));
+    // Size: scale by relationship count (Bug #5361 — formula in computeNodeSize,
+    // bounds drawn from LayoutSettings so they're runtime-tunable).
+    const size = computeNodeSize(relCount, sizeOpts);
 
     // Initial circular layout (force supervisor will re-position)
     const radius = 100;
@@ -181,7 +191,7 @@ export function buildGraph(
     const edgeColor = predicateColorMap.get(r.PredicateId) || '#52525b';
 
     graph.addDirectedEdgeWithKey(r.Id, r.SubjectId, r.TargetId, {
-      size: 1,
+      size: edgeSize,
       color: edgeColor,
       label: predicate?.Name || r.PredicateId,
       type: 'arrow',
