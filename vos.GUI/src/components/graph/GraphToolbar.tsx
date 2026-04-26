@@ -1,17 +1,19 @@
 import { useCallback } from 'react';
 import { useSigma } from '@react-sigma/core';
-import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, X, Layers, ScanSearch, Unplug, Spline, Slash } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, ScanSearch, Unplug, Spline, Slash } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 
 /**
- * Graph toolbar with zoom, fit, re-layout, and clustering controls.
+ * Graph toolbar with zoom, fit, re-layout, and layout-mode controls.
  * Must be rendered as a child of <SigmaContainer>.
+ *
+ * Predicate selection used to live here as a Layers button + active-predicate
+ * chips. Both moved to the bottom-right PredicateFilterPanel in Feature #5362
+ * — same data, more discoverable surface that mirrors the type filter. The
+ * radial menu (right-click on the graph) still works for quick selection.
  */
 export function GraphToolbar() {
   const sigma = useSigma();
-  const activePredicateIds = useUiStore((s) => s.activePredicateIds);
-  const predicateStats = useUiStore((s) => s.predicateStats);
-  const clearPredicateIds = useUiStore((s) => s.clearPredicateIds);
   const isLayoutFrozen = useUiStore((s) => s.isLayoutFrozen);
   const toggleLayoutFrozen = useUiStore((s) => s.toggleLayoutFrozen);
   const semanticZoomEnabled = useUiStore((s) => s.semanticZoomEnabled);
@@ -22,8 +24,6 @@ export function GraphToolbar() {
   const toggleSpreadActive = useUiStore((s) => s.toggleSpreadActive);
   const showAllEdgesByDefault = useUiStore((s) => s.showAllEdgesByDefault);
   const toggleShowAllEdgesByDefault = useUiStore((s) => s.toggleShowAllEdgesByDefault);
-
-  const activePredicates = predicateStats.filter((s) => activePredicateIds.has(s.predicateId));
 
   const handleZoomIn = useCallback(() => {
     sigma.getCamera().animatedZoom({ duration: 200 });
@@ -49,20 +49,6 @@ export function GraphToolbar() {
     });
     sigma.refresh();
   }, [sigma]);
-
-  const handleOpenRadialMenu = useCallback(() => {
-    // Open radial menu at viewport centre
-    const container = sigma.getContainer();
-    const rect = container.getBoundingClientRect();
-    useUiStore.getState().openRadialMenu({
-      x: rect.width / 2,
-      y: rect.height / 2,
-    });
-  }, [sigma]);
-
-  const handleClearClustering = useCallback(() => {
-    clearPredicateIds();
-  }, [clearPredicateIds]);
 
   return (
     <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1">
@@ -133,33 +119,6 @@ export function GraphToolbar() {
         )}
       </div>
 
-      {/* Cluster controls */}
-      <div className="flex items-center gap-1 bg-zinc-800/80 backdrop-blur rounded-lg p-1">
-        <ToolButton icon={Layers} label="Select predicates (right-click graph)" onClick={handleOpenRadialMenu} />
-        {activePredicates.length > 0 && (
-          <>
-            <div className="flex items-center gap-1 px-1 py-1 text-xs text-zinc-300">
-              {activePredicates.map((ap) => (
-                <div key={ap.predicateId} className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-700/50">
-                  <div
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: ap.color }}
-                  />
-                  <span className="font-medium text-[10px]">{ap.predicateName}</span>
-                  <span className="text-zinc-500 text-[9px]">{ap.edgeCount}</span>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={handleClearClustering}
-              title="Clear clustering"
-              className="p-1 rounded hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              <X size={14} />
-            </button>
-          </>
-        )}
-      </div>
     </div>
   );
 }

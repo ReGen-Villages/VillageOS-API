@@ -216,10 +216,11 @@ export function GraphPage() {
         </button>
       </div>
 
-      {/* Filter cluster (Feature #5362) — bottom-right above the toolbar.
-          Type + predicate filters are functionally related (both control
-          what shows in the graph) so they live in one region. */}
-      <div className="absolute bottom-16 right-3 z-10 w-72 max-w-[80vw] flex flex-col gap-2 max-h-[calc(100vh-8rem)] overflow-y-auto">
+      {/* Filter cluster (Feature #5362) — bottom-right, vertically aligned
+          with the toolbar in the bottom-left (both at bottom-3). Type and
+          predicate filters live in one region because they're functionally
+          related (both control what shows in the graph). */}
+      <div className="absolute bottom-3 right-3 z-10 w-72 max-w-[80vw] flex flex-col gap-2 max-h-[calc(100vh-1.5rem)] overflow-y-auto">
         <PredicateFilterPanel />
         <TypeFilterPanel />
       </div>
