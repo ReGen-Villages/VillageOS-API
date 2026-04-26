@@ -168,7 +168,41 @@ describe('extractLayoutSettings', () => {
       inertia: 0.8,
       maxMove: 100,
       clusterRepulsion: 1.5,
+      // Bug #5361 — perf knobs not present in this fixture, so defaults apply.
+      scalingRatioMultiplier: LAYOUT_DEFAULTS.scalingRatioMultiplier,
+      gravityMultiplier: LAYOUT_DEFAULTS.gravityMultiplier,
+      barnesHutTheta: LAYOUT_DEFAULTS.barnesHutTheta,
+      slowDown: LAYOUT_DEFAULTS.slowDown,
+      strongGravityMode: LAYOUT_DEFAULTS.strongGravityMode,
+      nodeSizeMin: LAYOUT_DEFAULTS.nodeSizeMin,
+      nodeSizeMax: LAYOUT_DEFAULTS.nodeSizeMax,
+      nodeSizeSlope: LAYOUT_DEFAULTS.nodeSizeSlope,
+      edgeSize: LAYOUT_DEFAULTS.edgeSize,
     });
+  });
+
+  it('extracts the Bug #5361 perf knobs from GUI_Settings overrides', () => {
+    const { things, relationships } = buildGuiFixture({
+      LayoutScalingRatioMultiplier: 200,
+      LayoutGravityMultiplier: 5000,
+      LayoutBarnesHutTheta: 0.8,
+      LayoutSlowDown: 7,
+      LayoutStrongGravityMode: false,
+      NodeSizeMin: 2,
+      NodeSizeMax: 10,
+      NodeSizeSlope: 0.6,
+      EdgeSize: 0.5,
+    });
+    const r = extractLayoutSettings(things, relationships);
+    expect(r.scalingRatioMultiplier).toBe(200);
+    expect(r.gravityMultiplier).toBe(5000);
+    expect(r.barnesHutTheta).toBe(0.8);
+    expect(r.slowDown).toBe(7);
+    expect(r.strongGravityMode).toBe(false);
+    expect(r.nodeSizeMin).toBe(2);
+    expect(r.nodeSizeMax).toBe(10);
+    expect(r.nodeSizeSlope).toBe(0.6);
+    expect(r.edgeSize).toBe(0.5);
   });
 
   it('falls back per-property for missing values', () => {

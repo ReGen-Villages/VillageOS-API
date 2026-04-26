@@ -32,8 +32,9 @@ export function GraphDataLoader({ things, relationships }: Props) {
     useUiStore.getState().setLayoutSettings(layout);
     useUiStore.getState().setPredicateColors(predColors);
 
-    // Build the graphology graph from domain data
-    const graph = buildGraph(things, relationships, predColors);
+    // Build the graphology graph from domain data. Layout settings flow in
+    // here so node + edge sizes (Bug #5361) honor any GUI_Settings overrides.
+    const graph = buildGraph(things, relationships, predColors, layout);
 
     // Determine whether this is a structural change
     const newThingIds = new Set(things.map((t) => t.Id));

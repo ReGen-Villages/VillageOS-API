@@ -128,11 +128,14 @@ describe('buildGraph', () => {
     });
   });
 
-  describe('node sizing (incoming relationships only)', () => {
-    it('gives minimum size (3) to nodes with no incoming edges', () => {
+  describe('node sizing (incoming relationships only — Bug #5361 retuned)', () => {
+    // Sizing formula now lives in nodeSize.ts (computeNodeSize): clamp to
+    // [NODE_SIZE_MIN, NODE_SIZE_MAX] of NODE_SIZE_MIN + degree * NODE_SIZE_SLOPE.
+    // Defaults at time of writing: min 1, max 6, slope 0.4.
+    it('gives minimum size (1) to nodes with no incoming edges', () => {
       const graph = buildGraph(allThings, rels);
       // LeafNode has no relationships at all
-      expect(graph.getNodeAttribute('i-leaf', 'size')).toBe(3);
+      expect(graph.getNodeAttribute('i-leaf', 'size')).toBe(1);
     });
 
     it('gives minimum size to nodes that only have outgoing edges', () => {
@@ -143,33 +146,30 @@ describe('buildGraph', () => {
       const r = makeRel('r-ab', 'a', 'pred', 'b');
       const graph = buildGraph([a, b, pred], [r]);
 
-      // Source (a) has 0 incoming → size = 3
-      expect(graph.getNodeAttribute('a', 'size')).toBe(3);
-      // Target (b) has 1 incoming → size = 3 + 1*1.5 = 4.5
-      expect(graph.getNodeAttribute('b', 'size')).toBe(4.5);
+      // Source (a) has 0 incoming → size = 1
+      expect(graph.getNodeAttribute('a', 'size')).toBe(1);
+      // Target (b) has 1 incoming → size = 1 + 1*0.4 = 1.4
+      expect(graph.getNodeAttribute('b', 'size')).toBeCloseTo(1.4, 6);
     });
 
     it('scales size by incoming relationship count', () => {
       const graph = buildGraph(allThings, rels);
 
-      // Zone is target of: r1 (PickZone is Zone), r2 (BulkStorageZone is Zone) = 2 incoming
-      // size = 3 + 2 * 1.5 = 6
-      expect(graph.getNodeAttribute('t-zone', 'size')).toBe(6);
+      // Zone is target of: r1, r2 = 2 incoming → 1 + 2*0.4 = 1.8
+      expect(graph.getNodeAttribute('t-zone', 'size')).toBeCloseTo(1.8, 6);
 
-      // Sensor is target of: r3, r4, r5 = 3 incoming
-      // size = 3 + 3 * 1.5 = 7.5
-      expect(graph.getNodeAttribute('t-sensor', 'size')).toBe(7.5);
+      // Sensor is target of: r3, r4, r5 = 3 incoming → 1 + 3*0.4 = 2.2
+      expect(graph.getNodeAttribute('t-sensor', 'size')).toBeCloseTo(2.2, 6);
     });
 
     it('does not count outgoing edges toward size', () => {
       const graph = buildGraph(allThings, rels);
 
-      // BulkStorageZone: outgoing = r2 (is Zone), r6 (has temp); incoming = r8 (temp monitors it) = 1
-      // size = 3 + 1 * 1.5 = 4.5
-      expect(graph.getNodeAttribute('i-bulkzone', 'size')).toBe(4.5);
+      // BulkStorageZone: incoming = r8 (1 incoming) → 1 + 1*0.4 = 1.4
+      expect(graph.getNodeAttribute('i-bulkzone', 'size')).toBeCloseTo(1.4, 6);
     });
 
-    it('caps size at 15', () => {
+    it('caps size at NODE_SIZE_MAX (6)', () => {
       // Create a node that is the target of many relationships
       const hub = makeThing('hub', 'Hub');
       const pred = makeThing('pred', 'connects');
@@ -182,8 +182,8 @@ describe('buildGraph', () => {
       }
       const graph = buildGraph([hub, pred, ...sources], hubRels);
 
-      // 20 incoming → uncapped = 3 + 20*1.5 = 33, capped at 15
-      expect(graph.getNodeAttribute('hub', 'size')).toBe(15);
+      // 20 incoming → uncapped = 1 + 20*0.4 = 9, capped at 6
+      expect(graph.getNodeAttribute('hub', 'size')).toBe(6);
     });
   });
 
