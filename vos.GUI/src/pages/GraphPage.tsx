@@ -7,6 +7,7 @@ import { RadialPredicateMenu } from '../components/graph/RadialPredicateMenu';
 import { NodeContextMenu } from '../components/graph/NodeContextMenu';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { TypeFilterPanel } from '../components/panels/TypeFilterPanel';
+import { PredicateFilterPanel } from '../components/panels/PredicateFilterPanel';
 import { useUiStore } from '../stores/uiStore';
 import { useModelStore } from '../stores/modelStore';
 import { thingApi } from '../api/thingApi';
@@ -215,8 +216,11 @@ export function GraphPage() {
         </button>
       </div>
 
-      {/* Type filter (Feature #5362) — top-left, beneath search bar */}
-      <div className="absolute top-16 left-3 z-10 w-72 max-w-[80vw]">
+      {/* Filter cluster (Feature #5362) — bottom-right above the toolbar.
+          Type + predicate filters are functionally related (both control
+          what shows in the graph) so they live in one region. */}
+      <div className="absolute bottom-16 right-3 z-10 w-72 max-w-[80vw] flex flex-col gap-2 max-h-[calc(100vh-8rem)] overflow-y-auto">
+        <PredicateFilterPanel />
         <TypeFilterPanel />
       </div>
 
