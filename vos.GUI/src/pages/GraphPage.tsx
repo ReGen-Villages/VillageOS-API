@@ -7,6 +7,7 @@ import { ResizablePanel } from '../components/panels/ResizablePanel';
 import { RadialPredicateMenu } from '../components/graph/RadialPredicateMenu';
 import { NodeContextMenu } from '../components/graph/NodeContextMenu';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import { TypeFilterPanel } from '../components/panels/TypeFilterPanel';
 import { useUiStore } from '../stores/uiStore';
 import { useModelStore } from '../stores/modelStore';
 import { thingApi } from '../api/thingApi';
@@ -19,6 +20,7 @@ import type { VosThing, VosRelationship } from '../types/vos';
 import { useAuth } from '../hooks/useAuth';
 import { LogOut, ArrowLeftRight } from 'lucide-react';
 import { ThemeToggleButton } from '../components/common/ThemeToggleButton';
+import { applyTypeFilter } from '../utils/typeFilter';
 
 export function GraphPage() {
   const { logout, switchModel, modelName } = useAuth();
@@ -38,6 +40,16 @@ export function GraphPage() {
   const selectNode = useUiStore((s) => s.selectNode);
   const selectEdge = useUiStore((s) => s.selectEdge);
   const statesVersion = useUiStore((s) => s.statesVersion);
+  const hiddenTypeIds = useUiStore((s) => s.hiddenTypeIds);
+
+  // Feature #5362 — drop instances of hidden types BEFORE search filtering and
+  // graph build, so render cost scales with visible-only counts. This is the
+  // perf fix for Bug #5361 — at 30k+ Things any per-frame render of the full
+  // set saturates the main thread.
+  const visible = useMemo(
+    () => applyTypeFilter(things, relationships, hiddenTypeIds),
+    [things, relationships, hiddenTypeIds],
+  );
 
   const [detailThing, setDetailThing] = useState<VosThing | null>(null);
   const [detailRelationship, setDetailRelationship] = useState<VosRelationship | null>(null);
@@ -146,7 +158,8 @@ export function GraphPage() {
   const {
     filteredThings, filteredRelationships, matchCount, searchOptions,
   } = useGraphData({
-    things, relationships, searchQuery, caseSensitive, exactMatch, useRegex,
+    things: visible.things, relationships: visible.relationships,
+    searchQuery, caseSensitive, exactMatch, useRegex,
   });
 
   return (
@@ -180,6 +193,11 @@ export function GraphPage() {
         >
           <LogOut size={14} />
         </button>
+      </div>
+
+      {/* Type filter (Feature #5362) — top-left, beneath search bar */}
+      <div className="absolute top-16 left-3 z-10 w-72 max-w-[80vw]">
+        <TypeFilterPanel />
       </div>
 
       <ErrorBoundary>

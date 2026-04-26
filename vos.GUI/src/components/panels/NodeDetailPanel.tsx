@@ -33,13 +33,16 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
   const [relEditMode, setRelEditMode] = useState(false);
 
   const selectEdge = useUiStore((s) => s.selectEdge);
+  const classifyingProperty = useUiStore((s) => s.layoutSettings.classifyingProperty);
   const hasGeometry = thing.Properties?.geometry != null;
 
-  // For IFC things, gather child elements with geometry via contains/aggregates
+  // Gather child elements with geometry via spatial-containment predicates.
+  // The system has no fixed vocabulary — we identify children purely by the
+  // generic `__IsMapContainmentPredicate` flag on the predicate Thing
+  // (any predicate the importer marks as a containment edge qualifies).
+  // Each child's per-mesh color key is read from the user-configured
+  // classifying property (default 'ifcClass' for IFC seeds).
   const childElements = useMemo<ChildElement[]>(() => {
-    const isIfcThing = typeof thing.Properties?.ifcClass === 'string';
-    if (!isIfcThing) return [];
-
     const spatialPredicateIds = new Set<string>();
     for (const [, t] of allThings) {
       if (t.Properties?.__IsMapContainmentPredicate === true) spatialPredicateIds.add(t.Id);
@@ -54,16 +57,15 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
       const child = allThings.get(rel.TargetId);
       if (!child?.Properties?.geometry) continue;
 
+      const rawKey = child.Properties[classifyingProperty];
       children.push({
         geometryValue: child.Properties.geometry,
         name: child.Name,
-        ifcClass: typeof child.Properties.ifcClass === 'string'
-          ? child.Properties.ifcClass
-          : undefined,
+        colorKey: typeof rawKey === 'string' ? rawKey : undefined,
       });
     }
     return children;
-  }, [thing, relationships, allThings]);
+  }, [thing, relationships, allThings, classifyingProperty]);
 
   const hasChildGeometry = childElements.length > 0;
   const show3DTab = (hasGeometry || hasChildGeometry) && canSupport3D();

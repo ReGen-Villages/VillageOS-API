@@ -178,6 +178,8 @@ describe('extractLayoutSettings', () => {
       nodeSizeMax: LAYOUT_DEFAULTS.nodeSizeMax,
       nodeSizeSlope: LAYOUT_DEFAULTS.nodeSizeSlope,
       edgeSize: LAYOUT_DEFAULTS.edgeSize,
+      // Feature #5362 cleanup — classifyingProperty defaults when unset
+      classifyingProperty: LAYOUT_DEFAULTS.classifyingProperty,
     });
   });
 
@@ -203,6 +205,20 @@ describe('extractLayoutSettings', () => {
     expect(r.nodeSizeMax).toBe(10);
     expect(r.nodeSizeSlope).toBe(0.6);
     expect(r.edgeSize).toBe(0.5);
+  });
+
+  it('extracts classifyingProperty when GUI_Settings overrides it', () => {
+    const { things, relationships } = buildGuiFixture({
+      ClassifyingProperty: 'kind',
+    });
+    expect(extractLayoutSettings(things, relationships).classifyingProperty).toBe('kind');
+  });
+
+  it('falls back to default classifyingProperty on empty/non-string', () => {
+    const a = buildGuiFixture({ ClassifyingProperty: '' });
+    expect(extractLayoutSettings(a.things, a.relationships).classifyingProperty).toBe(LAYOUT_DEFAULTS.classifyingProperty);
+    const b = buildGuiFixture({ ClassifyingProperty: 42 });
+    expect(extractLayoutSettings(b.things, b.relationships).classifyingProperty).toBe(LAYOUT_DEFAULTS.classifyingProperty);
   });
 
   it('falls back per-property for missing values', () => {

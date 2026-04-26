@@ -31,6 +31,12 @@ interface FragmentsViewerProps {
   mapping: FragmentsMapping;
   /** Fires with the VosThing GUID of the clicked element, or null when the click missed geometry. */
   onPick: (vosGuid: string | null) => void;
+  /**
+   * IFC GlobalIds whose Fragments instances should be hidden from view
+   * (Feature #5362 type filter). Empty array → everything visible. Resolved
+   * via `model.getLocalIdsByGuids` and applied with `model.setVisible`.
+   */
+  hiddenIfcGuids?: readonly string[];
 }
 
 /**
@@ -40,7 +46,7 @@ interface FragmentsViewerProps {
  * Sub-tasks C (loader), D (picking), and E (loading UX + plan + cuts) of
  * Feature #5248.
  */
-export function FragmentsViewer({ fragmentsBytes, mapping, onPick }: FragmentsViewerProps) {
+export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuids = [] }: FragmentsViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl | null>(null);
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading', stage: 'fetching worker', progress: 0 });
   const [cameraMode, setCameraMode] = useState<CameraMode>('3d');
@@ -111,6 +117,7 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick }: FragmentsVi
           onReady={onReady}
           cameraMode={cameraMode}
           clipPlanesRef={clipPlanesRef}
+          hiddenIfcGuids={hiddenIfcGuids}
         />
       </Canvas>
 
@@ -143,6 +150,7 @@ interface FragmentsSceneProps {
   onReady: (bounds: ModelBounds) => void;
   cameraMode: CameraMode;
   clipPlanesRef: React.MutableRefObject<THREE.Plane[]>;
+  hiddenIfcGuids: readonly string[];
 }
 
 const CLICK_MAX_DRAG_PX = 4;
@@ -167,6 +175,7 @@ function FragmentsScene({
   onReady,
   cameraMode,
   clipPlanesRef,
+  hiddenIfcGuids,
 }: FragmentsSceneProps) {
   const { camera, gl, invalidate } = useThree();
   const [model, setModel] = useState<FragmentsModel | null>(null);
@@ -248,6 +257,29 @@ function FragmentsScene({
     lastUpdateRef.current = now;
     void fragments.update();
   });
+
+  // Feature #5362 — apply the type filter as Fragments instance visibility.
+  // When hiddenIfcGuids changes, resolve to localIds via the model's
+  // GUID→localId index and call setVisible. resetVisible() first so a removed
+  // entry comes back into view (cheaper than diffing the previous set).
+  useEffect(() => {
+    if (!model) return;
+    let cancelled = false;
+    (async () => {
+      await model.resetVisible();
+      if (cancelled) { invalidate(); return; }
+      if (hiddenIfcGuids.length > 0) {
+        const localIds = (await model.getLocalIdsByGuids([...hiddenIfcGuids]))
+          .filter((id): id is number => typeof id === 'number');
+        if (cancelled) { invalidate(); return; }
+        if (localIds.length > 0) await model.setVisible(localIds, false);
+      }
+      const fragments = fragmentsRef.current;
+      if (fragments && !cancelled) await fragments.update(true);
+      invalidate();
+    })().catch((err) => console.error('Failed to apply type-filter visibility', err));
+    return () => { cancelled = true; };
+  }, [model, hiddenIfcGuids, invalidate]);
 
   useEffect(() => {
     if (!model) return;

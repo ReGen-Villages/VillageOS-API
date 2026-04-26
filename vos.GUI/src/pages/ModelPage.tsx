@@ -7,9 +7,11 @@ import { useModelStore } from '../stores/modelStore';
 import { reloadModelData } from '../hooks/useModelData';
 import { NodeDetailPanel } from '../components/panels/NodeDetailPanel';
 import { ResizablePanel } from '../components/panels/ResizablePanel';
+import { TypeFilterPanel } from '../components/panels/TypeFilterPanel';
 import { toast } from '../components/common/Toast';
 import type { VosThing } from '../types/vos';
 import type { FragmentsMapping } from '../components/model/FragmentsViewer';
+import { buildInstanceTypeIndex } from '../utils/typeFilter';
 
 const FragmentsViewer = lazy(() =>
   import('../components/model/FragmentsViewer').then((m) => ({ default: m.FragmentsViewer })),
@@ -42,6 +44,23 @@ export function ModelPage() {
 
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
   const selectNode = useUiStore((s) => s.selectNode);
+  const hiddenTypeIds = useUiStore((s) => s.hiddenTypeIds);
+
+  // Feature #5362 — translate hidden type Thing ids → IFC GlobalIds whose
+  // Fragments instances should be hidden in the 3D scene. The viewer takes it
+  // from there (see FragmentsViewer hiddenIfcGuids prop).
+  const hiddenIfcGuids = useMemo(() => {
+    if (hiddenTypeIds.size === 0) return [];
+    const instanceTypeIndex = buildInstanceTypeIndex(things, relationships);
+    const out: string[] = [];
+    for (const t of things) {
+      const typeId = instanceTypeIndex.get(t.Id);
+      if (!typeId || !hiddenTypeIds.has(typeId)) continue;
+      const guid = t.Properties?.ifcGlobalId;
+      if (typeof guid === 'string' && guid.length > 0) out.push(guid);
+    }
+    return out;
+  }, [things, relationships, hiddenTypeIds]);
 
   // Re-fetch the .frag whenever the JWT-scoped model changes (e.g. via
   // /api/auth/switch-model). The thing/relationship arrays come from the
@@ -114,14 +133,19 @@ export function ModelPage() {
 
       {fragments.status === 'ready' ? (
         <div className="flex-1 flex min-h-0 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 relative">
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 relative">
             <Suspense fallback={<LoadingPlaceholder />}>
               <FragmentsViewer
                 fragmentsBytes={fragments.bytes}
                 mapping={mapping}
                 onPick={handlePick}
+                hiddenIfcGuids={hiddenIfcGuids}
               />
             </Suspense>
+            {/* Feature #5362 — type filter overlays the 3D viewport */}
+            <div className="absolute top-3 left-3 z-10 w-72 max-w-[80vw]">
+              <TypeFilterPanel />
+            </div>
           </div>
           {detailThing && (
             <ResizablePanel>
