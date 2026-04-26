@@ -1,22 +1,34 @@
 import { describe, it, expect } from 'vitest';
-import { resolveFA2Settings, FA2_SCALING_RATIO_MULTIPLIER, FA2_GRAVITY_MULTIPLIER, FA2_SPREAD_GRAVITY_FACTOR } from './fa2Settings';
+import {
+  resolveFA2Settings,
+  FA2_SCALING_RATIO_MULTIPLIER,
+  FA2_GRAVITY_MULTIPLIER,
+  FA2_SPREAD_GRAVITY_FACTOR,
+  FA2_BARNES_HUT_THETA,
+} from './fa2Settings';
 import { LAYOUT_DEFAULTS } from './guiSettings';
 
-describe('resolveFA2Settings (Bug #5338)', () => {
-  it('produces the new tuned defaults for the default LayoutSettings', () => {
+describe('resolveFA2Settings (Bug #5338 + Bug #5361)', () => {
+  it('produces the tuned defaults for the default LayoutSettings', () => {
     const r = resolveFA2Settings(LAYOUT_DEFAULTS, /* isSpreadActive */ false);
-    // scalingRatio: repulsion 0.1 × 500 = 50 (was 10 before the bump).
-    // The old value was visibly cramped on the 14k-node MV graph.
+    // scalingRatio: repulsion 0.1 × 500 = 50 (was 10 before Bug #5338).
+    // The old value was visibly cramped on the 14k-node MV graph; kept at 50.
     expect(r.scalingRatio).toBe(50);
-    // gravity: gravity 0.0001 × 3000 = 0.3 (was 1.0). Less centering pressure
-    // gives dense clusters room to fan out.
-    expect(r.gravity).toBeCloseTo(0.3, 6);
+    // gravity: gravity 0.0001 × 10000 = 1.0. Bug #5338 lowered this to 0.3
+    // (multiplier 3000) for spread, but the weak gravity made the 14k-node
+    // graph slow to converge — Bug #5361 restored 10000 and recovered perf
+    // via barnesHutTheta instead.
+    expect(r.gravity).toBeCloseTo(1.0, 6);
   });
 
-  it('keeps the Barnes-Hut + slowDown defaults that worked pre-tune', () => {
+  it('uses the optimized Barnes-Hut theta for large graphs (Bug #5361)', () => {
     const r = resolveFA2Settings(LAYOUT_DEFAULTS, false);
     expect(r.barnesHutOptimize).toBe(true);
-    expect(r.barnesHutTheta).toBe(0.5);
+    // Bug #5361 — bumped from 0.5 to 1.2 to recover ~2-3x per-iteration
+    // speed on the 14k-node MV graph (Gephi default for optimized mode;
+    // Jacomy 2014 benchmark setting).
+    expect(r.barnesHutTheta).toBe(1.2);
+    expect(r.barnesHutTheta).toBe(FA2_BARNES_HUT_THETA);
     expect(r.slowDown).toBe(5);
     expect(r.strongGravityMode).toBe(false);
   });

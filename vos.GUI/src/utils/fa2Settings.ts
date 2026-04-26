@@ -17,14 +17,30 @@ export const FA2_SCALING_RATIO_MULTIPLIER = 500;
  * <c>gravity</c> (its centering knob). Lower values let nodes spread further from
  * the origin instead of being pulled into the centre.
  *
- * Bumped down from 10000 → 3000 in Bug #5338. Default <c>gravity = 0.0001</c> now
- * yields FA2 gravity = 0.3 (was 1.0), reducing the centering pressure that was
- * compressing dense clusters.
+ * Restored to 10000 in Bug #5361. Bug #5338 had bumped this down to 3000, which
+ * gave nice spread but left the centering force so weak that the 14k-node MV
+ * graph took many more iterations to converge. The dominant convergence
+ * problem was the weak gravity, not the higher repulsion — keeping
+ * scalingRatio at 500 preserves the breathing room without the perf hit.
  */
-export const FA2_GRAVITY_MULTIPLIER = 3000;
+export const FA2_GRAVITY_MULTIPLIER = 10000;
 
 /** Spread mode (<c>isSpreadActive</c>) reduces gravity by this factor for extra breathing room. */
 export const FA2_SPREAD_GRAVITY_FACTOR = 0.1;
+
+/**
+ * Barnes-Hut tree-traversal cutoff. At each tree region, FA2 asks whether
+ * <c>region_size / distance &lt; theta</c>; if so, the whole region is
+ * approximated as a single point at its centroid. Lower theta = more
+ * recursion = more accurate. Higher = faster.
+ *
+ * Bumped from 0.5 → 1.2 in Bug #5361. 1.2 is the value Jacomy 2014 (FA2
+ * paper) used for >10k-node benchmarks and Gephi's default for "optimized"
+ * mode. Per-iteration cost typically drops 2-3x. The cost is sub-pixel
+ * layout precision and slightly less crisp dense-cluster boundaries —
+ * invisible at 14k-node scale.
+ */
+export const FA2_BARNES_HUT_THETA = 1.2;
 
 export interface ResolvedFA2Settings {
   scalingRatio: number;
@@ -50,7 +66,7 @@ export function resolveFA2Settings(
     scalingRatio: layoutSettings.repulsion * FA2_SCALING_RATIO_MULTIPLIER,
     gravity,
     barnesHutOptimize: true,
-    barnesHutTheta: 0.5,
+    barnesHutTheta: FA2_BARNES_HUT_THETA,
     slowDown: 5,
     strongGravityMode: false,
   };
