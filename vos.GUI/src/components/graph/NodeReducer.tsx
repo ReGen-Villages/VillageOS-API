@@ -4,6 +4,7 @@ import { useUiStore } from '../../stores/uiStore';
 import type { SearchOptions } from '../../utils/searchFilter';
 import {
   buildLabelMatcher,
+  decideEdgeDisplay,
   edgeTouchesNode,
 } from '../../utils/nodeVisibility';
 import {
@@ -22,12 +23,12 @@ interface Props {
 /**
  * Installs Sigma nodeReducer/edgeReducer for visual filtering.
  *
- * Edge visibility:
- * - Default: ALL edges hidden
+ * Edge visibility (Bug #5343):
+ * - Default: ALL edges visible
  * - Hover: edges touching hovered node brightened
- * - Selection: edges touching selected node visible
- * - Search: edges where both endpoints match are visible
- * - Predicates: edges matching active predicate filters visible
+ * - Selection: edges touching selected node visible (others fall under default)
+ * - Search active: only edges connecting matched nodes visible (others hidden)
+ * - Predicate filter active: only edges with matching predicate visible (others hidden)
  *
  * Must be rendered as a child of <SigmaContainer>.
  */
@@ -39,6 +40,7 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
   const flashingNodeIds = useUiStore((s) => s.flashingNodeIds);
   const flashingEdgeIds = useUiStore((s) => s.flashingEdgeIds);
+  const showAllEdgesByDefault = useUiStore((s) => s.showAllEdgesByDefault);
 
   const labelMatcher = useMemo(
     () => (searchQuery ? buildLabelMatcher(searchQuery, searchOptions) : null),
@@ -100,21 +102,26 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       const hovered = currentState.hoveredNodeId;
       const selected = currentState.selectedNodeId;
 
-      if (edgeTouchesNode(graph, edge, hovered)) return brightenEdge(data);
-      if (selected && edgeTouchesNode(graph, edge, selected)) return data;
+      const src = graph.source(edge);
+      const tgt = graph.target(edge);
 
-      if (matchedNodes.size > 0) {
-        const src = graph.source(edge);
-        const tgt = graph.target(edge);
-        if (matchedNodes.has(src) && matchedNodes.has(tgt)) return data;
+      const decision = decideEdgeDisplay({
+        endpointMatchesHover: edgeTouchesNode(graph, edge, hovered),
+        endpointMatchesSelection: edgeTouchesNode(graph, edge, selected),
+        bothEndpointsInSearch: matchedNodes.size > 0
+          ? matchedNodes.has(src) && matchedNodes.has(tgt)
+          : undefined,
+        predicateInActiveFilter: activePredicateIds.size > 0
+          ? activePredicateIds.has(data.predicateId as string)
+          : undefined,
+        showAllByDefault: showAllEdgesByDefault,
+      });
+
+      switch (decision) {
+        case 'brighten': return brightenEdge(data);
+        case 'show': return data;
+        case 'hide': return { ...data, hidden: true };
       }
-
-      if (activePredicateIds.size > 0) {
-        const predicateId = data.predicateId as string;
-        if (activePredicateIds.has(predicateId)) return data;
-      }
-
-      return { ...data, hidden: true };
     });
 
     // ── Priority 1: Search query ────────────────────────────────────────
@@ -158,7 +165,7 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       edgeReducer,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, labelMatcher, activePredicateIds, clusterMap, selectedNodeId, setSettings, sigma]);
+  }, [searchQuery, labelMatcher, activePredicateIds, clusterMap, selectedNodeId, showAllEdgesByDefault, setSettings, sigma]);
 
   return null;
 }

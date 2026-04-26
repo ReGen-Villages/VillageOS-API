@@ -8,6 +8,8 @@ const DEFAULT_PANEL_WIDTH = 320;
 const MIN_PANEL_WIDTH = 240;
 const MAX_PANEL_WIDTH = 1600;
 
+const SHOW_EDGES_KEY = 'vos-show-all-edges';
+
 function loadPanelWidth(): number {
   const stored = localStorage.getItem(PANEL_WIDTH_KEY);
   if (stored) {
@@ -15,6 +17,15 @@ function loadPanelWidth(): number {
     if (!isNaN(n) && n >= MIN_PANEL_WIDTH && n <= MAX_PANEL_WIDTH) return n;
   }
   return DEFAULT_PANEL_WIDTH;
+}
+
+function loadShowAllEdges(): boolean {
+  const stored = localStorage.getItem(SHOW_EDGES_KEY);
+  // Default true — most users expect "show me the graph". Power users on
+  // dense graphs (24k+ edges) can flip to false via the toolbar toggle
+  // (Feature #5344).
+  if (stored === 'false') return false;
+  return true;
 }
 
 interface UiState {
@@ -34,6 +45,14 @@ interface UiState {
   // local subscription.
   statesVersion: number;
   bumpStatesVersion: () => void;
+
+  // ── Edge visibility (Feature #5344) ───────────────────────────────
+  // When true, every edge renders by default; search / predicate
+  // filters become opt-in restrictions. When false, edges hide unless
+  // touched by hover/selection/active filter (the original behavior,
+  // useful on extremely dense graphs). Persisted to localStorage.
+  showAllEdgesByDefault: boolean;
+  toggleShowAllEdgesByDefault: () => void;
 
   // ── Predicate clustering ───────────────────────────────────────────
   activePredicateIds: Set<string>;
@@ -115,6 +134,14 @@ export const useUiStore = create<UiState>((set) => ({
   // ── States refresh counter ────────────────────────────────────────
   statesVersion: 0,
   bumpStatesVersion: () => set((s) => ({ statesVersion: s.statesVersion + 1 })),
+
+  // ── Edge visibility (Feature #5344) ───────────────────────────────
+  showAllEdgesByDefault: loadShowAllEdges(),
+  toggleShowAllEdgesByDefault: () => set((s) => {
+    const next = !s.showAllEdgesByDefault;
+    localStorage.setItem(SHOW_EDGES_KEY, String(next));
+    return { showAllEdgesByDefault: next };
+  }),
 
   // ── Predicate clustering ─────────────────────────────────────────────
   activePredicateIds: new Set<string>(),

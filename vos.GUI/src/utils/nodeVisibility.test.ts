@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import Graph from 'graphology';
-import { buildLabelMatcher, edgeTouchesNode, isContainmentPredicate } from './nodeVisibility';
+import { buildLabelMatcher, decideEdgeDisplay, edgeTouchesNode, isContainmentPredicate } from './nodeVisibility';
 import type { SearchOptions } from './searchFilter';
 
 function makeGraph(): Graph {
@@ -73,6 +73,70 @@ describe('edgeTouchesNode', () => {
   it('returns false when nodeId is null', () => {
     const graph = makeGraph();
     expect(edgeTouchesNode(graph, 'e1', null)).toBe(false);
+  });
+});
+
+describe('decideEdgeDisplay (Feature #5344)', () => {
+  const NEUTRAL = {
+    endpointMatchesHover: false,
+    endpointMatchesSelection: false,
+    bothEndpointsInSearch: undefined,
+    predicateInActiveFilter: undefined,
+    showAllByDefault: true,
+  } as const;
+
+  describe('default mode (showAllByDefault = true)', () => {
+    it('shows edges when no filter is active', () => {
+      expect(decideEdgeDisplay(NEUTRAL)).toBe('show');
+    });
+
+    it('still brightens edges touching the hovered node', () => {
+      expect(decideEdgeDisplay({ ...NEUTRAL, endpointMatchesHover: true })).toBe('brighten');
+    });
+
+    it('still hides non-matching edges when search is active', () => {
+      expect(decideEdgeDisplay({ ...NEUTRAL, bothEndpointsInSearch: false })).toBe('hide');
+    });
+
+    it('still hides non-matching edges when predicate filter is active', () => {
+      expect(decideEdgeDisplay({ ...NEUTRAL, predicateInActiveFilter: false })).toBe('hide');
+    });
+  });
+
+  describe('quiet mode (showAllByDefault = false)', () => {
+    const QUIET = { ...NEUTRAL, showAllByDefault: false } as const;
+
+    it('hides edges by default (the original dense-graph behavior)', () => {
+      expect(decideEdgeDisplay(QUIET)).toBe('hide');
+    });
+
+    it('still brightens edges touching the hovered node', () => {
+      expect(decideEdgeDisplay({ ...QUIET, endpointMatchesHover: true })).toBe('brighten');
+    });
+
+    it('still shows edges touching the selected node', () => {
+      expect(decideEdgeDisplay({ ...QUIET, endpointMatchesSelection: true })).toBe('show');
+    });
+
+    it('still shows edges matching active predicate filter', () => {
+      expect(decideEdgeDisplay({ ...QUIET, predicateInActiveFilter: true })).toBe('show');
+    });
+  });
+
+  it('hover beats selection beats search beats predicate beats default', () => {
+    // All conditions true, hover wins
+    expect(decideEdgeDisplay({
+      endpointMatchesHover: true,
+      endpointMatchesSelection: true,
+      bothEndpointsInSearch: true,
+      predicateInActiveFilter: true,
+      showAllByDefault: false,
+    })).toBe('brighten');
+
+    // Search beats predicate
+    expect(decideEdgeDisplay({
+      ...NEUTRAL, bothEndpointsInSearch: false, predicateInActiveFilter: true,
+    })).toBe('hide');
   });
 });
 

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useSigma } from '@react-sigma/core';
-import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, X, Layers, ScanSearch, Unplug } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, X, Layers, ScanSearch, Unplug, Spline, Slash } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 
 /**
@@ -20,6 +20,8 @@ export function GraphToolbar() {
   const clearLogicalExpansions = useUiStore((s) => s.clearLogicalExpansions);
   const isSpreadActive = useUiStore((s) => s.isSpreadActive);
   const toggleSpreadActive = useUiStore((s) => s.toggleSpreadActive);
+  const showAllEdgesByDefault = useUiStore((s) => s.showAllEdgesByDefault);
+  const toggleShowAllEdgesByDefault = useUiStore((s) => s.toggleShowAllEdgesByDefault);
 
   const activePredicates = predicateStats.filter((s) => activePredicateIds.has(s.predicateId));
 
@@ -105,6 +107,19 @@ export function GraphToolbar() {
           }`}
         >
           <ScanSearch size={16} />
+        </button>
+        <button
+          onClick={toggleShowAllEdgesByDefault}
+          data-testid="toggle-all-edges"
+          aria-pressed={showAllEdgesByDefault}
+          title={showAllEdgesByDefault ? 'Hide edges (show only on hover/select/filter)' : 'Show all edges'}
+          className={`p-1.5 rounded transition-colors ${
+            showAllEdgesByDefault
+              ? 'bg-blue-600/30 text-blue-400 hover:bg-blue-600/40'
+              : 'hover:bg-zinc-700 text-zinc-300 hover:text-white'
+          }`}
+        >
+          {showAllEdgesByDefault ? <Spline size={16} /> : <Slash size={16} />}
         </button>
         {expandedLogicalParents.size > 0 && (
           <button
