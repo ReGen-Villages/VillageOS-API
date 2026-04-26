@@ -3,6 +3,7 @@ import { useSigma } from '@react-sigma/core';
 import ForceSupervisor from 'graphology-layout-force/worker';
 import FA2Supervisor from 'graphology-layout-forceatlas2/worker';
 import { useUiStore } from '../../stores/uiStore';
+import { resolveFA2Settings } from '../../utils/fa2Settings';
 
 /**
  * Node count above which we switch from graphology-layout-force (O(N²) on
@@ -56,18 +57,8 @@ export function LayoutController() {
     const isLargeGraph = graph.order >= FA2_THRESHOLD;
 
     if (isLargeGraph) {
-      const baseGravity = layoutSettings.gravity * 10000;
-      const gravity = isSpreadActive ? baseGravity * 0.1 : baseGravity;
-
       const supervisor = new FA2Supervisor(graph, {
-        settings: {
-          gravity,
-          scalingRatio: layoutSettings.repulsion * 100,
-          barnesHutOptimize: true,
-          barnesHutTheta: 0.5,
-          slowDown: 5,
-          strongGravityMode: false,
-        },
+        settings: resolveFA2Settings(layoutSettings, isSpreadActive),
       });
 
       if (!isLayoutFrozen) {
