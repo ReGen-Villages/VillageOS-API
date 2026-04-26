@@ -36,6 +36,7 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
   const setSettings = useSetSettings();
   const sigma = useSigma();
   const activePredicateIds = useUiStore((s) => s.activePredicateIds);
+  const hiddenPredicateIds = useUiStore((s) => s.hiddenPredicateIds);
   const clusterMap = useUiStore((s) => s.clusterMap);
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
   const flashingNodeIds = useUiStore((s) => s.flashingNodeIds);
@@ -101,6 +102,15 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       const hovered = currentState.hoveredNodeId;
       const selected = currentState.selectedNodeId;
 
+      // Bug #5365 — predicate filter (PredicateFilterPanel) is an absolute
+      // hide. If the edge's predicate is in the user's hidden set, the edge
+      // never renders, regardless of hover / selection / search / clustering.
+      // Mirrors the type filter's behavior so checkbox state is the single
+      // source of truth.
+      if (hiddenPredicateIds.has(data.predicateId as string)) {
+        return { ...data, hidden: true };
+      }
+
       const src = graph.source(edge);
       const tgt = graph.target(edge);
 
@@ -163,7 +173,7 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       edgeReducer,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, labelMatcher, activePredicateIds, clusterMap, selectedNodeId, setSettings, sigma]);
+  }, [searchQuery, labelMatcher, activePredicateIds, hiddenPredicateIds, clusterMap, selectedNodeId, setSettings, sigma]);
 
   return null;
 }

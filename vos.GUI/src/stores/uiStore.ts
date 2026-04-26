@@ -79,6 +79,17 @@ interface UiState {
   setHiddenTypeIds: (ids: Set<string>) => void;
   clearHiddenTypeIds: () => void;
 
+  // ── Predicate edge-visibility filter (Bug #5365) ──────────────────
+  // Set of predicate ids whose edges should be HIDDEN. Mirror semantic of
+  // hiddenTypeIds: empty set = nothing hidden = all edges show. Driven by
+  // PredicateFilterPanel; consumed by NodeReducer.edgeReducer. Independent
+  // from activePredicateIds (which still drives clustering via the radial
+  // menu — different intent).
+  hiddenPredicateIds: Set<string>;
+  toggleHiddenPredicate: (predicateId: string) => void;
+  setHiddenPredicateIds: (ids: Set<string>) => void;
+  clearHiddenPredicateIds: () => void;
+
   // ── Predicate clustering ───────────────────────────────────────────
   activePredicateIds: Set<string>;
   clusterMap: ClusterMap | null;
@@ -183,6 +194,21 @@ export const useUiStore = create<UiState>((set) => ({
     persistHiddenTypeIds(s.currentModelId, new Set<string>());
     return { hiddenTypeIds: new Set<string>() };
   }),
+
+  // ── Predicate edge-visibility filter (Bug #5365) ──────────────────
+  hiddenPredicateIds: new Set<string>(),
+  toggleHiddenPredicate: (predicateId) => set((s) => {
+    const next = new Set(s.hiddenPredicateIds);
+    if (next.has(predicateId)) next.delete(predicateId);
+    else next.add(predicateId);
+    return { hiddenPredicateIds: next };
+  }),
+  setHiddenPredicateIds: (ids) => set(() => ({
+    hiddenPredicateIds: new Set(ids),
+  })),
+  clearHiddenPredicateIds: () => set(() => ({
+    hiddenPredicateIds: new Set<string>(),
+  })),
 
   // ── Predicate clustering ─────────────────────────────────────────────
   activePredicateIds: new Set<string>(),
