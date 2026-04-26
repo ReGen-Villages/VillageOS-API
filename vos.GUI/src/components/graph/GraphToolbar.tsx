@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useSigma } from '@react-sigma/core';
-import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, ScanSearch, Unplug, Spline, Slash } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, ScanSearch, Unplug } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 
 /**
@@ -11,6 +11,11 @@ import { useUiStore } from '../../stores/uiStore';
  * chips. Both moved to the bottom-right PredicateFilterPanel in Feature #5362
  * — same data, more discoverable surface that mirrors the type filter. The
  * radial menu (right-click on the graph) still works for quick selection.
+ *
+ * The 'show all edges' toggle was removed in Bug #5364 — superseded by the
+ * predicate filter panel which gives the same effect with finer control.
+ * Edges now always show by default; hover/select/search continue to brighten
+ * or filter as before.
  */
 export function GraphToolbar() {
   const sigma = useSigma();
@@ -22,8 +27,6 @@ export function GraphToolbar() {
   const clearLogicalExpansions = useUiStore((s) => s.clearLogicalExpansions);
   const isSpreadActive = useUiStore((s) => s.isSpreadActive);
   const toggleSpreadActive = useUiStore((s) => s.toggleSpreadActive);
-  const showAllEdgesByDefault = useUiStore((s) => s.showAllEdgesByDefault);
-  const toggleShowAllEdgesByDefault = useUiStore((s) => s.toggleShowAllEdgesByDefault);
 
   const handleZoomIn = useCallback(() => {
     sigma.getCamera().animatedZoom({ duration: 200 });
@@ -93,19 +96,6 @@ export function GraphToolbar() {
           }`}
         >
           <ScanSearch size={16} />
-        </button>
-        <button
-          onClick={toggleShowAllEdgesByDefault}
-          data-testid="toggle-all-edges"
-          aria-pressed={showAllEdgesByDefault}
-          title={showAllEdgesByDefault ? 'Hide edges (show only on hover/select/filter)' : 'Show all edges'}
-          className={`p-1.5 rounded transition-colors ${
-            showAllEdgesByDefault
-              ? 'bg-blue-600/30 text-blue-400 hover:bg-blue-600/40'
-              : 'hover:bg-zinc-700 text-zinc-300 hover:text-white'
-          }`}
-        >
-          {showAllEdgesByDefault ? <Spline size={16} /> : <Slash size={16} />}
         </button>
         {expandedLogicalParents.size > 0 && (
           <button

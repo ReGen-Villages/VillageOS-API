@@ -40,7 +40,6 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
   const flashingNodeIds = useUiStore((s) => s.flashingNodeIds);
   const flashingEdgeIds = useUiStore((s) => s.flashingEdgeIds);
-  const showAllEdgesByDefault = useUiStore((s) => s.showAllEdgesByDefault);
 
   const labelMatcher = useMemo(
     () => (searchQuery ? buildLabelMatcher(searchQuery, searchOptions) : null),
@@ -114,7 +113,6 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
         predicateInActiveFilter: activePredicateIds.size > 0
           ? activePredicateIds.has(data.predicateId as string)
           : undefined,
-        showAllByDefault: showAllEdgesByDefault,
       });
 
       switch (decision) {
@@ -165,7 +163,7 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       edgeReducer,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, labelMatcher, activePredicateIds, clusterMap, selectedNodeId, showAllEdgesByDefault, setSettings, sigma]);
+  }, [searchQuery, labelMatcher, activePredicateIds, clusterMap, selectedNodeId, setSettings, sigma]);
 
   return null;
 }

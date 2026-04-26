@@ -39,9 +39,11 @@ export function edgeTouchesNode(
  *   2. Selection                 → 'show' if the edge touches the selected node
  *   3. Search active             → 'show' iff both endpoints are matched, else 'hide'
  *   4. Predicate filter active   → 'show' iff this edge's predicate is selected, else 'hide'
- *   5. No filter active          → respect <c>showAllByDefault</c>: 'show' when true
- *                                  (every edge visible — the user-friendly default),
- *                                  'hide' when false (the dense-graph quiet mode)
+ *   5. No filter active          → 'show' (every edge visible by default)
+ *
+ * Bug #5364 — the previous `showAllByDefault` parameter is removed; the
+ * "quiet mode" (hide edges by default) is superseded by the predicate
+ * filter panel which gives the same effect with finer control.
  */
 export type EdgeDisplay = 'show' | 'brighten' | 'hide';
 
@@ -50,7 +52,6 @@ export function decideEdgeDisplay(opts: {
   endpointMatchesSelection: boolean;
   bothEndpointsInSearch: boolean | undefined;
   predicateInActiveFilter: boolean | undefined;
-  showAllByDefault: boolean;
 }): EdgeDisplay {
   if (opts.endpointMatchesHover) return 'brighten';
   if (opts.endpointMatchesSelection) return 'show';
@@ -60,5 +61,5 @@ export function decideEdgeDisplay(opts: {
   if (opts.predicateInActiveFilter !== undefined) {
     return opts.predicateInActiveFilter ? 'show' : 'hide';
   }
-  return opts.showAllByDefault ? 'show' : 'hide';
+  return 'show';
 }
