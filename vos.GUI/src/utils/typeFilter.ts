@@ -37,6 +37,28 @@ export interface TypeStat {
 }
 
 /**
+ * Bug #5363 — coalesced presentation: one row per Name regardless of how
+ * many distinct type-Things share that Name. Thing Names are NOT unique in
+ * the system (Name is just a display label; identity is the GUID), so an
+ * IFC import can legitimately produce N type-Things named e.g.
+ * "Solar_Panel-Tesla:Solar Panel". The user thinks of the row as one
+ * category and wants one toggle for the lot.
+ *
+ * `typeIds` carries every underlying type-Thing id sharing this name so the
+ * caller can toggle them together via the existing per-id hiddenTypeIds
+ * machinery. The synthetic NO_TYPE bucket appears here as its own group of
+ * one (typeIds = [NO_TYPE_ID]).
+ */
+export interface TypeGroupStat {
+  /** Display name shared by every type-Thing in this group. */
+  name: string;
+  /** All type-Thing ids that share this Name. Length ≥ 1. */
+  typeIds: string[];
+  /** Sum of instance counts across every type-Thing in this group. */
+  instanceCount: number;
+}
+
+/**
  * Walk Things + Relationships and group by `is`-target. Returns one TypeStat
  * per distinct type Thing PLUS one entry under NO_TYPE_ID counting Things
  * that have no `is` relation. Sorted by descending count then by name so the
@@ -88,6 +110,33 @@ export function discoverTypes(
     return b.instanceCount - a.instanceCount || a.name.localeCompare(b.name);
   });
   return out;
+}
+
+/**
+ * Bug #5363 — collapse a TypeStat[] into one entry per Name, summing
+ * counts and concatenating typeIds. Order: the new groups inherit the sort
+ * position of their first member, so the heaviest single-typeId types stay
+ * near the top. The synthetic NO_TYPE bucket remains last because its
+ * single TypeStat already sorts last in `discoverTypes`.
+ *
+ * Pure function. The caller (TypeFilterPanel) renders one row per
+ * TypeGroupStat and toggles all underlying typeIds together.
+ */
+export function groupTypesByName(types: readonly TypeStat[]): TypeGroupStat[] {
+  // Preserve first-appearance order so the input's sort carries through.
+  const order: string[] = [];
+  const groups = new Map<string, TypeGroupStat>();
+  for (const t of types) {
+    let g = groups.get(t.name);
+    if (!g) {
+      g = { name: t.name, typeIds: [], instanceCount: 0 };
+      groups.set(t.name, g);
+      order.push(t.name);
+    }
+    g.typeIds.push(t.typeId);
+    g.instanceCount += t.instanceCount;
+  }
+  return order.map((name) => groups.get(name)!);
 }
 
 /**

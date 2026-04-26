@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   discoverTypes,
+  groupTypesByName,
   buildInstanceTypeIndex,
   applyTypeFilter,
   NO_TYPE_ID,
   NO_TYPE_NAME,
+  type TypeStat,
 } from './typeFilter';
 import type { VosThing, VosRelationship } from '../types/vos';
 
@@ -186,5 +188,72 @@ describe('applyTypeFilter (Feature #5362)', () => {
     expect(ids).not.toContain('t-door');
     // No-type bucket survives
     expect(ids).toContain('p-is');
+  });
+});
+
+describe('groupTypesByName (Bug #5363 — coalesce same-named types)', () => {
+  it('returns the same shape when every Name is unique', () => {
+    const stats: TypeStat[] = [
+      { typeId: 't-wall', name: 'Wall', instanceCount: 3 },
+      { typeId: 't-door', name: 'Door', instanceCount: 1 },
+      { typeId: NO_TYPE_ID, name: NO_TYPE_NAME, instanceCount: 3 },
+    ];
+    const groups = groupTypesByName(stats);
+    expect(groups).toEqual([
+      { name: 'Wall', typeIds: ['t-wall'], instanceCount: 3 },
+      { name: 'Door', typeIds: ['t-door'], instanceCount: 1 },
+      { name: NO_TYPE_NAME, typeIds: [NO_TYPE_ID], instanceCount: 3 },
+    ]);
+  });
+
+  it('coalesces same-named entries into one group with all typeIds + summed counts', () => {
+    // The MV IFC seed reproducer: five distinct type-Things share a Name.
+    const stats: TypeStat[] = [
+      { typeId: 't-sp1', name: 'Solar_Panel-Tesla:Solar Panel', instanceCount: 1014 },
+      { typeId: 't-sp2', name: 'Solar_Panel-Tesla:Solar Panel', instanceCount: 295 },
+      { typeId: 't-sp3', name: 'Solar_Panel-Tesla:Solar Panel', instanceCount: 69 },
+      { typeId: 't-sp4', name: 'Solar_Panel-Tesla:Solar Panel', instanceCount: 69 },
+      { typeId: 't-sp5', name: 'Solar_Panel-Tesla:Solar Panel', instanceCount: 69 },
+      { typeId: 't-door', name: 'Door', instanceCount: 12 },
+    ];
+    const groups = groupTypesByName(stats);
+    expect(groups).toHaveLength(2);
+    const sp = groups[0];
+    expect(sp.name).toBe('Solar_Panel-Tesla:Solar Panel');
+    expect(sp.typeIds).toEqual(['t-sp1', 't-sp2', 't-sp3', 't-sp4', 't-sp5']);
+    expect(sp.instanceCount).toBe(1014 + 295 + 69 + 69 + 69);
+    expect(groups[1]).toEqual({ name: 'Door', typeIds: ['t-door'], instanceCount: 12 });
+  });
+
+  it('preserves first-appearance order from the input', () => {
+    // Input order is what discoverTypes returns (count desc, no-type last).
+    // groupTypesByName should not re-sort; the first appearance of each Name
+    // determines the group's position.
+    const stats: TypeStat[] = [
+      { typeId: 't-zonal', name: 'Zonal', instanceCount: 100 },
+      { typeId: 't-wall1', name: 'Wall', instanceCount: 80 },
+      { typeId: 't-door', name: 'Door', instanceCount: 50 },
+      { typeId: 't-wall2', name: 'Wall', instanceCount: 5 },
+    ];
+    const groups = groupTypesByName(stats);
+    expect(groups.map((g) => g.name)).toEqual(['Zonal', 'Wall', 'Door']);
+    // Wall group inherits Wall's first appearance (between Zonal and Door)
+    expect(groups[1].instanceCount).toBe(85);
+    expect(groups[1].typeIds).toEqual(['t-wall1', 't-wall2']);
+  });
+
+  it('returns empty for empty input', () => {
+    expect(groupTypesByName([])).toEqual([]);
+  });
+
+  it('sum invariant — total instanceCount unchanged after grouping', () => {
+    const stats: TypeStat[] = [
+      { typeId: 'a', name: 'X', instanceCount: 7 },
+      { typeId: 'b', name: 'X', instanceCount: 3 },
+      { typeId: 'c', name: 'Y', instanceCount: 11 },
+    ];
+    const before = stats.reduce((s, t) => s + t.instanceCount, 0);
+    const after = groupTypesByName(stats).reduce((s, g) => s + g.instanceCount, 0);
+    expect(after).toBe(before);
   });
 });

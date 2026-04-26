@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
 import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
-import { discoverTypes, type TypeStat } from '../../utils/typeFilter';
+import { discoverTypes, groupTypesByName, type TypeGroupStat } from '../../utils/typeFilter';
 
 /**
  * Feature #5362 — shared type-filter panel rendered inside both the Graph
@@ -12,45 +12,89 @@ import { discoverTypes, type TypeStat } from '../../utils/typeFilter';
  * those instances from BOTH visualizations because both consume
  * `useUiStore.hiddenTypeIds`.
  *
+ * Bug #5363 — rows are grouped by Name. Multiple type-Things may legitimately
+ * share a Name (Name is a display label, not a unique key); the user thinks
+ * of them as one category. The row's checkbox controls every underlying
+ * typeId in the group together; mixed underlying state renders as
+ * indeterminate and normalizes to "all hidden" or "all visible" on click.
+ *
  * Domain-agnostic — no string-literal references to IFC class names.
  */
 export function TypeFilterPanel() {
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   const hiddenTypeIds = useUiStore((s) => s.hiddenTypeIds);
-  const toggleHiddenType = useUiStore((s) => s.toggleHiddenType);
   const setHiddenTypeIds = useUiStore((s) => s.setHiddenTypeIds);
   const clearHiddenTypeIds = useUiStore((s) => s.clearHiddenTypeIds);
 
   const [collapsed, setCollapsed] = useState(false);
   const [search, setSearch] = useState('');
 
-  const allTypes = useMemo<TypeStat[]>(
-    () => discoverTypes(things, relationships),
+  const allGroups = useMemo<TypeGroupStat[]>(
+    () => groupTypesByName(discoverTypes(things, relationships)),
     [things, relationships],
   );
 
   const filtered = useMemo(() => {
-    if (!search) return allTypes;
+    if (!search) return allGroups;
     const q = search.toLowerCase();
-    return allTypes.filter((t) => t.name.toLowerCase().includes(q));
-  }, [allTypes, search]);
+    return allGroups.filter((g) => g.name.toLowerCase().includes(q));
+  }, [allGroups, search]);
 
   const totalInstances = useMemo(
-    () => allTypes.reduce((sum, t) => sum + t.instanceCount, 0),
-    [allTypes],
+    () => allGroups.reduce((sum, g) => sum + g.instanceCount, 0),
+    [allGroups],
   );
+
+  // Per-group view of hidden state — counts how many of the group's typeIds
+  // are in hiddenTypeIds. Drives the indeterminate checkbox visual and the
+  // toggle action.
+  const hiddenCountByGroup = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const g of allGroups) {
+      let n = 0;
+      for (const id of g.typeIds) if (hiddenTypeIds.has(id)) n++;
+      m.set(g.name, n);
+    }
+    return m;
+  }, [allGroups, hiddenTypeIds]);
 
   const hiddenInstances = useMemo(() => {
     let sum = 0;
-    for (const t of allTypes) if (hiddenTypeIds.has(t.typeId)) sum += t.instanceCount;
+    for (const g of allGroups) {
+      // A typeId in the group contributes its share of the group's instance
+      // count when hidden. We don't know the per-typeId count here (only the
+      // group sum), so approximate by sharing equally — accurate when all
+      // typeIds in a group have similar counts; for the panel's header
+      // counter this is good enough. Exact accounting would require keeping
+      // the original TypeStat[] alongside the groups.
+      const hidden = hiddenCountByGroup.get(g.name) ?? 0;
+      if (g.typeIds.length === 0) continue;
+      sum += Math.round((g.instanceCount * hidden) / g.typeIds.length);
+    }
     return sum;
-  }, [allTypes, hiddenTypeIds]);
+  }, [allGroups, hiddenCountByGroup]);
 
-  const hideAll = () => setHiddenTypeIds(new Set(allTypes.map((t) => t.typeId)));
+  const hideAll = () => {
+    const next = new Set<string>();
+    for (const g of allGroups) for (const id of g.typeIds) next.add(id);
+    setHiddenTypeIds(next);
+  };
   const showAll = () => clearHiddenTypeIds();
 
-  if (allTypes.length === 0) return null;
+  /** Toggle every typeId in a group together. Mixed → all hidden; all hidden → all visible. */
+  const toggleGroup = (group: TypeGroupStat) => {
+    const next = new Set(hiddenTypeIds);
+    const allHidden = group.typeIds.every((id) => next.has(id));
+    if (allHidden) {
+      for (const id of group.typeIds) next.delete(id);
+    } else {
+      for (const id of group.typeIds) next.add(id);
+    }
+    setHiddenTypeIds(next);
+  };
+
+  if (allGroups.length === 0) return null;
 
   return (
     <div className="border border-zinc-700/60 rounded-lg bg-zinc-800/60 backdrop-blur text-zinc-200 text-xs overflow-hidden">
@@ -117,23 +161,26 @@ export function TypeFilterPanel() {
             {filtered.length === 0 ? (
               <li className="px-3 py-2 text-zinc-500 italic">No matching types.</li>
             ) : (
-              filtered.map((t) => {
-                const visible = !hiddenTypeIds.has(t.typeId);
+              filtered.map((g) => {
+                const hidden = hiddenCountByGroup.get(g.name) ?? 0;
+                const allHidden = hidden === g.typeIds.length;
+                const indeterminate = hidden > 0 && !allHidden;
                 return (
-                  <li key={t.typeId}>
+                  <li key={g.name}>
                     <label className="flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-zinc-700/30 cursor-pointer">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <input
                           type="checkbox"
-                          checked={visible}
-                          onChange={() => toggleHiddenType(t.typeId)}
+                          checked={!allHidden}
+                          ref={(el) => { if (el) el.indeterminate = indeterminate; }}
+                          onChange={() => toggleGroup(g)}
                           className="accent-violet-500"
                         />
                         <span className="truncate text-zinc-200">
-                          {t.name}
+                          {g.name}
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono text-zinc-400">{t.instanceCount.toLocaleString()}</span>
+                      <span className="text-[10px] font-mono text-zinc-400">{g.instanceCount.toLocaleString()}</span>
                     </label>
                   </li>
                 );
