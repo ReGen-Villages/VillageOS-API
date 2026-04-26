@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { resolveOutDir } from './build/resolveOutDir'
+import { pickChunk } from './build/manualChunks'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -13,7 +14,14 @@ export default defineConfig({
     // serves a stale bundle.
     outDir: resolveOutDir({ guiRoot: __dirname }),
     emptyOutDir: true,
-    chunkSizeWarningLimit: 1000,
+    // vendor-three is bound by Bug #5297: three + Fragments + three-stdlib
+    // + three-mesh-bvh + @react-three/* + @thatopen/* MUST share one chunk
+    // for `instanceof Camera` identity. Its minified size sits at ~1.27 MB
+    // and cannot be reduced without breaking raycasting. Raise the warning
+    // limit to 1500 so vendor-three doesn't trip it; every other chunk is
+    // still expected to stay below 1000 kB (Bug #5359 split vendor itself
+    // into vendor-react + vendor-signalr + vendor for that reason).
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       onwarn(warning, defaultHandler) {
         // @microsoft/signalr ships /*#__PURE__*/ annotations in positions Rollup
@@ -22,43 +30,9 @@ export default defineConfig({
         defaultHandler(warning);
       },
       output: {
-        manualChunks(id) {
-          // three.js + @react-three/* + @thatopen/fragments + three-stdlib
-          // go into a single `vendor-three` chunk. Without an explicit rule,
-          // rollup duplicated three.js across FragmentsViewer, OrbitControls,
-          // and vendor chunks — each carrying its own `class Camera`
-          // definition, so `instanceof Camera` checks across chunks failed.
-          // That broke OrbitControls zoom events and Fragments raycast
-          // picking — Bug #5297.
-          //
-          // The earlier Bug #5296 variant split the same group into an
-          // eager chunk that clashed with React (cycle vendor ↔ vendor-three
-          // → React is undefined). Because nothing in this app statically
-          // imports three (every entry point is React.lazy), the named
-          // chunk remains in the lazy graph and the cycle doesn't recur.
-          // Match the whole three.js ecosystem: three itself, three-stdlib,
-          // three-mesh-bvh (Fragments uses it internally for raycasting),
-          // @react-three/*, @thatopen/* — all must share a single chunk or
-          // `instanceof Camera` checks across three.js module instances
-          // break raycasting + OrbitControls. Any `three-*` prefix qualifies.
-          if (
-            /node_modules\/three(-[\w-]+)?\//.test(id) ||
-            id.includes('node_modules/@react-three/') ||
-            id.includes('node_modules/@thatopen/')
-          ) {
-            return 'vendor-three';
-          }
-          if (id.includes('node_modules/maplibre-gl') || id.includes('node_modules/@sigma/layer-maplibre')) {
-            return 'vendor-map';
-          }
-          if (id.includes('node_modules/sigma') || id.includes('node_modules/@react-sigma') ||
-              id.includes('node_modules/graphology')) {
-            return 'vendor-graph';
-          }
-          if (id.includes('node_modules/')) {
-            return 'vendor';
-          }
-        },
+        // Chunking rule lives in build/manualChunks.ts so it can be unit-
+        // tested. See Bug #5297 (three identity) and Bug #5359 (vendor split).
+        manualChunks: pickChunk,
       },
     },
   },
