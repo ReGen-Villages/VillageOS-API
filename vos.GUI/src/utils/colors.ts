@@ -103,15 +103,26 @@ export function hashStringToIndex(s: string, paletteSize: number): number {
   return Math.abs(hash) % paletteSize;
 }
 
+import { CURATED_PREDICATE_COLORS } from './predicatePalette';
+
 /**
- * Resolve a predicate's edge color: explicit override first, hash fallback.
- * @param name       Predicate name (e.g. "consumes")
- * @param overrides  Name→hex map from GUI_Settings PredicateColors property
+ * Resolve a predicate's edge color. Three-tier priority chain (Bug #5340):
+ *
+ *   1. User override from GUI_Settings.PredicateColors (per-deployment
+ *      customization — broker-stored, fetched on login)
+ *   2. Curated default from CURATED_PREDICATE_COLORS (semantic grouping
+ *      so material edges read as a family, MEP connectivity stands out, etc.)
+ *   3. Hash fallback into PREDICATE_PALETTE (deterministic per name —
+ *      anything not curated still gets a stable color)
+ *
+ * @param name       Predicate name (e.g. "hasPort", "consumes")
+ * @param overrides  Name→hex map from GUI_Settings.PredicateColors
  */
 export function resolvePredicateColor(
   name: string,
   overrides: Record<string, string>,
 ): string {
   if (overrides[name]) return overrides[name];
+  if (CURATED_PREDICATE_COLORS[name]) return CURATED_PREDICATE_COLORS[name];
   return PREDICATE_PALETTE[hashStringToIndex(name, PREDICATE_PALETTE.length)];
 }

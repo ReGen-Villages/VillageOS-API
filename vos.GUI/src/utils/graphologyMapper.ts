@@ -9,6 +9,7 @@ import {
 } from './colors';
 import { computeNodeSize } from './nodeSize';
 import { LAYOUT_DEFAULTS, type LayoutSettings } from './guiSettings';
+import { resolveClassColor } from './classPalette';
 
 // ── Relationship index (O(n+m) instead of O(n*m)) ────────────────────
 
@@ -102,8 +103,16 @@ export function buildGraph(
   things: VosThing[],
   relationships: VosRelationship[],
   predicateColors: Record<string, string> = {},
+  /**
+   * Per-value color overrides scoped to the configured classifying property
+   * (LayoutSettings.classifyingProperty). Keys are values of that property
+   * (e.g. "IfcWall" when classifyingProperty='ifcClass'). Empty by default;
+   * future GUI_Settings panel will let users edit this map at runtime.
+   */
+  classColorOverrides: Record<string, string> = {},
   layoutSettings: LayoutSettings = LAYOUT_DEFAULTS,
 ): Graph {
+  const classifyingProperty = layoutSettings.classifyingProperty;
   const sizeOpts = {
     min: layoutSettings.nodeSizeMin,
     max: layoutSettings.nodeSizeMax,
@@ -149,14 +158,25 @@ export function buildGraph(
     } else if (thingType === 'type') {
       color = ROLE_COLORS.type;
     } else {
-      // Instance node — derive colour from its "is" type name.
-      // Physical (geo) nodes use the vibrant INSTANCE_PALETTE;
-      // logical (non-geo) nodes use the softer LOGICAL_PALETTE.
-      const typeName = getInstanceTypeName(t, relIndex);
-      const palette = hasGeometry ? INSTANCE_PALETTE : LOGICAL_PALETTE;
-      color = typeName
-        ? palette[hashStringToIndex(typeName, palette.length)]
-        : ROLE_COLORS.noType;
+      // Feature #5340 — color by the user-configured classifying property
+      // (default 'ifcClass' for IFC seeds; deployments override via
+      // GUI_Settings.ClassifyingProperty). When the value is missing or has
+      // no curated bucket and no override, fall back to the vibrant/pastel
+      // hash palette keyed by the instance's `is`-target type name so demos
+      // without a class table still render distinctly.
+      const rawValue = t.Properties?.[classifyingProperty];
+      const classifyingValue = typeof rawValue === 'string' && rawValue.length > 0
+        ? rawValue
+        : null;
+      if (classifyingValue) {
+        color = resolveClassColor(classifyingProperty, classifyingValue, classColorOverrides);
+      } else {
+        const typeName = getInstanceTypeName(t, relIndex);
+        const palette = hasGeometry ? INSTANCE_PALETTE : LOGICAL_PALETTE;
+        color = typeName
+          ? palette[hashStringToIndex(typeName, palette.length)]
+          : ROLE_COLORS.noType;
+      }
     }
 
     // Size: scale by relationship count (Bug #5361 — formula in computeNodeSize,
