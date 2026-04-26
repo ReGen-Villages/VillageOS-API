@@ -129,7 +129,7 @@ export function TypeFilterPanel() {
                           onChange={() => toggleHiddenType(t.typeId)}
                           className="accent-violet-500"
                         />
-                        <span className={`truncate ${visible ? 'text-zinc-200' : 'text-zinc-500 line-through'}`}>
+                        <span className="truncate text-zinc-200">
                           {t.name}
                         </span>
                       </div>

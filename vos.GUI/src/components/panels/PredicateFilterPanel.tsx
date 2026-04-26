@@ -132,10 +132,6 @@ export function PredicateFilterPanel() {
             ) : (
               filtered.map((s) => {
                 const active = activePredicateIds.has(s.predicateId);
-                // When NO filter is active, every predicate's edges are
-                // visible — show the row in its normal style. When some are
-                // active, dim the inactive rows.
-                const isVisible = activePredicateIds.size === 0 || active;
                 return (
                   <li key={s.predicateId}>
                     <label className="flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-zinc-700/30 cursor-pointer">
@@ -151,7 +147,7 @@ export function PredicateFilterPanel() {
                           style={{ backgroundColor: s.color }}
                           aria-hidden="true"
                         />
-                        <span className={`truncate ${isVisible ? 'text-zinc-200' : 'text-zinc-500 line-through'}`}>
+                        <span className="truncate text-zinc-200">
                           {s.predicateName}
                         </span>
                       </div>
