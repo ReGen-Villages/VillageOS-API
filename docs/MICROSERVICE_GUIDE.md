@@ -16,7 +16,7 @@
 
 ## Overview
 
-The VillageOS ManagedMicroservice is a minimal ASP.NET Core 8.0 web application template for building services that integrate with the VillageOS Broker. It handles the operational boilerplate -- registration, health monitoring, and graceful shutdown -- so you can focus on business logic.
+The VillageOS ManagedMicroservice is a minimal ASP.NET Core (.NET 10) web application template for building services that integrate with the VillageOS Broker. It handles the operational boilerplate -- registration, health monitoring, and graceful shutdown -- so you can focus on business logic.
 
 **Capabilities:**
 - **Auto-Registration** with the broker on startup (JWT-authenticated)
@@ -25,7 +25,7 @@ The VillageOS ManagedMicroservice is a minimal ASP.NET Core 8.0 web application 
 - **Graceful Shutdown** with coordinated cleanup before process termination
 
 **Technology Stack:**
-- ASP.NET Core 8.0 (Minimal API)
+- ASP.NET Core (Minimal API) on .NET 10
 - .NET 10 SDK
 - JSON-based configuration
 - HTTP for localhost daemon communication; HTTPS for external broker API
