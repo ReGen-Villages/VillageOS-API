@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { PredicateStats, ClusterMap } from '../utils/predicateCluster';
 import { FLASH_DEFAULTS, LAYOUT_DEFAULTS } from '../utils/guiSettings';
 import type { FlashSettings, LayoutSettings } from '../utils/guiSettings';
+import type { SortOrder } from '../utils/typeFilter';
 
 const PANEL_WIDTH_KEY = 'vos-panel-width';
 const DEFAULT_PANEL_WIDTH = 320;
@@ -9,6 +10,9 @@ const MIN_PANEL_WIDTH = 240;
 const MAX_PANEL_WIDTH = 1600;
 
 const HIDDEN_TYPES_KEY_PREFIX = 'vos-hidden-types:';
+const TYPE_SORT_KEY_PREFIX = 'vos-type-sort:';
+const DEFAULT_TYPE_SORT: SortOrder = 'count-desc';
+const VALID_TYPE_SORTS: readonly SortOrder[] = ['count-desc', 'count-asc', 'name-asc', 'name-desc'];
 
 /**
  * Feature #5362 — load the persisted set of hidden type Thing ids for a model.
@@ -34,6 +38,30 @@ function persistHiddenTypeIds(modelId: string | null, ids: Set<string>): void {
     localStorage.removeItem(HIDDEN_TYPES_KEY_PREFIX + modelId);
   } else {
     localStorage.setItem(HIDDEN_TYPES_KEY_PREFIX + modelId, JSON.stringify([...ids]));
+  }
+}
+
+/**
+ * Feature #5386 — per-model TypeFilterPanel sort order, persisted in
+ * localStorage so the user's preferred view sticks across reloads. Mirrors
+ * the hiddenTypeIds pattern; falls back to count-desc on missing / invalid
+ * stored values.
+ */
+function loadTypeSort(modelId: string | null): SortOrder {
+  if (!modelId) return DEFAULT_TYPE_SORT;
+  const raw = localStorage.getItem(TYPE_SORT_KEY_PREFIX + modelId);
+  if (raw && (VALID_TYPE_SORTS as readonly string[]).includes(raw)) {
+    return raw as SortOrder;
+  }
+  return DEFAULT_TYPE_SORT;
+}
+
+function persistTypeSort(modelId: string | null, order: SortOrder): void {
+  if (!modelId) return;
+  if (order === DEFAULT_TYPE_SORT) {
+    localStorage.removeItem(TYPE_SORT_KEY_PREFIX + modelId);
+  } else {
+    localStorage.setItem(TYPE_SORT_KEY_PREFIX + modelId, order);
   }
 }
 
@@ -78,6 +106,10 @@ interface UiState {
   toggleHiddenType: (typeId: string) => void;
   setHiddenTypeIds: (ids: Set<string>) => void;
   clearHiddenTypeIds: () => void;
+
+  // Feature #5386 — TypeFilterPanel sort order, persisted per model.
+  typeSortOrder: SortOrder;
+  setTypeSortOrder: (order: SortOrder) => void;
 
   // ── Predicate edge-visibility filter (Bug #5365) ──────────────────
   // Set of predicate ids whose edges should be HIDDEN. Mirror semantic of
@@ -174,11 +206,17 @@ export const useUiStore = create<UiState>((set) => ({
   // ── Type filter (Feature #5362) ───────────────────────────────────
   currentModelId: null,
   hiddenTypeIds: new Set<string>(),
+  typeSortOrder: DEFAULT_TYPE_SORT,
   setCurrentModelId: (modelId) => set(() => ({
     currentModelId: modelId,
     // Re-load persisted filter state for the new model
     hiddenTypeIds: loadHiddenTypeIds(modelId),
+    typeSortOrder: loadTypeSort(modelId),
   })),
+  setTypeSortOrder: (order) => set((s) => {
+    persistTypeSort(s.currentModelId, order);
+    return { typeSortOrder: order };
+  }),
   toggleHiddenType: (typeId) => set((s) => {
     const next = new Set(s.hiddenTypeIds);
     if (next.has(typeId)) next.delete(typeId);

@@ -140,6 +140,42 @@ export function groupTypesByName(types: readonly TypeStat[]): TypeGroupStat[] {
 }
 
 /**
+ * Feature #5386 — sort orderings exposed in the TypeFilterPanel selector.
+ *   - count-desc  large buckets first (panel default, matches discoverTypes)
+ *   - count-asc   smallest buckets first
+ *   - name-asc    A → Z
+ *   - name-desc   Z → A
+ *
+ * The synthetic NO_TYPE bucket always sorts to the END regardless of choice —
+ * it's a special "everything else" category, not a real type, and shouldn't
+ * displace meaningful rows when a user picks Name A→Z.
+ */
+export type SortOrder = 'count-desc' | 'count-asc' | 'name-asc' | 'name-desc';
+
+export function sortTypeGroups(
+  groups: readonly TypeGroupStat[],
+  order: SortOrder,
+): TypeGroupStat[] {
+  const isNoType = (g: TypeGroupStat) => g.name === NO_TYPE_NAME;
+
+  return [...groups].sort((a, b) => {
+    // NO_TYPE sentinel always tail-sorts.
+    if (isNoType(a) !== isNoType(b)) return isNoType(a) ? 1 : -1;
+
+    switch (order) {
+      case 'count-desc':
+        return b.instanceCount - a.instanceCount || a.name.localeCompare(b.name);
+      case 'count-asc':
+        return a.instanceCount - b.instanceCount || a.name.localeCompare(b.name);
+      case 'name-asc':
+        return a.name.localeCompare(b.name);
+      case 'name-desc':
+        return b.name.localeCompare(a.name);
+    }
+  });
+}
+
+/**
  * For each Thing, return the id of the type it `is`-relates to (or null).
  * If a Thing has multiple `is` relationships, the first one wins — same
  * behavior as graphologyMapper.buildRelationshipIndex's isSubjectToTypeName.
