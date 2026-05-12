@@ -6,22 +6,27 @@ import { ModelPage } from './ModelPage';
 // WebGL and a worker. jsdom has neither, so we stub the whole component and
 // expose the onPick callback so tests can simulate a pick.
 let capturedOnPick: ((id: string | null) => void) | null = null;
+let capturedHiddenIfcGuids: readonly string[] = [];
 vi.mock('../components/model/FragmentsViewer', () => ({
   FragmentsViewer: ({
     fragmentsBytes,
     mapping,
     onPick,
+    hiddenIfcGuids = [],
   }: {
     fragmentsBytes: ArrayBuffer;
     mapping: Record<string, string>;
     onPick: (id: string | null) => void;
+    hiddenIfcGuids?: readonly string[];
   }) => {
     capturedOnPick = onPick;
+    capturedHiddenIfcGuids = hiddenIfcGuids;
     return (
       <div
         data-testid="fragments-viewer-stub"
         data-bytesize={fragmentsBytes.byteLength}
         data-mapping-size={Object.keys(mapping).length}
+        data-hidden-count={hiddenIfcGuids.length}
       />
     );
   },
@@ -75,14 +80,19 @@ function seedThings(things: VosThing[]) {
   useModelStore.setState({ things, relationships: [] });
 }
 
+function seedModel(things: VosThing[], relationships: import('../types/vos').VosRelationship[]) {
+  useModelStore.setState({ things, relationships });
+}
+
 describe('ModelPage', () => {
   beforeEach(() => {
     mockGetBytes.mockReset();
     mockGet.mockReset();
     mockModelId = 'model-1';
     capturedOnPick = null;
+    capturedHiddenIfcGuids = [];
     // Reset shared selection state so cross-test bleed-through can't mask bugs.
-    useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null });
+    useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, hiddenTypeIds: new Set() });
     // Feature #5329: ModelPage now consumes things from the model store,
     // populated by the app-shell-level useModelData hook. Tests seed it
     // directly because they don't mount the AuthenticatedApp shell.
@@ -197,6 +207,58 @@ describe('ModelPage', () => {
     const closeBtn = await screen.findByTestId('close-panel');
     await act(async () => closeBtn.click());
     await waitFor(() => expect(screen.queryByTestId('node-detail-panel')).toBeNull());
+  });
+
+  // Regression test for Bug #5384: the hiddenTypeIds → hiddenIfcGuids
+  // translation must cover the same three cases as applyTypeFilter on the
+  // Graph page: (a) instances of a hidden type, (b) the hidden type-Things
+  // themselves, (c) untyped Things when NO_TYPE_ID is hidden. The previous
+  // bespoke loop only handled (a), leaving ~9.6k IFC objects rendered after
+  // clicking "None" on the MarthasVineyard model.
+  it('emits hiddenIfcGuids for instances, type-Things, AND untyped Things', async () => {
+    const bytes = new Uint8Array([0x01]).buffer;
+    mockGetBytes.mockResolvedValue(bytes);
+
+    // Model: one type Thing (with its own IFC geometry — IfcWallType),
+    // one instance Thing (is-related to the type), and one untyped Thing
+    // (no `is` relation — e.g. IfcDistributionPort).
+    const isPredicate: VosThing = { Id: 'pred-is', Name: 'is', Properties: {} };
+    const typeThing: VosThing = {
+      Id: 'type-wall',
+      Name: 'Basic Wall:Generic-200mm',
+      Properties: { ifcGlobalId: 'ifc-type-guid' },
+    };
+    const instance: VosThing = {
+      Id: 'inst-1',
+      Name: 'Wall_101',
+      Properties: { ifcGlobalId: 'ifc-instance-guid' },
+    };
+    const untyped: VosThing = {
+      Id: 'port-1',
+      Name: 'Port_962966_1',
+      Properties: { ifcGlobalId: 'ifc-untyped-guid' },
+    };
+    seedModel(
+      [isPredicate, typeThing, instance, untyped],
+      [{
+        Id: 'rel-1',
+        Name: 'inst-1 is type-wall',
+        SubjectId: 'inst-1',
+        PredicateId: 'pred-is',
+        TargetId: 'type-wall',
+        Properties: {},
+      }],
+    );
+
+    // Hide every group — same set the TypeFilterPanel produces on "None".
+    const { NO_TYPE_ID } = await import('../utils/typeFilter');
+    useUiStore.setState({ hiddenTypeIds: new Set(['type-wall', NO_TYPE_ID]) });
+
+    render(<ModelPage />);
+    await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
+
+    const guids = [...capturedHiddenIfcGuids].sort();
+    expect(guids).toEqual(['ifc-instance-guid', 'ifc-type-guid', 'ifc-untyped-guid']);
   });
 
   it('drives selection through useUiStore so it stays in sync with the GraphPage', async () => {

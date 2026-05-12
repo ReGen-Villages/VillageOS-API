@@ -11,7 +11,7 @@ import { TypeFilterPanel } from '../components/panels/TypeFilterPanel';
 import { toast } from '../components/common/Toast';
 import type { VosThing } from '../types/vos';
 import type { FragmentsMapping } from '../components/model/FragmentsViewer';
-import { buildInstanceTypeIndex } from '../utils/typeFilter';
+import { applyTypeFilter } from '../utils/typeFilter';
 
 const FragmentsViewer = lazy(() =>
   import('../components/model/FragmentsViewer').then((m) => ({ default: m.FragmentsViewer })),
@@ -47,15 +47,19 @@ export function ModelPage() {
   const hiddenTypeIds = useUiStore((s) => s.hiddenTypeIds);
 
   // Feature #5362 — translate hidden type Thing ids → IFC GlobalIds whose
-  // Fragments instances should be hidden in the 3D scene. The viewer takes it
-  // from there (see FragmentsViewer hiddenIfcGuids prop).
+  // Fragments instances should be hidden in the 3D scene. Bug #5384: delegate
+  // to applyTypeFilter so the Model viewer hides the SAME set of Things as the
+  // Graph page — including type-Things themselves (their own IFC geometry) and
+  // the synthetic NO_TYPE_ID bucket (untyped Things with IFC geometry, e.g.
+  // IfcDistributionPort). Rolling our own loop here previously skipped both.
   const hiddenIfcGuids = useMemo(() => {
     if (hiddenTypeIds.size === 0) return [];
-    const instanceTypeIndex = buildInstanceTypeIndex(things, relationships);
+    const visible = new Set(
+      applyTypeFilter(things, relationships, hiddenTypeIds).things.map((t) => t.Id),
+    );
     const out: string[] = [];
     for (const t of things) {
-      const typeId = instanceTypeIndex.get(t.Id);
-      if (!typeId || !hiddenTypeIds.has(typeId)) continue;
+      if (visible.has(t.Id)) continue;
       const guid = t.Properties?.ifcGlobalId;
       if (typeof guid === 'string' && guid.length > 0) out.push(guid);
     }
