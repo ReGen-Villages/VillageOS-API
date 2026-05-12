@@ -4,9 +4,11 @@ import {
   groupTypesByName,
   buildInstanceTypeIndex,
   applyTypeFilter,
+  sortTypeGroups,
   NO_TYPE_ID,
   NO_TYPE_NAME,
   type TypeStat,
+  type TypeGroupStat,
 } from './typeFilter';
 import type { VosThing, VosRelationship } from '../types/vos';
 
@@ -255,5 +257,50 @@ describe('groupTypesByName (Bug #5363 — coalesce same-named types)', () => {
     const before = stats.reduce((s, t) => s + t.instanceCount, 0);
     const after = groupTypesByName(stats).reduce((s, g) => s + g.instanceCount, 0);
     expect(after).toBe(before);
+  });
+});
+
+describe('sortTypeGroups (Feature #5386)', () => {
+  const groups: TypeGroupStat[] = [
+    { name: 'Beam',  typeIds: ['t-beam'],     instanceCount: 50 },
+    { name: 'Wall',  typeIds: ['t-wall'],     instanceCount: 100 },
+    { name: 'Door',  typeIds: ['t-door'],     instanceCount: 100 },
+    { name: 'Floor', typeIds: ['t-floor'],    instanceCount: 1 },
+    { name: NO_TYPE_NAME, typeIds: [NO_TYPE_ID], instanceCount: 9000 },
+  ];
+
+  it('count-desc puts the heaviest real types first, NO_TYPE last', () => {
+    const sorted = sortTypeGroups(groups, 'count-desc').map((g) => g.name);
+    // Door and Wall both have 100 — tied on count, fall through to name asc.
+    expect(sorted).toEqual(['Door', 'Wall', 'Beam', 'Floor', NO_TYPE_NAME]);
+  });
+
+  it('count-asc puts the smallest real types first, NO_TYPE last', () => {
+    const sorted = sortTypeGroups(groups, 'count-asc').map((g) => g.name);
+    expect(sorted).toEqual(['Floor', 'Beam', 'Door', 'Wall', NO_TYPE_NAME]);
+  });
+
+  it('name-asc orders alphabetically, NO_TYPE last', () => {
+    const sorted = sortTypeGroups(groups, 'name-asc').map((g) => g.name);
+    expect(sorted).toEqual(['Beam', 'Door', 'Floor', 'Wall', NO_TYPE_NAME]);
+  });
+
+  it('name-desc reverses alphabetic, NO_TYPE still last (not first)', () => {
+    const sorted = sortTypeGroups(groups, 'name-desc').map((g) => g.name);
+    expect(sorted).toEqual(['Wall', 'Floor', 'Door', 'Beam', NO_TYPE_NAME]);
+  });
+
+  it('does not mutate the input array', () => {
+    const before = groups.map((g) => g.name);
+    sortTypeGroups(groups, 'name-asc');
+    expect(groups.map((g) => g.name)).toEqual(before);
+  });
+
+  it('handles a list with only NO_TYPE', () => {
+    expect(sortTypeGroups([groups[4]], 'count-asc')).toEqual([groups[4]]);
+  });
+
+  it('handles an empty list', () => {
+    expect(sortTypeGroups([], 'count-desc')).toEqual([]);
   });
 });

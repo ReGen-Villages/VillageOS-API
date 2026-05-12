@@ -2,7 +2,13 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
 import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
-import { discoverTypes, groupTypesByName, type TypeGroupStat } from '../../utils/typeFilter';
+import {
+  discoverTypes,
+  groupTypesByName,
+  sortTypeGroups,
+  type SortOrder,
+  type TypeGroupStat,
+} from '../../utils/typeFilter';
 
 /**
  * Feature #5362 — shared type-filter panel rendered inside both the Graph
@@ -26,13 +32,15 @@ export function TypeFilterPanel() {
   const hiddenTypeIds = useUiStore((s) => s.hiddenTypeIds);
   const setHiddenTypeIds = useUiStore((s) => s.setHiddenTypeIds);
   const clearHiddenTypeIds = useUiStore((s) => s.clearHiddenTypeIds);
+  const sortOrder = useUiStore((s) => s.typeSortOrder);
+  const setSortOrder = useUiStore((s) => s.setTypeSortOrder);
 
   const [collapsed, setCollapsed] = useState(false);
   const [search, setSearch] = useState('');
 
   const allGroups = useMemo<TypeGroupStat[]>(
-    () => groupTypesByName(discoverTypes(things, relationships)),
-    [things, relationships],
+    () => sortTypeGroups(groupTypesByName(discoverTypes(things, relationships)), sortOrder),
+    [things, relationships, sortOrder],
   );
 
   const filtered = useMemo(() => {
@@ -155,6 +163,25 @@ export function TypeFilterPanel() {
                 {hiddenInstances.toLocaleString()} hidden
               </span>
             )}
+          </div>
+
+          {/* Feature #5386 — sort selector. Persisted per model via uiStore. */}
+          <div className="px-3 pb-2 flex items-center gap-2">
+            <label htmlFor="type-filter-sort" className="text-[10px] text-zinc-400 uppercase tracking-wide">
+              Sort
+            </label>
+            <select
+              id="type-filter-sort"
+              aria-label="Sort types"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+              className="flex-1 bg-zinc-900/60 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+            >
+              <option value="count-desc">Count (high to low)</option>
+              <option value="count-asc">Count (low to high)</option>
+              <option value="name-asc">Name (A → Z)</option>
+              <option value="name-desc">Name (Z → A)</option>
+            </select>
           </div>
 
           <ul className="max-h-[40vh] overflow-y-auto border-t border-zinc-700/60 divide-y divide-zinc-700/40">
