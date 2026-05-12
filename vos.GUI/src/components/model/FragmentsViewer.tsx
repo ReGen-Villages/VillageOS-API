@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { FragmentsModels, type FragmentsModel } from '@thatopen/fragments';
 import { LoadingOverlay } from './LoadingOverlay';
 import { ViewerToolbar, type CameraMode } from './ViewerToolbar';
+import { orbitMouseButtonsFor } from '../../utils/orbitMouseButtons';
 
 /**
  * Map of IFC GlobalId → VosThing GUID, produced by vos.Tools.IfcIngest and
@@ -52,6 +53,30 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuid
   const [cameraMode, setCameraMode] = useState<CameraMode>('3d');
   const [sectionEnabled, setSectionEnabled] = useState(false);
   const [sectionY, setSectionY] = useState<number>(0);
+
+  // Feature #5385 — track modifier keys so Shift/Cmd/Ctrl + left-drag becomes
+  // pan. Without this, touchpad users have no easy way to pan (right-click is
+  // awkward on macOS trackpads). State changes re-render and OrbitControls
+  // re-receives the swapped mouseButtons prop.
+  const [panModifier, setPanModifier] = useState({ shift: false, meta: false, ctrl: false });
+  useEffect(() => {
+    const sync = (e: KeyboardEvent) => {
+      setPanModifier({ shift: e.shiftKey, meta: e.metaKey, ctrl: e.ctrlKey });
+    };
+    // Also clear on blur in case the user releases the key while the window
+    // isn't focused (e.g. Cmd+Tab) — otherwise the viewer would stay in pan
+    // mode until the next keypress.
+    const clear = () => setPanModifier({ shift: false, meta: false, ctrl: false });
+    window.addEventListener('keydown', sync);
+    window.addEventListener('keyup', sync);
+    window.addEventListener('blur', clear);
+    return () => {
+      window.removeEventListener('keydown', sync);
+      window.removeEventListener('keyup', sync);
+      window.removeEventListener('blur', clear);
+    };
+  }, []);
+  const mouseButtons = orbitMouseButtonsFor(panModifier);
 
   // The clipping plane is read from a ref by the Fragments worker via
   // getClippingPlanesEvent, which is called every frame. Keep it in a ref
@@ -106,6 +131,8 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuid
           enableDamping
           dampingFactor={0.08}
           enableRotate={cameraMode === '3d'}
+          enablePan
+          mouseButtons={mouseButtons}
         />
 
         <FragmentsScene
