@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { resolveOutDir } from './resolveOutDir';
 
 const GUI = '/repos/VillageOS-API/vos.GUI';
-const SIBLING_WWWROOT = '/repos/VillageOS/vos.Broker/wwwroot';
+const SIBLING_WWWROOT = '/repos/VillageOS/vos.Mycelium/wwwroot';
 
 describe('resolveOutDir', () => {
   it('returns the env override when set, ignoring the sibling check', () => {
@@ -11,7 +11,7 @@ describe('resolveOutDir', () => {
     ).toBe('/custom/out');
   });
 
-  it('returns the sibling vos.Broker/wwwroot when no env var and the path exists', () => {
+  it('returns the sibling vos.Mycelium/wwwroot when no env var and the path exists', () => {
     expect(
       resolveOutDir({ guiRoot: GUI, envOverride: undefined, pathExists: (p) => p === SIBLING_WWWROOT }),
     ).toBe(SIBLING_WWWROOT);

@@ -181,7 +181,7 @@ export function useAuthState(): AuthState {
           }
         } catch { /* fall through to actionable error */ }
         setError(
-          'No models on broker. Drop a .seed.json into vos.Broker/seeds-library/ and reload, '
+          'No models on broker. Drop a .seed.json into vos.Mycelium/seeds-library/ and reload, '
           + 'or POST /api/broker/library-seeds/<name>/load.',
         );
         throw err;
