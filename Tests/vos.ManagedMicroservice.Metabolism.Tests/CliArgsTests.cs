@@ -126,4 +126,34 @@ public class CliArgsTests
         result!.Token.Should().Be("jwt");
         result.SigningKey.Should().BeNull();
     }
+
+    [Fact]
+    public void Parse_WithIssuerAndAudience_ParsesBoth()
+    {
+        // Bug #5391 — broker passes its JWT issuer + audience via CLI so the
+        // daemon validates incoming /handle requests against exactly the
+        // values the broker signed with. The broker-side change is Bug #5390.
+        var args = new[]
+        {
+            "--port=5100", "--brokerUrl=http://broker", "--mode=consumes",
+            "--issuer=VillageOS", "--audience=VillageOSClients"
+        };
+        var result = CliArgs.Parse(args);
+
+        result.Should().NotBeNull();
+        result!.Issuer.Should().Be("VillageOS");
+        result.Audience.Should().Be("VillageOSClients");
+    }
+
+    [Fact]
+    public void Parse_WithoutIssuerAndAudience_DefaultsToNull()
+    {
+        var args = new[] { "--port=5100", "--brokerUrl=http://broker", "--mode=consumes" };
+        var result = CliArgs.Parse(args);
+
+        result.Should().NotBeNull();
+        result!.Issuer.Should().BeNull(
+            "the daemon must fall back to a hardcoded default only when the broker did not specify");
+        result.Audience.Should().BeNull();
+    }
 }

@@ -42,11 +42,19 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    // Add JWT auth if broker provided a signing key
+    // Add JWT auth if broker provided a signing key. Bug #5391: use the
+    // issuer/audience the broker passes via CLI so validation matches what
+    // the broker signed; falling back to the hardcoded library defaults
+    // silently accepted nothing in production because the broker config
+    // diverged from the daemon defaults.
     if (!string.IsNullOrEmpty(signingKey))
     {
-        builder.AddBrokerTokenAuth(signingKey);
-        Log.Information("JWT authentication enabled for incoming broker requests");
+        builder.AddBrokerTokenAuth(
+            signingKey,
+            issuer: cliArgs.Issuer ?? "VillageOS",
+            audience: cliArgs.Audience ?? "VosClients");
+        Log.Information("JWT authentication enabled for incoming broker requests (issuer={Issuer}, audience={Audience})",
+            cliArgs.Issuer ?? "VillageOS", cliArgs.Audience ?? "VosClients");
     }
 
     var requestCount = 0;

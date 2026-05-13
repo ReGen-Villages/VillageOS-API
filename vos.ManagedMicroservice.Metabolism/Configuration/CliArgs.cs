@@ -3,7 +3,14 @@ namespace vos.ManagedMicroservice.Metabolism.Configuration;
 /// <summary>
 /// Parsed command-line arguments for the Metabolism service.
 /// </summary>
-public record CliArgs(int Port, string BrokerUrl, string Mode, string? Token = null, string? SigningKey = null)
+public record CliArgs(
+    int Port,
+    string BrokerUrl,
+    string Mode,
+    string? Token = null,
+    string? SigningKey = null,
+    string? Issuer = null,
+    string? Audience = null)
 {
     /// <summary>
     /// Parses command-line arguments. Returns null if required args are missing or invalid.
@@ -15,6 +22,8 @@ public record CliArgs(int Port, string BrokerUrl, string Mode, string? Token = n
         var modeArg = args.FirstOrDefault(a => a.StartsWith("--mode="));
         var tokenArg = args.FirstOrDefault(a => a.StartsWith("--token="));
         var signingKeyArg = args.FirstOrDefault(a => a.StartsWith("--signingKey="));
+        var issuerArg = args.FirstOrDefault(a => a.StartsWith("--issuer="));
+        var audienceArg = args.FirstOrDefault(a => a.StartsWith("--audience="));
 
         if (portArg == null || brokerUrlArg == null || modeArg == null)
             return null;
@@ -30,15 +39,19 @@ public record CliArgs(int Port, string BrokerUrl, string Mode, string? Token = n
 
         var token = tokenArg?.Substring("--token=".Length);
         var signingKey = signingKeyArg?.Substring("--signingKey=".Length);
+        var issuer = issuerArg?.Substring("--issuer=".Length);
+        var audience = audienceArg?.Substring("--audience=".Length);
 
-        return new CliArgs(port, brokerUrl, mode, token, signingKey);
+        return new CliArgs(port, brokerUrl, mode, token, signingKey, issuer, audience);
     }
 
     public static string UsageMessage =>
-        "Usage: dotnet run -- --port=<port> --brokerUrl=<url> --mode=<consumes|produces> [--token=<jwt>] [--signingKey=<base64>]\n" +
+        "Usage: dotnet run -- --port=<port> --brokerUrl=<url> --mode=<consumes|produces> [--token=<jwt>] [--signingKey=<base64>] [--issuer=<iss>] [--audience=<aud>]\n" +
         "  --port       Port number for the service to listen on\n" +
         "  --brokerUrl  URL of the VOS Broker\n" +
         "  --mode       Operation mode: 'consumes' (decrement) or 'produces' (increment)\n" +
         "  --token      Service JWT token for authenticating with the broker (optional)\n" +
-        "  --signingKey Base64-encoded signing key for validating broker requests (optional)";
+        "  --signingKey Base64-encoded signing key for validating broker requests (optional)\n" +
+        "  --issuer     JWT issuer the broker signs with — must match for /handle auth (Bug #5391)\n" +
+        "  --audience   JWT audience the broker signs with — must match for /handle auth (Bug #5391)";
 }
