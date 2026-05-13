@@ -105,11 +105,11 @@ export function TypeFilterPanel() {
   if (allGroups.length === 0) return null;
 
   return (
-    <div className="border border-zinc-700/60 rounded-lg bg-zinc-800/60 backdrop-blur text-zinc-200 text-xs overflow-hidden">
+    <div className={`border border-zinc-700/60 rounded-lg bg-zinc-800/60 backdrop-blur text-zinc-200 text-xs overflow-hidden flex flex-col ${collapsed ? 'flex-shrink-0' : 'flex-1 min-h-0'}`}>
       <button
         type="button"
         onClick={() => setCollapsed((c) => !c)}
-        className="w-full flex items-center justify-between px-3 py-2 hover:bg-zinc-700/40 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-zinc-700/40 transition-colors flex-shrink-0"
         aria-expanded={!collapsed}
       >
         <div className="flex items-center gap-2 font-semibold">
@@ -122,8 +122,8 @@ export function TypeFilterPanel() {
       </button>
 
       {!collapsed && (
-        <div className="border-t border-zinc-700/60">
-          <div className="px-3 py-2 flex items-center gap-2">
+        <div className="border-t border-zinc-700/60 flex flex-col min-h-0 flex-1">
+          <div className="px-3 py-2 flex items-center gap-2 flex-shrink-0">
             <input
               type="search"
               value={search}
@@ -143,7 +143,7 @@ export function TypeFilterPanel() {
             )}
           </div>
 
-          <div className="px-3 pb-2 flex items-center gap-2">
+          <div className="px-3 pb-2 flex items-center gap-2 flex-shrink-0">
             <button
               type="button"
               onClick={showAll}
@@ -166,7 +166,7 @@ export function TypeFilterPanel() {
           </div>
 
           {/* Feature #5386 — sort selector. Persisted per model via uiStore. */}
-          <div className="px-3 pb-2 flex items-center gap-2">
+          <div className="px-3 pb-2 flex items-center gap-2 flex-shrink-0">
             <label htmlFor="type-filter-sort" className="text-[10px] text-zinc-400 uppercase tracking-wide">
               Sort
             </label>
@@ -184,7 +184,7 @@ export function TypeFilterPanel() {
             </select>
           </div>
 
-          <ul className="max-h-[40vh] overflow-y-auto border-t border-zinc-700/60 divide-y divide-zinc-700/40">
+          <ul className="flex-1 min-h-0 overflow-y-auto border-t border-zinc-700/60 divide-y divide-zinc-700/40">
             {filtered.length === 0 ? (
               <li className="px-3 py-2 text-zinc-500 italic">No matching types.</li>
             ) : (
