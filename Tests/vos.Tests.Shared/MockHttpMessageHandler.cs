@@ -1,10 +1,9 @@
-using System.Net;
+namespace vos.Tests.Shared;
 
-namespace vos.ManagedMicroservice.Metabolism.Tests;
-
-internal class MockHttpMessageHandler : HttpMessageHandler
+public sealed class MockHttpMessageHandler : HttpMessageHandler
 {
     private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
+
     public List<HttpRequestMessage> Requests { get; } = new();
 
     public MockHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
@@ -12,7 +11,7 @@ internal class MockHttpMessageHandler : HttpMessageHandler
         _handler = handler;
     }
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         Requests.Add(request);
         return Task.FromResult(_handler(request));

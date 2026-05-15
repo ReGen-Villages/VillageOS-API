@@ -2,7 +2,30 @@
 <RunSettings>
   <DataCollectionRunSettings>
     <DataCollectors>
-      <DataCollector friendlyName="XPlat Code Coverage" />
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <ExcludeByFile>
+            <!-- Minimal-API wireup. Program.cs in microservices is exercised by integration tests, not unit tests. -->
+            <File>**/vos.ManagedMicroservice.*/Program.cs</File>
+            <!-- Shared test infrastructure. Not production code. -->
+            <File>**/Tests/vos.Tests.Shared/**/*.cs</File>
+          </ExcludeByFile>
+          <ExcludeByAttribute>
+            <!-- Auto-generated / compiler synthesised code. -->
+            <Attribute>System.CodeDom.Compiler.GeneratedCodeAttribute</Attribute>
+            <Attribute>System.Runtime.CompilerServices.CompilerGeneratedAttribute</Attribute>
+            <!-- Allow targeted opt-outs at the type/method level. -->
+            <Attribute>System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverageAttribute</Attribute>
+          </ExcludeByAttribute>
+          <Exclude>
+            <!-- Test assemblies themselves. -->
+            <ModulePath>.*Tests\.dll$</ModulePath>
+            <ModulePath>.*vos\.Tests\.Shared\.dll$</ModulePath>
+          </Exclude>
+          <!-- Phase 3 (Task #5406) will add per-assembly MinimumCoverage thresholds (95% line, 85% branch) here. -->
+        </Configuration>
+      </DataCollector>
     </DataCollectors>
   </DataCollectionRunSettings>
 </RunSettings>

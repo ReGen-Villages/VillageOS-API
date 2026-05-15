@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using vos.ManagedMicroservice.IntegrationRegistry.Models;
 using vos.ManagedMicroservice.IntegrationRegistry.Services;
+using vos.Tests.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;

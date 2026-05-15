@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using vos.ManagedMicroservice.EndpointCaller.Services;
+using vos.Tests.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using NSubstitute;

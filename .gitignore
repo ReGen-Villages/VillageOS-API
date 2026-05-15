@@ -102,6 +102,8 @@ logs/
 # Claude Code
 .claude/
 .mcp.json
+CLAUDE.md
+Tools/AzDO.psm1
 
 # Application logs
 logs/

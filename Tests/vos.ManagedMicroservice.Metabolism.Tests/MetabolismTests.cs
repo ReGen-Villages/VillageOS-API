@@ -1,6 +1,7 @@
 using System.Text.Json;
 using vos.ManagedMicroservice.Metabolism.Models;
 using vos.ManagedMicroservice.Metabolism.Services;
+using vos.Tests.Shared;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;

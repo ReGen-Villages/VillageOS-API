@@ -1,6 +1,6 @@
-namespace vos.ManagedMicroservice.IntegrationRegistry.Tests;
+namespace vos.Tests.Shared;
 
-internal sealed class TestHttpClientFactory : IHttpClientFactory
+public sealed class TestHttpClientFactory : IHttpClientFactory
 {
     private readonly HttpClient _httpClient;
 

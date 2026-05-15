@@ -23,5 +23,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\vos.ManagedMicroservice.Metabolism\vos.ManagedMicroservice.Metabolism.csproj"/>
+    <ProjectReference Include="..\vos.Tests.Shared\vos.Tests.Shared.csproj"/>
   </ItemGroup>
 </Project>
