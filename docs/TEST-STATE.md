@@ -12,6 +12,7 @@ A living snapshot of how unit tests are organized, what's covered, and where the
 | `vos.ManagedMicroservice.Metabolism.Tests` | `Tests/vos.ManagedMicroservice.Metabolism.Tests/` | Moq + `MockHttpMessageHandler` | Metabolism (consumes/produces simulation lifecycle and the broker client) |
 | `vos.ManagedMicroservice.EndpointCaller.Tests` | `Tests/vos.ManagedMicroservice.EndpointCaller.Tests/` | NSubstitute + `MockHttpMessageHandler` | EndpointCaller (broker client only) |
 | `vos.ManagedMicroservice.IntegrationRegistry.Tests` | `Tests/vos.ManagedMicroservice.IntegrationRegistry.Tests/` | NSubstitute + `MockHttpMessageHandler` | IntegrationRegistry (broker client only) |
+| `vos.Auth.Shared.Tests` | `Tests/vos.Auth.Shared.Tests/` | None (no mocks needed — pure helpers + extension methods) | `vos.Auth.Shared` (`ServiceTokenValidator`, `HandlerAuthExtensions`, constants) |
 
 All four use xUnit + FluentAssertions. The CLAUDE.md note about test projects living in two places by historical accident (`vos.CLI.Tests/` at the repo root, microservice tests under `Tests/`) still holds.
 
@@ -42,7 +43,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 | `vos.Core` | 0% | 0% | — (no project tests it; CLI tests mock the model layer) |
 | `vos.Application` | 0% | 0% | — (mocked by CLI tests) |
 | `vos.Infrastructure` | 0% | 0% | — (mocked by CLI tests) |
-| `vos.Auth.Shared` | 0% | — | — (no project tests it directly) |
+| `vos.Auth.Shared` | 100% | n/a (no branches) | `Tests/vos.Auth.Shared.Tests/` (Phase 1D, Task #5399) |
 | `vos.ManagedMicroservice.Echo` | not measured | not measured | no test project exists |
 | `vos.GUI` | not measured here | — | `npm run test:coverage` (Vitest + v8); not included in this snapshot |
 
