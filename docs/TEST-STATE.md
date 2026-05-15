@@ -13,8 +13,9 @@ A living snapshot of how unit tests are organized, what's covered, and where the
 | `vos.ManagedMicroservice.EndpointCaller.Tests` | `Tests/vos.ManagedMicroservice.EndpointCaller.Tests/` | NSubstitute + `MockHttpMessageHandler` | EndpointCaller (broker client only) |
 | `vos.ManagedMicroservice.IntegrationRegistry.Tests` | `Tests/vos.ManagedMicroservice.IntegrationRegistry.Tests/` | NSubstitute + `MockHttpMessageHandler` | IntegrationRegistry (broker client only) |
 | `vos.Auth.Shared.Tests` | `Tests/vos.Auth.Shared.Tests/` | None (no mocks needed — pure helpers + extension methods) | `vos.Auth.Shared` (`ServiceTokenValidator`, `HandlerAuthExtensions`, constants) |
+| `vos.Microservice.Shared.Tests` | `Tests/vos.Microservice.Shared.Tests/` | `NullLogger` + `MockHttpMessageHandler` (no mocking-library dependency) | `vos.Microservice.Shared` (`BrokerClientBase` via a thin `TestableBrokerClient` subclass, `HttpMethodValidator`, `RequiredPropertyValidator`) |
 
-All four use xUnit + FluentAssertions. The CLAUDE.md note about test projects living in two places by historical accident (`vos.CLI.Tests/` at the repo root, microservice tests under `Tests/`) still holds.
+All test projects use xUnit + FluentAssertions. The CLAUDE.md note about test projects living in two places by historical accident (`vos.CLI.Tests/` at the repo root, microservice tests under `Tests/`) still holds.
 
 GUI tests (`vos.GUI/`):
 
@@ -37,7 +38,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 |---|---|---|---|
 | `vos.CLI` | ~72% | ~75% | `vos.CLI.Tests` |
 | `vos.ManagedMicroservice.Metabolism` | ~51% | ~74% | `vos.ManagedMicroservice.Metabolism.Tests` |
-| `vos.Microservice.Shared` | ~31% | ~23% | best across the three microservice test runs (Metabolism is highest) |
+| `vos.Microservice.Shared` | 100% | 100% | `Tests/vos.Microservice.Shared.Tests/` (Phase 1F, Task #5401); previously ~31% as a side effect of the three microservice test runs |
 | `vos.ManagedMicroservice.EndpointCaller` | ~23% | ~22% | `vos.ManagedMicroservice.EndpointCaller.Tests` (broker-client only) |
 | `vos.ManagedMicroservice.IntegrationRegistry` | ~19% | ~19% | `vos.ManagedMicroservice.IntegrationRegistry.Tests` (broker-client only) |
 | `vos.Core` | 0% | 0% | — (no project tests it; CLI tests mock the model layer) |
