@@ -16,6 +16,7 @@ A living snapshot of how unit tests are organized, what's covered, and where the
 | `vos.Microservice.Shared.Tests` | `Tests/vos.Microservice.Shared.Tests/` | `NullLogger` + `MockHttpMessageHandler` (no mocking-library dependency) | `vos.Microservice.Shared` (`BrokerClientBase` via a thin `TestableBrokerClient` subclass, `HttpMethodValidator`, `RequiredPropertyValidator`) |
 | `vos.Core.Tests` | `Tests/vos.Core.Tests/` | None (pure domain types — no I/O to mock) | All of `vos.Core`: Domain root (`VosModel`, `VosObject`, `VosProperty`, `VosThing`, `VosRelationship`, `TemporalGraphSnapshot` + `TemporalQuery` extensions, `InheritedPropertySet`, `PropertyMode`/`PropertyModeConfiguration`, exceptions, `IfcGeometry`/`LatLng`/`GeoJson`) plus `ExpectedValues/` (criteria DSL parser/lexer, `CriteriaExpr` hierarchy, `RangeBounds` hierarchy, `ExpectedRange`, `DependencyGraph`, `StateIndex`, `StateHistoryTracker`, `RangeEvaluationService` with cycle detection). Files split across `Domain/` and `ExpectedValues/` subfolders. |
 | `vos.Application.Tests` | `Tests/vos.Application.Tests/` | Moq for `IMicroserviceHandler` (handler-invocation paths in `VosRelationshipService`); `NullLogger` elsewhere | `vos.Application` services (`VosObjectService`, `VosThingService`, `VosRelationshipService`, `VosModelService`), `SurfaceThingClassifier`, `JsonValueConverter`, and `SerializationHelpers` (internal — exercised through the Thing/Relationship services' `ToJsonFragment*` methods with full range/binding/inherited-set fixtures). |
+| `vos.Infrastructure.Tests` | `Tests/vos.Infrastructure.Tests/` | None (pure infrastructure types with concrete dependencies) | `vos.Infrastructure` (`ModelStore` concurrency + thread-safety, `VosModelProvider` JSON deserialization including round-trip fixtures, all four `RangeBounds` types, nested inherited property sets, criteria-DSL parsing through `CriteriaParser`, missing-array branches, `ClearModel`). |
 
 All test projects use xUnit + FluentAssertions. The CLAUDE.md note about test projects living in two places by historical accident (`vos.CLI.Tests/` at the repo root, microservice tests under `Tests/`) still holds.
 
@@ -45,7 +46,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 | `vos.ManagedMicroservice.IntegrationRegistry` | ~19% | ~19% | `vos.ManagedMicroservice.IntegrationRegistry.Tests` (broker-client only) |
 | `vos.Core` | 95% | 87% | `Tests/vos.Core.Tests/` (Phase 1A; 1A.1 Task #5410 + 1A.2 Task #5411). Most classes 100%; CriteriaParser/Lexer at ~82% (DSL error paths defensive), RangeEvaluationService at ~94% (cycle-detection branches). |
 | `vos.Application` | 98% | 88% | `Tests/vos.Application.Tests/` (Phase 1B, Task #5397). All 7 source files at 95%+. |
-| `vos.Infrastructure` | 0% | 0% | — (mocked by CLI tests) |
+| `vos.Infrastructure` | 99% | 83% | `Tests/vos.Infrastructure.Tests/` (Phase 1C, Task #5398). `ModelStore` 100%; `VosModelProvider` 98.6%. |
 | `vos.Auth.Shared` | 100% | n/a (no branches) | `Tests/vos.Auth.Shared.Tests/` (Phase 1D, Task #5399) |
 | `vos.ManagedMicroservice.Echo` | not measured | not measured | no test project exists |
 | `vos.GUI` | not measured here | — | `npm run test:coverage` (Vitest + v8); not included in this snapshot |

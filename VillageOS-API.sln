@@ -43,6 +43,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Core.Tests", "Tests\vos
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Application.Tests", "Tests\vos.Application.Tests\vos.Application.Tests.csproj", "{B90AFDC3-14DD-4C96-BB5E-38BA0C301493}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Infrastructure.Tests", "Tests\vos.Infrastructure.Tests\vos.Infrastructure.Tests.csproj", "{48676A72-52D0-42D1-8256-6532FE567BBB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -281,6 +283,18 @@ Global
 		{B90AFDC3-14DD-4C96-BB5E-38BA0C301493}.Release|x64.Build.0 = Release|Any CPU
 		{B90AFDC3-14DD-4C96-BB5E-38BA0C301493}.Release|x86.ActiveCfg = Release|Any CPU
 		{B90AFDC3-14DD-4C96-BB5E-38BA0C301493}.Release|x86.Build.0 = Release|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Debug|x64.Build.0 = Debug|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Debug|x86.Build.0 = Debug|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Release|x64.ActiveCfg = Release|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Release|x64.Build.0 = Release|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Release|x86.ActiveCfg = Release|Any CPU
+		{48676A72-52D0-42D1-8256-6532FE567BBB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -294,5 +308,6 @@ Global
 		{806216F3-A0EA-4A1D-8D46-21CB73979E1B} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
 		{B3AFA87C-E191-4961-AB0F-807295CD1336} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
 		{B90AFDC3-14DD-4C96-BB5E-38BA0C301493} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
+		{48676A72-52D0-42D1-8256-6532FE567BBB} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
 	EndGlobalSection
 EndGlobal
