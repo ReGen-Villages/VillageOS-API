@@ -14,6 +14,7 @@ A living snapshot of how unit tests are organized, what's covered, and where the
 | `vos.ManagedMicroservice.IntegrationRegistry.Tests` | `Tests/vos.ManagedMicroservice.IntegrationRegistry.Tests/` | NSubstitute + `MockHttpMessageHandler` | IntegrationRegistry (broker client only) |
 | `vos.Auth.Shared.Tests` | `Tests/vos.Auth.Shared.Tests/` | None (no mocks needed — pure helpers + extension methods) | `vos.Auth.Shared` (`ServiceTokenValidator`, `HandlerAuthExtensions`, constants) |
 | `vos.Microservice.Shared.Tests` | `Tests/vos.Microservice.Shared.Tests/` | `NullLogger` + `MockHttpMessageHandler` (no mocking-library dependency) | `vos.Microservice.Shared` (`BrokerClientBase` via a thin `TestableBrokerClient` subclass, `HttpMethodValidator`, `RequiredPropertyValidator`) |
+| `vos.Core.Tests` | `Tests/vos.Core.Tests/` | None (pure domain types — no I/O to mock) | All of `vos.Core`: Domain root (`VosModel`, `VosObject`, `VosProperty`, `VosThing`, `VosRelationship`, `TemporalGraphSnapshot` + `TemporalQuery` extensions, `InheritedPropertySet`, `PropertyMode`/`PropertyModeConfiguration`, exceptions, `IfcGeometry`/`LatLng`/`GeoJson`) plus `ExpectedValues/` (criteria DSL parser/lexer, `CriteriaExpr` hierarchy, `RangeBounds` hierarchy, `ExpectedRange`, `DependencyGraph`, `StateIndex`, `StateHistoryTracker`, `RangeEvaluationService` with cycle detection). Files split across `Domain/` and `ExpectedValues/` subfolders. |
 
 All test projects use xUnit + FluentAssertions. The CLAUDE.md note about test projects living in two places by historical accident (`vos.CLI.Tests/` at the repo root, microservice tests under `Tests/`) still holds.
 
@@ -41,7 +42,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 | `vos.Microservice.Shared` | 100% | 100% | `Tests/vos.Microservice.Shared.Tests/` (Phase 1F, Task #5401); previously ~31% as a side effect of the three microservice test runs |
 | `vos.ManagedMicroservice.EndpointCaller` | ~23% | ~22% | `vos.ManagedMicroservice.EndpointCaller.Tests` (broker-client only) |
 | `vos.ManagedMicroservice.IntegrationRegistry` | ~19% | ~19% | `vos.ManagedMicroservice.IntegrationRegistry.Tests` (broker-client only) |
-| `vos.Core` | 0% | 0% | — (no project tests it; CLI tests mock the model layer) |
+| `vos.Core` | 95% | 87% | `Tests/vos.Core.Tests/` (Phase 1A; 1A.1 Task #5410 + 1A.2 Task #5411). Most classes 100%; CriteriaParser/Lexer at ~82% (DSL error paths defensive), RangeEvaluationService at ~94% (cycle-detection branches). |
 | `vos.Application` | 0% | 0% | — (mocked by CLI tests) |
 | `vos.Infrastructure` | 0% | 0% | — (mocked by CLI tests) |
 | `vos.Auth.Shared` | 100% | n/a (no branches) | `Tests/vos.Auth.Shared.Tests/` (Phase 1D, Task #5399) |

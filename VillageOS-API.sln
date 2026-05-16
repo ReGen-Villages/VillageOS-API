@@ -39,6 +39,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Auth.Shared.Tests", "Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Microservice.Shared.Tests", "Tests\vos.Microservice.Shared.Tests\vos.Microservice.Shared.Tests.csproj", "{806216F3-A0EA-4A1D-8D46-21CB73979E1B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Core.Tests", "Tests\vos.Core.Tests\vos.Core.Tests.csproj", "{B3AFA87C-E191-4961-AB0F-807295CD1336}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -253,6 +255,18 @@ Global
 		{806216F3-A0EA-4A1D-8D46-21CB73979E1B}.Release|x64.Build.0 = Release|Any CPU
 		{806216F3-A0EA-4A1D-8D46-21CB73979E1B}.Release|x86.ActiveCfg = Release|Any CPU
 		{806216F3-A0EA-4A1D-8D46-21CB73979E1B}.Release|x86.Build.0 = Release|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Debug|x64.Build.0 = Debug|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Debug|x86.Build.0 = Debug|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Release|x64.ActiveCfg = Release|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Release|x64.Build.0 = Release|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Release|x86.ActiveCfg = Release|Any CPU
+		{B3AFA87C-E191-4961-AB0F-807295CD1336}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -264,5 +278,6 @@ Global
 		{CAC180D0-F60C-4DE5-8227-C2496D746F49} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
 		{6D281360-FE67-41D2-AE81-332CA1E415CE} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
 		{806216F3-A0EA-4A1D-8D46-21CB73979E1B} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
+		{B3AFA87C-E191-4961-AB0F-807295CD1336} = {748745C8-73FC-4AAC-BA17-45F26C78988F}
 	EndGlobalSection
 EndGlobal
