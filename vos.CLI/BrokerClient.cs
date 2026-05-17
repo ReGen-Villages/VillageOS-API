@@ -1,7 +1,10 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+
+[assembly: InternalsVisibleTo("vos.CLI.Tests")]
 
 namespace vos.CLI;
 
@@ -13,6 +16,7 @@ public class BrokerClient
     private readonly HttpClient _httpClient;
     private readonly string _brokerUrl;
     private readonly string? _apiKey;
+    private readonly Func<DateTime> _clock;
     private string? _cachedToken;
     private DateTime _tokenExpiry;
 
@@ -22,6 +26,7 @@ public class BrokerClient
     {
         _brokerUrl = brokerUrl.TrimEnd('/');
         _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
+        _clock = () => DateTime.UtcNow;
 
         // Accept self-signed certificates for development
         var handler = new HttpClientHandler
@@ -34,6 +39,17 @@ public class BrokerClient
         };
     }
 
+    // Test seam. Production callers use the public constructors above; tests
+    // inject an HttpClient backed by a MockHttpMessageHandler (and optionally
+    // a virtual clock to exercise the token-cache expiry branch).
+    internal BrokerClient(string brokerUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null)
+    {
+        _brokerUrl = brokerUrl.TrimEnd('/');
+        _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
+        _httpClient = httpClient;
+        _clock = clock ?? (() => DateTime.UtcNow);
+    }
+
     /// <summary>
     /// Gets a JWT token from the broker for authentication.
     /// Exchanges an API key for a short-lived JWT via X-API-Key header.
@@ -41,7 +57,7 @@ public class BrokerClient
     public virtual async Task<string> GetTokenAsync()
     {
         // Return cached token if still valid
-        if (_cachedToken != null && DateTime.UtcNow < _tokenExpiry)
+        if (_cachedToken != null && _clock() < _tokenExpiry)
         {
             return _cachedToken;
         }
@@ -64,7 +80,7 @@ public class BrokerClient
 
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
         _cachedToken = result.GetProperty("token").GetString()!;
-        _tokenExpiry = DateTime.UtcNow.AddMinutes(4); // API key JWTs are 5min, refresh early
+        _tokenExpiry = _clock().AddMinutes(4); // API key JWTs are 5min, refresh early
         return _cachedToken;
     }
 
@@ -349,7 +365,7 @@ public class BrokerClient
         if (result.TryGetProperty("token", out var tokenElem))
         {
             _cachedToken = tokenElem.GetString();
-            _tokenExpiry = DateTime.UtcNow.AddMinutes(4);
+            _tokenExpiry = _clock().AddMinutes(4);
         }
         return result;
     }

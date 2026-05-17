@@ -23,5 +23,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\vos.CLI\vos.CLI.csproj"/>
+    <ProjectReference Include="..\Tests\vos.Tests.Shared\vos.Tests.Shared.csproj"/>
   </ItemGroup>
 </Project>

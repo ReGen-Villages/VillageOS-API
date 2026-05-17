@@ -2,8 +2,6 @@
 
 A living snapshot of how unit tests are organized, what's covered, and where the gaps are. Update this when the test landscape changes — do **not** put hardcoded test counts here (they rot on the next PR).
 
-> Deferred test-related work surfaced during in-flight phases is tracked in [`docs/FOLLOW-UPS.md`](FOLLOW-UPS.md).
-
 ## Where tests live
 
 .NET test projects (all `net10.0`, all listed in `VillageOS-API.sln`):
@@ -42,7 +40,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 
 | Assembly | Line % | Branch % | Source of coverage |
 |---|---|---|---|
-| `vos.CLI` | ~84% | ~83% | `vos.CLI.Tests` (Phase 2A partial, Task #5402): 5 new test files (BrokerStatus / User / Model / Seed / State CommandHandler) all at 100%; CommandHandler dispatcher gaps closed; `BrokerClient` (611 LOC) **deferred** at 3.2% — needs HttpClient injection refactor before tests can be written. Tracked as a follow-up. |
+| `vos.CLI` | ~96% | ~88% | `vos.CLI.Tests` (Phase 2A, Task #5402): 5 new handler test files (BrokerStatus / User / Model / Seed / State CommandHandler) all at 100%; CommandHandler dispatcher gaps closed; `BrokerClient` refactored with an internal HttpClient-injection ctor + `InternalsVisibleTo` and tested to 99.2% via `MockHttpMessageHandler`. |
 | `vos.ManagedMicroservice.Metabolism` | ~51% | ~74% | `vos.ManagedMicroservice.Metabolism.Tests` |
 | `vos.Microservice.Shared` | 100% | 100% | `Tests/vos.Microservice.Shared.Tests/` (Phase 1F, Task #5401); previously ~31% as a side effect of the three microservice test runs |
 | `vos.ManagedMicroservice.EndpointCaller` | ~23% | ~22% | `vos.ManagedMicroservice.EndpointCaller.Tests` (broker-client only) |
@@ -75,6 +73,12 @@ Watch items:
 4. **Mocking library split.** CLI and Metabolism use Moq; EndpointCaller and IntegrationRegistry use NSubstitute. Small now, friction later for cross-service work.
 5. **No coverage thresholds enforced.** CLAUDE.md says "Coverage must improve or hold across every PR." but the pipeline only collects — compliance currently relies on reviewer attention.
 6. **`docs/DELIVERY.md`** sketches a `vos.ManagedMicroservice.Shared.Delivery` framework with its own test contract (Ack, dedup middleware, lifecycle). Not yet implemented; will reshape the test landscape when it lands.
+
+## Open production issues surfaced by tests
+
+Real bugs found while writing tests. Each should become an AzDO Bug when scheduled for fix.
+
+1. **`vos.CLI/SeedCommandHandler.cs` — raw-string seed entries throw.** `ListLibrarySeedsAsync` calls `seed.GetStringOrDefault("Name", seed.ToString())` for each entry. `GetStringOrDefault` invokes `JsonElement.TryGetProperty` which throws when the element is a non-object (e.g. a raw JSON string). The outer `try`/`catch` in `ExecuteAsync` swallows the throw and emits a hostile `"Error: The requested operation cannot be performed on a JSON string element"` instead of the seed list. Surfaced by Phase 2A (PR #382); documented in `vos.CLI.Tests/SeedCommandHandlerTests.cs` (comment block, no regression test yet). Fix sketch: guard with `seed.ValueKind == JsonValueKind.String` and fall back to `seed.GetString()`, or push the guard into `JsonElementExtensions.GetStringOrDefault`. In practice today's broker returns objects, so this hasn't fired in production — the fallback is just dead code with a hostile failure mode.
 
 ## Candidate follow-ups
 
