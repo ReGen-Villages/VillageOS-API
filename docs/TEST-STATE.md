@@ -2,6 +2,8 @@
 
 A living snapshot of how unit tests are organized, what's covered, and where the gaps are. Update this when the test landscape changes — do **not** put hardcoded test counts here (they rot on the next PR).
 
+> Deferred test-related work surfaced during in-flight phases is tracked in [`docs/FOLLOW-UPS.md`](FOLLOW-UPS.md).
+
 ## Where tests live
 
 .NET test projects (all `net10.0`, all listed in `VillageOS-API.sln`):
@@ -40,7 +42,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 
 | Assembly | Line % | Branch % | Source of coverage |
 |---|---|---|---|
-| `vos.CLI` | ~72% | ~75% | `vos.CLI.Tests` |
+| `vos.CLI` | ~84% | ~83% | `vos.CLI.Tests` (Phase 2A partial, Task #5402): 5 new test files (BrokerStatus / User / Model / Seed / State CommandHandler) all at 100%; CommandHandler dispatcher gaps closed; `BrokerClient` (611 LOC) **deferred** at 3.2% — needs HttpClient injection refactor before tests can be written. Tracked as a follow-up. |
 | `vos.ManagedMicroservice.Metabolism` | ~51% | ~74% | `vos.ManagedMicroservice.Metabolism.Tests` |
 | `vos.Microservice.Shared` | 100% | 100% | `Tests/vos.Microservice.Shared.Tests/` (Phase 1F, Task #5401); previously ~31% as a side effect of the three microservice test runs |
 | `vos.ManagedMicroservice.EndpointCaller` | ~23% | ~22% | `vos.ManagedMicroservice.EndpointCaller.Tests` (broker-client only) |
