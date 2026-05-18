@@ -10,7 +10,7 @@ A living snapshot of how unit tests are organized, what's covered, and where the
 |---|---|---|---|
 | `vos.CLI.Tests` | `vos.CLI.Tests/` | Moq | `vos.CLI` only — the Application/Core/Infrastructure layers are mocked at the seam, so they get no transitive coverage from this project (verified against Cobertura output) |
 | `vos.ManagedMicroservice.Metabolism.Tests` | `Tests/vos.ManagedMicroservice.Metabolism.Tests/` | Moq + `MockHttpMessageHandler` | Metabolism (consumes/produces simulation lifecycle and the broker client) |
-| `vos.ManagedMicroservice.EndpointCaller.Tests` | `Tests/vos.ManagedMicroservice.EndpointCaller.Tests/` | NSubstitute + `MockHttpMessageHandler` | EndpointCaller (broker client only) |
+| `vos.ManagedMicroservice.EndpointCaller.Tests` | `Tests/vos.ManagedMicroservice.EndpointCaller.Tests/` | NSubstitute + `MockHttpMessageHandler` + `WebApplicationFactory<Program>` | EndpointCaller — `/handle`, `/health`, `/shutdown` endpoints, `BrokerClient`, `ObservationIngestService`, `CliArgs` (post Phase 2C) |
 | `vos.ManagedMicroservice.IntegrationRegistry.Tests` | `Tests/vos.ManagedMicroservice.IntegrationRegistry.Tests/` | NSubstitute + `MockHttpMessageHandler` | IntegrationRegistry (broker client only) |
 | `vos.Auth.Shared.Tests` | `Tests/vos.Auth.Shared.Tests/` | None (no mocks needed — pure helpers + extension methods) | `vos.Auth.Shared` (`ServiceTokenValidator`, `HandlerAuthExtensions`, constants) |
 | `vos.Microservice.Shared.Tests` | `Tests/vos.Microservice.Shared.Tests/` | `NullLogger` + `MockHttpMessageHandler` (no mocking-library dependency) | `vos.Microservice.Shared` (`BrokerClientBase` via a thin `TestableBrokerClient` subclass, `HttpMethodValidator`, `RequiredPropertyValidator`) |
@@ -43,7 +43,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 | `vos.CLI` | ~96% | ~88% | `vos.CLI.Tests` (Phase 2A, Task #5402): 5 new handler test files (BrokerStatus / User / Model / Seed / State CommandHandler) all at 100%; CommandHandler dispatcher gaps closed; `BrokerClient` refactored with an internal HttpClient-injection ctor + `InternalsVisibleTo` and tested to 99.2% via `MockHttpMessageHandler`. |
 | `vos.ManagedMicroservice.Metabolism` | ~93% pkg-level, every declared source file 95-100% (see WebApplicationFactory note below) | ~81% | `Tests/vos.ManagedMicroservice.Metabolism.Tests/` (Phase 2B, Task #5403) |
 | `vos.Microservice.Shared` | 100% | 100% | `Tests/vos.Microservice.Shared.Tests/` (Phase 1F, Task #5401); previously ~31% as a side effect of the three microservice test runs |
-| `vos.ManagedMicroservice.EndpointCaller` | ~23% | ~22% | `vos.ManagedMicroservice.EndpointCaller.Tests` (broker-client only) |
+| `vos.ManagedMicroservice.EndpointCaller` | ~95% pkg-level; CliArgs / EndpointCallRequest / ObservationIngestResult 100%, BrokerClient 99.4%, Program 94.3%, ObservationIngestService 89.1% | ~92% | `Tests/vos.ManagedMicroservice.EndpointCaller.Tests/` (Phase 2C, Task #5404). WebApplicationFactory&lt;Program&gt; pattern (see notes). Sub-95% files are Program.cs minimal-API wireup + ObservationIngestService defensive-only branches per the plan's documented exclusion language. |
 | `vos.ManagedMicroservice.IntegrationRegistry` | ~19% | ~19% | `vos.ManagedMicroservice.IntegrationRegistry.Tests` (broker-client only) |
 | `vos.Core` | 95% | 87% | `Tests/vos.Core.Tests/` (Phase 1A; 1A.1 Task #5410 + 1A.2 Task #5411). Most classes 100%; CriteriaParser/Lexer at ~82% (DSL error paths defensive), RangeEvaluationService at ~94% (cycle-detection branches). |
 | `vos.Application` | 98% | 88% | `Tests/vos.Application.Tests/` (Phase 1B, Task #5397). All 7 source files at 95%+. |
@@ -95,6 +95,17 @@ Two minimal production-code changes were needed to make this work cleanly (the a
 
 **SignalR hub callbacks excluded**: `vos.ManagedMicroservice.Metabolism/Services/BrokerClient.cs` has two SignalR callback bodies (the `RelationshipPropertyChanged` handler and the `Reconnected` handler). They only fire when a real broker hub delivers events — out of unit-test scope. Refactored into named methods (`HandleRelationshipPropertyChanged`, `HandleReconnected`) with `[ExcludeFromCodeCoverage]`, which `coverage.runsettings` already honors via `ExcludeByAttribute`.
 
+### Phase 2C — same pattern, extended for endpoints that proxy outbound HTTP
+
+Phase 2C (PR open against Task #5404) applied the same `WebApplicationFactory<Program>` shape to `vos.ManagedMicroservice.EndpointCaller`, with two refinements that future microservice 2x tasks should copy when they need outbound HTTP coverage:
+
+- **`Tests/vos.ManagedMicroservice.EndpointCaller.Tests/EndpointCallerWebApplicationFactory.cs`** strips the default `DefaultHttpClientFactory` registration and replaces it with a `PerCallHttpClientFactory` that returns a fresh `HttpClient` per `CreateClient()` call. The single instance backed by `MockHttpMessageHandler` routes BOTH broker calls (`FindThingByNameAsync`, `GetEffectivePropertiesAsync`, `SetThingPropertyAsync`, `CreateThingAsync`, `CreateRelationshipAsync`) AND the outbound endpoint dispatched by `CallEndpointAsync` — same handler, request-URL-based routing inside each test. The per-call factory is required because `BrokerClientBase.CreateAuthenticatedClientAsync` mutates `client.Timeout` on every call, which throws `InvalidOperationException` on an already-used `HttpClient`; reusing a single instance only worked for tests that made exactly one broker call. The same caveat will bite Phase 2D (`IntegrationRegistry`).
+- **`HandlerCallback` is a per-test mutable `Func<HttpRequestMessage, HttpResponseMessage>`** on the factory; tests set it before the first `CreateClient()` call. This avoids the alternative of a parameterized factory constructor, which conflicts with `WebApplicationFactory<T>`'s expectation that the factory is parameterless.
+
+Same `partial class Program { }` + Testing-env Serilog guard + `ENDPOINTCALLER_*` env-var fallback pattern as Metabolism, minus the SignalR / deregister guards because EndpointCaller doesn't have those.
+
+EndpointCaller's Program.cs lands at 94.3% (sub-95%); the remaining ~6% is the `cliArgs == null` exit path, the non-Testing Serilog file-sink branch, and the outer `catch (Exception)` around `app.Run()` — all minimal-API wireup that the plan flags for exclusion in Phase 3. ObservationIngestService lands at 89.1%; the remaining ~11% is jsonata edge-case defensive guards (e.g. the `IsNullOrWhiteSpace(rawResult)` branch is unreachable because `Jsonata.Net.Native` returns the literal string `"undefined"` for missing paths, not an empty string).
+
 ## Open production issues surfaced by tests
 
 Real bugs found while writing tests. Each should become an AzDO Bug when scheduled for fix.
@@ -109,7 +120,7 @@ Each could become its own AzDO Task/Bug/Feature. Listed roughly in coverage-delt
 2. **Add direct tests for `vos.Application`** — `VosRelationshipService` handler invocation paths, `VosThingService` relation routing and JSON-fragment shapes.
 3. **Add direct tests for `vos.Infrastructure`** — `ModelStore` concurrency and `VosModelProvider.FromJson` deserialization paths (properties, ranges, bindings, error cases).
 4. **Add `Tests/vos.ManagedMicroservice.Echo.Tests/`** — CLI arg parsing, `BrokerClient` register/deregister, and the `/handle` / `/health` / `/stats` / `/shutdown` endpoints. Mirror the existing microservice test shape.
-5. **Expand `EndpointCaller.Tests`** beyond the broker client — HTTP method dispatch, `TryGetEffectiveProperty` conflict handling, URL/URI validation, response-transform (JSONata), and `ObservationIngestService` parsing.
+5. ~~**Expand `EndpointCaller.Tests`** beyond the broker client — HTTP method dispatch, `TryGetEffectiveProperty` conflict handling, URL/URI validation, response-transform (JSONata), and `ObservationIngestService` parsing.~~ **Delivered** by Phase 2C (Task #5404) — see coverage table.
 6. **Expand `IntegrationRegistry.Tests`** beyond the broker client — `/handle` payload processing and lifecycle wiring.
 7. **Wire `npm ci && npm test`** (and optionally `npm run test:coverage`) into `azure-pipelines.yml` so the GUI suite gates merges.
 8. **Pick one mocking library** (Moq or NSubstitute) and converge the four .NET test projects.

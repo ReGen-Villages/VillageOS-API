@@ -13,27 +13,35 @@ public record CliArgs(
 {
     /// <summary>
     /// Parses command-line arguments. Returns null if required args are missing or invalid.
+    /// Falls back to ENDPOINTCALLER_PORT / ENDPOINTCALLER_BROKER_URL / ENDPOINTCALLER_TOKEN /
+    /// ENDPOINTCALLER_SIGNING_KEY / ENDPOINTCALLER_ISSUER / ENDPOINTCALLER_AUDIENCE environment
+    /// variables for any flag not present in args. This enables WebApplicationFactory&lt;Program&gt;-based
+    /// tests to inject config via env vars without parsing synthetic CLI args. Production
+    /// callers continue to pass --flag=value as before; behavior is unchanged when all required
+    /// flags are present in args.
     /// </summary>
     public static CliArgs? Parse(string[] args)
     {
-        var portArg = args.FirstOrDefault(a => a.StartsWith("--port="));
-        var brokerUrlArg = args.FirstOrDefault(a => a.StartsWith("--brokerUrl="));
-        var tokenArg = args.FirstOrDefault(a => a.StartsWith("--token="));
-        var signingKeyArg = args.FirstOrDefault(a => a.StartsWith("--signingKey="));
-        var issuerArg = args.FirstOrDefault(a => a.StartsWith("--issuer="));
-        var audienceArg = args.FirstOrDefault(a => a.StartsWith("--audience="));
+        string? FromArgsOrEnv(string flagPrefix, string envVar)
+        {
+            var fromArgs = args.FirstOrDefault(a => a.StartsWith(flagPrefix));
+            if (fromArgs != null) return fromArgs.Substring(flagPrefix.Length);
+            return Environment.GetEnvironmentVariable(envVar);
+        }
 
-        if (portArg == null || brokerUrlArg == null)
+        var portStr = FromArgsOrEnv("--port=", "ENDPOINTCALLER_PORT");
+        var brokerUrl = FromArgsOrEnv("--brokerUrl=", "ENDPOINTCALLER_BROKER_URL");
+
+        if (portStr == null || brokerUrl == null)
             return null;
 
-        if (!int.TryParse(portArg.Substring("--port=".Length), out var port) || port < 1 || port > 65535)
+        if (!int.TryParse(portStr, out var port) || port < 1 || port > 65535)
             return null;
 
-        var brokerUrl = brokerUrlArg.Substring("--brokerUrl=".Length);
-        var token = tokenArg?.Substring("--token=".Length);
-        var signingKey = signingKeyArg?.Substring("--signingKey=".Length);
-        var issuer = issuerArg?.Substring("--issuer=".Length);
-        var audience = audienceArg?.Substring("--audience=".Length);
+        var token = FromArgsOrEnv("--token=", "ENDPOINTCALLER_TOKEN");
+        var signingKey = FromArgsOrEnv("--signingKey=", "ENDPOINTCALLER_SIGNING_KEY");
+        var issuer = FromArgsOrEnv("--issuer=", "ENDPOINTCALLER_ISSUER");
+        var audience = FromArgsOrEnv("--audience=", "ENDPOINTCALLER_AUDIENCE");
 
         return new CliArgs(port, brokerUrl, token, signingKey, issuer, audience);
     }

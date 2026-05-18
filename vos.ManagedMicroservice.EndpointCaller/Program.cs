@@ -21,19 +21,31 @@ var brokerUrl = cliArgs.BrokerUrl;
 var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
 
-// Configure Serilog before building the host.
-var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "endpointcaller-.log");
-Log.Logger = new LoggerConfiguration()
+// Skip the file sink when running under WebApplicationFactory<Program> tests
+// (ASPNETCORE_ENVIRONMENT=Testing). Same rationale as Metabolism — file I/O under the
+// test host has no value and invites flakiness on shared CI agents.
+var isTestingEnv = string.Equals(
+    Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+    "Testing",
+    StringComparison.OrdinalIgnoreCase);
+
+var loggerConfig = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
     .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", "EndpointCaller")
-    .WriteTo.File(
+    .Enrich.WithProperty("Service", "EndpointCaller");
+
+if (!isTestingEnv)
+{
+    var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "endpointcaller-.log");
+    loggerConfig = loggerConfig.WriteTo.File(
         path: logPath,
         rollingInterval: RollingInterval.Day,
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true)
-    .CreateLogger();
+        shared: true);
+}
+
+Log.Logger = loggerConfig.CreateLogger();
 
 try
 {
@@ -342,3 +354,8 @@ static bool TryGetEffectiveProperty(
     value = default;
     return false;
 }
+
+// Exposed to WebApplicationFactory<Program> in the test project per docs/MICROSERVICE-TEMPLATE.md.
+// Top-level statements compile to a `Program` class that is internal by default — this empty
+// partial declaration just elevates it to public so the test factory can name it.
+public partial class Program { }
