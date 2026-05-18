@@ -60,11 +60,15 @@ Each project must be added to `VillageOS-API.sln` via `dotnet sln add`.
 | 2C | `Tests/vos.ManagedMicroservice.EndpointCaller.Tests/` (~23% → ≥95%) | TEST-STATE.md lines 138–152: `CallEndpointAsync` (GET/POST/method validation), `TryGetEffectiveProperty` conflict handling, `/handle` endpoint URL/URI validation and JSONata response transform, `ObservationIngestService` parsing paths. |
 | 2D | `Tests/vos.ManagedMicroservice.IntegrationRegistry.Tests/` (~19% → ≥95%) | `/handle` and `/register` endpoint logic, `seed.json` parsing, property validation via `RequiredPropertyValidator`, conflict detection, compensation logic in `Program.cs`. |
 
-## Phase 3 — Coverage gate enforcement (one Task)
+## Phase 3 — Coverage gate enforcement (one Task) — **DELIVERED** (PR open against Task #5406)
 
-- Add per-assembly `<MinimumCoverage>` thresholds in `coverage.runsettings` (95% line, 85% branch — branch coverage is harder to hit cleanly and 85% is the typical practical ceiling).
-- Add `dotnet tool install -g dotnet-reportgenerator-globaltool` to `azure-pipelines.yml` and a coverage-gate step that runs `reportgenerator` over the Cobertura outputs, fails the build if any assembly drops below threshold, and publishes the HTML report as a pipeline artifact.
-- Update CLAUDE.md "CI" section to remove the "no threshold is enforced" caveat and describe the new gate.
+Final shape diverged from the original sketch — recorded here so the plan reflects what shipped:
+
+- **Per-assembly thresholds live in `Tools/Test-CoverageGate.ps1`**, not in `coverage.runsettings`. Coverlet's `<Threshold>` element only supports a single global value, not per-assembly. The standalone script merges per-project Cobertura XMLs via `reportgenerator` (already installed in CI), parses `<package>` elements, and compares line + branch rates against an inline hashtable. Same script runs locally and in CI — no "what does the YAML do that I can't reproduce" gap.
+- **Gate shape: per-assembly no-regression.** Each threshold set at its develop-tip value rounded down (so a sub-1pp flake doesn't trip CI, a real regression does). Per-class enforcement + aggressive `[ExcludeFromCodeCoverage]` annotations were considered and deferred — see `docs/TEST-STATE.md` > *Coverage gate (Phase 3 / Task #5406)* for the design tradeoffs.
+- **Branch coverage included** in the gate (originally suggested by the plan at 85%; landed at each assembly's actual current branch rate rounded down — Metabolism's 81% being the lowest).
+- `azure-pipelines.yml` gains one `PowerShell@2` step pointing at the script + a `PublishBuildArtifacts` step that uploads the merged HTML report as a pipeline artifact.
+- CLAUDE.md "CI" section updated to remove the "no threshold is enforced" caveat and describe the gate + how to raise thresholds.
 
 ## Phase 4 — TDD documentation + memory (one Task)
 

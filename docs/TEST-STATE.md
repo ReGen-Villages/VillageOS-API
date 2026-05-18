@@ -71,7 +71,7 @@ Watch items:
 2. **`vos.ManagedMicroservice.Echo` has no test project.** Every other ManagedMicroservice has one.
 3. **GUI tests are not in CI.** The Vitest suite and Puppeteer e2e provide no merge-gate signal.
 4. **Mocking library split.** CLI and Metabolism use Moq; EndpointCaller and IntegrationRegistry use NSubstitute. Small now, friction later for cross-service work.
-5. **No coverage thresholds enforced.** CLAUDE.md says "Coverage must improve or hold across every PR." but the pipeline only collects — compliance currently relies on reviewer attention.
+5. **Coverage gate is enforced** as of Phase 3 (Task #5406). Per-assembly line + branch thresholds in `azure-pipelines.yml`'s gate step fail the build on regression. See *Coverage gate (Phase 3)* below for the gate shape + how to bump a threshold when coverage improves.
 6. **`docs/DELIVERY.md`** sketches a `vos.ManagedMicroservice.Shared.Delivery` framework with its own test contract (Ack, dedup middleware, lifecycle). Not yet implemented; will reshape the test landscape when it lands.
 
 ## Notable decisions in test-infrastructure shape
@@ -114,6 +114,49 @@ Phase 2D (PR open against Task #5405) applied the same shape to `vos.ManagedMicr
 - Same `partial class Program {}` + Testing-env Serilog guard + `INTEGRATIONREGISTRY_*` env-var fallback as the other two microservices, including the `PerCallHttpClientFactory` from Phase 2C.
 
 IntegrationRegistry's Program.cs lands at 89.9%; the remaining ~10% is the same minimal-API-wireup family (`cliArgs == null` exit, non-Testing Serilog branch, outer `catch (Exception)` around `app.Run`) **plus** the defensive outer `catch (Exception)` inside `HandleRegisterEndpointRequestAsync` which guards the whole handler against runtime exceptions that the broker-client's own per-method try/catches already swallow. That defensive catch is essentially unreachable from a unit test and falls under the same plan exclusion as the other minimal-API wireup.
+
+### Coverage gate (Phase 3 / Task #5406)
+
+`azure-pipelines.yml` enforces per-assembly line + branch coverage thresholds by invoking `Tools/Test-CoverageGate.ps1` after `dotnet test`. The script runs `reportgenerator` to merge the per-project Cobertura XMLs into one, parses the `<package>` elements, and compares each assembly's `line-rate` and `branch-rate` against an inline hashtable. Any drop below threshold fails the build.
+
+The same script runs locally:
+
+```powershell
+dotnet test --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory TestResults/local
+pwsh Tools/Test-CoverageGate.ps1 -Reports "TestResults/local/**/coverage.cobertura.xml" -MergeOutput "TestResults/local/coverage-report"
+```
+
+This is the same command CI runs, so there's no "what does the YAML do that I can't reproduce locally" gap.
+
+**Gate shape: per-assembly, no-regression.** Each assembly's threshold is set at its develop-tip value when the gate was first enabled, **rounded down to the nearest integer percent**. A sub-1pp fluctuation won't trip CI; a real regression will. The gate doesn't *push* anything upward — it locks in the current state. Per-class enforcement and aggressive `[ExcludeFromCodeCoverage]` annotations were considered and explicitly deferred so the gate's behavior matches what existing code already does (no production-code churn to ship the gate).
+
+**Initial thresholds** (line / branch, integer percent — these are what's in the YAML; regenerate the baseline before raising):
+
+| Assembly | Line | Branch |
+|---|---|---|
+| `vos.Auth.Shared` / `vos.Microservice.Shared` / `vos.Tests.Shared` | 100 | 100 |
+| `vos.Infrastructure` | 98 | 88 |
+| `vos.Application` | 98 | 94 |
+| `vos.ManagedMicroservice.EndpointCaller` | 95 | 91 |
+| `vos.Core` | 95 | 89 |
+| `vos.CLI` | 94 | 89 |
+| `vos.ManagedMicroservice.IntegrationRegistry` | 94 | 89 |
+| `vos.ManagedMicroservice.Metabolism` | 85 | 81 |
+| `vos.ManagedMicroservice.Echo` | 21 | 45 |
+
+**How to raise a threshold.** Coverage improves → update the hashtable in `Tools/Test-CoverageGate.ps1` in the same PR that lands the test work. The gate is single-source-of-truth: there's no separate baseline file to forget. Reviewers can see the new threshold and the tests that justify it in one diff.
+
+**How to add a new assembly.** New `vos.X.Tests/` project lands → on the next CI run the gate emits a warning ("no threshold for assembly 'vos.X'") and passes that assembly. The PR that adds the new test project should also add the new assembly's row to the hashtable using the freshly-measured per-assembly numbers, rounded down.
+
+**Known coverage-measurement artifact.** `reportgenerator` aggregates package coverage by averaging across declared source classes AND compiler-generated nested types (async state machines, lambda closures). The `[CompilerGenerated]` attribute exclusion in `coverage.runsettings` filters them at coverlet level but their entries persist in the Cobertura XML — so the package-level numbers the gate checks understate real source coverage on async-heavy assemblies. `vos.ManagedMicroservice.Metabolism` is the clearest case: every declared source file is at 95-100% line coverage, but the package reads 85.5% because async-state-machine partial coverage drags the average. The gate threshold for Metabolism (85) reflects that artifact rather than its actual source-file quality. If the runsettings exclusions are tightened later, regenerate the baseline and raise the threshold in the same PR.
+
+**Why per-assembly + no-regression instead of stricter shapes** — captured here for the next time this comes up:
+
+- *Per-class enforcement* would catch drift inside an assembly that per-assembly averaging masks, but it requires explicit `[ExcludeFromCodeCoverage]` on every wireup branch we've documented as untestable. That's production-code churn for marginal coverage signal. Deferred.
+- *Universal 95% line floor* would force immediate work on Echo (21%) and Metabolism (85%) — useful as a forcing function but blocks unrelated PRs until the gap is closed. The Echo gap is already tracked in Watch item #2; the gate doesn't need to be the reminder.
+- *No gate at all* — what we had through Phase 2. Worked while a single reviewer was holding the line; doesn't scale.
+
+The per-assembly no-regression shape is the smallest gate that catches silent drops on unrelated PRs without forcing production-code annotations or blocking work on documented gaps.
 
 ## Open production issues surfaced by tests
 

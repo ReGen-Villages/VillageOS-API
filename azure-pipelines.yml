@@ -68,6 +68,25 @@ steps:
     summaryFileLocation: '$(testResultsDirectory)/**/coverage.cobertura.xml'
   condition: succeededOrFailed()
 
+# Phase 3 / Task #5406 — per-assembly coverage gate. Logic + thresholds live in
+# Tools/Test-CoverageGate.ps1 so the same command runs locally (`pwsh ...`) and in CI.
+# See docs/TEST-STATE.md > "Coverage gate (Phase 3 / Task #5406)" for the design + how
+# to raise a threshold or add a new assembly.
+- task: PowerShell@2
+  displayName: 'Coverage Gate (per-assembly no-regression)'
+  condition: succeeded()
+  inputs:
+    filePath: 'Tools/Test-CoverageGate.ps1'
+    arguments: '-Reports "$(testResultsDirectory)/**/coverage.cobertura.xml" -MergeOutput "$(testResultsDirectory)/coverage-report"'
+    pwsh: true
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Coverage HTML Report'
+  condition: succeededOrFailed()
+  inputs:
+    pathToPublish: '$(testResultsDirectory)/coverage-report'
+    artifactName: 'coverage-report'
+
 - script: |
     echo "========================================"
     echo "Build Summary for $(Build.SourceBranchName)"
