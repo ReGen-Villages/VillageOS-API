@@ -307,4 +307,78 @@ public class BrokerClientTests
     }
 
     #endregion
+
+    #region RegisterAsync + DeregisterAsync
+
+    [Fact]
+    public async Task RegisterAsync_PortOverload_DelegatesToBaseWithMetabolismIdentity()
+    {
+        // The single-arg RegisterAsync(int port) overload routes to the base RegisterAsync
+        // with serviceName="Metabolism-{mode}" and startCommand=the dotnet run command.
+        // Capture the registration POST body to verify both.
+        System.Text.Json.JsonElement? capturedBody = null;
+        var mock = CreateTokenAwareMock(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/broker/register")
+            {
+                var raw = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                capturedBody = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(raw);
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        var client = CreateMockedClient(mock, "consumes");
+
+        var ok = await client.RegisterAsync(7102);
+
+        ok.Should().BeTrue();
+        capturedBody.Should().NotBeNull();
+        capturedBody!.Value.GetProperty("serviceName").GetString().Should().Be("Metabolism-consumes");
+        capturedBody.Value.GetProperty("startCommand").GetString().Should()
+            .Contain("--port=7102").And.Contain("--mode=consumes");
+    }
+
+    [Fact]
+    public async Task RegisterAsync_PortOverload_ProducesMode_RoutesWithCorrectServiceName()
+    {
+        System.Text.Json.JsonElement? capturedBody = null;
+        var mock = CreateTokenAwareMock(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/broker/register")
+            {
+                var raw = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                capturedBody = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(raw);
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        var client = CreateMockedClient(mock, "produces");
+
+        await client.RegisterAsync(7103);
+
+        capturedBody!.Value.GetProperty("serviceName").GetString().Should().Be("Metabolism-produces");
+    }
+
+    [Fact]
+    public async Task DeregisterAsync_NoSignalRConnection_DelegatesToBaseWithoutThrowing()
+    {
+        // No ConnectSignalRAsync called → _hubConnection is null → base DeregisterAsync runs.
+        var client = CreateUnreachableClient();
+
+        var act = async () => await client.DeregisterAsync();
+
+        await act.Should().NotThrowAsync();
+    }
+
+    #endregion
+
+    // ---- Coverage exclusions / known limitations ----
+    //
+    // The SignalR callback bodies (lines ~74-78 RelationshipPropertyChanged, ~81-84
+    // Reconnected) and the actual hub-connection setup inside ConnectSignalRAsync are
+    // only reachable when a real SignalR hub responds. Covering them would require a
+    // full broker integration test, which is out of unit-test scope per the Phase 2
+    // convention. ConnectSignalRAsync's retry/cancellation surface is already covered
+    // by the three tests above (RespectsImmediateCancellation, RetriesWhenTokenUnavailable,
+    // StopsRetryingOnCancellation).
 }

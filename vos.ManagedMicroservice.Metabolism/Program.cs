@@ -18,19 +18,31 @@ var mode = cliArgs.Mode;
 var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
 
-// Configure Serilog
-var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", $"metabolism-{mode}-.log");
-Log.Logger = new LoggerConfiguration()
+// Configure Serilog. Skip the file sink when running under WebApplicationFactory<Program>
+// tests (ASPNETCORE_ENVIRONMENT=Testing) — file I/O under the test host has no value and
+// invites flakiness on shared CI agents.
+var isTestingEnv = string.Equals(
+    Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+    "Testing",
+    StringComparison.OrdinalIgnoreCase);
+
+var loggerConfig = new LoggerConfiguration()
     .MinimumLevel.Information()
     .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
     .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", $"Metabolism-{mode}")
-    .WriteTo.File(
+    .Enrich.WithProperty("Service", $"Metabolism-{mode}");
+
+if (!isTestingEnv)
+{
+    var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", $"metabolism-{mode}-.log");
+    loggerConfig = loggerConfig.WriteTo.File(
         path: logPath,
         rollingInterval: RollingInterval.Day,
         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true)
-    .CreateLogger();
+        shared: true);
+}
+
+Log.Logger = loggerConfig.CreateLogger();
 
 try
 {
@@ -82,34 +94,39 @@ try
     brokerClient.OnRelationshipPropertyChanged += (relId, propName, value) =>
         metabolism.UpdateProperty(relId.ToString(), propName, value);
 
-    // Connect SignalR for live property updates
-    app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
+    // Connect SignalR for live property updates. Skip under WebApplicationFactory<Program>
+    // tests — the broker URL is synthetic, the connection would fail in a background task,
+    // and the noise (failed retries) pollutes test output.
+    if (!app.Environment.IsEnvironment("Testing"))
     {
-        try
+        app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
         {
-            await brokerClient.ConnectSignalRAsync(app.Lifetime.ApplicationStopping);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error connecting SignalR during Metabolism startup");
-        }
-    }));
+            try
+            {
+                await brokerClient.ConnectSignalRAsync(app.Lifetime.ApplicationStopping);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error connecting SignalR during Metabolism startup");
+            }
+        }));
 
-    // Stop simulations and deregister from broker on shutdown
-    app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
-    {
-        try
+        // Stop simulations and deregister from broker on shutdown
+        app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
         {
-            Log.Information("Shutting down '{Mode}' handler — stopping {Count} simulation(s), {Requests} registration(s) processed",
-                mode, metabolism.GetAll().Count(), requestCount);
-            await metabolism.StopAllAsync();
-            await brokerClient.DeregisterAsync();
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error during Metabolism shutdown");
-        }
-    }));
+            try
+            {
+                Log.Information("Shutting down '{Mode}' handler — stopping {Count} simulation(s), {Requests} registration(s) processed",
+                    mode, metabolism.GetAll().Count(), requestCount);
+                await metabolism.StopAllAsync();
+                await brokerClient.DeregisterAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during Metabolism shutdown");
+            }
+        }));
+    }
 
     app.MapMetabolismEndpoints(
         processor, metabolism, brokerClient, mode,
@@ -126,3 +143,8 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+// Exposed to WebApplicationFactory<Program> in the test project per docs/MICROSERVICE-TEMPLATE.md.
+// Top-level statements compile to a `Program` class that is internal by default — this empty
+// partial declaration just elevates it to public so the test factory can name it.
+public partial class Program { }

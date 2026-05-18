@@ -41,7 +41,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 | Assembly | Line % | Branch % | Source of coverage |
 |---|---|---|---|
 | `vos.CLI` | ~96% | ~88% | `vos.CLI.Tests` (Phase 2A, Task #5402): 5 new handler test files (BrokerStatus / User / Model / Seed / State CommandHandler) all at 100%; CommandHandler dispatcher gaps closed; `BrokerClient` refactored with an internal HttpClient-injection ctor + `InternalsVisibleTo` and tested to 99.2% via `MockHttpMessageHandler`. |
-| `vos.ManagedMicroservice.Metabolism` | ~51% | ~74% | `vos.ManagedMicroservice.Metabolism.Tests` |
+| `vos.ManagedMicroservice.Metabolism` | ~93% pkg-level, every declared source file 95-100% (see WebApplicationFactory note below) | ~81% | `Tests/vos.ManagedMicroservice.Metabolism.Tests/` (Phase 2B, Task #5403) |
 | `vos.Microservice.Shared` | 100% | 100% | `Tests/vos.Microservice.Shared.Tests/` (Phase 1F, Task #5401); previously ~31% as a side effect of the three microservice test runs |
 | `vos.ManagedMicroservice.EndpointCaller` | ~23% | ~22% | `vos.ManagedMicroservice.EndpointCaller.Tests` (broker-client only) |
 | `vos.ManagedMicroservice.IntegrationRegistry` | ~19% | ~19% | `vos.ManagedMicroservice.IntegrationRegistry.Tests` (broker-client only) |
@@ -73,6 +73,27 @@ Watch items:
 4. **Mocking library split.** CLI and Metabolism use Moq; EndpointCaller and IntegrationRegistry use NSubstitute. Small now, friction later for cross-service work.
 5. **No coverage thresholds enforced.** CLAUDE.md says "Coverage must improve or hold across every PR." but the pipeline only collects — compliance currently relies on reviewer attention.
 6. **`docs/DELIVERY.md`** sketches a `vos.ManagedMicroservice.Shared.Delivery` framework with its own test contract (Ack, dedup middleware, lifecycle). Not yet implemented; will reshape the test landscape when it lands.
+
+## Notable decisions in test-infrastructure shape
+
+### `WebApplicationFactory<Program>` for minimal-API endpoint tests (Phase 2B precedent)
+
+`docs/TEST-COVERAGE-PLAN.md` (Phase 2B plan-of-record) and `docs/MICROSERVICE-TEMPLATE.md` (lines 134-142) both prescribe `WebApplicationFactory<Program>` from `Microsoft.AspNetCore.Mvc.Testing` when a microservice's endpoint surface needs unit-level coverage. Metabolism is the first microservice to actually adopt the pattern (Phase 2B, PR open against #5403). The shape it landed on, modeled directly on the sibling `vos.Mycelium.Tests.BrokerWebApplicationFactory`:
+
+- **`Tests/vos.ManagedMicroservice.Metabolism.Tests/MetabolismWebApplicationFactory.cs`** is a `WebApplicationFactory<Program>` subclass that implements `IAsyncLifetime` (workaround for sibling VillageOS Bug #5260 — sync-over-async deadlock in `CreateHost` under the XPlat Code Coverage collector on Windows CI).
+- It sets `ASPNETCORE_ENVIRONMENT=Testing` plus the `METABOLISM_PORT` / `METABOLISM_BROKER_URL` / `METABOLISM_MODE` env vars in `InitializeAsync`, then clears them in `DisposeAsync`.
+- **`EndpointMapperTests.cs`** exercises every endpoint via `factory.CreateClient()`.
+
+Two minimal production-code changes were needed to make this work cleanly (the alternative would have been heavier test infrastructure that fights Program.cs's CLI-args contract):
+
+- **`vos.ManagedMicroservice.Metabolism/Program.cs`** — added `public partial class Program { }` at the bottom (per `MICROSERVICE-TEMPLATE.md` instructions), and wrapped the SignalR-connect / broker-deregister `ApplicationStarted`/`ApplicationStopping` callbacks plus the Serilog file-sink configuration in `IsEnvironment("Testing")` guards. Production behavior is unchanged outside the Testing environment.
+- **`vos.ManagedMicroservice.Metabolism/Configuration/CliArgs.cs`** — `Parse` now falls back to `METABOLISM_*` env vars when CLI args aren't supplied, so the test factory can inject config via env vars instead of synthetic CLI args. Production callers pass `--flag=value` as before; behavior is unchanged when all required flags are present in args.
+
+**Why**: the documented choice was already `WebApplicationFactory<Program>` per the plan and template — the alternative (an inline `WebApplication` + `TestServer`, which I'd initially considered) would have deviated without a strong reason, and `vos.Mycelium`'s existing pattern proved the approach works in this org's .NET 10 / coverage-collector setup. Documenting here so 2C / 2D / future microservices follow the same shape.
+
+**Coverage measurement note (Bug #5260 family)**: `reportgenerator` aggregates package-level coverage by averaging across declared source classes AND compiler-generated nested types (async state machines, lambda closures). The `[CompilerGenerated]` exclusion in `coverage.runsettings` filters them at coverlet level but their entries persist in the Cobertura XML — so the pkg-level number understates the real source coverage. For Metabolism after Phase 2B: every declared source file is at 95-100% line coverage, but the pkg-level report reads ~93% because async-state-machine partial coverage drags the average. The same caveat applies to any microservice that uses `async` heavily. Phase 3 (coverage gate enforcement) should either tighten the runsettings exclusions or compute thresholds on a per-source-file basis rather than pkg-average.
+
+**SignalR hub callbacks excluded**: `vos.ManagedMicroservice.Metabolism/Services/BrokerClient.cs` has two SignalR callback bodies (the `RelationshipPropertyChanged` handler and the `Reconnected` handler). They only fire when a real broker hub delivers events — out of unit-test scope. Refactored into named methods (`HandleRelationshipPropertyChanged`, `HandleReconnected`) with `[ExcludeFromCodeCoverage]`, which `coverage.runsettings` already honors via `ExcludeByAttribute`.
 
 ## Open production issues surfaced by tests
 

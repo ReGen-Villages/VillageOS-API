@@ -7,6 +7,7 @@ namespace vos.CLI.Tests;
 
 // Targeted tests covering specific branches in vos.CLI that the per-class
 // test files don't otherwise exercise. Each test names the gap it pins.
+[Collection(nameof(CliEnvVarCollection))]
 public class CoverageGapTests
 {
     private const string BrokerUrl = "https://localhost:7243";

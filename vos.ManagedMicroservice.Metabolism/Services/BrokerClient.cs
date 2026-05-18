@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -69,19 +70,9 @@ public class BrokerClient : BrokerClientBase
                     .WithAutomaticReconnect()
                     .Build();
 
-                _hubConnection.On<Guid, string, object?>("RelationshipPropertyChanged",
-                    (relationshipId, propertyName, newValue) =>
-                    {
-                        Logger.LogDebug("SignalR: RelationshipPropertyChanged {RelId} {Prop}={Value}",
-                            relationshipId, propertyName, newValue);
-                        OnRelationshipPropertyChanged?.Invoke(relationshipId, propertyName, newValue);
-                    });
+                _hubConnection.On<Guid, string, object?>("RelationshipPropertyChanged", HandleRelationshipPropertyChanged);
 
-                _hubConnection.Reconnected += connectionId =>
-                {
-                    Logger.LogInformation("SignalR reconnected: {ConnectionId}", connectionId);
-                    return Task.CompletedTask;
-                };
+                _hubConnection.Reconnected += HandleReconnected;
 
                 await _hubConnection.StartAsync(ct);
                 Logger.LogInformation("SignalR connected to broker hub");
@@ -131,6 +122,26 @@ public class BrokerClient : BrokerClientBase
             var error = await response.Content.ReadAsStringAsync();
             throw new HttpRequestException($"POST {action} failed ({response.StatusCode}): {error}");
         }
+    }
+
+    // SignalR hub-callback bodies. Excluded from coverage because they fire only when a
+    // real broker SignalR hub delivers messages — out of unit-test scope. Wrapping them
+    // in named methods (rather than inline lambdas in ConnectSignalRAsync) lets the
+    // [ExcludeFromCodeCoverage] attribute apply cleanly without losing coverage of
+    // ConnectSignalRAsync's retry/error-handling shell.
+    [ExcludeFromCodeCoverage]
+    private void HandleRelationshipPropertyChanged(Guid relationshipId, string propertyName, object? newValue)
+    {
+        Logger.LogDebug("SignalR: RelationshipPropertyChanged {RelId} {Prop}={Value}",
+            relationshipId, propertyName, newValue);
+        OnRelationshipPropertyChanged?.Invoke(relationshipId, propertyName, newValue);
+    }
+
+    [ExcludeFromCodeCoverage]
+    private Task HandleReconnected(string? connectionId)
+    {
+        Logger.LogInformation("SignalR reconnected: {ConnectionId}", connectionId);
+        return Task.CompletedTask;
     }
 
     /// <summary>Increment a property on a relationship (for tracking per-relationship cumulative totals).</summary>

@@ -2,6 +2,7 @@ using Xunit;
 
 namespace vos.CLI.Tests;
 
+[Collection(nameof(CliEnvVarCollection))]
 public class ConsoleOptionsTests
 {
     // ========== Parse() Tests ==========

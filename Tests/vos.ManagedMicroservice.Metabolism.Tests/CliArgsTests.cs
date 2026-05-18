@@ -4,8 +4,33 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Metabolism.Tests;
 
-public class CliArgsTests
+// CliArgs.Parse now falls back to METABOLISM_* env vars (so WebApplicationFactory<Program>
+// tests can inject config) — these tests run with a scrubbed env so they exercise the
+// pure args-only path. xUnit constructs a fresh instance per [Fact], so the ctor runs
+// before every test. The [Collection] groups env-var-touching tests so they don't race.
+[Collection(nameof(MetabolismEnvVarCollection))]
+public class CliArgsTests : IDisposable
 {
+    private readonly Dictionary<string, string?> _saved;
+    private static readonly string[] ScrubbedVars =
+    {
+        "METABOLISM_PORT", "METABOLISM_BROKER_URL", "METABOLISM_MODE",
+        "METABOLISM_TOKEN", "METABOLISM_SIGNING_KEY", "METABOLISM_ISSUER", "METABOLISM_AUDIENCE"
+    };
+
+    public CliArgsTests()
+    {
+        _saved = ScrubbedVars.ToDictionary(v => v, v => Environment.GetEnvironmentVariable(v));
+        foreach (var v in ScrubbedVars)
+            Environment.SetEnvironmentVariable(v, null);
+    }
+
+    public void Dispose()
+    {
+        foreach (var (key, value) in _saved)
+            Environment.SetEnvironmentVariable(key, value);
+    }
+
     [Fact]
     public void Parse_AllArgsPresent_ReturnsCliArgs()
     {
@@ -155,5 +180,65 @@ public class CliArgsTests
         result!.Issuer.Should().BeNull(
             "the daemon must fall back to a hardcoded default only when the broker did not specify");
         result.Audience.Should().BeNull();
+    }
+
+    // ---- Env-var fallback (added for WebApplicationFactory<Program> tests) ----
+
+    [Fact]
+    public void Parse_NoArgs_AllRequiredFromEnvVars_ReturnsCliArgs()
+    {
+        Environment.SetEnvironmentVariable("METABOLISM_PORT", "7100");
+        Environment.SetEnvironmentVariable("METABOLISM_BROKER_URL", "http://from-env");
+        Environment.SetEnvironmentVariable("METABOLISM_MODE", "produces");
+
+        var result = CliArgs.Parse(Array.Empty<string>());
+
+        result.Should().NotBeNull();
+        result!.Port.Should().Be(7100);
+        result.BrokerUrl.Should().Be("http://from-env");
+        result.Mode.Should().Be("produces");
+    }
+
+    [Fact]
+    public void Parse_ArgsTakePrecedenceOverEnvVars()
+    {
+        Environment.SetEnvironmentVariable("METABOLISM_PORT", "1111");
+        Environment.SetEnvironmentVariable("METABOLISM_BROKER_URL", "http://env-broker");
+        Environment.SetEnvironmentVariable("METABOLISM_MODE", "produces");
+        var args = new[] { "--port=2222", "--brokerUrl=http://cli-broker", "--mode=consumes" };
+
+        var result = CliArgs.Parse(args);
+
+        result.Should().NotBeNull();
+        result!.Port.Should().Be(2222);
+        result.BrokerUrl.Should().Be("http://cli-broker");
+        result.Mode.Should().Be("consumes");
+    }
+
+    [Fact]
+    public void Parse_EnvVarsCoverOptionalFlagsToo()
+    {
+        Environment.SetEnvironmentVariable("METABOLISM_PORT", "5100");
+        Environment.SetEnvironmentVariable("METABOLISM_BROKER_URL", "http://broker");
+        Environment.SetEnvironmentVariable("METABOLISM_MODE", "consumes");
+        Environment.SetEnvironmentVariable("METABOLISM_TOKEN", "env-token");
+        Environment.SetEnvironmentVariable("METABOLISM_SIGNING_KEY", "env-key");
+        Environment.SetEnvironmentVariable("METABOLISM_ISSUER", "env-issuer");
+        Environment.SetEnvironmentVariable("METABOLISM_AUDIENCE", "env-audience");
+
+        var result = CliArgs.Parse(Array.Empty<string>());
+
+        result.Should().NotBeNull();
+        result!.Token.Should().Be("env-token");
+        result.SigningKey.Should().Be("env-key");
+        result.Issuer.Should().Be("env-issuer");
+        result.Audience.Should().Be("env-audience");
+    }
+
+    [Fact]
+    public void Parse_NoArgsNoEnvVars_ReturnsNull()
+    {
+        // Baseline: scrubbed env (ctor) + empty args → still null.
+        CliArgs.Parse(Array.Empty<string>()).Should().BeNull();
     }
 }
