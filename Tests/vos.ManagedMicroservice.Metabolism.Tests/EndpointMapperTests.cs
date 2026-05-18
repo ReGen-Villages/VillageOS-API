@@ -1,6 +1,7 @@
 // Endpoint-level tests for Metabolism's MapMetabolismEndpoints via WebApplicationFactory<Program>,
-// per the canonical pattern in docs/MICROSERVICE-TEMPLATE.md and docs/TEST-COVERAGE-PLAN.md
-// Phase 2B. Sibling reference: vos.Mycelium.Tests.BrokerWebApplicationFactory.
+// per the canonical pattern in docs/MICROSERVICE-TEMPLATE.md. Phase 2B landed first; see
+// docs/TEST-STATE.md > "WebApplicationFactory<Program>..." for the shape rationale.
+// Sibling reference: vos.Mycelium.Tests.BrokerWebApplicationFactory.
 
 using System.Net;
 using System.Net.Http.Json;

@@ -78,7 +78,7 @@ Watch items:
 
 ### `WebApplicationFactory<Program>` for minimal-API endpoint tests (Phase 2B precedent)
 
-`docs/TEST-COVERAGE-PLAN.md` (Phase 2B plan-of-record) and `docs/MICROSERVICE-TEMPLATE.md` (lines 134-142) both prescribe `WebApplicationFactory<Program>` from `Microsoft.AspNetCore.Mvc.Testing` when a microservice's endpoint surface needs unit-level coverage. Metabolism is the first microservice to actually adopt the pattern (Phase 2B, PR open against #5403). The shape it landed on, modeled directly on the sibling `vos.Mycelium.Tests.BrokerWebApplicationFactory`:
+`docs/MICROSERVICE-TEMPLATE.md` (lines 134-142) prescribes `WebApplicationFactory<Program>` from `Microsoft.AspNetCore.Mvc.Testing` when a microservice's endpoint surface needs unit-level coverage. Metabolism was the first microservice to adopt the pattern (Phase 2B, Task #5403). The shape it landed on, modeled directly on the sibling `vos.Mycelium.Tests.BrokerWebApplicationFactory`:
 
 - **`Tests/vos.ManagedMicroservice.Metabolism.Tests/MetabolismWebApplicationFactory.cs`** is a `WebApplicationFactory<Program>` subclass that implements `IAsyncLifetime` (workaround for sibling VillageOS Bug #5260 — sync-over-async deadlock in `CreateHost` under the XPlat Code Coverage collector on Windows CI).
 - It sets `ASPNETCORE_ENVIRONMENT=Testing` plus the `METABOLISM_PORT` / `METABOLISM_BROKER_URL` / `METABOLISM_MODE` env vars in `InitializeAsync`, then clears them in `DisposeAsync`.
@@ -157,6 +157,23 @@ This is the same command CI runs, so there's no "what does the YAML do that I ca
 - *No gate at all* — what we had through Phase 2. Worked while a single reviewer was holding the line; doesn't scale.
 
 The per-assembly no-regression shape is the smallest gate that catches silent drops on unrelated PRs without forcing production-code annotations or blocking work on documented gaps.
+
+### Test-driven development as the working convention (Phase 4 / Task #5407)
+
+Every code change in this repo follows TDD — write the failing test first, run it red, write the minimum production code to take it green, then refactor with the test as a safety net. The rule extends what `CLAUDE.md` > *Workflow* > *Before touching code* step 4 already required for bug fixes (`Bug<N>_<Scenario>` regression tests) to every code change — features and refactors included. The full red-green-refactor description lives in `CLAUDE.md` > *Workflow* > *Test-driven development*; this entry records *why* it landed as a phase deliverable rather than just an unwritten convention.
+
+**Single carved-out exception:** single-line cosmetic fixes that cannot change runtime behavior — a typo in a string literal, a comment fix, a rename of a private symbol with no public surface. Anything that flips a condition, adjusts a calculation, changes a JSON shape, or touches an external contract gets a test first.
+
+**Escape hatch for hard-to-test code** (UI, raycasting, time-based logic, async loops): extract the logic into a pure helper and test the helper. Same shape the bug-fix rule already used; now sanctioned for features too.
+
+**Naming convention:**
+
+- Bug regressions: `Bug<N>_<Scenario>` (pre-existing — kept).
+- Everything else: `MethodOrClass_Scenario_ExpectedOutcome` (matches the existing test corpus across all the .NET test projects above).
+
+**Relationship to the coverage gate.** The gate (Phase 3) and TDD (Phase 4) are complementary, not redundant. The gate catches numeric regressions: a PR that drops a package's `line-rate` below threshold fails CI. TDD catches *design-quality* regressions that pass the gate: features added with tests written after-the-fact tend to test what the code does rather than what the code should do, which the gate can't see. Shipping them together means the gate is the floor (no silent drops) and TDD is the working method that keeps the actual coverage well above the floor.
+
+**Why this is documented in TEST-STATE.md as well as CLAUDE.md.** `CLAUDE.md` is gitignored per-developer in this repo, so the TDD section there propagates only to whoever has it locally. `docs/TEST-STATE.md` is tracked, mirrored to the AzDO wiki, and read by reviewers — adding the convention here makes it a contract reviewers can hold PRs to (test commits should precede or be visibly bundled with implementation commits; `git log` order is the verification surface).
 
 ## Open production issues surfaced by tests
 

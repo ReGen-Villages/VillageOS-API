@@ -151,8 +151,8 @@ public class CoverageGapTests
     //      handles. With Jsonata.Net.Native, queries on string roots can return raw text
     //      that's not JSON — e.g. concatenation of identifier values. Not all branches are
     //      reachable through the public API; the remaining ones are minimal-API wiring
-    //      and Serilog file-sink branches that the Phase 3 runsettings should exclude per
-    //      docs/TEST-COVERAGE-PLAN.md.
+    //      and Serilog file-sink branches captured by the per-assembly coverage gate
+    //      (see docs/TEST-STATE.md > "Coverage gate (Phase 3 / Task #5406)").
 
     private static HttpResponseMessage Json(string body) =>
         new(HttpStatusCode.OK)
