@@ -1,6 +1,6 @@
 # ManagedMicroservice Template
 
-Every ManagedMicroservice in this repo (`Echo`, `EndpointCaller`, `IntegrationRegistry`, `Metabolism`) follows the same shape. **Echo is the canonical reference implementation** — the simplest of the four. When adding a new microservice, copy Echo's structure and the test patterns described here.
+Every ManagedMicroservice in this repo (`Echo`, `Tributary`, `Delta`, `Metabolism`) follows the same shape. **Echo is the canonical reference implementation** — the simplest of the four. When adding a new microservice, copy Echo's structure and the test patterns described here.
 
 ## Production-code shape
 
@@ -133,7 +133,7 @@ Required tests (see `Tests/vos.ManagedMicroservice.Echo.Tests/BrokerClientTests.
 
 Echo has minimal business logic (echo body + counter) and per `coverage.runsettings` `Program.cs` is excluded from unit-test coverage — so Echo's test suite stops at `CliArgs` + `BrokerClient`.
 
-Microservices with more substantial business logic (e.g. Metabolism's simulation engine, EndpointCaller's `ObservationIngestService`) get a dedicated `<Service>Tests.cs` exercising that logic directly. When the endpoint surface needs unit-level coverage, use `WebApplicationFactory<Program>` from `Microsoft.AspNetCore.Mvc.Testing` and pass empty args + a Configure callback that injects the args via `WebApplicationFactoryClientOptions`. The `Program` class is `internal` by default with top-level statements — declare it `public partial class Program { }` at the bottom of `Program.cs` to make it accessible to the test factory.
+Microservices with more substantial business logic (e.g. Metabolism's simulation engine, Tributary's `ObservationIngestService`) get a dedicated `<Service>Tests.cs` exercising that logic directly. When the endpoint surface needs unit-level coverage, use `WebApplicationFactory<Program>` from `Microsoft.AspNetCore.Mvc.Testing` and pass empty args + a Configure callback that injects the args via `WebApplicationFactoryClientOptions`. The `Program` class is `internal` by default with top-level statements — declare it `public partial class Program { }` at the bottom of `Program.cs` to make it accessible to the test factory.
 
 ## Coverage expectations
 

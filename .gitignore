@@ -147,3 +147,6 @@ seeds/
 
 # Migration scripts (local only)
 tools/migration/
+
+# Per-developer project guidance (each contributor maintains their own).
+CLAUDE.md

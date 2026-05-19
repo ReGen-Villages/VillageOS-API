@@ -8,7 +8,7 @@ namespace vos.Microservice.Shared;
 /// <summary>
 /// Base class for microservice BrokerClients that communicate with the VOS Broker.
 /// Provides shared token management, registration, deregistration, and authenticated HTTP helpers.
-/// Used by IsHandler, Metabolism, and IntegrationRegistry handler services.
+/// Used by IsHandler, Metabolism, and Delta handler services.
 /// </summary>
 public abstract class BrokerClientBase
 {

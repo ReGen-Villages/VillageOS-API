@@ -5,9 +5,9 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{748745C8-73FC-4AAC-BA17-45F26C78988F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.EndpointCaller.Tests", "Tests\vos.ManagedMicroservice.EndpointCaller.Tests\vos.ManagedMicroservice.EndpointCaller.Tests.csproj", "{F240CB05-815F-403C-9675-5CE8D8C4E453}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Tributary.Tests", "Tests\vos.ManagedMicroservice.Tributary.Tests\vos.ManagedMicroservice.Tributary.Tests.csproj", "{F240CB05-815F-403C-9675-5CE8D8C4E453}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.IntegrationRegistry.Tests", "Tests\vos.ManagedMicroservice.IntegrationRegistry.Tests\vos.ManagedMicroservice.IntegrationRegistry.Tests.csproj", "{D617BFB1-752C-47FF-BA32-5E59E143BCBF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Delta.Tests", "Tests\vos.ManagedMicroservice.Delta.Tests\vos.ManagedMicroservice.Delta.Tests.csproj", "{D617BFB1-752C-47FF-BA32-5E59E143BCBF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Application", "vos.Application\vos.Application.csproj", "{83F6E181-FEBA-4A4E-AF3C-DBB2C151BB9A}"
 EndProject
@@ -23,9 +23,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Infrastructure", "vos.I
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Echo", "vos.ManagedMicroservice.Echo\vos.ManagedMicroservice.Echo.csproj", "{E2D2EFDE-4310-42FD-9F53-F2497958FDB2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.EndpointCaller", "vos.ManagedMicroservice.EndpointCaller\vos.ManagedMicroservice.EndpointCaller.csproj", "{0E12CE73-0C74-45ED-B992-0DAA73C20F9B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Tributary", "vos.ManagedMicroservice.Tributary\vos.ManagedMicroservice.Tributary.csproj", "{0E12CE73-0C74-45ED-B992-0DAA73C20F9B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.IntegrationRegistry", "vos.ManagedMicroservice.IntegrationRegistry\vos.ManagedMicroservice.IntegrationRegistry.csproj", "{7815A567-304B-4F06-80D6-6D4CBE28C597}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Delta", "vos.ManagedMicroservice.Delta\vos.ManagedMicroservice.Delta.csproj", "{7815A567-304B-4F06-80D6-6D4CBE28C597}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Microservice.Shared", "vos.Microservice.Shared\vos.Microservice.Shared.csproj", "{65ED47C1-2B5D-47CB-8755-2B011BA36680}"
 EndProject

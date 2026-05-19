@@ -56,10 +56,10 @@ $thresholds = @{
     'vos.CLI'                                     = @{ Line = 94;  Branch = 89 }
     'vos.Core'                                    = @{ Line = 95;  Branch = 89 }
     'vos.Infrastructure'                          = @{ Line = 98;  Branch = 88 }
+    'vos.ManagedMicroservice.Delta'               = @{ Line = 94;  Branch = 89 }
     'vos.ManagedMicroservice.Echo'                = @{ Line = 21;  Branch = 45 }
-    'vos.ManagedMicroservice.EndpointCaller'      = @{ Line = 95;  Branch = 91 }
-    'vos.ManagedMicroservice.IntegrationRegistry' = @{ Line = 94;  Branch = 89 }
     'vos.ManagedMicroservice.Metabolism'          = @{ Line = 85;  Branch = 81 }
+    'vos.ManagedMicroservice.Tributary'           = @{ Line = 95;  Branch = 91 }
     'vos.Microservice.Shared'                     = @{ Line = 100; Branch = 100 }
     'vos.Tests.Shared'                            = @{ Line = 100; Branch = 100 }
 }

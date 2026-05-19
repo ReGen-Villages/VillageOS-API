@@ -1,7 +1,7 @@
 // Echo is the canonical reference implementation of a ManagedMicroservice.
 // These tests document the CLI-args contract that EVERY microservice must
-// satisfy. New microservice test projects (Metabolism, EndpointCaller,
-// IntegrationRegistry, future services) should mirror this file's shape:
+// satisfy. New microservice test projects (Metabolism, Tributary,
+// Delta, future services) should mirror this file's shape:
 // per-flag tests, port-bounds tests, and at least one Theory for invalid
 // input. See docs/MICROSERVICE-TEMPLATE.md for the full template.
 

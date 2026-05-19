@@ -28,8 +28,8 @@ Client tools, GUI, and microservices for the [VillageOS](https://dev.azure.com/R
 
 | Service | Type | Description |
 |---------|------|-------------|
-| vos.ManagedMicroservice.IntegrationRegistry | Production | Data source registration with schema discovery and saga compensation |
-| vos.ManagedMicroservice.EndpointCaller | Production | HTTP endpoint calling with JSONata response transforms |
+| vos.ManagedMicroservice.Delta | Production | Data source registration with schema discovery and saga compensation |
+| vos.ManagedMicroservice.Tributary | Production | HTTP endpoint calling with JSONata response transforms |
 | vos.ManagedMicroservice.Echo | Example | Minimal managed microservice demonstrating lifecycle |
 | vos.ManagedMicroservice.Python | Example | Python/Flask-based microservice with Docker support |
 

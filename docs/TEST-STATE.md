@@ -10,8 +10,8 @@ A living snapshot of how unit tests are organized, what's covered, and where the
 |---|---|---|---|
 | `vos.CLI.Tests` | `vos.CLI.Tests/` | Moq | `vos.CLI` only — the Application/Core/Infrastructure layers are mocked at the seam, so they get no transitive coverage from this project (verified against Cobertura output) |
 | `vos.ManagedMicroservice.Metabolism.Tests` | `Tests/vos.ManagedMicroservice.Metabolism.Tests/` | Moq + `MockHttpMessageHandler` | Metabolism (consumes/produces simulation lifecycle and the broker client) |
-| `vos.ManagedMicroservice.EndpointCaller.Tests` | `Tests/vos.ManagedMicroservice.EndpointCaller.Tests/` | NSubstitute + `MockHttpMessageHandler` + `WebApplicationFactory<Program>` | EndpointCaller — `/handle`, `/health`, `/shutdown` endpoints, `BrokerClient`, `ObservationIngestService`, `CliArgs` (post Phase 2C) |
-| `vos.ManagedMicroservice.IntegrationRegistry.Tests` | `Tests/vos.ManagedMicroservice.IntegrationRegistry.Tests/` | NSubstitute + `MockHttpMessageHandler` + `WebApplicationFactory<Program>` | IntegrationRegistry — `/handle`, `/register`, `/health`, `/shutdown` endpoints, `BrokerClient`, `CliArgs`, `LoadEndpointSeed`, compensation logic (post Phase 2D) |
+| `vos.ManagedMicroservice.Tributary.Tests` | `Tests/vos.ManagedMicroservice.Tributary.Tests/` | NSubstitute + `MockHttpMessageHandler` + `WebApplicationFactory<Program>` | Tributary — `/handle`, `/health`, `/shutdown` endpoints, `BrokerClient`, `ObservationIngestService`, `CliArgs` (post Phase 2C) |
+| `vos.ManagedMicroservice.Delta.Tests` | `Tests/vos.ManagedMicroservice.Delta.Tests/` | NSubstitute + `MockHttpMessageHandler` + `WebApplicationFactory<Program>` | Delta — `/handle`, `/register`, `/health`, `/shutdown` endpoints, `BrokerClient`, `CliArgs`, `LoadEndpointSeed`, compensation logic (post Phase 2D) |
 | `vos.Auth.Shared.Tests` | `Tests/vos.Auth.Shared.Tests/` | None (no mocks needed — pure helpers + extension methods) | `vos.Auth.Shared` (`ServiceTokenValidator`, `HandlerAuthExtensions`, constants) |
 | `vos.Microservice.Shared.Tests` | `Tests/vos.Microservice.Shared.Tests/` | `NullLogger` + `MockHttpMessageHandler` (no mocking-library dependency) | `vos.Microservice.Shared` (`BrokerClientBase` via a thin `TestableBrokerClient` subclass, `HttpMethodValidator`, `RequiredPropertyValidator`) |
 | `vos.Core.Tests` | `Tests/vos.Core.Tests/` | None (pure domain types — no I/O to mock) | All of `vos.Core`: Domain root (`VosModel`, `VosObject`, `VosProperty`, `VosThing`, `VosRelationship`, `TemporalGraphSnapshot` + `TemporalQuery` extensions, `InheritedPropertySet`, `PropertyMode`/`PropertyModeConfiguration`, exceptions, `IfcGeometry`/`LatLng`/`GeoJson`) plus `ExpectedValues/` (criteria DSL parser/lexer, `CriteriaExpr` hierarchy, `RangeBounds` hierarchy, `ExpectedRange`, `DependencyGraph`, `StateIndex`, `StateHistoryTracker`, `RangeEvaluationService` with cycle detection). Files split across `Domain/` and `ExpectedValues/` subfolders. |
@@ -43,8 +43,8 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 | `vos.CLI` | ~96% | ~88% | `vos.CLI.Tests` (Phase 2A, Task #5402): 5 new handler test files (BrokerStatus / User / Model / Seed / State CommandHandler) all at 100%; CommandHandler dispatcher gaps closed; `BrokerClient` refactored with an internal HttpClient-injection ctor + `InternalsVisibleTo` and tested to 99.2% via `MockHttpMessageHandler`. |
 | `vos.ManagedMicroservice.Metabolism` | ~93% pkg-level, every declared source file 95-100% (see WebApplicationFactory note below) | ~81% | `Tests/vos.ManagedMicroservice.Metabolism.Tests/` (Phase 2B, Task #5403) |
 | `vos.Microservice.Shared` | 100% | 100% | `Tests/vos.Microservice.Shared.Tests/` (Phase 1F, Task #5401); previously ~31% as a side effect of the three microservice test runs |
-| `vos.ManagedMicroservice.EndpointCaller` | ~95% pkg-level; CliArgs / EndpointCallRequest / ObservationIngestResult 100%, BrokerClient 99.4%, Program 94.3%, ObservationIngestService 89.1% | ~92% | `Tests/vos.ManagedMicroservice.EndpointCaller.Tests/` (Phase 2C, Task #5404). WebApplicationFactory&lt;Program&gt; pattern (see notes). Sub-95% files are Program.cs minimal-API wireup + ObservationIngestService defensive-only branches per the plan's documented exclusion language. |
-| `vos.ManagedMicroservice.IntegrationRegistry` | ~94% pkg-level; CliArgs / RegisterEndpointRequest / BrokerClient 100%, Program 89.9% | ~90% | `Tests/vos.ManagedMicroservice.IntegrationRegistry.Tests/` (Phase 2D, Task #5405). WebApplicationFactory&lt;Program&gt; pattern. Program.cs &lt; 95% is the minimal-API wireup + the defensive outer-catch (`HandleRegisterEndpointRequestAsync` catch wraps the whole handler against runtime exceptions that the broker-client try/catches already swallow) — both excluded by the plan. |
+| `vos.ManagedMicroservice.Tributary` | ~95% pkg-level; CliArgs / EndpointCallRequest / ObservationIngestResult 100%, BrokerClient 99.4%, Program 94.3%, ObservationIngestService 89.1% | ~92% | `Tests/vos.ManagedMicroservice.Tributary.Tests/` (Phase 2C, Task #5404). WebApplicationFactory&lt;Program&gt; pattern (see notes). Sub-95% files are Program.cs minimal-API wireup + ObservationIngestService defensive-only branches per the plan's documented exclusion language. |
+| `vos.ManagedMicroservice.Delta` | ~94% pkg-level; CliArgs / RegisterEndpointRequest / BrokerClient 100%, Program 89.9% | ~90% | `Tests/vos.ManagedMicroservice.Delta.Tests/` (Phase 2D, Task #5405). WebApplicationFactory&lt;Program&gt; pattern. Program.cs &lt; 95% is the minimal-API wireup + the defensive outer-catch (`HandleRegisterEndpointRequestAsync` catch wraps the whole handler against runtime exceptions that the broker-client try/catches already swallow) — both excluded by the plan. |
 | `vos.Core` | 95% | 87% | `Tests/vos.Core.Tests/` (Phase 1A; 1A.1 Task #5410 + 1A.2 Task #5411). Most classes 100%; CriteriaParser/Lexer at ~82% (DSL error paths defensive), RangeEvaluationService at ~94% (cycle-detection branches). |
 | `vos.Application` | 98% | 88% | `Tests/vos.Application.Tests/` (Phase 1B, Task #5397). All 7 source files at 95%+. |
 | `vos.Infrastructure` | 99% | 83% | `Tests/vos.Infrastructure.Tests/` (Phase 1C, Task #5398). `ModelStore` 100%; `VosModelProvider` 98.6%. |
@@ -70,7 +70,7 @@ Watch items:
 1. **The domain layer (`vos.Core` + `vos.Application` + `vos.Infrastructure`) has 0% direct coverage.** CLI tests mock the seam below the handlers; nothing exercises the actual model, services, or storage. This is the largest single gap. (Pre-prod, so no regression-naming convention applies yet — that's deferred until real users start filing bugs.)
 2. **`vos.ManagedMicroservice.Echo` has no test project.** Every other ManagedMicroservice has one.
 3. **GUI tests are not in CI.** The Vitest suite and Puppeteer e2e provide no merge-gate signal.
-4. **Mocking library split.** CLI and Metabolism use Moq; EndpointCaller and IntegrationRegistry use NSubstitute. Small now, friction later for cross-service work.
+4. **Mocking library split.** CLI and Metabolism use Moq; Tributary and Delta use NSubstitute. Small now, friction later for cross-service work.
 5. **Coverage gate is enforced** as of Phase 3 (Task #5406). Per-assembly line + branch thresholds in `azure-pipelines.yml`'s gate step fail the build on regression. See *Coverage gate (Phase 3)* below for the gate shape + how to bump a threshold when coverage improves.
 6. **`docs/DELIVERY.md`** sketches a `vos.ManagedMicroservice.Shared.Delivery` framework with its own test contract (Ack, dedup middleware, lifecycle). Not yet implemented; will reshape the test landscape when it lands.
 
@@ -97,23 +97,23 @@ Two minimal production-code changes were needed to make this work cleanly (the a
 
 ### Phase 2C — same pattern, extended for endpoints that proxy outbound HTTP
 
-Phase 2C (PR open against Task #5404) applied the same `WebApplicationFactory<Program>` shape to `vos.ManagedMicroservice.EndpointCaller`, with two refinements that future microservice 2x tasks should copy when they need outbound HTTP coverage:
+Phase 2C (PR open against Task #5404) applied the same `WebApplicationFactory<Program>` shape to `vos.ManagedMicroservice.Tributary` (then named `vos.ManagedMicroservice.EndpointCaller`), with two refinements that future microservice 2x tasks should copy when they need outbound HTTP coverage:
 
-- **`Tests/vos.ManagedMicroservice.EndpointCaller.Tests/EndpointCallerWebApplicationFactory.cs`** strips the default `DefaultHttpClientFactory` registration and replaces it with a `PerCallHttpClientFactory` that returns a fresh `HttpClient` per `CreateClient()` call. The single instance backed by `MockHttpMessageHandler` routes BOTH broker calls (`FindThingByNameAsync`, `GetEffectivePropertiesAsync`, `SetThingPropertyAsync`, `CreateThingAsync`, `CreateRelationshipAsync`) AND the outbound endpoint dispatched by `CallEndpointAsync` — same handler, request-URL-based routing inside each test. The per-call factory is required because `BrokerClientBase.CreateAuthenticatedClientAsync` mutates `client.Timeout` on every call, which throws `InvalidOperationException` on an already-used `HttpClient`; reusing a single instance only worked for tests that made exactly one broker call. The same caveat will bite Phase 2D (`IntegrationRegistry`).
+- **`Tests/vos.ManagedMicroservice.Tributary.Tests/TributaryWebApplicationFactory.cs`** strips the default `DefaultHttpClientFactory` registration and replaces it with a `PerCallHttpClientFactory` that returns a fresh `HttpClient` per `CreateClient()` call. The single instance backed by `MockHttpMessageHandler` routes BOTH broker calls (`FindThingByNameAsync`, `GetEffectivePropertiesAsync`, `SetThingPropertyAsync`, `CreateThingAsync`, `CreateRelationshipAsync`) AND the outbound endpoint dispatched by `CallEndpointAsync` — same handler, request-URL-based routing inside each test. The per-call factory is required because `BrokerClientBase.CreateAuthenticatedClientAsync` mutates `client.Timeout` on every call, which throws `InvalidOperationException` on an already-used `HttpClient`; reusing a single instance only worked for tests that made exactly one broker call. The same caveat bit Phase 2D (`Delta`).
 - **`HandlerCallback` is a per-test mutable `Func<HttpRequestMessage, HttpResponseMessage>`** on the factory; tests set it before the first `CreateClient()` call. This avoids the alternative of a parameterized factory constructor, which conflicts with `WebApplicationFactory<T>`'s expectation that the factory is parameterless.
 
-Same `partial class Program { }` + Testing-env Serilog guard + `ENDPOINTCALLER_*` env-var fallback pattern as Metabolism, minus the SignalR / deregister guards because EndpointCaller doesn't have those.
+Same `partial class Program { }` + Testing-env Serilog guard + `TRIBUTARY_*` env-var fallback pattern as Metabolism, minus the SignalR / deregister guards because Tributary doesn't have those.
 
-EndpointCaller's Program.cs lands at 94.3% (sub-95%); the remaining ~6% is the `cliArgs == null` exit path, the non-Testing Serilog file-sink branch, and the outer `catch (Exception)` around `app.Run()` — all minimal-API wireup that the plan flags for exclusion in Phase 3. ObservationIngestService lands at 89.1%; the remaining ~11% is jsonata edge-case defensive guards (e.g. the `IsNullOrWhiteSpace(rawResult)` branch is unreachable because `Jsonata.Net.Native` returns the literal string `"undefined"` for missing paths, not an empty string).
+Tributary's Program.cs lands at 94.3% (sub-95%); the remaining ~6% is the `cliArgs == null` exit path, the non-Testing Serilog file-sink branch, and the outer `catch (Exception)` around `app.Run()` — all minimal-API wireup that the plan flags for exclusion in Phase 3. ObservationIngestService lands at 89.1%; the remaining ~11% is jsonata edge-case defensive guards (e.g. the `IsNullOrWhiteSpace(rawResult)` branch is unreachable because `Jsonata.Net.Native` returns the literal string `"undefined"` for missing paths, not an empty string).
 
-### Phase 2D — same pattern + seed-file bootstrap for IntegrationRegistry
+### Phase 2D — same pattern + seed-file bootstrap for Delta
 
-Phase 2D (PR open against Task #5405) applied the same shape to `vos.ManagedMicroservice.IntegrationRegistry` with one new wrinkle worth noting for future microservice work:
+Phase 2D (PR open against Task #5405) applied the same shape to `vos.ManagedMicroservice.Delta` (then named `vos.ManagedMicroservice.IntegrationRegistry`) with one new wrinkle worth noting for future microservice work:
 
-- **`Tests/vos.ManagedMicroservice.IntegrationRegistry.Tests/IntegrationRegistryWebApplicationFactory.cs`** writes a synthetic `seed.json` into `AppContext.BaseDirectory` in `InitializeAsync` and deletes it in `DisposeAsync`. `Program.cs`'s `LoadEndpointSeed` helper throws `InvalidOperationException` at host construction if no `seed.json` is found on any of its three candidate paths — and per CLAUDE.md "Seed files (`*.seed.json`, `seed.json`, `seeds/`) are runtime data and gitignored", so the file is never present in the test process's bin folder by default. The factory exposes a `SeedJson` string property that tests can override before `InitializeAsync` (used by `CoverageGapTests.MalformedSeedFactory` to drive the parse-failure catch + the final throw).
-- Same `partial class Program {}` + Testing-env Serilog guard + `INTEGRATIONREGISTRY_*` env-var fallback as the other two microservices, including the `PerCallHttpClientFactory` from Phase 2C.
+- **`Tests/vos.ManagedMicroservice.Delta.Tests/DeltaWebApplicationFactory.cs`** writes a synthetic `seed.json` into `AppContext.BaseDirectory` in `InitializeAsync` and deletes it in `DisposeAsync`. `Program.cs`'s `LoadEndpointSeed` helper throws `InvalidOperationException` at host construction if no `seed.json` is found on any of its three candidate paths — and per CLAUDE.md "Seed files (`*.seed.json`, `seed.json`, `seeds/`) are runtime data and gitignored", so the file is never present in the test process's bin folder by default. The factory exposes a `SeedJson` string property that tests can override before `InitializeAsync` (used by `CoverageGapTests.MalformedSeedFactory` to drive the parse-failure catch + the final throw).
+- Same `partial class Program {}` + Testing-env Serilog guard + `DELTA_*` env-var fallback as the other two microservices, including the `PerCallHttpClientFactory` from Phase 2C.
 
-IntegrationRegistry's Program.cs lands at 89.9%; the remaining ~10% is the same minimal-API-wireup family (`cliArgs == null` exit, non-Testing Serilog branch, outer `catch (Exception)` around `app.Run`) **plus** the defensive outer `catch (Exception)` inside `HandleRegisterEndpointRequestAsync` which guards the whole handler against runtime exceptions that the broker-client's own per-method try/catches already swallow. That defensive catch is essentially unreachable from a unit test and falls under the same plan exclusion as the other minimal-API wireup.
+Delta's Program.cs lands at 89.9%; the remaining ~10% is the same minimal-API-wireup family (`cliArgs == null` exit, non-Testing Serilog branch, outer `catch (Exception)` around `app.Run`) **plus** the defensive outer `catch (Exception)` inside `HandleRegisterEndpointRequestAsync` which guards the whole handler against runtime exceptions that the broker-client's own per-method try/catches already swallow. That defensive catch is essentially unreachable from a unit test and falls under the same plan exclusion as the other minimal-API wireup.
 
 ### Coverage gate (Phase 3 / Task #5406)
 
@@ -137,10 +137,10 @@ This is the same command CI runs, so there's no "what does the YAML do that I ca
 | `vos.Auth.Shared` / `vos.Microservice.Shared` / `vos.Tests.Shared` | 100 | 100 |
 | `vos.Infrastructure` | 98 | 88 |
 | `vos.Application` | 98 | 94 |
-| `vos.ManagedMicroservice.EndpointCaller` | 95 | 91 |
+| `vos.ManagedMicroservice.Tributary` | 95 | 91 |
 | `vos.Core` | 95 | 89 |
 | `vos.CLI` | 94 | 89 |
-| `vos.ManagedMicroservice.IntegrationRegistry` | 94 | 89 |
+| `vos.ManagedMicroservice.Delta` | 94 | 89 |
 | `vos.ManagedMicroservice.Metabolism` | 85 | 81 |
 | `vos.ManagedMicroservice.Echo` | 21 | 45 |
 
@@ -189,8 +189,8 @@ Each could become its own AzDO Task/Bug/Feature. Listed roughly in coverage-delt
 2. **Add direct tests for `vos.Application`** — `VosRelationshipService` handler invocation paths, `VosThingService` relation routing and JSON-fragment shapes.
 3. **Add direct tests for `vos.Infrastructure`** — `ModelStore` concurrency and `VosModelProvider.FromJson` deserialization paths (properties, ranges, bindings, error cases).
 4. **Add `Tests/vos.ManagedMicroservice.Echo.Tests/`** — CLI arg parsing, `BrokerClient` register/deregister, and the `/handle` / `/health` / `/stats` / `/shutdown` endpoints. Mirror the existing microservice test shape.
-5. ~~**Expand `EndpointCaller.Tests`** beyond the broker client — HTTP method dispatch, `TryGetEffectiveProperty` conflict handling, URL/URI validation, response-transform (JSONata), and `ObservationIngestService` parsing.~~ **Delivered** by Phase 2C (Task #5404) — see coverage table.
-6. ~~**Expand `IntegrationRegistry.Tests`** beyond the broker client — `/handle` payload processing and lifecycle wiring.~~ **Delivered** by Phase 2D (Task #5405) — see coverage table.
+5. ~~**Expand `Tributary.Tests`** beyond the broker client — HTTP method dispatch, `TryGetEffectiveProperty` conflict handling, URL/URI validation, response-transform (JSONata), and `ObservationIngestService` parsing.~~ **Delivered** by Phase 2C (Task #5404) — see coverage table.
+6. ~~**Expand `Delta.Tests`** beyond the broker client — `/handle` payload processing and lifecycle wiring.~~ **Delivered** by Phase 2D (Task #5405) — see coverage table.
 7. **Wire `npm ci && npm test`** (and optionally `npm run test:coverage`) into `azure-pipelines.yml` so the GUI suite gates merges.
 8. **Pick one mocking library** (Moq or NSubstitute) and converge the four .NET test projects.
 9. **Decide coverage-gate policy** — enforce a threshold in `coverage.runsettings` / pipeline, or document that the "no coverage drop" rule is reviewer-enforced.
@@ -248,7 +248,7 @@ Concrete test names that would close the gaps above (`MethodOrClass_Scenario_Exp
 - `StatsEndpoint_Get_ReturnsServiceStatsAndHandlerId`
 - `ShutdownEndpoint_AuthEnabled_RequiresAuthorization`
 
-**`vos.ManagedMicroservice.EndpointCaller`** (expand existing project)
+**`vos.ManagedMicroservice.Tributary`** (expand existing project)
 
 - `CallEndpointAsync_GetRequest_WithNoBody_OmitsContentHeader`
 - `CallEndpointAsync_PostRequest_WithJsonBody_SendsContent`

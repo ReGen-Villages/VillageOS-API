@@ -10,7 +10,7 @@
 ## 1. Context — why this doc exists
 
 Every microservice in `VillageOS-API` today
-(`vos.ManagedMicroservice.Echo`, `.EndpointCaller`, `.IntegrationRegistry`,
+(`vos.ManagedMicroservice.Echo`, `.Tributary`, `.Delta`,
 `.Metabolism`) re-implements ~80 lines of host bootstrap, *and* none of
 them implement an idempotent delivery contract on the receive side. That
 is a real source of silent bugs:
@@ -27,10 +27,10 @@ is a real source of silent bugs:
   auto-deregisters after 3 consecutive failures (per
   `MICROSERVICE_GUIDE.md`). Today's services comply with the polling
   rhythm but not with the response envelope — Echo returns
-  `requestsProcessed`, EndpointCaller returns the bare minimum, Metabolism
+  `requestsProcessed`, Tributary returns the bare minimum, Metabolism
   returns five fields. The monitor cannot rely on any field beyond
   `status`.
-- Services that need to send follow-up work (e.g. EndpointCaller posting
+- Services that need to send follow-up work (e.g. Tributary posting
   ingested observations) do so synchronously via `BrokerClientBase` with
   no retry, no buffering, and no visibility into failures.
 
@@ -48,8 +48,8 @@ delivery contract.
 > **Note on naming.** The project is currently named
 > `vos.Microservice.Shared`. As part of this work it is renamed to
 > `vos.ManagedMicroservice.Shared` so its name matches the consumers it
-> exists to serve (`vos.ManagedMicroservice.Echo`, `.EndpointCaller`,
-> `.IntegrationRegistry`, `.Metabolism`). Throughout this doc the new
+> exists to serve (`vos.ManagedMicroservice.Echo`, `.Tributary`,
+> `.Delta`, `.Metabolism`). Throughout this doc the new
 > name is used. The rename is the first step in §6.
 
 `vos.ManagedMicroservice.Shared` (post-rename) already contains
@@ -83,8 +83,8 @@ the project rename).
 
 - The actual `/handle` body and business logic. The shared project does
   **not** ship a base "do my work" class — every service's domain is too
-  different (Echo reads raw bytes; EndpointCaller calls JSONata;
-  IntegrationRegistry walks the broker model; Metabolism runs background
+  different (Echo reads raw bytes; Tributary calls JSONata;
+  Delta walks the broker model; Metabolism runs background
   loops).
 - The concrete `BrokerClient` subclass per service. The base
   (`BrokerClientBase`) already lives here; concrete subclasses with
@@ -166,7 +166,7 @@ already expects.
 
 ### 3.6 Outbound dispatch — `IDeliveryDispatch`
 
-For services that emit follow-up messages (e.g. EndpointCaller posting
+For services that emit follow-up messages (e.g. Tributary posting
 ingested observations, a future audit service fanning out events), expose
 a thin facade:
 
@@ -248,7 +248,7 @@ wires everything.
 inheritance-based. Forcing services into a class hierarchy fights the
 framework, complicates DI registration, and makes the per-service
 `/handle` signature inflexible (Echo reads raw bytes; Metabolism takes a
-record; EndpointCaller takes a different record). Extension methods
+record; Tributary takes a different record). Extension methods
 compose; inheritance would force a single shape on everyone. Recorded
 here so future readers know it was considered.
 
@@ -261,8 +261,8 @@ Per the no-backward-compatibility rule, atomic per-service PRs.
 | 0 | Rename the project from `vos.Microservice.Shared` to `vos.ManagedMicroservice.Shared`: rename folder, `.csproj`, root namespace; update every `using vos.Microservice.Shared…` and every `<ProjectReference>` in the four `vos.ManagedMicroservice.*` projects, the four matching test projects, and the solution file. No behaviour change. | `dotnet build VillageOS-API.sln` clean; `dotnet test` green; `git grep -i "vos\.Microservice\.Shared"` returns no hits. |
 | A | Add the new namespace `vos.ManagedMicroservice.Shared.Delivery` with bootstrap extensions, ACK helpers, dedup middleware, `MicroserviceCliArgs`. No service consumes it yet. | `dotnet build` clean; new unit tests for `Ack.*` and the dedup middleware pass. |
 | B | Migrate Echo (smallest, also the only one that already does lifecycle). Echo's `Program.cs` shrinks to the §3.7 shape. Echo's `Configuration/CliArgs.cs` is deleted. Update `MICROSERVICE_GUIDE.md` code samples in the same PR — the doc must not describe a half-truth. | Existing Echo tests pass; new test asserts duplicate `X-Delivery-Id` returns the cached body. `MICROSERVICE_GUIDE.md` builds cleanly. |
-| C | Migrate IntegrationRegistry, EndpointCaller, Metabolism — one PR each. Each PR also lands the §3.3 ACK status codes for that service's failure modes (e.g. IntegrationRegistry returns `409` when the requested endpoint thing already exists; Metabolism returns `429` when at simulation cap). | Per-service tests updated. |
-| D | `IDeliveryDispatch` lands when a service first needs it (likely EndpointCaller's observation-ingest path). v1 in-process retry implementation. | Contract tests for retry-on-500, no-retry-on-501, no-retry-on-409. |
+| C | Migrate Delta, Tributary, Metabolism — one PR each. Each PR also lands the §3.3 ACK status codes for that service's failure modes (e.g. Delta returns `409` when the requested endpoint thing already exists; Metabolism returns `429` when at simulation cap). | Per-service tests updated. |
+| D | `IDeliveryDispatch` lands when a service first needs it (likely Tributary's observation-ingest path). v1 in-process retry implementation. | Contract tests for retry-on-500, no-retry-on-501, no-retry-on-409. |
 | E | (Optional, future) Persistent `IDeliveryDispatch` variant if a real durability requirement appears. | New impl passes the same contract tests as v1 plus a crash-recovery test. |
 
 ## 7. Cross-repo and dependency posture
@@ -291,8 +291,8 @@ in `MICROSERVICE_GUIDE.md` §"Health Monitoring & Auto-Deregistration":
 }
 ```
 
-This stops the current shape drift across services (Echo, EndpointCaller,
-IntegrationRegistry, and Metabolism each return a different shape today)
+This stops the current shape drift across services (Echo, Tributary,
+Delta, and Metabolism each return a different shape today)
 and gives the broker's monitor a single shape to scrape — without
 breaking the existing `LivenessMonitor`, which only reads `status`.
 
@@ -347,8 +347,8 @@ flowchart LR
 1. **Receive-side dedup cache pluggability.** In-memory only is fine for
    now (single-process services). Pluggable `IDeliveryReceiveCache` is
    planned but the only adapter shipped in v1 is in-memory LRU.
-2. **`/stats` endpoint.** Echo and Metabolism have it; EndpointCaller and
-   IntegrationRegistry don't. Drop it from the standard set, or fold it
+2. **`/stats` endpoint.** Echo and Metabolism have it; Tributary and
+   Delta don't. Drop it from the standard set, or fold it
    into `/health` as `extras`? Recommendation: fold; one less surface.
 3. **Cross-service shared `BrokerClient`?** Each service's `BrokerClient`
    today extends `BrokerClientBase` with service-specific calls
