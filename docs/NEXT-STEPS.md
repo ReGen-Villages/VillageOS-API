@@ -7,7 +7,7 @@ Consolidated backlog from `DELIVERY.md`. Source doc remains authoritative for de
 Add idempotent receive-side delivery contract + shared host bootstrap. Needs a Feature work item; each phase below is a child Bug/Feature with Test Cases.
 
 **Phase 0 — Rename**
-- `vos.Microservice.Shared` → `vos.ManagedMicroservice.Shared`. Folder, csproj, namespace, every `using` + `<ProjectReference>` across services + tests + sln.
+- `vos.ManagedMicroservice.Shared` → `vos.ManagedMicroservice.Shared`. Folder, csproj, namespace, every `using` + `<ProjectReference>` across services + tests + sln.
 
 **Phase A — Add `vos.ManagedMicroservice.Shared.Delivery` namespace**
 - `MicroserviceCliArgs` base + `CliArgsParser.Parse<T>`.

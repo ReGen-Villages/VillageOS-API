@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
-using vos.Microservice.Shared;
+using vos.ManagedMicroservice.Shared;
 
-namespace vos.Microservice.Shared.Tests;
+namespace vos.ManagedMicroservice.Shared.Tests;
 
 // Thin subclass that exposes the protected CreateAuthenticatedClientAsync so the
 // base class's authenticated-client construction can be exercised directly.

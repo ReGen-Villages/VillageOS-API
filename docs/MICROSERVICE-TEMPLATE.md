@@ -11,11 +11,11 @@ vos.ManagedMicroservice.<Name>/
 ├── Configuration/
 │   └── CliArgs.cs           ← record + Parse(string[]) + UsageMessage
 ├── Services/
-│   └── BrokerClient.cs      ← thin subclass of vos.Microservice.Shared.BrokerClientBase
+│   └── BrokerClient.cs      ← thin subclass of vos.ManagedMicroservice.Shared.BrokerClientBase
 └── Program.cs               ← top-level statements: parse args → build app → register endpoints → run
 ```
 
-Project references: `vos.Auth.Shared` (inbound JWT validation) and `vos.Microservice.Shared` (broker client base + validators, plus the dormant contract-validation foundation from Feature #5419 — see [`CONTRACT-VALIDATION.md`](CONTRACT-VALIDATION.md)). The microservice does **not** depend on `vos.Core` or `vos.Application`.
+Project references: `vos.Auth.Shared` (inbound JWT validation) and `vos.ManagedMicroservice.Shared` (broker client base + validators, plus the dormant contract-validation foundation from Feature #5419 — see [`CONTRACT-VALIDATION.md`](CONTRACT-VALIDATION.md)). The microservice does **not** depend on `vos.Core` or `vos.Application`.
 
 ### CliArgs
 
@@ -25,7 +25,7 @@ See `vos.ManagedMicroservice.Echo/Configuration/CliArgs.cs` for the canonical sh
 
 ### BrokerClient
 
-A thin subclass of `vos.Microservice.Shared.BrokerClientBase`. The base class owns:
+A thin subclass of `vos.ManagedMicroservice.Shared.BrokerClientBase`. The base class owns:
 - `HandlerId` (fresh `Guid` per process)
 - `BrokerUrl`
 - `GetTokenAsync()` (uses `--token` if set, otherwise the legacy `/api/auth/token` endpoint)

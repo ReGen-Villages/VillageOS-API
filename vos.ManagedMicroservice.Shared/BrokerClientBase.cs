@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
-namespace vos.Microservice.Shared;
+namespace vos.ManagedMicroservice.Shared;
 
 /// <summary>
 /// Base class for microservice BrokerClients that communicate with the VOS Broker.

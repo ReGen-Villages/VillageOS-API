@@ -1,7 +1,7 @@
 using NJsonSchema;
 using NJsonSchema.Validation;
 
-namespace vos.Microservice.Shared.Contracts.Validation;
+namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
 /// <summary>
 /// Validates JSON payloads against a <see cref="JsonSchema"/> and produces a structured

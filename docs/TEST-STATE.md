@@ -13,7 +13,7 @@ A living snapshot of how unit tests are organized, what's covered, and where the
 | `vos.ManagedMicroservice.Tributary.Tests` | `Tests/vos.ManagedMicroservice.Tributary.Tests/` | NSubstitute + `MockHttpMessageHandler` + `WebApplicationFactory<Program>` | Tributary — `/handle`, `/health`, `/shutdown` endpoints, `BrokerClient`, `ObservationIngestService`, `CliArgs` (post Phase 2C) |
 | `vos.ManagedMicroservice.Delta.Tests` | `Tests/vos.ManagedMicroservice.Delta.Tests/` | NSubstitute + `MockHttpMessageHandler` + `WebApplicationFactory<Program>` | Delta — `/handle`, `/register`, `/health`, `/shutdown` endpoints, `BrokerClient`, `CliArgs`, `LoadEndpointSeed`, compensation logic (post Phase 2D) |
 | `vos.Auth.Shared.Tests` | `Tests/vos.Auth.Shared.Tests/` | None (no mocks needed — pure helpers + extension methods) | `vos.Auth.Shared` (`ServiceTokenValidator`, `HandlerAuthExtensions`, constants) |
-| `vos.Microservice.Shared.Tests` | `Tests/vos.Microservice.Shared.Tests/` | `NullLogger` + `MockHttpMessageHandler` (no mocking-library dependency) | `vos.Microservice.Shared` (`BrokerClientBase` via a thin `TestableBrokerClient` subclass, `HttpMethodValidator`, `RequiredPropertyValidator`) |
+| `vos.ManagedMicroservice.Shared.Tests` | `Tests/vos.ManagedMicroservice.Shared.Tests/` | `NullLogger` + `MockHttpMessageHandler` (no mocking-library dependency) | `vos.ManagedMicroservice.Shared` (`BrokerClientBase` via a thin `TestableBrokerClient` subclass, `HttpMethodValidator`, `RequiredPropertyValidator`) |
 | `vos.Core.Tests` | `Tests/vos.Core.Tests/` | None (pure domain types — no I/O to mock) | All of `vos.Core`: Domain root (`VosModel`, `VosObject`, `VosProperty`, `VosThing`, `VosRelationship`, `TemporalGraphSnapshot` + `TemporalQuery` extensions, `InheritedPropertySet`, `PropertyMode`/`PropertyModeConfiguration`, exceptions, `IfcGeometry`/`LatLng`/`GeoJson`) plus `ExpectedValues/` (criteria DSL parser/lexer, `CriteriaExpr` hierarchy, `RangeBounds` hierarchy, `ExpectedRange`, `DependencyGraph`, `StateIndex`, `StateHistoryTracker`, `RangeEvaluationService` with cycle detection). Files split across `Domain/` and `ExpectedValues/` subfolders. |
 | `vos.Application.Tests` | `Tests/vos.Application.Tests/` | Moq for `IMicroserviceHandler` (handler-invocation paths in `VosRelationshipService`); `NullLogger` elsewhere | `vos.Application` services (`VosObjectService`, `VosThingService`, `VosRelationshipService`, `VosModelService`), `SurfaceThingClassifier`, `JsonValueConverter`, and `SerializationHelpers` (internal — exercised through the Thing/Relationship services' `ToJsonFragment*` methods with full range/binding/inherited-set fixtures). |
 | `vos.Infrastructure.Tests` | `Tests/vos.Infrastructure.Tests/` | None (pure infrastructure types with concrete dependencies) | `vos.Infrastructure` (`ModelStore` concurrency + thread-safety, `VosModelProvider` JSON deserialization including round-trip fixtures, all four `RangeBounds` types, nested inherited property sets, criteria-DSL parsing through `CriteriaParser`, missing-array branches, `ClearModel`). |
@@ -42,7 +42,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 |---|---|---|---|
 | `vos.CLI` | ~96% | ~88% | `vos.CLI.Tests` (Phase 2A, Task #5402): 5 new handler test files (BrokerStatus / User / Model / Seed / State CommandHandler) all at 100%; CommandHandler dispatcher gaps closed; `BrokerClient` refactored with an internal HttpClient-injection ctor + `InternalsVisibleTo` and tested to 99.2% via `MockHttpMessageHandler`. |
 | `vos.ManagedMicroservice.Metabolism` | ~93% pkg-level, every declared source file 95-100% (see WebApplicationFactory note below) | ~81% | `Tests/vos.ManagedMicroservice.Metabolism.Tests/` (Phase 2B, Task #5403) |
-| `vos.Microservice.Shared` | 100% | 100% | `Tests/vos.Microservice.Shared.Tests/` (Phase 1F, Task #5401); previously ~31% as a side effect of the three microservice test runs |
+| `vos.ManagedMicroservice.Shared` | 100% | 100% | `Tests/vos.ManagedMicroservice.Shared.Tests/` (Phase 1F, Task #5401); previously ~31% as a side effect of the three microservice test runs |
 | `vos.ManagedMicroservice.Tributary` | ~95% pkg-level; CliArgs / EndpointCallRequest / ObservationIngestResult 100%, BrokerClient 99.4%, Program 94.3%, ObservationIngestService 89.1% | ~92% | `Tests/vos.ManagedMicroservice.Tributary.Tests/` (Phase 2C, Task #5404). WebApplicationFactory&lt;Program&gt; pattern (see notes). Sub-95% files are Program.cs minimal-API wireup + ObservationIngestService defensive-only branches per the plan's documented exclusion language. |
 | `vos.ManagedMicroservice.Delta` | ~94% pkg-level; CliArgs / RegisterEndpointRequest / BrokerClient 100%, Program 89.9% | ~90% | `Tests/vos.ManagedMicroservice.Delta.Tests/` (Phase 2D, Task #5405). WebApplicationFactory&lt;Program&gt; pattern. Program.cs &lt; 95% is the minimal-API wireup + the defensive outer-catch (`HandleRegisterEndpointRequestAsync` catch wraps the whole handler against runtime exceptions that the broker-client try/catches already swallow) — both excluded by the plan. |
 | `vos.Core` | 95% | 87% | `Tests/vos.Core.Tests/` (Phase 1A; 1A.1 Task #5410 + 1A.2 Task #5411). Most classes 100%; CriteriaParser/Lexer at ~82% (DSL error paths defensive), RangeEvaluationService at ~94% (cycle-detection branches). |
@@ -73,7 +73,7 @@ Watch items:
 4. **Mocking library split.** CLI and Metabolism use Moq; Tributary and Delta use NSubstitute. Small now, friction later for cross-service work.
 5. **Coverage gate is enforced** as of Phase 3 (Task #5406). Per-assembly line + branch thresholds in `azure-pipelines.yml`'s gate step fail the build on regression. See *Coverage gate (Phase 3)* below for the gate shape + how to bump a threshold when coverage improves.
 6. **`docs/DELIVERY.md`** sketches a `vos.ManagedMicroservice.Shared.Delivery` framework with its own test contract (Ack, dedup middleware, lifecycle). Not yet implemented; will reshape the test landscape when it lands.
-7. **`docs/CONTRACT-VALIDATION.md`** describes the JSON Schema registry + validator landed in `vos.Microservice.Shared/Contracts/` (Feature #5419 / Phase 1). Schemas + validator are dormant in Phase 1; `Tests/vos.Microservice.Shared.Contracts.Tests/` exercises them end-to-end (self-validity + positive/negative fixture round-trips). Production coverage rolls into `vos.Microservice.Shared`'s existing 100/100 threshold.
+7. **`docs/CONTRACT-VALIDATION.md`** describes the JSON Schema registry + validator landed in `vos.ManagedMicroservice.Shared/Contracts/` (Feature #5419 / Phase 1). Schemas + validator are dormant in Phase 1; `Tests/vos.ManagedMicroservice.Shared.Contracts.Tests/` exercises them end-to-end (self-validity + positive/negative fixture round-trips). Production coverage rolls into `vos.ManagedMicroservice.Shared`'s existing 100/100 threshold.
 
 ## Notable decisions in test-infrastructure shape
 
@@ -135,7 +135,7 @@ This is the same command CI runs, so there's no "what does the YAML do that I ca
 
 | Assembly | Line | Branch |
 |---|---|---|
-| `vos.Auth.Shared` / `vos.Microservice.Shared` / `vos.Tests.Shared` | 100 | 100 |
+| `vos.Auth.Shared` / `vos.ManagedMicroservice.Shared` / `vos.Tests.Shared` | 100 | 100 |
 | `vos.Infrastructure` | 98 | 88 |
 | `vos.Application` | 98 | 94 |
 | `vos.ManagedMicroservice.Tributary` | 95 | 91 |
@@ -264,7 +264,7 @@ Concrete test names that would close the gaps above (`MethodOrClass_Scenario_Exp
 - `ObservationIngestService_TryParseObservationPayloads_ArrayOfObjects_ParsesEach`
 - `ObservationIngestService_TryParseObservation_MissingNameProperty_ReturnsError`
 
-**`vos.Microservice.Shared.BrokerClientBase`** (shared by all microservice tests; currently covered only as a side effect)
+**`vos.ManagedMicroservice.Shared.BrokerClientBase`** (shared by all microservice tests; currently covered only as a side effect)
 
 - `BrokerClientBase_GetTokenAsync_WithProvidedToken_ReturnsServiceToken`
 - `BrokerClientBase_GetTokenAsync_NoTokenProvidedAndBrokerFails_ReturnsNull`

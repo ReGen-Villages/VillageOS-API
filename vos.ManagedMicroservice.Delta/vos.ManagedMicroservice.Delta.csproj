@@ -12,7 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\vos.Auth.Shared\vos.Auth.Shared.csproj" />
-    <ProjectReference Include="..\vos.Microservice.Shared\vos.Microservice.Shared.csproj" />
+    <ProjectReference Include="..\vos.ManagedMicroservice.Shared\vos.ManagedMicroservice.Shared.csproj" />
   </ItemGroup>
 
 </Project>

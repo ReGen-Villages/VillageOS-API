@@ -2,7 +2,7 @@
 
 JSON Schema (Draft 2020-12) definitions for broker &harr; microservice payloads, plus the runtime that loads and validates against them.
 
-This directory is the source of truth for the wire format of every contract that is stable across services. Each schema has a `$id` URI of the form `https://villageos/contracts/<name>.schema.json` and is embedded as a resource in `vos.Microservice.Shared.dll` (see `vos.Microservice.Shared.csproj`).
+This directory is the source of truth for the wire format of every contract that is stable across services. Each schema has a `$id` URI of the form `https://villageos/contracts/<name>.schema.json` and is embedded as a resource in `vos.ManagedMicroservice.Shared.dll` (see `vos.ManagedMicroservice.Shared.csproj`).
 
 ## Layout
 
@@ -16,7 +16,7 @@ Contracts/
 
 1. Drop the `.schema.json` file under `Schemas/` with a unique `$id`.
 2. Set `additionalProperties: false` on every object subschema (strict by default per project convention).
-3. Add positive and negative fixtures under `Tests/vos.Microservice.Shared.Contracts.Tests/Fixtures/`.
+3. Add positive and negative fixtures under `Tests/vos.ManagedMicroservice.Shared.Contracts.Tests/Fixtures/`.
 4. Run `dotnet test` &mdash; `SchemaSelfValidityTests` will exercise the new schema automatically (file discovery).
 
 ## Adoption posture

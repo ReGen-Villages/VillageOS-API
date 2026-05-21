@@ -1,4 +1,4 @@
-namespace vos.Microservice.Shared.Validation;
+namespace vos.ManagedMicroservice.Shared.Validation;
 
 /// <summary>
 /// Validates supported HTTP methods.

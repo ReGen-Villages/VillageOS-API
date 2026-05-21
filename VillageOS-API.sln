@@ -27,7 +27,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Tri
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Delta", "vos.ManagedMicroservice.Delta\vos.ManagedMicroservice.Delta.csproj", "{7815A567-304B-4F06-80D6-6D4CBE28C597}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Microservice.Shared", "vos.Microservice.Shared\vos.Microservice.Shared.csproj", "{65ED47C1-2B5D-47CB-8755-2B011BA36680}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Shared", "vos.ManagedMicroservice.Shared\vos.ManagedMicroservice.Shared.csproj", "{65ED47C1-2B5D-47CB-8755-2B011BA36680}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Metabolism", "vos.ManagedMicroservice.Metabolism\vos.ManagedMicroservice.Metabolism.csproj", "{451779A4-AFA8-48E2-9343-3009919331ED}"
 EndProject
@@ -37,7 +37,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Tests.Shared", "Tests\v
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Auth.Shared.Tests", "Tests\vos.Auth.Shared.Tests\vos.Auth.Shared.Tests.csproj", "{6D281360-FE67-41D2-AE81-332CA1E415CE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Microservice.Shared.Tests", "Tests\vos.Microservice.Shared.Tests\vos.Microservice.Shared.Tests.csproj", "{806216F3-A0EA-4A1D-8D46-21CB73979E1B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Shared.Tests", "Tests\vos.ManagedMicroservice.Shared.Tests\vos.ManagedMicroservice.Shared.Tests.csproj", "{806216F3-A0EA-4A1D-8D46-21CB73979E1B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Core.Tests", "Tests\vos.Core.Tests\vos.Core.Tests.csproj", "{B3AFA87C-E191-4961-AB0F-807295CD1336}"
 EndProject
@@ -47,7 +47,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Infrastructure.Tests", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Echo.Tests", "Tests\vos.ManagedMicroservice.Echo.Tests\vos.ManagedMicroservice.Echo.Tests.csproj", "{DA70415D-E939-412B-9991-3AB3528BE5CF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Microservice.Shared.Contracts.Tests", "Tests\vos.Microservice.Shared.Contracts.Tests\vos.Microservice.Shared.Contracts.Tests.csproj", "{32A5DBCC-F9D2-42F8-8771-2A4E21EB79F0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Shared.Contracts.Tests", "Tests\vos.ManagedMicroservice.Shared.Contracts.Tests\vos.ManagedMicroservice.Shared.Contracts.Tests.csproj", "{32A5DBCC-F9D2-42F8-8771-2A4E21EB79F0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

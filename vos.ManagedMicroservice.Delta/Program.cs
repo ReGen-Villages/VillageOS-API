@@ -3,7 +3,7 @@ using vos.Auth.Shared;
 using vos.ManagedMicroservice.Delta.Configuration;
 using vos.ManagedMicroservice.Delta.Models;
 using vos.ManagedMicroservice.Delta.Services;
-using vos.Microservice.Shared.Validation;
+using vos.ManagedMicroservice.Shared.Validation;
 using Serilog;
 
 var cliArgs = CliArgs.Parse(args);

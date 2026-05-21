@@ -1,4 +1,4 @@
-using vos.Microservice.Shared;
+using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Echo.Services;
 

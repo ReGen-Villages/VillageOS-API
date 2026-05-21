@@ -1,4 +1,4 @@
-namespace vos.Microservice.Shared.Contracts.Validation;
+namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
 /// <summary>
 /// Marks a DTO with the <c>$id</c> of the JSON Schema that pins its wire format.

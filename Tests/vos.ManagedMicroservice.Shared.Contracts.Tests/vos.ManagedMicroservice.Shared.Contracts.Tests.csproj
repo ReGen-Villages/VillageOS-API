@@ -21,7 +21,7 @@
     <PackageReference Include="FluentAssertions" Version="6.12.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\vos.Microservice.Shared\vos.Microservice.Shared.csproj" />
+    <ProjectReference Include="..\..\vos.ManagedMicroservice.Shared\vos.ManagedMicroservice.Shared.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Fixtures\**\*.json">

@@ -1,8 +1,8 @@
 using FluentAssertions;
-using vos.Microservice.Shared.Validation;
+using vos.ManagedMicroservice.Shared.Validation;
 using Xunit;
 
-namespace vos.Microservice.Shared.Tests.Validation;
+namespace vos.ManagedMicroservice.Shared.Tests.Validation;
 
 public class HttpMethodValidatorTests
 {

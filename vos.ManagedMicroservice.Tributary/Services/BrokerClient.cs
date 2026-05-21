@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using vos.Microservice.Shared;
+using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Tributary.Services;
 

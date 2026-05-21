@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using vos.Microservice.Shared;
+using vos.ManagedMicroservice.Shared;
 using Microsoft.AspNetCore.SignalR.Client;
 
 namespace vos.ManagedMicroservice.Metabolism.Services;

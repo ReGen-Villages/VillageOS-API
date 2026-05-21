@@ -1,4 +1,4 @@
-namespace vos.Microservice.Shared.Contracts.Tests;
+namespace vos.ManagedMicroservice.Shared.Contracts.Tests;
 
 /// <summary>
 /// Locates fixture JSON files copied to the test output directory under

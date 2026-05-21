@@ -4,9 +4,9 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using NJsonSchema;
 
-[assembly: InternalsVisibleTo("vos.Microservice.Shared.Contracts.Tests")]
+[assembly: InternalsVisibleTo("vos.ManagedMicroservice.Shared.Contracts.Tests")]
 
-namespace vos.Microservice.Shared.Contracts.Validation;
+namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
 /// <summary>
 /// Eagerly loads every JSON Schema embedded under <c>Contracts/Schemas/</c> and exposes them by <c>$id</c>.
@@ -14,7 +14,7 @@ namespace vos.Microservice.Shared.Contracts.Validation;
 /// </summary>
 public sealed class SchemaRegistry
 {
-    private const string ResourcePrefix = "vos.Microservice.Shared.Contracts.Schemas.";
+    private const string ResourcePrefix = "vos.ManagedMicroservice.Shared.Contracts.Schemas.";
     private const string ResourceSuffix = ".schema.json";
 
     private readonly Dictionary<string, JsonSchema> _byId;

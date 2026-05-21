@@ -1,8 +1,8 @@
 using FluentAssertions;
-using vos.Microservice.Shared.Contracts.Validation;
+using vos.ManagedMicroservice.Shared.Contracts.Validation;
 using Xunit;
 
-namespace vos.Microservice.Shared.Contracts.Tests;
+namespace vos.ManagedMicroservice.Shared.Contracts.Tests;
 
 /// <summary>
 /// Exercises the internal <see cref="SchemaRegistry"/> constructor that takes raw (resourceName, json)

@@ -1,7 +1,7 @@
 # Contract Validation — Foundation Layer
 
 > **Status:** Phase 1 landed (Feature #5419). The schemas + registry + validator
-> live inside `vos.Microservice.Shared` as a **dormant** library — no production
+> live inside `vos.ManagedMicroservice.Shared` as a **dormant** library — no production
 > code path consumes them yet. Subsequent phases wire the validator into the
 > request pipeline; see *Roadmap* below.
 
@@ -12,9 +12,9 @@ against them. The schemas pin the wire format of the broker ↔ microservice
 payloads that are stable today, so future changes to those payloads become a
 schema diff in code review rather than a silent runtime surprise.
 
-Schemas live under `vos.Microservice.Shared/Contracts/Schemas/` and are
+Schemas live under `vos.ManagedMicroservice.Shared/Contracts/Schemas/` and are
 embedded as resources in the shared assembly. The validator runtime lives in
-`vos.Microservice.Shared/Contracts/Validation/`.
+`vos.ManagedMicroservice.Shared/Contracts/Validation/`.
 
 ## 2. Why now
 
@@ -104,12 +104,12 @@ NJsonSchema's internal `ValidationErrorKind` enum:
 
 ## 5. Adding a schema
 
-1. Drop a `.schema.json` file under `vos.Microservice.Shared/Contracts/Schemas/`
+1. Drop a `.schema.json` file under `vos.ManagedMicroservice.Shared/Contracts/Schemas/`
    with a unique `$id` of the form
    `https://villageos/contracts/<name>.schema.json`.
 2. Set `additionalProperties: false` on every object subschema.
 3. Add fixtures under
-   `Tests/vos.Microservice.Shared.Contracts.Tests/Fixtures/<schema-folder>/`:
+   `Tests/vos.ManagedMicroservice.Shared.Contracts.Tests/Fixtures/<schema-folder>/`:
    - `valid.json` — at least one positive case.
    - `invalid-<reason>.json` — one or more negative cases.
 4. Add the schema id to the positive/negative tables in
@@ -122,10 +122,10 @@ to Draft 2020-12 if NJsonSchema gains support.
 
 ## 6. Tests + coverage
 
-`Tests/vos.Microservice.Shared.Contracts.Tests/` runs alongside the rest of
+`Tests/vos.ManagedMicroservice.Shared.Contracts.Tests/` runs alongside the rest of
 the solution under `dotnet test`. The new assembly is excluded from coverage
 measurement via the existing `ModulePath` filter in `coverage.runsettings`;
-the production code lands under `vos.Microservice.Shared`'s existing
+the production code lands under `vos.ManagedMicroservice.Shared`'s existing
 threshold (100% line, 100% branch — unchanged by Phase 1).
 
 The `LoadEmbeddedRawSchemas` host-side enumeration is marked

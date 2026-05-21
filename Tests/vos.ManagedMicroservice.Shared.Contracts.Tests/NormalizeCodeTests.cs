@@ -1,9 +1,9 @@
 using FluentAssertions;
 using NJsonSchema.Validation;
-using vos.Microservice.Shared.Contracts.Validation;
+using vos.ManagedMicroservice.Shared.Contracts.Validation;
 using Xunit;
 
-namespace vos.Microservice.Shared.Contracts.Tests;
+namespace vos.ManagedMicroservice.Shared.Contracts.Tests;
 
 /// <summary>
 /// Pins the <see cref="SchemaValidator.NormalizeCode"/> dispatch table. The public surface

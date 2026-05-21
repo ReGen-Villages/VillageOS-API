@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using vos.Tests.Shared;
 using Xunit;
 
-namespace vos.Microservice.Shared.Tests;
+namespace vos.ManagedMicroservice.Shared.Tests;
 
 public class BrokerClientBaseTests
 {

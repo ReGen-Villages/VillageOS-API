@@ -4,7 +4,7 @@ using vos.Auth.Shared;
 using vos.ManagedMicroservice.Tributary.Configuration;
 using vos.ManagedMicroservice.Tributary.Models;
 using vos.ManagedMicroservice.Tributary.Services;
-using vos.Microservice.Shared.Validation;
+using vos.ManagedMicroservice.Shared.Validation;
 using Jsonata.Net.Native;
 using Serilog;
 

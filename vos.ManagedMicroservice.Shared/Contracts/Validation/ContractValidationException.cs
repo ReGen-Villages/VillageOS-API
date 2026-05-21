@@ -1,4 +1,4 @@
-namespace vos.Microservice.Shared.Contracts.Validation;
+namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
 /// <summary>
 /// Thrown by <see cref="SchemaValidator.ValidateOrThrow"/> when strict-mode validation fails.

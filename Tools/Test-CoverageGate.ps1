@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Per-assembly coverage gate. Phase 3 / Task #5406.
 
@@ -60,7 +60,7 @@ $thresholds = @{
     'vos.ManagedMicroservice.Echo'                = @{ Line = 21;  Branch = 45 }
     'vos.ManagedMicroservice.Metabolism'          = @{ Line = 85;  Branch = 81 }
     'vos.ManagedMicroservice.Tributary'           = @{ Line = 95;  Branch = 91 }
-    'vos.Microservice.Shared'                     = @{ Line = 100; Branch = 100 }
+    'vos.ManagedMicroservice.Shared'                     = @{ Line = 100; Branch = 100 }
     'vos.Tests.Shared'                            = @{ Line = 100; Branch = 100 }
 }
 

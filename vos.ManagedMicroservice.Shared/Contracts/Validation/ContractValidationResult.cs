@@ -1,4 +1,4 @@
-namespace vos.Microservice.Shared.Contracts.Validation;
+namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
 /// <summary>
 /// Outcome of a <see cref="SchemaValidator"/> call. Immutable; safe to pass across logging boundaries.

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://villageos/contracts/broker-register-request.schema.json",
   "title": "BrokerRegisterRequest",
-  "description": "Payload POSTed to {broker}/api/broker/register by every microservice on ApplicationStarted. Shape derived from vos.Microservice.Shared.BrokerClientBase.RegisterAsync.",
+  "description": "Payload POSTed to {broker}/api/broker/register by every microservice on ApplicationStarted. Shape derived from vos.ManagedMicroservice.Shared.BrokerClientBase.RegisterAsync.",
   "type": "object",
   "additionalProperties": false,
   "required": ["handlerId", "serviceName", "endpointUrl", "startCommand", "stopEndpoint", "healthEndpoint"],

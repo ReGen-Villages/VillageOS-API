@@ -22,7 +22,7 @@
     <PackageReference Include="Moq" Version="4.20.70"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\vos.Microservice.Shared\vos.Microservice.Shared.csproj"/>
+    <ProjectReference Include="..\..\vos.ManagedMicroservice.Shared\vos.ManagedMicroservice.Shared.csproj"/>
     <ProjectReference Include="..\vos.Tests.Shared\vos.Tests.Shared.csproj"/>
   </ItemGroup>
 </Project>

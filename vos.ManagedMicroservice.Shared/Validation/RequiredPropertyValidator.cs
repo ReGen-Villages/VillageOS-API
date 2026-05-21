@@ -1,4 +1,4 @@
-namespace vos.Microservice.Shared.Validation;
+namespace vos.ManagedMicroservice.Shared.Validation;
 
 /// <summary>
 /// Validates that required property keys are present in a provided key set.
