@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://villageos/contracts/broker-register-request.schema.json",
+  "title": "BrokerRegisterRequest",
+  "description": "Payload POSTed to {broker}/api/broker/register by every microservice on ApplicationStarted. Shape derived from vos.Microservice.Shared.BrokerClientBase.RegisterAsync.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["handlerId", "serviceName", "endpointUrl", "startCommand", "stopEndpoint", "healthEndpoint"],
+  "properties": {
+    "handlerId":      { "type": "string", "format": "uuid", "description": "Per-process handler identity (BrokerClientBase.HandlerId)." },
+    "serviceName":    { "type": "string", "minLength": 1, "description": "Logical service name, e.g. 'Echo', 'Tributary'." },
+    "endpointUrl":    { "type": "string", "format": "uri",  "description": "Base URL the broker uses to reach the microservice." },
+    "startCommand":   { "type": "string", "minLength": 1, "description": "Token the broker uses to restart the service." },
+    "stopEndpoint":   { "type": "string", "format": "uri",  "description": "Shutdown endpoint URL." },
+    "healthEndpoint": { "type": "string", "format": "uri",  "description": "Liveness endpoint polled by LivenessMonitor." }
+  }
+}

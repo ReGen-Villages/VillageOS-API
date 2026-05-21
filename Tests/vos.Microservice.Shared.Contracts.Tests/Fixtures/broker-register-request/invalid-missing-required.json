@@ -1,0 +1,7 @@
+{
+  "handlerId": "550e8400-e29b-41d4-a716-446655440000",
+  "serviceName": "Echo",
+  "endpointUrl": "http://localhost:7101",
+  "stopEndpoint": "http://localhost:7101/shutdown",
+  "healthEndpoint": "http://localhost:7101/health"
+}

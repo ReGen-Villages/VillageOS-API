@@ -1,0 +1,5 @@
+{
+  "subjectId": "thing-a",
+  "targetId": "thing-b",
+  "extraField": "should-not-be-here"
+}

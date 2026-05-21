@@ -1,0 +1,8 @@
+{
+  "relationshipId": "11111111-2222-3333-4444-555555555555",
+  "subjectId": "thing-a",
+  "targetId": "thing-b",
+  "subjectName": "Compost Pile",
+  "targetName": "Bacteria Culture",
+  "properties": { "rate": 0.5, "mode": "consumes" }
+}

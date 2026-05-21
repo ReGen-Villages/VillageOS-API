@@ -15,7 +15,7 @@ vos.ManagedMicroservice.<Name>/
 └── Program.cs               ← top-level statements: parse args → build app → register endpoints → run
 ```
 
-Project references: `vos.Auth.Shared` (inbound JWT validation) and `vos.Microservice.Shared` (broker client base + validators). The microservice does **not** depend on `vos.Core` or `vos.Application`.
+Project references: `vos.Auth.Shared` (inbound JWT validation) and `vos.Microservice.Shared` (broker client base + validators, plus the dormant contract-validation foundation from Feature #5419 — see [`CONTRACT-VALIDATION.md`](CONTRACT-VALIDATION.md)). The microservice does **not** depend on `vos.Core` or `vos.Application`.
 
 ### CliArgs
 

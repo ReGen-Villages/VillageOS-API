@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://villageos/contracts/relationship-property-changed-event.schema.json",
+  "title": "RelationshipPropertyChangedEvent",
+  "description": "Arguments tuple of the SignalR hub method 'RelationshipPropertyChanged' as serialized in the JSON Hub Protocol arguments array. Shape derived from vos.ManagedMicroservice.Metabolism.Services.BrokerClient.OnRelationshipPropertyChanged (Guid, string, object?). Authored against Draft 7 because NJsonSchema's runtime validator does not fully implement Draft 2020-12 'prefixItems'.",
+  "type": "array",
+  "minItems": 3,
+  "maxItems": 3,
+  "items": [
+    { "type": "string", "format": "uuid", "description": "RelationshipId." },
+    { "type": "string", "minLength": 1, "description": "Property name." },
+    { "description": "New property value; intentionally untyped." }
+  ],
+  "additionalItems": false
+}

@@ -73,6 +73,7 @@ Watch items:
 4. **Mocking library split.** CLI and Metabolism use Moq; Tributary and Delta use NSubstitute. Small now, friction later for cross-service work.
 5. **Coverage gate is enforced** as of Phase 3 (Task #5406). Per-assembly line + branch thresholds in `azure-pipelines.yml`'s gate step fail the build on regression. See *Coverage gate (Phase 3)* below for the gate shape + how to bump a threshold when coverage improves.
 6. **`docs/DELIVERY.md`** sketches a `vos.ManagedMicroservice.Shared.Delivery` framework with its own test contract (Ack, dedup middleware, lifecycle). Not yet implemented; will reshape the test landscape when it lands.
+7. **`docs/CONTRACT-VALIDATION.md`** describes the JSON Schema registry + validator landed in `vos.Microservice.Shared/Contracts/` (Feature #5419 / Phase 1). Schemas + validator are dormant in Phase 1; `Tests/vos.Microservice.Shared.Contracts.Tests/` exercises them end-to-end (self-validity + positive/negative fixture round-trips). Production coverage rolls into `vos.Microservice.Shared`'s existing 100/100 threshold.
 
 ## Notable decisions in test-infrastructure shape
 

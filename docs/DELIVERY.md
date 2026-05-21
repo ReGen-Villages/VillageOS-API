@@ -126,6 +126,14 @@ This contract is owned by the shared project — it is *what microservices
 promise to mean*. Any future caller (admin tools, test harnesses, a
 hypothetical future dispatcher) opts in by following it.
 
+> **Schema layer.** The Ack envelope and request payloads it acknowledges will
+> be pinned by JSON Schema once DELIVERY.md is implemented. The schema
+> registry and validator already exist in
+> `vos.Microservice.Shared/Contracts/` (Feature #5419 / Phase 1) — see
+> [`CONTRACT-VALIDATION.md`](CONTRACT-VALIDATION.md). Phase 2 of contract
+> validation is what wires the validator into the middleware that produces
+> these Ack codes.
+
 ### 3.4 Receive-side dedup — `UseDeliveryReceive`
 
 A middleware sits before the routing pipeline:
