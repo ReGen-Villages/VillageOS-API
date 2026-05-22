@@ -5,12 +5,10 @@
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
           <Format>cobertura</Format>
-          <ExcludeByFile>
-            <!-- Minimal-API wireup. Program.cs in microservices is exercised by integration tests, not unit tests. -->
-            <File>**/vos.ManagedMicroservice.*/Program.cs</File>
-            <!-- Shared test infrastructure. Not production code. -->
-            <File>**/Tests/vos.Tests.Shared/**/*.cs</File>
-          </ExcludeByFile>
+          <!-- Source-file exclusions. coverlet's XPlat data collector expects a single
+               comma-separated string here, NOT nested <File> elements (Phase 0 / Task #5395
+               shipped the nested form which was silently ignored; fixed under Task #5435). -->
+          <ExcludeByFile>**/vos.ManagedMicroservice.Echo/Program.cs,**/vos.ManagedMicroservice.Delta/Program.cs,**/vos.ManagedMicroservice.Tributary/Program.cs,**/vos.ManagedMicroservice.Metabolism/Program.cs,**/Tests/vos.Tests.Shared/**/*.cs</ExcludeByFile>
           <ExcludeByAttribute>
             <!-- Auto-generated / compiler synthesised code. -->
             <Attribute>System.CodeDom.Compiler.GeneratedCodeAttribute</Attribute>
