@@ -27,6 +27,11 @@ variables:
   testResultsDirectory: '$(Agent.TempDirectory)/TestResults'
 
 steps:
+# Full-history checkout so Tools/Test-CoverageGate.ps1 can compute
+# `git merge-base origin/develop HEAD` (Feature #5433 / Task #5434).
+- checkout: self
+  fetchDepth: 0
+
 - task: UseDotNet@2
   displayName: 'Install .NET SDK'
   inputs:
@@ -68,12 +73,12 @@ steps:
     summaryFileLocation: '$(testResultsDirectory)/**/coverage.cobertura.xml'
   condition: succeededOrFailed()
 
-# Phase 3 / Task #5406 — per-assembly coverage gate. Logic + thresholds live in
-# Tools/Test-CoverageGate.ps1 so the same command runs locally (`pwsh ...`) and in CI.
-# See docs/TEST-STATE.md > "Coverage gate (Phase 3 / Task #5406)" for the design + how
-# to raise a threshold or add a new assembly.
+# Feature #5433 / Task #5434 — diff coverage gate. Measures patch coverage on the
+# PR's added/modified executable lines against an 85% threshold. Replaces the Phase 3
+# per-assembly absolute-threshold gate (Task #5406). The same command runs locally.
+# See docs/TEST-STATE.md > "Coverage gate" for the design.
 - task: PowerShell@2
-  displayName: 'Coverage Gate (per-assembly no-regression)'
+  displayName: 'Coverage Gate (diff coverage)'
   condition: succeeded()
   inputs:
     filePath: 'Tools/Test-CoverageGate.ps1'

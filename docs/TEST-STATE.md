@@ -71,7 +71,7 @@ Watch items:
 2. **`vos.ManagedMicroservice.Echo` has no test project.** Every other ManagedMicroservice has one.
 3. **GUI tests are not in CI.** The Vitest suite and Puppeteer e2e provide no merge-gate signal.
 4. **Mocking library split.** CLI and Metabolism use Moq; Tributary and Delta use NSubstitute. Small now, friction later for cross-service work.
-5. **Coverage gate is enforced** as of Phase 3 (Task #5406). Per-assembly line + branch thresholds in `azure-pipelines.yml`'s gate step fail the build on regression. See *Coverage gate (Phase 3)* below for the gate shape + how to bump a threshold when coverage improves.
+5. **Coverage gate is enforced** as of Feature #5433 (Task #5434). Diff coverage on the PR's added/modified executable lines against an 85% threshold, computed by `Tools/Test-CoverageGate.ps1`. Replaced the Phase 3 per-assembly absolute-threshold gate (Task #5406) which produced false failures on dev because coverage measurement is noisy across environments. See *Coverage gate* below for the shape + tuning.
 6. **`docs/DELIVERY.md`** sketches a `vos.ManagedMicroservice.Shared.Delivery` framework with its own test contract (Ack, dedup middleware, lifecycle). Not yet implemented; will reshape the test landscape when it lands.
 7. **`docs/CONTRACT-VALIDATION.md`** describes the JSON Schema registry + validator landed in `vos.ManagedMicroservice.Shared/Contracts/` (Feature #5419 / Phase 1). Schemas + validator are dormant in Phase 1; `Tests/vos.ManagedMicroservice.Shared.Contracts.Tests/` exercises them end-to-end (self-validity + positive/negative fixture round-trips). Production coverage rolls into `vos.ManagedMicroservice.Shared`'s existing 100/100 threshold.
 
@@ -92,7 +92,7 @@ Two minimal production-code changes were needed to make this work cleanly (the a
 
 **Why**: the documented choice was already `WebApplicationFactory<Program>` per the plan and template — the alternative (an inline `WebApplication` + `TestServer`, which I'd initially considered) would have deviated without a strong reason, and `vos.Mycelium`'s existing pattern proved the approach works in this org's .NET 10 / coverage-collector setup. Documenting here so 2C / 2D / future microservices follow the same shape.
 
-**Coverage measurement note (Bug #5260 family)**: `reportgenerator` aggregates package-level coverage by averaging across declared source classes AND compiler-generated nested types (async state machines, lambda closures). The `[CompilerGenerated]` exclusion in `coverage.runsettings` filters them at coverlet level but their entries persist in the Cobertura XML — so the pkg-level number understates the real source coverage. For Metabolism after Phase 2B: every declared source file is at 95-100% line coverage, but the pkg-level report reads ~93% because async-state-machine partial coverage drags the average. The same caveat applies to any microservice that uses `async` heavily. Phase 3 (coverage gate enforcement) should either tighten the runsettings exclusions or compute thresholds on a per-source-file basis rather than pkg-average.
+**Coverage measurement note (Bug #5260 family)**: `reportgenerator` aggregates package-level coverage by averaging across declared source classes AND compiler-generated nested types (async state machines, lambda closures). The `[CompilerGenerated]` exclusion in `coverage.runsettings` filters them at coverlet level but their entries persist in the Cobertura XML — so the pkg-level number understates the real source coverage. For Metabolism after Phase 2B: every declared source file is at 95-100% line coverage, but the pkg-level report reads ~93% because async-state-machine partial coverage drags the average. The same caveat applies to any microservice that uses `async` heavily. Under the diff-coverage gate (Task #5434) this no longer affects the gate signal — the gate folds duplicate `<line>` entries by max-hits, so one hit anywhere counts as covered; only the displayed snapshot percentages here are still affected.
 
 **SignalR hub callbacks excluded**: `vos.ManagedMicroservice.Metabolism/Services/BrokerClient.cs` has two SignalR callback bodies (the `RelationshipPropertyChanged` handler and the `Reconnected` handler). They only fire when a real broker hub delivers events — out of unit-test scope. Refactored into named methods (`HandleRelationshipPropertyChanged`, `HandleReconnected`) with `[ExcludeFromCodeCoverage]`, which `coverage.runsettings` already honors via `ExcludeByAttribute`.
 
@@ -116,9 +116,9 @@ Phase 2D (PR open against Task #5405) applied the same shape to `vos.ManagedMicr
 
 Delta's Program.cs lands at 89.9%; the remaining ~10% is the same minimal-API-wireup family (`cliArgs == null` exit, non-Testing Serilog branch, outer `catch (Exception)` around `app.Run`) **plus** the defensive outer `catch (Exception)` inside `HandleRegisterEndpointRequestAsync` which guards the whole handler against runtime exceptions that the broker-client's own per-method try/catches already swallow. That defensive catch is essentially unreachable from a unit test and falls under the same plan exclusion as the other minimal-API wireup.
 
-### Coverage gate (Phase 3 / Task #5406)
+### Coverage gate (Feature #5433 / Task #5434)
 
-`azure-pipelines.yml` enforces per-assembly line + branch coverage thresholds by invoking `Tools/Test-CoverageGate.ps1` after `dotnet test`. The script runs `reportgenerator` to merge the per-project Cobertura XMLs into one, parses the `<package>` elements, and compares each assembly's `line-rate` and `branch-rate` against an inline hashtable. Any drop below threshold fails the build.
+`azure-pipelines.yml` enforces a **diff coverage** gate by invoking `Tools/Test-CoverageGate.ps1` after `dotnet test`. The script merges per-project Cobertura XMLs via `reportgenerator`, parses `git diff --unified=0 $(git merge-base origin/develop HEAD)..HEAD`, and intersects the PR's added/modified lines with `<line hits=...>` entries in the merged Cobertura. Patch coverage below the threshold (default 85%) fails the build.
 
 The same script runs locally:
 
@@ -127,37 +127,32 @@ dotnet test --collect:"XPlat Code Coverage" --settings coverage.runsettings --re
 pwsh Tools/Test-CoverageGate.ps1 -Reports "TestResults/local/**/coverage.cobertura.xml" -MergeOutput "TestResults/local/coverage-report"
 ```
 
-This is the same command CI runs, so there's no "what does the YAML do that I can't reproduce locally" gap.
+Same command CI runs — no "what does the YAML do that I can't reproduce locally" gap.
 
-**Gate shape: per-assembly, no-regression.** Each assembly's threshold is set at its develop-tip value when the gate was first enabled, **rounded down to the nearest integer percent**. A sub-1pp fluctuation won't trip CI; a real regression will. The gate doesn't *push* anything upward — it locks in the current state. Per-class enforcement and aggressive `[ExcludeFromCodeCoverage]` annotations were considered and explicitly deferred so the gate's behavior matches what existing code already does (no production-code churn to ship the gate).
+**Gate shape: patch coverage, single threshold.** A changed line counts toward the gate's denominator only if it has a `<line>` entry in the merged Cobertura. That naturally drops:
 
-**Initial thresholds** (line / branch, integer percent — these are what's in the YAML; regenerate the baseline before raising):
+- Braces, comments, blank lines — coverlet doesn't emit `<line>` entries for non-executable lines.
+- Files excluded via `coverage.runsettings` `ExcludeByFile` (e.g. `**/vos.ManagedMicroservice.*/Program.cs` minimal-API wireup).
+- Test-project sources (excluded by `ExcludeByModulePath` in runsettings).
+- Pure deletions, binary-file changes, and rename-without-edit — no `+` lines in the diff.
 
-| Assembly | Line | Branch |
-|---|---|---|
-| `vos.Auth.Shared` / `vos.ManagedMicroservice.Shared` / `vos.Tests.Shared` | 100 | 100 |
-| `vos.Infrastructure` | 98 | 88 |
-| `vos.Application` | 98 | 94 |
-| `vos.ManagedMicroservice.Tributary` | 95 | 91 |
-| `vos.Core` | 95 | 89 |
-| `vos.CLI` | 94 | 89 |
-| `vos.ManagedMicroservice.Delta` | 94 | 89 |
-| `vos.ManagedMicroservice.Metabolism` | 85 | 81 |
-| `vos.ManagedMicroservice.Echo` | 21 | 45 |
+A docs-only PR (no executable .NET changes) hits a clean "no executable changes to gate" pass branch.
 
-**How to raise a threshold.** Coverage improves → update the hashtable in `Tools/Test-CoverageGate.ps1` in the same PR that lands the test work. The gate is single-source-of-truth: there's no separate baseline file to forget. Reviewers can see the new threshold and the tests that justify it in one diff.
+**Why this replaced the Phase 3 per-assembly thresholds (Task #5406).** The old gate baked dev-tip percentages into `Tools/Test-CoverageGate.ps1` as per-assembly absolute thresholds. CI on `windows-latest` reproduced them; the maintainer's dev box did not, because coverage measurement is noisy across environments — parallel xUnit ordering, env-var leakage between tests sharing a collection, stale `TestResults/` artefacts merged into reruns. The gate produced false failures locally with no real regression. Diff coverage is environment-independent: only changed lines are measured, so noise in unchanged code is invisible to the gate.
 
-**How to add a new assembly.** New `vos.X.Tests/` project lands → on the next CI run the gate emits a warning ("no threshold for assembly 'vos.X'") and passes that assembly. The PR that adds the new test project should also add the new assembly's row to the hashtable using the freshly-measured per-assembly numbers, rounded down.
+**Tuning the threshold.** The default is 85%, set in the script's `param()` block. To raise it, pass `-Threshold 90` (or higher) when invoking the script, and bake the new value into the CI step's `arguments`. There's no per-assembly knob — a single number applies to whatever the PR touched.
 
-**Known coverage-measurement artifact.** `reportgenerator` aggregates package coverage by averaging across declared source classes AND compiler-generated nested types (async state machines, lambda closures). The `[CompilerGenerated]` attribute exclusion in `coverage.runsettings` filters them at coverlet level but their entries persist in the Cobertura XML — so the package-level numbers the gate checks understate real source coverage on async-heavy assemblies. `vos.ManagedMicroservice.Metabolism` is the clearest case: every declared source file is at 95-100% line coverage, but the package reads 85.5% because async-state-machine partial coverage drags the average. The gate threshold for Metabolism (85) reflects that artifact rather than its actual source-file quality. If the runsettings exclusions are tightened later, regenerate the baseline and raise the threshold in the same PR.
+**Adding a new assembly.** Nothing to do. The first time a new assembly's source is touched, the gate measures coverage of those changed lines against the same threshold.
 
-**Why per-assembly + no-regression instead of stricter shapes** — captured here for the next time this comes up:
+**Local invocation tips.**
 
-- *Per-class enforcement* would catch drift inside an assembly that per-assembly averaging masks, but it requires explicit `[ExcludeFromCodeCoverage]` on every wireup branch we've documented as untestable. That's production-code churn for marginal coverage signal. Deferred.
-- *Universal 95% line floor* would force immediate work on Echo (21%) and Metabolism (85%) — useful as a forcing function but blocks unrelated PRs until the gap is closed. The Echo gap is already tracked in Watch item #2; the gate doesn't need to be the reminder.
-- *No gate at all* — what we had through Phase 2. Worked while a single reviewer was holding the line; doesn't scale.
+- Use `--results-directory TestResults/local` (or any fresh dir) when running `dotnet test` so prior runs' Cobertura XMLs aren't merged into the current run. Stale artefacts in `TestResults/` were a meaningful source of fluctuation under the old gate; the new gate inherits the same input pipe.
+- The gate uses `origin/develop` as the base ref by default. If you're working off a different upstream, pass `-BaseRef origin/main` (or similar). CI fetches full history (`fetchDepth: 0`) so this resolves correctly there.
+- Pure-deletion PRs (e.g. removing dead code) pass with "no executable changes to gate" because the diff has no `+` lines.
 
-The per-assembly no-regression shape is the smallest gate that catches silent drops on unrelated PRs without forcing production-code annotations or blocking work on documented gaps.
+**Async-state-machine artefact** *(carried over from Phase 3 because it still matters at the line-hit level)*. coverlet emits multiple `<line>` entries for the same source line when async state machines + lambda closures expand into compiler-generated types. The gate folds duplicates by taking the max `hits` value across all entries for a given `(file, line)`, so one hit anywhere = the line counts as covered. The artefact no longer drags package averages because the gate doesn't read package averages.
+
+**Total-coverage signal.** Not gated. Still computed and published as the Cobertura artefact by the pipeline; reviewers can inspect it but it doesn't fail the build.
 
 ### Test-driven development as the working convention (Phase 4 / Task #5407)
 
