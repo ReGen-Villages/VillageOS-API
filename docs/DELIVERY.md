@@ -45,14 +45,7 @@ delivery contract.
 
 ## 3. Recommendation — extend `vos.ManagedMicroservice.Shared`
 
-> **Note on naming.** The project is currently named
-> `vos.ManagedMicroservice.Shared`. As part of this work it is renamed to
-> `vos.ManagedMicroservice.Shared` so its name matches the consumers it
-> exists to serve (`vos.ManagedMicroservice.Echo`, `.Tributary`,
-> `.Delta`, `.Metabolism`). Throughout this doc the new
-> name is used. The rename is the first step in §6.
-
-`vos.ManagedMicroservice.Shared` (post-rename) already contains
+`vos.ManagedMicroservice.Shared` already contains
 `BrokerClientBase.cs` plus two small validators (`HttpMethodValidator`,
 `RequiredPropertyValidator`), and is referenced by every
 `vos.ManagedMicroservice.*` project. That makes it the natural home for
@@ -62,8 +55,7 @@ rule "if all microservices need it, it lives here" applies.
 
 A new namespace inside the project — `vos.ManagedMicroservice.Shared.Delivery` —
 groups the new surface; the existing files (`BrokerClientBase`,
-validators) stay where they are (with their namespace updated to match
-the project rename).
+validators) stay where they are.
 
 ### 3.1 What gets added
 
@@ -126,13 +118,16 @@ This contract is owned by the shared project — it is *what microservices
 promise to mean*. Any future caller (admin tools, test harnesses, a
 hypothetical future dispatcher) opts in by following it.
 
-> **Schema layer.** The Ack envelope and request payloads it acknowledges will
-> be pinned by JSON Schema once DELIVERY.md is implemented. The schema
-> registry and validator already exist in
-> `vos.ManagedMicroservice.Shared/Contracts/` (Feature #5419 / Phase 1) — see
-> [`CONTRACT-VALIDATION.md`](CONTRACT-VALIDATION.md). Phase 2 of contract
-> validation is what wires the validator into the middleware that produces
-> these Ack codes.
+> **Schema layer.** The schema registry, validator, and request-pipeline
+> middleware all exist today: Feature #5419 (Phase 1) landed the registry +
+> validator; Feature #5426 (Phase 2) landed
+> `app.UseRequestContractValidation()` + `endpoint.RequireContract<T>()` and
+> wired them into Metabolism's `/handle`. Today the middleware returns a
+> generic `{ schemaId, errors[] }` envelope on schema failure; when the Ack
+> contract here ships, that response shape becomes `Ack.Refused(...)` (the
+> 501 kind, since a schema violation is by definition non-retryable). That
+> migration is a one-line change inside the middleware's failure path — no
+> per-service work needed. See [`CONTRACT-VALIDATION.md`](CONTRACT-VALIDATION.md).
 
 ### 3.4 Receive-side dedup — `UseDeliveryReceive`
 
@@ -208,9 +203,11 @@ var builder = WebApplication.CreateBuilder(rawArgs)
     .AddMicroserviceLogging(serviceName: "MyService")
     .AddMicroserviceAuth(args.SigningKey)
     .AddMicroserviceBrokerClient<MyBrokerClient>(args);
+builder.Services.AddContractValidation();   // landed in Phase 2 (Feature #5426)
 
 var app = builder.Build()
     .UseBrokerAuth()
+    .UseRequestContractValidation()         // landed in Phase 2 (Feature #5426)
     .UseDeliveryReceive()
     .UseBrokerLifecycle(serviceName: "MyService", startCommand: "endpoint-service");
 
@@ -219,6 +216,7 @@ app.MapStandardEndpoints("MyService");
 app.MapPost("/handle", async (MyRequest req, MyBrokerClient broker) =>
     await MyService.HandleAsync(req, broker))
    .RequireBrokerAuth()
+   .RequireContract<MyRequest>()             // landed in Phase 2 (Feature #5426)
    .RequireDeliveryId();
 
 app.Run();
@@ -266,7 +264,6 @@ Per the no-backward-compatibility rule, atomic per-service PRs.
 
 | Phase | What happens | Verifies |
 |---|---|---|
-| 0 | Rename the project from `vos.ManagedMicroservice.Shared` to `vos.ManagedMicroservice.Shared`: rename folder, `.csproj`, root namespace; update every `using vos.ManagedMicroservice.Shared…` and every `<ProjectReference>` in the four `vos.ManagedMicroservice.*` projects, the four matching test projects, and the solution file. No behaviour change. | `dotnet build VillageOS-API.sln` clean; `dotnet test` green; `git grep -i "vos\.Microservice\.Shared"` returns no hits. |
 | A | Add the new namespace `vos.ManagedMicroservice.Shared.Delivery` with bootstrap extensions, ACK helpers, dedup middleware, `MicroserviceCliArgs`. No service consumes it yet. | `dotnet build` clean; new unit tests for `Ack.*` and the dedup middleware pass. |
 | B | Migrate Echo (smallest, also the only one that already does lifecycle). Echo's `Program.cs` shrinks to the §3.7 shape. Echo's `Configuration/CliArgs.cs` is deleted. Update `MICROSERVICE_GUIDE.md` code samples in the same PR — the doc must not describe a half-truth. | Existing Echo tests pass; new test asserts duplicate `X-Delivery-Id` returns the cached body. `MICROSERVICE_GUIDE.md` builds cleanly. |
 | C | Migrate Delta, Tributary, Metabolism — one PR each. Each PR also lands the §3.3 ACK status codes for that service's failure modes (e.g. Delta returns `409` when the requested endpoint thing already exists; Metabolism returns `429` when at simulation cap). | Per-service tests updated. |

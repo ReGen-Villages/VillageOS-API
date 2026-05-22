@@ -2,6 +2,7 @@ using vos.Auth.Shared;
 using vos.ManagedMicroservice.Metabolism.Configuration;
 using vos.ManagedMicroservice.Metabolism.Endpoints;
 using vos.ManagedMicroservice.Metabolism.Services;
+using vos.ManagedMicroservice.Shared.Middleware;
 using Serilog;
 
 var cliArgs = CliArgs.Parse(args);
@@ -53,6 +54,7 @@ try
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
+    builder.Services.AddContractValidation();
 
     // Add JWT auth if broker provided a signing key. Bug #5391: use the
     // issuer/audience the broker passes via CLI so validation matches what
@@ -72,12 +74,19 @@ try
     var requestCount = 0;
     var app = builder.Build();
 
+    // UseRouting is required before middleware that inspects endpoint metadata
+    // (RequestContractValidationMiddleware reads ContractValidationMetadata via
+    // context.GetEndpoint()). WebApplication auto-inserts UseEndpoints at the end.
+    app.UseRouting();
+
     // Enable auth middleware when signing key is configured
     if (!string.IsNullOrEmpty(signingKey))
     {
         app.UseAuthentication();
         app.UseAuthorization();
     }
+
+    app.UseRequestContractValidation();
 
     // Initialize services
     var httpClientFactory = app.Services.GetRequiredService<IHttpClientFactory>();

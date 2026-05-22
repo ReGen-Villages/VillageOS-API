@@ -1,5 +1,6 @@
 using vos.ManagedMicroservice.Metabolism.Models;
 using vos.ManagedMicroservice.Metabolism.Services;
+using vos.ManagedMicroservice.Shared.Middleware;
 using Serilog;
 
 namespace vos.ManagedMicroservice.Metabolism.Endpoints;
@@ -52,6 +53,7 @@ public static class EndpointMapper
                 return Results.Problem($"Failed to register simulation: {ex.Message}", statusCode: 500);
             }
         });
+        handleEndpoint.RequireContract<HandleRequest>();
         if (authEnabled) handleEndpoint.RequireAuthorization();
 
         // GET /simulations - List all active simulations

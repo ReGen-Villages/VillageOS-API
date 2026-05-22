@@ -1,9 +1,11 @@
 # Contract Validation — Foundation Layer
 
-> **Status:** Phase 1 landed (Feature #5419). The schemas + registry + validator
-> live inside `vos.ManagedMicroservice.Shared` as a **dormant** library — no production
-> code path consumes them yet. Subsequent phases wire the validator into the
-> request pipeline; see *Roadmap* below.
+> **Status:** Phase 1 (Feature #5419) and Phase 2 (Feature #5426) have landed.
+> The schemas + registry + validator live inside `vos.ManagedMicroservice.Shared`;
+> the request-pipeline middleware (`UseRequestContractValidation()` +
+> `RequireContract<T>()`) is wired into `vos.ManagedMicroservice.Metabolism`'s
+> `/handle` endpoint as the first adopter. Remaining phases extend adoption
+> outward; see *Roadmap* below.
 
 ## 1. What this is
 
@@ -23,9 +25,10 @@ hand-typed again in the broker repo. There is no machine-readable contract;
 drift is invisible until a runtime error or silent field loss. The fix isn't
 "add error handling" — it's making the wire format itself the contract.
 
-This phase introduces only the artifacts and the validator. Adoption is a
-deliberate later phase so the foundation can be reviewed independently of any
-behaviour change.
+Phase 1 introduced only the artifacts and the validator. Phase 2 wired them
+into request middleware so a malformed `/handle` payload is rejected with a
+structured `{schemaId, errors[]}` envelope before the handler runs — adoption
+is per-service via `RequireContract<T>()` on opted-in routes.
 
 ## 3. Schemas in scope (Phase 1)
 
@@ -140,9 +143,9 @@ Each phase is its own Feature work item with child Tasks. No code is shared
 across phases beyond what already exists; each phase adopts the foundation in
 one well-defined direction.
 
-| Phase | Wires the validator into… | Notes |
+| Phase | Wires the validator into… | Status / Notes |
 |---|---|---|
-| 2 | Inbound `/handle` middleware (`app.UseRequestContractValidation()`) | Schema-violation → `400` matching the Ack envelope from `docs/DELIVERY.md §3.3`. |
+| 2 | Inbound `/handle` middleware (`app.UseRequestContractValidation()` + `endpoint.RequireContract<T>()`) | **Landed (Feature #5426).** Schema-violation → `400 { schemaId, errors[] }`. Adopted by Metabolism; other microservices opt in by tagging their request DTO with `[ContractSchema]` and adding `RequireContract<T>()` to the route. |
 | 3 | Outbound `BrokerClientBase` calls | Debug = throw, Release = log+metric, so a missing schema never blocks production. |
 | 4 | SignalR receive-side in Metabolism | Validates `RelationshipPropertyChanged` events; malformed events surface as a typed event rather than throwing into the SignalR pipeline. |
 | 5 | GUI runtime validation | TS types generated from the same schemas; opt-in dev-only validation. |

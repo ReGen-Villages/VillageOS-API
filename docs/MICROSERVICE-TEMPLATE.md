@@ -17,7 +17,7 @@ vos.ManagedMicroservice.<Name>/
 └── Program.cs               ← top-level statements: parse args → build app → register endpoints → run
 ```
 
-Project references: `vos.Auth.Shared` (inbound JWT validation) and `vos.ManagedMicroservice.Shared` (broker client base + validators, plus the dormant contract-validation foundation from Feature #5419 — see [`CONTRACT-VALIDATION.md`](CONTRACT-VALIDATION.md)). The microservice does **not** depend on `vos.Core` or `vos.Application`.
+Project references: `vos.Auth.Shared` (inbound JWT validation) and `vos.ManagedMicroservice.Shared` (broker client base + validators, plus the contract-validation foundation and request-pipeline middleware from Feature #5419 / Feature #5426 — see [`CONTRACT-VALIDATION.md`](CONTRACT-VALIDATION.md)). The microservice does **not** depend on `vos.Core` or `vos.Application`.
 
 ### CliArgs
 
@@ -70,11 +70,15 @@ Every microservice's `Program.cs`:
 2. Configures Serilog file logging under `logs/<service>-.log`.
 3. Calls `WebApplication.CreateBuilder(args)`.
 4. If `--signingKey` was supplied, calls `builder.AddBrokerTokenAuth(signingKey, issuer, audience)`.
-5. Registers a singleton `BrokerClient`.
-6. Maps **POST `/handle`**, **GET `/health`**, **GET `/stats`**, **POST `/shutdown`**.
-7. Wires `ApplicationStarted` to call `BrokerClient.RegisterAsync(port)` (best-effort; broker can also discover via `/health`).
-8. Wires `ApplicationStopping` to call `BrokerClient.DeregisterAsync()`.
-9. `app.Run()`.
+5. Calls `builder.Services.AddContractValidation()` to register the schema registry + validator.
+6. Registers a singleton `BrokerClient`.
+7. Calls `app.UseRouting()`, then `app.UseRequestContractValidation()` (after auth if auth is enabled). The middleware reads `ContractValidationMetadata` off the matched endpoint, so it must run after `UseRouting` and before endpoint dispatch.
+8. Maps **POST `/handle`**, **GET `/health`**, **GET `/stats`**, **POST `/shutdown`**. Each request DTO that has a JSON Schema is tagged `[ContractSchema("<$id>")]`; its route calls `.RequireContract<TRequest>()` to opt in to validation.
+9. Wires `ApplicationStarted` to call `BrokerClient.RegisterAsync(port)` (best-effort; broker can also discover via `/health`).
+10. Wires `ApplicationStopping` to call `BrokerClient.DeregisterAsync()`.
+11. `app.Run()`.
+
+The contract-validation wiring is the canonical reference in `vos.ManagedMicroservice.Metabolism/Program.cs` + `Endpoints/EndpointMapper.cs` (Feature #5426). Adopting it in a new microservice is three local edits: `AddContractValidation()`, `UseRequestContractValidation()`, and `.RequireContract<HandleRequest>()` on the route.
 
 ## Test-project shape
 

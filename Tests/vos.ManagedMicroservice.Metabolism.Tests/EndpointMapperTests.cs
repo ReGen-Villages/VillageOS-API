@@ -125,11 +125,12 @@ public class EndpointMapperTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Handle_MissingSubjectAndTargetIds_ReturnsBadRequestWithProcessorError()
+    public async Task Handle_MissingSubjectAndTargetIds_ReturnsBadRequestFromContractMiddleware()
     {
-        // HandleRequest with empty subjectId/targetId — HandleRequestProcessor.ProcessHandle
-        // returns "Missing required fields: subjectId and targetId are required", and the
-        // lambda wraps it in Results.BadRequest(new { error }).
+        // After Task #5429 wired UseRequestContractValidation() into Metabolism, empty
+        // subjectId/targetId trip the schema's minLength:1 rule and the middleware rejects
+        // the request before HandleRequestProcessor runs. Response is the contract envelope
+        // {schemaId, errors[]} rather than the legacy {error} from the processor.
         var response = await _client.PostAsJsonAsync("/handle", new
         {
             relationshipId = Guid.NewGuid().ToString(),
@@ -140,8 +141,9 @@ public class EndpointMapperTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        body.TryGetProperty("error", out var err).Should().BeTrue();
-        err.GetString().Should().Contain("subjectId");
+        body.TryGetProperty("errors", out var errors).Should().BeTrue();
+        errors.EnumerateArray().Should().Contain(e =>
+            e.GetProperty("path").GetString()!.Contains("subjectId"));
     }
 
     // ---- GET /simulations ----
