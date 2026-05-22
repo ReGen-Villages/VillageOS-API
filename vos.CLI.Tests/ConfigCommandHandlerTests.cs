@@ -229,4 +229,28 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Error:", output);
         Assert.Contains("Connection refused", output);
     }
+
+    // ========== Named-arg parsing (moved from CoverageGapTests under Task #5437) ==========
+
+    [Fact]
+    public async Task Execute_DefaultModeRingBufferWithSize_ParsesNamedArg()
+    {
+        _brokerMock.Setup(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null))
+            .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
+
+        await ExecuteHandler("mode ringbuffer --ringbuffer=50");
+
+        _brokerMock.Verify(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task Execute_DefaultModeSampledWithRate_ParsesNamedArg()
+    {
+        _brokerMock.Setup(b => b.SetDefaultPropertyModeAsync("sampled", null, 100))
+            .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
+
+        await ExecuteHandler("mode sampled --samplerate=100");
+
+        _brokerMock.Verify(b => b.SetDefaultPropertyModeAsync("sampled", null, 100), Times.Once);
+    }
 }

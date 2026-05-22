@@ -159,4 +159,75 @@ public class ConsoleOptionsTests
             Environment.SetEnvironmentVariable("VOS_BROKER_URL", originalValue);
         }
     }
+
+    // ========== Env-var precedence (moved from CoverageGapTests under Task #5437) ==========
+
+    [Fact]
+    public void Parse_VosBrokerUrlEnvVar_OverridesDefault()
+    {
+        var original = Environment.GetEnvironmentVariable("VOS_BROKER_URL");
+        try
+        {
+            Environment.SetEnvironmentVariable("VOS_BROKER_URL", "https://custom-broker:9000");
+            var options = ConsoleOptions.Parse(Array.Empty<string>());
+            Assert.Equal("https://custom-broker:9000", options.BrokerUrl);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VOS_BROKER_URL", original);
+        }
+    }
+
+    [Fact]
+    public void Parse_VosApiKeyEnvVar_PopulatesApiKey()
+    {
+        var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
+        try
+        {
+            Environment.SetEnvironmentVariable("VOS_API_KEY", "test-api-key-from-env");
+            var options = ConsoleOptions.Parse(Array.Empty<string>());
+            Assert.Equal("test-api-key-from-env", options.ApiKey);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VOS_API_KEY", original);
+        }
+    }
+
+    [Fact]
+    public void Parse_DefaultsApplyWhenNeitherEnvNorArgs()
+    {
+        var origUrl = Environment.GetEnvironmentVariable("VOS_BROKER_URL");
+        var origKey = Environment.GetEnvironmentVariable("VOS_API_KEY");
+        try
+        {
+            Environment.SetEnvironmentVariable("VOS_BROKER_URL", null);
+            Environment.SetEnvironmentVariable("VOS_API_KEY", null);
+            var options = ConsoleOptions.Parse(Array.Empty<string>());
+            Assert.Equal("https://localhost:7243", options.BrokerUrl);
+            Assert.Null(options.ApiKey);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VOS_BROKER_URL", origUrl);
+            Environment.SetEnvironmentVariable("VOS_API_KEY", origKey);
+        }
+    }
+
+    [Fact]
+    public void Parse_CommandLineArgs_OverrideEnvVars()
+    {
+        var origUrl = Environment.GetEnvironmentVariable("VOS_BROKER_URL");
+        try
+        {
+            Environment.SetEnvironmentVariable("VOS_BROKER_URL", "https://from-env:9000");
+            var options = ConsoleOptions.Parse(new[] { "--broker-url=https://from-cli:8000", "--api-key=clikey" });
+            Assert.Equal("https://from-cli:8000", options.BrokerUrl);
+            Assert.Equal("clikey", options.ApiKey);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VOS_BROKER_URL", origUrl);
+        }
+    }
 }

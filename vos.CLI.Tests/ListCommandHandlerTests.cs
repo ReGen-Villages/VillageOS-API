@@ -595,4 +595,42 @@ public class ListCommandHandlerTests
     }
 
     #endregion
+
+    #region Nested-inheritance traversal (moved from CoverageGapTests under Task #5437)
+
+    [Fact]
+    public async Task ListThings_NestedInheritedProperties_TraversesAllLevels()
+    {
+        // A thing with nested InheritedProperties.<sourceId>.Inherited.<deeperId>.Properties
+        // exercises PushNestedInheritance + GetSourceName recursion. The assertion pins that
+        // both the immediate parent and the nested grandparent surface in the rendered output.
+        var json = """
+        [{
+          "Id": "00000000-0000-0000-0000-000000000001",
+          "Name": "child",
+          "Properties": {},
+          "InheritedProperties": {
+            "00000000-0000-0000-0000-000000000002": {
+              "SourceName": "parent",
+              "Properties": { "p1": { "value": "v1" } },
+              "Inherited": {
+                "00000000-0000-0000-0000-000000000003": {
+                  "SourceName": "grandparent",
+                  "Properties": { "g1": { "value": "v2" } }
+                }
+              }
+            }
+          }
+        }]
+        """;
+        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonDocument.Parse(json).RootElement);
+
+        await ExecuteHandler("things");
+
+        var output = _writer.ToString();
+        Assert.Contains("parent", output);
+        Assert.Contains("grandparent", output);
+    }
+
+    #endregion
 }

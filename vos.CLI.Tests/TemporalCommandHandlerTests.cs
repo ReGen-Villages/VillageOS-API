@@ -331,4 +331,21 @@ public class TemporalCommandHandlerTests
     }
 
     #endregion
+
+    #region Snapshot no-timestamp path (moved from CoverageGapTests under Task #5437)
+
+    [Fact]
+    public async Task Snapshot_NoTimestamp_PassesNullToBroker()
+    {
+        // Pins the contract that `snapshot` without a trailing timestamp arg routes
+        // through ParseOptionalTimestamp's null branch and calls GetModelAtTimeAsync(null).
+        _brokerMock.Setup(b => b.GetModelAtTimeAsync(null))
+            .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
+
+        await ExecuteHandler("snapshot", _brokerMock.Object);
+
+        _brokerMock.Verify(b => b.GetModelAtTimeAsync(null), Times.AtLeastOnce);
+    }
+
+    #endregion
 }
