@@ -12,6 +12,8 @@ vos.ManagedMicroservice.<Name>/
 │   └── CliArgs.cs           ← record + Parse(string[]) + UsageMessage
 ├── Services/
 │   └── BrokerClient.cs      ← thin subclass of vos.ManagedMicroservice.Shared.BrokerClientBase
+├── Helpers/                 ← optional: pure functions extracted from Program.cs
+│   └── <Name>.cs            ← static class, no AspNetCore dependency, fully unit-tested
 └── Program.cs               ← top-level statements: parse args → build app → register endpoints → run
 ```
 
@@ -47,6 +49,19 @@ public class BrokerClient : BrokerClientBase
         => RegisterAsync(port, "Echo", "endpoint-service");
 }
 ```
+
+### Helpers (pure logic out of Program.cs)
+
+When `Program.cs` accumulates inline static helpers — JSON-element coercion, dictionary lookups, file-loading with fallback paths, value-normalization switches — extract them into `vos.ManagedMicroservice.<Name>/Helpers/<Name>.cs` as a static class. This pulls the testable surface off the WebApplicationFactory integration-test path and onto fast unit tests that assert returned values directly.
+
+Worked examples from Feature #5433 / Task #5436:
+
+- `vos.ManagedMicroservice.Delta/Helpers/JsonValueCoercion.cs` — `CoerceToString(object?)`, `TryGetPropertyValue(IDictionary, string, out object?)`, `TryGetStringProperty(IDictionary, string, out string?)`. Every `JsonValueKind` arm + case-insensitive lookup pinned in `Tests/.../Helpers/JsonValueCoercionTests.cs`.
+- `vos.ManagedMicroservice.Delta/Helpers/EndpointSeedLoader.cs` — `Load(IEnumerable<string>, ILogger)` takes candidate paths as a parameter so tests use real temp files (cheap, no I/O mock); `LoadDefault(ILogger)` wraps with the canonical three paths.
+- `vos.ManagedMicroservice.Metabolism/Helpers/JsonValueUnwrapper.cs` — `Unwrap(object?)` maps `JsonElement` to native CLR types with `int → long → decimal` width escalation.
+- `vos.ManagedMicroservice.Tributary/Helpers/EffectivePropertyResolver.cs` — `TryGetEffectiveProperty` with exact-match-preempts-suffix precedence and a `conflicts` list for ambiguous suffixes.
+
+What stays in `Program.cs`: DI registration, middleware order, route mapping, lifetime callbacks, endpoint lambdas with thin call-through bodies. Composition, not logic. The `coverage.runsettings` exclusion of `Program.cs` is honest after the extraction; before it, real testable code hid behind the exclusion.
 
 ### Program.cs (the same five endpoints + lifecycle)
 
@@ -139,7 +154,7 @@ Microservices with more substantial business logic (e.g. Metabolism's simulation
 
 Phase 1 acceptance for each microservice test project: **≥95% line on `CliArgs` + `BrokerClient` + any `<Service>Tests.cs` business-logic class**. `Program.cs` is excluded by `coverage.runsettings` (integration-test territory; see CLAUDE.md note about minimal-API wireup).
 
-> **Known issue (Phase 3 to-do):** the `<ExcludeByFile>` glob in `coverage.runsettings` uses forward slashes (`**/vos.ManagedMicroservice.*/Program.cs`), but cobertura emits Windows-style backslashed paths (`vos.ManagedMicroservice.Echo\Program.cs`). The exclusion does not match on Windows, so reports will list `Program` at 0%. Filter via `reportgenerator -classfilters:'-Program'` until Phase 3 fixes the runsettings glob.
+> **Note:** the original wildcard `**/vos.ManagedMicroservice.*/Program.cs` was silently ignored because Phase 0 used nested `<File>` elements inside `<ExcludeByFile>` — coverlet's XPlat data collector expects a single comma-separated string. Fixed under Feature #5433 / Task #5435 with explicit per-microservice paths. New microservices need to add their own `Program.cs` to the comma-separated list in `coverage.runsettings`.
 
 ## Adding a new microservice
 

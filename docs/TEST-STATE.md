@@ -111,7 +111,7 @@ Tributary's Program.cs lands at 94.3% (sub-95%); the remaining ~6% is the `cliAr
 
 Phase 2D (PR open against Task #5405) applied the same shape to `vos.ManagedMicroservice.Delta` (then named `vos.ManagedMicroservice.IntegrationRegistry`) with one new wrinkle worth noting for future microservice work:
 
-- **`Tests/vos.ManagedMicroservice.Delta.Tests/DeltaWebApplicationFactory.cs`** writes a synthetic `seed.json` into `AppContext.BaseDirectory` in `InitializeAsync` and deletes it in `DisposeAsync`. `Program.cs`'s `LoadEndpointSeed` helper throws `InvalidOperationException` at host construction if no `seed.json` is found on any of its three candidate paths — and per CLAUDE.md "Seed files (`*.seed.json`, `seed.json`, `seeds/`) are runtime data and gitignored", so the file is never present in the test process's bin folder by default. The factory exposes a `SeedJson` string property that tests can override before `InitializeAsync` (used by `CoverageGapTests.MalformedSeedFactory` to drive the parse-failure catch + the final throw).
+- **`Tests/vos.ManagedMicroservice.Delta.Tests/DeltaWebApplicationFactory.cs`** writes a synthetic `seed.json` into `AppContext.BaseDirectory` in `InitializeAsync` and deletes it in `DisposeAsync`. `EndpointSeedLoader.LoadDefault` (extracted from Program.cs under Task #5436) throws `InvalidOperationException` at host construction if no `seed.json` is found on any of its three candidate paths — and per CLAUDE.md "Seed files (`*.seed.json`, `seed.json`, `seeds/`) are runtime data and gitignored", so the file is never present in the test process's bin folder by default. The factory exposes a `SeedJson` string property that tests can override before `InitializeAsync`; `Tests/.../EndpointSeedBootTests.cs` uses it inline (`new DeltaWebApplicationFactory { SeedJson = "{ malformed" }`) to pin the host-construction failure contract.
 - Same `partial class Program {}` + Testing-env Serilog guard + `DELTA_*` env-var fallback as the other two microservices, including the `PerCallHttpClientFactory` from Phase 2C.
 
 Delta's Program.cs lands at 89.9%; the remaining ~10% is the same minimal-API-wireup family (`cliArgs == null` exit, non-Testing Serilog branch, outer `catch (Exception)` around `app.Run`) **plus** the defensive outer `catch (Exception)` inside `HandleRegisterEndpointRequestAsync` which guards the whole handler against runtime exceptions that the broker-client's own per-method try/catches already swallow. That defensive catch is essentially unreachable from a unit test and falls under the same plan exclusion as the other minimal-API wireup.
@@ -167,9 +167,30 @@ Every code change in this repo follows TDD — write the failing test first, run
 - Bug regressions: `Bug<N>_<Scenario>` (pre-existing — kept).
 - Everything else: `MethodOrClass_Scenario_ExpectedOutcome` (matches the existing test corpus across all the .NET test projects above).
 
-**Relationship to the coverage gate.** The gate (Phase 3) and TDD (Phase 4) are complementary, not redundant. The gate catches numeric regressions: a PR that drops a package's `line-rate` below threshold fails CI. TDD catches *design-quality* regressions that pass the gate: features added with tests written after-the-fact tend to test what the code does rather than what the code should do, which the gate can't see. Shipping them together means the gate is the floor (no silent drops) and TDD is the working method that keeps the actual coverage well above the floor.
+**Relationship to the coverage gate.** The gate (diff coverage, Feature #5433 / Task #5434) and TDD (Phase 4 / Task #5407) are complementary, not redundant. The gate catches numeric regressions: a PR whose patch coverage falls below the threshold fails CI. TDD catches *design-quality* regressions that pass the gate: features added with tests written after-the-fact tend to test what the code does rather than what the code should do, which the gate can't see. Shipping them together means the gate is the floor (no untested changed lines) and TDD is the working method that keeps the actual coverage well above the floor.
 
 **Why this is documented in TEST-STATE.md as well as CLAUDE.md.** `CLAUDE.md` is gitignored per-developer in this repo, so the TDD section there propagates only to whoever has it locally. `docs/TEST-STATE.md` is tracked, mirrored to the AzDO wiki, and read by reviewers — adding the convention here makes it a contract reviewers can hold PRs to (test commits should precede or be visibly bundled with implementation commits; `git log` order is the verification surface).
+
+### Test-quality convention (Feature #5433 / Task #5437)
+
+Every test must encode an **observable contract**: if production code is broken in a way callers can detect, the test must fail. Tests whose only assertion is `NotThrow()`, substring-matches on help-text or error-message strings, or pins down a specific switch arm / early-return without checking what came out are the anti-pattern. They contribute to coverage percentages but pin implementation details — they break on refactors that preserve behaviour, and they pass on regressions that break behaviour.
+
+The retired-under-Task-#5437 `CoverageGapTests.cs` corpus is the worked example of the anti-pattern. Concrete signals the triage caught:
+
+- File or test named for the metric or branch it raises (`CoverageGapTests`, `*_TakesEarlyReturn*`, `*_HitsCatchBlock*`).
+- Theory or `[Fact]` whose body is one `NotThrow()` call.
+- Substring assertion on a string the production code generates (help text, error message format) where the test doesn't care about the rest of the contract.
+- Comments naming production-file line numbers (e.g. `// (lines 137, 151-155, 159-163)`). Line numbers rot the first time anyone reformats the file.
+
+When a test asserts an outcome a refactor must preserve (return value, exception type, exception message, observable side effect, state change), it belongs in a file named for the unit-under-test. When a test exists only to make a number go up, delete it.
+
+### EnvVarScope for env-var-mutating tests (Task #5437)
+
+Tests that need to set process environment variables (e.g. Delta/Tributary auth-wireup tests that need `<SERVICE>_SIGNING_KEY` set before host construction) use the `EnvVarScope` IDisposable defined in each microservice's test project. The scope sets vars in its constructor and restores their prior values on `Dispose`. Use it with `using var env = new EnvVarScope(("X", "v"), ...)` inside the test body.
+
+The retired pattern — a subclass of the WebApplicationFactory that `new`-shadowed `InitializeAsync`/`DisposeAsync` to layer env-var setup on top of the base — looks correct but breaks under `await using` dispatch: `IAsyncDisposable.DisposeAsync()` lands on the base `WebApplicationFactory<T>` method, skipping both layers of env-var cleanup. The leak then bleeds into the next test in the collection.
+
+Lifted to `vos.Tests.Shared` is the natural next step when a third service needs it; until then it's duplicated locally in `Tests/vos.ManagedMicroservice.Delta.Tests/EnvVarScope.cs` and `Tests/vos.ManagedMicroservice.Tributary.Tests/EnvVarScope.cs`.
 
 ## Open production issues surfaced by tests
 
