@@ -1,6 +1,6 @@
-using System.Text.Json;
 using vos.Auth.Shared;
 using vos.ManagedMicroservice.Delta.Configuration;
+using vos.ManagedMicroservice.Delta.Helpers;
 using vos.ManagedMicroservice.Delta.Models;
 using vos.ManagedMicroservice.Delta.Services;
 using vos.ManagedMicroservice.Shared.Validation;
@@ -76,7 +76,7 @@ try
             serviceToken));
 
     var app = builder.Build();
-    var endpointSeed = LoadEndpointSeed(app.Services.GetRequiredService<ILogger<BrokerClient>>());
+    var endpointSeed = EndpointSeedLoader.LoadDefault(app.Services.GetRequiredService<ILogger<BrokerClient>>());
 
     if (authEnabled)
     {
@@ -165,10 +165,10 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
             });
         }
 
-        if (!TryGetStringProperty(request.Properties, "url", out var url) || string.IsNullOrWhiteSpace(url))
+        if (!JsonValueCoercion.TryGetStringProperty(request.Properties, "url", out var url) || string.IsNullOrWhiteSpace(url))
             return Results.BadRequest(new { error = "Endpoint url must be a non-empty string." });
 
-        if (!TryGetStringProperty(request.Properties, "httpMethod", out var method) || string.IsNullOrWhiteSpace(method))
+        if (!JsonValueCoercion.TryGetStringProperty(request.Properties, "httpMethod", out var method) || string.IsNullOrWhiteSpace(method))
             return Results.BadRequest(new { error = "Endpoint httpMethod must be a non-empty string." });
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out _))
@@ -268,86 +268,6 @@ static async Task CompensateAsync(BrokerClient brokerClient, Guid thingId)
     var deleted = await brokerClient.DeleteThingAsync(thingId);
     if (!deleted)
         Log.Error("Compensation failed: could not delete orphaned thing {ThingId}", thingId);
-}
-
-static RegisterEndpointRequest LoadEndpointSeed(Microsoft.Extensions.Logging.ILogger logger)
-{
-    var candidatePaths = new[]
-    {
-        Path.Combine(AppContext.BaseDirectory, "seed.json"),
-        Path.Combine(Directory.GetCurrentDirectory(), "seed.json"),
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "seed.json")
-    };
-
-    foreach (var candidate in candidatePaths.Select(Path.GetFullPath))
-    {
-        if (!File.Exists(candidate))
-            continue;
-
-        try
-        {
-            var content = File.ReadAllText(candidate);
-            var seed = JsonSerializer.Deserialize<RegisterEndpointRequest>(content, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
-            if (seed != null && !string.IsNullOrWhiteSpace(seed.Name))
-                return seed;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to parse seed file {Path}", candidate);
-        }
-    }
-
-    throw new InvalidOperationException("Could not load a valid Endpoint seed from seed.json.");
-}
-
-static bool TryGetStringProperty(Dictionary<string, object> properties, string name, out string? value)
-{
-    value = null;
-    if (!TryGetPropertyValue(properties, name, out var raw))
-        return false;
-
-    value = CoerceToString(raw);
-    return true;
-}
-
-static bool TryGetPropertyValue(Dictionary<string, object> properties, string name, out object? value)
-{
-    if (properties.TryGetValue(name, out value))
-        return true;
-
-    foreach (var entry in properties)
-    {
-        if (string.Equals(entry.Key, name, StringComparison.OrdinalIgnoreCase))
-        {
-            value = entry.Value;
-            return true;
-        }
-    }
-
-    value = null;
-    return false;
-}
-
-static string? CoerceToString(object? value)
-{
-    if (value is JsonElement element)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number => element.GetRawText(),
-            JsonValueKind.True => "true",
-            JsonValueKind.False => "false",
-            JsonValueKind.Null => null,
-            _ => element.ToString()
-        };
-    }
-
-    return value?.ToString();
 }
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/MICROSERVICE-TEMPLATE.md.

@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
+using vos.ManagedMicroservice.Metabolism.Helpers;
 using vos.ManagedMicroservice.Metabolism.Models;
 
 namespace vos.ManagedMicroservice.Metabolism.Services;
@@ -135,7 +135,7 @@ public class Metabolism
                 return;
 
             // SignalR delivers values as JsonElement — unwrap to native types
-            var value = UnwrapJsonElement(newValue);
+            var value = JsonValueUnwrapper.Unwrap(newValue);
 
             var old = entry.Config;
             SimulationConfig? updated = null;
@@ -163,23 +163,6 @@ public class Metabolism
                 relationshipId, propertyName, value);
             Register(updated);
         }
-    }
-
-    /// <summary>Unwrap JsonElement to native CLR type (SignalR sends object? as JsonElement).</summary>
-    private static object? UnwrapJsonElement(object? value)
-    {
-        if (value is not JsonElement je) return value;
-        return je.ValueKind switch
-        {
-            JsonValueKind.Number when je.TryGetInt32(out var i) => i,
-            JsonValueKind.Number when je.TryGetInt64(out var l) => l,
-            JsonValueKind.Number => je.GetDecimal(),
-            JsonValueKind.String => je.GetString(),
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            JsonValueKind.Null => null,
-            _ => je.GetRawText()
-        };
     }
 
     public bool Cancel(string relationshipId)

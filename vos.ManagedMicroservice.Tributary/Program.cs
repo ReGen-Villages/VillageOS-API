@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using vos.Auth.Shared;
 using vos.ManagedMicroservice.Tributary.Configuration;
+using vos.ManagedMicroservice.Tributary.Helpers;
 using vos.ManagedMicroservice.Tributary.Models;
 using vos.ManagedMicroservice.Tributary.Services;
 using vos.ManagedMicroservice.Shared.Validation;
@@ -144,8 +145,8 @@ try
         List<string>? methodConflicts = null;
         List<string>? transformConflicts = null;
 
-        if (!TryGetEffectiveProperty(effective, "url", out var urlElement, out urlConflicts) ||
-            !TryGetEffectiveProperty(effective, "httpMethod", out var methodElement, out methodConflicts))
+        if (!EffectivePropertyResolver.TryGetEffectiveProperty(effective, "url", out var urlElement, out urlConflicts) ||
+            !EffectivePropertyResolver.TryGetEffectiveProperty(effective, "httpMethod", out var methodElement, out methodConflicts))
         {
             if (urlConflicts != null || methodConflicts != null)
             {
@@ -167,7 +168,7 @@ try
         }
 
         string? responseTransform = null;
-        if (TryGetEffectiveProperty(effective, "responseTransform", out var transformElement, out transformConflicts))
+        if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, "responseTransform", out var transformElement, out transformConflicts))
         {
             responseTransform = transformElement.ValueKind == JsonValueKind.String
                 ? transformElement.GetString()
@@ -320,39 +321,6 @@ static async Task<(int StatusCode, string Body, string? ContentType)> CallEndpoi
     var content = await response.Content.ReadAsStringAsync();
     var contentType = response.Content.Headers.ContentType?.ToString();
     return ((int)response.StatusCode, content, contentType);
-}
-
-static bool TryGetEffectiveProperty(
-    Dictionary<string, JsonElement> properties,
-    string name,
-    out JsonElement value,
-    out List<string>? conflicts)
-{
-    conflicts = null;
-    if (properties.TryGetValue(name, out value))
-        return true;
-
-    var matches = new List<string>();
-    foreach (var entry in properties)
-    {
-        var key = entry.Key;
-        var lastDot = key.LastIndexOf('.');
-        var suffix = lastDot >= 0 ? key[(lastDot + 1)..] : key;
-        if (string.Equals(suffix, name, StringComparison.OrdinalIgnoreCase))
-            matches.Add(key);
-    }
-
-    if (matches.Count == 1)
-    {
-        value = properties[matches[0]];
-        return true;
-    }
-
-    if (matches.Count > 1)
-        conflicts = matches;
-
-    value = default;
-    return false;
 }
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/MICROSERVICE-TEMPLATE.md.
