@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using NJsonSchema;
 using NJsonSchema.Validation;
 
@@ -31,6 +32,25 @@ public sealed class SchemaValidator
         var result = Validate(json, schema);
         if (!result.IsValid)
             throw new ContractValidationException(schemaId, result);
+    }
+
+    /// <summary>
+    /// Validates <paramref name="json"/> against <paramref name="schema"/>; on failure emits a
+    /// single <see cref="LogLevel.Warning"/> entry naming the schema, error count, and the
+    /// first error's path/code/message. Never throws on a validation failure -- pairs with
+    /// <see cref="ValidateOrThrow"/> so callers can pick a policy explicitly. Used by Release
+    /// builds of <c>BrokerClientBase</c> to keep production traffic flowing past stale schemas.
+    /// </summary>
+    public void ValidateForLog(string json, JsonSchema schema, string schemaId, ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        var result = Validate(json, schema);
+        if (result.IsValid) return;
+
+        var first = result.Errors[0];
+        logger.LogWarning(
+            "Contract violation against {SchemaId}: {ErrorCount} error(s); first: {Path} [{Code}] {Message}",
+            schemaId, result.Errors.Count, first.Path, first.Code, first.Message);
     }
 
     private static void FlattenInto(ValidationError error, List<ContractValidationError> sink)

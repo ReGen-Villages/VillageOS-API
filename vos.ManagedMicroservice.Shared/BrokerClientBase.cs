@@ -1,7 +1,9 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using vos.ManagedMicroservice.Shared.Contracts.Validation;
 
 namespace vos.ManagedMicroservice.Shared;
 
@@ -12,12 +14,48 @@ namespace vos.ManagedMicroservice.Shared;
 /// </summary>
 public abstract class BrokerClientBase
 {
+    private const string BrokerRegisterRequestSchemaId = "https://villageos/contracts/broker-register-request.schema.json";
+    private const string TokenResponseSchemaId = "https://villageos/contracts/token-response.schema.json";
+
+    // Schemas are eagerly loaded once per process. SchemaRegistry's ctor parses every embedded
+    // schema and fails closed on duplicate/missing $id, so first access on a misconfigured
+    // assembly throws -- but happens at most once.
+    private static readonly Lazy<SchemaRegistry> _registry = new(() => new SchemaRegistry());
+    private static readonly SchemaValidator _validator = new();
+
     protected readonly IHttpClientFactory HttpClientFactory;
     protected readonly ILogger Logger;
     public string BrokerUrl { get; }
     private readonly string? _serviceToken;
 
     public Guid HandlerId { get; } = Guid.NewGuid();
+
+    /// <summary>
+    /// Failure policy for outbound contract violations. Debug builds throw to surface
+    /// schema drift immediately during development; Release builds log and let the
+    /// request through so a stale schema never blocks production traffic. Test
+    /// subclasses override this property to pin both paths deterministically.
+    /// </summary>
+    protected virtual SchemaViolationMode OutboundViolationMode =>
+#if DEBUG
+        SchemaViolationMode.Throw;
+#else
+        SchemaViolationMode.Log;
+#endif
+
+    private void ValidateOutbound(string json, string schemaId)
+    {
+        var schema = _registry.Value.Get(schemaId);
+        switch (OutboundViolationMode)
+        {
+            case SchemaViolationMode.Throw:
+                _validator.ValidateOrThrow(json, schema, schemaId);
+                break;
+            case SchemaViolationMode.Log:
+                _validator.ValidateForLog(json, schema, schemaId, Logger);
+                break;
+        }
+    }
 
     protected BrokerClientBase(IHttpClientFactory httpClientFactory, ILogger logger, string brokerUrl, string? serviceToken = null)
     {
@@ -37,6 +75,7 @@ public abstract class BrokerClientBase
         if (!string.IsNullOrEmpty(_serviceToken))
             return _serviceToken;
 
+        string body;
         try
         {
             var client = HttpClientFactory.CreateClient();
@@ -45,12 +84,27 @@ public abstract class BrokerClientBase
             var response = await client.PostAsync($"{BrokerUrl}/api/auth/token", null);
             response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-            return result.GetProperty("token").GetString();
+            body = await response.Content.ReadAsStringAsync();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to get token from broker");
+            return null;
+        }
+
+        // Validation runs outside the network try/catch so contract violations are not
+        // swallowed: Throw mode propagates ContractValidationException to the caller;
+        // Log mode warns and falls through to best-effort parse.
+        ValidateOutbound(body, TokenResponseSchemaId);
+
+        try
+        {
+            var result = JsonSerializer.Deserialize<JsonElement>(body);
+            return result.GetProperty("token").GetString();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to parse token from broker response");
             return null;
         }
     }
@@ -70,21 +124,30 @@ public abstract class BrokerClientBase
     /// <summary>Registers this service with the broker.</summary>
     public async Task<bool> RegisterAsync(int port, string serviceName, string startCommand)
     {
+        var registration = new
+        {
+            handlerId = HandlerId,
+            serviceName,
+            endpointUrl = $"http://localhost:{port}",
+            startCommand,
+            stopEndpoint = $"http://localhost:{port}/shutdown",
+            healthEndpoint = $"http://localhost:{port}/health"
+        };
+
+        var json = JsonSerializer.Serialize(registration);
+
+        // Validate the outbound payload before any network call. Throw mode fails fast in
+        // dev; Log mode warns and lets the request through so production never blocks on
+        // stale schemas. Schema-violation exceptions intentionally propagate past the
+        // network try/catch below.
+        ValidateOutbound(json, BrokerRegisterRequestSchemaId);
+
         try
         {
             var client = await CreateAuthenticatedClientAsync();
-
-            var registration = new
-            {
-                handlerId = HandlerId,
-                serviceName,
-                endpointUrl = $"http://localhost:{port}",
-                startCommand,
-                stopEndpoint = $"http://localhost:{port}/shutdown",
-                healthEndpoint = $"http://localhost:{port}/health"
-            };
-
-            var response = await client.PostAsJsonAsync($"{BrokerUrl}/api/broker/register", registration);
+            var response = await client.PostAsync(
+                $"{BrokerUrl}/api/broker/register",
+                new StringContent(json, Encoding.UTF8, "application/json"));
 
             if (response.IsSuccessStatusCode)
             {

@@ -1,11 +1,13 @@
 # Contract Validation — Foundation Layer
 
-> **Status:** Phase 1 (Feature #5419) and Phase 2 (Feature #5426) have landed.
-> The schemas + registry + validator live inside `vos.ManagedMicroservice.Shared`;
-> the request-pipeline middleware (`UseRequestContractValidation()` +
-> `RequireContract<T>()`) is wired into `vos.ManagedMicroservice.Metabolism`'s
-> `/handle` endpoint as the first adopter. Remaining phases extend adoption
-> outward; see *Roadmap* below.
+> **Status:** Phases 1 (Feature #5419), 2 (Feature #5426), and 3 (Feature #5440)
+> have landed. The schemas + registry + validator live inside
+> `vos.ManagedMicroservice.Shared`; request-pipeline middleware
+> (`UseRequestContractValidation()` + `RequireContract<T>()`) is wired into
+> `vos.ManagedMicroservice.Metabolism`'s `/handle`; and `BrokerClientBase`
+> validates both the outbound registration payload and the inbound token
+> response on every microservice. Remaining phases extend to SignalR + GUI +
+> CI drift gate; see *Roadmap* below.
 
 ## 1. What this is
 
@@ -28,7 +30,10 @@ drift is invisible until a runtime error or silent field loss. The fix isn't
 Phase 1 introduced only the artifacts and the validator. Phase 2 wired them
 into request middleware so a malformed `/handle` payload is rejected with a
 structured `{schemaId, errors[]}` envelope before the handler runs — adoption
-is per-service via `RequireContract<T>()` on opted-in routes.
+is per-service via `RequireContract<T>()` on opted-in routes. Phase 3 brought
+the validator into `BrokerClientBase` so every outbound `RegisterAsync` and
+every inbound token response is validated automatically, with a dev-vs-prod
+failure policy (see *§7 Roadmap → Phase 3 notes*).
 
 ## 3. Schemas in scope (Phase 1)
 
@@ -146,7 +151,7 @@ one well-defined direction.
 | Phase | Wires the validator into… | Status / Notes |
 |---|---|---|
 | 2 | Inbound `/handle` middleware (`app.UseRequestContractValidation()` + `endpoint.RequireContract<T>()`) | **Landed (Feature #5426).** Schema-violation → `400 { schemaId, errors[] }`. Adopted by Metabolism; other microservices opt in by tagging their request DTO with `[ContractSchema]` and adding `RequireContract<T>()` to the route. |
-| 3 | Outbound `BrokerClientBase` calls | Debug = throw, Release = log+metric, so a missing schema never blocks production. |
+| 3 | `BrokerClientBase` — outbound `RegisterAsync` body + inbound `GetTokenAsync` response | **Landed (Feature #5440).** Failure policy is per-call via `SchemaViolationMode`: Debug builds throw `ContractValidationException`; Release builds emit a single `LogLevel.Warning` and let the call through. No metrics infra yet — counter follow-up tracked separately. Tests pin both paths regardless of build config via a virtual `OutboundViolationMode` on `BrokerClientBase`. |
 | 4 | SignalR receive-side in Metabolism | Validates `RelationshipPropertyChanged` events; malformed events surface as a typed event rather than throwing into the SignalR pipeline. |
 | 5 | GUI runtime validation | TS types generated from the same schemas; opt-in dev-only validation. |
 | 6 | CI drift gate | `Tools/Test-ContractDrift.ps1` fails the build if any DTO drifts from its schema. |
