@@ -16,7 +16,6 @@ namespace vos.ManagedMicroservice.Tributary.Tests;
 /// <c>Helpers/EffectivePropertyResolverTests.cs</c>; these tests pin the end-to-end
 /// integration through Program.cs.
 /// </summary>
-[Collection(nameof(TributaryEnvVarCollection))]
 public class HandleValidationTests
 {
     [Fact]

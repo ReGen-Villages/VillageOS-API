@@ -5,7 +5,9 @@ using vos.ManagedMicroservice.Metabolism.Services;
 using vos.ManagedMicroservice.Shared.Middleware;
 using Serilog;
 
-var cliArgs = CliArgs.Parse(args);
+var builder = WebApplication.CreateBuilder(args);
+
+var cliArgs = CliArgs.Parse(args, builder.Configuration);
 if (cliArgs == null)
 {
     Console.WriteLine(CliArgs.UsageMessage);
@@ -20,12 +22,8 @@ var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
 
 // Configure Serilog. Skip the file sink when running under WebApplicationFactory<Program>
-// tests (ASPNETCORE_ENVIRONMENT=Testing) — file I/O under the test host has no value and
-// invites flakiness on shared CI agents.
-var isTestingEnv = string.Equals(
-    Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-    "Testing",
-    StringComparison.OrdinalIgnoreCase);
+// tests — file I/O under the test host has no value and invites flakiness on shared CI agents.
+var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 
 var loggerConfig = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -50,7 +48,6 @@ try
     Log.Information("VOS '{Mode}' Metabolism Service — Port: {Port}, Broker: {BrokerUrl}",
         mode, servicePort, brokerUrl);
 
-    var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();

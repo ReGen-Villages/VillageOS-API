@@ -15,7 +15,6 @@ namespace vos.ManagedMicroservice.Metabolism.Tests;
 /// Schema: <c>handle-request-metabolism.schema.json</c> — requires <c>subjectId</c> and
 /// <c>targetId</c> (both non-empty strings); <c>additionalProperties: false</c>.
 /// </summary>
-[Collection(nameof(MetabolismEnvVarCollection))]
 public class ContractValidationIntegrationTests : IAsyncLifetime
 {
     private const string SchemaId = "https://villageos/contracts/handle-request-metabolism.schema.json";

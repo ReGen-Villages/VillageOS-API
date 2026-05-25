@@ -14,7 +14,7 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// the registration succeeds. A regression that broke the wiring (e.g. swapping the
 /// helper for an exact-match lookup) would unit-test pass but fail here.
 /// </summary>
-[Collection(nameof(DeltaEnvVarCollection))]
+[Collection(nameof(DeltaFactoryCollection))]
 public class PropertyLookupTests
 {
     [Fact]

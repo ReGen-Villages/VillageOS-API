@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+
 namespace vos.ManagedMicroservice.Delta.Configuration;
 
 /// <summary>
@@ -13,23 +15,21 @@ public record CliArgs(
 {
     /// <summary>
     /// Parses command-line arguments. Returns null if required args are missing or invalid.
-    /// Falls back to DELTA_PORT / DELTA_BROKER_URL / DELTA_TOKEN / DELTA_SIGNING_KEY /
-    /// DELTA_ISSUER / DELTA_AUDIENCE environment variables for any flag not present in args.
-    /// This enables WebApplicationFactory&lt;Program&gt;-based tests to inject config via env vars
-    /// without parsing synthetic CLI args. Production callers continue to pass --flag=value as
-    /// before; behavior is unchanged when all required flags are present in args.
+    /// If <paramref name="config"/> is provided, any flag absent from <paramref name="args"/>
+    /// falls back to <c>config[key]</c> — keys are flat: Port, BrokerUrl, Token,
+    /// SigningKey, Issuer, Audience. CLI args always take precedence over config.
     /// </summary>
-    public static CliArgs? Parse(string[] args)
+    public static CliArgs? Parse(string[] args, IConfiguration? config = null)
     {
-        string? FromArgsOrEnv(string flagPrefix, string envVar)
+        string? FromArgsOrConfig(string flagPrefix, string configKey)
         {
             var fromArgs = args.FirstOrDefault(a => a.StartsWith(flagPrefix));
             if (fromArgs != null) return fromArgs.Substring(flagPrefix.Length);
-            return Environment.GetEnvironmentVariable(envVar);
+            return config?[configKey];
         }
 
-        var portStr = FromArgsOrEnv("--port=", "DELTA_PORT");
-        var brokerUrl = FromArgsOrEnv("--brokerUrl=", "DELTA_BROKER_URL");
+        var portStr = FromArgsOrConfig("--port=", "Port");
+        var brokerUrl = FromArgsOrConfig("--brokerUrl=", "BrokerUrl");
 
         if (portStr == null || brokerUrl == null)
             return null;
@@ -37,10 +37,10 @@ public record CliArgs(
         if (!int.TryParse(portStr, out var port) || port < 1 || port > 65535)
             return null;
 
-        var token = FromArgsOrEnv("--token=", "DELTA_TOKEN");
-        var signingKey = FromArgsOrEnv("--signingKey=", "DELTA_SIGNING_KEY");
-        var issuer = FromArgsOrEnv("--issuer=", "DELTA_ISSUER");
-        var audience = FromArgsOrEnv("--audience=", "DELTA_AUDIENCE");
+        var token = FromArgsOrConfig("--token=", "Token");
+        var signingKey = FromArgsOrConfig("--signingKey=", "SigningKey");
+        var issuer = FromArgsOrConfig("--issuer=", "Issuer");
+        var audience = FromArgsOrConfig("--audience=", "Audience");
 
         return new CliArgs(port, brokerUrl, token, signingKey, issuer, audience);
     }

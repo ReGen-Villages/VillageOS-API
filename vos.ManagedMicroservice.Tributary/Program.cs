@@ -9,7 +9,9 @@ using vos.ManagedMicroservice.Shared.Validation;
 using Jsonata.Net.Native;
 using Serilog;
 
-var cliArgs = CliArgs.Parse(args);
+var builder = WebApplication.CreateBuilder(args);
+
+var cliArgs = CliArgs.Parse(args, builder.Configuration);
 if (cliArgs == null)
 {
     Console.WriteLine(CliArgs.UsageMessage);
@@ -22,13 +24,9 @@ var brokerUrl = cliArgs.BrokerUrl;
 var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
 
-// Skip the file sink when running under WebApplicationFactory<Program> tests
-// (ASPNETCORE_ENVIRONMENT=Testing). Same rationale as Metabolism — file I/O under the
-// test host has no value and invites flakiness on shared CI agents.
-var isTestingEnv = string.Equals(
-    Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-    "Testing",
-    StringComparison.OrdinalIgnoreCase);
+// Skip the file sink when running under WebApplicationFactory<Program> tests. Same
+// rationale as Metabolism — file I/O under the test host has no value and invites flakiness.
+var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 
 var loggerConfig = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -52,7 +50,6 @@ try
 {
     Log.Information("VillageOS Tributary Service - Port: {Port}, Broker: {BrokerUrl}", servicePort, brokerUrl);
 
-    var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();

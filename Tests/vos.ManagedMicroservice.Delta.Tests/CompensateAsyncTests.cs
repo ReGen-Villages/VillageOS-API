@@ -16,7 +16,7 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// Pins the contract: <c>deleteAttempted.Should().BeTrue()</c> is the real assertion.
 /// A regression that silently skips compensation would leak orphans in the broker model.
 /// </summary>
-[Collection(nameof(DeltaEnvVarCollection))]
+[Collection(nameof(DeltaFactoryCollection))]
 public class CompensateAsyncTests
 {
     [Fact]

@@ -12,23 +12,20 @@ namespace vos.ManagedMicroservice.Tributary.Tests;
 /// <summary>
 /// Custom WebApplicationFactory for Tributary endpoint tests.
 ///
-/// Pattern follows <c>MetabolismWebApplicationFactory</c> (Phase 2B / Task #5403) which in turn
-/// follows <c>vos.Mycelium.Tests.BrokerWebApplicationFactory</c> from the sibling VillageOS repo,
-/// including the <c>IAsyncLifetime</c> workaround for the sync-over-async deadlock in
-/// <c>CreateHost</c> under the XPlat Code Coverage collector on Windows CI (VillageOS Bug #5260).
+/// Pattern follows <c>vos.Mycelium.Tests.BrokerWebApplicationFactory</c> from the sibling
+/// VillageOS repo, including the <c>IAsyncLifetime</c> workaround for the sync-over-async
+/// deadlock in <c>CreateHost</c> under the XPlat Code Coverage collector on Windows CI
+/// (VillageOS Bug #5260).
 ///
-/// Setup:
-/// <list type="bullet">
-///   <item>Sets <c>ASPNETCORE_ENVIRONMENT=Testing</c> so Program.cs skips Serilog file logging.</item>
-///   <item>Sets <c>TRIBUTARY_PORT</c> + <c>TRIBUTARY_BROKER_URL</c> env vars.
-///         CliArgs.Parse reads these as a fallback when CLI args are absent — which they always
-///         are under WebApplicationFactory.</item>
-///   <item>Replaces <c>IHttpClientFactory</c> with one that wraps a per-test
-///         <c>MockHttpMessageHandler</c>. The handler routes BOTH broker calls (FindThingByName,
-///         GetEffectiveProperties, SetThingProperty, CreateThing, CreateRelationship) AND the
-///         outbound endpoint call dispatched by <c>CallEndpointAsync</c> via the same factory.
-///         Tests set <see cref="HandlerCallback"/> to control responses for their scenario.</item>
-/// </list>
+/// Config is injected via <c>UseSetting</c> on the host builder; <c>CliArgs.Parse</c> reads
+/// these as a fallback when CLI args are absent (always the case under WebApplicationFactory).
+/// Tests that need a per-test signing key set <see cref="SigningKey"/> / <see cref="Issuer"/> /
+/// <see cref="Audience"/> on the factory instance before creating a client.
+///
+/// <c>IHttpClientFactory</c> is replaced with one that wraps a per-test
+/// <c>MockHttpMessageHandler</c>. The handler routes BOTH broker calls AND the outbound
+/// endpoint call dispatched by <c>CallEndpointAsync</c> via the same factory; tests set
+/// <see cref="HandlerCallback"/> to control responses for their scenario.
 /// </summary>
 public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
@@ -41,24 +38,14 @@ public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IA
 
     public MockHttpMessageHandler? Handler { get; private set; }
 
-    public Task InitializeAsync()
-    {
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
-        Environment.SetEnvironmentVariable("TRIBUTARY_PORT", "5000");
-        Environment.SetEnvironmentVariable("TRIBUTARY_BROKER_URL", "http://localhost");
-        // Bypass BrokerClientBase.GetTokenAsync's /api/auth/token round-trip; the test
-        // BrokerClient just needs a non-empty token to short-circuit the cache miss.
-        Environment.SetEnvironmentVariable("TRIBUTARY_TOKEN", "test-token");
-        return Task.CompletedTask;
-    }
+    /// <summary>Base64 HMAC key for inbound-request JWT validation. Null = auth disabled.</summary>
+    public string? SigningKey { get; set; }
+    public string? Issuer { get; set; }
+    public string? Audience { get; set; }
 
-    public new Task DisposeAsync()
-    {
-        Environment.SetEnvironmentVariable("TRIBUTARY_PORT", null);
-        Environment.SetEnvironmentVariable("TRIBUTARY_BROKER_URL", null);
-        Environment.SetEnvironmentVariable("TRIBUTARY_TOKEN", null);
-        return base.DisposeAsync().AsTask();
-    }
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public new Task DisposeAsync() => base.DisposeAsync().AsTask();
 
     private sealed class PerCallHttpClientFactory : IHttpClientFactory
     {
@@ -71,15 +58,21 @@ public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IA
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        builder.UseSetting("Port", "5000");
+        builder.UseSetting("BrokerUrl", "http://localhost");
+        // Bypass BrokerClientBase.GetTokenAsync's /api/auth/token round-trip; the test
+        // BrokerClient just needs a non-empty token to short-circuit the cache miss.
+        builder.UseSetting("Token", "test-token");
+        if (SigningKey != null) builder.UseSetting("SigningKey", SigningKey);
+        if (Issuer != null) builder.UseSetting("Issuer", Issuer);
+        if (Audience != null) builder.UseSetting("Audience", Audience);
 
         builder.ConfigureTestServices(services =>
         {
-            // Strip the default DefaultHttpClientFactory + named-client registrations
-            // and replace with one that returns a FRESH HttpClient per CreateClient call.
+            // Strip the default DefaultHttpClientFactory + named-client registrations and
+            // replace with one that returns a FRESH HttpClient per CreateClient call.
             // BrokerClientBase.CreateAuthenticatedClientAsync mutates client.Timeout on every
-            // call, which throws InvalidOperationException on an already-used HttpClient — so
-            // sharing one instance across the test's many broker calls would fail after the
-            // first call.
+            // call, which throws InvalidOperationException on an already-used HttpClient.
             services.RemoveAll<IHttpClientFactory>();
             Handler = new MockHttpMessageHandler(req => HandlerCallback(req));
             services.AddSingleton<IHttpClientFactory>(new PerCallHttpClientFactory(Handler));

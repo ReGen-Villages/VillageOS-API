@@ -11,7 +11,7 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// surfaces the loader's exception to host construction so a misconfigured deployment
 /// fails loudly rather than starting with no usable seed.
 /// </summary>
-[Collection(nameof(DeltaEnvVarCollection))]
+[Collection(nameof(DeltaFactoryCollection))]
 public class EndpointSeedBootTests
 {
     [Fact]

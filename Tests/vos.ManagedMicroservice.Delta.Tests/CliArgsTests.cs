@@ -1,38 +1,12 @@
 using vos.ManagedMicroservice.Delta.Configuration;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests;
 
-// CliArgs.Parse now falls back to DELTA_* env vars (so WebApplicationFactory<Program>
-// tests can inject config) — these tests run with a scrubbed env so they exercise the
-// pure args-only path. xUnit constructs a fresh instance per [Fact], so the ctor runs before
-// every test. The [Collection] groups env-var-touching tests so they don't race with the
-// WebApplicationFactory-based tests that set the same vars in InitializeAsync.
-[Collection(nameof(DeltaEnvVarCollection))]
-public class CliArgsTests : IDisposable
+public class CliArgsTests
 {
-    private readonly Dictionary<string, string?> _saved;
-    private static readonly string[] ScrubbedVars =
-    {
-        "DELTA_PORT", "DELTA_BROKER_URL",
-        "DELTA_TOKEN", "DELTA_SIGNING_KEY",
-        "DELTA_ISSUER", "DELTA_AUDIENCE"
-    };
-
-    public CliArgsTests()
-    {
-        _saved = ScrubbedVars.ToDictionary(v => v, v => Environment.GetEnvironmentVariable(v));
-        foreach (var v in ScrubbedVars)
-            Environment.SetEnvironmentVariable(v, null);
-    }
-
-    public void Dispose()
-    {
-        foreach (var (key, value) in _saved)
-            Environment.SetEnvironmentVariable(key, value);
-    }
-
     [Fact]
     public void Parse_WithRequiredArgs_ReturnsParsedArgs()
     {
@@ -121,29 +95,31 @@ public class CliArgsTests : IDisposable
         result.Audience.Should().Be("VillageOSClients");
     }
 
-    // ---- Env-var fallback (added for WebApplicationFactory<Program> tests) ----
+    // ---- IConfiguration fallback ----
+
+    private static IConfiguration ConfigFrom(params (string Key, string Value)[] pairs) =>
+        new ConfigurationBuilder().AddInMemoryCollection(
+            pairs.Select(p => new KeyValuePair<string, string?>(p.Key, p.Value))).Build();
 
     [Fact]
-    public void Parse_NoArgs_AllRequiredFromEnvVars_ReturnsCliArgs()
+    public void Parse_NoArgs_AllRequiredFromConfig_ReturnsCliArgs()
     {
-        Environment.SetEnvironmentVariable("DELTA_PORT", "7100");
-        Environment.SetEnvironmentVariable("DELTA_BROKER_URL", "http://from-env");
+        var config = ConfigFrom(("Port", "7100"), ("BrokerUrl", "http://from-config"));
 
-        var result = CliArgs.Parse(Array.Empty<string>());
+        var result = CliArgs.Parse(Array.Empty<string>(), config);
 
         result.Should().NotBeNull();
         result!.Port.Should().Be(7100);
-        result.BrokerUrl.Should().Be("http://from-env");
+        result.BrokerUrl.Should().Be("http://from-config");
     }
 
     [Fact]
-    public void Parse_ArgsTakePrecedenceOverEnvVars()
+    public void Parse_ArgsTakePrecedenceOverConfig()
     {
-        Environment.SetEnvironmentVariable("DELTA_PORT", "1111");
-        Environment.SetEnvironmentVariable("DELTA_BROKER_URL", "http://env-broker");
+        var config = ConfigFrom(("Port", "1111"), ("BrokerUrl", "http://config-broker"));
         var args = new[] { "--port=2222", "--brokerUrl=http://cli-broker" };
 
-        var result = CliArgs.Parse(args);
+        var result = CliArgs.Parse(args, config);
 
         result.Should().NotBeNull();
         result!.Port.Should().Be(2222);
@@ -151,27 +127,25 @@ public class CliArgsTests : IDisposable
     }
 
     [Fact]
-    public void Parse_EnvVarsCoverOptionalFlagsToo()
+    public void Parse_ConfigCoversOptionalFlagsToo()
     {
-        Environment.SetEnvironmentVariable("DELTA_PORT", "5100");
-        Environment.SetEnvironmentVariable("DELTA_BROKER_URL", "http://broker");
-        Environment.SetEnvironmentVariable("DELTA_TOKEN", "env-token");
-        Environment.SetEnvironmentVariable("DELTA_SIGNING_KEY", "env-key");
-        Environment.SetEnvironmentVariable("DELTA_ISSUER", "env-issuer");
-        Environment.SetEnvironmentVariable("DELTA_AUDIENCE", "env-audience");
+        var config = ConfigFrom(
+            ("Port", "5100"), ("BrokerUrl", "http://broker"),
+            ("Token", "cfg-token"), ("SigningKey", "cfg-key"),
+            ("Issuer", "cfg-issuer"), ("Audience", "cfg-audience"));
 
-        var result = CliArgs.Parse(Array.Empty<string>());
+        var result = CliArgs.Parse(Array.Empty<string>(), config);
 
         result.Should().NotBeNull();
-        result!.Token.Should().Be("env-token");
-        result.SigningKey.Should().Be("env-key");
-        result.Issuer.Should().Be("env-issuer");
-        result.Audience.Should().Be("env-audience");
+        result!.Token.Should().Be("cfg-token");
+        result.SigningKey.Should().Be("cfg-key");
+        result.Issuer.Should().Be("cfg-issuer");
+        result.Audience.Should().Be("cfg-audience");
     }
 
     [Fact]
-    public void Parse_NoArgsNoEnvVars_ReturnsNull()
+    public void Parse_NullConfig_BehavesAsArgsOnly()
     {
-        CliArgs.Parse(Array.Empty<string>()).Should().BeNull();
+        CliArgs.Parse(Array.Empty<string>(), config: null).Should().BeNull();
     }
 }

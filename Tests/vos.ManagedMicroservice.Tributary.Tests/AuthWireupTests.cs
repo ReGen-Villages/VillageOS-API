@@ -6,23 +6,23 @@ using Xunit;
 namespace vos.ManagedMicroservice.Tributary.Tests;
 
 /// <summary>
-/// Integration tests for Tributary's auth wireup: when TRIBUTARY_SIGNING_KEY is configured,
+/// Integration tests for Tributary's auth wireup: when a signing key is configured,
 /// the authenticated endpoints (<c>/handle</c>, <c>/shutdown</c>) reject anonymous requests
 /// with 401, but <c>/health</c> stays open.
 /// </summary>
-[Collection(nameof(TributaryEnvVarCollection))]
 public class AuthWireupTests
 {
-    private static EnvVarScope EnableAuth() => new(
-        ("TRIBUTARY_SIGNING_KEY", Convert.ToBase64String(new byte[32])),
-        ("TRIBUTARY_ISSUER", "VillageOS"),
-        ("TRIBUTARY_AUDIENCE", "VosClients"));
+    private static TributaryWebApplicationFactory MakeAuthFactory() => new()
+    {
+        SigningKey = Convert.ToBase64String(new byte[32]),
+        Issuer = "VillageOS",
+        Audience = "VosClients"
+    };
 
     [Fact]
     public async Task BootWithSigningKey_HealthStillReturns200()
     {
-        using var env = EnableAuth();
-        await using var factory = new TributaryWebApplicationFactory();
+        await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
@@ -32,8 +32,7 @@ public class AuthWireupTests
     [Fact]
     public async Task BootWithSigningKey_HandleWithoutBearer_Returns401()
     {
-        using var env = EnableAuth();
-        await using var factory = new TributaryWebApplicationFactory();
+        await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
@@ -45,8 +44,7 @@ public class AuthWireupTests
     [Fact]
     public async Task BootWithSigningKey_ShutdownWithoutBearer_Returns401()
     {
-        using var env = EnableAuth();
-        await using var factory = new TributaryWebApplicationFactory();
+        await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 

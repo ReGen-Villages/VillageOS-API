@@ -11,7 +11,6 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Metabolism.Tests;
 
-[Collection(nameof(MetabolismEnvVarCollection))]
 public class EndpointMapperTests : IAsyncLifetime
 {
     private MetabolismWebApplicationFactory _factory = null!;

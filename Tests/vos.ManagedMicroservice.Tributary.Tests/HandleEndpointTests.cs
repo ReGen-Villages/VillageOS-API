@@ -11,7 +11,6 @@ namespace vos.ManagedMicroservice.Tributary.Tests;
 // Each test wires up a per-scenario HandlerCallback on the factory so the broker calls
 // (FindThingByNameAsync, GetEffectivePropertiesAsync, SetThingPropertyAsync, CreateThing,
 // CreateRelationship) AND the outbound endpoint call all resolve through the same handler.
-[Collection(nameof(TributaryEnvVarCollection))]
 public class HandleEndpointTests
 {
     // ---------- Request validation ----------

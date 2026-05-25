@@ -12,27 +12,26 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// <summary>
 /// Custom WebApplicationFactory for Delta endpoint tests.
 ///
-/// Same pattern as <c>TributaryWebApplicationFactory</c> (Phase 2C / Task #5404) and
-/// <c>MetabolismWebApplicationFactory</c> (Phase 2B / Task #5403), modeled on
-/// <c>vos.Mycelium.Tests.BrokerWebApplicationFactory</c> from the sibling VillageOS repo,
-/// including the <c>IAsyncLifetime</c> workaround for the sync-over-async deadlock in
-/// <c>CreateHost</c> under the XPlat Code Coverage collector on Windows CI
+/// Pattern follows <c>vos.Mycelium.Tests.BrokerWebApplicationFactory</c> from the sibling
+/// VillageOS repo, including the <c>IAsyncLifetime</c> workaround for the sync-over-async
+/// deadlock in <c>CreateHost</c> under the XPlat Code Coverage collector on Windows CI
 /// (VillageOS Bug #5260).
 ///
-/// Setup:
-/// <list type="bullet">
-///   <item>Sets <c>ASPNETCORE_ENVIRONMENT=Testing</c> so Program.cs skips Serilog file logging.</item>
-///   <item>Sets <c>DELTA_PORT</c> + <c>DELTA_BROKER_URL</c> env vars.
-///         CliArgs.Parse reads these as a fallback when CLI args are absent.</item>
-///   <item>Writes a synthetic <c>seed.json</c> into <see cref="AppContext.BaseDirectory"/> so
-///         the production <c>LoadEndpointSeed</c> helper finds it on startup. The real
-///         <c>seed.json</c> is gitignored per CLAUDE.md as runtime data, so it isn't present
-///         in the test process's bin folder by default. Removed in <see cref="DisposeAsync"/>.</item>
-///   <item>Replaces <c>IHttpClientFactory</c> with a <c>PerCallHttpClientFactory</c> that
-///         returns a fresh <c>HttpClient</c> per <c>CreateClient</c> call —
-///         <c>BrokerClientBase.CreateAuthenticatedClientAsync</c> mutates <c>client.Timeout</c>
-///         on every call, which throws on an already-used <c>HttpClient</c>.</item>
-/// </list>
+/// Config is injected via <c>UseSetting</c> on the host builder; <c>CliArgs.Parse</c> reads
+/// these as a fallback when CLI args are absent (always the case under WebApplicationFactory).
+/// Tests that need a per-test signing key set <see cref="SigningKey"/> / <see cref="Issuer"/> /
+/// <see cref="Audience"/> on the factory instance before creating a client.
+///
+/// A synthetic <c>seed.json</c> is written to <see cref="AppContext.BaseDirectory"/> in
+/// <see cref="InitializeAsync"/> so the production <c>EndpointSeedLoader</c> helper finds it
+/// on startup (the real <c>seed.json</c> is gitignored per CLAUDE.md as runtime data, so it
+/// isn't present in the test process's bin folder by default). The file is removed in
+/// <see cref="DisposeAsync"/>. Tests override <see cref="SeedJson"/> before init to exercise
+/// malformed-seed boot paths.
+///
+/// <c>IHttpClientFactory</c> is replaced with a <c>PerCallHttpClientFactory</c> that returns
+/// a fresh <c>HttpClient</c> per <c>CreateClient</c> call — <c>BrokerClientBase.CreateAuthenticatedClientAsync</c>
+/// mutates <c>client.Timeout</c> on every call, which throws on an already-used <c>HttpClient</c>.
 /// </summary>
 public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
@@ -41,6 +40,11 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
     public MockHttpMessageHandler? Handler { get; private set; }
+
+    /// <summary>Base64 HMAC key for inbound-request JWT validation. Null = auth disabled.</summary>
+    public string? SigningKey { get; set; }
+    public string? Issuer { get; set; }
+    public string? Audience { get; set; }
 
     /// <summary>Seed contents written to disk in InitializeAsync. Tests can override before init.</summary>
     public string SeedJson { get; set; } = """
@@ -58,13 +62,6 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
 
     public Task InitializeAsync()
     {
-        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
-        Environment.SetEnvironmentVariable("DELTA_PORT", "5000");
-        Environment.SetEnvironmentVariable("DELTA_BROKER_URL", "http://localhost");
-        // BrokerClientBase.GetTokenAsync round-trip is short-circuited when a service token
-        // is set; same approach as Phase 2C.
-        Environment.SetEnvironmentVariable("DELTA_TOKEN", "test-token");
-
         _writtenSeedPath = Path.Combine(AppContext.BaseDirectory, "seed.json");
         File.WriteAllText(_writtenSeedPath, SeedJson);
         return Task.CompletedTask;
@@ -72,10 +69,6 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
 
     public new Task DisposeAsync()
     {
-        Environment.SetEnvironmentVariable("DELTA_PORT", null);
-        Environment.SetEnvironmentVariable("DELTA_BROKER_URL", null);
-        Environment.SetEnvironmentVariable("DELTA_TOKEN", null);
-
         if (_writtenSeedPath != null && File.Exists(_writtenSeedPath))
             File.Delete(_writtenSeedPath);
 
@@ -92,6 +85,12 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        builder.UseSetting("Port", "5000");
+        builder.UseSetting("BrokerUrl", "http://localhost");
+        builder.UseSetting("Token", "test-token");
+        if (SigningKey != null) builder.UseSetting("SigningKey", SigningKey);
+        if (Issuer != null) builder.UseSetting("Issuer", Issuer);
+        if (Audience != null) builder.UseSetting("Audience", Audience);
 
         builder.ConfigureTestServices(services =>
         {

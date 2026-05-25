@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+
 namespace vos.ManagedMicroservice.Metabolism.Configuration;
 
 /// <summary>
@@ -14,25 +16,22 @@ public record CliArgs(
 {
     /// <summary>
     /// Parses command-line arguments. Returns null if required args are missing or invalid.
-    /// Falls back to METABOLISM_PORT / METABOLISM_BROKER_URL / METABOLISM_MODE / METABOLISM_TOKEN /
-    /// METABOLISM_SIGNING_KEY / METABOLISM_ISSUER / METABOLISM_AUDIENCE environment variables
-    /// for any flag not present in args. This enables WebApplicationFactory&lt;Program&gt;-based
-    /// tests to inject config via env vars without parsing synthetic CLI args. Production
-    /// callers continue to pass --flag=value as before; behavior is unchanged when all required
-    /// flags are present in args.
+    /// If <paramref name="config"/> is provided, any flag absent from <paramref name="args"/>
+    /// falls back to <c>config[key]</c> — keys are flat: Port, BrokerUrl, Mode, Token,
+    /// SigningKey, Issuer, Audience. CLI args always take precedence over config.
     /// </summary>
-    public static CliArgs? Parse(string[] args)
+    public static CliArgs? Parse(string[] args, IConfiguration? config = null)
     {
-        string? FromArgsOrEnv(string flagPrefix, string envVar)
+        string? FromArgsOrConfig(string flagPrefix, string configKey)
         {
             var fromArgs = args.FirstOrDefault(a => a.StartsWith(flagPrefix));
             if (fromArgs != null) return fromArgs.Substring(flagPrefix.Length);
-            return Environment.GetEnvironmentVariable(envVar);
+            return config?[configKey];
         }
 
-        var portStr = FromArgsOrEnv("--port=", "METABOLISM_PORT");
-        var brokerUrl = FromArgsOrEnv("--brokerUrl=", "METABOLISM_BROKER_URL");
-        var modeStr = FromArgsOrEnv("--mode=", "METABOLISM_MODE");
+        var portStr = FromArgsOrConfig("--port=", "Port");
+        var brokerUrl = FromArgsOrConfig("--brokerUrl=", "BrokerUrl");
+        var modeStr = FromArgsOrConfig("--mode=", "Mode");
 
         if (portStr == null || brokerUrl == null || modeStr == null)
             return null;
@@ -44,10 +43,10 @@ public record CliArgs(
         if (mode != "consumes" && mode != "produces")
             return null;
 
-        var token = FromArgsOrEnv("--token=", "METABOLISM_TOKEN");
-        var signingKey = FromArgsOrEnv("--signingKey=", "METABOLISM_SIGNING_KEY");
-        var issuer = FromArgsOrEnv("--issuer=", "METABOLISM_ISSUER");
-        var audience = FromArgsOrEnv("--audience=", "METABOLISM_AUDIENCE");
+        var token = FromArgsOrConfig("--token=", "Token");
+        var signingKey = FromArgsOrConfig("--signingKey=", "SigningKey");
+        var issuer = FromArgsOrConfig("--issuer=", "Issuer");
+        var audience = FromArgsOrConfig("--audience=", "Audience");
 
         return new CliArgs(port, brokerUrl, mode, token, signingKey, issuer, audience);
     }

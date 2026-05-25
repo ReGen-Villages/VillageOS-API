@@ -6,31 +6,25 @@ using Xunit;
 namespace vos.ManagedMicroservice.Delta.Tests;
 
 /// <summary>
-/// Integration tests for Delta's auth wireup: when DELTA_SIGNING_KEY is configured,
+/// Integration tests for Delta's auth wireup: when a signing key is configured,
 /// authenticated endpoints (<c>/handle</c>, <c>/register</c>, <c>/shutdown</c>) reject
 /// anonymous requests with 401, but <c>/health</c> remains open. Encodes a real
 /// security contract &mdash; a regression here ships an open endpoint.
 /// </summary>
-[Collection(nameof(DeltaEnvVarCollection))]
+[Collection(nameof(DeltaFactoryCollection))]
 public class AuthWireupTests
 {
-    private static (string SigningKey, string Issuer, string Audience) AuthVars() =>
-        (Convert.ToBase64String(new byte[32]), "VillageOS", "VosClients");
-
-    private static EnvVarScope EnableAuth()
+    private static DeltaWebApplicationFactory MakeAuthFactory() => new()
     {
-        var (key, issuer, audience) = AuthVars();
-        return new EnvVarScope(
-            ("DELTA_SIGNING_KEY", key),
-            ("DELTA_ISSUER", issuer),
-            ("DELTA_AUDIENCE", audience));
-    }
+        SigningKey = Convert.ToBase64String(new byte[32]),
+        Issuer = "VillageOS",
+        Audience = "VosClients"
+    };
 
     [Fact]
     public async Task BootWithSigningKey_HealthStillReturns200()
     {
-        using var env = EnableAuth();
-        await using var factory = new DeltaWebApplicationFactory();
+        await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
@@ -40,8 +34,7 @@ public class AuthWireupTests
     [Fact]
     public async Task BootWithSigningKey_HandleWithoutBearer_Returns401()
     {
-        using var env = EnableAuth();
-        await using var factory = new DeltaWebApplicationFactory();
+        await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
@@ -53,8 +46,7 @@ public class AuthWireupTests
     [Fact]
     public async Task BootWithSigningKey_RegisterWithoutBearer_Returns401()
     {
-        using var env = EnableAuth();
-        await using var factory = new DeltaWebApplicationFactory();
+        await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
@@ -66,8 +58,7 @@ public class AuthWireupTests
     [Fact]
     public async Task BootWithSigningKey_ShutdownWithoutBearer_Returns401()
     {
-        using var env = EnableAuth();
-        await using var factory = new DeltaWebApplicationFactory();
+        await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
