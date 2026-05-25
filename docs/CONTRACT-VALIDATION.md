@@ -9,8 +9,9 @@
 > response on every microservice; and Metabolism's hot-path traffic
 > (`ApplyQuantityAsync`, `IncrementRelationshipPropertyAsync`, and the
 > SignalR `RelationshipPropertyChanged` event) validates against its pinned
-> schema on every tick. Remaining phases extend to GUI + CI drift gate; see
-> *Roadmap* below.
+> schema on every tick. Two additional phases — GUI runtime validation and a
+> CI drift gate — are sketched as possibilities in the *Roadmap* below, but
+> neither is scheduled and neither has a work item.
 
 ## 1. What this is
 
@@ -158,8 +159,8 @@ one well-defined direction.
 | 2 | Inbound `/handle` middleware (`app.UseRequestContractValidation()` + `endpoint.RequireContract<T>()`) | **Landed (Feature #5426).** Schema-violation → `400 { schemaId, errors[] }`. Adopted by Metabolism; other microservices opt in by tagging their request DTO with `[ContractSchema]` and adding `RequireContract<T>()` to the route. |
 | 3 | `BrokerClientBase` — outbound `RegisterAsync` body + inbound `GetTokenAsync` response | **Landed (Feature #5440).** Failure policy is per-call via `SchemaViolationMode`: Debug builds throw `ContractValidationException`; Release builds emit a single `LogLevel.Warning` and let the call through. No metrics infra yet — counter follow-up tracked separately. Tests pin both paths regardless of build config via a virtual `OutboundViolationMode` on `BrokerClientBase`. |
 | 4 | Metabolism hot-path traffic — `ApplyQuantityAsync` + `IncrementRelationshipPropertyAsync` outbound bodies + SignalR `RelationshipPropertyChanged` event | **Landed (Feature #5445).** `ValidateOutbound` promoted to `protected` so service-specific subclasses can call it. The SignalR callback stays `[ExcludeFromCodeCoverage]`; validation lives in an internal `RaiseRelationshipPropertyChanged` helper tested via `InternalsVisibleTo`. Same Throw/Log policy as Phase 3. |
-| 5 | GUI runtime validation | TS types generated from the same schemas; opt-in dev-only validation. |
-| 6 | CI drift gate | `Tools/Test-ContractDrift.ps1` fails the build if any DTO drifts from its schema. |
+| 5 | GUI runtime validation | **Possible future work — not scheduled, no work item.** TS types generated from the same schemas; opt-in dev-only validation. Would catch broker-shape regressions in the React app before they reach the user; the cost is a TS codegen step in the GUI build and a runtime dependency on a JSON-Schema validator (e.g. `ajv`). |
+| 6 | CI drift gate | **Possible future work — not scheduled, no work item.** `Tools/Test-ContractDrift.ps1` would fail the build if any DTO drifts from its schema (C# record fields ↔ schema `properties` + `required` out of sync). Catches the mismatch at PR review time instead of at runtime; replaces today's "the test that loads the schema happens to pass" implicit check. |
 
 ## 8. Cross-references
 
