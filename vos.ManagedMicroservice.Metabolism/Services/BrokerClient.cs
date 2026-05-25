@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using vos.ManagedMicroservice.Shared;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -90,22 +91,48 @@ public class BrokerClient : BrokerClientBase
         }
     }
 
+    private const string ApplyQuantitySchemaId = "https://villageos/contracts/apply-quantity-request.schema.json";
+    private const string RelationshipIncrementSchemaId = "https://villageos/contracts/relationship-property-increment-request.schema.json";
+    private const string RelationshipPropertyChangedEventSchemaId = "https://villageos/contracts/relationship-property-changed-event.schema.json";
+
+    /// <summary>
+    /// Validates an inbound RelationshipPropertyChanged event payload against its schema
+    /// then raises the public <see cref="OnRelationshipPropertyChanged"/> event. Pulled out
+    /// of the [ExcludeFromCodeCoverage] SignalR callback so the validation path is unit-
+    /// testable without a real hub; the callback itself is just <c>Log + this</c>.
+    /// </summary>
+    internal void RaiseRelationshipPropertyChanged(Guid relationshipId, string propertyName, object? newValue)
+    {
+        // Schema pins the JSON Hub Protocol arguments array shape: [uuid, string, untyped].
+        var argsJson = JsonSerializer.Serialize(new object?[] { relationshipId, propertyName, newValue });
+        ValidateOutbound(argsJson, RelationshipPropertyChangedEventSchemaId);
+        OnRelationshipPropertyChanged?.Invoke(relationshipId, propertyName, newValue);
+    }
+
+    // Payload shape lives in a virtual builder so tests can inject a malformed object to
+    // exercise the validation paths. Default returns the production wire shape.
+    protected virtual object BuildApplyQuantityPayload(decimal amount, string? subjectName, string? unit) =>
+        new { amount, subjectName = subjectName ?? "", unit = unit ?? "" };
+
+    protected virtual object BuildIncrementRelationshipPayload(decimal amount) =>
+        new { amount };
+
     /// <summary>Applies the resource operation (increment or decrement) based on mode.</summary>
     public async Task<JsonElement?> ApplyQuantityAsync(string thingId, string propertyPath, decimal amount, string? subjectName = null, string? unit = null)
     {
         var action = _mode == "consumes" ? "decrements" : "increments";
+
+        var payload = BuildApplyQuantityPayload(amount, subjectName, unit);
+        var json = JsonSerializer.Serialize(payload);
+
+        // Validate the outbound payload before any network call. Throw mode propagates
+        // ContractValidationException; Log mode warns and lets the call through.
+        ValidateOutbound(json, ApplyQuantitySchemaId);
+
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-
-        var payload = new
-        {
-            amount,
-            subjectName = subjectName ?? "",
-            unit = unit ?? ""
-        };
-
-        var response = await client.PostAsJsonAsync(
+        var response = await client.PostAsync(
             $"{BrokerUrl}/api/things/{thingId}/properties/{propertyPath}/{action}",
-            payload
+            new StringContent(json, Encoding.UTF8, "application/json")
         );
 
         if (response.IsSuccessStatusCode)
@@ -134,7 +161,7 @@ public class BrokerClient : BrokerClientBase
     {
         Logger.LogDebug("SignalR: RelationshipPropertyChanged {RelId} {Prop}={Value}",
             relationshipId, propertyName, newValue);
-        OnRelationshipPropertyChanged?.Invoke(relationshipId, propertyName, newValue);
+        RaiseRelationshipPropertyChanged(relationshipId, propertyName, newValue);
     }
 
     [ExcludeFromCodeCoverage]
@@ -147,13 +174,15 @@ public class BrokerClient : BrokerClientBase
     /// <summary>Increment a property on a relationship (for tracking per-relationship cumulative totals).</summary>
     public async Task IncrementRelationshipPropertyAsync(string relationshipId, string propertyPath, decimal amount)
     {
+        var payload = BuildIncrementRelationshipPayload(amount);
+        var json = JsonSerializer.Serialize(payload);
+
+        ValidateOutbound(json, RelationshipIncrementSchemaId);
+
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-
-        var payload = new { amount };
-
-        var response = await client.PostAsJsonAsync(
+        var response = await client.PostAsync(
             $"{BrokerUrl}/api/relationships/{relationshipId}/properties/{propertyPath}/increments",
-            payload
+            new StringContent(json, Encoding.UTF8, "application/json")
         );
 
         if (!response.IsSuccessStatusCode)

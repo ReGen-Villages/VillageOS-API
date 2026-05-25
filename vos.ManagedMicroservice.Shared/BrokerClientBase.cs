@@ -43,7 +43,14 @@ public abstract class BrokerClientBase
         SchemaViolationMode.Log;
 #endif
 
-    private void ValidateOutbound(string json, string schemaId)
+    /// <summary>
+    /// Validates <paramref name="json"/> against the schema with <paramref name="schemaId"/>
+    /// according to the current <see cref="OutboundViolationMode"/>. Used by RegisterAsync,
+    /// GetTokenAsync, and (Phase 4) service-specific subclass calls. Name is a slight
+    /// misnomer for inbound traffic (SignalR events, broker responses) but the validation
+    /// shape is direction-agnostic; treat "outbound" as "crossing the BrokerClient boundary".
+    /// </summary>
+    protected void ValidateOutbound(string json, string schemaId)
     {
         var schema = _registry.Value.Get(schemaId);
         switch (OutboundViolationMode)

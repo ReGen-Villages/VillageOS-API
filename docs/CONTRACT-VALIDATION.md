@@ -1,13 +1,16 @@
 # Contract Validation — Foundation Layer
 
-> **Status:** Phases 1 (Feature #5419), 2 (Feature #5426), and 3 (Feature #5440)
-> have landed. The schemas + registry + validator live inside
-> `vos.ManagedMicroservice.Shared`; request-pipeline middleware
+> **Status:** Phases 1 (Feature #5419), 2 (Feature #5426), 3 (Feature #5440),
+> and 4 (Feature #5445) have landed. The schemas + registry + validator live
+> inside `vos.ManagedMicroservice.Shared`; request-pipeline middleware
 > (`UseRequestContractValidation()` + `RequireContract<T>()`) is wired into
-> `vos.ManagedMicroservice.Metabolism`'s `/handle`; and `BrokerClientBase`
+> `vos.ManagedMicroservice.Metabolism`'s `/handle`; `BrokerClientBase`
 > validates both the outbound registration payload and the inbound token
-> response on every microservice. Remaining phases extend to SignalR + GUI +
-> CI drift gate; see *Roadmap* below.
+> response on every microservice; and Metabolism's hot-path traffic
+> (`ApplyQuantityAsync`, `IncrementRelationshipPropertyAsync`, and the
+> SignalR `RelationshipPropertyChanged` event) validates against its pinned
+> schema on every tick. Remaining phases extend to GUI + CI drift gate; see
+> *Roadmap* below.
 
 ## 1. What this is
 
@@ -35,14 +38,16 @@ the validator into `BrokerClientBase` so every outbound `RegisterAsync` and
 every inbound token response is validated automatically, with a dev-vs-prod
 failure policy (see *§7 Roadmap → Phase 3 notes*).
 
-## 3. Schemas in scope (Phase 1)
+## 3. Schemas in scope
 
-| Schema | Producer → Consumer | Source of truth in code |
-|---|---|---|
-| `broker-register-request` | every microservice → broker `POST /api/broker/register` | `BrokerClientBase.RegisterAsync` |
-| `token-response` | broker `POST /api/auth/token` → every microservice | `BrokerClientBase.GetTokenAsync` |
-| `handle-request-metabolism` | broker → Metabolism `POST /handle` | `vos.ManagedMicroservice.Metabolism.Models.HandleRequest` |
-| `relationship-property-changed-event` | broker `/vosHub` → Metabolism (SignalR) | `vos.ManagedMicroservice.Metabolism.Services.BrokerClient.OnRelationshipPropertyChanged` |
+| Schema | Producer → Consumer | Source of truth in code | Phase landed |
+|---|---|---|---|
+| `broker-register-request` | every microservice → broker `POST /api/broker/register` | `BrokerClientBase.RegisterAsync` | 1 (schema) / 3 (wired) |
+| `token-response` | broker `POST /api/auth/token` → every microservice | `BrokerClientBase.GetTokenAsync` | 1 / 3 |
+| `handle-request-metabolism` | broker → Metabolism `POST /handle` | `vos.ManagedMicroservice.Metabolism.Models.HandleRequest` | 1 / 2 |
+| `relationship-property-changed-event` | broker `/vosHub` → Metabolism (SignalR) | `vos.ManagedMicroservice.Metabolism.Services.BrokerClient.RaiseRelationshipPropertyChanged` | 1 / 4 |
+| `apply-quantity-request` | Metabolism → broker `POST /api/things/{id}/properties/{path}/{decrements\|increments}` | `vos.ManagedMicroservice.Metabolism.Services.BrokerClient.ApplyQuantityAsync` | 4 |
+| `relationship-property-increment-request` | Metabolism → broker `POST /api/relationships/{id}/properties/{path}/increments` | `vos.ManagedMicroservice.Metabolism.Services.BrokerClient.IncrementRelationshipPropertyAsync` | 4 |
 
 Each schema uses `additionalProperties: false` on every object subschema (strict
 by default per the project's pre-release / no-shims convention).
@@ -152,7 +157,7 @@ one well-defined direction.
 |---|---|---|
 | 2 | Inbound `/handle` middleware (`app.UseRequestContractValidation()` + `endpoint.RequireContract<T>()`) | **Landed (Feature #5426).** Schema-violation → `400 { schemaId, errors[] }`. Adopted by Metabolism; other microservices opt in by tagging their request DTO with `[ContractSchema]` and adding `RequireContract<T>()` to the route. |
 | 3 | `BrokerClientBase` — outbound `RegisterAsync` body + inbound `GetTokenAsync` response | **Landed (Feature #5440).** Failure policy is per-call via `SchemaViolationMode`: Debug builds throw `ContractValidationException`; Release builds emit a single `LogLevel.Warning` and let the call through. No metrics infra yet — counter follow-up tracked separately. Tests pin both paths regardless of build config via a virtual `OutboundViolationMode` on `BrokerClientBase`. |
-| 4 | SignalR receive-side in Metabolism | Validates `RelationshipPropertyChanged` events; malformed events surface as a typed event rather than throwing into the SignalR pipeline. |
+| 4 | Metabolism hot-path traffic — `ApplyQuantityAsync` + `IncrementRelationshipPropertyAsync` outbound bodies + SignalR `RelationshipPropertyChanged` event | **Landed (Feature #5445).** `ValidateOutbound` promoted to `protected` so service-specific subclasses can call it. The SignalR callback stays `[ExcludeFromCodeCoverage]`; validation lives in an internal `RaiseRelationshipPropertyChanged` helper tested via `InternalsVisibleTo`. Same Throw/Log policy as Phase 3. |
 | 5 | GUI runtime validation | TS types generated from the same schemas; opt-in dev-only validation. |
 | 6 | CI drift gate | `Tools/Test-ContractDrift.ps1` fails the build if any DTO drifts from its schema. |
 
