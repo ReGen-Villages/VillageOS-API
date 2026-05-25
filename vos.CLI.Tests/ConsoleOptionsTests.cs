@@ -160,7 +160,7 @@ public class ConsoleOptionsTests
         }
     }
 
-    // ========== Env-var precedence (moved from CoverageGapTests under Task #5437) ==========
+    // ========== Env-var precedence ==========
 
     [Fact]
     public void Parse_VosBrokerUrlEnvVar_OverridesDefault()

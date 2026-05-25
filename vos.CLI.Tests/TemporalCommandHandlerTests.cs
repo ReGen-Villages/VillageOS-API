@@ -332,7 +332,7 @@ public class TemporalCommandHandlerTests
 
     #endregion
 
-    #region Snapshot no-timestamp path (moved from CoverageGapTests under Task #5437)
+    #region Snapshot no-timestamp path
 
     [Fact]
     public async Task Snapshot_NoTimestamp_PassesNullToBroker()

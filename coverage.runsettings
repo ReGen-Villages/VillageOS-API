@@ -6,8 +6,7 @@
         <Configuration>
           <Format>cobertura</Format>
           <!-- Source-file exclusions. coverlet's XPlat data collector expects a single
-               comma-separated string here, NOT nested <File> elements (Phase 0 / Task #5395
-               shipped the nested form which was silently ignored; fixed under Task #5435). -->
+               comma-separated string here, NOT nested <File> elements. -->
           <ExcludeByFile>**/vos.ManagedMicroservice.Echo/Program.cs,**/vos.ManagedMicroservice.Delta/Program.cs,**/vos.ManagedMicroservice.Tributary/Program.cs,**/vos.ManagedMicroservice.Metabolism/Program.cs,**/Tests/vos.Tests.Shared/**/*.cs</ExcludeByFile>
           <ExcludeByAttribute>
             <!-- Auto-generated / compiler synthesised code. -->
@@ -21,7 +20,6 @@
             <ModulePath>.*Tests\.dll$</ModulePath>
             <ModulePath>.*vos\.Tests\.Shared\.dll$</ModulePath>
           </Exclude>
-          <!-- Phase 3 (Task #5406) will add per-assembly MinimumCoverage thresholds (95% line, 85% branch) here. -->
         </Configuration>
       </DataCollector>
     </DataCollectors>

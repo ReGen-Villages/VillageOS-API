@@ -142,11 +142,10 @@ measurement via the existing `ModulePath` filter in `coverage.runsettings`;
 the production code lands under `vos.ManagedMicroservice.Shared`'s existing
 threshold (100% line, 100% branch — unchanged by Phase 1).
 
-The `LoadEmbeddedRawSchemas` host-side enumeration is marked
-`[ExcludeFromCodeCoverage]` because its branches (resource-name filter,
-defensive null-stream throw) are not reachable through the test surface; the
-parsing and registration logic it feeds *is* covered, via the internal
-`SchemaRegistry` constructor that takes raw `(name, json)` pairs.
+The `LoadEmbeddedRawSchemas` host-side enumeration has branches (resource-name
+filter, defensive null-stream throw) that are not reachable through the test
+surface; the parsing and registration logic it feeds *is* covered, via the
+internal `SchemaRegistry` constructor that takes raw `(name, json)` pairs.
 
 ## 7. Roadmap (later phases)
 
@@ -158,7 +157,7 @@ one well-defined direction.
 |---|---|---|
 | 2 | Inbound `/handle` middleware (`app.UseRequestContractValidation()` + `endpoint.RequireContract<T>()`) | **Landed (Feature #5426).** Schema-violation → `400 { schemaId, errors[] }`. Adopted by Metabolism; other microservices opt in by tagging their request DTO with `[ContractSchema]` and adding `RequireContract<T>()` to the route. |
 | 3 | `BrokerClientBase` — outbound `RegisterAsync` body + inbound `GetTokenAsync` response | **Landed (Feature #5440).** Failure policy is per-call via `SchemaViolationMode`: Debug builds throw `ContractValidationException`; Release builds emit a single `LogLevel.Warning` and let the call through. No metrics infra yet — counter follow-up tracked separately. Tests pin both paths regardless of build config via a virtual `OutboundViolationMode` on `BrokerClientBase`. |
-| 4 | Metabolism hot-path traffic — `ApplyQuantityAsync` + `IncrementRelationshipPropertyAsync` outbound bodies + SignalR `RelationshipPropertyChanged` event | **Landed (Feature #5445).** `ValidateOutbound` promoted to `protected` so service-specific subclasses can call it. The SignalR callback stays `[ExcludeFromCodeCoverage]`; validation lives in an internal `RaiseRelationshipPropertyChanged` helper tested via `InternalsVisibleTo`. Same Throw/Log policy as Phase 3. |
+| 4 | Metabolism hot-path traffic — `ApplyQuantityAsync` + `IncrementRelationshipPropertyAsync` outbound bodies + SignalR `RelationshipPropertyChanged` event | **Landed (Feature #5445).** `ValidateOutbound` promoted to `protected` so service-specific subclasses can call it. The SignalR callback delegates to an internal `RaiseRelationshipPropertyChanged` helper tested via `InternalsVisibleTo`, so the validation path is exercised without a real hub. Same Throw/Log policy as Phase 3. |
 | 5 | GUI runtime validation | **Possible future work — not scheduled, no work item.** TS types generated from the same schemas; opt-in dev-only validation. Would catch broker-shape regressions in the React app before they reach the user; the cost is a TS codegen step in the GUI build and a runtime dependency on a JSON-Schema validator (e.g. `ajv`). |
 | 6 | CI drift gate | **Possible future work — not scheduled, no work item.** `Tools/Test-ContractDrift.ps1` would fail the build if any DTO drifts from its schema (C# record fields ↔ schema `properties` + `required` out of sync). Catches the mismatch at PR review time instead of at runtime; replaces today's "the test that loads the schema happens to pass" implicit check. |
 

@@ -10,11 +10,6 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// authenticated endpoints (<c>/handle</c>, <c>/register</c>, <c>/shutdown</c>) reject
 /// anonymous requests with 401, but <c>/health</c> remains open. Encodes a real
 /// security contract &mdash; a regression here ships an open endpoint.
-///
-/// Moved from <c>CoverageGapTests.cs</c> under Task #5437 to give the tests an honest
-/// home. The <c>AuthEnabledFactory</c> sub-class was replaced with <see cref="EnvVarScope"/>
-/// so each test's env vars are restored deterministically regardless of how the factory
-/// is disposed.
 /// </summary>
 [Collection(nameof(DeltaEnvVarCollection))]
 public class AuthWireupTests

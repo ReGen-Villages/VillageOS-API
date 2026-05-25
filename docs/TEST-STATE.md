@@ -71,9 +71,8 @@ Watch items:
 2. **`coverage.runsettings` filter elements were nested wrong.** coverlet's XPlat data collector wants `<ExcludeByFile>**/a.cs,**/b.cs</ExcludeByFile>` (comma-separated string content), not the nested `<File>` form Phase 0 (Task #5395) shipped. `<ExcludeByFile>` fixed under Task #5435 — all four microservices' `Program.cs` files were appearing in Cobertura with measured `line-rate` despite the wildcard that supposedly excluded them. `<Exclude>` and `<ExcludeByAttribute>` use the same nested form and may have the same bug, but test assemblies ARE absent from Cobertura so something is honored (or coverlet auto-excludes test projects); a full audit is deferred. (The old "Echo has no test project" item resolved under Phase 1E / Task #5400 — Echo's test project is now the canonical microservice template per `docs/MICROSERVICE-TEMPLATE.md`.)
 3. **GUI tests are not in CI.** The Vitest suite and Puppeteer e2e provide no merge-gate signal.
 4. **Mocking library split.** CLI and Metabolism use Moq; Tributary and Delta use NSubstitute. Small now, friction later for cross-service work.
-5. **Coverage gate is enforced** as of Feature #5433 (Task #5434). Diff coverage on the PR's added/modified executable lines against an 85% threshold, computed by `Tools/Test-CoverageGate.ps1`. Replaced the Phase 3 per-assembly absolute-threshold gate (Task #5406) which produced false failures on dev because coverage measurement is noisy across environments. See *Coverage gate* below for the shape + tuning.
-6. **`docs/DELIVERY.md`** sketches a `vos.ManagedMicroservice.Shared.Delivery` framework with its own test contract (Ack, dedup middleware, lifecycle). Not yet implemented; will reshape the test landscape when it lands.
-7. **`docs/CONTRACT-VALIDATION.md`** describes the JSON Schema registry + validator landed in `vos.ManagedMicroservice.Shared/Contracts/` (Feature #5419 / Phase 1), the request-pipeline middleware landed in `vos.ManagedMicroservice.Shared/Middleware/` (Feature #5426 / Phase 2), the `BrokerClientBase` outbound + response validation landed in Feature #5440 / Phase 3, and Metabolism's hot-path validation (`ApplyQuantityAsync`, `IncrementRelationshipPropertyAsync`, SignalR `RelationshipPropertyChanged`) landed in Feature #5445 / Phase 4. Metabolism is the first middleware adopter — `Tests/vos.ManagedMicroservice.Metabolism.Tests/ContractValidationIntegrationTests.cs` exercises the end-to-end inbound pipeline. Phase 3's policy primitive (`SchemaValidator.ValidateForLog`) is pinned in `Tests/vos.ManagedMicroservice.Shared.Contracts.Tests/SchemaValidatorValidateForLogTests.cs`; the `BrokerClientBase` integration in `Tests/vos.ManagedMicroservice.Shared.Tests/BrokerClientBaseValidationTests.cs`. Phase 4's Metabolism-specific validation is pinned in `Tests/vos.ManagedMicroservice.Metabolism.Tests/BrokerClientValidationTests.cs` (outbound bodies via a TestableBrokerClient that overrides `BuildXyzPayload` + `OutboundViolationMode`) and `BrokerClientSignalRValidationTests.cs` (SignalR event via `internal` + `InternalsVisibleTo`). Production coverage rolls into `vos.ManagedMicroservice.Shared`'s and `vos.ManagedMicroservice.Metabolism`'s existing thresholds.
+5. **`docs/DELIVERY.md`** sketches a `vos.ManagedMicroservice.Shared.Delivery` framework with its own test contract (Ack, dedup middleware, lifecycle). Not yet implemented; will reshape the test landscape when it lands.
+6. **`docs/CONTRACT-VALIDATION.md`** describes the JSON Schema registry + validator landed in `vos.ManagedMicroservice.Shared/Contracts/` (Feature #5419 / Phase 1), the request-pipeline middleware landed in `vos.ManagedMicroservice.Shared/Middleware/` (Feature #5426 / Phase 2), the `BrokerClientBase` outbound + response validation landed in Feature #5440 / Phase 3, and Metabolism's hot-path validation (`ApplyQuantityAsync`, `IncrementRelationshipPropertyAsync`, SignalR `RelationshipPropertyChanged`) landed in Feature #5445 / Phase 4. Metabolism is the first middleware adopter — `Tests/vos.ManagedMicroservice.Metabolism.Tests/ContractValidationIntegrationTests.cs` exercises the end-to-end inbound pipeline. Phase 3's policy primitive (`SchemaValidator.ValidateForLog`) is pinned in `Tests/vos.ManagedMicroservice.Shared.Contracts.Tests/SchemaValidatorValidateForLogTests.cs`; the `BrokerClientBase` integration in `Tests/vos.ManagedMicroservice.Shared.Tests/BrokerClientBaseValidationTests.cs`. Phase 4's Metabolism-specific validation is pinned in `Tests/vos.ManagedMicroservice.Metabolism.Tests/BrokerClientValidationTests.cs` (outbound bodies via a TestableBrokerClient that overrides `BuildXyzPayload` + `OutboundViolationMode`) and `BrokerClientSignalRValidationTests.cs` (SignalR event via `internal` + `InternalsVisibleTo`). Production coverage rolls into `vos.ManagedMicroservice.Shared`'s and `vos.ManagedMicroservice.Metabolism`'s existing thresholds.
 
 ## Notable decisions in test-infrastructure shape
 
@@ -92,9 +91,7 @@ Two minimal production-code changes were needed to make this work cleanly (the a
 
 **Why**: the documented choice was already `WebApplicationFactory<Program>` per the plan and template — the alternative (an inline `WebApplication` + `TestServer`, which I'd initially considered) would have deviated without a strong reason, and `vos.Mycelium`'s existing pattern proved the approach works in this org's .NET 10 / coverage-collector setup. Documenting here so 2C / 2D / future microservices follow the same shape.
 
-**Coverage measurement note (Bug #5260 family)**: `reportgenerator` aggregates package-level coverage by averaging across declared source classes AND compiler-generated nested types (async state machines, lambda closures). The `[CompilerGenerated]` exclusion in `coverage.runsettings` filters them at coverlet level but their entries persist in the Cobertura XML — so the pkg-level number understates the real source coverage. For Metabolism after Phase 2B: every declared source file is at 95-100% line coverage, but the pkg-level report reads ~93% because async-state-machine partial coverage drags the average. The same caveat applies to any microservice that uses `async` heavily. Under the diff-coverage gate (Task #5434) this no longer affects the gate signal — the gate folds duplicate `<line>` entries by max-hits, so one hit anywhere counts as covered; only the displayed snapshot percentages here are still affected.
-
-**SignalR hub callbacks excluded**: `vos.ManagedMicroservice.Metabolism/Services/BrokerClient.cs` has two SignalR callback bodies (the `RelationshipPropertyChanged` handler and the `Reconnected` handler). They only fire when a real broker hub delivers events — out of unit-test scope. Refactored into named methods (`HandleRelationshipPropertyChanged`, `HandleReconnected`) with `[ExcludeFromCodeCoverage]`, which `coverage.runsettings` already honors via `ExcludeByAttribute`.
+**Coverage measurement note (Bug #5260 family)**: `reportgenerator` aggregates package-level coverage by averaging across declared source classes AND compiler-generated nested types (async state machines, lambda closures). The `[CompilerGenerated]` exclusion in `coverage.runsettings` filters them at coverlet level but their entries persist in the Cobertura XML — so the pkg-level number understates the real source coverage. For Metabolism after Phase 2B: every declared source file is at 95-100% line coverage, but the pkg-level report reads ~93% because async-state-machine partial coverage drags the average. The same caveat applies to any microservice that uses `async` heavily. Affects the displayed snapshot percentages in the coverage table only; rely on per-source-file numbers for accuracy.
 
 ### Phase 2C — same pattern, extended for endpoints that proxy outbound HTTP
 
@@ -116,44 +113,6 @@ Phase 2D (PR open against Task #5405) applied the same shape to `vos.ManagedMicr
 
 Delta's Program.cs lands at 89.9%; the remaining ~10% is the same minimal-API-wireup family (`cliArgs == null` exit, non-Testing Serilog branch, outer `catch (Exception)` around `app.Run`) **plus** the defensive outer `catch (Exception)` inside `HandleRegisterEndpointRequestAsync` which guards the whole handler against runtime exceptions that the broker-client's own per-method try/catches already swallow. That defensive catch is essentially unreachable from a unit test and falls under the same plan exclusion as the other minimal-API wireup.
 
-### Coverage gate (Feature #5433 / Task #5434)
-
-`azure-pipelines.yml` enforces a **diff coverage** gate by invoking `Tools/Test-CoverageGate.ps1` after `dotnet test`. The script merges per-project Cobertura XMLs via `reportgenerator`, parses `git diff --unified=0 $(git merge-base origin/develop HEAD)..HEAD`, and intersects the PR's added/modified lines with `<line hits=...>` entries in the merged Cobertura. Patch coverage below the threshold (default 85%) fails the build.
-
-The same script runs locally:
-
-```powershell
-dotnet test --collect:"XPlat Code Coverage" --settings coverage.runsettings --results-directory TestResults/local
-pwsh Tools/Test-CoverageGate.ps1 -Reports "TestResults/local/**/coverage.cobertura.xml" -MergeOutput "TestResults/local/coverage-report"
-```
-
-Same command CI runs — no "what does the YAML do that I can't reproduce locally" gap.
-
-**Gate shape: patch coverage, single threshold.** A changed line counts toward the gate's denominator only if it has a `<line>` entry in the merged Cobertura. That naturally drops:
-
-- Braces, comments, blank lines — coverlet doesn't emit `<line>` entries for non-executable lines.
-- Files excluded via `coverage.runsettings` `ExcludeByFile` (e.g. `**/vos.ManagedMicroservice.*/Program.cs` minimal-API wireup).
-- Test-project sources (excluded by `ExcludeByModulePath` in runsettings).
-- Pure deletions, binary-file changes, and rename-without-edit — no `+` lines in the diff.
-
-A docs-only PR (no executable .NET changes) hits a clean "no executable changes to gate" pass branch.
-
-**Why this replaced the Phase 3 per-assembly thresholds (Task #5406).** The old gate baked dev-tip percentages into `Tools/Test-CoverageGate.ps1` as per-assembly absolute thresholds. CI on `windows-latest` reproduced them; the maintainer's dev box did not, because coverage measurement is noisy across environments — parallel xUnit ordering, env-var leakage between tests sharing a collection, stale `TestResults/` artefacts merged into reruns. The gate produced false failures locally with no real regression. Diff coverage is environment-independent: only changed lines are measured, so noise in unchanged code is invisible to the gate.
-
-**Tuning the threshold.** The default is 85%, set in the script's `param()` block. To raise it, pass `-Threshold 90` (or higher) when invoking the script, and bake the new value into the CI step's `arguments`. There's no per-assembly knob — a single number applies to whatever the PR touched.
-
-**Adding a new assembly.** Nothing to do. The first time a new assembly's source is touched, the gate measures coverage of those changed lines against the same threshold.
-
-**Local invocation tips.**
-
-- Use `--results-directory TestResults/local` (or any fresh dir) when running `dotnet test` so prior runs' Cobertura XMLs aren't merged into the current run. Stale artefacts in `TestResults/` were a meaningful source of fluctuation under the old gate; the new gate inherits the same input pipe.
-- The gate uses `origin/develop` as the base ref by default. If you're working off a different upstream, pass `-BaseRef origin/main` (or similar). CI fetches full history (`fetchDepth: 0`) so this resolves correctly there.
-- Pure-deletion PRs (e.g. removing dead code) pass with "no executable changes to gate" because the diff has no `+` lines.
-
-**Async-state-machine artefact** *(carried over from Phase 3 because it still matters at the line-hit level)*. coverlet emits multiple `<line>` entries for the same source line when async state machines + lambda closures expand into compiler-generated types. The gate folds duplicates by taking the max `hits` value across all entries for a given `(file, line)`, so one hit anywhere = the line counts as covered. The artefact no longer drags package averages because the gate doesn't read package averages.
-
-**Total-coverage signal.** Not gated. Still computed and published as the Cobertura artefact by the pipeline; reviewers can inspect it but it doesn't fail the build.
-
 ### Test-driven development as the working convention (Phase 4 / Task #5407)
 
 Every code change in this repo follows TDD — write the failing test first, run it red, write the minimum production code to take it green, then refactor with the test as a safety net. The rule extends what `CLAUDE.md` > *Workflow* > *Before touching code* step 4 already required for bug fixes (`Bug<N>_<Scenario>` regression tests) to every code change — features and refactors included. The full red-green-refactor description lives in `CLAUDE.md` > *Workflow* > *Test-driven development*; this entry records *why* it landed as a phase deliverable rather than just an unwritten convention.
@@ -167,24 +126,9 @@ Every code change in this repo follows TDD — write the failing test first, run
 - Bug regressions: `Bug<N>_<Scenario>` (pre-existing — kept).
 - Everything else: `MethodOrClass_Scenario_ExpectedOutcome` (matches the existing test corpus across all the .NET test projects above).
 
-**Relationship to the coverage gate.** The gate (diff coverage, Feature #5433 / Task #5434) and TDD (Phase 4 / Task #5407) are complementary, not redundant. The gate catches numeric regressions: a PR whose patch coverage falls below the threshold fails CI. TDD catches *design-quality* regressions that pass the gate: features added with tests written after-the-fact tend to test what the code does rather than what the code should do, which the gate can't see. Shipping them together means the gate is the floor (no untested changed lines) and TDD is the working method that keeps the actual coverage well above the floor.
-
 **Why this is documented in TEST-STATE.md as well as CLAUDE.md.** `CLAUDE.md` is gitignored per-developer in this repo, so the TDD section there propagates only to whoever has it locally. `docs/TEST-STATE.md` is tracked, mirrored to the AzDO wiki, and read by reviewers — adding the convention here makes it a contract reviewers can hold PRs to (test commits should precede or be visibly bundled with implementation commits; `git log` order is the verification surface).
 
-### Test-quality convention (Feature #5433 / Task #5437)
-
-Every test must encode an **observable contract**: if production code is broken in a way callers can detect, the test must fail. Tests whose only assertion is `NotThrow()`, substring-matches on help-text or error-message strings, or pins down a specific switch arm / early-return without checking what came out are the anti-pattern. They contribute to coverage percentages but pin implementation details — they break on refactors that preserve behaviour, and they pass on regressions that break behaviour.
-
-The retired-under-Task-#5437 `CoverageGapTests.cs` corpus is the worked example of the anti-pattern. Concrete signals the triage caught:
-
-- File or test named for the metric or branch it raises (`CoverageGapTests`, `*_TakesEarlyReturn*`, `*_HitsCatchBlock*`).
-- Theory or `[Fact]` whose body is one `NotThrow()` call.
-- Substring assertion on a string the production code generates (help text, error message format) where the test doesn't care about the rest of the contract.
-- Comments naming production-file line numbers (e.g. `// (lines 137, 151-155, 159-163)`). Line numbers rot the first time anyone reformats the file.
-
-When a test asserts an outcome a refactor must preserve (return value, exception type, exception message, observable side effect, state change), it belongs in a file named for the unit-under-test. When a test exists only to make a number go up, delete it.
-
-### EnvVarScope for env-var-mutating tests (Task #5437)
+### EnvVarScope for env-var-mutating tests
 
 Tests that need to set process environment variables (e.g. Delta/Tributary auth-wireup tests that need `<SERVICE>_SIGNING_KEY` set before host construction) use the `EnvVarScope` IDisposable defined in each microservice's test project. The scope sets vars in its constructor and restores their prior values on `Dispose`. Use it with `using var env = new EnvVarScope(("X", "v"), ...)` inside the test body.
 

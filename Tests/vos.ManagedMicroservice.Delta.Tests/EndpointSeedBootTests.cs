@@ -10,10 +10,6 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// (see <c>Helpers/EndpointSeedLoaderTests.cs</c>); this test asserts that Program.cs
 /// surfaces the loader's exception to host construction so a misconfigured deployment
 /// fails loudly rather than starting with no usable seed.
-///
-/// Moved from <c>CoverageGapTests.cs</c> under Task #5437. The <c>MalformedSeedFactory</c>
-/// sub-class was inlined by setting <see cref="DeltaWebApplicationFactory.SeedJson"/>
-/// directly on a base-factory instance.
 /// </summary>
 [Collection(nameof(DeltaEnvVarCollection))]
 public class EndpointSeedBootTests

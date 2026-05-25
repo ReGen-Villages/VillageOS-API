@@ -12,7 +12,6 @@ namespace vos.ManagedMicroservice.Metabolism.Tests;
 /// the host or returning an opaque success.
 ///
 /// Pins the contract that malformed request bodies surface as a clean error response.
-/// Moved from <c>CoverageGapTests.cs</c> under Task #5437.
 /// </summary>
 public class HandleErrorPathTests
 {

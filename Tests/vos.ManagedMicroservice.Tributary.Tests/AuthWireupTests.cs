@@ -9,10 +9,6 @@ namespace vos.ManagedMicroservice.Tributary.Tests;
 /// Integration tests for Tributary's auth wireup: when TRIBUTARY_SIGNING_KEY is configured,
 /// the authenticated endpoints (<c>/handle</c>, <c>/shutdown</c>) reject anonymous requests
 /// with 401, but <c>/health</c> stays open.
-///
-/// Moved from <c>CoverageGapTests.cs</c> under Task #5437. The <c>AuthEnabledFactory</c>
-/// sub-class was replaced with <see cref="EnvVarScope"/> so each test's env vars are
-/// restored deterministically.
 /// </summary>
 [Collection(nameof(TributaryEnvVarCollection))]
 public class AuthWireupTests

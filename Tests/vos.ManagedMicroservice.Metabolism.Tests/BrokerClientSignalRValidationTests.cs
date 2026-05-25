@@ -11,9 +11,9 @@ namespace vos.ManagedMicroservice.Metabolism.Tests;
 /// <summary>
 /// Phase 4 (Feature #5445): SignalR RelationshipPropertyChanged events are validated against
 /// the relationship-property-changed-event schema before they reach simulation code. The
-/// SignalR callback itself stays [ExcludeFromCodeCoverage] (only fires from a real hub);
-/// the validation logic is extracted into an internal RaiseRelationshipPropertyChanged
-/// method that tests call directly via InternalsVisibleTo.
+/// SignalR callback only fires from a real hub, so the validation logic is extracted into
+/// an internal RaiseRelationshipPropertyChanged method that tests call directly via
+/// InternalsVisibleTo.
 /// </summary>
 public class BrokerClientSignalRValidationTests
 {

@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -97,9 +96,8 @@ public class BrokerClient : BrokerClientBase
 
     /// <summary>
     /// Validates an inbound RelationshipPropertyChanged event payload against its schema
-    /// then raises the public <see cref="OnRelationshipPropertyChanged"/> event. Pulled out
-    /// of the [ExcludeFromCodeCoverage] SignalR callback so the validation path is unit-
-    /// testable without a real hub; the callback itself is just <c>Log + this</c>.
+    /// then raises the public <see cref="OnRelationshipPropertyChanged"/> event. Separated
+    /// from the SignalR callback so the validation path is unit-testable without a real hub.
     /// </summary>
     internal void RaiseRelationshipPropertyChanged(Guid relationshipId, string propertyName, object? newValue)
     {
@@ -151,12 +149,6 @@ public class BrokerClient : BrokerClientBase
         }
     }
 
-    // SignalR hub-callback bodies. Excluded from coverage because they fire only when a
-    // real broker SignalR hub delivers messages — out of unit-test scope. Wrapping them
-    // in named methods (rather than inline lambdas in ConnectSignalRAsync) lets the
-    // [ExcludeFromCodeCoverage] attribute apply cleanly without losing coverage of
-    // ConnectSignalRAsync's retry/error-handling shell.
-    [ExcludeFromCodeCoverage]
     private void HandleRelationshipPropertyChanged(Guid relationshipId, string propertyName, object? newValue)
     {
         Logger.LogDebug("SignalR: RelationshipPropertyChanged {RelId} {Prop}={Value}",
@@ -164,7 +156,6 @@ public class BrokerClient : BrokerClientBase
         RaiseRelationshipPropertyChanged(relationshipId, propertyName, newValue);
     }
 
-    [ExcludeFromCodeCoverage]
     private Task HandleReconnected(string? connectionId)
     {
         Logger.LogInformation("SignalR reconnected: {ConnectionId}", connectionId);

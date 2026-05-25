@@ -46,8 +46,7 @@ public class ObservationIngestServiceTests
     // Note: the `string.IsNullOrWhiteSpace(rawResult) → transformed = "null"` branch in
     // TryTransform is unreachable through Jsonata.Net.Native's public API — Eval returns
     // the literal string "undefined" for missing-path expressions rather than null/empty.
-    // This branch is documented as a defensive guard for hypothetical future library
-    // behavior; it falls under the [ExcludeFromCodeCoverage] discussion in TEST-STATE.md.
+    // The branch stays as a defensive guard for hypothetical future library behavior.
 
     [Fact]
     public void TryTransform_QueryEvalReturnsScalar_NormalizedToJson()

@@ -12,10 +12,9 @@ namespace vos.ManagedMicroservice.Tributary.Tests;
 ///   <item>Empty-string url in the effective properties returns 400 with the documented "non-empty strings" message.</item>
 ///   <item>Effective properties exposing <c>url</c>/<c>httpMethod</c> as raw keys (no <c>Endpoint.</c> prefix) route through <c>EffectivePropertyResolver</c>'s exact-match branch and complete the happy path.</item>
 /// </list>
-///
-/// Moved from <c>CoverageGapTests.cs</c> under Task #5437. <c>EffectivePropertyResolver</c>
-/// itself is unit-tested in <c>Helpers/EffectivePropertyResolverTests.cs</c>; these tests
-/// pin the end-to-end integration through Program.cs.
+/// <c>EffectivePropertyResolver</c> itself is unit-tested in
+/// <c>Helpers/EffectivePropertyResolverTests.cs</c>; these tests pin the end-to-end
+/// integration through Program.cs.
 /// </summary>
 [Collection(nameof(TributaryEnvVarCollection))]
 public class HandleValidationTests

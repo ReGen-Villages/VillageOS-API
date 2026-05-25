@@ -13,8 +13,6 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// happy path &mdash; a caller posts properties with uppercase keys (URL, HTTPMethod) and
 /// the registration succeeds. A regression that broke the wiring (e.g. swapping the
 /// helper for an exact-match lookup) would unit-test pass but fail here.
-///
-/// Moved from <c>CoverageGapTests.cs</c> under Task #5437.
 /// </summary>
 [Collection(nameof(DeltaEnvVarCollection))]
 public class PropertyLookupTests

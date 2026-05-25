@@ -230,7 +230,7 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Connection refused", output);
     }
 
-    // ========== Named-arg parsing (moved from CoverageGapTests under Task #5437) ==========
+    // ========== Named-arg parsing ==========
 
     [Fact]
     public async Task Execute_DefaultModeRingBufferWithSize_ParsesNamedArg()

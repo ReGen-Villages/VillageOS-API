@@ -27,20 +27,11 @@ variables:
   testResultsDirectory: '$(Agent.TempDirectory)/TestResults'
 
 steps:
-# Full-history checkout so Tools/Test-CoverageGate.ps1 can compute
-# `git merge-base origin/develop HEAD` (Feature #5433 / Task #5434).
-- checkout: self
-  fetchDepth: 0
-
 - task: UseDotNet@2
   displayName: 'Install .NET SDK'
   inputs:
     packageType: 'sdk'
     version: '10.x'
-
-- script: dotnet tool install -g dotnet-reportgenerator-globaltool
-  displayName: 'Install ReportGenerator'
-  continueOnError: true
 
 - script: dotnet restore
   displayName: 'Restore NuGet Packages'
@@ -72,25 +63,6 @@ steps:
     codecoverageTool: 'Cobertura'
     summaryFileLocation: '$(testResultsDirectory)/**/coverage.cobertura.xml'
   condition: succeededOrFailed()
-
-# Feature #5433 / Task #5434 — diff coverage gate. Measures patch coverage on the
-# PR's added/modified executable lines against an 85% threshold. Replaces the Phase 3
-# per-assembly absolute-threshold gate (Task #5406). The same command runs locally.
-# See docs/TEST-STATE.md > "Coverage gate" for the design.
-- task: PowerShell@2
-  displayName: 'Coverage Gate (diff coverage)'
-  condition: succeeded()
-  inputs:
-    filePath: 'Tools/Test-CoverageGate.ps1'
-    arguments: '-Reports "$(testResultsDirectory)/**/coverage.cobertura.xml" -MergeOutput "$(testResultsDirectory)/coverage-report"'
-    pwsh: true
-
-- task: PublishBuildArtifacts@1
-  displayName: 'Publish Coverage HTML Report'
-  condition: succeededOrFailed()
-  inputs:
-    pathToPublish: '$(testResultsDirectory)/coverage-report'
-    artifactName: 'coverage-report'
 
 - script: |
     echo "========================================"

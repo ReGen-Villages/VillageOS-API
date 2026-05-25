@@ -596,7 +596,7 @@ public class ListCommandHandlerTests
 
     #endregion
 
-    #region Nested-inheritance traversal (moved from CoverageGapTests under Task #5437)
+    #region Nested-inheritance traversal
 
     [Fact]
     public async Task ListThings_NestedInheritedProperties_TraversesAllLevels()

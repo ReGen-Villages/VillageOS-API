@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -69,9 +68,6 @@ public sealed class SchemaRegistry
             : null;
     }
 
-    // Embedded-resource enumeration: skipping non-schema resources and the defensive null-stream
-    // throw are not reachable through the test surface. Excluded from coverage as host-side glue.
-    [ExcludeFromCodeCoverage]
     private static List<(string ResourceName, string Json)> LoadEmbeddedRawSchemas()
     {
         var result = new List<(string, string)>();

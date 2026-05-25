@@ -6,10 +6,10 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// per-test env vars (e.g. DELTA_SIGNING_KEY for auth-wireup tests) without leaking them
 /// to subsequent tests in the same collection.
 ///
-/// Replaces the <c>AuthEnabledFactory</c> sub-class pattern from the old CoverageGapTests,
-/// which used <c>new</c>-shadowed <c>InitializeAsync</c>/<c>DisposeAsync</c> &mdash; the
-/// shadowing didn't reach <c>IAsyncDisposable</c> dispatch through <c>await using</c>, so
-/// the per-test env vars leaked. A try/using scope sidesteps the inheritance dispatch issue.
+/// A using-scope avoids the <c>IAsyncDisposable</c> dispatch issue that a
+/// <c>new</c>-shadowed lifecycle method on a <c>WebApplicationFactory</c> subclass has
+/// &mdash; the shadowing doesn't reach <c>IAsyncDisposable</c> dispatch through
+/// <c>await using</c>, so per-test env vars leak.
 /// </summary>
 internal sealed class EnvVarScope : IDisposable
 {
