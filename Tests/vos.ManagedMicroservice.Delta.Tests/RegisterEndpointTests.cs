@@ -13,7 +13,6 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 // Test naming convention: most tests target /handle. The /register alias delegates to the
 // same HandleRegisterEndpointRequestAsync helper, so we cover it with a single shared-routing
 // test rather than duplicating the entire decision tree.
-[Collection(nameof(DeltaFactoryCollection))]
 public class RegisterEndpointTests
 {
     // ---------- Request validation ----------

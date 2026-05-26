@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using vos.ManagedMicroservice.Delta.Services;
+using vos.ManagedMicroservice.Delta.Tests.Services;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -22,12 +24,12 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// Tests that need a per-test signing key set <see cref="SigningKey"/> / <see cref="Issuer"/> /
 /// <see cref="Audience"/> on the factory instance before creating a client.
 ///
-/// A synthetic <c>seed.json</c> is written to <see cref="AppContext.BaseDirectory"/> in
-/// <see cref="InitializeAsync"/> so the production <c>EndpointSeedLoader</c> helper finds it
-/// on startup (the real <c>seed.json</c> is gitignored per CLAUDE.md as runtime data, so it
-/// isn't present in the test process's bin folder by default). The file is removed in
-/// <see cref="DisposeAsync"/>. Tests override <see cref="SeedJson"/> before init to exercise
-/// malformed-seed boot paths.
+/// The seed is supplied in-memory: <see cref="ConfigureWebHost"/> swaps the production
+/// <see cref="IEndpointSeedProvider"/> (<c>FileEndpointSeedProvider</c>) for an
+/// <see cref="InMemoryEndpointSeedProvider"/> seeded from <see cref="SeedJson"/>, so each
+/// factory instance owns its seed without touching <see cref="AppContext.BaseDirectory"/>
+/// (Task #5455). Tests override <see cref="SeedJson"/> before the first <c>CreateClient()</c>
+/// to exercise malformed-seed boot paths.
 ///
 /// <c>IHttpClientFactory</c> is replaced with a <c>PerCallHttpClientFactory</c> that returns
 /// a fresh <c>HttpClient</c> per <c>CreateClient</c> call — <c>BrokerClientBase.CreateAuthenticatedClientAsync</c>
@@ -46,7 +48,11 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
     public string? Issuer { get; set; }
     public string? Audience { get; set; }
 
-    /// <summary>Seed contents written to disk in InitializeAsync. Tests can override before init.</summary>
+    /// <summary>
+    /// In-memory seed contents passed to <see cref="InMemoryEndpointSeedProvider"/> at host
+    /// build. Tests can override before the first <c>CreateClient()</c> to drive both
+    /// happy-path and malformed-seed boot scenarios.
+    /// </summary>
     public string SeedJson { get; set; } = """
     {
       "name": "Endpoint",
@@ -58,22 +64,9 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
     }
     """;
 
-    private string? _writtenSeedPath;
+    public Task InitializeAsync() => Task.CompletedTask;
 
-    public Task InitializeAsync()
-    {
-        _writtenSeedPath = Path.Combine(AppContext.BaseDirectory, "seed.json");
-        File.WriteAllText(_writtenSeedPath, SeedJson);
-        return Task.CompletedTask;
-    }
-
-    public new Task DisposeAsync()
-    {
-        if (_writtenSeedPath != null && File.Exists(_writtenSeedPath))
-            File.Delete(_writtenSeedPath);
-
-        return base.DisposeAsync().AsTask();
-    }
+    public new Task DisposeAsync() => base.DisposeAsync().AsTask();
 
     private sealed class PerCallHttpClientFactory : IHttpClientFactory
     {
@@ -97,6 +90,9 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
             services.RemoveAll<IHttpClientFactory>();
             Handler = new MockHttpMessageHandler(req => HandlerCallback(req));
             services.AddSingleton<IHttpClientFactory>(new PerCallHttpClientFactory(Handler));
+
+            services.RemoveAll<IEndpointSeedProvider>();
+            services.AddSingleton<IEndpointSeedProvider>(new InMemoryEndpointSeedProvider(SeedJson));
         });
     }
 }

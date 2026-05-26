@@ -11,7 +11,6 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// anonymous requests with 401, but <c>/health</c> remains open. Encodes a real
 /// security contract &mdash; a regression here ships an open endpoint.
 /// </summary>
-[Collection(nameof(DeltaFactoryCollection))]
 public class AuthWireupTests
 {
     private static DeltaWebApplicationFactory MakeAuthFactory() => new()

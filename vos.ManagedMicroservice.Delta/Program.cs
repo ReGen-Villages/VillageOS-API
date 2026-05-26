@@ -73,8 +73,10 @@ try
             brokerUrl,
             serviceToken));
 
+    builder.Services.AddSingleton<IEndpointSeedProvider, FileEndpointSeedProvider>();
+
     var app = builder.Build();
-    var endpointSeed = EndpointSeedLoader.LoadDefault(app.Services.GetRequiredService<ILogger<BrokerClient>>());
+    var endpointSeed = app.Services.GetRequiredService<IEndpointSeedProvider>().LoadSeed();
 
     if (authEnabled)
     {
