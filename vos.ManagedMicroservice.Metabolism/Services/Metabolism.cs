@@ -9,12 +9,12 @@ public class Metabolism
 {
     private readonly ConcurrentDictionary<string, SimulationEntry> _simulations = new();
     private readonly BrokerClient _brokerClient;
-    private readonly ILogger _logger;
+    private readonly ILogger<Metabolism> _logger;
     private readonly string _mode;
     private readonly object _updateLock = new();
     private int _registrationOrder;
 
-    public Metabolism(BrokerClient brokerClient, ILogger logger, string mode)
+    public Metabolism(BrokerClient brokerClient, ILogger<Metabolism> logger, string mode)
     {
         _brokerClient = brokerClient;
         _logger = logger;
@@ -175,7 +175,7 @@ public class Metabolism
         return false;
     }
 
-    public IEnumerable<SimulationEntry> GetAll() => _simulations.Values;
+    public virtual IEnumerable<SimulationEntry> GetAll() => _simulations.Values;
 
     public async Task StopAllAsync()
     {

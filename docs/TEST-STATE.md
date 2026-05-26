@@ -80,9 +80,9 @@ Watch items:
 
 `docs/MICROSERVICE-TEMPLATE.md` (lines 134-142) prescribes `WebApplicationFactory<Program>` from `Microsoft.AspNetCore.Mvc.Testing` when a microservice's endpoint surface needs unit-level coverage. Metabolism was the first microservice to adopt the pattern (Phase 2B, Task #5403). The shape it landed on, modeled directly on the sibling `vos.Mycelium.Tests.BrokerWebApplicationFactory`:
 
-- **`Tests/vos.ManagedMicroservice.Metabolism.Tests/MetabolismWebApplicationFactory.cs`** is a `WebApplicationFactory<Program>` subclass that implements `IAsyncLifetime` (workaround for sibling VillageOS Bug #5260 — sync-over-async deadlock in `CreateHost` under the XPlat Code Coverage collector on Windows CI).
+- **`Tests/vos.ManagedMicroservice.Metabolism.Tests/MetabolismWebApplicationFactory.cs`** is a `WebApplicationFactory<Program>` subclass that implements `IAsyncLifetime` (workaround for sibling VillageOS Bug #5260 — sync-over-async deadlock in `CreateHost` under the XPlat Code Coverage collector on Windows CI). Exposes a `ConfigureServices` action so tests can swap singletons via `ConfigureTestServices` without subclassing (Task #5456).
 - Config is injected via `builder.UseSetting(...)` in `ConfigureWebHost`. `CliArgs.Parse` reads these as a fallback when CLI args are absent (always the case under WebApplicationFactory). Keys are flat: `Port`, `BrokerUrl`, `Mode`, optional `Token`/`SigningKey`/`Issuer`/`Audience`.
-- **`EndpointMapperTests.cs`** exercises every endpoint via `factory.CreateClient()`.
+- **`EndpointMapperTests.cs`** exercises every endpoint via `factory.CreateClient()`. `DependencyInjectionTests.cs` pins the DI substitution seam — `services.RemoveAll<Metabolism>() + services.AddSingleton(stub)` is what makes `/simulations` and the other Metabolism-resolving endpoints reach the substituted instance (Task #5456 moved `Program.cs` to the Tributary/Delta DI shape — `BrokerClient`/`Metabolism`/`HandleRequestProcessor` registered via `AddSingleton`, `OnRelationshipPropertyChanged` wired by a `MetabolismEventSubscriber : IHostedService`).
 
 Two minimal production-code changes were needed to make this work cleanly:
 

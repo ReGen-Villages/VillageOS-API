@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace vos.ManagedMicroservice.Metabolism.Tests;
@@ -28,6 +30,14 @@ namespace vos.ManagedMicroservice.Metabolism.Tests;
 /// </summary>
 public class MetabolismWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    /// <summary>
+    /// Optional per-test service substitutions, applied via <c>ConfigureTestServices</c>
+    /// after the production registrations land. Set before the first <c>CreateClient()</c>.
+    /// Used by Task #5456's <c>DependencyInjectionTests</c> to swap <c>Metabolism</c> via
+    /// <c>services.RemoveAll&lt;Metabolism&gt;() + services.AddSingleton(stub)</c>.
+    /// </summary>
+    public Action<IServiceCollection>? ConfigureServices { get; set; }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public new Task DisposeAsync() => base.DisposeAsync().AsTask();
@@ -39,5 +49,8 @@ public class MetabolismWebApplicationFactory : WebApplicationFactory<Program>, I
         builder.UseSetting("BrokerUrl", "http://localhost:1");
         builder.UseSetting("Mode", "consumes");
         // No SigningKey → auth is disabled (authEnabled=false branch of MapMetabolismEndpoints).
+
+        if (ConfigureServices != null)
+            builder.ConfigureTestServices(ConfigureServices);
     }
 }

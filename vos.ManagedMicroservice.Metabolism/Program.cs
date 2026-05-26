@@ -68,6 +68,19 @@ try
             cliArgs.Issuer ?? "VillageOS", cliArgs.Audience ?? "VosClients");
     }
 
+    builder.Services.AddSingleton(sp =>
+        new BrokerClient(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<BrokerClient>>(),
+            brokerUrl, mode, serviceToken));
+    builder.Services.AddSingleton(sp =>
+        new Metabolism(
+            sp.GetRequiredService<BrokerClient>(),
+            sp.GetRequiredService<ILogger<Metabolism>>(),
+            mode));
+    builder.Services.AddSingleton<HandleRequestProcessor>();
+    builder.Services.AddHostedService<MetabolismEventSubscriber>();
+
     var requestCount = 0;
     var app = builder.Build();
 
@@ -85,26 +98,14 @@ try
 
     app.UseRequestContractValidation();
 
-    // Initialize services
-    var httpClientFactory = app.Services.GetRequiredService<IHttpClientFactory>();
-    var logger = app.Services.GetRequiredService<ILogger<BrokerClient>>();
-    var brokerClient = new BrokerClient(httpClientFactory, logger, brokerUrl, mode, serviceToken);
-
-    var metabolismLogger = app.Services.GetRequiredService<ILogger<Metabolism>>();
-    var metabolism = new Metabolism(brokerClient, metabolismLogger, mode);
-
-    var processorLogger = app.Services.GetRequiredService<ILogger<HandleRequestProcessor>>();
-    var processor = new HandleRequestProcessor(metabolism, processorLogger);
-
-    // Subscribe to relationship property changes so simulations update live
-    brokerClient.OnRelationshipPropertyChanged += (relId, propName, value) =>
-        metabolism.UpdateProperty(relId.ToString(), propName, value);
-
     // Connect SignalR for live property updates. Skip under WebApplicationFactory<Program>
     // tests — the broker URL is synthetic, the connection would fail in a background task,
     // and the noise (failed retries) pollutes test output.
     if (!app.Environment.IsEnvironment("Testing"))
     {
+        var brokerClient = app.Services.GetRequiredService<BrokerClient>();
+        var metabolism = app.Services.GetRequiredService<Metabolism>();
+
         app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
         {
             try
@@ -135,7 +136,7 @@ try
     }
 
     app.MapMetabolismEndpoints(
-        processor, metabolism, brokerClient, mode,
+        mode,
         () => requestCount, () => requestCount++,
         authEnabled: !string.IsNullOrEmpty(signingKey));
 
