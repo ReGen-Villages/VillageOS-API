@@ -55,10 +55,11 @@ by default per the project's pre-release / no-shims convention).
 
 Schemas deliberately **excluded** from Phase 1:
 
-- `ack-response` — the envelope from `docs/DELIVERY.md §3.3` is a design
-  proposal, not on the wire. Lands with the Feature that implements DELIVERY.md.
-- `health-response` — the envelope from `docs/DELIVERY.md §8` is similarly
-  aspirational. Same disposition.
+- `ack-response` — the envelope from `docs/FUTURE_ARCHITECTURE.md §1.4` is a
+  design proposal, not on the wire. Lands with the Feature that implements the
+  delivery contract.
+- `health-response` — the envelope from `docs/FUTURE_ARCHITECTURE.md §1.8` is
+  similarly aspirational. Same disposition.
 - Every other `handle-request-*` — only Metabolism has a typed body today; Echo
   and Delta/Tributary read raw or service-specific shapes. Add a schema per
   service when its body shape stabilises.
@@ -163,8 +164,9 @@ one well-defined direction.
 
 ## 8. Cross-references
 
-- `docs/DELIVERY.md` — the Ack envelope and inbound delivery contract Phase 2
-  will dovetail with. Phase 1 deliberately does not pre-empt that work.
+- `docs/FUTURE_ARCHITECTURE.md` §1 — the Ack envelope and inbound delivery
+  contract Phase 2 will dovetail with. Phase 1 deliberately does not pre-empt
+  that work.
 - `docs/MICROSERVICE-TEMPLATE.md` — every microservice will adopt the validator
   via the template once Phase 2 lands.
 - `docs/TEST-STATE.md` — the TDD discipline applies to schemas too: failing
