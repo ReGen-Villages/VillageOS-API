@@ -8,7 +8,7 @@
 //
 // New microservices' BrokerClient tests should mirror this file's shape:
 // HandlerId-uniqueness, BrokerUrl-passthrough, RegisterAsync round-trip
-// against MockHttpMessageHandler. See docs/MICROSERVICE-TEMPLATE.md.
+// against MockHttpMessageHandler. See docs/MICROSERVICES.md §10.
 
 using System.Net;
 using System.Text;

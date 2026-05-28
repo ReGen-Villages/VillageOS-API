@@ -270,7 +270,7 @@ static async Task CompensateAsync(BrokerClient brokerClient, Guid thingId)
         Log.Error("Compensation failed: could not delete orphaned thing {ThingId}", thingId);
 }
 
-// Exposed to WebApplicationFactory<Program> in the test project per docs/MICROSERVICE-TEMPLATE.md.
+// Exposed to WebApplicationFactory<Program> in the test project per docs/MICROSERVICES.md.
 // Top-level statements compile to a `Program` class that is internal by default — this empty
 // partial declaration just elevates it to public so the test factory can name it.
 public partial class Program { }

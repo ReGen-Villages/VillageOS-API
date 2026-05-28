@@ -3,7 +3,7 @@
 // satisfy. New microservice test projects (Metabolism, Tributary,
 // Delta, future services) should mirror this file's shape:
 // per-flag tests, port-bounds tests, and at least one Theory for invalid
-// input. See docs/MICROSERVICE-TEMPLATE.md for the full template.
+// input. See docs/MICROSERVICES.md §10 for the full template.
 
 using FluentAssertions;
 using vos.ManagedMicroservice.Echo.Configuration;

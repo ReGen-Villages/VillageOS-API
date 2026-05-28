@@ -1,5 +1,5 @@
 // Endpoint-level tests for Metabolism's MapMetabolismEndpoints via WebApplicationFactory<Program>,
-// per the canonical pattern in docs/MICROSERVICE-TEMPLATE.md. Phase 2B landed first; see
+// per the canonical pattern in docs/MICROSERVICES.md §10. Phase 2B landed first; see
 // docs/TEST-STATE.md > "WebApplicationFactory<Program>..." for the shape rationale.
 // Sibling reference: vos.Mycelium.Tests.BrokerWebApplicationFactory.
 

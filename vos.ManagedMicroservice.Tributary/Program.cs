@@ -320,7 +320,7 @@ static async Task<(int StatusCode, string Body, string? ContentType)> CallEndpoi
     return ((int)response.StatusCode, content, contentType);
 }
 
-// Exposed to WebApplicationFactory<Program> in the test project per docs/MICROSERVICE-TEMPLATE.md.
+// Exposed to WebApplicationFactory<Program> in the test project per docs/MICROSERVICES.md.
 // Top-level statements compile to a `Program` class that is internal by default — this empty
 // partial declaration just elevates it to public so the test factory can name it.
 public partial class Program { }

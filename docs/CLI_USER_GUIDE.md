@@ -1198,6 +1198,5 @@ The CLI accepts self-signed certificates by default for development. For product
 ---
 
 **Next Steps:**
-- Explore the [Broker Guide](BROKER_GUIDE.md) for API reference and operations
-- See [Microservice Guide](https://dev.azure.com/ReGenVillages/VillageOS%20API/_git/VillageOS%20API?path=/docs/MICROSERVICE_GUIDE.md) to build relationship services (lives in the VillageOS-API repo)
-- Review [Service Registration Flow](SERVICE_REGISTRATION_FLOW.md) for microservice architecture
+- See [`MICROSERVICES.md`](MICROSERVICES.md) to build relationship or endpoint services.
+- The Broker REST + SignalR reference lives on the broker repo's wiki (`ReGenVillages/VillageOS`).

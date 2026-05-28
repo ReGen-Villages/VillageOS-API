@@ -2,7 +2,7 @@
 
 This file collects design proposals and roadmap items that have **not yet been
 implemented**. Each section opens with a status line. Once a section ships, move
-its description to the relevant topic file (`MICROSERVICE_GUIDE.md`,
+its description to the relevant topic file (`MICROSERVICES.md`,
 `TEST-STATE.md`, …) and delete the entry here.
 
 > **Status legend:** `PROPOSED` (idea, no work item) · `PLANNED` (Feature exists,
@@ -228,7 +228,7 @@ Per the no-backward-compatibility rule, atomic per-service PRs.
 | Phase | What happens | Verifies |
 |---|---|---|
 | A | Add the new namespace `vos.ManagedMicroservice.Shared.Delivery` with bootstrap extensions, ACK helpers, dedup middleware, `MicroserviceCliArgs`. No service consumes it yet. | `dotnet build` clean; new unit tests for `Ack.*` and the dedup middleware pass. |
-| B | Migrate Echo (smallest, also the only one that already does lifecycle). Echo's `Program.cs` shrinks to the §1.9 shape. Echo's `Configuration/CliArgs.cs` is deleted. Update `MICROSERVICE_GUIDE.md` code samples in the same PR — the doc must not describe a half-truth. | Existing Echo tests pass; new test asserts duplicate `X-Delivery-Id` returns the cached body. |
+| B | Migrate Echo (smallest, also the only one that already does lifecycle). Echo's `Program.cs` shrinks to the §1.9 shape. Echo's `Configuration/CliArgs.cs` is deleted. Update `MICROSERVICES.md` code samples in the same PR — the doc must not describe a half-truth. | Existing Echo tests pass; new test asserts duplicate `X-Delivery-Id` returns the cached body. |
 | C | Migrate Delta, Tributary, Metabolism — one PR each. Each PR also lands the §1.4 ACK status codes for that service's failure modes (e.g. Delta returns `409` when the requested endpoint thing already exists; Metabolism returns `429` when at simulation cap). | Per-service tests updated. |
 | D | `IDeliveryDispatch` lands when a service first needs it (likely Tributary's observation-ingest path). v1 in-process retry implementation. | Contract tests for retry-on-500, no-retry-on-501, no-retry-on-409. |
 | E | (Optional, future) Persistent `IDeliveryDispatch` variant if a real durability requirement appears. | New impl passes the same contract tests as v1 plus a crash-recovery test. |
@@ -463,7 +463,7 @@ and reviewers should evaluate it on its own merits.
 ## 3. Contract validation — possible later phases
 
 Phases 1–4 of contract validation have shipped (Features #5419, #5426, #5440,
-#5445). See `CONTRACT-VALIDATION.md` for the landed surface. Two further phases
+#5445). See `MICROSERVICES.md` §9 for the landed surface. Two further phases
 were sketched but not scheduled:
 
 ### 3.1 Phase 5 — GUI runtime validation
