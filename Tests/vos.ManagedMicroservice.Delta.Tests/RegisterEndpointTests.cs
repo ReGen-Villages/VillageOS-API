@@ -66,10 +66,10 @@ public class RegisterEndpointTests
     [Fact]
     public async Task Handle_SeedHasNoAllowedKeys_Returns500()
     {
-        // Override the default seed.json with one whose properties are empty.
+        // Override the default seed with a model whose root thing has empty properties.
         await using var factory = new DeltaWebApplicationFactory
         {
-            SeedJson = """{"name":"Endpoint","properties":{}}"""
+            SeedJson = """{"things":[{"name":"Endpoint","properties":{}}],"relationships":[]}"""
         };
         await factory.InitializeAsync();
         var isId = Guid.NewGuid();

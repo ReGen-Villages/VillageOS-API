@@ -5,6 +5,13 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests.Helpers;
 
+/// <summary>
+/// Unit tests for <see cref="EndpointSeedLoader.LoadGraph"/> — loading a single model-seed document
+/// (things + relationships) from the first existing candidate path and assembling it into a validated
+/// <see cref="vos.ManagedMicroservice.Delta.Models.EndpointSeedGraph"/>. The graph's own validation
+/// rules are covered by <c>Models/EndpointSeedGraphTests</c>; here we pin discovery, parse failures,
+/// and that validation errors propagate.
+/// </summary>
 public class EndpointSeedLoaderTests : IDisposable
 {
     private readonly string _tempDir;
@@ -28,92 +35,93 @@ public class EndpointSeedLoaderTests : IDisposable
         return path;
     }
 
-    private static readonly string ValidSeedJson = """
+    private const string SingleThingModel = """
         {
-          "name": "Endpoint",
-          "properties": {
-            "url": "https://default.example/",
-            "httpMethod": "GET"
-          }
+          "name": "Endpoint Templates",
+          "things": [ { "name": "Endpoint", "properties": { "url": "https://default.example/", "httpMethod": "GET" } } ],
+          "relationships": []
+        }
+        """;
+
+    private const string TwoTemplateModel = """
+        {
+          "name": "Endpoint Templates",
+          "things": [
+            { "name": "Endpoint", "properties": { "url": "", "httpMethod": "GET" } },
+            { "name": "EsriEndpoint", "properties": { "httpMethod": "POST" } }
+          ],
+          "relationships": [ { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" } ]
         }
         """;
 
     [Fact]
-    public void Load_FirstCandidateValid_ReturnsSeed()
+    public void LoadGraph_SingleThingModel_LoadsOneNodeGraph()
     {
-        var path = WriteSeed("seed.json", ValidSeedJson);
+        var path = WriteSeed("seed.json", SingleThingModel);
 
-        var seed = EndpointSeedLoader.Load(new[] { path }, NullLogger.Instance);
+        var graph = EndpointSeedLoader.LoadGraph(new[] { path }, NullLogger.Instance);
 
-        seed.Name.Should().Be("Endpoint");
-        seed.Properties.Should().NotBeNull();
-        seed.Properties!.Should().ContainKey("url");
+        graph.Root.Name.Should().Be("Endpoint");
+        graph.Templates.Should().HaveCount(1);
     }
 
     [Fact]
-    public void Load_FirstCandidateMissing_FallsBackToSecond()
+    public void LoadGraph_MultiTemplateModel_LoadsAllKeyedByName()
+    {
+        var path = WriteSeed("seed.json", TwoTemplateModel);
+
+        var graph = EndpointSeedLoader.LoadGraph(new[] { path }, NullLogger.Instance);
+
+        graph.Templates.Keys.Should().BeEquivalentTo(new[] { "Endpoint", "EsriEndpoint" });
+        graph.Root.Name.Should().Be("Endpoint");
+        graph.ParentName("EsriEndpoint").Should().Be("Endpoint");
+    }
+
+    [Fact]
+    public void LoadGraph_FirstCandidateMissing_FallsBackToSecond()
     {
         var missing = Path.Combine(_tempDir, "does-not-exist.json");
-        var valid = WriteSeed("second.json", ValidSeedJson);
+        var present = WriteSeed("seed.json", SingleThingModel);
 
-        var seed = EndpointSeedLoader.Load(new[] { missing, valid }, NullLogger.Instance);
+        var graph = EndpointSeedLoader.LoadGraph(new[] { missing, present }, NullLogger.Instance);
 
-        seed.Name.Should().Be("Endpoint");
+        graph.Root.Name.Should().Be("Endpoint");
     }
 
     [Fact]
-    public void Load_FirstCandidateMalformed_LogsWarningAndFallsBackToSecond()
+    public void LoadGraph_MalformedSeed_Throws()
     {
-        var malformed = WriteSeed("malformed.json", "{ this is not valid json");
-        var valid = WriteSeed("valid.json", ValidSeedJson);
+        var path = WriteSeed("seed.json", "{ this is not valid json");
 
-        var seed = EndpointSeedLoader.Load(new[] { malformed, valid }, NullLogger.Instance);
+        var act = () => EndpointSeedLoader.LoadGraph(new[] { path }, NullLogger.Instance);
 
-        seed.Name.Should().Be("Endpoint");
+        act.Should().Throw<InvalidOperationException>().WithMessage("*parse*");
     }
 
     [Fact]
-    public void Load_FirstCandidateValidJsonButEmptyName_FallsBackToSecond()
+    public void LoadGraph_InvalidGraph_PropagatesValidationError()
     {
-        // A seed with empty Name fails the validity check and the loader moves on.
-        var emptyName = WriteSeed("empty-name.json", """{ "name": "", "properties": {} }""");
-        var valid = WriteSeed("valid.json", ValidSeedJson);
+        // Two roots (no 'is' between them) → EndpointSeedGraph.Build rejects.
+        var twoRoots = """
+            { "things": [ { "name": "Endpoint", "properties": {} }, { "name": "Other", "properties": {} } ],
+              "relationships": [] }
+            """;
+        var path = WriteSeed("seed.json", twoRoots);
 
-        var seed = EndpointSeedLoader.Load(new[] { emptyName, valid }, NullLogger.Instance);
+        var act = () => EndpointSeedLoader.LoadGraph(new[] { path }, NullLogger.Instance);
 
-        seed.Name.Should().Be("Endpoint");
+        act.Should().Throw<InvalidOperationException>().WithMessage("*multiple root templates*");
     }
 
     [Fact]
-    public void Load_AllCandidatesMissing_ThrowsInvalidOperationException()
+    public void LoadGraph_NoSeedAnywhere_Throws()
     {
         var missing1 = Path.Combine(_tempDir, "a.json");
         var missing2 = Path.Combine(_tempDir, "b.json");
 
-        var act = () => EndpointSeedLoader.Load(new[] { missing1, missing2 }, NullLogger.Instance);
+        var act = () => EndpointSeedLoader.LoadGraph(new[] { missing1, missing2 }, NullLogger.Instance);
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Could not load a valid Endpoint seed*");
-    }
-
-    [Fact]
-    public void Load_AllCandidatesMalformed_ThrowsInvalidOperationException()
-    {
-        var bad1 = WriteSeed("bad1.json", "garbage");
-        var bad2 = WriteSeed("bad2.json", "{");
-
-        var act = () => EndpointSeedLoader.Load(new[] { bad1, bad2 }, NullLogger.Instance);
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*Could not load a valid Endpoint seed*");
-    }
-
-    [Fact]
-    public void Load_EmptyCandidateList_ThrowsInvalidOperationException()
-    {
-        var act = () => EndpointSeedLoader.Load(Array.Empty<string>(), NullLogger.Instance);
-
-        act.Should().Throw<InvalidOperationException>();
+        act.Should().Throw<InvalidOperationException>().WithMessage("*Could not load a valid Endpoint seed*");
     }
 
     [Fact]

@@ -489,7 +489,7 @@ Catches the mismatch at PR review time instead of at runtime; replaces today's
 ## 4. What is deliberately NOT here
 
 The codebase has several static helpers (`JsonValueCoercion`,
-`JsonValueUnwrapper`, `EffectivePropertyResolver`, `EndpointSeedLoader.Load`)
+`JsonValueUnwrapper`, `EffectivePropertyResolver`, `EndpointSeedLoader.LoadGraph`)
 that look DI-shaped but shouldn't be. They're pure functions with no
 dependencies and no lifetime, already 100 % covered by direct unit tests;
 turning them into services would add ceremony with no testing benefit.
@@ -502,3 +502,31 @@ turning them into services would add ceremony with no testing benefit.
 dependencies. Routed through `IConfiguration` for the env-var fallback (post
 Task #5453), which is the right shape; the `Parse` method itself is correctly a
 pure static.
+
+## 5. Multi-tenant model routing for endpoint daemons (deferred)
+
+The broker's "model as tenant" isolation is complete for the direct request
+path, but the endpoint-daemon write-back path does not yet propagate the
+caller's model. The broker launches an endpoint service (Delta, Tributary, …) as
+a **shared** daemon keyed by `endpoint:{subdomain}:{port}` with no `model_id`,
+and that process writes back with a single process-lifetime `--token` scoped to
+the model of its *first* lazy start (broker `DaemonLifecycleManager.StartDaemonProcess`),
+while each forwarded `/handle` call carries a `broker_request` token with **no**
+`model_id` claim (broker `JwtTokenService.GenerateBrokerRequestToken`). So a
+shared daemon's `POST /api/things` and `/api/relationships` land in its *startup*
+model, not the caller's.
+
+**Current assumption.** The Delta endpoint-template work (Feature #5465) ships
+under the simplifying assumption that **only one model is active at a time**, so
+Delta's writes — creating the registered endpoint thing and its `is`
+relationship, and (once Task #5468 lands) provisioning the template catalog —
+target that one model correctly. The `/handle` contract is intentionally left
+unchanged.
+
+**What's deferred.** True multi-tenant operation — where Delta idempotently
+provisions its template catalog into the *caller's* project model ("approach A")
+— is blocked by the routing gap above and is tracked separately in **Feature
+#5478**, which captures the two candidate fixes (one daemon per model, matching
+the "one Delta per tenant" intent; or per-request model propagation via the
+forwarded token). That work is broker-side and must be decided before Task
+#5468's per-model provisioning can be built.

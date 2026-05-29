@@ -144,8 +144,11 @@ Worked examples from Feature #5433 / Task #5436:
   `JsonValueKind` arm + case-insensitive lookup pinned in
   `Tests/.../Helpers/JsonValueCoercionTests.cs`.
 - `vos.ManagedMicroservice.Delta/Helpers/EndpointSeedLoader.cs` —
-  `Load(IEnumerable<string>, ILogger)` takes candidate paths as a parameter
-  so tests use real temp files (cheap, no I/O mock); `LoadDefault(ILogger)`
+  `LoadGraph(IEnumerable<string>, ILogger)` takes candidate `seed.json` paths as a
+  parameter so tests use real temp files (cheap, no I/O mock); it loads the first
+  existing model-seed document (a `Things[]` + `Relationships[]` fragment) and
+  assembles it via `EndpointSeedGraph.Build`, which derives the template hierarchy
+  from the seed's `is` relationships (not a scalar field). `LoadGraphDefault(ILogger)`
   wraps with the canonical three paths.
 - `vos.ManagedMicroservice.Metabolism/Helpers/JsonValueUnwrapper.cs` —
   `Unwrap(object?)` maps `JsonElement` to native CLR types with

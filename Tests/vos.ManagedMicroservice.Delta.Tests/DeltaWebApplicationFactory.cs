@@ -49,18 +49,25 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
     public string? Audience { get; set; }
 
     /// <summary>
-    /// In-memory seed contents passed to <see cref="InMemoryEndpointSeedProvider"/> at host
-    /// build. Tests can override before the first <c>CreateClient()</c> to drive both
-    /// happy-path and malformed-seed boot scenarios.
+    /// In-memory model-seed document passed to <see cref="InMemoryEndpointSeedProvider"/> at host
+    /// build (an <see cref="vos.ManagedMicroservice.Delta.Models.EndpointSeedModel"/>: things +
+    /// relationships). Tests override before the first <c>CreateClient()</c> to drive happy-path,
+    /// multi-template, malformed, and invalid-graph boot scenarios.
     /// </summary>
     public string SeedJson { get; set; } = """
     {
-      "name": "Endpoint",
-      "properties": {
-        "url": "https://default.example/",
-        "httpMethod": "GET",
-        "responseTransform": "$"
-      }
+      "name": "Endpoint Templates",
+      "things": [
+        {
+          "name": "Endpoint",
+          "properties": {
+            "url": "https://default.example/",
+            "httpMethod": "GET",
+            "responseTransform": "$"
+          }
+        }
+      ],
+      "relationships": []
     }
     """;
 

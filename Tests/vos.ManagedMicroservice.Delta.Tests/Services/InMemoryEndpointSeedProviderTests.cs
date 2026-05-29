@@ -4,63 +4,83 @@ using Xunit;
 namespace vos.ManagedMicroservice.Delta.Tests.Services;
 
 /// <summary>
-/// Unit tests for the test-only <see cref="InMemoryEndpointSeedProvider"/>. The provider exists
-/// so <see cref="DeltaWebApplicationFactory"/> can supply a per-instance seed without writing
-/// to <c>AppContext.BaseDirectory</c>. Behavior must mirror the file-loader's throw contract
-/// when the JSON is unusable, so <c>EndpointSeedBootTests.LoadEndpointSeed_MalformedJson_ThrowsAtStartup</c>
-/// keeps pinning the host-startup-fail contract.
+/// Unit tests for the test-only <see cref="InMemoryEndpointSeedProvider"/>. The provider exists so
+/// <see cref="DeltaWebApplicationFactory"/> can supply a per-instance model seed without writing to
+/// <c>AppContext.BaseDirectory</c>. Behavior must mirror the file-loader's throw contract when the
+/// JSON is unusable, so <c>EndpointSeedBootTests</c> keeps pinning the host-startup-fail contract.
 /// </summary>
 public class InMemoryEndpointSeedProviderTests
 {
     [Fact]
-    public void LoadSeed_ValidJson_ReturnsParsedSeed()
+    public void LoadGraph_ValidModelJson_ReturnsRootTemplate()
     {
         var provider = new InMemoryEndpointSeedProvider("""
             {
-              "name": "Endpoint",
-              "properties": { "url": "https://default.example/", "httpMethod": "GET" }
+              "name": "Endpoint Templates",
+              "things": [ { "name": "Endpoint", "properties": { "url": "https://default.example/", "httpMethod": "GET" } } ],
+              "relationships": []
             }
             """);
 
-        var seed = provider.LoadSeed();
+        var graph = provider.LoadGraph();
 
-        seed.Name.Should().Be("Endpoint");
-        seed.Properties.Should().ContainKey("url");
-        seed.Properties!.Should().ContainKey("httpMethod");
+        graph.Root.Name.Should().Be("Endpoint");
+        graph.Root.Properties.Should().ContainKey("url");
+        graph.Root.Properties!.Should().ContainKey("httpMethod");
     }
 
     [Fact]
-    public void LoadSeed_MalformedJson_Throws()
+    public void LoadGraph_MultiTemplateModel_BuildsGraphKeyedByName()
+    {
+        var provider = new InMemoryEndpointSeedProvider("""
+            {
+              "things": [
+                { "name": "Endpoint", "properties": { "url": "https://x/", "httpMethod": "GET" } },
+                { "name": "EsriEndpoint", "properties": { "httpMethod": "POST" } }
+              ],
+              "relationships": [ { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" } ]
+            }
+            """);
+
+        var graph = provider.LoadGraph();
+
+        graph.Templates.Keys.Should().BeEquivalentTo(new[] { "Endpoint", "EsriEndpoint" });
+        graph.ParentName("EsriEndpoint").Should().Be("Endpoint");
+    }
+
+    [Fact]
+    public void LoadGraph_MalformedJson_Throws()
     {
         var provider = new InMemoryEndpointSeedProvider("{ not valid json at all");
 
-        var act = () => provider.LoadSeed();
+        var act = () => provider.LoadGraph();
 
         act.Should().Throw<Exception>();
     }
 
     [Fact]
-    public void LoadSeed_EmptyName_Throws()
+    public void LoadGraph_EmptyThingName_Throws()
     {
-        // Mirrors EndpointSeedLoader.Load's "non-empty Name" validity check.
-        var provider = new InMemoryEndpointSeedProvider("""{ "name": "", "properties": {} }""");
+        // Surfaces from EndpointSeedGraph.Build's non-empty-name rule.
+        var provider = new InMemoryEndpointSeedProvider("""
+            { "things": [ { "name": "", "properties": {} } ], "relationships": [] }
+            """);
 
-        var act = () => provider.LoadSeed();
+        var act = () => provider.LoadGraph();
 
         act.Should().Throw<InvalidOperationException>();
     }
 
     [Fact]
-    public void LoadSeed_CaseInsensitivePropertyNames_ReturnsParsedSeed()
+    public void LoadGraph_CaseInsensitivePropertyNames_ReturnsParsedSeed()
     {
-        // Match EndpointSeedLoader's PropertyNameCaseInsensitive = true setting.
         var provider = new InMemoryEndpointSeedProvider("""
-            { "Name": "Endpoint", "Properties": { "url": "https://x/" } }
+            { "Things": [ { "Name": "Endpoint", "Properties": { "url": "https://x/" } } ], "Relationships": [] }
             """);
 
-        var seed = provider.LoadSeed();
+        var graph = provider.LoadGraph();
 
-        seed.Name.Should().Be("Endpoint");
-        seed.Properties.Should().ContainKey("url");
+        graph.Root.Name.Should().Be("Endpoint");
+        graph.Root.Properties.Should().ContainKey("url");
     }
 }

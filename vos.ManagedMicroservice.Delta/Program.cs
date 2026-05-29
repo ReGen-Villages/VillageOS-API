@@ -76,7 +76,10 @@ try
     builder.Services.AddSingleton<IEndpointSeedProvider, FileEndpointSeedProvider>();
 
     var app = builder.Build();
-    var endpointSeed = app.Services.GetRequiredService<IEndpointSeedProvider>().LoadSeed();
+    // LoadGraph validates the whole template graph; an invalid graph throws here and fails boot.
+    // The handler still operates on the root template for now (the inheritance chain is consumed
+    // under Task #5467).
+    var endpointSeed = app.Services.GetRequiredService<IEndpointSeedProvider>().LoadGraph().Root;
 
     if (authEnabled)
     {
@@ -123,6 +126,11 @@ finally
     Log.CloseAndFlush();
 }
 
+// Single-active-model assumption: this handler's broker writes (find/create the default
+// Endpoint thing, create the registered thing + its `is` relationship) target whichever model
+// Delta's --token is scoped to. The broker launches one shared endpoint daemon and does not yet
+// propagate the caller's model on /handle, so true per-model routing is deferred — see
+// docs/FUTURE_ARCHITECTURE.md section 5 and Feature #5478.
 static async Task<IResult> HandleRegisterEndpointRequestAsync(
     RegisterEndpointRequest request,
     BrokerClient brokerClient,

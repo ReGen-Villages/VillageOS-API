@@ -5,14 +5,14 @@ using vos.ManagedMicroservice.Delta.Models;
 namespace vos.ManagedMicroservice.Delta.Helpers;
 
 /// <summary>
-/// Loads the Delta service's <c>seed.json</c> endpoint template. Walks a list of candidate
-/// paths and returns the first valid <see cref="RegisterEndpointRequest"/>. Parse failures
-/// are logged at Warning and the loader moves to the next candidate; if every candidate is
-/// missing or unparseable, it throws.
+/// Loads the Delta service's endpoint-template seed — a single model document
+/// (<see cref="EndpointSeedModel"/>: things + relationships) — and assembles it into a validated
+/// <see cref="EndpointSeedGraph"/>. Walks a list of candidate <c>seed.json</c> paths and uses the
+/// first that exists. A found-but-unparseable seed, or a structurally invalid graph, throws so a
+/// misconfigured deployment fails fast at boot.
 ///
-/// Extracted from Program.cs under Feature #5433 / Task #5436. The default candidate-path
-/// set lives here as <see cref="DefaultCandidatePaths"/>; tests pass arbitrary paths to
-/// <see cref="Load"/> directly.
+/// Reworked from the single-thing loader under Feature #5465 / Task #5466: the seed is now a
+/// model fragment whose <c>is</c> relationships express the template hierarchy.
 /// </summary>
 public static class EndpointSeedLoader
 {
@@ -22,10 +22,9 @@ public static class EndpointSeedLoader
     };
 
     /// <summary>
-    /// The three locations checked at startup. AppContext.BaseDirectory is the bin output
-    /// for normal runs; CurrentDirectory covers IDE/dev shells launching from the project
-    /// root; the three-up path matches the canonical seed location relative to a built
-    /// service binary. Tests pass their own paths to <see cref="Load"/>.
+    /// The three locations checked at startup. AppContext.BaseDirectory is the bin output for normal
+    /// runs; CurrentDirectory covers IDE/dev shells launching from the project root; the three-up path
+    /// matches the canonical seed location relative to a built service binary. Tests pass their own paths.
     /// </summary>
     public static IEnumerable<string> DefaultCandidatePaths => new[]
     {
@@ -35,35 +34,38 @@ public static class EndpointSeedLoader
     };
 
     /// <summary>
-    /// Walk the candidate paths in order. Return the first successfully-parsed seed with a
-    /// non-empty <see cref="RegisterEndpointRequest.Name"/>. Missing files are skipped silently;
-    /// parse failures log a Warning and move to the next candidate. Throws
-    /// <see cref="InvalidOperationException"/> when no candidate yields a valid seed.
+    /// Walk the candidate paths in order; load the first that exists as an <see cref="EndpointSeedModel"/>
+    /// and return <see cref="EndpointSeedGraph.Build"/> of it. Missing files are skipped. Throws
+    /// <see cref="InvalidOperationException"/> when a found seed cannot be parsed, when the graph is
+    /// invalid, or when no candidate path exists.
     /// </summary>
-    public static RegisterEndpointRequest Load(IEnumerable<string> candidatePaths, ILogger logger)
+    public static EndpointSeedGraph LoadGraph(IEnumerable<string> candidatePaths, ILogger logger)
     {
         foreach (var candidate in candidatePaths.Select(Path.GetFullPath))
         {
             if (!File.Exists(candidate))
                 continue;
 
+            EndpointSeedModel? model;
             try
             {
-                var content = File.ReadAllText(candidate);
-                var seed = JsonSerializer.Deserialize<RegisterEndpointRequest>(content, DeserializeOptions);
-
-                if (seed != null && !string.IsNullOrWhiteSpace(seed.Name))
-                    return seed;
+                model = JsonSerializer.Deserialize<EndpointSeedModel>(File.ReadAllText(candidate), DeserializeOptions);
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to parse seed file {Path}", candidate);
+                throw new InvalidOperationException($"Failed to parse endpoint seed file '{candidate}'.", ex);
             }
+
+            if (model == null)
+                throw new InvalidOperationException($"Endpoint seed file '{candidate}' deserialized to null.");
+
+            logger.LogInformation("Loaded endpoint seed model from {Path} ({Count} template(s))", candidate, model.Things?.Count ?? 0);
+            return EndpointSeedGraph.Build(model);
         }
 
         throw new InvalidOperationException("Could not load a valid Endpoint seed from seed.json.");
     }
 
     /// <summary>Convenience wrapper that uses <see cref="DefaultCandidatePaths"/>.</summary>
-    public static RegisterEndpointRequest LoadDefault(ILogger logger) => Load(DefaultCandidatePaths, logger);
+    public static EndpointSeedGraph LoadGraphDefault(ILogger logger) => LoadGraph(DefaultCandidatePaths, logger);
 }

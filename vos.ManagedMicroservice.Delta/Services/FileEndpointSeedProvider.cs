@@ -6,8 +6,9 @@ namespace vos.ManagedMicroservice.Delta.Services;
 
 /// <summary>
 /// Production <see cref="IEndpointSeedProvider"/> that delegates to
-/// <see cref="EndpointSeedLoader.LoadDefault"/> — walks the default candidate paths under
-/// <c>AppContext.BaseDirectory</c> and returns the first valid seed, or throws when none parse.
+/// <see cref="EndpointSeedLoader.LoadGraphDefault"/> — discovers the seed files under the default
+/// candidate directories and returns the validated <see cref="EndpointSeedGraph"/>, or throws when
+/// none are found or the graph is invalid.
 /// </summary>
 public sealed class FileEndpointSeedProvider : IEndpointSeedProvider
 {
@@ -18,5 +19,5 @@ public sealed class FileEndpointSeedProvider : IEndpointSeedProvider
         _logger = logger;
     }
 
-    public RegisterEndpointRequest LoadSeed() => EndpointSeedLoader.LoadDefault(_logger);
+    public EndpointSeedGraph LoadGraph() => EndpointSeedLoader.LoadGraphDefault(_logger);
 }
