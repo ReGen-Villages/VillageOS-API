@@ -68,11 +68,13 @@ try
             cliArgs.Issuer ?? "VillageOS", cliArgs.Audience ?? "VosClients");
     }
 
+    builder.Services.AddSingleton<IHubConnectionFactory, DefaultHubConnectionFactory>();
     builder.Services.AddSingleton(sp =>
         new BrokerClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<BrokerClient>>(),
-            brokerUrl, mode, serviceToken));
+            brokerUrl, mode, serviceToken,
+            sp.GetRequiredService<IHubConnectionFactory>()));
     builder.Services.AddSingleton(sp =>
         new Metabolism(
             sp.GetRequiredService<BrokerClient>(),

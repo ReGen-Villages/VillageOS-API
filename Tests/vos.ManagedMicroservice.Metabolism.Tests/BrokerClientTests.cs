@@ -372,13 +372,15 @@ public class BrokerClientTests
 
     #endregion
 
-    // ---- Coverage exclusions / known limitations ----
+    // ---- ConnectSignalR coverage ----
     //
-    // The SignalR callback bodies (lines ~74-78 RelationshipPropertyChanged, ~81-84
-    // Reconnected) and the actual hub-connection setup inside ConnectSignalRAsync are
-    // only reachable when a real SignalR hub responds. Covering them would require a
-    // full broker integration test, which is out of unit-test scope per the Phase 2
-    // convention. ConnectSignalRAsync's retry/cancellation surface is already covered
-    // by the three tests above (RespectsImmediateCancellation, RetriesWhenTokenUnavailable,
-    // StopsRetryingOnCancellation).
+    // The retry/cancellation surface is exercised here (RespectsImmediateCancellation,
+    // RetriesWhenTokenUnavailable, StopsRetryingOnCancellation) against the real
+    // DefaultHubConnectionFactory. The hub-connection setup, event routing
+    // (RelationshipPropertyChanged), and Reconnected handler — previously unreachable
+    // from a unit test — are covered in BrokerClientConnectSignalRTests via the
+    // IHubConnectionFactory seam (Task #5457), with a mocked IHubConnection. The only
+    // remaining un-unit-testable code
+    // is DefaultHubConnection/DefaultHubConnectionFactory, the thin pass-through to
+    // SignalR's sealed HubConnection, marked [ExcludeFromCodeCoverage].
 }

@@ -307,80 +307,30 @@ flowchart LR
 
 ## 2. DI refactors still on the table
 
-Items 1 (Metabolism `Program.cs` DI alignment) and 3 (`IEndpointSeedProvider`
-for Delta) shipped under Task #5456 and Task #5455 respectively and are no
-longer roadmap items.
+All three targeted DI items under Feature #5454 have shipped and are no longer
+roadmap items: item 1 (Metabolism `Program.cs` DI alignment) under Task #5456,
+item 3 (`IEndpointSeedProvider` for Delta) under Task #5455, and item 2 (the
+SignalR hub-connection factory, formerly §2.1) under Task #5457 — see below.
 
-### 2.1 `IHubConnectionBuilder` factory in Metabolism's `BrokerClient`
+### 2.1 `IHubConnectionFactory` in Metabolism's `BrokerClient` (shipped)
 
-> **Status:** `PROPOSED`. Highest-ROI item remaining — closes the largest
-> single line-coverage gap in the codebase.
+> **Status:** `SHIPPED` (Task #5457). Closed the largest single line-coverage
+> gap in the codebase — `Services.BrokerClient` went from ~59% to 100%.
 
-**Today.** `BrokerClient.ConnectSignalRAsync` constructs the SignalR connection
-inline:
-
-```csharp
-_hubConnection = new HubConnectionBuilder()
-    .WithUrl($"{BrokerUrl}/vosHub", options =>
-    {
-        options.AccessTokenProvider = () => Task.FromResult<string?>(token);
-    })
-    .WithAutomaticReconnect()
-    .Build();
-
-_hubConnection.On<Guid, string, object?>("RelationshipPropertyChanged", HandleRelationshipPropertyChanged);
-_hubConnection.Reconnected += HandleReconnected;
-await _hubConnection.StartAsync(ct);
-```
-
-The retry/backoff/cancellation shell around this call is testable in principle,
-but no test can substitute the real hub.
-`vos.ManagedMicroservice.Metabolism.Services.BrokerClient` sits at **68.8 %**
-line coverage — the lowest in the codebase. The `HandleRelationshipPropertyChanged`
-and `HandleReconnected` handlers are unreachable from a unit test.
-
-**Proposed.** Inject a factory for the hub connection:
-
-```csharp
-public interface IHubConnectionFactory
-{
-    IHubConnection Create(string url, Func<Task<string?>> accessTokenProvider);
-}
-
-public sealed class DefaultHubConnectionFactory : IHubConnectionFactory
-{
-    public IHubConnection Create(string url, Func<Task<string?>> accessTokenProvider) =>
-        new HubConnectionBuilder()
-            .WithUrl(url, opts => opts.AccessTokenProvider = accessTokenProvider)
-            .WithAutomaticReconnect()
-            .Build();
-}
-```
-
-Register the default in `Program.cs`; the test factory substitutes a fake
-`IHubConnection` that records `On<T...>` registrations and exposes a method to
-fire events synchronously.
-
-**Benefits.**
-
-- Closes the bulk of the 30 % coverage gap with **real contract tests**, not
-  test-padding:
-  - cancellation token honored mid-retry
-  - retry-after-failure backoff sequence matches the `delays[]` array
-  - token re-fetched on each attempt
-  - `RelationshipPropertyChanged` payload reaches `RaiseRelationshipPropertyChanged`
-    with the right shape
-- `HandleRelationshipPropertyChanged` and `HandleReconnected` become
-  end-to-end testable rather than just covered through the internal-method seam.
-
-**Effort.** Small/Medium. Most of the work is in the test-side fake (~80 lines).
-Production change is ~20 lines.
-
-**Why this is the highest-ROI item.** Other coverage gaps are mostly defensive
-arms in pure helpers (`CriteriaLexer` error paths, `JSONata` unreachable
-branches). The Metabolism SignalR shell has real retry/cancellation logic that
-*would* surface real bugs if exercised — it's untested only because the
-dependency is non-injectable.
+`BrokerClient.ConnectSignalRAsync` previously built its SignalR connection inline
+with `new HubConnectionBuilder()`, so no test could substitute the real hub and
+the retry/backoff/cancellation shell plus the `RelationshipPropertyChanged` /
+`Reconnected` handlers were unreachable from a unit test. The connection is now
+built through an injected `IHubConnectionFactory` (`DefaultHubConnectionFactory`
+in production, registered in `Program.cs`; a mocked `IHubConnection` in tests
+that captures the `On<T...>` handler and raises events synchronously). A
+`protected virtual DelayAsync` seam lets tests assert the `{0,1000,2000,5000,10000}`
+backoff cadence without real sleeps. The thin pass-through wrappers
+(`DefaultHubConnection`/`DefaultHubConnectionFactory`) to SignalR's sealed,
+un-mockable `HubConnection` are the irreducible seam and carry
+`[ExcludeFromCodeCoverage]`. Scenarios pinned: cancellation honored mid-retry,
+backoff sequence, token re-fetch per attempt, `RelationshipPropertyChanged`
+payload shape, and `Reconnected` logging.
 
 ### 2.2 `vos.CLI` gets a `HostBuilder`
 

@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using vos.ManagedMicroservice.Shared;
-using Microsoft.AspNetCore.SignalR.Client;
 
 namespace vos.ManagedMicroservice.Metabolism.Services;
 
@@ -14,15 +13,17 @@ namespace vos.ManagedMicroservice.Metabolism.Services;
 public class BrokerClient : BrokerClientBase
 {
     private readonly string _mode;
-    private HubConnection? _hubConnection;
+    private readonly IHubConnectionFactory _hubFactory;
+    private IHubConnection? _hubConnection;
 
     /// <summary>Raised when a relationship property changes on the broker.</summary>
     public event Action<Guid, string, object?>? OnRelationshipPropertyChanged;
 
-    public BrokerClient(IHttpClientFactory httpClientFactory, ILogger<BrokerClient> logger, string brokerUrl, string mode, string? serviceToken = null)
+    public BrokerClient(IHttpClientFactory httpClientFactory, ILogger<BrokerClient> logger, string brokerUrl, string mode, string? serviceToken = null, IHubConnectionFactory? hubFactory = null)
         : base(httpClientFactory, logger, brokerUrl, serviceToken)
     {
         _mode = mode;
+        _hubFactory = hubFactory ?? new DefaultHubConnectionFactory();
     }
 
     /// <summary>Registers this handler with the broker.</summary>
@@ -58,17 +59,13 @@ public class BrokerClient : BrokerClientBase
                 if (token == null)
                 {
                     Logger.LogWarning("SignalR: cannot get token, will retry");
-                    await Task.Delay(delays[Math.Min(attempt, delays.Length - 1)], ct);
+                    await DelayAsync(delays[Math.Min(attempt, delays.Length - 1)], ct);
                     continue;
                 }
 
-                _hubConnection = new HubConnectionBuilder()
-                    .WithUrl($"{BrokerUrl}/vosHub", options =>
-                    {
-                        options.AccessTokenProvider = () => Task.FromResult<string?>(token);
-                    })
-                    .WithAutomaticReconnect()
-                    .Build();
+                _hubConnection = _hubFactory.Create(
+                    $"{BrokerUrl}/vosHub",
+                    () => Task.FromResult<string?>(token));
 
                 _hubConnection.On<Guid, string, object?>("RelationshipPropertyChanged", HandleRelationshipPropertyChanged);
 
@@ -85,10 +82,17 @@ public class BrokerClient : BrokerClientBase
             catch (Exception ex)
             {
                 Logger.LogWarning("SignalR connection attempt {Attempt} failed: {Error}", attempt + 1, ex.Message);
-                await Task.Delay(delays[Math.Min(attempt, delays.Length - 1)], ct);
+                await DelayAsync(delays[Math.Min(attempt, delays.Length - 1)], ct);
             }
         }
     }
+
+    /// <summary>
+    /// Backoff delay between SignalR connect attempts. Extracted as a seam so tests can
+    /// assert the retry cadence without sleeping for real; production delegates to
+    /// <see cref="Task.Delay(int, CancellationToken)"/>.
+    /// </summary>
+    protected virtual Task DelayAsync(int milliseconds, CancellationToken ct) => Task.Delay(milliseconds, ct);
 
     private const string ApplyQuantitySchemaId = "https://villageos/contracts/apply-quantity-request.schema.json";
     private const string RelationshipIncrementSchemaId = "https://villageos/contracts/relationship-property-increment-request.schema.json";
