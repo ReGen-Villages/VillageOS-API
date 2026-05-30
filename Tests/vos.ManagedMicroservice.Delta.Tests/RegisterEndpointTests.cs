@@ -127,9 +127,57 @@ public class RegisterEndpointTests
     }
 
     [Fact]
-    public async Task Handle_MissingHttpMethod_Returns400()
+    public async Task Handle_MissingHttpMethod_InheritsFromSeed_Returns200()
     {
+        // Task #5467: httpMethod is inheritable. The default seed's Endpoint declares httpMethod=GET,
+        // so a request omitting httpMethod registers successfully against the effective value.
         await using var factory = new DeltaWebApplicationFactory();
+        await factory.InitializeAsync();
+        var isId = Guid.NewGuid();
+        var defaultId = Guid.NewGuid();
+        var registeredId = Guid.NewGuid();
+        var propertySets = new List<string>();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
+                && req.RequestUri.Query.Contains("name=is"))
+                return Json("{\"Id\":\"" + isId + "\",\"Name\":\"is\",\"Properties\":{}}");
+            if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
+                && req.RequestUri.Query.Contains("name=Endpoint"))
+                return Json("{\"Id\":\"" + defaultId + "\",\"Name\":\"Endpoint\",\"Properties\":{}}");
+            if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
+                return Json("{\"Id\":\"" + registeredId + "\",\"Name\":\"MyEndpoint\",\"Properties\":{}}");
+            if (req.RequestUri.AbsolutePath == "/api/relationships" && req.Method == HttpMethod.Post)
+                return new HttpResponseMessage(HttpStatusCode.Created);
+            if (req.RequestUri.AbsolutePath == $"/api/things/{registeredId}/properties" && req.Method == HttpMethod.Put)
+            {
+                propertySets.Add(req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? "");
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new
+        {
+            name = "MyEndpoint",
+            properties = new { url = "https://x.example/" }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Inherited values are not materialized: only the user-supplied url is set on the thing.
+        propertySets.Should().ContainSingle().Which.Should().Contain("\"name\":\"url\"");
+        propertySets.Should().NotContain(s => s.Contains("\"name\":\"httpMethod\""));
+    }
+
+    [Fact]
+    public async Task Handle_NoEffectiveHttpMethod_Returns400()
+    {
+        // Seed without an httpMethod anywhere in the chain -> nothing to inherit -> still 400.
+        await using var factory = new DeltaWebApplicationFactory
+        {
+            SeedJson = """{"things":[{"name":"Endpoint","properties":{"url":""}}],"relationships":[]}"""
+        };
         await factory.InitializeAsync();
         var isId = Guid.NewGuid();
         factory.HandlerCallback = req => RouteFindThing(req, isId, "is")
@@ -139,7 +187,7 @@ public class RegisterEndpointTests
         var response = await client.PostAsJsonAsync("/handle", new
         {
             name = "MyEndpoint",
-            properties = new { url = "https://x" }
+            properties = new { url = "https://x.example/" }
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -219,7 +267,7 @@ public class RegisterEndpointTests
         var response = await client.PostAsJsonAsync("/handle", BasicValidBody());
 
         response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("default Endpoint thing");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("endpoint template 'Endpoint'");
     }
 
     [Fact]
@@ -463,6 +511,122 @@ public class RegisterEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         (await response.Content.ReadAsStringAsync()).Should().Contain("\"success\":true");
+    }
+
+    // ---------- Template selection (Task #5467) ----------
+
+    [Fact]
+    public async Task Handle_UnknownTemplate_Returns400WithDescentMessage()
+    {
+        // A template not in the closed-set graph cannot descend from the root -> rejected, no broker call.
+        await using var factory = new DeltaWebApplicationFactory();
+        await factory.InitializeAsync();
+        var isId = Guid.NewGuid();
+        factory.HandlerCallback = req => RouteFindThing(req, isId, "is")
+            ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new
+        {
+            name = "MyEndpoint",
+            properties = new { url = "https://x.example/", httpMethod = "GET" },
+            relationships = new[] { new { subject = "MyEndpoint", predicate = "is", target = "Ghost" } }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Ghost");
+        body.Should().Contain("descend");
+    }
+
+    [Fact]
+    public async Task Handle_MultipleIsRelationships_Returns400()
+    {
+        // A thing has at most one parent; two `is` rows are ambiguous and rejected before any broker call.
+        await using var factory = new DeltaWebApplicationFactory();
+        await factory.InitializeAsync();
+        var isId = Guid.NewGuid();
+        factory.HandlerCallback = req => RouteFindThing(req, isId, "is")
+            ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new
+        {
+            name = "MyEndpoint",
+            properties = new { url = "https://x.example/", httpMethod = "GET" },
+            relationships = new[]
+            {
+                new { subject = "MyEndpoint", predicate = "is", target = "Endpoint" },
+                new { subject = "MyEndpoint", predicate = "is", target = "Endpoint" }
+            }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("more than one 'is'");
+    }
+
+    [Fact]
+    public async Task Handle_NominatedTemplate_LinksToThatTemplateAndInheritsMethod_Returns200()
+    {
+        // EsriEndpoint is Endpoint(root). Registering under EsriEndpoint must (a) allow EsriEndpoint's
+        // own key (layer), (b) inherit httpMethod=GET from the root, (c) link `is` -> the EsriEndpoint
+        // thing, not the root.
+        await using var factory = new DeltaWebApplicationFactory
+        {
+            SeedJson = """
+            {
+              "things": [
+                { "name": "Endpoint", "properties": { "url": "", "httpMethod": "GET", "responseTransform": "$" } },
+                { "name": "EsriEndpoint", "properties": { "layer": "" } }
+              ],
+              "relationships": [ { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" } ]
+            }
+            """
+        };
+        await factory.InitializeAsync();
+        var isId = Guid.NewGuid();
+        var esriId = Guid.NewGuid();
+        var registeredId = Guid.NewGuid();
+        string? relationshipBody = null;
+        var propertySets = new List<string>();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
+                && req.RequestUri.Query.Contains("name=is"))
+                return Json("{\"Id\":\"" + isId + "\",\"Name\":\"is\",\"Properties\":{}}");
+            if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
+                && req.RequestUri.Query.Contains("name=EsriEndpoint"))
+                return Json("{\"Id\":\"" + esriId + "\",\"Name\":\"EsriEndpoint\",\"Properties\":{}}");
+            if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
+                return Json("{\"Id\":\"" + registeredId + "\",\"Name\":\"MyEsri\",\"Properties\":{}}");
+            if (req.RequestUri.AbsolutePath == "/api/relationships" && req.Method == HttpMethod.Post)
+            {
+                relationshipBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                return new HttpResponseMessage(HttpStatusCode.Created);
+            }
+            if (req.RequestUri.AbsolutePath == $"/api/things/{registeredId}/properties" && req.Method == HttpMethod.Put)
+            {
+                propertySets.Add(req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? "");
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new
+        {
+            name = "MyEsri",
+            properties = new { url = "https://x.example/", layer = "3" },
+            relationships = new[] { new { subject = "MyEsri", predicate = "is", target = "EsriEndpoint" } }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        relationshipBody.Should().NotBeNull();
+        relationshipBody!.Should().Contain(esriId.ToString(), "registered thing must link `is` -> the nominated template");
+        // EsriEndpoint's own key (layer) and the inherited-but-overridden url are user-supplied; httpMethod is inherited.
+        propertySets.Should().HaveCount(2);
+        propertySets.Should().Contain(s => s.Contains("\"name\":\"layer\""));
+        propertySets.Should().NotContain(s => s.Contains("\"name\":\"httpMethod\""));
     }
 
     // ---------- /health and /shutdown ----------

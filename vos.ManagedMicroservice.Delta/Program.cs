@@ -77,9 +77,9 @@ try
 
     var app = builder.Build();
     // LoadGraph validates the whole template graph; an invalid graph throws here and fails boot.
-    // The handler still operates on the root template for now (the inheritance chain is consumed
-    // under Task #5467).
-    var endpointSeed = app.Services.GetRequiredService<IEndpointSeedProvider>().LoadGraph().Root;
+    // The handler consumes the full graph for template selection, closed-set descent verification,
+    // and effective-value resolution along the inheritance chain (Task #5467).
+    var graph = app.Services.GetRequiredService<IEndpointSeedProvider>().LoadGraph();
 
     if (authEnabled)
     {
@@ -90,14 +90,14 @@ try
     // Endpoint-service entry point used by broker /api/endpoints/{subdomain}.
     var handleEndpoint = app.MapPost("/handle", async (RegisterEndpointRequest request, BrokerClient brokerClient) =>
     {
-        return await HandleRegisterEndpointRequestAsync(request, brokerClient, endpointSeed);
+        return await HandleRegisterEndpointRequestAsync(request, brokerClient, graph);
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
-    // Backward-compatible alias that uses the same registration logic.
+    // Alias that uses the same registration logic.
     var registerEndpoint = app.MapPost("/register", async (RegisterEndpointRequest request, BrokerClient brokerClient) =>
     {
-        return await HandleRegisterEndpointRequestAsync(request, brokerClient, endpointSeed);
+        return await HandleRegisterEndpointRequestAsync(request, brokerClient, graph);
     });
     if (authEnabled) registerEndpoint.RequireAuthorization();
 
@@ -134,7 +134,7 @@ finally
 static async Task<IResult> HandleRegisterEndpointRequestAsync(
     RegisterEndpointRequest request,
     BrokerClient brokerClient,
-    RegisterEndpointRequest endpointSeed)
+    EndpointSeedGraph graph)
 {
     BrokerClient.BrokerThing? registeredThing = null;
     try
@@ -145,6 +145,31 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         if (request.Properties == null)
             return Results.BadRequest(new { error = "Request must include properties." });
 
+        // Template selection is model-native: an `is` relationship from the new thing to a template,
+        // not a scalar field (a vos.Thing has none). No `is` row means the root Endpoint.
+        var isRelationships = (request.Relationships ?? new List<SeedRelationship>())
+            .Where(r => r != null
+                && string.Equals(r.Predicate, "is", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(r.Subject, request.Name, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (isRelationships.Count > 1)
+            return Results.BadRequest(new { error = "Registration declares more than one 'is' relationship." });
+
+        var templateName = isRelationships.Count == 1 ? isRelationships[0].Target : graph.Root.Name;
+        if (string.IsNullOrWhiteSpace(templateName))
+            return Results.BadRequest(new { error = "Registration 'is' relationship has an empty target template." });
+
+        // Descent verification is a closed-set membership check — the graph is single-rooted and
+        // acyclic, so a known template necessarily descends from the root; an unknown one does not.
+        // No broker round-trip.
+        if (!graph.ContainsTemplate(templateName))
+        {
+            return Results.BadRequest(new
+            {
+                error = $"Unknown endpoint template '{templateName}'; it does not descend from the root '{graph.Root.Name}'."
+            });
+        }
+
         var isPredicate = await brokerClient.FindThingByNameAsync("is");
         if (isPredicate == null)
         {
@@ -154,8 +179,9 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
                 title: "Registration failed");
         }
 
-        var allowedKeys = endpointSeed.Properties?.Keys?.ToArray() ?? Array.Empty<string>();
-        if (allowedKeys.Length == 0)
+        // Admissible keys are the union of property keys along the nominated template's chain.
+        var allowedSet = graph.AllowedKeys(templateName);
+        if (allowedSet.Count == 0)
         {
             return Results.Problem(
                 detail: "Endpoint seed does not define any allowed properties.",
@@ -163,7 +189,6 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
                 title: "Registration failed");
         }
 
-        var allowedSet = new HashSet<string>(allowedKeys, StringComparer.OrdinalIgnoreCase);
         var invalidKeys = request.Properties.Keys.Where(k => !allowedSet.Contains(k)).ToList();
         if (invalidKeys.Count > 0)
         {
@@ -173,33 +198,47 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
             });
         }
 
+        // url stays request-required even though it is a structural key in the chain.
         if (!JsonValueCoercion.TryGetStringProperty(request.Properties, "url", out var url) || string.IsNullOrWhiteSpace(url))
             return Results.BadRequest(new { error = "Endpoint url must be a non-empty string." });
 
-        if (!JsonValueCoercion.TryGetStringProperty(request.Properties, "httpMethod", out var method) || string.IsNullOrWhiteSpace(method))
+        // httpMethod is inheritable: validate the effective value — the request body merged over the
+        // in-memory seed chain (closest-ancestor-wins) — not the body alone.
+        string? effectiveMethod = null;
+        if (JsonValueCoercion.TryGetStringProperty(request.Properties, "httpMethod", out var requestMethod)
+            && !string.IsNullOrWhiteSpace(requestMethod))
+            effectiveMethod = requestMethod;
+        else if (graph.TryGetEffectiveSeedValue(templateName, "httpMethod", out var seedMethod))
+            effectiveMethod = seedMethod?.ToString();
+
+        if (string.IsNullOrWhiteSpace(effectiveMethod))
             return Results.BadRequest(new { error = "Endpoint httpMethod must be a non-empty string." });
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out _))
             return Results.BadRequest(new { error = $"Invalid endpoint url: {url}" });
 
-        var normalizedMethod = method.Trim().ToUpperInvariant();
+        var normalizedMethod = effectiveMethod.Trim().ToUpperInvariant();
         if (!HttpMethodValidator.IsSupportedMethod(normalizedMethod))
-            return Results.BadRequest(new { error = $"Unsupported httpMethod: {method}" });
+            return Results.BadRequest(new { error = $"Unsupported httpMethod: {effectiveMethod}" });
 
-        var defaultEndpoint = await brokerClient.FindThingByNameAsync(endpointSeed.Name);
-        if (defaultEndpoint == null)
+        // Resolve the nominated template thing in the broker; create it from its seed properties if
+        // absent. Boot-time creation of the whole template graph (wired parent-to-parent) lands under
+        // Task #5468 — until then this find-or-create keeps the leaf template available on demand.
+        var templateSeed = graph.Templates[templateName];
+        var templateThing = await brokerClient.FindThingByNameAsync(templateSeed.Name);
+        if (templateThing == null)
         {
-            defaultEndpoint = await brokerClient.CreateThingAsync(new RegisterEndpointRequest
+            templateThing = await brokerClient.CreateThingAsync(new RegisterEndpointRequest
             {
-                Name = endpointSeed.Name,
-                Properties = endpointSeed.Properties ?? new Dictionary<string, object>()
+                Name = templateSeed.Name,
+                Properties = templateSeed.Properties ?? new Dictionary<string, object>()
             });
         }
 
-        if (defaultEndpoint == null)
+        if (templateThing == null)
         {
             return Results.Problem(
-                detail: "Could not resolve default Endpoint thing in broker.",
+                detail: $"Could not resolve endpoint template '{templateSeed.Name}' in broker.",
                 statusCode: 500,
                 title: "Registration failed");
         }
@@ -218,12 +257,12 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
                 title: "Registration failed");
         }
 
-        // Create 'is' relationship. The broker awaits the is-handler synchronously,
-        // so inherited properties are available before this call returns.
+        // Create 'is' relationship to the nominated template. The broker awaits the is-handler
+        // synchronously, so inherited properties are available before this call returns.
         var relationshipCreated = await brokerClient.CreateRelationshipAsync(
             registeredThing.Value.Id,
             isPredicate.Value.Id,
-            defaultEndpoint.Value.Id);
+            templateThing.Value.Id);
 
         if (!relationshipCreated)
         {
@@ -234,7 +273,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
                 title: "Registration failed");
         }
 
-        // Set user-supplied values on inherited properties.
+        // Set user-supplied values only; inherited values resolve via the is-chain and are not materialized.
         foreach (var (propName, propValue) in request.Properties)
         {
             var set = await brokerClient.SetThingPropertyAsync(registeredThing.Value.Id, propName, propValue);
@@ -253,7 +292,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
             success = true,
             message = "Endpoint registered successfully",
             registeredThingId = registeredThing.Value.Id,
-            endpointTemplateId = defaultEndpoint.Value.Id,
+            endpointTemplateId = templateThing.Value.Id,
             predicateId = isPredicate.Value.Id
         });
     }

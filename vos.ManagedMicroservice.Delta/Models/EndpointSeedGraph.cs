@@ -37,6 +37,84 @@ public sealed class EndpointSeedGraph
     public string? ParentName(string templateName) =>
         _parents.TryGetValue(templateName, out var parent) ? parent : null;
 
+    /// <summary>True if <paramref name="templateName"/> is a known template in the closed set.</summary>
+    public bool ContainsTemplate(string templateName) => Templates.ContainsKey(templateName);
+
+    /// <summary>
+    /// The inheritance chain for <paramref name="templateName"/>, nearest-first: the template itself,
+    /// then its <c>is</c> parent, up to and including the root. Because the graph is single-rooted and
+    /// acyclic (validated at <see cref="Build"/>), every chain terminates at the root — this is the
+    /// closed-set descent guarantee, resolved with no broker round-trip. Throws
+    /// <see cref="KeyNotFoundException"/> if the name is not a known template.
+    /// </summary>
+    public IReadOnlyList<RegisterEndpointRequest> Chain(string templateName)
+    {
+        if (!Templates.TryGetValue(templateName, out var template))
+            throw new KeyNotFoundException($"Unknown template '{templateName}'.");
+
+        var chain = new List<RegisterEndpointRequest> { template };
+        var current = template.Name;
+        while (_parents.TryGetValue(current, out var parent))
+        {
+            chain.Add(Templates[parent]);
+            current = parent;
+        }
+        return chain;
+    }
+
+    /// <summary>
+    /// The union of property keys declared anywhere along <paramref name="templateName"/>'s chain —
+    /// the admissible property set for a registration under that template. Keys only; seed values are
+    /// irrelevant to admissibility.
+    /// </summary>
+    public ISet<string> AllowedKeys(string templateName)
+    {
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var template in Chain(templateName))
+        {
+            if (template.Properties == null)
+                continue;
+            foreach (var key in template.Properties.Keys)
+                keys.Add(key);
+        }
+        return keys;
+    }
+
+    /// <summary>
+    /// The closest-ancestor-wins seed value for <paramref name="key"/> along the chain. The nearest
+    /// template that declares a non-blank value for <paramref name="key"/> wins. Returns false (with
+    /// <paramref name="value"/> null) if no template in the chain declares a non-blank value.
+    /// </summary>
+    public bool TryGetEffectiveSeedValue(string templateName, string key, out object? value)
+    {
+        foreach (var template in Chain(templateName))
+        {
+            if (template.Properties != null
+                && template.Properties.TryGetValue(key, out var candidate)
+                && !IsBlank(candidate))
+            {
+                value = candidate;
+                return true;
+            }
+        }
+        value = null;
+        return false;
+    }
+
+    // A seed key may exist purely for structure with a blank value ("in the structure" is not "has a
+    // value"); such keys contribute admissibility but no inherited default. Seed values arrive as CLR
+    // strings (graph built in-process) or as JsonElement (graph deserialized from seed.json), so both
+    // shapes must be recognized as blank.
+    private static bool IsBlank(object? value) => value switch
+    {
+        null => true,
+        string s => string.IsNullOrWhiteSpace(s),
+        System.Text.Json.JsonElement je =>
+            je.ValueKind is System.Text.Json.JsonValueKind.Null or System.Text.Json.JsonValueKind.Undefined
+            || (je.ValueKind == System.Text.Json.JsonValueKind.String && string.IsNullOrWhiteSpace(je.GetString())),
+        _ => false
+    };
+
     /// <summary>
     /// Validate <paramref name="seed"/> and build the graph. Throws <see cref="InvalidOperationException"/>
     /// on: no things, an empty thing name, a duplicate name, a relationship referencing an unknown template,
