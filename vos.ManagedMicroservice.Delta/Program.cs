@@ -87,6 +87,31 @@ try
         app.UseAuthorization();
     }
 
+    // Provision the endpoint-template catalog into the broker once at startup (Task #5468): every
+    // template thing is find-or-created and wired to its parent via `is`, so registrations never
+    // create templates lazily. Gated on the built-app environment — skipped under
+    // WebApplicationFactory<Program> tests, mirroring how Metabolism gates its SignalR/lifecycle
+    // work — so tests make no broker calls at boot.
+    if (!app.Environment.IsEnvironment("Testing"))
+    {
+        var provisioner = new TemplateCatalogProvisioner(
+            app.Services.GetRequiredService<BrokerClient>(),
+            graph,
+            app.Services.GetRequiredService<ILogger<TemplateCatalogProvisioner>>());
+
+        app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
+        {
+            try
+            {
+                await provisioner.ProvisionAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error provisioning Delta endpoint-template catalog at startup");
+            }
+        }));
+    }
+
     // Endpoint-service entry point used by broker /api/endpoints/{subdomain}.
     var handleEndpoint = app.MapPost("/handle", async (RegisterEndpointRequest request, BrokerClient brokerClient) =>
     {
@@ -126,8 +151,8 @@ finally
     Log.CloseAndFlush();
 }
 
-// Single-active-model assumption: this handler's broker writes (find/create the default
-// Endpoint thing, create the registered thing + its `is` relationship) target whichever model
+// Single-active-model assumption: this handler's broker writes (resolving the boot-provisioned
+// template thing, creating the registered thing + its `is` relationship) target whichever model
 // Delta's --token is scoped to. The broker launches one shared endpoint daemon and does not yet
 // propagate the caller's model on /handle, so true per-model routing is deferred — see
 // docs/FUTURE_ARCHITECTURE.md section 5 and Feature #5478.
@@ -221,24 +246,15 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         if (!HttpMethodValidator.IsSupportedMethod(normalizedMethod))
             return Results.BadRequest(new { error = $"Unsupported httpMethod: {effectiveMethod}" });
 
-        // Resolve the nominated template thing in the broker; create it from its seed properties if
-        // absent. Boot-time creation of the whole template graph (wired parent-to-parent) lands under
-        // Task #5468 — until then this find-or-create keeps the leaf template available on demand.
+        // The template catalog is provisioned at boot (TemplateCatalogProvisioner, Task #5468), so the
+        // nominated template thing is expected to already exist wired to its parent. Resolve it; its
+        // absence is a provisioning failure, not something the handler repairs by creating it lazily.
         var templateSeed = graph.Templates[templateName];
         var templateThing = await brokerClient.FindThingByNameAsync(templateSeed.Name);
         if (templateThing == null)
         {
-            templateThing = await brokerClient.CreateThingAsync(new RegisterEndpointRequest
-            {
-                Name = templateSeed.Name,
-                Properties = templateSeed.Properties ?? new Dictionary<string, object>()
-            });
-        }
-
-        if (templateThing == null)
-        {
             return Results.Problem(
-                detail: $"Could not resolve endpoint template '{templateSeed.Name}' in broker.",
+                detail: $"Endpoint template '{templateSeed.Name}' is not provisioned in broker.",
                 statusCode: 500,
                 title: "Registration failed");
         }

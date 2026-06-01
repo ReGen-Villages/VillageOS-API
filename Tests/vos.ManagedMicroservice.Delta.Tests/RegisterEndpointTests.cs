@@ -234,32 +234,27 @@ public class RegisterEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Unsupported httpMethod");
     }
 
-    // ---------- Default-endpoint resolution ----------
+    // ---------- Template resolution (provisioned at boot, Task #5468) ----------
 
     [Fact]
-    public async Task Handle_DefaultEndpointMissingAndCreateFails_Returns500()
+    public async Task Handle_TemplateNotProvisioned_Returns500()
     {
+        // Boot-time provisioning (Task #5468) creates the template things; the handler only resolves
+        // them, never creates them. If the nominated template is absent, registration fails fast —
+        // the handler makes no thing-creation POST for the template.
         await using var factory = new DeltaWebApplicationFactory();
         await factory.InitializeAsync();
         var isId = Guid.NewGuid();
+        var templatePosted = false;
         factory.HandlerCallback = req =>
         {
-            // is-predicate found
             if (req.RequestUri!.AbsolutePath == "/api/things"
                 && req.Method == HttpMethod.Get
                 && req.RequestUri.Query.Contains("name=is"))
                 return Json("{\"Id\":\"" + isId + "\",\"Name\":\"is\",\"Properties\":{}}");
-            // Endpoint default lookup → null
-            if (req.RequestUri.AbsolutePath == "/api/things"
-                && req.Method == HttpMethod.Get
-                && req.RequestUri.Query.Contains("name=Endpoint"))
-                return Json("null");
-            // Default Endpoint creation → fails (BadRequest)
             if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
-                return new HttpResponseMessage(HttpStatusCode.BadRequest)
-                {
-                    Content = new StringContent("nope", Encoding.UTF8, "text/plain")
-                };
+                templatePosted = true;
+            // Template lookup → null (not provisioned).
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -267,7 +262,8 @@ public class RegisterEndpointTests
         var response = await client.PostAsJsonAsync("/handle", BasicValidBody());
 
         response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("endpoint template 'Endpoint'");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("not provisioned");
+        templatePosted.Should().BeFalse("the handler must not lazily create the template");
     }
 
     [Fact]
@@ -286,8 +282,8 @@ public class RegisterEndpointTests
             if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
                 && req.RequestUri.Query.Contains("name=Endpoint"))
                 return Json("{\"Id\":\"" + defaultId + "\",\"Name\":\"Endpoint\",\"Properties\":{}}");
-            // First POST = default-endpoint creation (NOT called here because lookup succeeds).
-            // Real first POST = registered-thing creation → fail.
+            // Template is pre-provisioned at boot (Task #5468); its lookup succeeds, so the only
+            // POST here is the registered-thing creation → fail.
             if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
             {
                 creationCount++;
@@ -433,47 +429,6 @@ public class RegisterEndpointTests
         propertySets.Should().HaveCount(2, "one PUT per user-supplied property in BasicValidBody");
         propertySets.Should().Contain(s => s.Contains("\"name\":\"url\""));
         propertySets.Should().Contain(s => s.Contains("\"name\":\"httpMethod\""));
-    }
-
-    [Fact]
-    public async Task Handle_DefaultEndpointMissingButCreatedSucceeds_Returns200()
-    {
-        // First Endpoint lookup is null → fall through to CreateThingAsync seeded with
-        // endpointSeed.Properties → that returns the new default → then continue.
-        await using var factory = new DeltaWebApplicationFactory();
-        await factory.InitializeAsync();
-        var isId = Guid.NewGuid();
-        var defaultId = Guid.NewGuid();
-        var registeredId = Guid.NewGuid();
-        var createCount = 0;
-        factory.HandlerCallback = req =>
-        {
-            if (req.RequestUri!.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
-                && req.RequestUri.Query.Contains("name=is"))
-                return Json("{\"Id\":\"" + isId + "\",\"Name\":\"is\",\"Properties\":{}}");
-            if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
-                && req.RequestUri.Query.Contains("name=Endpoint"))
-                return Json("null");  // default not found, must create
-            if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
-            {
-                createCount++;
-                // First POST = default Endpoint creation, second = registered thing.
-                var id = createCount == 1 ? defaultId : registeredId;
-                var name = createCount == 1 ? "Endpoint" : "MyEndpoint";
-                return Json("{\"Id\":\"" + id + "\",\"Name\":\"" + name + "\",\"Properties\":{}}");
-            }
-            if (req.RequestUri.AbsolutePath == "/api/relationships" && req.Method == HttpMethod.Post)
-                return new HttpResponseMessage(HttpStatusCode.Created);
-            if (req.RequestUri.AbsolutePath == $"/api/things/{registeredId}/properties" && req.Method == HttpMethod.Put)
-                return new HttpResponseMessage(HttpStatusCode.OK);
-            return new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/handle", BasicValidBody());
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        createCount.Should().Be(2, "one POST for default Endpoint + one POST for the registered thing");
     }
 
     // ---------- /register alias ----------
@@ -627,6 +582,29 @@ public class RegisterEndpointTests
         propertySets.Should().HaveCount(2);
         propertySets.Should().Contain(s => s.Contains("\"name\":\"layer\""));
         propertySets.Should().NotContain(s => s.Contains("\"name\":\"httpMethod\""));
+    }
+
+    // ---------- Boot provisioning isolation (Task #5468) ----------
+
+    [Fact]
+    public async Task Boot_UnderTestingEnvironment_DoesNotProvisionTemplates()
+    {
+        // The boot-time TemplateCatalogProvisioner is gated on app.Environment != "Testing", so
+        // building the host under the WebApplicationFactory must make zero broker calls at startup.
+        // A regression that ran provisioning in tests would pollute every other test's request flow.
+        await using var factory = new DeltaWebApplicationFactory();
+        await factory.InitializeAsync();
+        var brokerCalls = 0;
+        factory.HandlerCallback = _ =>
+        {
+            Interlocked.Increment(ref brokerCalls);
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+
+        using var client = factory.CreateClient();
+        await Task.Delay(100); // give any (erroneously-registered) startup hook a chance to fire
+
+        brokerCalls.Should().Be(0, "boot-time provisioning must not run under the Testing environment");
     }
 
     // ---------- /health and /shutdown ----------

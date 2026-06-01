@@ -468,8 +468,8 @@ model, not the caller's.
 
 **Current assumption.** The Delta endpoint-template work (Feature #5465) ships
 under the simplifying assumption that **only one model is active at a time**, so
-Delta's writes — creating the registered endpoint thing and its `is`
-relationship, and (once Task #5468 lands) provisioning the template catalog —
+Delta's writes — provisioning the template catalog at boot (Task #5468), and
+creating each registered endpoint thing and its `is` relationship —
 target that one model correctly. The `/handle` contract is intentionally left
 unchanged.
 
@@ -478,5 +478,5 @@ provisions its template catalog into the *caller's* project model ("approach A")
 — is blocked by the routing gap above and is tracked separately in **Feature
 #5478**, which captures the two candidate fixes (one daemon per model, matching
 the "one Delta per tenant" intent; or per-request model propagation via the
-forwarded token). That work is broker-side and must be decided before Task
-#5468's per-model provisioning can be built.
+forwarded token). That work is broker-side and must be decided before per-model
+template provisioning (evolving the single-model Task #5468 catalog) can be built.
