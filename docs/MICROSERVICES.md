@@ -583,6 +583,10 @@ Guide on the broker repo's wiki.
 
 ### 14.1 Tributary token-exchange auth + offset paging (Task #5470)
 
+> The endpoint-template graph, the property field taxonomy (required-structural /
+> canonical-default / sensible-default / optional), and the fetch-and-shape (no derived
+> calculation) boundary versus Metabolism are covered in [`TRIBUTARY.md`](TRIBUTARY.md).
+
 Tributary stays source-agnostic: it gained two **generic** capabilities — a
 token-exchange auth provider and an offset paginator — both driven entirely by
 endpoint-template config. There is no ArcGIS vocabulary in the code; ESRI is just one
