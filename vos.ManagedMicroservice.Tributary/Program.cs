@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using vos.Auth.Shared;
 using vos.ManagedMicroservice.Tributary.Configuration;
@@ -200,13 +199,38 @@ try
         if (!HttpMethodValidator.IsSupportedMethod(normalizedMethod))
             return Results.BadRequest(new { error = $"Unsupported httpMethod: {method}" });
 
+        if (!TryResolveOptionalMap(effective, "headers", out var headers, out var headersError))
+            return headersError!;
+        if (!TryResolveOptionalMap(effective, "queryParams", out var queryParams, out var queryError))
+            return queryError!;
+
+        var requestContentType = OutboundRequest.DefaultContentType;
+        if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, "requestContentType", out var ctElement, out var ctConflicts))
+        {
+            var ct = ctElement.ValueKind == JsonValueKind.String ? ctElement.GetString() : ctElement.ToString();
+            if (!string.IsNullOrWhiteSpace(ct))
+                requestContentType = ct;
+        }
+        if (ctConflicts != null)
+            return AmbiguousProperty("requestContentType", ctConflicts);
+
+        var timeout = OutboundRequest.DefaultTimeout;
+        if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, "timeout", out var timeoutElement, out var timeoutConflicts))
+            timeout = OutboundRequest.ResolveTimeout(timeoutElement);
+        if (timeoutConflicts != null)
+            return AmbiguousProperty("timeout", timeoutConflicts);
+
         try
         {
             var (status, body, contentType) = await CallEndpointAsync(
                 httpClientFactory,
                 endpointUri,
                 normalizedMethod,
-                request.Body);
+                request.Body,
+                headers,
+                queryParams,
+                requestContentType,
+                timeout);
 
             if (hasOverrideTransform && overrideQuery != null && status is >= 200 and < 300)
             {
@@ -295,24 +319,45 @@ finally
     Log.CloseAndFlush();
 }
 
-static bool MethodSupportsBody(string method) =>
-    method is "POST" or "PUT" or "PATCH";
+static bool TryResolveOptionalMap(
+    Dictionary<string, JsonElement> effective,
+    string name,
+    out Dictionary<string, string>? map,
+    out IResult? error)
+{
+    map = null;
+    error = null;
+    if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, name, out var element, out var conflicts))
+        map = OutboundRequest.TryParseStringMap(element);
+    if (conflicts != null)
+    {
+        error = AmbiguousProperty(name, conflicts);
+        return false;
+    }
+    return true;
+}
+
+static IResult AmbiguousProperty(string name, List<string> conflicts) =>
+    Results.BadRequest(new
+    {
+        error = $"Endpoint thing has ambiguous properties for {name}.",
+        conflicts = new Dictionary<string, List<string>> { [name] = conflicts }
+    });
 
 static async Task<(int StatusCode, string Body, string? ContentType)> CallEndpointAsync(
     IHttpClientFactory httpClientFactory,
     Uri endpointUri,
     string method,
-    JsonElement body)
+    JsonElement body,
+    IReadOnlyDictionary<string, string>? headers,
+    IReadOnlyDictionary<string, string>? queryParameters,
+    string requestContentType,
+    TimeSpan timeout)
 {
     var client = httpClientFactory.CreateClient();
-    client.Timeout = TimeSpan.FromSeconds(30);
+    client.Timeout = timeout;
 
-    using var request = new HttpRequestMessage(new HttpMethod(method), endpointUri);
-    if (MethodSupportsBody(method) && body.ValueKind != JsonValueKind.Undefined)
-    {
-        var json = JsonSerializer.Serialize(body);
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-    }
+    using var request = OutboundRequest.Build(method, endpointUri, body, headers, queryParameters, requestContentType);
 
     using var response = await client.SendAsync(request);
     var content = await response.Content.ReadAsStringAsync();

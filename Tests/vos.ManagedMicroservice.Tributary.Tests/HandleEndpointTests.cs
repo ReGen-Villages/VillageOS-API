@@ -513,6 +513,225 @@ public class HandleEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Endpoint call failed");
     }
 
+    // ---------- Base request capabilities (Task #5469) ----------
+
+    [Fact]
+    public async Task Handle_CustomHeaders_AppliedToOutboundRequest()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "Endpoint.headers":    {"Value":{"Authorization":"Bearer abc","X-Api-Version":"2"}}
+        }
+        """;
+        HttpRequestMessage? outbound = null;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("{\"ok\":true}"); }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProps(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        outbound.Should().NotBeNull();
+        outbound!.Headers.GetValues("Authorization").Should().ContainSingle().Which.Should().Be("Bearer abc");
+        outbound.Headers.GetValues("X-Api-Version").Should().ContainSingle().Which.Should().Be("2");
+    }
+
+    [Fact]
+    public async Task Handle_QueryParams_MergedIntoOutboundUri()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":         {"Value":"https://api.test/q?where=1=1"},
+          "Endpoint.httpMethod":  {"Value":"GET"},
+          "Endpoint.queryParams": {"Value":{"f":"json","outFields":"*"}}
+        }
+        """;
+        HttpRequestMessage? outbound = null;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("{\"ok\":true}"); }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProps(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        outbound.Should().NotBeNull();
+        var decoded = Uri.UnescapeDataString(outbound!.RequestUri!.Query);
+        decoded.Should().Contain("where=1=1").And.Contain("f=json").And.Contain("outFields=*");
+    }
+
+    [Fact]
+    public async Task Handle_RequestContentType_AppliedToPostBody()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":                {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod":         {"Value":"POST"},
+          "Endpoint.requestContentType": {"Value":"application/xml"}
+        }
+        """;
+        HttpRequestMessage? outbound = null;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("{\"ok\":true}"); }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProps(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new
+        {
+            endpointName = "EP",
+            body = new { hello = "world" }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        outbound!.Content.Should().NotBeNull();
+        outbound.Content!.Headers.ContentType!.MediaType.Should().Be("application/xml");
+    }
+
+    [Fact]
+    public async Task Handle_DefaultsPreserved_WhenNoBaseCapabilitiesConfigured()
+    {
+        // An endpoint defining none of the new properties behaves exactly as before:
+        // no extra headers, URL unchanged, JSON body, request still succeeds.
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"POST"}
+        }
+        """;
+        HttpRequestMessage? outbound = null;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("{\"ok\":true}"); }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProps(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP", body = new { a = 1 } });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        outbound!.RequestUri!.Query.Should().BeEmpty();
+        outbound.Headers.Should().NotContain(h => h.Key == "Authorization");
+        outbound.Content!.Headers.ContentType!.MediaType.Should().Be("application/json");
+    }
+
+    [Fact]
+    public async Task Handle_AmbiguousHeaders_Returns400()
+    {
+        var thingId = Guid.NewGuid();
+        // Two namespaced keys both suffix-match "headers" — ambiguous, like url/httpMethod.
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "A.headers":           {"Value":{"X":"1"}},
+          "B.headers":           {"Value":{"Y":"2"}}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
+            ?? RouteEffectiveProps(req, thingId, props)
+            ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("ambiguous properties for headers");
+    }
+
+    [Theory]
+    [InlineData("queryParams")]
+    [InlineData("requestContentType")]
+    [InlineData("timeout")]
+    public async Task Handle_AmbiguousBaseCapabilityProperty_Returns400(string property)
+    {
+        var thingId = Guid.NewGuid();
+        // Two namespaced keys both suffix-match the property — ambiguous, like url/httpMethod/headers.
+        var props = $$"""
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "A.{{property}}":      {"Value":"1"},
+          "B.{{property}}":      {"Value":"2"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
+            ?? RouteEffectiveProps(req, thingId, props)
+            ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync()).Should().Contain($"ambiguous properties for {property}");
+    }
+
+    [Fact]
+    public async Task Handle_ConfiguredTimeout_DoesNotBreakSuccessfulCall()
+    {
+        // A configured timeout resolves and is applied to the outbound client without disrupting a
+        // normal call. End-to-end timeout *enforcement* (cancellation of a slow endpoint) is not
+        // asserted here: the MockHttpMessageHandler returns synchronously and never observes the
+        // client's CancellationToken, so it cannot simulate a real timeout. The TimeSpan mapping is
+        // unit-tested in OutboundRequestTests.ResolveTimeout; this pins that a custom timeout flows
+        // through /handle without error.
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "Endpoint.timeout":    {"Value":5}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test") return Json("{\"ok\":true}");
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProps(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Be("{\"ok\":true}");
+    }
+
     // ---------- /health and /shutdown ----------
 
     [Fact]

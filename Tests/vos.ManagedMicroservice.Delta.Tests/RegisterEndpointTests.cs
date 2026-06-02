@@ -584,6 +584,73 @@ public class RegisterEndpointTests
         propertySets.Should().NotContain(s => s.Contains("\"name\":\"httpMethod\""));
     }
 
+    [Fact]
+    public async Task Handle_TemplateDeclaringBaseCapabilityKeys_AcceptsRegistrationUsingThem()
+    {
+        // Cross-service consistency with Tributary's base request capabilities (Task #5469): once a
+        // template declares headers/queryParams/requestContentType/timeout as structural keys, Delta's
+        // AllowedKeys whitelist admits a registration that supplies them. No Delta code change is
+        // needed — this is ordinary seed authoring, exactly like url/httpMethod/responseTransform.
+        await using var factory = new DeltaWebApplicationFactory
+        {
+            SeedJson = """
+            {
+              "things": [
+                { "name": "Endpoint", "properties": {
+                    "url": "", "httpMethod": "GET",
+                    "headers": "", "queryParams": "", "requestContentType": "", "timeout": ""
+                } }
+              ],
+              "relationships": []
+            }
+            """
+        };
+        await factory.InitializeAsync();
+        var isId = Guid.NewGuid();
+        var endpointId = Guid.NewGuid();
+        var registeredId = Guid.NewGuid();
+        var propertySets = new List<string>();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
+                && req.RequestUri.Query.Contains("name=is"))
+                return Json("{\"Id\":\"" + isId + "\",\"Name\":\"is\",\"Properties\":{}}");
+            if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
+                && req.RequestUri.Query.Contains("name=Endpoint"))
+                return Json("{\"Id\":\"" + endpointId + "\",\"Name\":\"Endpoint\",\"Properties\":{}}");
+            if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
+                return Json("{\"Id\":\"" + registeredId + "\",\"Name\":\"MyEndpoint\",\"Properties\":{}}");
+            if (req.RequestUri.AbsolutePath == "/api/relationships" && req.Method == HttpMethod.Post)
+                return new HttpResponseMessage(HttpStatusCode.Created);
+            if (req.RequestUri.AbsolutePath == $"/api/things/{registeredId}/properties" && req.Method == HttpMethod.Put)
+            {
+                propertySets.Add(req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? "");
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new
+        {
+            name = "MyEndpoint",
+            properties = new Dictionary<string, object>
+            {
+                ["url"] = "https://api.example/x",
+                ["httpMethod"] = "GET",
+                ["headers"] = new { Authorization = "Bearer t" },
+                ["queryParams"] = new { f = "json" },
+                ["requestContentType"] = "application/json",
+                ["timeout"] = 15
+            }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, "the template declares these keys, so they are admissible");
+        propertySets.Should().Contain(s => s.Contains("\"name\":\"headers\""));
+        propertySets.Should().Contain(s => s.Contains("\"name\":\"queryParams\""));
+        propertySets.Should().Contain(s => s.Contains("\"name\":\"timeout\""));
+    }
+
     // ---------- Boot provisioning isolation (Task #5468) ----------
 
     [Fact]
