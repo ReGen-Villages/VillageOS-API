@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using vos.Auth.Shared;
 using vos.ManagedMicroservice.Tributary.Configuration;
@@ -75,6 +76,10 @@ try
             serviceToken));
     builder.Services.AddSingleton<IEndpointBrokerClient>(sp => sp.GetRequiredService<BrokerClient>());
     builder.Services.AddSingleton<ObservationIngestService>();
+    // Per-process token-exchange cache (Task #5470). TimeProvider.System drives its refresh threshold;
+    // tests substitute a fake clock. Singleton so the cache survives across /handle requests.
+    builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddSingleton<TokenExchangeCache>();
 
     var app = builder.Build();
 
@@ -88,7 +93,8 @@ try
         EndpointCallRequest request,
         BrokerClient brokerClient,
         IHttpClientFactory httpClientFactory,
-        ObservationIngestService observationService) =>
+        ObservationIngestService observationService,
+        TokenExchangeCache tokenExchangeCache) =>
     {
         if (string.IsNullOrWhiteSpace(request.EndpointName))
             return Results.BadRequest(new { error = "Request must include a non-empty endpointName." });
@@ -220,17 +226,183 @@ try
         if (timeoutConflicts != null)
             return AmbiguousProperty("timeout", timeoutConflicts);
 
+        // ---- Auth-kind branching (Task #5470) ----
+        // authKind is a structural key on the root Endpoint template; descendants resolve its value.
+        // none/absent -> a plain REST call. tokenExchange -> a pre-minted token, or one minted from a
+        // configured credential exchange (token endpoint, form fields, and response token/expiry paths
+        // all come from the template, so nothing here is source-specific). The credential attaches as a
+        // query param (default `token`) or, when tokenHeader is set, a request header. Validation gaps
+        // are 400 here; the mint network call is deferred into the try below so failures become 502.
+        if (!TryResolveOptionalString(effective, "authKind", out var authKind, out var authKindError))
+            return authKindError!;
+
+        string? preMintedToken = null;
+        TokenExchangeRequest? tokenFetch = null;
+        var tokenParam = "token";
+        string? tokenHeader = null;
+        string? tokenScheme = null;
+        switch (authKind?.Trim().ToLowerInvariant())
+        {
+            case null:
+            case "":
+            case "none":
+                break;
+            case "tokenexchange":
+                if (!TryResolveOptionalString(effective, "tokenParam", out var tp, out var tpError))
+                    return tpError!;
+                if (!string.IsNullOrWhiteSpace(tp))
+                    tokenParam = tp!.Trim();
+                if (!TryResolveOptionalString(effective, "tokenHeader", out tokenHeader, out var thError))
+                    return thError!;
+                if (!TryResolveOptionalString(effective, "tokenScheme", out tokenScheme, out var tschError))
+                    return tschError!;
+
+                if (!TryResolveOptionalString(effective, "token", out var preMinted, out var tokenError))
+                    return tokenError!;
+                if (!string.IsNullOrWhiteSpace(preMinted))
+                {
+                    preMintedToken = preMinted;
+                    break;
+                }
+
+                if (!TryResolveOptionalString(effective, "tokenUrl", out var tokenUrl, out var urlError))
+                    return urlError!;
+                if (!TryResolveOptionalMap(effective, "tokenRequest", out var tokenRequest, out var trError))
+                    return trError!;
+                if (!TryResolveOptionalString(effective, "tokenPath", out var tokenPath, out var pathError))
+                    return pathError!;
+                if (!TryResolveOptionalString(effective, "expiryPath", out var expiryPath, out var epError))
+                    return epError!;
+                if (!TryResolveOptionalString(effective, "expiryUnit", out var expiryUnit, out var euError))
+                    return euError!;
+                if (string.IsNullOrWhiteSpace(tokenUrl) || tokenRequest == null || tokenRequest.Count == 0 || string.IsNullOrWhiteSpace(tokenPath))
+                    return Results.BadRequest(new { error = "authKind 'tokenExchange' requires tokenUrl, tokenRequest, and tokenPath (or a pre-minted token)." });
+                tokenFetch = new TokenExchangeRequest(tokenUrl!, tokenRequest, tokenPath!, expiryPath, expiryUnit);
+                break;
+            default:
+                return Results.BadRequest(new { error = $"Unsupported authKind: {authKind}" });
+        }
+
+        // ---- Offset paging resolution (Task #5470) ----
+        if (!TryResolveOptionalString(effective, "pagingKind", out var pagingKind, out var pagingError))
+            return pagingError!;
+
+        OffsetPaginationConfig? pageConfig = null;
+        switch (pagingKind?.Trim().ToLowerInvariant())
+        {
+            case null:
+            case "":
+            case "none":
+                break;
+            case "offset":
+                if (!TryResolveOptionalString(effective, "offsetParam", out var offsetParam, out var offsetError))
+                    return offsetError!;
+                if (!TryResolveOptionalString(effective, "pageSizeParam", out var pageSizeParam, out var pspError))
+                    return pspError!;
+                if (!TryResolveOptionalString(effective, "hasMorePath", out var hasMorePath, out var hmError))
+                    return hmError!;
+                if (!TryResolveOptionalString(effective, "itemsPath", out var itemsPath, out var ipError))
+                    return ipError!;
+                if (string.IsNullOrWhiteSpace(offsetParam) || string.IsNullOrWhiteSpace(hasMorePath) || string.IsNullOrWhiteSpace(itemsPath))
+                    return Results.BadRequest(new { error = "pagingKind 'offset' requires offsetParam, hasMorePath, and itemsPath." });
+
+                int? pageSize = null;
+                if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, "pageSize", out var pageSizeElement, out var pageSizeConflicts))
+                {
+                    var rawPageSize = pageSizeElement.ValueKind == JsonValueKind.String ? pageSizeElement.GetString() : pageSizeElement.GetRawText();
+                    if (!string.IsNullOrWhiteSpace(rawPageSize)
+                        && int.TryParse(rawPageSize, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ps) && ps > 0)
+                        pageSize = ps;
+                }
+                if (pageSizeConflicts != null)
+                    return AmbiguousProperty("pageSize", pageSizeConflicts);
+
+                pageConfig = new OffsetPaginationConfig(
+                    offsetParam!,
+                    string.IsNullOrWhiteSpace(pageSizeParam) ? null : pageSizeParam!.Trim(),
+                    pageSize,
+                    hasMorePath!,
+                    itemsPath!);
+                break;
+            default:
+                return Results.BadRequest(new { error = $"Unsupported pagingKind: {pagingKind}" });
+        }
+
         try
         {
-            var (status, body, contentType) = await CallEndpointAsync(
-                httpClientFactory,
-                endpointUri,
-                normalizedMethod,
-                request.Body,
-                headers,
-                queryParams,
-                requestContentType,
-                timeout);
+            // Mint the token now (deferred network call). Its own catch returns a generic 502 — the
+            // upstream message can name the credential and must not leak; the real one is logged.
+            var credential = preMintedToken;
+            if (tokenFetch != null)
+            {
+                try
+                {
+                    credential = await tokenExchangeCache.GetTokenAsync(tokenFetch);
+                }
+                catch (Exception tokenEx)
+                {
+                    Log.Error(tokenEx, "Token acquisition failed for {EndpointName}", request.EndpointName);
+                    return Results.Problem(
+                        detail: "Failed to obtain an authentication token for the endpoint.",
+                        statusCode: 502,
+                        title: "Token acquisition failed");
+                }
+            }
+
+            var effectiveQueryParams = queryParams != null
+                ? new Dictionary<string, string>(queryParams, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var effectiveHeaders = headers != null
+                ? new Dictionary<string, string>(headers, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(credential))
+            {
+                if (!string.IsNullOrEmpty(tokenHeader))
+                    effectiveHeaders[tokenHeader] = string.IsNullOrEmpty(tokenScheme) ? credential : $"{tokenScheme} {credential}";
+                else
+                    effectiveQueryParams[tokenParam] = credential;
+            }
+
+            int status;
+            string body;
+            string? contentType;
+
+            if (pageConfig != null)
+            {
+                // Walk every page and aggregate before the transform runs below.
+                var paging = pageConfig!;
+                body = await OffsetPaginator.FetchAllPagesAsync(
+                    async (offset, ct) =>
+                    {
+                        var pageParams = new Dictionary<string, string>(effectiveQueryParams, StringComparer.OrdinalIgnoreCase)
+                        {
+                            [paging.OffsetParam] = offset.ToString(CultureInfo.InvariantCulture)
+                        };
+                        if (paging.PageSizeParam != null && paging.PageSize is > 0)
+                            pageParams[paging.PageSizeParam] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
+
+                        var (pageStatus, pageBody, _) = await CallEndpointAsync(
+                            httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, pageParams, requestContentType, timeout);
+                        if (pageStatus is < 200 or >= 300)
+                            throw new HttpRequestException($"Paged request failed with status {pageStatus} at {paging.OffsetParam}={offset}.");
+                        return pageBody;
+                    },
+                    paging);
+                status = 200;
+                contentType = "application/json";
+            }
+            else
+            {
+                (status, body, contentType) = await CallEndpointAsync(
+                    httpClientFactory,
+                    endpointUri,
+                    normalizedMethod,
+                    request.Body,
+                    effectiveHeaders,
+                    effectiveQueryParams,
+                    requestContentType,
+                    timeout);
+            }
 
             if (hasOverrideTransform && overrideQuery != null && status is >= 200 and < 300)
             {
@@ -329,6 +501,24 @@ static bool TryResolveOptionalMap(
     error = null;
     if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, name, out var element, out var conflicts))
         map = OutboundRequest.TryParseStringMap(element);
+    if (conflicts != null)
+    {
+        error = AmbiguousProperty(name, conflicts);
+        return false;
+    }
+    return true;
+}
+
+static bool TryResolveOptionalString(
+    Dictionary<string, JsonElement> effective,
+    string name,
+    out string? value,
+    out IResult? error)
+{
+    value = null;
+    error = null;
+    if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, name, out var element, out var conflicts))
+        value = element.ValueKind == JsonValueKind.String ? element.GetString() : element.ToString();
     if (conflicts != null)
     {
         error = AmbiguousProperty(name, conflicts);

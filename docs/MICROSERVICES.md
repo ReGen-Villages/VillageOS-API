@@ -580,3 +580,70 @@ response time, errors) are tracked broker-side.
 
 Full implementation details: the *Endpoint Services* section in the Broker
 Guide on the broker repo's wiki.
+
+### 14.1 Tributary token-exchange auth + offset paging (Task #5470)
+
+Tributary stays source-agnostic: it gained two **generic** capabilities — a
+token-exchange auth provider and an offset paginator — both driven entirely by
+endpoint-template config. There is no ArcGIS vocabulary in the code; ESRI is just one
+configuration (see *The `EsriEndpoint` template* below). No new binary, and no Delta
+change — the endpoint-template catalog already resolves multi-level hierarchies.
+
+**Auth kind.** `authKind` is a structural key on the **root `Endpoint`** template, so
+it is admissible for every endpoint and carries no inherited default (an unset value is
+treated as `none`). Descendant templates (or a registration) resolve the value.
+`/handle` branches on it:
+
+- `none` (or unset) — a plain REST call, unchanged. (A *static* key needs no auth kind —
+  configure it directly as a `queryParams` entry or header.)
+- `tokenExchange` — a pre-minted `token` is used directly; otherwise a token is minted
+  by POSTing the configured `tokenRequest` form fields to `tokenUrl`, reading the token
+  out at the simple dotted `tokenPath` (and optional `expiryPath` + `expiryUnit` of
+  `epochMillis`/`epochSeconds`/`seconds`). Tokens live in a per-process
+  `TokenExchangeCache` keyed by `(tokenUrl, request-fields)`, reused until ~75% of
+  lifetime elapses (`TimeProvider`-driven), then refreshed. The credential attaches as a
+  query param (`tokenParam`, default `token`) or, if `tokenHeader` is set, a request
+  header (`tokenScheme` + value). Missing mint config is a 400; a token-endpoint failure
+  surfaces as a **generic** 502 (the upstream message may name the credential and is not
+  echoed to the caller — it is logged).
+
+**Offset paging.** When `pagingKind = offset`, `OffsetPaginator` loops the query
+advancing `offsetParam` (by `pageSize` via `pageSizeParam`, else by the returned item
+count) while the page's `hasMorePath` boolean is true, and concatenates every page's
+array at `itemsPath` into the first page's body. Aggregation happens **before** the
+JSONata `responseTransform` runs, so the transform sees the complete result, not page
+one. Paths are simple dotted keys (e.g. `data.features`).
+
+**The `EsriEndpoint` template.** Seeds are deployment-supplied runtime data (not
+committed; `seed.json` stores every template as a thing plus the `is` relationships
+between them), so the canonical shape lives here. ESRI is expressed purely as config on
+a child template that extends `Endpoint` and restates only the keys it narrows:
+
+```json
+{
+  "things": [
+    { "name": "Endpoint", "properties": {
+        "url": "", "httpMethod": "GET", "responseTransform": "$",
+        "headers": "", "queryParams": "", "requestContentType": "",
+        "timeout": "", "authKind": "" } },
+    { "name": "EsriEndpoint", "properties": {
+        "httpMethod": "POST", "requestContentType": "application/x-www-form-urlencoded",
+        "authKind": "tokenExchange",
+        "token": "", "tokenUrl": "", "tokenRequest": "",
+        "tokenPath": "token", "expiryPath": "expires", "expiryUnit": "epochMillis",
+        "pagingKind": "offset", "offsetParam": "resultOffset",
+        "pageSizeParam": "resultRecordCount", "hasMorePath": "exceededTransferLimit",
+        "itemsPath": "features", "pageSize": "" } }
+  ],
+  "relationships": [ { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" } ]
+}
+```
+
+A registration under `EsriEndpoint` supplies the blanks (`url`, `tokenUrl`,
+`tokenRequest` = `{username, password, referer, f, client}`, optional `pageSize`). An
+OAuth2 source reuses the same code with `tokenPath=access_token`,
+`expiryPath=expires_in`, `expiryUnit=seconds`, `tokenHeader=Authorization`,
+`tokenScheme=Bearer`. Blank values are structural keys — admissible for a registration
+but supplying no inherited default. Graph composition is pinned by
+`EsriEndpointTemplateTests` (Delta); behavior by `EsriHandleTests`,
+`TokenExchangeCacheTests`, and `OffsetPaginatorTests` (Tributary).
