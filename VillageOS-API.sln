@@ -13,9 +13,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Application", "vos.Appl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Auth.Shared", "vos.Auth.Shared\vos.Auth.Shared.csproj", "{A1AC1C9F-596B-43A8-B5AF-0C95266C3668}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.CLI.Tests", "vos.CLI.Tests\vos.CLI.Tests.csproj", "{3F6FB066-C4D9-45E2-B4E8-460BA8470050}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Taproot.Tests", "vos.Taproot.Tests\vos.Taproot.Tests.csproj", "{3F6FB066-C4D9-45E2-B4E8-460BA8470050}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.CLI", "vos.CLI\vos.CLI.csproj", "{A965EFA3-B25D-4C60-B0CA-B1CEEF39D1D0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Taproot", "vos.Taproot\vos.Taproot.csproj", "{A965EFA3-B25D-4C60-B0CA-B1CEEF39D1D0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Core", "vos.Core\vos.Core.csproj", "{F7D503A7-839F-4AFA-8055-ACFBAA35EA12}"
 EndProject

@@ -8,7 +8,7 @@ A living snapshot of how unit tests are organized, what's covered, and where the
 
 | Project | Path | Mocking | Production code covered |
 |---|---|---|---|
-| `vos.CLI.Tests` | `vos.CLI.Tests/` | Moq | `vos.CLI` only — the Application/Core/Infrastructure layers are mocked at the seam, so they get no transitive coverage from this project (verified against Cobertura output) |
+| `vos.Taproot.Tests` | `vos.Taproot.Tests/` | Moq | `vos.Taproot` only — the Application/Core/Infrastructure layers are mocked at the seam, so they get no transitive coverage from this project (verified against Cobertura output) |
 | `vos.ManagedMicroservice.Metabolism.Tests` | `Tests/vos.ManagedMicroservice.Metabolism.Tests/` | Moq + `MockHttpMessageHandler` | Metabolism (consumes/produces simulation lifecycle and the broker client) |
 | `vos.ManagedMicroservice.Tributary.Tests` | `Tests/vos.ManagedMicroservice.Tributary.Tests/` | NSubstitute + `MockHttpMessageHandler` + `WebApplicationFactory<Program>` | Tributary — `/handle`, `/health`, `/shutdown` endpoints, `BrokerClient`, `ObservationIngestService`, `CliArgs` (post Phase 2C); config-driven token-exchange auth + offset paging via `TokenExchangeCache`, `OffsetPaginator` (Task #5470) |
 | `vos.ManagedMicroservice.Delta.Tests` | `Tests/vos.ManagedMicroservice.Delta.Tests/` | NSubstitute + `MockHttpMessageHandler` + `WebApplicationFactory<Program>` | Delta — `/handle`, `/register`, `/health`, `/shutdown` endpoints, `BrokerClient`, `CliArgs`, `LoadEndpointSeed`, compensation logic (post Phase 2D) |
@@ -19,12 +19,12 @@ A living snapshot of how unit tests are organized, what's covered, and where the
 | `vos.Infrastructure.Tests` | `Tests/vos.Infrastructure.Tests/` | None (pure infrastructure types with concrete dependencies) | `vos.Infrastructure` (`ModelStore` concurrency + thread-safety, `VosModelProvider` JSON deserialization including round-trip fixtures, all four `RangeBounds` types, nested inherited property sets, criteria-DSL parsing through `CriteriaParser`, missing-array branches, `ClearModel`). |
 | `vos.ManagedMicroservice.Echo.Tests` | `Tests/vos.ManagedMicroservice.Echo.Tests/` | `NullLogger` + `MockHttpMessageHandler` (no mocking-library dependency) | `vos.ManagedMicroservice.Echo` `CliArgs` + `BrokerClient` (Program.cs is integration-test territory and excluded). Tests are written as the **canonical template** for any ManagedMicroservice — see `docs/MICROSERVICES.md` §10 for the patterns other microservice test projects should mirror. |
 
-All test projects use xUnit + FluentAssertions. The CLAUDE.md note about test projects living in two places by historical accident (`vos.CLI.Tests/` at the repo root, microservice tests under `Tests/`) still holds.
+All test projects use xUnit + FluentAssertions. The CLAUDE.md note about test projects living in two places by historical accident (`vos.Taproot.Tests/` at the repo root, microservice tests under `Tests/`) still holds.
 
-GUI tests (`vos.GUI/`):
+GUI tests (`vos.Trellis/`):
 
-- **Vitest unit suite** — broad coverage across APIs, components, hooks, stores, and utils. Config inline in `vos.GUI/vite.config.ts` (jsdom env, v8 coverage). Scripts: `npm test`, `npm run test:coverage`.
-- **Puppeteer e2e** — a single model-viewer smoke test at `vos.GUI/test/e2e/model-viewer.e2e.mjs`, driven by `node --test`. Script: `npm run test:e2e`.
+- **Vitest unit suite** — broad coverage across APIs, components, hooks, stores, and utils. Config inline in `vos.Trellis/vite.config.ts` (jsdom env, v8 coverage). Scripts: `npm test`, `npm run test:coverage`.
+- **Puppeteer e2e** — a single model-viewer smoke test at `vos.Trellis/test/e2e/model-viewer.e2e.mjs`, driven by `node --test`. Script: `npm run test:e2e`.
 
 ## CI signal
 
@@ -40,7 +40,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 
 | Assembly | Line % | Branch % | Source of coverage |
 |---|---|---|---|
-| `vos.CLI` | ~96% | ~88% | `vos.CLI.Tests` (Phase 2A, Task #5402): 5 new handler test files (BrokerStatus / User / Model / Seed / State CommandHandler) all at 100%; CommandHandler dispatcher gaps closed; `BrokerClient` refactored with an internal HttpClient-injection ctor + `InternalsVisibleTo` and tested to 99.2% via `MockHttpMessageHandler`. |
+| `vos.Taproot` | ~96% | ~88% | `vos.Taproot.Tests` (Phase 2A, Task #5402): 5 new handler test files (BrokerStatus / User / Model / Seed / State CommandHandler) all at 100%; CommandHandler dispatcher gaps closed; `BrokerClient` refactored with an internal HttpClient-injection ctor + `InternalsVisibleTo` and tested to 99.2% via `MockHttpMessageHandler`. |
 | `vos.ManagedMicroservice.Metabolism` | high pkg-level (see WebApplicationFactory note below); `Services.BrokerClient` now 100% after the SignalR connect path moved behind `IHubConnectionFactory` (Task #5457) — the un-mockable SignalR pass-through shell (`DefaultHubConnection`/`DefaultHubConnectionFactory`) is `[ExcludeFromCodeCoverage]`. `CliArgs` and `Models.HandleRequest` sit lower (arg-parse + payload defensive branches). | ~81% | `Tests/vos.ManagedMicroservice.Metabolism.Tests/` (Phase 2B, Task #5403; SignalR seam Task #5457) |
 | `vos.ManagedMicroservice.Shared` | 100% | 100% | `Tests/vos.ManagedMicroservice.Shared.Tests/` (Phase 1F, Task #5401); previously ~31% as a side effect of the three microservice test runs |
 | `vos.ManagedMicroservice.Tributary` | ~95% pkg-level; CliArgs / EndpointCallRequest / ObservationIngestResult 100%, BrokerClient 99.4%, Program 94.3%, ObservationIngestService 89.1% | ~92% | `Tests/vos.ManagedMicroservice.Tributary.Tests/` (Phase 2C, Task #5404). WebApplicationFactory&lt;Program&gt; pattern (see notes). Sub-95% files are Program.cs minimal-API wireup + ObservationIngestService defensive-only branches per the plan's documented exclusion language. |
@@ -50,7 +50,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 | `vos.Infrastructure` | 99% | 83% | `Tests/vos.Infrastructure.Tests/` (Phase 1C, Task #5398). `ModelStore` 100%; `VosModelProvider` 98.6%. |
 | `vos.Auth.Shared` | 100% | n/a (no branches) | `Tests/vos.Auth.Shared.Tests/` (Phase 1D, Task #5399) |
 | `vos.ManagedMicroservice.Echo` | 100% (CliArgs + BrokerClient) | 100% | `Tests/vos.ManagedMicroservice.Echo.Tests/` (Phase 1E, Task #5400). Program.cs is integration-test scope and excluded from this measurement. |
-| `vos.GUI` | not measured here | — | `npm run test:coverage` (Vitest + v8); not included in this snapshot |
+| `vos.Trellis` | not measured here | — | `npm run test:coverage` (Vitest + v8); not included in this snapshot |
 
 **Headline:** the three pure-library projects at the bottom of the .NET stack (`vos.Core`, `vos.Application`, `vos.Infrastructure`) currently have zero direct test coverage — the CLI tests mock everything beneath the handler boundary, so the domain model itself is not exercised. Among microservices, Metabolism is well-covered and Echo is unmeasured because it has no test project at all.
 
@@ -136,7 +136,7 @@ Microservice WebApplicationFactory subclasses expose nullable `SigningKey` / `Is
 
 Real bugs found while writing tests. Each should become an AzDO Bug when scheduled for fix.
 
-1. **`vos.CLI/SeedCommandHandler.cs` — raw-string seed entries throw.** `ListLibrarySeedsAsync` calls `seed.GetStringOrDefault("Name", seed.ToString())` for each entry. `GetStringOrDefault` invokes `JsonElement.TryGetProperty` which throws when the element is a non-object (e.g. a raw JSON string). The outer `try`/`catch` in `ExecuteAsync` swallows the throw and emits a hostile `"Error: The requested operation cannot be performed on a JSON string element"` instead of the seed list. Surfaced by Phase 2A (PR #382); documented in `vos.CLI.Tests/SeedCommandHandlerTests.cs` (comment block, no regression test yet). Fix sketch: guard with `seed.ValueKind == JsonValueKind.String` and fall back to `seed.GetString()`, or push the guard into `JsonElementExtensions.GetStringOrDefault`. In practice today's broker returns objects, so this hasn't fired in production — the fallback is just dead code with a hostile failure mode.
+1. **`vos.Taproot/SeedCommandHandler.cs` — raw-string seed entries throw.** `ListLibrarySeedsAsync` calls `seed.GetStringOrDefault("Name", seed.ToString())` for each entry. `GetStringOrDefault` invokes `JsonElement.TryGetProperty` which throws when the element is a non-object (e.g. a raw JSON string). The outer `try`/`catch` in `ExecuteAsync` swallows the throw and emits a hostile `"Error: The requested operation cannot be performed on a JSON string element"` instead of the seed list. Surfaced by Phase 2A (PR #382); documented in `vos.Taproot.Tests/SeedCommandHandlerTests.cs` (comment block, no regression test yet). Fix sketch: guard with `seed.ValueKind == JsonValueKind.String` and fall back to `seed.GetString()`, or push the guard into `JsonElementExtensions.GetStringOrDefault`. In practice today's broker returns objects, so this hasn't fired in production — the fallback is just dead code with a hostile failure mode.
 
 ## Candidate follow-ups
 
@@ -241,8 +241,8 @@ dotnet test --configuration Release `
 # One Cobertura XML per test project lands under TestResults\coverage-run\<guid>\.
 
 # Run the GUI Vitest suite (not currently in CI):
-Set-Location vos.GUI ; npm ci ; npm test
+Set-Location vos.Trellis ; npm ci ; npm test
 # Optional: GUI coverage via Vitest v8:
 npm run test:coverage
-# Reports land in vos.GUI\coverage\.
+# Reports land in vos.Trellis\coverage\.
 ```

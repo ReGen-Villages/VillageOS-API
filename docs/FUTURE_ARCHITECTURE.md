@@ -332,17 +332,17 @@ un-mockable `HubConnection` are the irreducible seam and carry
 backoff sequence, token re-fetch per attempt, `RelationshipPropertyChanged`
 payload shape, and `Reconnected` logging.
 
-### 2.2 `vos.CLI` gets a `HostBuilder`
+### 2.2 `vos.Taproot` gets a `HostBuilder`
 
 > **Status:** `PROPOSED` for discussion — not to be implemented yet. This is a
 > significant refactor. Captured here so the option is documented and the
 > rationale is preserved; implementation should be its own Feature with its own
 > Tasks, scoped after §2.1 has landed.
 
-**Today.** `vos.CLI` uses a plain `static void Main` entry point with manual
+**Today.** `vos.Taproot` uses a plain `static void Main` entry point with manual
 command-handler construction. Several rough edges fall out of that:
 
-- `vos.CLI.BrokerClient` is unit-testable only via an `internal`
+- `vos.Taproot.BrokerClient` is unit-testable only via an `internal`
   HttpClient-injection constructor plus `InternalsVisibleTo`.
   `docs/TEST-STATE.md` flags this as a workaround.
 - `Program` shows 0 % coverage in the snapshot. The entry-point exclusion is
@@ -354,7 +354,7 @@ command-handler construction. Several rough edges fall out of that:
   `Environment.GetEnvironmentVariable`.
 - Logging happens through `Console.WriteLine` rather than `ILogger`, so output
   is hard to capture or route in tests.
-- `vos.CLI.Tests/CliEnvVarCollection.cs` exists exclusively to serialize tests
+- `vos.Taproot.Tests/CliEnvVarCollection.cs` exists exclusively to serialize tests
   that mutate those env vars — the same family of problem that microservice
   `EnvVarScope` helpers solved, but rooted in the CLI's own production
   interface.

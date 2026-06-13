@@ -15,7 +15,7 @@ const WIKI = 'https://github.com/regenrob/VillageOS-API/wiki';
 const BLOB = 'https://github.com/regenrob/VillageOS-API/blob/main';
 
 test('internal wiki links become absolute GitHub wiki URLs', () => {
-  assert.equal(convert('[vos.GUI](/GUI)'), `[vos.GUI](${WIKI}/GUI)`);
+  assert.equal(convert('[vos.Trellis](/GUI)'), `[vos.Trellis](${WIKI}/GUI)`);
 });
 
 test('nested wiki links are flattened to the last segment', () => {

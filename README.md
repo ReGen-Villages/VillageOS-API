@@ -1,12 +1,12 @@
 # VillageOS API
 
-Client tools, GUI, and microservices for the [VillageOS](https://dev.azure.com/ReGenVillages/VillageOS) temporal graph platform.
+Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev.azure.com/ReGenVillages/VillageOS) temporal graph platform.
 
 ## Projects
 
-### GUI
+### Trellis (GUI)
 
-**vos.GUI** — React application for graph visualization and interaction.
+**vos.Trellis** — React application for graph visualization and interaction.
 
 - Sigma.js v3 + graphology for graph rendering
 - Three.js + `@thatopen/fragments` for the IFC Model viewer (Feature #5248; loader, picking, plan/section toolbar, and shared `NodeDetailPanel` all shipped)
@@ -14,9 +14,9 @@ Client tools, GUI, and microservices for the [VillageOS](https://dev.azure.com/R
 - Zustand state management
 - Dashboard, Graph, Model, Temporal, Things, and Properties pages
 
-### CLI
+### Taproot (CLI)
 
-**vos.CLI** — Command-line interface for the VillageOS broker.
+**vos.Taproot** — Command-line interface for the VillageOS broker.
 
 - Interactive REPL with command history and tab completion
 - CRUD commands (create, get, list, delete, set, query, find)
@@ -37,11 +37,11 @@ Client tools, GUI, and microservices for the [VillageOS](https://dev.azure.com/R
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Node.js 20+](https://nodejs.org/) (for the GUI)
+- [Node.js 20+](https://nodejs.org/) (for Trellis)
 
 ## Getting Started
 
-### .NET projects (CLI, microservices)
+### .NET projects (Taproot, microservices)
 
 ```bash
 dotnet restore
@@ -49,17 +49,17 @@ dotnet build
 dotnet test
 ```
 
-### GUI
+### Trellis (GUI)
 
 ```bash
-cd vos.GUI
+cd vos.Trellis
 npm ci
 npm run dev      # Development server on :5173 (proxies /api + /vosHub to https://localhost:7243)
 npm run build    # Production build into ./dist
 npm test         # Run tests
 ```
 
-The GUI connects to the VillageOS broker at `https://localhost:7243` by default.
+Trellis connects to the VillageOS broker at `https://localhost:7243` by default.
 
 #### Building directly into a broker's wwwroot
 
@@ -70,7 +70,7 @@ bundle straight into a broker's static file directory, e.g.:
 VOS_BROKER_WWWROOT=/absolute/path/to/VillageOS/vos.Broker/wwwroot npm run build
 ```
 
-When the env var is unset, the build lands in `vos.GUI/dist/` as a normal
+When the env var is unset, the build lands in `vos.Trellis/dist/` as a normal
 local artifact.
 
 ## Documentation
@@ -78,8 +78,8 @@ local artifact.
 Full documentation is available in the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki).
 
 Key pages:
-- [GUI](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/37/GUI) — visualization stack, tech spec, user guide
-- [CLI](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/39/CLI) — command reference
+- [Trellis](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/37/Trellis) — visualization stack, tech spec, user guide
+- [Taproot](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/39/Taproot) — command reference
 - [Services](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/40/Services) — microservice documentation
 - [API Reference](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/45/API-Reference) — REST endpoints, SignalR, authentication
 
