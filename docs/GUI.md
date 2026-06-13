@@ -82,12 +82,13 @@ If your account has been flagged for a password change (e.g., created by an admi
 
 Your session stays alive automatically — the GUI silently refreshes your authentication token in the background before it expires, so you won't be logged out unexpectedly during normal use.
 
-After login, the **Dashboard** is the default landing page. The sidebar on the left provides five navigation items:
+After login, the **Dashboard** is the default landing page. The sidebar on the left provides six navigation items:
 
 | Icon | Page | Purpose |
 |------|------|---------|
 | Grid | **Dashboard** | Model statistics, service health, daemon status, and live activity feed |
 | Network | **Graph** | Interactive graph visualization with search, clustering, 3D building view, and CRUD |
+| Box | **Model** | IFC-based 3D model viewer (Fragments) with type filtering and element selection |
 | Clock | **Temporal** | Time-range mutation explorer for viewing property change history |
 | Boxes | **Things** | Dedicated search page — find things by name across the entire model |
 | Search | **Properties** | Dedicated search page — find things and relationships by property name |
@@ -664,11 +665,12 @@ vos.GUI/
     └── components/
         ├── layout/
         │   ├── AppLayout.tsx    # Root layout: sidebar + main + toast container
-        │   └── Sidebar.tsx      # Nav links (Dashboard, Graph, Temporal, Things, Properties) + model name + collapsible
+        │   └── Sidebar.tsx      # Nav links (Dashboard, Graph, Model, Temporal, Things, Properties) + model name + collapsible
         │
         ├── graph/
         │   ├── SigmaCanvas.tsx            # <SigmaContainer> wrapper with settings + Safari compositing fix
         │   ├── GraphDataLoader.tsx        # Loads graphology graph into Sigma
+        │   ├── GraphSearchBar.tsx         # Search input with case-sensitive / exact-match / regex toggles + match count
         │   ├── GraphEvents.tsx            # Click/right-click events → Zustand store (incl. logical node expansion, context menu)
         │   ├── LayoutController.tsx       # ForceSupervisor / FA2 lifecycle
         │   ├── LogicalNodeController.tsx  # Radial positioning of logical children + semantic zoom
@@ -687,6 +689,11 @@ vos.GUI/
         ├── three/
         │   └── BuildingDetail3D.tsx    # Single-building 3D viewer (auto-rotate, orbit controls)
         │
+        ├── model/
+        │   ├── FragmentsViewer.tsx     # Fragments-based 3D viewer (WebGL rendering, element picking) — backs the Model page
+        │   ├── LoadingOverlay.tsx      # Loading-state overlay for the viewer
+        │   └── ViewerToolbar.tsx       # 3D viewer toolbar controls
+        │
         ├── panels/
         │   ├── ResizablePanel.tsx        # Draggable-width overlay panel
         │   ├── NodeDetailPanel.tsx       # Own properties, inherited properties (flat + tree), relationships, ranges, 3D tab
@@ -694,7 +701,9 @@ vos.GUI/
         │   ├── EditablePropertyList.tsx  # Inline property editing with dirty state, save on Enter/blur, type inference, AddPropertyRow for new properties
         │   ├── RelationshipList.tsx      # Expandable relationship list with multi-expand, inline property editing, and AddRelationshipRow
         │   ├── AddRelationshipRow.tsx    # Inline form for creating relationships (predicate + other-thing pickers)
-        │   └── RangesTabContent.tsx     # States, own/inherited ranges, relationship ranges, binding evaluations with severity coloring
+        │   ├── RangesTabContent.tsx     # States, own/inherited ranges, relationship ranges, binding evaluations with severity coloring
+        │   ├── TypeFilterPanel.tsx       # Type-visibility toggles with instance counts + sort options
+        │   └── PredicateFilterPanel.tsx  # Edge-visibility filter by predicate (bottom-right panel)
         │
         ├── dashboard/
         │   ├── ModelStatsCard.tsx          # Thing/relationship/predicate/property counts
@@ -708,7 +717,9 @@ vos.GUI/
             ├── Toast.tsx             # Toast notifications (success/error/warning/info)
             ├── ConfirmDialog.tsx     # Confirmation modal for destructive actions
             ├── Badge.tsx             # Colored status pill
-            └── ThingPicker.tsx       # Searchable thing selector with ranked results (exact→starts-with→contains)
+            ├── ThingPicker.tsx       # Searchable thing selector with ranked results (exact→starts-with→contains)
+            ├── ThemeToggleButton.tsx # Dark/light theme toggle with OS-preference detection
+            └── WindmillSpinner.tsx   # Loading spinner (rotating windmill animation)
 ```
 
 ---
@@ -889,6 +900,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services, daemons, activity feed (default landing page) |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
+| `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
 | `/things` | `ThingSearchPage` | Dedicated thing-name search with ranked results (exact → prefix → substring → ID), type badges from `is` relationships, property preview, markdown export. Pure search logic in `src/utils/thingSearch.ts`. |
 | `/properties` | `PropertySearchPage` | Dedicated property-name search across all things and relationships, grouped by property name, inherited property tree walking, temporal history panel, markdown export. |
@@ -953,14 +965,14 @@ Singleton `ApiClient` class with:
 
 | Module | Key Endpoints |
 |--------|--------------|
-| `client.ts` (auth) | `POST /api/auth/login`, `POST /api/auth/token`, `POST /api/auth/refresh`, `POST /api/auth/switch-model`, `PUT /api/auth/users/{id}/password` |
+| `client.ts` (auth) | `POST /api/auth/login`, `POST /api/auth/token`, `POST /api/auth/refresh`, `POST /api/auth/switch-model`, `POST /api/auth/restore-session`, `POST /api/auth/session/logout`, `PUT /api/auth/users/{id}/password`, `GET /api/models` |
 | `thingApi` | CRUD for things, property get/set/delete, effective properties |
 | `relationshipApi` | Relationship CRUD + property set (`PUT /api/relationships/{id}/properties`) |
 | `modelApi` | Export/import/clear model, temporal snapshots |
 | `temporalApi` | Property versions, recent values, thing/model/relationship mutations |
 | `rangeApi` | Composite range summary for things (`GET /api/things/{id}/range-summary` — returns thing ranges, states, and all relationship range data in one call) |
 | `relationshipRangeApi` | Relationship range listing + state queries (`/api/relationships/{id}/ranges`, `/api/relationships/{id}/states`) |
-| `brokerApi` | Service/daemon listing, start/stop, shutdown, seed library management (`getLibrarySeeds`, `loadSeed`, `saveSeed`) |
+| `brokerApi` | Service/daemon listing, start/stop, shutdown, seed library management (`getLibrarySeeds`, `loadSeed`, `saveSeed`), seed-load progress (`GET /api/broker/seed-status`) |
 
 ---
 

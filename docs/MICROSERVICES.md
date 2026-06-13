@@ -506,8 +506,11 @@ Full reference: the **Broker Guide** on the broker repo's wiki
 
 ### Creating a service API key
 
-Microservices that don't run with a pre-minted `--token` authenticate during
-registration via an API key:
+Microservices authenticate with a pre-minted JWT passed via `--token` (the
+broker mints and supplies it when it launches the daemon). They do **not**
+accept an API key directly — there is no `--api-key` argument or `VOS_API_KEY`
+support in the microservice host. A service API key is still useful for
+operators/CLI to *obtain* a token; create one like this:
 
 ```bash
 TOKEN=$(curl -s -X POST https://localhost:7243/api/auth/login \
@@ -520,9 +523,9 @@ curl -s -H "Authorization: Bearer $TOKEN" \
   -d '{"name":"my-service-key","role":"service"}' | jq
 ```
 
-The response includes a `rawKey` field (e.g. `vos_sk_...`) — store it
-securely, it is only shown once. Pass it via the `--api-key` argument or
-`VOS_API_KEY` environment variable.
+The response includes a `rawKey` field (e.g. `vos_sk_...`) — store it securely,
+it is only shown once. Exchange it for a JWT via `POST /api/auth/token`
+(`X-API-Key: <rawKey>`); pass the resulting token to a service with `--token`.
 
 ### Related docs
 

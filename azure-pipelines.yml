@@ -3,10 +3,11 @@
 # ============================================================
 # This pipeline:
 # - Triggers on all branch updates and pull requests
-# - Builds the .NET 8 solution
-# - Runs all 207 tests (Core, Application, Infrastructure)
+# - Builds the .NET solution
+# - Runs the .NET test suite and the wiki-mirror converter tests
 # - Publishes test results and code coverage to Azure DevOps
 # - Packages and publishes to NuGet (main branch only)
+# - Mirrors the repo and the wiki to GitHub (develop and main only)
 # ============================================================
 
 trigger:
@@ -25,6 +26,9 @@ pool:
 variables:
   buildConfiguration: 'Release'
   testResultsDirectory: '$(Agent.TempDirectory)/TestResults'
+  # Azure DevOps project-wiki git repo id (from `az devops wiki list`). The wiki
+  # is mirrored from here to the GitHub wiki on develop/main.
+  wikiRepoId: 'de73fcdb-2959-4209-a858-f3d697e8c632'
 
 steps:
 - task: UseDotNet@2
@@ -32,6 +36,11 @@ steps:
   inputs:
     packageType: 'sdk'
     version: '10.x'
+
+- task: NodeTool@0
+  displayName: 'Install Node.js (for wiki-mirror converter)'
+  inputs:
+    versionSpec: '20.x'
 
 - script: dotnet restore
   displayName: 'Restore NuGet Packages'
@@ -63,6 +72,11 @@ steps:
     codecoverageTool: 'Cobertura'
     summaryFileLocation: '$(testResultsDirectory)/**/coverage.cobertura.xml'
   condition: succeededOrFailed()
+
+- script: node --test
+  displayName: 'Test wiki-mirror converter'
+  workingDirectory: tools/wiki-mirror
+  condition: always()
 
 - script: |
     echo "========================================"
@@ -117,4 +131,57 @@ steps:
   condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
   env:
     GITHUB_PAT: $(GITHUB_PAT)
+
+# --------------------------------------------
+# MIRROR WIKI TO GITHUB (develop and main only)
+# --------------------------------------------
+# Repopulates the GitHub wiki from the canonical Azure DevOps project wiki,
+# converting every DevOps-specific link to its GitHub target (see
+# tools/wiki-mirror/sync-wiki.js). Without this the GitHub README's wiki links
+# 404 because the GitHub wiki is never populated.
+#
+# Prerequisites (one-time):
+#   - GitHub: enable Wikis in repo Settings → Features (creates the .wiki.git repo).
+#   - Azure DevOps: the build service identity needs Read on the project wiki repo
+#     (System.AccessToken is used to clone it).
+#   - GITHUB_PAT: same secret as the repo mirror (Contents:Read+Write covers the
+#     wiki repo for fine-grained PATs; classic tokens need repo scope).
+- bash: |
+    set -euo pipefail
+    SRC="$AGENT_TEMPDIRECTORY/devops-wiki"
+    OUT="$AGENT_TEMPDIRECTORY/wiki-out"
+    DEST="$AGENT_TEMPDIRECTORY/github-wiki"
+    WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/regenrob/VillageOS-API.wiki.git"
+
+    # 1. Clone the canonical Azure DevOps project wiki (OAuth build token).
+    rm -rf "$SRC"
+    git -c http.extraheader="AUTHORIZATION: bearer ${SYSTEM_ACCESSTOKEN}" \
+      clone --depth 1 \
+      "https://dev.azure.com/ReGenVillages/VillageOS-API/_git/$(wikiRepoId)" "$SRC"
+
+    # 2. Convert DevOps wiki -> GitHub wiki content.
+    node tools/wiki-mirror/sync-wiki.js "$SRC" "$OUT"
+
+    # 3. Clone the GitHub wiki (or init if the .wiki.git is empty).
+    rm -rf "$DEST"
+    git clone "$WIKI_URL" "$DEST" || {
+      mkdir -p "$DEST"
+      git -C "$DEST" init -q
+      git -C "$DEST" remote add origin "$WIKI_URL"
+    }
+
+    # 4. Replace all pages with the freshly converted content.
+    find "$DEST" -maxdepth 1 -name '*.md' -delete
+    cp "$OUT"/*.md "$DEST"/
+
+    # 5. Commit and push (GitHub wikis use the master branch).
+    git -C "$DEST" add -A
+    git -C "$DEST" -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
+      commit -m "ci: sync wiki from Azure DevOps" || { echo "No wiki changes."; exit 0; }
+    git -C "$DEST" push origin HEAD:master --force
+  displayName: 'Mirror Wiki to GitHub'
+  condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
+  env:
+    GITHUB_PAT: $(GITHUB_PAT)
+    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 

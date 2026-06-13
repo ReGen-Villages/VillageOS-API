@@ -81,7 +81,7 @@ delayed → waiting → active → completed (or cancelled)
 **waiting**: If `startUtc` is in the future, the loop sleeps until that time.
 
 **active**: The main loop. On each tick:
-1. Call broker's `POST /api/things/{targetId}/decrement-quantity` (or `increment-quantity`)
+1. Call broker's `POST /api/things/{targetId}/properties/{propertyPath}/decrements` (or `/increments`) with body `{ "amount": <quantity> }`
 2. Increment `total_consumed` (or `total_produced`) on the relationship itself (best-effort)
 3. Sleep for `frequencySeconds`
 

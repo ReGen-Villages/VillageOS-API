@@ -53,13 +53,7 @@ All operations are performed remotely on the Broker's model.
 
 ### Starting the CLI
 
-**1. Start the Broker first:**
-```bash
-cd vos.Broker
-dotnet run
-```
-
-The broker will start on `https://localhost:7243` by default.
+**1. Start the Broker first.** The broker (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there (see that repo's `docs/MYCELIUM_GUIDE.md`). It listens on `https://localhost:7243` by default.
 
 **2. In a new terminal, start the CLI:**
 ```bash
@@ -1102,10 +1096,7 @@ cd vos.CLI.Tests
 dotnet test
 ```
 
-**Expected output:**
-```
-Passed!  - Failed:     0, Passed:   292, Skipped:     0, Total:   292
-```
+**Expected output:** all tests pass (`Failed: 0`). Run `dotnet test` for the current totals rather than relying on a number here.
 
 ### Test Files
 

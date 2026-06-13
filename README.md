@@ -20,8 +20,8 @@ Client tools, GUI, and microservices for the [VillageOS](https://dev.azure.com/R
 
 - Interactive REPL with command history and tab completion
 - CRUD commands (create, get, list, delete, set, query, find)
-- Temporal queries (snapshot, mutations, property-versions, plant)
-- Service management (start-service, stop-service)
+- Temporal queries (snapshot, at, history, mutations)
+- Service management (start service, stop service)
 - Seed export (serialize command)
 
 ### Microservices
@@ -30,6 +30,7 @@ Client tools, GUI, and microservices for the [VillageOS](https://dev.azure.com/R
 |---------|------|-------------|
 | vos.ManagedMicroservice.Delta | Production | Registers data sources against a single-rooted endpoint-template graph (`is`-inheritance), with schema discovery and saga compensation |
 | vos.ManagedMicroservice.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
+| vos.ManagedMicroservice.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
 | vos.ManagedMicroservice.Echo | Example | Minimal managed microservice demonstrating lifecycle |
 | vos.ManagedMicroservice.Python | Example | Python/Flask-based microservice with Docker support |
 
