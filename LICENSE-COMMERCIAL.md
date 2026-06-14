@@ -29,7 +29,7 @@ A commercial license is required if you want to:
 
 For commercial licensing inquiries:
 
-- **Email**: info@regenvillages.com
+- **Email**: <info@regenvillages.com>
 - **Organization**: ReGen Villages BV
 
 ## Attribution

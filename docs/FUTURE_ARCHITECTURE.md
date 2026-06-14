@@ -412,8 +412,8 @@ and reviewers should evaluate it on its own merits.
 
 ## 3. Contract validation — possible later phases
 
-Phases 1–4 of contract validation have shipped (Features #5419, #5426, #5440,
-#5445). See `MICROSERVICES.md` §9 for the landed surface. Two further phases
+Phases 1–4 of contract validation have shipped (Features #5419, #5426, #5440, #5445).
+See `MICROSERVICES.md` §9 for the landed surface. Two further phases
 were sketched but not scheduled:
 
 ### 3.1 Phase 5 — GUI runtime validation
@@ -475,8 +475,8 @@ unchanged.
 
 **What's deferred.** True multi-tenant operation — where Delta idempotently
 provisions its template catalog into the *caller's* project model ("approach A")
-— is blocked by the routing gap above and is tracked separately in **Feature
-#5478**, which captures the two candidate fixes (one daemon per model, matching
+— is blocked by the routing gap above and is tracked separately in **Feature #5478**,
+which captures the two candidate fixes (one daemon per model, matching
 the "one Delta per tenant" intent; or per-request model propagation via the
 forwarded token). That work is Mycelium-side and must be decided before per-model
 template provisioning (evolving the single-model Task #5468 catalog) can be built.

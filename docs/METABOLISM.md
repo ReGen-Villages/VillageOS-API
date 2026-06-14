@@ -36,7 +36,7 @@ When a seed loads with 20 `consumes` relationships, all 20 get registered within
 
 ### Startup sequence
 
-```
+```text
 1. Parse CLI args (--port, --myceliumUrl, --mode, --token, --signingKey)
 2. Use pre-minted service JWT received via --token for Mycelium authentication
 3. Start ASP.NET minimal API on the given port (with Mycelium token validation via vos.Auth.Shared)
@@ -72,7 +72,7 @@ The `properties` field contains the relationship's own properties, sent inline s
 
 Each `/handle` request creates one simulation loop in the `Metabolism` engine:
 
-```
+```text
 delayed → waiting → active → completed (or cancelled)
 ```
 
@@ -81,6 +81,7 @@ delayed → waiting → active → completed (or cancelled)
 **waiting**: If `startUtc` is in the future, the loop sleeps until that time.
 
 **active**: The main loop. On each tick:
+
 1. Call Mycelium's `POST /api/things/{targetId}/properties/{propertyPath}/decrements` (or `/increments`) with body `{ "amount": <quantity> }`
 2. Increment `total_consumed` (or `total_produced`) on the relationship itself (best-effort)
 3. Sleep for `frequencySeconds`
@@ -105,7 +106,7 @@ The `Metabolism.UpdateProperty` method uses a lock to prevent race conditions wh
 
 ## Code Structure
 
-```
+```text
 vos.ManagedMicroservice.Metabolism/
 ├── Program.cs                          # Entry point, wiring
 ├── Configuration/
@@ -239,6 +240,7 @@ Change a relationship property in the GUI or via API — the handler picks it up
 ## Shutdown
 
 On `ApplicationStopping`:
+
 1. All simulation loops are cancelled via their `CancellationTokenSource`
 2. `Task.WhenAll` waits for all loops to finish
 3. The handler deregisters from Mycelium via `DELETE /api/mycelium/services/{handlerId}`

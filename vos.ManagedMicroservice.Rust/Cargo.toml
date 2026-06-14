@@ -1,0 +1,20 @@
+[package]
+name = "vos-managedmicroservice-rust"
+version = "1.0.0"
+edition = "2021"
+description = "VillageOS managed-microservice example — Rust + Axum"
+publish = false
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+jsonwebtoken = "9"
+uuid = { version = "1", features = ["v4"] }
+base64 = "0.22"
+
+[[bin]]
+name = "vos-managedmicroservice-rust"
+path = "src/main.rs"

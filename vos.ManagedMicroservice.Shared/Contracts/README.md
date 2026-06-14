@@ -6,7 +6,7 @@ This directory is the source of truth for the wire format of every contract that
 
 ## Layout
 
-```
+```text
 Contracts/
   Schemas/           <- JSON Schema source files (embedded resources)
   Validation/        <- SchemaRegistry, SchemaValidator, ContractValidationResult
