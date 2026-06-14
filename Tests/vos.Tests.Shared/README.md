@@ -4,7 +4,7 @@ Cross-project test helpers used by every `Tests/*.Tests/` project. Class library
 
 ## What's in here
 
-- `MockHttpMessageHandler` — `HttpMessageHandler` that delegates to a user-supplied lambda and records every inbound `HttpRequestMessage` in `Requests`. Use it to fake broker HTTP from microservice tests.
+- `MockHttpMessageHandler` — `HttpMessageHandler` that delegates to a user-supplied lambda and records every inbound `HttpRequestMessage` in `Requests`. Use it to fake Mycelium HTTP from microservice tests.
 - `TestHttpClientFactory` — `IHttpClientFactory` that always returns the single `HttpClient` it was constructed with. Pair with `MockHttpMessageHandler` to inject a stubbed pipeline through DI.
 
 ## Deferred decision: mocking library convergence

@@ -15,14 +15,14 @@ public class MetabolismTests
 
     public MetabolismTests()
     {
-        // BrokerClient needs IHttpClientFactory — mock it so simulation ticks fail harmlessly
+        // MyceliumClient needs IHttpClientFactory — mock it so simulation ticks fail harmlessly
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
-        var brokerLogger = new Mock<ILogger<BrokerClient>>();
-        var brokerClient = new BrokerClient(httpFactory.Object, brokerLogger.Object, "http://localhost:0", "consumes");
+        var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
+        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://localhost:0", "consumes");
 
         var engineLogger = new Mock<ILogger<Services.Metabolism>>();
-        _engine = new Services.Metabolism(brokerClient, engineLogger.Object, "consumes");
+        _engine = new Services.Metabolism(myceliumClient, engineLogger.Object, "consumes");
     }
 
     private SimulationConfig MakeConfig(string relId = "rel-1", decimal quantity = 5.0m, int freqSeconds = 60) =>
@@ -212,10 +212,10 @@ public class MetabolismTests
     #region RunSimulationLoop execution tests
 
     /// <summary>
-    /// Create a Metabolism engine whose BrokerClient is backed by a MockHttpMessageHandler
+    /// Create a Metabolism engine whose MyceliumClient is backed by a MockHttpMessageHandler
     /// so that ApplyQuantityAsync and IncrementRelationshipPropertyAsync succeed.
     /// </summary>
-    private static Services.Metabolism CreateEngineWithMockedBroker(
+    private static Services.Metabolism CreateEngineWithMockedMycelium(
         Func<HttpRequestMessage, HttpResponseMessage>? apiResponder = null)
     {
         apiResponder ??= _ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)
@@ -237,13 +237,13 @@ public class MetabolismTests
 
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(() =>
-            new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-broker") });
+            new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-mycelium") });
 
-        var brokerLogger = new Mock<ILogger<BrokerClient>>();
-        var brokerClient = new BrokerClient(httpFactory.Object, brokerLogger.Object, "http://test-broker", "consumes");
+        var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
+        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://test-mycelium", "consumes");
 
         var engineLogger = new Mock<ILogger<Services.Metabolism>>();
-        return new Services.Metabolism(brokerClient, engineLogger.Object, "consumes");
+        return new Services.Metabolism(myceliumClient, engineLogger.Object, "consumes");
     }
 
     private static SimulationConfig MakePastConfig(
@@ -260,7 +260,7 @@ public class MetabolismTests
     [Fact]
     public async Task RunSimulationLoop_PastStartTime_ActivatesImmediately()
     {
-        var engine = CreateEngineWithMockedBroker();
+        var engine = CreateEngineWithMockedMycelium();
         var entry = engine.Register(MakePastConfig());
 
         // Wait enough time for stagger delay + status change (stagger = order*200 + up to 500ms jitter)
@@ -272,7 +272,7 @@ public class MetabolismTests
     [Fact]
     public async Task RunSimulationLoop_ExecutesTick_IncrementsTickCount()
     {
-        var engine = CreateEngineWithMockedBroker();
+        var engine = CreateEngineWithMockedMycelium();
         var entry = engine.Register(MakePastConfig(freqSeconds: 1));
 
         // Wait for stagger + at least one tick cycle (stagger up to ~700ms, then 1s freq)
@@ -283,9 +283,9 @@ public class MetabolismTests
     }
 
     [Fact]
-    public async Task RunSimulationLoop_BrokerError_SetsLastError()
+    public async Task RunSimulationLoop_MyceliumError_SetsLastError()
     {
-        var engine = CreateEngineWithMockedBroker(req =>
+        var engine = CreateEngineWithMockedMycelium(req =>
         {
             // Token requests succeed, quantity requests fail
             if (req.RequestUri!.AbsolutePath == "/api/auth/token")
@@ -297,7 +297,7 @@ public class MetabolismTests
             }
             return new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError)
             {
-                Content = new StringContent("Broker down", System.Text.Encoding.UTF8, "text/plain")
+                Content = new StringContent("Mycelium down", System.Text.Encoding.UTF8, "text/plain")
             };
         });
 
@@ -312,7 +312,7 @@ public class MetabolismTests
     [Fact]
     public async Task RunSimulationLoop_Cancel_SetsStatusCancelled()
     {
-        var engine = CreateEngineWithMockedBroker();
+        var engine = CreateEngineWithMockedMycelium();
         var entry = engine.Register(MakePastConfig(freqSeconds: 60));
 
         // Wait for the simulation to become active
@@ -331,7 +331,7 @@ public class MetabolismTests
     [Fact]
     public async Task RunSimulationLoop_EndUtcReached_SetsCompleted()
     {
-        var engine = CreateEngineWithMockedBroker();
+        var engine = CreateEngineWithMockedMycelium();
         // Set endUtc very close to now so the loop exits quickly after activation
         var entry = engine.Register(MakePastConfig(freqSeconds: 1, endUtc: DateTime.UtcNow.AddSeconds(2)));
 
@@ -344,7 +344,7 @@ public class MetabolismTests
     [Fact]
     public async Task StopAllAsync_CancelsAndAwaitsAll()
     {
-        var engine = CreateEngineWithMockedBroker();
+        var engine = CreateEngineWithMockedMycelium();
         var entry1 = engine.Register(MakePastConfig(relId: "rel-1", freqSeconds: 60));
         var entry2 = engine.Register(MakePastConfig(relId: "rel-2", freqSeconds: 60));
 
@@ -365,7 +365,7 @@ public class MetabolismTests
     [Fact]
     public async Task RunSimulationLoop_WithStartDelay_SetsDelayedStatusFirst()
     {
-        var engine = CreateEngineWithMockedBroker();
+        var engine = CreateEngineWithMockedMycelium();
         // 2s delay + past start time — should show "delayed" before activating
         var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 2.0m));
 
@@ -380,7 +380,7 @@ public class MetabolismTests
     [Fact]
     public async Task RunSimulationLoop_WithStartDelay_ActivatesAfterDelay()
     {
-        var engine = CreateEngineWithMockedBroker();
+        var engine = CreateEngineWithMockedMycelium();
         // 1s delay + past start time — should activate after delay
         var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 1.0m));
 
@@ -393,7 +393,7 @@ public class MetabolismTests
     [Fact]
     public async Task RunSimulationLoop_WithStartDelay_NoTicksDuringDelay()
     {
-        var engine = CreateEngineWithMockedBroker();
+        var engine = CreateEngineWithMockedMycelium();
         // 2s delay with short frequency — should NOT tick during the delay period
         var entry = engine.Register(MakePastConfig(freqSeconds: 1, startDelaySeconds: 2.0m));
 
@@ -406,7 +406,7 @@ public class MetabolismTests
     [Fact]
     public async Task RunSimulationLoop_WithStartDelay_CancelDuringDelay()
     {
-        var engine = CreateEngineWithMockedBroker();
+        var engine = CreateEngineWithMockedMycelium();
         var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 10.0m));
 
         await Task.Delay(200);
@@ -422,7 +422,7 @@ public class MetabolismTests
     [Fact]
     public async Task RunSimulationLoop_ZeroStartDelay_SkipsDelayPhase()
     {
-        var engine = CreateEngineWithMockedBroker();
+        var engine = CreateEngineWithMockedMycelium();
         // 0 delay (default) — should go straight to stagger, then active
         var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 0m));
 

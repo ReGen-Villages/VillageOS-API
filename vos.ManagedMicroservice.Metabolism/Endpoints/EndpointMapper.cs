@@ -8,7 +8,7 @@ namespace vos.ManagedMicroservice.Metabolism.Endpoints;
 /// <summary>
 /// Maps all HTTP endpoints for the Metabolism service. Route handlers receive their
 /// dependencies (<see cref="HandleRequestProcessor"/>, <see cref="Services.Metabolism"/>,
-/// <see cref="BrokerClient"/>) through minimal-API DI parameter injection rather than via
+/// <see cref="MyceliumClient"/>) through minimal-API DI parameter injection rather than via
 /// captured locals — Task #5456 brings this in line with Tributary's shape. Cross-cutting
 /// values that aren't services (the daemon's <c>mode</c> label, the in-process request
 /// counter) stay as method parameters.
@@ -101,13 +101,13 @@ public static class EndpointMapper
         });
 
         // GET /stats - Service statistics
-        app.MapGet("/stats", (Services.Metabolism engine, BrokerClient client) => new
+        app.MapGet("/stats", (Services.Metabolism engine, MyceliumClient client) => new
         {
             service = $"Metabolism-{mode}",
             version = "2.0.0",
             requestsProcessed = getRequestCount(),
             handlerId = client.HandlerId.ToString(),
-            brokerUrl = client.BrokerUrl,
+            myceliumUrl = client.MyceliumUrl,
             activeSimulations = engine.GetAll().Count(e => e.Status == "active"),
             totalSimulations = engine.GetAll().Count()
         });

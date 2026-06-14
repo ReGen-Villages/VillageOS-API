@@ -21,8 +21,8 @@ public class DependencyInjectionTests
     {
         public bool GetAllWasCalled { get; private set; }
 
-        public StubMetabolism(BrokerClient brokerClient, ILogger<Services.Metabolism> logger)
-            : base(brokerClient, logger, "consumes")
+        public StubMetabolism(MyceliumClient myceliumClient, ILogger<Services.Metabolism> logger)
+            : base(myceliumClient, logger, "consumes")
         {
         }
 
@@ -37,10 +37,10 @@ public class DependencyInjectionTests
     {
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
-        var brokerLogger = new Mock<ILogger<BrokerClient>>();
-        var brokerClient = new BrokerClient(httpFactory.Object, brokerLogger.Object, "http://localhost:0", "consumes");
+        var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
+        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://localhost:0", "consumes");
         var engineLogger = new Mock<ILogger<Services.Metabolism>>();
-        return new StubMetabolism(brokerClient, engineLogger.Object);
+        return new StubMetabolism(myceliumClient, engineLogger.Object);
     }
 
     [Fact]

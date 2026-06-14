@@ -83,7 +83,7 @@ public class SchemaRegistryInternalTests
             .WithMessage("*Duplicate*second.schema.json*");
     }
 
-    [ContractSchema("https://villageos/contracts/broker-register-request.schema.json")]
+    [ContractSchema("https://villageos/contracts/mycelium-register-request.schema.json")]
     private sealed record TaggedDto;
 
     private sealed record UntaggedDto;

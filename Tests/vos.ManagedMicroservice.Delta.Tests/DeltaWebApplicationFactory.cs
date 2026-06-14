@@ -14,7 +14,7 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// <summary>
 /// Custom WebApplicationFactory for Delta endpoint tests.
 ///
-/// Pattern follows <c>vos.Mycelium.Tests.BrokerWebApplicationFactory</c> from the sibling
+/// Pattern follows <c>vos.Mycelium.Tests.MyceliumWebApplicationFactory</c> from the sibling
 /// VillageOS repo, including the <c>IAsyncLifetime</c> workaround for the sync-over-async
 /// deadlock in <c>CreateHost</c> under the XPlat Code Coverage collector on Windows CI
 /// (VillageOS Bug #5260).
@@ -32,7 +32,7 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// to exercise malformed-seed boot paths.
 ///
 /// <c>IHttpClientFactory</c> is replaced with a <c>PerCallHttpClientFactory</c> that returns
-/// a fresh <c>HttpClient</c> per <c>CreateClient</c> call — <c>BrokerClientBase.CreateAuthenticatedClientAsync</c>
+/// a fresh <c>HttpClient</c> per <c>CreateClient</c> call — <c>MyceliumClientBase.CreateAuthenticatedClientAsync</c>
 /// mutates <c>client.Timeout</c> on every call, which throws on an already-used <c>HttpClient</c>.
 /// </summary>
 public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
@@ -86,7 +86,7 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("Port", "5000");
-        builder.UseSetting("BrokerUrl", "http://localhost");
+        builder.UseSetting("MyceliumUrl", "http://localhost");
         builder.UseSetting("Token", "test-token");
         if (SigningKey != null) builder.UseSetting("SigningKey", SigningKey);
         if (Issuer != null) builder.UseSetting("Issuer", Issuer);

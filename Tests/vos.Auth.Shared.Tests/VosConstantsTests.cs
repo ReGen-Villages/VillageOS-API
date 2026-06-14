@@ -5,7 +5,7 @@ using Xunit;
 namespace vos.Auth.Shared.Tests;
 
 // Pins the public string constants. Anything that mints, validates, or checks
-// these strings on the broker side keys off the same values — a rename here
+// these strings on Mycelium side keys off the same values — a rename here
 // silently breaks the contract, so these tests force the rename to be an
 // explicit, reviewed change.
 public class VosConstantsTests

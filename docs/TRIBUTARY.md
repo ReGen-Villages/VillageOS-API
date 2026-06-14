@@ -1,7 +1,7 @@
 # Tributary
 
 Tributary is VillageOS's generic outbound HTTP fetcher. Given an endpoint registered
-in the broker, it resolves that endpoint's effective properties, performs the HTTP call
+in Mycelium, it resolves that endpoint's effective properties, performs the HTTP call
 (with optional auth and pagination), optionally reshapes the response with a JSONata
 expression, and ingests the result as observation Things related to the endpoint.
 
@@ -14,7 +14,7 @@ this page covers the model the service sits on and the boundary it respects.
 ## The endpoint-template graph
 
 Endpoints are not free-form. Delta provisions a **single-rooted template hierarchy**
-into the broker at boot and validates every registration against it (Feature #5465; see
+into Mycelium at boot and validates every registration against it (Feature #5465; see
 the *Delta* service docs and `MICROSERVICES.md`). The shape:
 
 - Templates are Things; inheritance is expressed model-natively as `is` relationships
@@ -26,10 +26,10 @@ the *Delta* service docs and `MICROSERVICES.md`). The shape:
 - A property's effective value is **closest-ancestor-wins**: the nearest template in the
   chain that declares a non-blank value for the key. A blank value is *structural* — it
   makes the key admissible without supplying an inherited default.
-- Tributary never walks the template graph itself. It reads the broker's
-  **effective-properties** for the endpoint Thing (the broker merges the `is`-chain) and
+- Tributary never walks the template graph itself. It reads Mycelium's
+  **effective-properties** for the endpoint Thing (Mycelium merges the `is`-chain) and
   resolves each property by suffix-aware name match (`EffectivePropertyResolver`, so a
-  broker key like `Esri.itemsPath` matches a lookup for `itemsPath`).
+  Mycelium key like `Esri.itemsPath` matches a lookup for `itemsPath`).
 
 ## The field taxonomy
 

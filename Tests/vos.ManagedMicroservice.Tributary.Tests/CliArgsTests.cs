@@ -10,13 +10,13 @@ public class CliArgsTests
     [Fact]
     public void Parse_WithRequiredArgs_ReturnsParsedArgs()
     {
-        var args = new[] { "--port=7112", "--brokerUrl=https://localhost:7243" };
+        var args = new[] { "--port=7112", "--myceliumUrl=https://localhost:7243" };
 
         var result = CliArgs.Parse(args);
 
         result.Should().NotBeNull();
         result!.Port.Should().Be(7112);
-        result.BrokerUrl.Should().Be("https://localhost:7243");
+        result.MyceliumUrl.Should().Be("https://localhost:7243");
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class CliArgsTests
     [Fact]
     public void Parse_MissingPort_ReturnsNull()
     {
-        var args = new[] { "--brokerUrl=https://localhost:7243" };
+        var args = new[] { "--myceliumUrl=https://localhost:7243" };
 
         CliArgs.Parse(args).Should().BeNull();
     }
@@ -43,7 +43,7 @@ public class CliArgsTests
     [InlineData("--port=NaN")]
     public void Parse_InvalidPort_ReturnsNull(string portArg)
     {
-        var args = new[] { portArg, "--brokerUrl=https://localhost:7243" };
+        var args = new[] { portArg, "--myceliumUrl=https://localhost:7243" };
 
         var result = CliArgs.Parse(args);
 
@@ -55,7 +55,7 @@ public class CliArgsTests
     {
         var args = new[]
         {
-            "--port=7112", "--brokerUrl=https://localhost:7243",
+            "--port=7112", "--myceliumUrl=https://localhost:7243",
             "--token=my.jwt.token", "--signingKey=c29tZWtleQ=="
         };
 
@@ -69,7 +69,7 @@ public class CliArgsTests
     [Fact]
     public void Parse_WithoutOptionalArgs_DefaultsAllOptionalsToNull()
     {
-        var args = new[] { "--port=7112", "--brokerUrl=https://localhost:7243" };
+        var args = new[] { "--port=7112", "--myceliumUrl=https://localhost:7243" };
 
         var result = CliArgs.Parse(args);
 
@@ -83,12 +83,12 @@ public class CliArgsTests
     [Fact]
     public void Parse_WithIssuerAndAudience_ParsesBoth()
     {
-        // Bug #5391 — broker passes its JWT issuer + audience via CLI so the
+        // Bug #5391 — mycelium passes its JWT issuer + audience via CLI so the
         // daemon validates incoming requests against exactly the values the
-        // broker signed with.
+        // mycelium signed with.
         var args = new[]
         {
-            "--port=7112", "--brokerUrl=https://localhost:7243",
+            "--port=7112", "--myceliumUrl=https://localhost:7243",
             "--issuer=VillageOS", "--audience=VillageOSClients"
         };
 
@@ -108,33 +108,33 @@ public class CliArgsTests
     [Fact]
     public void Parse_NoArgs_AllRequiredFromConfig_ReturnsCliArgs()
     {
-        var config = ConfigFrom(("Port", "7100"), ("BrokerUrl", "http://from-config"));
+        var config = ConfigFrom(("Port", "7100"), ("MyceliumUrl", "http://from-config"));
 
         var result = CliArgs.Parse(Array.Empty<string>(), config);
 
         result.Should().NotBeNull();
         result!.Port.Should().Be(7100);
-        result.BrokerUrl.Should().Be("http://from-config");
+        result.MyceliumUrl.Should().Be("http://from-config");
     }
 
     [Fact]
     public void Parse_ArgsTakePrecedenceOverConfig()
     {
-        var config = ConfigFrom(("Port", "1111"), ("BrokerUrl", "http://config-broker"));
-        var args = new[] { "--port=2222", "--brokerUrl=http://cli-broker" };
+        var config = ConfigFrom(("Port", "1111"), ("MyceliumUrl", "http://config-mycelium"));
+        var args = new[] { "--port=2222", "--myceliumUrl=http://cli-mycelium" };
 
         var result = CliArgs.Parse(args, config);
 
         result.Should().NotBeNull();
         result!.Port.Should().Be(2222);
-        result.BrokerUrl.Should().Be("http://cli-broker");
+        result.MyceliumUrl.Should().Be("http://cli-mycelium");
     }
 
     [Fact]
     public void Parse_ConfigCoversOptionalFlagsToo()
     {
         var config = ConfigFrom(
-            ("Port", "5100"), ("BrokerUrl", "http://broker"),
+            ("Port", "5100"), ("MyceliumUrl", "http://mycelium"),
             ("Token", "cfg-token"), ("SigningKey", "cfg-key"),
             ("Issuer", "cfg-issuer"), ("Audience", "cfg-audience"));
 

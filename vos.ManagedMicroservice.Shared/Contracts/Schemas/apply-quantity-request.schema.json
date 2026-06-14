@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://villageos/contracts/apply-quantity-request.schema.json",
   "title": "ApplyQuantityRequest",
-  "description": "Payload Metabolism POSTs to {broker}/api/things/{thingId}/properties/{propertyPath}/{decrements|increments} on each simulation tick. Shape derived from vos.ManagedMicroservice.Metabolism.Services.BrokerClient.ApplyQuantityAsync.",
+  "description": "Payload Metabolism POSTs to {mycelium}/api/things/{thingId}/properties/{propertyPath}/{decrements|increments} on each simulation tick. Shape derived from vos.ManagedMicroservice.Metabolism.Services.MyceliumClient.ApplyQuantityAsync.",
   "type": "object",
   "additionalProperties": false,
   "required": ["amount", "subjectName", "unit"],

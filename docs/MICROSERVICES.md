@@ -8,41 +8,41 @@ specific behavior of Metabolism, see [`METABOLISM.md`](METABOLISM.md).
 ## 1. What a microservice is in this repo
 
 A `ManagedMicroservice` is a `Microsoft.NET.Sdk.Web` minimal-API binary on
-.NET 10 that talks to the **VillageOS Broker** (separate repo, default
+.NET 10 that talks to the **VillageOS Mycelium** (separate repo, default
 `https://localhost:7243`). It auto-registers on start, auto-deregisters on
-stop, and exposes a `/health` endpoint the broker's `LivenessMonitor` polls.
+stop, and exposes a `/health` endpoint Mycelium's `LivenessMonitor` polls.
 
 Today's services: `Echo`, `Tributary`, `Delta`, `Metabolism`. **Echo is the
 canonical reference implementation** — the simplest of the four. When adding a
 new microservice, copy Echo's structure and the test patterns in §10.
 
 Project references: `vos.Auth.Shared` (inbound JWT validation) and
-`vos.ManagedMicroservice.Shared` (broker-client base, validators, contract-
+`vos.ManagedMicroservice.Shared` (Mycelium-client base, validators, contract-
 validation foundation + middleware — see §9). A microservice does **not**
 depend on `vos.Core` or `vos.Application`.
 
 ## 2. Quick start
 
 ```bash
-# 1. Start the broker (in its own repo, separate clone)
-cd ../VillageOS/vos.Broker
+# 1. Start Mycelium (in its own repo, separate clone)
+cd ../VillageOS/vos.Mycelium
 dotnet run                                  # binds https://localhost:7243
 
 # 2. Start a microservice
 cd vos.ManagedMicroservice.Echo
-dotnet run -- --port=7245 --brokerUrl=https://localhost:7243
+dotnet run -- --port=7245 --myceliumUrl=https://localhost:7243
 
 # 3. Verify health
 curl http://localhost:7245/health           # {"status":"Healthy"}
 
-# 4. Verify broker registration
+# 4. Verify Mycelium registration
 TOKEN=$(curl -s -X POST https://localhost:7243/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin"}' | jq -r '.token')
-curl -H "Authorization: Bearer $TOKEN" https://localhost:7243/api/broker/services
+curl -H "Authorization: Bearer $TOKEN" https://localhost:7243/api/mycelium/services
 ```
 
-**Multi-model brokers:** if more than one model is loaded, add
+**Multi-model Mycelium instances:** if more than one model is loaded, add
 `"modelId":"<guid>"` to the login JSON body, or use `?modelId=<guid>` on
 `/api/auth/token`.
 
@@ -53,7 +53,7 @@ vos.ManagedMicroservice.<Name>/
 ├── Configuration/
 │   └── CliArgs.cs           ← record + Parse(string[]) + UsageMessage
 ├── Services/
-│   └── BrokerClient.cs      ← thin subclass of BrokerClientBase
+│   └── MyceliumClient.cs      ← thin subclass of MyceliumClientBase
 ├── Helpers/                 ← optional: pure functions extracted from Program.cs
 │   └── <Name>.cs            ← static class, no AspNetCore dependency, fully unit-tested
 └── Program.cs               ← top-level statements: parse args → build app → register endpoints → run
@@ -63,10 +63,10 @@ vos.ManagedMicroservice.<Name>/
 
 A C# `record` with the standard six fields:
 
-- **Required:** `--port`, `--brokerUrl`
-- **Optional:** `--token` (pre-minted service JWT for **outbound** broker
+- **Required:** `--port`, `--myceliumUrl`
+- **Optional:** `--token` (pre-minted service JWT for **outbound** Mycelium
   calls), `--signingKey` (base64-encoded HMAC key for validating **inbound**
-  broker requests), `--issuer`, `--audience`
+  Mycelium requests), `--issuer`, `--audience`
 
 `Parse(string[])` returns `null` on missing/invalid input. `UsageMessage`
 mentions every flag. The reference is
@@ -77,20 +77,20 @@ Service-specific flags extend the standard shape. Metabolism's
 `Metabolism/Configuration/MetabolismCliArgs.cs` and fails parsing for any
 other value.
 
-## 5. BrokerClient subclassing
+## 5. MyceliumClient subclassing
 
-`vos.ManagedMicroservice.Shared.BrokerClientBase` owns the
+`vos.ManagedMicroservice.Shared.MyceliumClientBase` owns the
 service-agnostic plumbing:
 
 - `HandlerId` (fresh `Guid` per process)
-- `BrokerUrl`
+- `MyceliumUrl`
 - `GetTokenAsync()` — returns `--token` if set, otherwise hits the legacy
   `/api/auth/token` endpoint
 - `CreateAuthenticatedClientAsync(timeout?)` — returns an `HttpClient` with
   Bearer auth
 - `RegisterAsync(port, serviceName, startCommand)` — POSTs the registration
   envelope
-- `DeregisterAsync()` — `DELETE /api/broker/services/{HandlerId}`
+- `DeregisterAsync()` — `DELETE /api/mycelium/services/{HandlerId}`
 
 The subclass's job is to provide a service-specific `RegisterAsync(port)`
 overload that calls the base with the right `(serviceName, startCommand)`,
@@ -98,10 +98,10 @@ plus any service-specific calls (`CreateThingAsync`, `ApplyQuantityAsync`, …).
 Echo's canonical example:
 
 ```csharp
-public class BrokerClient : BrokerClientBase
+public class MyceliumClient : MyceliumClientBase
 {
-    public BrokerClient(IHttpClientFactory http, ILogger<BrokerClient> log, string brokerUrl, string? token = null)
-        : base(http, log, brokerUrl, token) { }
+    public MyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string myceliumUrl, string? token = null)
+        : base(http, log, myceliumUrl, token) { }
 
     public Task<bool> RegisterAsync(int port)
         => RegisterAsync(port, "Echo", "endpoint-service");
@@ -113,18 +113,18 @@ public class BrokerClient : BrokerClientBase
 ```mermaid
 sequenceDiagram
     participant MS as ManagedMicroservice
-    participant B  as VillageOS Broker
+    participant B  as VillageOS Mycelium
 
     Note over MS,B: ApplicationStarted
     MS->>B: GET /api/auth/token (--token short-circuits this when set)
     B-->>MS: { token: "..." }
-    MS->>B: POST /api/broker/register<br/>{ handlerId, serviceName, endpointUrl, ... }
+    MS->>B: POST /api/mycelium/register<br/>{ handlerId, serviceName, endpointUrl, ... }
     B-->>MS: 200 OK
 
     Note over MS,B: Service runs
 
     Note over MS,B: ApplicationStopping
-    MS->>B: DELETE /api/broker/services/{handlerId}<br/>Authorization: Bearer {token}
+    MS->>B: DELETE /api/mycelium/services/{handlerId}<br/>Authorization: Bearer {token}
     B-->>MS: 200 OK
 ```
 
@@ -172,10 +172,10 @@ Every microservice's `Program.cs`:
 2. Configures Serilog file logging under `logs/<service>-.log`.
 3. Calls `WebApplication.CreateBuilder(args)`.
 4. If `--signingKey` was supplied, calls
-   `builder.AddBrokerTokenAuth(signingKey, issuer, audience)`.
+   `builder.AddMyceliumTokenAuth(signingKey, issuer, audience)`.
 5. Calls `builder.Services.AddContractValidation()` to register the schema
    registry + validator.
-6. Registers a singleton `BrokerClient` (and any service-specific dependencies)
+6. Registers a singleton `MyceliumClient` (and any service-specific dependencies)
    via DI.
 7. Calls `app.UseRouting()`, then `app.UseRequestContractValidation()` (after
    auth if auth is enabled). The middleware reads
@@ -185,9 +185,9 @@ Every microservice's `Program.cs`:
    `/shutdown`**. Each request DTO that has a JSON Schema is tagged
    `[ContractSchema("<$id>")]`; its route calls `.RequireContract<TRequest>()`
    to opt in to validation.
-9. Wires `ApplicationStarted` to call `BrokerClient.RegisterAsync(port)`
-   (best-effort; broker can also discover via `/health`).
-10. Wires `ApplicationStopping` to call `BrokerClient.DeregisterAsync()`.
+9. Wires `ApplicationStarted` to call `MyceliumClient.RegisterAsync(port)`
+   (best-effort; Mycelium can also discover via `/health`).
+10. Wires `ApplicationStopping` to call `MyceliumClient.DeregisterAsync()`.
 11. `app.Run()`.
 
 The contract-validation wiring is the canonical reference in
@@ -199,7 +199,7 @@ the route.
 
 ## 8. Health & lifecycle
 
-The broker's `LivenessMonitor` polls `/health` every 15 seconds. Three
+Mycelium's `LivenessMonitor` polls `/health` every 15 seconds. Three
 consecutive failures (a 45 s window) trigger auto-deregistration:
 
 ```
@@ -229,13 +229,13 @@ see [`FUTURE_ARCHITECTURE.md`](FUTURE_ARCHITECTURE.md) §1.8.
 |---|---|
 | SIGTERM / SIGINT / process-manager shutdown | `ApplicationStopping` lifecycle hook |
 | Explicit `POST /shutdown` | Calls `DeregisterAsync()` then exits |
-| Broker calling `TryStopAsync()` | POSTs to the registered `stopEndpoint` |
-| Liveness failure (3× `/health` timeout) | Broker auto-deregisters |
+| Mycelium calling `TryStopAsync()` | POSTs to the registered `stopEndpoint` |
+| Liveness failure (3× `/health` timeout) | Mycelium auto-deregisters |
 
 ## 9. Contract validation
 
 JSON Schema artifacts + a runtime that loads and validates against them.
-Schemas pin the wire format of broker ↔ microservice payloads so future
+Schemas pin the wire format of Mycelium ↔ microservice payloads so future
 changes are a schema diff in code review rather than a silent runtime
 surprise. Phases 1–4 have landed (Features #5419, #5426, #5440, #5445).
 
@@ -247,12 +247,12 @@ embedded as resources in the shared assembly. The validator runtime lives in
 
 | Schema | Producer → Consumer | Source of truth in code | Phase landed |
 |---|---|---|---|
-| `broker-register-request` | every microservice → broker `POST /api/broker/register` | `BrokerClientBase.RegisterAsync` | 1 (schema) / 3 (wired) |
-| `token-response` | broker `POST /api/auth/token` → every microservice | `BrokerClientBase.GetTokenAsync` | 1 / 3 |
-| `handle-request-metabolism` | broker → Metabolism `POST /handle` | `vos.ManagedMicroservice.Metabolism.Models.HandleRequest` | 1 / 2 |
-| `relationship-property-changed-event` | broker `/vosHub` → Metabolism (SignalR) | `vos.ManagedMicroservice.Metabolism.Services.BrokerClient.RaiseRelationshipPropertyChanged` | 1 / 4 |
-| `apply-quantity-request` | Metabolism → broker `POST /api/things/{id}/properties/{path}/{decrements\|increments}` | `vos.ManagedMicroservice.Metabolism.Services.BrokerClient.ApplyQuantityAsync` | 4 |
-| `relationship-property-increment-request` | Metabolism → broker `POST /api/relationships/{id}/properties/{path}/increments` | `vos.ManagedMicroservice.Metabolism.Services.BrokerClient.IncrementRelationshipPropertyAsync` | 4 |
+| `mycelium-register-request` | every microservice → Mycelium `POST /api/mycelium/register` | `MyceliumClientBase.RegisterAsync` | 1 (schema) / 3 (wired) |
+| `token-response` | Mycelium `POST /api/auth/token` → every microservice | `MyceliumClientBase.GetTokenAsync` | 1 / 3 |
+| `handle-request-metabolism` | Mycelium → Metabolism `POST /handle` | `vos.ManagedMicroservice.Metabolism.Models.HandleRequest` | 1 / 2 |
+| `relationship-property-changed-event` | Mycelium `/vosHub` → Metabolism (SignalR) | `vos.ManagedMicroservice.Metabolism.Services.MyceliumClient.RaiseRelationshipPropertyChanged` | 1 / 4 |
+| `apply-quantity-request` | Metabolism → Mycelium `POST /api/things/{id}/properties/{path}/{decrements\|increments}` | `vos.ManagedMicroservice.Metabolism.Services.MyceliumClient.ApplyQuantityAsync` | 4 |
+| `relationship-property-increment-request` | Metabolism → Mycelium `POST /api/relationships/{id}/properties/{path}/increments` | `vos.ManagedMicroservice.Metabolism.Services.MyceliumClient.IncrementRelationshipPropertyAsync` | 4 |
 
 Each schema uses `additionalProperties: false` on every object subschema —
 strict by default per the project's pre-release / no-shims convention.
@@ -261,8 +261,8 @@ strict by default per the project's pre-release / no-shims convention.
 
 ```csharp
 var registry = new SchemaRegistry();
-JsonSchema schema     = registry.Get("https://villageos/contracts/broker-register-request.schema.json");
-JsonSchema sameSchema = registry.Get<BrokerRegisterRequest>();   // via [ContractSchema]
+JsonSchema schema     = registry.Get("https://villageos/contracts/mycelium-register-request.schema.json");
+JsonSchema sameSchema = registry.Get<MyceliumRegisterRequest>();   // via [ContractSchema]
 ```
 
 `SchemaRegistry` eagerly loads every embedded schema and exposes them by
@@ -271,8 +271,8 @@ JsonSchema sameSchema = registry.Get<BrokerRegisterRequest>();   // via [Contrac
 `$id` or two schemas share an `$id` — design-time mistakes fail closed.
 
 ```csharp
-[ContractSchema("https://villageos/contracts/broker-register-request.schema.json")]
-public sealed record BrokerRegisterRequest(/* ... */);
+[ContractSchema("https://villageos/contracts/mycelium-register-request.schema.json")]
+public sealed record MyceliumRegisterRequest(/* ... */);
 ```
 
 ```csharp
@@ -327,7 +327,7 @@ the inbound `/handle` body. A schema violation returns `400` with a
 per-service: tag the request DTO with `[ContractSchema]` and add
 `.RequireContract<T>()` to the route. Today Metabolism is the only adopter.
 
-### 9.5 BrokerClientBase outbound + response validation (Phase 3, Feature #5440)
+### 9.5 MyceliumClientBase outbound + response validation (Phase 3, Feature #5440)
 
 `RegisterAsync` body and `GetTokenAsync` response are validated on every call.
 Failure policy is per-call via `SchemaViolationMode`:
@@ -337,7 +337,7 @@ Failure policy is per-call via `SchemaViolationMode`:
   through.
 
 Tests pin both paths regardless of build config via a virtual
-`OutboundViolationMode` on `BrokerClientBase`. No metrics infra yet — counter
+`OutboundViolationMode` on `MyceliumClientBase`. No metrics infra yet — counter
 follow-up tracked separately.
 
 ### 9.6 Metabolism hot-path validation (Phase 4, Feature #5445)
@@ -385,7 +385,7 @@ Standard test files (one per testable unit):
 ```
 Tests/vos.ManagedMicroservice.<Name>.Tests/
 ├── CliArgsTests.cs          ← CLI parser contract
-├── BrokerClientTests.cs     ← service-specific RegisterAsync + inherited base behavior
+├── MyceliumClientTests.cs     ← service-specific RegisterAsync + inherited base behavior
 └── <Service>Tests.cs        ← service-specific business logic (handle endpoint, etc.)
 ```
 
@@ -397,9 +397,9 @@ aspect is visible at a glance. Required tests (see
 
 | Test name | What it pins |
 |---|---|
-| `Parse_RequiredFlagsOnly_ReturnsArgsWithDefaultedOptionals_PerTemplate` | Required `--port` + `--brokerUrl` are sufficient; optionals default to `null` |
+| `Parse_RequiredFlagsOnly_ReturnsArgsWithDefaultedOptionals_PerTemplate` | Required `--port` + `--myceliumUrl` are sufficient; optionals default to `null` |
 | `Parse_MissingPort_ReturnsNull_PerTemplate` | Required-arg validation fails closed |
-| `Parse_MissingBrokerUrl_ReturnsNull_PerTemplate` | Required-arg validation fails closed |
+| `Parse_MissingMyceliumUrl_ReturnsNull_PerTemplate` | Required-arg validation fails closed |
 | `Parse_InvalidPort_ReturnsNull_PerTemplate` (Theory) | Port out of `[1, 65535]` or non-numeric → null |
 | `Parse_PortAtBoundaries_Accepted_PerTemplate` (Theory) | 1 and 65535 are valid |
 | `Parse_AllOptionalFlags_PopulateRespectiveFields_PerTemplate` | Each optional flag round-trips |
@@ -407,42 +407,42 @@ aspect is visible at a glance. Required tests (see
 | `Parse_UnknownFlag_IgnoredSilently_PerTemplate` | Forward-compat: unknown flags don't crash |
 | `UsageMessage_MentionsEverySupportedFlag_PerTemplate` | `--help`-style output stays in sync with `Parse` |
 
-### 10.2 `BrokerClientTests` — pin inherited + service-specific behavior
+### 10.2 `MyceliumClientTests` — pin inherited + service-specific behavior
 
 Standard helpers (use `vos.Tests.Shared.MockHttpMessageHandler` +
 `TestHttpClientFactory`):
 
 ```csharp
-private static (BrokerClient client, MockHttpMessageHandler handler) NewClient(
+private static (MyceliumClient client, MockHttpMessageHandler handler) NewClient(
     Func<HttpRequestMessage, HttpResponseMessage> respond,
     string? serviceToken = "svc-jwt-abc")
 {
     var handler = new MockHttpMessageHandler(respond);
     var http = new HttpClient(handler);
     var factory = new TestHttpClientFactory(http);
-    var client = new BrokerClient(factory, NullLogger<BrokerClient>.Instance, "http://localhost:7243", serviceToken);
+    var client = new MyceliumClient(factory, NullLogger<MyceliumClient>.Instance, "http://localhost:7243", serviceToken);
     return (client, handler);
 }
 ```
 
 Required tests (see
-`Tests/vos.ManagedMicroservice.Echo.Tests/BrokerClientTests.cs`):
+`Tests/vos.ManagedMicroservice.Echo.Tests/MyceliumClientTests.cs`):
 
 | Test name | What it pins |
 |---|---|
-| `HandlerId_IsUniquePerInstance_PerTemplate` | Two `BrokerClient` instances have distinct `HandlerId` Guids |
-| `BrokerUrl_PassedThroughFromCtor_PerTemplate` | Constructor wires `BrokerUrl` |
-| `RegisterAsync_Success_PostsServiceIdentity_PerTemplate` | POST body to `/api/broker/register` contains the service-specific `serviceName` + `startCommand` plus the standard `handlerId`/`endpointUrl`/`stopEndpoint`/`healthEndpoint` envelope |
-| `RegisterAsync_BrokerReturnsFailure_ReturnsFalse_PerTemplate` | Non-2xx → false |
+| `HandlerId_IsUniquePerInstance_PerTemplate` | Two `MyceliumClient` instances have distinct `HandlerId` Guids |
+| `MyceliumUrl_PassedThroughFromCtor_PerTemplate` | Constructor wires `MyceliumUrl` |
+| `RegisterAsync_Success_PostsServiceIdentity_PerTemplate` | POST body to `/api/mycelium/register` contains the service-specific `serviceName` + `startCommand` plus the standard `handlerId`/`endpointUrl`/`stopEndpoint`/`healthEndpoint` envelope |
+| `RegisterAsync_MyceliumReturnsFailure_ReturnsFalse_PerTemplate` | Non-2xx → false |
 | `RegisterAsync_AuthFails_ReturnsFalse_PerTemplate` | `CreateAuthenticatedClient` throwing → caught → false |
-| `DeregisterAsync_SendsDeleteToBroker_PerTemplate` | `DELETE /api/broker/services/{HandlerId}` with Bearer header |
-| `GetTokenAsync_WithProvidedToken_ReturnsItDirectly_PerTemplate` | `--token` short-circuits the broker call |
+| `DeregisterAsync_SendsDeleteToMycelium_PerTemplate` | `DELETE /api/mycelium/services/{HandlerId}` with Bearer header |
+| `GetTokenAsync_WithProvidedToken_ReturnsItDirectly_PerTemplate` | `--token` short-circuits Mycelium call |
 
 ### 10.3 Service-specific endpoint tests
 
 Echo has minimal business logic (echo body + counter) and per
 `coverage.runsettings` `Program.cs` is excluded from unit-test coverage — so
-Echo's test suite stops at `CliArgs` + `BrokerClient`.
+Echo's test suite stops at `CliArgs` + `MyceliumClient`.
 
 Microservices with substantial business logic (e.g. Metabolism's simulation
 engine, Tributary's `ObservationIngestService`) get a dedicated
@@ -456,7 +456,7 @@ accessible to the test factory.
 
 ### 10.4 Coverage expectations
 
-Per-microservice acceptance: **≥95 % line on `CliArgs` + `BrokerClient` + any
+Per-microservice acceptance: **≥95 % line on `CliArgs` + `MyceliumClient` + any
 `<Service>Tests.cs` business-logic class**. `Program.cs` is excluded by
 `coverage.runsettings` (integration-test territory).
 
@@ -470,7 +470,7 @@ Per-microservice acceptance: **≥95 % line on `CliArgs` + `BrokerClient` + any
 ## 11. Adding a new microservice
 
 1. Copy `vos.ManagedMicroservice.Echo/` to `vos.ManagedMicroservice.<Name>/`.
-   Rename the namespace, project file, and `BrokerClient`'s `serviceName` /
+   Rename the namespace, project file, and `MyceliumClient`'s `serviceName` /
    `startCommand`.
 2. Add the new project to `VillageOS-API.sln`.
 3. Copy `Tests/vos.ManagedMicroservice.Echo.Tests/` to
@@ -485,10 +485,10 @@ Per-microservice acceptance: **≥95 % line on `CliArgs` + `BrokerClient` + any
 
 ## 12. Pointers
 
-The broker repo (`ReGenVillages/VillageOS`) owns the REST surface, SignalR
+Mycelium repo (`ReGenVillages/VillageOS`) owns the REST surface, SignalR
 hub, seed-loading, and JWT minting. Quick map for what calls what:
 
-| Area | Endpoint (on the broker) | Method |
+| Area | Endpoint (on Mycelium) | Method |
 |---|---|---|
 | Login | `/api/auth/login` | POST |
 | API-key exchange | `/api/auth/token` | POST (`X-API-Key` header) |
@@ -496,18 +496,18 @@ hub, seed-loading, and JWT minting. Quick map for what calls what:
 | Things | `/api/things` | GET, POST, DELETE |
 | Properties | `/api/properties` | GET, PUT, DELETE |
 | Relationships | `/api/relationships` | GET, POST, DELETE |
-| Broker registry | `/api/broker/register`, `/api/broker/services/{id}` | POST, DELETE |
+| Mycelium registry | `/api/mycelium/register`, `/api/mycelium/services/{id}` | POST, DELETE |
 | SignalR Hub | `/vosHub` | WebSocket |
 
-Full reference: the **Broker Guide** on the broker repo's wiki
-(`ReGenVillages/VillageOS` → wiki → Broker). Swagger UI is available at
-`/swagger` when the broker is running (default
+Full reference: the **Mycelium Guide** on Mycelium repo's wiki
+(`ReGenVillages/VillageOS` → wiki → Mycelium). Swagger UI is available at
+`/swagger` when Mycelium is running (default
 `https://localhost:7243/swagger`).
 
 ### Creating a service API key
 
 Microservices authenticate with a pre-minted JWT passed via `--token` (the
-broker mints and supplies it when it launches the daemon). They do **not**
+Mycelium mints and supplies it when it launches the daemon). They do **not**
 accept an API key directly — there is no `--api-key` argument or `VOS_API_KEY`
 support in the microservice host. A service API key is still useful for
 operators/CLI to *obtain* a token; create one like this:
@@ -540,12 +540,12 @@ it is only shown once. Exchange it for a JWT via `POST /api/auth/token`
 
 #### "Registration error: Connection refused"
 
-The broker is not running or not accessible. Start it
-(`cd ../VillageOS/vos.Broker && dotnet run`), verify with
-`curl https://localhost:7243/api/auth/token`, and check `--brokerUrl` matches
-the broker's actual URL.
+Mycelium is not running or not accessible. Start it
+(`cd ../VillageOS/vos.Mycelium && dotnet run`), verify with
+`curl https://localhost:7243/api/auth/token`, and check `--myceliumUrl` matches
+Mycelium's actual URL.
 
-#### Service shows as "Unreachable" in `/api/broker/services`
+#### Service shows as "Unreachable" in `/api/mycelium/services`
 
 The `/health` endpoint is not responding. Test directly:
 `curl http://localhost:<port>/health`. Check the port is bound
@@ -572,17 +572,17 @@ plain `"string"`).
 ## 14. Endpoint services
 
 In addition to relationship-service daemons (invoked when relationships are
-created), the broker supports **endpoint services** — custom HTTP
+created), Mycelium supports **endpoint services** — custom HTTP
 microservices that expose their own API endpoints through
 `POST /api/endpoints/{subdomain}`. They are auto-discovered from seed data
 (things with an `EndpointSubdomain` property), use the same daemon lifecycle
 as relationship services via `DaemonLifecycleManager`, and act as
-pass-through proxies — the broker forwards request bodies as-is to the
+pass-through proxies — Mycelium forwards request bodies as-is to the
 service's `/handle` endpoint. Per-subdomain request metrics (count, avg
-response time, errors) are tracked broker-side.
+response time, errors) are tracked Mycelium-side.
 
-Full implementation details: the *Endpoint Services* section in the Broker
-Guide on the broker repo's wiki.
+Full implementation details: the *Endpoint Services* section in the Mycelium
+Guide on Mycelium repo's wiki.
 
 ### 14.1 Tributary token-exchange auth + offset paging (Task #5470)
 

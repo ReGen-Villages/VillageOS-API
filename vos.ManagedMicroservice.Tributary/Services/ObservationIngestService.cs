@@ -13,12 +13,12 @@ public record ObservationIngestResult(
 
 public class ObservationIngestService
 {
-    private readonly IEndpointBrokerClient _brokerClient;
+    private readonly IEndpointMyceliumClient _myceliumClient;
     private readonly ILogger<ObservationIngestService> _logger;
 
-    public ObservationIngestService(IEndpointBrokerClient brokerClient, ILogger<ObservationIngestService> logger)
+    public ObservationIngestService(IEndpointMyceliumClient myceliumClient, ILogger<ObservationIngestService> logger)
     {
-        _brokerClient = brokerClient;
+        _myceliumClient = myceliumClient;
         _logger = logger;
     }
 
@@ -74,9 +74,9 @@ public class ObservationIngestService
             return new ObservationIngestResult(false, 0, "Transformed output is not a valid observation thing array.", parseError);
         }
 
-        var observedPredicate = await _brokerClient.FindThingByNameAsync("observed");
+        var observedPredicate = await _myceliumClient.FindThingByNameAsync("observed");
         if (observedPredicate == null)
-            observedPredicate = await _brokerClient.CreateThingAsync("observed");
+            observedPredicate = await _myceliumClient.CreateThingAsync("observed");
 
         if (observedPredicate == null)
             return new ObservationIngestResult(false, 0, "Failed to resolve or create 'observed' predicate.", null);
@@ -85,13 +85,13 @@ public class ObservationIngestService
         for (var i = 0; i < observations.Count; i++)
         {
             var obs = observations[i];
-            var created = await _brokerClient.CreateThingAsync(obs.Name, obs.Properties);
+            var created = await _myceliumClient.CreateThingAsync(obs.Name, obs.Properties);
             if (created == null)
             {
                 return new ObservationIngestResult(false, createdCount, "Failed to create observation thing.", null, i);
             }
 
-            var related = await _brokerClient.CreateRelationshipAsync(
+            var related = await _myceliumClient.CreateRelationshipAsync(
                 endpointThingId,
                 observedPredicate.Value.Id,
                 created.Value.Id);

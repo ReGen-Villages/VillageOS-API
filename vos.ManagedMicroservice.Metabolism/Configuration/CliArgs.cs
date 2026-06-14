@@ -7,7 +7,7 @@ namespace vos.ManagedMicroservice.Metabolism.Configuration;
 /// </summary>
 public record CliArgs(
     int Port,
-    string BrokerUrl,
+    string MyceliumUrl,
     string Mode,
     string? Token = null,
     string? SigningKey = null,
@@ -17,7 +17,7 @@ public record CliArgs(
     /// <summary>
     /// Parses command-line arguments. Returns null if required args are missing or invalid.
     /// If <paramref name="config"/> is provided, any flag absent from <paramref name="args"/>
-    /// falls back to <c>config[key]</c> — keys are flat: Port, BrokerUrl, Mode, Token,
+    /// falls back to <c>config[key]</c> — keys are flat: Port, MyceliumUrl, Mode, Token,
     /// SigningKey, Issuer, Audience. CLI args always take precedence over config.
     /// </summary>
     public static CliArgs? Parse(string[] args, IConfiguration? config = null)
@@ -30,10 +30,10 @@ public record CliArgs(
         }
 
         var portStr = FromArgsOrConfig("--port=", "Port");
-        var brokerUrl = FromArgsOrConfig("--brokerUrl=", "BrokerUrl");
+        var myceliumUrl = FromArgsOrConfig("--myceliumUrl=", "MyceliumUrl");
         var modeStr = FromArgsOrConfig("--mode=", "Mode");
 
-        if (portStr == null || brokerUrl == null || modeStr == null)
+        if (portStr == null || myceliumUrl == null || modeStr == null)
             return null;
 
         if (!int.TryParse(portStr, out var port) || port < 1 || port > 65535)
@@ -48,16 +48,16 @@ public record CliArgs(
         var issuer = FromArgsOrConfig("--issuer=", "Issuer");
         var audience = FromArgsOrConfig("--audience=", "Audience");
 
-        return new CliArgs(port, brokerUrl, mode, token, signingKey, issuer, audience);
+        return new CliArgs(port, myceliumUrl, mode, token, signingKey, issuer, audience);
     }
 
     public static string UsageMessage =>
-        "Usage: dotnet run -- --port=<port> --brokerUrl=<url> --mode=<consumes|produces> [--token=<jwt>] [--signingKey=<base64>] [--issuer=<iss>] [--audience=<aud>]\n" +
+        "Usage: dotnet run -- --port=<port> --myceliumUrl=<url> --mode=<consumes|produces> [--token=<jwt>] [--signingKey=<base64>] [--issuer=<iss>] [--audience=<aud>]\n" +
         "  --port       Port number for the service to listen on\n" +
-        "  --brokerUrl  URL of the VOS Broker\n" +
+        "  --myceliumUrl  URL of the VOS Mycelium\n" +
         "  --mode       Operation mode: 'consumes' (decrement) or 'produces' (increment)\n" +
-        "  --token      Service JWT token for authenticating with the broker (optional)\n" +
-        "  --signingKey Base64-encoded signing key for validating broker requests (optional)\n" +
-        "  --issuer     JWT issuer the broker signs with — must match for /handle auth (Bug #5391)\n" +
-        "  --audience   JWT audience the broker signs with — must match for /handle auth (Bug #5391)";
+        "  --token      Service JWT token for authenticating with Mycelium (optional)\n" +
+        "  --signingKey Base64-encoded signing key for validating mycelium requests (optional)\n" +
+        "  --issuer     JWT issuer Mycelium signs with — must match for /handle auth (Bug #5391)\n" +
+        "  --audience   JWT audience Mycelium signs with — must match for /handle auth (Bug #5391)";
 }

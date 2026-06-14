@@ -18,11 +18,11 @@ public class CliArgsTests
     [Fact]
     public void Parse_RequiredFlagsOnly_ReturnsArgsWithDefaultedOptionals_PerTemplate()
     {
-        var result = CliArgs.Parse(new[] { "--port=7100", "--brokerUrl=https://localhost:7243" });
+        var result = CliArgs.Parse(new[] { "--port=7100", "--myceliumUrl=https://localhost:7243" });
 
         result.Should().NotBeNull();
         result!.Port.Should().Be(7100);
-        result.BrokerUrl.Should().Be("https://localhost:7243");
+        result.MyceliumUrl.Should().Be("https://localhost:7243");
         result.Token.Should().BeNull();
         result.SigningKey.Should().BeNull();
         result.Issuer.Should().BeNull();
@@ -32,11 +32,11 @@ public class CliArgsTests
     [Fact]
     public void Parse_MissingPort_ReturnsNull_PerTemplate()
     {
-        CliArgs.Parse(new[] { "--brokerUrl=https://localhost:7243" }).Should().BeNull();
+        CliArgs.Parse(new[] { "--myceliumUrl=https://localhost:7243" }).Should().BeNull();
     }
 
     [Fact]
-    public void Parse_MissingBrokerUrl_ReturnsNull_PerTemplate()
+    public void Parse_MissingMyceliumUrl_ReturnsNull_PerTemplate()
     {
         CliArgs.Parse(new[] { "--port=7100" }).Should().BeNull();
     }
@@ -58,7 +58,7 @@ public class CliArgsTests
     [InlineData("--port=")]
     public void Parse_InvalidPort_ReturnsNull_PerTemplate(string portArg)
     {
-        CliArgs.Parse(new[] { portArg, "--brokerUrl=https://localhost:7243" }).Should().BeNull();
+        CliArgs.Parse(new[] { portArg, "--myceliumUrl=https://localhost:7243" }).Should().BeNull();
     }
 
     [Theory]
@@ -67,7 +67,7 @@ public class CliArgsTests
     [InlineData(65535)]
     public void Parse_PortAtBoundaries_Accepted_PerTemplate(int port)
     {
-        var result = CliArgs.Parse(new[] { $"--port={port}", "--brokerUrl=https://localhost:7243" });
+        var result = CliArgs.Parse(new[] { $"--port={port}", "--myceliumUrl=https://localhost:7243" });
         result.Should().NotBeNull();
         result!.Port.Should().Be(port);
     }
@@ -80,7 +80,7 @@ public class CliArgsTests
         var result = CliArgs.Parse(new[]
         {
             "--port=7100",
-            "--brokerUrl=https://localhost:7243",
+            "--myceliumUrl=https://localhost:7243",
             "--token=svc-jwt-abc",
             "--signingKey=YmFzZTY0a2V5",
             "--issuer=VillageOS",
@@ -102,7 +102,7 @@ public class CliArgsTests
         var result = CliArgs.Parse(new[]
         {
             "--audience=VosClients",
-            "--brokerUrl=https://localhost:7243",
+            "--myceliumUrl=https://localhost:7243",
             "--port=7100",
             "--issuer=VillageOS",
             "--signingKey=YmFzZTY0a2V5",
@@ -120,7 +120,7 @@ public class CliArgsTests
         var result = CliArgs.Parse(new[]
         {
             "--port=7100",
-            "--brokerUrl=https://localhost:7243",
+            "--myceliumUrl=https://localhost:7243",
             "--token=svc-jwt-abc"
             // signingKey, issuer, audience absent
         });
@@ -140,7 +140,7 @@ public class CliArgsTests
         var usage = CliArgs.UsageMessage;
 
         usage.Should().Contain("--port");
-        usage.Should().Contain("--brokerUrl");
+        usage.Should().Contain("--myceliumUrl");
         usage.Should().Contain("--token");
         usage.Should().Contain("--signingKey");
         usage.Should().Contain("--issuer");
@@ -162,7 +162,7 @@ public class CliArgsTests
         var result = CliArgs.Parse(new[]
         {
             "--port=7100",
-            "--brokerUrl=https://localhost:7243",
+            "--myceliumUrl=https://localhost:7243",
             "--unknownFlag=something"
         });
 

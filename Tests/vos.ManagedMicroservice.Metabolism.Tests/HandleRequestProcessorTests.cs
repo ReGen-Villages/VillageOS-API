@@ -17,11 +17,11 @@ public class HandleRequestProcessorTests
     {
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
-        var brokerLogger = new Mock<ILogger<BrokerClient>>();
-        var brokerClient = new BrokerClient(httpFactory.Object, brokerLogger.Object, "http://localhost:0", "consumes");
+        var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
+        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://localhost:0", "consumes");
 
         var engineLogger = new Mock<ILogger<Services.Metabolism>>();
-        _engine = new Services.Metabolism(brokerClient, engineLogger.Object, "consumes");
+        _engine = new Services.Metabolism(myceliumClient, engineLogger.Object, "consumes");
 
         var processorLogger = new Mock<ILogger<HandleRequestProcessor>>();
         _processor = new HandleRequestProcessor(_engine, processorLogger.Object);

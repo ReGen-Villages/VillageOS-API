@@ -4,7 +4,7 @@
 
 The Metabolism service is a persistent daemon that simulates continuous resource flows in a VillageOS graph. It serves two predicates — `consumes` and `produces` — from a single binary, differentiated by a `--mode` CLI argument.
 
-When a relationship like `Chemistry-Test --[consumes]--> Reagent-Pool` is created, the broker notifies the Metabolism service. The handler then runs a continuous loop: every N seconds, it decrements (or increments, for `produces`) a numeric property on the target thing. This turns VillageOS's static graph into a live simulation where resource quantities change over time.
+When a relationship like `Chemistry-Test --[consumes]--> Reagent-Pool` is created, Mycelium notifies the Metabolism service. The handler then runs a continuous loop: every N seconds, it decrements (or increments, for `produces`) a numeric property on the target thing. This turns VillageOS's static graph into a live simulation where resource quantities change over time.
 
 **In concrete terms**: if a village has 5 homes that each `consumes` electricity from a shared pool, the Metabolism service runs 5 independent loops, each decrementing the pool's `quantity` property at its own rate. The pool's value drops in real-time, and any ranges defined on it (e.g., "Low Power Alert" when `quantity < 50`) evaluate automatically.
 
@@ -12,7 +12,7 @@ When a relationship like `Chemistry-Test --[consumes]--> Reagent-Pool` is create
 
 ### One binary, two predicates
 
-`consumes` and `produces` are mirror images — one decrements, the other increments. Rather than maintain two nearly-identical projects, a single `Metabolism` binary accepts `--mode=consumes` or `--mode=produces`. The predicate thing's `ServiceArgs` property tells the broker which mode to pass:
+`consumes` and `produces` are mirror images — one decrements, the other increments. Rather than maintain two nearly-identical projects, a single `Metabolism` binary accepts `--mode=consumes` or `--mode=produces`. The predicate thing's `ServiceArgs` property tells Mycelium which mode to pass:
 
 ```json
 { "ServiceArgs": "--mode=consumes" }
@@ -26,29 +26,29 @@ The handler doesn't do one thing and exit. It stays alive, running simulation lo
 
 ### SignalR for live updates
 
-When someone changes a relationship property in the GUI (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it via SignalR in real-time. It cancels the running simulation loop and restarts it with the new config. No broker round-trip, no re-invocation needed.
+When someone changes a relationship property in the GUI (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it via SignalR in real-time. It cancels the running simulation loop and restarts it with the new config. No Mycelium round-trip, no re-invocation needed.
 
 ### Staggered ticks
 
-When a seed loads with 20 `consumes` relationships, all 20 get registered within milliseconds. If they all fired their first tick simultaneously, the broker would get hammered with 20 concurrent API calls. The handler staggers initial ticks: each simulation waits `(registration_order * 200ms) + random_jitter` before its first tick. After that, each runs on its own independent timer.
+When a seed loads with 20 `consumes` relationships, all 20 get registered within milliseconds. If they all fired their first tick simultaneously, Mycelium would get hammered with 20 concurrent API calls. The handler staggers initial ticks: each simulation waits `(registration_order * 200ms) + random_jitter` before its first tick. After that, each runs on its own independent timer.
 
 ## How It Works
 
 ### Startup sequence
 
 ```
-1. Parse CLI args (--port, --brokerUrl, --mode, --token, --signingKey)
-2. Use pre-minted service JWT received via --token for broker authentication
-3. Start ASP.NET minimal API on the given port (with broker token validation via vos.Auth.Shared)
-4. Connect to broker's SignalR hub for property change events
-5. Wait for /handle requests from the broker (validated via broker-signed request tokens)
+1. Parse CLI args (--port, --myceliumUrl, --mode, --token, --signingKey)
+2. Use pre-minted service JWT received via --token for Mycelium authentication
+3. Start ASP.NET minimal API on the given port (with Mycelium token validation via vos.Auth.Shared)
+4. Connect to Mycelium's SignalR hub for property change events
+5. Wait for /handle requests from Mycelium (validated via Mycelium-signed request tokens)
 ```
 
-The handler does **not** self-register with the broker on startup in the normal flow — the broker discovers it by successfully calling `/handle` or `/health`. Registration happens as a courtesy so the broker can track the handler for graceful shutdown.
+The handler does **not** self-register with Mycelium on startup in the normal flow — Mycelium discovers it by successfully calling `/handle` or `/health`. Registration happens as a courtesy so Mycelium can track the handler for graceful shutdown.
 
 ### The `/handle` request
 
-When a relationship using the `consumes` or `produces` predicate is created (or re-loaded from a seed), the broker POSTs to `/handle`:
+When a relationship using the `consumes` or `produces` predicate is created (or re-loaded from a seed), Mycelium POSTs to `/handle`:
 
 ```json
 {
@@ -66,7 +66,7 @@ When a relationship using the `consumes` or `produces` predicate is created (or 
 }
 ```
 
-The `properties` field contains the relationship's own properties, sent inline so the handler doesn't need to call back to the broker to read them.
+The `properties` field contains the relationship's own properties, sent inline so the handler doesn't need to call back to Mycelium to read them.
 
 ### Simulation lifecycle
 
@@ -81,7 +81,7 @@ delayed → waiting → active → completed (or cancelled)
 **waiting**: If `startUtc` is in the future, the loop sleeps until that time.
 
 **active**: The main loop. On each tick:
-1. Call broker's `POST /api/things/{targetId}/properties/{propertyPath}/decrements` (or `/increments`) with body `{ "amount": <quantity> }`
+1. Call Mycelium's `POST /api/things/{targetId}/properties/{propertyPath}/decrements` (or `/increments`) with body `{ "amount": <quantity> }`
 2. Increment `total_consumed` (or `total_produced`) on the relationship itself (best-effort)
 3. Sleep for `frequencySeconds`
 
@@ -91,7 +91,7 @@ If a relationship is registered again (e.g., on seed reload), the previous simul
 
 ### Live hot-reload
 
-The handler subscribes to `RelationshipPropertyChanged` events on the broker's SignalR hub. When a tracked property changes:
+The handler subscribes to `RelationshipPropertyChanged` events on Mycelium's SignalR hub. When a tracked property changes:
 
 | Property | Effect |
 |----------|--------|
@@ -114,7 +114,7 @@ vos.ManagedMicroservice.Metabolism/
 │   ├── HandleRequest.cs                # /handle request payload
 │   └── SimulationConfig.cs             # Simulation loop parameters
 ├── Services/
-│   ├── BrokerClient.cs                 # HTTP + SignalR communication with broker
+│   ├── MyceliumClient.cs                 # HTTP + SignalR communication with Mycelium
 │   ├── Metabolism.cs                   # Simulation loop engine
 │   └── HandleRequestProcessor.cs       # Request validation + config extraction
 └── Endpoints/
@@ -125,7 +125,7 @@ vos.ManagedMicroservice.Metabolism/
 
 **`Metabolism`** — The simulation engine. Holds a `ConcurrentDictionary<string, SimulationEntry>` keyed by relationship ID. Each entry has its own async loop running in a `Task`. Handles registration, cancellation, property hot-reload, and graceful shutdown.
 
-**`BrokerClient`** — All communication with the broker. Uses pre-minted service token from `--token` startup arg (with open-endpoint fallback), service registration/deregistration, quantity increment/decrement API calls, and SignalR hub connection with retry backoff.
+**`MyceliumClient`** — All communication with Mycelium. Uses pre-minted service token from `--token` startup arg (with open-endpoint fallback), service registration/deregistration, quantity increment/decrement API calls, and SignalR hub connection with retry backoff.
 
 **`HandleRequestProcessor`** — Pure extraction logic. Takes a `HandleRequest`, extracts a `SimulationConfig` with sensible defaults, and registers it with Metabolism. The `ExtractConfig` method is `internal static` and side-effect-free, making it testable.
 
@@ -139,7 +139,7 @@ vos.ManagedMicroservice.Metabolism/
 | `/simulations` | GET | List all simulations with status and tick counts |
 | `/simulations/{relationshipId}` | DELETE | Cancel a specific simulation |
 | `/health` | GET | Health check (active/total simulation counts) |
-| `/stats` | GET | Service metadata (handler ID, broker URL, version) |
+| `/stats` | GET | Service metadata (handler ID, Mycelium URL, version) |
 | `/shutdown` | POST | Stop all simulations, deregister, exit |
 
 ## Relationship Properties
@@ -156,13 +156,13 @@ These are set on the relationship (not the things) and control the simulation:
 | `startUtc` | ISO 8601 | now | When to start ticking |
 | `endUtc` | ISO 8601 | 2099-12-31 | When to stop |
 
-> **Typed envelopes in seed files**: When defining metabolism properties in seed JSON files, numeric properties (`quantity`, `frequencySeconds`, `startDelaySeconds`, `reorder_point`) **must** use typed envelopes: `{"typeInfo": "vos.Decimal", "value": 5.0}`. Plain numeric values are stored as `vos.Integer`, which truncates decimal increments to 0. This applies to both pool thing properties and relationship properties. See [Broker Guide — Seed Format](BROKER_GUIDE.md) for details.
+> **Typed envelopes in seed files**: When defining metabolism properties in seed JSON files, numeric properties (`quantity`, `frequencySeconds`, `startDelaySeconds`, `reorder_point`) **must** use typed envelopes: `{"typeInfo": "vos.Decimal", "value": 5.0}`. Plain numeric values are stored as `vos.Integer`, which truncates decimal increments to 0. This applies to both pool thing properties and relationship properties. See [Mycelium Guide — Seed Format](BROKER_GUIDE.md) for details.
 
 ## How to Use
 
 ### 1. Define the predicate things in your seed
 
-The broker needs predicate things with handler configuration:
+Mycelium needs predicate things with handler configuration:
 
 ```json
 {
@@ -188,7 +188,7 @@ The broker needs predicate things with handler configuration:
 }
 ```
 
-`onLoad: true` is important — it tells the broker to re-invoke the handler for all existing relationships when a seed is loaded. Since simulation state is in-memory (not serialized), simulations must be re-started on every load.
+`onLoad: true` is important — it tells Mycelium to re-invoke the handler for all existing relationships when a seed is loaded. Since simulation state is in-memory (not serialized), simulations must be re-started on every load.
 
 ### 2. Create a resource pool
 
@@ -216,13 +216,13 @@ POST /api/relationships
 }
 ```
 
-The broker will auto-start the Metabolism service (if not already running), call `/handle`, and the simulation begins. Every 10 seconds, the pool's `quantity` drops by 0.5.
+Mycelium will auto-start the Metabolism service (if not already running), call `/handle`, and the simulation begins. Every 10 seconds, the pool's `quantity` drops by 0.5.
 
 ### 4. Run manually (for development/debugging)
 
 ```bash
 dotnet run --project vos.ManagedMicroservice.Metabolism -- \
-  --port=7102 --brokerUrl=https://localhost:7243 --mode=consumes
+  --port=7102 --myceliumUrl=https://localhost:7243 --mode=consumes
 ```
 
 Then check status:
@@ -241,11 +241,11 @@ Change a relationship property in the GUI or via API — the handler picks it up
 On `ApplicationStopping`:
 1. All simulation loops are cancelled via their `CancellationTokenSource`
 2. `Task.WhenAll` waits for all loops to finish
-3. The handler deregisters from the broker via `DELETE /api/broker/services/{handlerId}`
+3. The handler deregisters from Mycelium via `DELETE /api/mycelium/services/{handlerId}`
 4. The SignalR connection is disposed
 
-The broker can also trigger shutdown by POSTing to `/shutdown`, which follows the same sequence.
+Mycelium can also trigger shutdown by POSTing to `/shutdown`, which follows the same sequence.
 
 ## Logging
 
-Logs go to `logs/metabolism-{mode}-YYYYMMDD.log` (rolling daily). File-only logging — no console sink. The broker does **not** redirect stdout (`RedirectStandardOutput = false`), so console output goes to the broker's own console or is lost. **Use file-based logging only (Serilog `WriteTo.File`) for reliable diagnostics.**
+Logs go to `logs/metabolism-{mode}-YYYYMMDD.log` (rolling daily). File-only logging — no console sink. Mycelium does **not** redirect stdout (`RedirectStandardOutput = false`), so console output goes to Mycelium's own console or is lost. **Use file-based logging only (Serilog `WriteTo.File`) for reliable diagnostics.**

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://villageos/contracts/handle-request-metabolism.schema.json",
   "title": "HandleRequestMetabolism",
-  "description": "Payload broker POSTs to vos.ManagedMicroservice.Metabolism /handle. Shape derived from vos.ManagedMicroservice.Metabolism.Models.HandleRequest (record with [System.Text.Json] camelCase wire format).",
+  "description": "Payload Mycelium POSTs to vos.ManagedMicroservice.Metabolism /handle. Shape derived from vos.ManagedMicroservice.Metabolism.Models.HandleRequest (record with [System.Text.Json] camelCase wire format).",
   "type": "object",
   "additionalProperties": false,
   "required": ["subjectId", "targetId"],

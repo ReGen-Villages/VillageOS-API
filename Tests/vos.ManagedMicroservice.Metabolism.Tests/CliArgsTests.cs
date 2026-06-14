@@ -10,19 +10,19 @@ public class CliArgsTests
     [Fact]
     public void Parse_AllArgsPresent_ReturnsCliArgs()
     {
-        var args = new[] { "--port=5100", "--brokerUrl=http://localhost:5000", "--mode=consumes" };
+        var args = new[] { "--port=5100", "--myceliumUrl=http://localhost:5000", "--mode=consumes" };
         var result = CliArgs.Parse(args);
 
         result.Should().NotBeNull();
         result!.Port.Should().Be(5100);
-        result.BrokerUrl.Should().Be("http://localhost:5000");
+        result.MyceliumUrl.Should().Be("http://localhost:5000");
         result.Mode.Should().Be("consumes");
     }
 
     [Fact]
     public void Parse_ProducesMode_Accepted()
     {
-        var args = new[] { "--port=5200", "--brokerUrl=http://broker", "--mode=produces" };
+        var args = new[] { "--port=5200", "--myceliumUrl=http://mycelium", "--mode=produces" };
         var result = CliArgs.Parse(args);
 
         result.Should().NotBeNull();
@@ -32,7 +32,7 @@ public class CliArgsTests
     [Fact]
     public void Parse_MixedCaseMode_NormalizedToLower()
     {
-        var args = new[] { "--port=5100", "--brokerUrl=http://broker", "--mode=CONSUMES" };
+        var args = new[] { "--port=5100", "--myceliumUrl=http://mycelium", "--mode=CONSUMES" };
         var result = CliArgs.Parse(args);
 
         result.Should().NotBeNull();
@@ -42,12 +42,12 @@ public class CliArgsTests
     [Fact]
     public void Parse_MissingPort_ReturnsNull()
     {
-        var args = new[] { "--brokerUrl=http://broker", "--mode=consumes" };
+        var args = new[] { "--myceliumUrl=http://mycelium", "--mode=consumes" };
         CliArgs.Parse(args).Should().BeNull();
     }
 
     [Fact]
-    public void Parse_MissingBrokerUrl_ReturnsNull()
+    public void Parse_MissingMyceliumUrl_ReturnsNull()
     {
         var args = new[] { "--port=5100", "--mode=consumes" };
         CliArgs.Parse(args).Should().BeNull();
@@ -56,21 +56,21 @@ public class CliArgsTests
     [Fact]
     public void Parse_MissingMode_ReturnsNull()
     {
-        var args = new[] { "--port=5100", "--brokerUrl=http://broker" };
+        var args = new[] { "--port=5100", "--myceliumUrl=http://mycelium" };
         CliArgs.Parse(args).Should().BeNull();
     }
 
     [Fact]
     public void Parse_InvalidMode_ReturnsNull()
     {
-        var args = new[] { "--port=5100", "--brokerUrl=http://broker", "--mode=invalid" };
+        var args = new[] { "--port=5100", "--myceliumUrl=http://mycelium", "--mode=invalid" };
         CliArgs.Parse(args).Should().BeNull();
     }
 
     [Fact]
     public void Parse_InvalidPort_ReturnsNull()
     {
-        var args = new[] { "--port=abc", "--brokerUrl=http://broker", "--mode=consumes" };
+        var args = new[] { "--port=abc", "--myceliumUrl=http://mycelium", "--mode=consumes" };
         CliArgs.Parse(args).Should().BeNull();
     }
 
@@ -83,7 +83,7 @@ public class CliArgsTests
     [Fact]
     public void Parse_ArgsInAnyOrder_Works()
     {
-        var args = new[] { "--mode=produces", "--port=9999", "--brokerUrl=http://example.com" };
+        var args = new[] { "--mode=produces", "--port=9999", "--myceliumUrl=http://example.com" };
         var result = CliArgs.Parse(args);
 
         result.Should().NotBeNull();
@@ -96,7 +96,7 @@ public class CliArgsTests
     {
         var args = new[]
         {
-            "--port=5100", "--brokerUrl=http://broker", "--mode=consumes",
+            "--port=5100", "--myceliumUrl=http://mycelium", "--mode=consumes",
             "--token=my.jwt.token", "--signingKey=c29tZWtleQ=="
         };
         var result = CliArgs.Parse(args);
@@ -109,7 +109,7 @@ public class CliArgsTests
     [Fact]
     public void Parse_WithoutTokenAndSigningKey_DefaultsToNull()
     {
-        var args = new[] { "--port=5100", "--brokerUrl=http://broker", "--mode=consumes" };
+        var args = new[] { "--port=5100", "--myceliumUrl=http://mycelium", "--mode=consumes" };
         var result = CliArgs.Parse(args);
 
         result.Should().NotBeNull();
@@ -120,7 +120,7 @@ public class CliArgsTests
     [Fact]
     public void Parse_WithTokenOnly_SigningKeyIsNull()
     {
-        var args = new[] { "--port=5100", "--brokerUrl=http://broker", "--mode=consumes", "--token=jwt" };
+        var args = new[] { "--port=5100", "--myceliumUrl=http://mycelium", "--mode=consumes", "--token=jwt" };
         var result = CliArgs.Parse(args);
 
         result.Should().NotBeNull();
@@ -131,12 +131,12 @@ public class CliArgsTests
     [Fact]
     public void Parse_WithIssuerAndAudience_ParsesBoth()
     {
-        // Bug #5391 — broker passes its JWT issuer + audience via CLI so the
+        // Bug #5391 — mycelium passes its JWT issuer + audience via CLI so the
         // daemon validates incoming /handle requests against exactly the
-        // values the broker signed with. The broker-side change is Bug #5390.
+        // values Mycelium signed with. The mycelium-side change is Bug #5390.
         var args = new[]
         {
-            "--port=5100", "--brokerUrl=http://broker", "--mode=consumes",
+            "--port=5100", "--myceliumUrl=http://mycelium", "--mode=consumes",
             "--issuer=VillageOS", "--audience=VillageOSClients"
         };
         var result = CliArgs.Parse(args);
@@ -149,12 +149,12 @@ public class CliArgsTests
     [Fact]
     public void Parse_WithoutIssuerAndAudience_DefaultsToNull()
     {
-        var args = new[] { "--port=5100", "--brokerUrl=http://broker", "--mode=consumes" };
+        var args = new[] { "--port=5100", "--myceliumUrl=http://mycelium", "--mode=consumes" };
         var result = CliArgs.Parse(args);
 
         result.Should().NotBeNull();
         result!.Issuer.Should().BeNull(
-            "the daemon must fall back to a hardcoded default only when the broker did not specify");
+            "the daemon must fall back to a hardcoded default only when Mycelium did not specify");
         result.Audience.Should().BeNull();
     }
 
@@ -168,13 +168,13 @@ public class CliArgsTests
     public void Parse_NoArgs_AllRequiredFromConfig_ReturnsCliArgs()
     {
         var config = ConfigFrom(
-            ("Port", "7100"), ("BrokerUrl", "http://from-config"), ("Mode", "produces"));
+            ("Port", "7100"), ("MyceliumUrl", "http://from-config"), ("Mode", "produces"));
 
         var result = CliArgs.Parse(Array.Empty<string>(), config);
 
         result.Should().NotBeNull();
         result!.Port.Should().Be(7100);
-        result.BrokerUrl.Should().Be("http://from-config");
+        result.MyceliumUrl.Should().Be("http://from-config");
         result.Mode.Should().Be("produces");
     }
 
@@ -182,14 +182,14 @@ public class CliArgsTests
     public void Parse_ArgsTakePrecedenceOverConfig()
     {
         var config = ConfigFrom(
-            ("Port", "1111"), ("BrokerUrl", "http://config-broker"), ("Mode", "produces"));
-        var args = new[] { "--port=2222", "--brokerUrl=http://cli-broker", "--mode=consumes" };
+            ("Port", "1111"), ("MyceliumUrl", "http://config-mycelium"), ("Mode", "produces"));
+        var args = new[] { "--port=2222", "--myceliumUrl=http://cli-mycelium", "--mode=consumes" };
 
         var result = CliArgs.Parse(args, config);
 
         result.Should().NotBeNull();
         result!.Port.Should().Be(2222);
-        result.BrokerUrl.Should().Be("http://cli-broker");
+        result.MyceliumUrl.Should().Be("http://cli-mycelium");
         result.Mode.Should().Be("consumes");
     }
 
@@ -197,7 +197,7 @@ public class CliArgsTests
     public void Parse_ConfigCoversOptionalFlagsToo()
     {
         var config = ConfigFrom(
-            ("Port", "5100"), ("BrokerUrl", "http://broker"), ("Mode", "consumes"),
+            ("Port", "5100"), ("MyceliumUrl", "http://mycelium"), ("Mode", "consumes"),
             ("Token", "cfg-token"), ("SigningKey", "cfg-key"),
             ("Issuer", "cfg-issuer"), ("Audience", "cfg-audience"));
 

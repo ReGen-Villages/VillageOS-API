@@ -12,7 +12,7 @@ namespace vos.ManagedMicroservice.Tributary.Tests;
 /// <summary>
 /// Custom WebApplicationFactory for Tributary endpoint tests.
 ///
-/// Pattern follows <c>vos.Mycelium.Tests.BrokerWebApplicationFactory</c> from the sibling
+/// Pattern follows <c>vos.Mycelium.Tests.MyceliumWebApplicationFactory</c> from the sibling
 /// VillageOS repo, including the <c>IAsyncLifetime</c> workaround for the sync-over-async
 /// deadlock in <c>CreateHost</c> under the XPlat Code Coverage collector on Windows CI
 /// (VillageOS Bug #5260).
@@ -23,7 +23,7 @@ namespace vos.ManagedMicroservice.Tributary.Tests;
 /// <see cref="Audience"/> on the factory instance before creating a client.
 ///
 /// <c>IHttpClientFactory</c> is replaced with one that wraps a per-test
-/// <c>MockHttpMessageHandler</c>. The handler routes BOTH broker calls AND the outbound
+/// <c>MockHttpMessageHandler</c>. The handler routes BOTH mycelium calls AND the outbound
 /// endpoint call dispatched by <c>CallEndpointAsync</c> via the same factory; tests set
 /// <see cref="HandlerCallback"/> to control responses for their scenario.
 /// </summary>
@@ -59,9 +59,9 @@ public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IA
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("Port", "5000");
-        builder.UseSetting("BrokerUrl", "http://localhost");
-        // Bypass BrokerClientBase.GetTokenAsync's /api/auth/token round-trip; the test
-        // BrokerClient just needs a non-empty token to short-circuit the cache miss.
+        builder.UseSetting("MyceliumUrl", "http://localhost");
+        // Bypass MyceliumClientBase.GetTokenAsync's /api/auth/token round-trip; the test
+        // MyceliumClient just needs a non-empty token to short-circuit the cache miss.
         builder.UseSetting("Token", "test-token");
         if (SigningKey != null) builder.UseSetting("SigningKey", SigningKey);
         if (Issuer != null) builder.UseSetting("Issuer", Issuer);
@@ -71,7 +71,7 @@ public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IA
         {
             // Strip the default DefaultHttpClientFactory + named-client registrations and
             // replace with one that returns a FRESH HttpClient per CreateClient call.
-            // BrokerClientBase.CreateAuthenticatedClientAsync mutates client.Timeout on every
+            // MyceliumClientBase.CreateAuthenticatedClientAsync mutates client.Timeout on every
             // call, which throws InvalidOperationException on an already-used HttpClient.
             services.RemoveAll<IHttpClientFactory>();
             Handler = new MockHttpMessageHandler(req => HandlerCallback(req));

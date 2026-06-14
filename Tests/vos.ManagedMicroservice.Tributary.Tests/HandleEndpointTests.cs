@@ -8,7 +8,7 @@ using Xunit;
 namespace vos.ManagedMicroservice.Tributary.Tests;
 
 // Tests for the /handle endpoint in vos.ManagedMicroservice.Tributary/Program.cs.
-// Each test wires up a per-scenario HandlerCallback on the factory so the broker calls
+// Each test wires up a per-scenario HandlerCallback on the factory so Mycelium calls
 // (FindThingByNameAsync, GetEffectivePropertiesAsync, SetThingPropertyAsync, CreateThing,
 // CreateRelationship) AND the outbound endpoint call all resolve through the same handler.
 public class HandleEndpointTests
@@ -36,7 +36,7 @@ public class HandleEndpointTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            // Broker GET /api/things?name=Unknown returns empty (non-object root → null thing)
+            // Mycelium GET /api/things?name=Unknown returns empty (non-object root → null thing)
             if (req.RequestUri!.AbsolutePath == "/api/things")
                 return Json("null");
             return new HttpResponseMessage(HttpStatusCode.NotFound);

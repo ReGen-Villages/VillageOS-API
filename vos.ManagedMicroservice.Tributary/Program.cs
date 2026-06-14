@@ -20,7 +20,7 @@ if (cliArgs == null)
 }
 
 var servicePort = cliArgs.Port;
-var brokerUrl = cliArgs.BrokerUrl;
+var myceliumUrl = cliArgs.MyceliumUrl;
 var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
 
@@ -48,33 +48,33 @@ Log.Logger = loggerConfig.CreateLogger();
 
 try
 {
-    Log.Information("VillageOS Tributary Service - Port: {Port}, Broker: {BrokerUrl}", servicePort, brokerUrl);
+    Log.Information("VillageOS Tributary Service - Port: {Port}, Mycelium: {MyceliumUrl}", servicePort, myceliumUrl);
 
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    // Add JWT auth if broker provided a signing key. Bug #5391: use the
-    // issuer/audience the broker passes via CLI so validation matches what
-    // the broker signed.
+    // Add JWT auth if mycelium provided a signing key. Bug #5391: use the
+    // issuer/audience Mycelium passes via CLI so validation matches what
+    // Mycelium signed.
     var authEnabled = !string.IsNullOrEmpty(signingKey);
     if (authEnabled)
     {
-        builder.AddBrokerTokenAuth(
+        builder.AddMyceliumTokenAuth(
             signingKey!,
             issuer: cliArgs.Issuer ?? "VillageOS",
             audience: cliArgs.Audience ?? "VosClients");
-        Log.Information("JWT authentication enabled for incoming broker requests (issuer={Issuer}, audience={Audience})",
+        Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
             cliArgs.Issuer ?? "VillageOS", cliArgs.Audience ?? "VosClients");
     }
 
     builder.Services.AddSingleton(sp =>
-        new BrokerClient(
+        new MyceliumClient(
             sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<BrokerClient>>(),
-            brokerUrl,
+            sp.GetRequiredService<ILogger<MyceliumClient>>(),
+            myceliumUrl,
             serviceToken));
-    builder.Services.AddSingleton<IEndpointBrokerClient>(sp => sp.GetRequiredService<BrokerClient>());
+    builder.Services.AddSingleton<IEndpointMyceliumClient>(sp => sp.GetRequiredService<MyceliumClient>());
     builder.Services.AddSingleton<ObservationIngestService>();
     // Per-process token-exchange cache (Task #5470). TimeProvider.System drives its refresh threshold;
     // tests substitute a fake clock. Singleton so the cache survives across /handle requests.
@@ -91,7 +91,7 @@ try
 
     var handleEndpoint = app.MapPost("/handle", async (
         EndpointCallRequest request,
-        BrokerClient brokerClient,
+        MyceliumClient myceliumClient,
         IHttpClientFactory httpClientFactory,
         ObservationIngestService observationService,
         TokenExchangeCache tokenExchangeCache) =>
@@ -99,11 +99,11 @@ try
         if (string.IsNullOrWhiteSpace(request.EndpointName))
             return Results.BadRequest(new { error = "Request must include a non-empty endpointName." });
 
-        var thing = await brokerClient.FindThingByNameAsync(request.EndpointName);
+        var thing = await myceliumClient.FindThingByNameAsync(request.EndpointName);
         if (thing == null)
             return Results.NotFound(new { error = $"Endpoint thing not found: {request.EndpointName}" });
 
-        var effective = await brokerClient.GetEffectivePropertiesAsync(thing.Value.Id);
+        var effective = await myceliumClient.GetEffectivePropertiesAsync(thing.Value.Id);
         if (effective == null)
         {
             return Results.Problem(
@@ -129,7 +129,7 @@ try
                 });
             }
 
-            var setOverride = await brokerClient.SetThingPropertyAsync(
+            var setOverride = await myceliumClient.SetThingPropertyAsync(
                 thing.Value.Id,
                 "responseTransform",
                 request.ResponseTransform);

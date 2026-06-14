@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://villageos/contracts/relationship-property-increment-request.schema.json",
   "title": "RelationshipPropertyIncrementRequest",
-  "description": "Payload Metabolism POSTs to {broker}/api/relationships/{relationshipId}/properties/{propertyPath}/increments to track per-relationship cumulative totals. Shape derived from vos.ManagedMicroservice.Metabolism.Services.BrokerClient.IncrementRelationshipPropertyAsync.",
+  "description": "Payload Metabolism POSTs to {mycelium}/api/relationships/{relationshipId}/properties/{propertyPath}/increments to track per-relationship cumulative totals. Shape derived from vos.ManagedMicroservice.Metabolism.Services.MyceliumClient.IncrementRelationshipPropertyAsync.",
   "type": "object",
   "additionalProperties": false,
   "required": ["amount"],

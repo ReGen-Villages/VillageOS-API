@@ -16,7 +16,7 @@ if (cliArgs == null)
 }
 
 var servicePort = cliArgs.Port;
-var brokerUrl = cliArgs.BrokerUrl;
+var myceliumUrl = cliArgs.MyceliumUrl;
 var mode = cliArgs.Mode;
 var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
@@ -45,39 +45,39 @@ Log.Logger = loggerConfig.CreateLogger();
 
 try
 {
-    Log.Information("VOS '{Mode}' Metabolism Service — Port: {Port}, Broker: {BrokerUrl}",
-        mode, servicePort, brokerUrl);
+    Log.Information("VOS '{Mode}' Metabolism Service — Port: {Port}, Mycelium: {MyceliumUrl}",
+        mode, servicePort, myceliumUrl);
 
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
     builder.Services.AddContractValidation();
 
-    // Add JWT auth if broker provided a signing key. Bug #5391: use the
-    // issuer/audience the broker passes via CLI so validation matches what
-    // the broker signed; falling back to the hardcoded library defaults
-    // silently accepted nothing in production because the broker config
+    // Add JWT auth if mycelium provided a signing key. Bug #5391: use the
+    // issuer/audience Mycelium passes via CLI so validation matches what
+    // Mycelium signed; falling back to the hardcoded library defaults
+    // silently accepted nothing in production because Mycelium config
     // diverged from the daemon defaults.
     if (!string.IsNullOrEmpty(signingKey))
     {
-        builder.AddBrokerTokenAuth(
+        builder.AddMyceliumTokenAuth(
             signingKey,
             issuer: cliArgs.Issuer ?? "VillageOS",
             audience: cliArgs.Audience ?? "VosClients");
-        Log.Information("JWT authentication enabled for incoming broker requests (issuer={Issuer}, audience={Audience})",
+        Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
             cliArgs.Issuer ?? "VillageOS", cliArgs.Audience ?? "VosClients");
     }
 
     builder.Services.AddSingleton<IHubConnectionFactory, DefaultHubConnectionFactory>();
     builder.Services.AddSingleton(sp =>
-        new BrokerClient(
+        new MyceliumClient(
             sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<BrokerClient>>(),
-            brokerUrl, mode, serviceToken,
+            sp.GetRequiredService<ILogger<MyceliumClient>>(),
+            myceliumUrl, mode, serviceToken,
             sp.GetRequiredService<IHubConnectionFactory>()));
     builder.Services.AddSingleton(sp =>
         new Metabolism(
-            sp.GetRequiredService<BrokerClient>(),
+            sp.GetRequiredService<MyceliumClient>(),
             sp.GetRequiredService<ILogger<Metabolism>>(),
             mode));
     builder.Services.AddSingleton<HandleRequestProcessor>();
@@ -101,18 +101,18 @@ try
     app.UseRequestContractValidation();
 
     // Connect SignalR for live property updates. Skip under WebApplicationFactory<Program>
-    // tests — the broker URL is synthetic, the connection would fail in a background task,
+    // tests — Mycelium URL is synthetic, the connection would fail in a background task,
     // and the noise (failed retries) pollutes test output.
     if (!app.Environment.IsEnvironment("Testing"))
     {
-        var brokerClient = app.Services.GetRequiredService<BrokerClient>();
+        var myceliumClient = app.Services.GetRequiredService<MyceliumClient>();
         var metabolism = app.Services.GetRequiredService<Metabolism>();
 
         app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
         {
             try
             {
-                await brokerClient.ConnectSignalRAsync(app.Lifetime.ApplicationStopping);
+                await myceliumClient.ConnectSignalRAsync(app.Lifetime.ApplicationStopping);
             }
             catch (Exception ex)
             {
@@ -120,7 +120,7 @@ try
             }
         }));
 
-        // Stop simulations and deregister from broker on shutdown
+        // Stop simulations and deregister from mycelium on shutdown
         app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
         {
             try
@@ -128,7 +128,7 @@ try
                 Log.Information("Shutting down '{Mode}' handler — stopping {Count} simulation(s), {Requests} registration(s) processed",
                     mode, metabolism.GetAll().Count(), requestCount);
                 await metabolism.StopAllAsync();
-                await brokerClient.DeregisterAsync();
+                await myceliumClient.DeregisterAsync();
             }
             catch (Exception ex)
             {

@@ -26,13 +26,13 @@ receive side. That is a real source of silent bugs:
 - Services can only respond `200` or `500` in practice, with the occasional
   `400`/`404`/`502`. There is no way to express "this was a duplicate, do not
   retry", "I am overloaded, back off", or "I refuse this permanently".
-- The broker's `LivenessMonitor` polls `/health` every 15 s and auto-deregisters
+- Mycelium's `LivenessMonitor` polls `/health` every 15 s and auto-deregisters
   after 3 consecutive failures. Today's services comply with the polling rhythm
   but not with the response envelope — Echo returns `requestsProcessed`,
   Tributary returns the bare minimum, Metabolism returns five fields. The
   monitor cannot rely on any field beyond `status`.
 - Services that need to send follow-up work (e.g. Tributary posting ingested
-  observations) do so synchronously via `BrokerClientBase` with no retry, no
+  observations) do so synchronously via `MyceliumClientBase` with no retry, no
   buffering, and no visibility into failures.
 
 Bootstrap duplication and missing delivery semantics are the same problem
@@ -50,24 +50,24 @@ the shared assembly — zero migration friction.
 
 | Concern | Today (per-service) | After |
 |---|---|---|
-| CLI parsing (`--port` / `--brokerUrl` / `--token` / `--signingKey`) | 4× duplicated `Configuration/CliArgs.cs` | `MicroserviceCliArgs` base record + `CliArgsParser.Parse<T>(args)`; services extend for service-specific flags |
+| CLI parsing (`--port` / `--myceliumUrl` / `--token` / `--signingKey`) | 4× duplicated `Configuration/CliArgs.cs` | `MicroserviceCliArgs` base record + `CliArgsParser.Parse<T>(args)`; services extend for service-specific flags |
 | Serilog file sink + enrichment | 4× duplicated 12-line block | `builder.AddMicroserviceLogging("ServiceName")` |
-| JWT auth (`AddBrokerTokenAuth` + `UseAuthentication` + `RequireAuthorization` gating) | 4× duplicated 20-line block | `builder.AddMicroserviceAuth(signingKey)` + `endpoint.RequireBrokerAuth()` (no-op when signingKey absent) |
+| JWT auth (`AddMyceliumTokenAuth` + `UseAuthentication` + `RequireAuthorization` gating) | 4× duplicated 20-line block | `builder.AddMicroserviceAuth(signingKey)` + `endpoint.RequireMyceliumAuth()` (no-op when signingKey absent) |
 | `/health`, `/shutdown` endpoints | Each service hand-rolls; shapes drift | `app.MapStandardEndpoints(serviceName, healthExtras: …)` |
-| `RegisterAsync` / `DeregisterAsync` lifecycle | Echo only; pattern hand-rolled | `app.UseBrokerLifecycle(serviceName, startCommand)` |
-| In-flight request draining on shutdown | Not implemented anywhere | Built into `UseBrokerLifecycle`'s stopping hook |
+| `RegisterAsync` / `DeregisterAsync` lifecycle | Echo only; pattern hand-rolled | `app.UseMyceliumLifecycle(serviceName, startCommand)` |
+| In-flight request draining on shutdown | Not implemented anywhere | Built into `UseMyceliumLifecycle`'s stopping hook |
 | Idempotent `X-Delivery-Id` dedup | Not implemented anywhere | `app.UseDeliveryReceive()` middleware + `IDeliveryReceiveCache` |
 | ACK status semantics (200/202/409/429/500/501) | Returned ad-hoc as 200/400/500 | `Ack.Ok / Accepted / Duplicate / TooBusy / Failed / Refused` helpers |
-| Outbound dispatch with retry | None — pure synchronous broker calls | `IDeliveryDispatch` facade with bounded retry-and-backoff |
+| Outbound dispatch with retry | None — pure synchronous Mycelium calls | `IDeliveryDispatch` facade with bounded retry-and-backoff |
 
 ### 1.3 What stays per-service
 
 - The actual `/handle` body and business logic. The shared project does **not**
   ship a base "do my work" class — every service's domain is too different
-  (Echo reads raw bytes; Tributary calls JSONata; Delta walks the broker model;
+  (Echo reads raw bytes; Tributary calls JSONata; Delta walks Mycelium model;
   Metabolism runs background loops).
-- The concrete `BrokerClient` subclass per service. The base
-  (`BrokerClientBase`) already lives in the shared project; concrete subclasses
+- The concrete `MyceliumClient` subclass per service. The base
+  (`MyceliumClientBase`) already lives in the shared project; concrete subclasses
   with service-specific calls (`CreateThingAsync`, `ApplyQuantityAsync`, …)
   stay in their own projects.
 - Service-specific CLI flags. Metabolism's `--mode=consumes|produces` stays in
@@ -92,7 +92,7 @@ public static class Ack
 }
 ```
 
-Callers (today: the broker) interpret the codes per the contract:
+Callers (today: Mycelium) interpret the codes per the contract:
 
 | Code | Meaning | Caller behaviour |
 |---|---|---|
@@ -123,16 +123,16 @@ A middleware that sits before the routing pipeline:
 4. **Miss:** invoke the pipeline, capture the response, cache it keyed by
    delivery id.
 
-Per the project's no-backward-compat rule, once the broker side starts stamping
+Per the project's no-backward-compat rule, once Mycelium side starts stamping
 `X-Delivery-Id` consistently, `RequireDeliveryId()` becomes the default on
 every route in the same PR — the legacy "no header → pass-through" path is
 removed at that point.
 
 ### 1.6 In-flight draining on shutdown
 
-`UseBrokerLifecycle`'s `ApplicationStopping` hook does, in order:
+`UseMyceliumLifecycle`'s `ApplicationStopping` hook does, in order:
 
-1. Calls `DeregisterAsync` on the broker so no new traffic arrives.
+1. Calls `DeregisterAsync` on Mycelium so no new traffic arrives.
 2. Waits up to a configurable budget (default 5 s) for in-flight `/handle`
    invocations to complete.
 3. After the budget, returns `503 Service Unavailable` to anything still
@@ -156,7 +156,7 @@ public interface IDeliveryDispatch
 ```
 
 **v1 implementation:** in-process queue with bounded retry-and-backoff over
-`BrokerClientBase`. No persistence; if the service crashes, anything not yet
+`MyceliumClientBase`. No persistence; if the service crashes, anything not yet
 delivered is lost — same guarantee as synchronous calls today, but with
 retries for transient failures.
 
@@ -183,7 +183,7 @@ matching the 15 s polling rhythm and 3-strike failure tolerance:
 ```
 
 Stops the current shape drift across Echo, Tributary, Delta, and Metabolism
-and gives the broker's monitor a single shape to scrape — without breaking the
+and gives Mycelium's monitor a single shape to scrape — without breaking the
 existing `LivenessMonitor`, which only reads `status`.
 
 ### 1.9 DI surface — the whole adoption diff
@@ -198,20 +198,20 @@ var args = MicroserviceCliArgs.Parse<MyArgs>(rawArgs)
 var builder = WebApplication.CreateBuilder(rawArgs)
     .AddMicroserviceLogging(serviceName: "MyService")
     .AddMicroserviceAuth(args.SigningKey)
-    .AddMicroserviceBrokerClient<MyBrokerClient>(args);
+    .AddMicroserviceBrokerClient<MyMyceliumClient>(args);
 builder.Services.AddContractValidation();   // landed in Feature #5426
 
 var app = builder.Build()
-    .UseBrokerAuth()
+    .UseMyceliumAuth()
     .UseRequestContractValidation()         // landed in Feature #5426
     .UseDeliveryReceive()
-    .UseBrokerLifecycle(serviceName: "MyService", startCommand: "endpoint-service");
+    .UseMyceliumLifecycle(serviceName: "MyService", startCommand: "endpoint-service");
 
 app.MapStandardEndpoints("MyService");
 
-app.MapPost("/handle", async (MyRequest req, MyBrokerClient broker) =>
-    await MyService.HandleAsync(req, broker))
-   .RequireBrokerAuth()
+app.MapPost("/handle", async (MyRequest req, MyMyceliumClient Mycelium) =>
+    await MyService.HandleAsync(req, Mycelium))
+   .RequireMyceliumAuth()
    .RequireContract<MyRequest>()             // landed in Feature #5426
    .RequireDeliveryId();
 
@@ -254,8 +254,8 @@ shape on everyone. Recorded so future readers know it was considered.
   returns cached response without invoking pipeline; cache honors LRU eviction
   at configured size; cache honors TTL.
 - `RequireDeliveryId()`: returns `400` when header is absent.
-- `UseBrokerLifecycle` startup: calls `RegisterAsync`; logs registration result.
-- `UseBrokerLifecycle` shutdown: calls `DeregisterAsync`; waits for in-flight
+- `UseMyceliumLifecycle` startup: calls `RegisterAsync`; logs registration result.
+- `UseMyceliumLifecycle` shutdown: calls `DeregisterAsync`; waits for in-flight
   requests; forces `503` past the drain budget; calls `StopApplication`.
 - `MapStandardEndpoints`: `/health` returns the §1.8 shape with service extras
   merged in; `/shutdown` triggers the same drain path as pod termination.
@@ -269,12 +269,12 @@ shape on everyone. Recorded so future readers know it was considered.
 
 ```mermaid
 flowchart LR
-  caller["Caller<br/>(today: broker)<br/>stamps X-Delivery-Id"]
+  caller["Caller<br/>(today: Mycelium)<br/>stamps X-Delivery-Id"]
   subgraph svc["e.g. vos.ManagedMicroservice.Echo"]
     mw["UseDeliveryReceive<br/>(X-Delivery-Id dedup)"]
     h["/handle business logic"]
     ack["Ack.Ok / .Duplicate / .TooBusy / ..."]
-    out["IDeliveryDispatch<br/>(in-process retry over BrokerClient)"]
+    out["IDeliveryDispatch<br/>(in-process retry over MyceliumClient)"]
   end
   shared["vos.ManagedMicroservice.Shared<br/>(extended in this design)"]
   caller -- POST /handle<br/>X-Delivery-Id --> mw
@@ -296,8 +296,8 @@ flowchart LR
 2. **`/stats` endpoint.** Echo and Metabolism have it; Tributary and Delta
    don't. Drop it from the standard set, or fold it into `/health` as `extras`?
    Recommendation: fold; one less surface.
-3. **Cross-service shared `BrokerClient`?** Each service's `BrokerClient` today
-   extends `BrokerClientBase` with service-specific calls. This design does not
+3. **Cross-service shared `MyceliumClient`?** Each service's `MyceliumClient` today
+   extends `MyceliumClientBase` with service-specific calls. This design does not
    try to unify these — that's a separate refactor.
 4. **When (if ever) does Phase E land?** Persistent outbound queue is only
    worth building if a real durability requirement surfaces. Until then,
@@ -312,12 +312,12 @@ roadmap items: item 1 (Metabolism `Program.cs` DI alignment) under Task #5456,
 item 3 (`IEndpointSeedProvider` for Delta) under Task #5455, and item 2 (the
 SignalR hub-connection factory, formerly §2.1) under Task #5457 — see below.
 
-### 2.1 `IHubConnectionFactory` in Metabolism's `BrokerClient` (shipped)
+### 2.1 `IHubConnectionFactory` in Metabolism's `MyceliumClient` (shipped)
 
 > **Status:** `SHIPPED` (Task #5457). Closed the largest single line-coverage
-> gap in the codebase — `Services.BrokerClient` went from ~59% to 100%.
+> gap in the codebase — `Services.MyceliumClient` went from ~59% to 100%.
 
-`BrokerClient.ConnectSignalRAsync` previously built its SignalR connection inline
+`MyceliumClient.ConnectSignalRAsync` previously built its SignalR connection inline
 with `new HubConnectionBuilder()`, so no test could substitute the real hub and
 the retry/backoff/cancellation shell plus the `RelationshipPropertyChanged` /
 `Reconnected` handlers were unreachable from a unit test. The connection is now
@@ -332,17 +332,17 @@ un-mockable `HubConnection` are the irreducible seam and carry
 backoff sequence, token re-fetch per attempt, `RelationshipPropertyChanged`
 payload shape, and `Reconnected` logging.
 
-### 2.2 `vos.CLI` gets a `HostBuilder`
+### 2.2 `vos.Taproot` gets a `HostBuilder`
 
 > **Status:** `PROPOSED` for discussion — not to be implemented yet. This is a
 > significant refactor. Captured here so the option is documented and the
 > rationale is preserved; implementation should be its own Feature with its own
 > Tasks, scoped after §2.1 has landed.
 
-**Today.** `vos.CLI` uses a plain `static void Main` entry point with manual
+**Today.** `vos.Taproot` uses a plain `static void Main` entry point with manual
 command-handler construction. Several rough edges fall out of that:
 
-- `vos.CLI.BrokerClient` is unit-testable only via an `internal`
+- `vos.Taproot.MyceliumClient` is unit-testable only via an `internal`
   HttpClient-injection constructor plus `InternalsVisibleTo`.
   `docs/TEST-STATE.md` flags this as a workaround.
 - `Program` shows 0 % coverage in the snapshot. The entry-point exclusion is
@@ -350,11 +350,11 @@ command-handler construction. Several rough edges fall out of that:
   a `HostBuilder` makes `Program` a thin bootstrap that *can* be touched by
   integration tests if the bootstrap logic ever becomes non-trivial.
 - Configuration is parsed by hand. `ConsoleOptions.Parse` reads
-  `VOS_BROKER_URL` / `VOS_API_KEY` env vars directly via
+  `VOS_MYCELIUM_URL` / `VOS_API_KEY` env vars directly via
   `Environment.GetEnvironmentVariable`.
 - Logging happens through `Console.WriteLine` rather than `ILogger`, so output
   is hard to capture or route in tests.
-- `vos.CLI.Tests/CliEnvVarCollection.cs` exists exclusively to serialize tests
+- `vos.Taproot.Tests/CliEnvVarCollection.cs` exists exclusively to serialize tests
   that mutate those env vars — the same family of problem that microservice
   `EnvVarScope` helpers solved, but rooted in the CLI's own production
   interface.
@@ -366,7 +366,7 @@ public static async Task<int> Main(string[] args)
 {
     var builder = Host.CreateApplicationBuilder(args);
     builder.Services.AddHttpClient();
-    builder.Services.AddSingleton<IBrokerClient, BrokerClient>();
+    builder.Services.AddSingleton<IMyceliumClient, MyceliumClient>();
     builder.Services.AddSingleton<CommandHandler>();
     builder.Services.AddSingleton<CommandParser>();
     // ... etc per command handler
@@ -383,8 +383,8 @@ services live for the duration of the REPL).
 
 **Benefits.**
 
-- Drops the `InternalsVisibleTo` + internal-ctor hack on `BrokerClient`.
-- `IConfiguration` picks up env vars automatically — `VOS_BROKER_URL` /
+- Drops the `InternalsVisibleTo` + internal-ctor hack on `MyceliumClient`.
+- `IConfiguration` picks up env vars automatically — `VOS_MYCELIUM_URL` /
   `VOS_API_KEY` continue to work without `ConsoleOptions` parsing them by hand.
   Tests inject overrides via `host.Services.GetRequiredService<IConfiguration>`
   substitution, no process-environment mutation.
@@ -400,7 +400,7 @@ services live for the duration of the REPL).
   `host.StopAsync()` on exit. Both work; need to pick one.
 - The existing CLI test suite constructs handlers directly with `new`.
   Migrating each to DI is mechanical but touches many files.
-- Public API decision: should `BrokerClient` get an `IBrokerClient` interface?
+- Public API decision: should `MyceliumClient` get an `IMyceliumClient` interface?
   Today tests Moq the concrete class.
 - `ConsoleOptions` has its own test suite. Decide whether to keep it as a thin
   façade over `IConfiguration` or replace it entirely.
@@ -421,7 +421,7 @@ were sketched but not scheduled:
 > **Status:** `POSSIBLE`. No work item.
 
 TS types generated from the same JSON Schemas; opt-in dev-only validation in
-the React app. Would catch broker-shape regressions before they reach the
+the React app. Would catch Mycelium-shape regressions before they reach the
 user; the cost is a TS codegen step in the GUI build and a runtime dependency
 on a JSON-Schema validator (e.g. `ajv`).
 
@@ -455,14 +455,14 @@ pure static.
 
 ## 5. Multi-tenant model routing for endpoint daemons (deferred)
 
-The broker's "model as tenant" isolation is complete for the direct request
+Mycelium's "model as tenant" isolation is complete for the direct request
 path, but the endpoint-daemon write-back path does not yet propagate the
-caller's model. The broker launches an endpoint service (Delta, Tributary, …) as
+caller's model. Mycelium launches an endpoint service (Delta, Tributary, …) as
 a **shared** daemon keyed by `endpoint:{subdomain}:{port}` with no `model_id`,
 and that process writes back with a single process-lifetime `--token` scoped to
-the model of its *first* lazy start (broker `DaemonLifecycleManager.StartDaemonProcess`),
-while each forwarded `/handle` call carries a `broker_request` token with **no**
-`model_id` claim (broker `JwtTokenService.GenerateBrokerRequestToken`). So a
+the model of its *first* lazy start (Mycelium `DaemonLifecycleManager.StartDaemonProcess`),
+while each forwarded `/handle` call carries a `mycelium_request` token with **no**
+`model_id` claim (Mycelium `JwtTokenService.GenerateMyceliumRequestToken`). So a
 shared daemon's `POST /api/things` and `/api/relationships` land in its *startup*
 model, not the caller's.
 
@@ -478,5 +478,5 @@ provisions its template catalog into the *caller's* project model ("approach A")
 — is blocked by the routing gap above and is tracked separately in **Feature
 #5478**, which captures the two candidate fixes (one daemon per model, matching
 the "one Delta per tenant" intent; or per-request model propagation via the
-forwarded token). That work is broker-side and must be decided before per-model
+forwarded token). That work is Mycelium-side and must be decided before per-model
 template provisioning (evolving the single-model Task #5468 catalog) can be built.

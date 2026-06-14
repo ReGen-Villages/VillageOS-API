@@ -1,0 +1,71 @@
+/// <reference types="vitest/config" />
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { resolveOutDir } from './build/resolveOutDir'
+import { pickChunk } from './build/manualChunks'
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  build: {
+    // Resolution: VOS_MYCELIUM_WWWROOT > sibling vos.Mycelium/wwwroot > dist/.
+    // The sibling auto-detect (Bug #5332) keeps `npm run build` from silently
+    // emitting to `dist/` while developers wonder why Mycelium URL still
+    // serves a stale bundle.
+    outDir: resolveOutDir({ guiRoot: __dirname }),
+    emptyOutDir: true,
+    // vendor-three is bound by Bug #5297: three + Fragments + three-stdlib
+    // + three-mesh-bvh + @react-three/* + @thatopen/* MUST share one chunk
+    // for `instanceof Camera` identity. Its minified size sits at ~1.27 MB
+    // and cannot be reduced without breaking raycasting. Raise the warning
+    // limit to 1500 so vendor-three doesn't trip it; every other chunk is
+    // still expected to stay below 1000 kB (Bug #5359 split vendor itself
+    // into vendor-react + vendor-signalr + vendor for that reason).
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      onwarn(warning, defaultHandler) {
+        // @microsoft/signalr ships /*#__PURE__*/ annotations in positions Rollup
+        // cannot interpret; the build is unaffected so suppress the noise.
+        if (warning.code === 'INVALID_ANNOTATION' && warning.id?.includes('@microsoft/signalr')) return;
+        defaultHandler(warning);
+      },
+      output: {
+        // Chunking rule lives in build/manualChunks.ts so it can be unit-
+        // tested. See Bug #5297 (three identity) and Bug #5359 (vendor split).
+        manualChunks: pickChunk,
+      },
+    },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './src/setupTests.ts',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'cobertura'],
+      reportsDirectory: './coverage',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/main.tsx', 'src/setupTests.ts'],
+    },
+  },
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'https://localhost:7243',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/vosHub': {
+        target: 'https://localhost:7243',
+        ws: true,
+        secure: false,
+      },
+      '/swagger': {
+        target: 'https://localhost:7243',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
+})

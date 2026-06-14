@@ -21,14 +21,14 @@ async def test_is_handler_service():
 
     # Configuration
     service_port = 5100
-    broker_url = "https://localhost:7243"
+    mycelium_url = "https://localhost:7243"
     service_url = f"https://localhost:{service_port}"
 
     print("=" * 60)
     print("Testing 'is' Handler Service (Daemon Mode)")
     print("=" * 60)
     print(f"Service Port: {service_port}")
-    print(f"Broker URL: {broker_url}")
+    print(f"Mycelium URL: {mycelium_url}")
     print("=" * 60)
     print()
 
@@ -39,7 +39,7 @@ async def test_is_handler_service():
             sys.executable,
             "is_handler_service.py",
             "--port", str(service_port),
-            "--brokerUrl", broker_url
+            "--myceliumUrl", mycelium_url
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -90,7 +90,7 @@ async def test_is_handler_service():
                 print(f"      ⚠ Stats error (non-critical): {e}")
             print()
 
-            # Test 3: Handle relationship (will fail without broker, but tests the endpoint)
+            # Test 3: Handle relationship (will fail without Mycelium, but tests the endpoint)
             print("[4/5] Testing /handle endpoint...")
             test_payload = {
                 "relationshipId": "00000000-0000-0000-0000-000000000001",
@@ -106,17 +106,17 @@ async def test_is_handler_service():
                 )
 
                 if handle_response.status_code == 200:
-                    print(f"      ✓ Handle endpoint succeeded (unexpected, broker likely running)")
+                    print(f"      ✓ Handle endpoint succeeded (unexpected, Mycelium likely running)")
                     print(f"      Response: {handle_response.json()}")
                 elif handle_response.status_code in [503, 500, 404]:
-                    # Expected when broker is not running
+                    # Expected when Mycelium is not running
                     print(f"      ✓ Handle endpoint responded correctly ({handle_response.status_code})")
-                    print(f"      Note: This is expected without a running broker")
+                    print(f"      Note: This is expected without a running Mycelium")
                 else:
                     print(f"      ⚠ Unexpected status: {handle_response.status_code}")
                     print(f"      Response: {handle_response.text}")
             except Exception as e:
-                print(f"      ⚠ Handle endpoint error (expected without broker): {e}")
+                print(f"      ⚠ Handle endpoint error (expected without Mycelium): {e}")
             print()
 
             # Test 4: Graceful shutdown

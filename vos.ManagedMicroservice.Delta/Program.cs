@@ -17,7 +17,7 @@ if (cliArgs == null)
 }
 
 var servicePort = cliArgs.Port;
-var brokerUrl = cliArgs.BrokerUrl;
+var myceliumUrl = cliArgs.MyceliumUrl;
 var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
 
@@ -46,31 +46,31 @@ Log.Logger = loggerConfig.CreateLogger();
 
 try
 {
-    Log.Information("VillageOS Delta Service - Port: {Port}, Broker: {BrokerUrl}", servicePort, brokerUrl);
+    Log.Information("VillageOS Delta Service - Port: {Port}, Mycelium: {MyceliumUrl}", servicePort, myceliumUrl);
 
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    // Add JWT auth if broker provided a signing key. Bug #5391: use the
-    // issuer/audience the broker passes via CLI so validation matches what
-    // the broker signed.
+    // Add JWT auth if mycelium provided a signing key. Bug #5391: use the
+    // issuer/audience Mycelium passes via CLI so validation matches what
+    // Mycelium signed.
     var authEnabled = !string.IsNullOrEmpty(signingKey);
     if (authEnabled)
     {
-        builder.AddBrokerTokenAuth(
+        builder.AddMyceliumTokenAuth(
             signingKey!,
             issuer: cliArgs.Issuer ?? "VillageOS",
             audience: cliArgs.Audience ?? "VosClients");
-        Log.Information("JWT authentication enabled for incoming broker requests (issuer={Issuer}, audience={Audience})",
+        Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
             cliArgs.Issuer ?? "VillageOS", cliArgs.Audience ?? "VosClients");
     }
 
     builder.Services.AddSingleton(sp =>
-        new BrokerClient(
+        new MyceliumClient(
             sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<BrokerClient>>(),
-            brokerUrl,
+            sp.GetRequiredService<ILogger<MyceliumClient>>(),
+            myceliumUrl,
             serviceToken));
 
     builder.Services.AddSingleton<IEndpointSeedProvider, FileEndpointSeedProvider>();
@@ -87,15 +87,15 @@ try
         app.UseAuthorization();
     }
 
-    // Provision the endpoint-template catalog into the broker once at startup (Task #5468): every
+    // Provision the endpoint-template catalog into Mycelium once at startup (Task #5468): every
     // template thing is find-or-created and wired to its parent via `is`, so registrations never
     // create templates lazily. Gated on the built-app environment — skipped under
     // WebApplicationFactory<Program> tests, mirroring how Metabolism gates its SignalR/lifecycle
-    // work — so tests make no broker calls at boot.
+    // work — so tests make no mycelium calls at boot.
     if (!app.Environment.IsEnvironment("Testing"))
     {
         var provisioner = new TemplateCatalogProvisioner(
-            app.Services.GetRequiredService<BrokerClient>(),
+            app.Services.GetRequiredService<MyceliumClient>(),
             graph,
             app.Services.GetRequiredService<ILogger<TemplateCatalogProvisioner>>());
 
@@ -112,17 +112,17 @@ try
         }));
     }
 
-    // Endpoint-service entry point used by broker /api/endpoints/{subdomain}.
-    var handleEndpoint = app.MapPost("/handle", async (RegisterEndpointRequest request, BrokerClient brokerClient) =>
+    // Endpoint-service entry point used by mycelium /api/endpoints/{subdomain}.
+    var handleEndpoint = app.MapPost("/handle", async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
     {
-        return await HandleRegisterEndpointRequestAsync(request, brokerClient, graph);
+        return await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph);
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
     // Alias that uses the same registration logic.
-    var registerEndpoint = app.MapPost("/register", async (RegisterEndpointRequest request, BrokerClient brokerClient) =>
+    var registerEndpoint = app.MapPost("/register", async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
     {
-        return await HandleRegisterEndpointRequestAsync(request, brokerClient, graph);
+        return await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph);
     });
     if (authEnabled) registerEndpoint.RequireAuthorization();
 
@@ -151,17 +151,17 @@ finally
     Log.CloseAndFlush();
 }
 
-// Single-active-model assumption: this handler's broker writes (resolving the boot-provisioned
+// Single-active-model assumption: this handler's mycelium writes (resolving the boot-provisioned
 // template thing, creating the registered thing + its `is` relationship) target whichever model
-// Delta's --token is scoped to. The broker launches one shared endpoint daemon and does not yet
+// Delta's --token is scoped to. The mycelium launches one shared endpoint daemon and does not yet
 // propagate the caller's model on /handle, so true per-model routing is deferred — see
 // docs/FUTURE_ARCHITECTURE.md section 5 and Feature #5478.
 static async Task<IResult> HandleRegisterEndpointRequestAsync(
     RegisterEndpointRequest request,
-    BrokerClient brokerClient,
+    MyceliumClient myceliumClient,
     EndpointSeedGraph graph)
 {
-    BrokerClient.BrokerThing? registeredThing = null;
+    MyceliumClient.MyceliumThing? registeredThing = null;
     try
     {
         if (string.IsNullOrWhiteSpace(request.Name))
@@ -186,7 +186,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
 
         // Descent verification is a closed-set membership check — the graph is single-rooted and
         // acyclic, so a known template necessarily descends from the root; an unknown one does not.
-        // No broker round-trip.
+        // No mycelium round-trip.
         if (!graph.ContainsTemplate(templateName))
         {
             return Results.BadRequest(new
@@ -195,11 +195,11 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
             });
         }
 
-        var isPredicate = await brokerClient.FindThingByNameAsync("is");
+        var isPredicate = await myceliumClient.FindThingByNameAsync("is");
         if (isPredicate == null)
         {
             return Results.Problem(
-                detail: "Missing required 'is' predicate thing in broker model.",
+                detail: "Missing required 'is' predicate thing in mycelium model.",
                 statusCode: 500,
                 title: "Registration failed");
         }
@@ -250,17 +250,17 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         // nominated template thing is expected to already exist wired to its parent. Resolve it; its
         // absence is a provisioning failure, not something the handler repairs by creating it lazily.
         var templateSeed = graph.Templates[templateName];
-        var templateThing = await brokerClient.FindThingByNameAsync(templateSeed.Name);
+        var templateThing = await myceliumClient.FindThingByNameAsync(templateSeed.Name);
         if (templateThing == null)
         {
             return Results.Problem(
-                detail: $"Endpoint template '{templateSeed.Name}' is not provisioned in broker.",
+                detail: $"Endpoint template '{templateSeed.Name}' is not provisioned in mycelium.",
                 statusCode: 500,
                 title: "Registration failed");
         }
 
         // Create thing with name only - no own properties.
-        registeredThing = await brokerClient.CreateThingAsync(new RegisterEndpointRequest
+        registeredThing = await myceliumClient.CreateThingAsync(new RegisterEndpointRequest
         {
             Name = request.Name
         });
@@ -273,16 +273,16 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
                 title: "Registration failed");
         }
 
-        // Create 'is' relationship to the nominated template. The broker awaits the is-handler
+        // Create 'is' relationship to the nominated template. The mycelium awaits the is-handler
         // synchronously, so inherited properties are available before this call returns.
-        var relationshipCreated = await brokerClient.CreateRelationshipAsync(
+        var relationshipCreated = await myceliumClient.CreateRelationshipAsync(
             registeredThing.Value.Id,
             isPredicate.Value.Id,
             templateThing.Value.Id);
 
         if (!relationshipCreated)
         {
-            await CompensateAsync(brokerClient, registeredThing.Value.Id);
+            await CompensateAsync(myceliumClient, registeredThing.Value.Id);
             return Results.Problem(
                 detail: "Failed to create 'is' relationship for registered endpoint.",
                 statusCode: 500,
@@ -292,10 +292,10 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         // Set user-supplied values only; inherited values resolve via the is-chain and are not materialized.
         foreach (var (propName, propValue) in request.Properties)
         {
-            var set = await brokerClient.SetThingPropertyAsync(registeredThing.Value.Id, propName, propValue);
+            var set = await myceliumClient.SetThingPropertyAsync(registeredThing.Value.Id, propName, propValue);
             if (!set)
             {
-                await CompensateAsync(brokerClient, registeredThing.Value.Id);
+                await CompensateAsync(myceliumClient, registeredThing.Value.Id);
                 return Results.Problem(
                     detail: $"Failed to set property '{propName}' on registered endpoint.",
                     statusCode: 500,
@@ -315,7 +315,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
     catch (Exception ex)
     {
         if (registeredThing != null)
-            await CompensateAsync(brokerClient, registeredThing.Value.Id);
+            await CompensateAsync(myceliumClient, registeredThing.Value.Id);
 
         Log.Error(ex, "Error registering endpoint {Name}", request.Name);
         return Results.Problem(
@@ -325,10 +325,10 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
     }
 }
 
-static async Task CompensateAsync(BrokerClient brokerClient, Guid thingId)
+static async Task CompensateAsync(MyceliumClient myceliumClient, Guid thingId)
 {
     Log.Warning("Compensating: deleting orphaned thing {ThingId}", thingId);
-    var deleted = await brokerClient.DeleteThingAsync(thingId);
+    var deleted = await myceliumClient.DeleteThingAsync(thingId);
     if (!deleted)
         Log.Error("Compensation failed: could not delete orphaned thing {ThingId}", thingId);
 }
