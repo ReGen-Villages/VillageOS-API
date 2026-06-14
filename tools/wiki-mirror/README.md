@@ -1,7 +1,7 @@
 # wiki-mirror
 
 Converts a clone of the **Azure DevOps project wiki** into the content the
-**GitHub wiki** (`regenrob/VillageOS-API.wiki`) expects, rewriting every
+**GitHub wiki** (`ReGen-Villages/VillageOS-API.wiki`) expects, rewriting every
 DevOps-specific link to its GitHub target so visitors who land on GitHub stay on
 GitHub.
 
@@ -18,7 +18,7 @@ page:
 - **Flattens subfolders** — `Services/Delta.md` → `Delta.md`. The build fails on
   a name collision rather than silently overwriting.
 - **Rewrites internal links** — `[Delta](/Services/Delta)` →
-  `[Delta](https://github.com/regenrob/VillageOS-API/wiki/Delta)`.
+  `[Delta](https://github.com/ReGen-Villages/VillageOS-API/wiki/Delta)`.
 - **Rewrites DevOps repo links** — `…/_git/VillageOS-API?path=/docs/X.md` →
   `…/blob/main/docs/X.md`; bare relative `X.md` links → `…/blob/main/docs/X.md`.
 - **Rewrites the DevOps `_wiki` root** → the GitHub wiki root.

@@ -127,17 +127,17 @@ steps:
 # MIRROR TO GITHUB (develop and main only)
 # --------------------------------------------
 # Requires pipeline variable GITHUB_PAT (secret) — fine-grained PAT with
-# Contents:Read+Write on regenrob/VillageOS-API, or a classic token with repo scope.
+# Contents:Read+Write on ReGen-Villages/VillageOS-API, or a classic token with repo scope.
 # Set in Azure DevOps > Pipelines > Edit > Variables
 - bash: |
-    git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/regenrob/VillageOS-API.git" 2>/dev/null || true
+    git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.git" 2>/dev/null || true
 
     # Rewrite Azure DevOps wiki URLs → GitHub wiki URLs so the GitHub README
     # links to the GitHub wiki (the canonical README keeps DevOps links).
     sed -i'' \
-      -e 's|https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/[0-9]*/|https://github.com/regenrob/VillageOS-API/wiki/|g' \
+      -e 's|https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/[0-9]*/|https://github.com/ReGen-Villages/VillageOS-API/wiki/|g' \
       -e 's|\[VillageOS\](https://dev.azure.com/ReGenVillages/VillageOS)|VillageOS|g' \
-      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki)|[VillageOS API Wiki](https://github.com/regenrob/VillageOS-API/wiki)|g' \
+      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki)|[VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki)|g' \
       README.md
     git add README.md
     git -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
@@ -170,7 +170,7 @@ steps:
     SRC="$AGENT_TEMPDIRECTORY/devops-wiki"
     OUT="$AGENT_TEMPDIRECTORY/wiki-out"
     DEST="$AGENT_TEMPDIRECTORY/github-wiki"
-    WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/regenrob/VillageOS-API.wiki.git"
+    WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.wiki.git"
 
     # 1. Clone the canonical Azure DevOps project wiki (OAuth build token).
     #    Works because the wiki is declared as the `wiki` repository resource
