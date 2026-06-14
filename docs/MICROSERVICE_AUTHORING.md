@@ -10,7 +10,7 @@ This document is the language-agnostic contract. Working reference implementatio
 | Go | [`vos.ManagedMicroservice.Go`](../vos.ManagedMicroservice.Go) | standard library, zero deps | ✓ build + tests |
 | Node / TypeScript | [`vos.ManagedMicroservice.Node`](../vos.ManagedMicroservice.Node) | built-ins, zero runtime deps | ✓ typecheck + tests |
 | Python | [`vos.ManagedMicroservice.Python`](../vos.ManagedMicroservice.Python) | FastAPI | ✓ pytest |
-| Rust | [`vos.ManagedMicroservice.Rust`](../vos.ManagedMicroservice.Rust) | Axum | unit tests; compile in CI |
+| Rust | [`vos.ManagedMicroservice.Rust`](../vos.ManagedMicroservice.Rust) | Axum | ✓ build + tests + clippy |
 
 Each reference is an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Swap that for your predicate logic.
 
