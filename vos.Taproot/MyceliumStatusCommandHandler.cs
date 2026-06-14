@@ -2,17 +2,17 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-public class BrokerStatusCommandHandler
+public class MyceliumStatusCommandHandler
 {
     private readonly TextWriter _writer;
     private readonly string _arg;
-    private readonly BrokerClient _broker;
+    private readonly MyceliumClient _mycelium;
 
-    public BrokerStatusCommandHandler(string arg, TextWriter writer, BrokerClient broker)
+    public MyceliumStatusCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
     {
         _arg = arg;
         _writer = writer;
-        _broker = broker;
+        _mycelium = mycelium;
     }
 
     public async Task ExecuteAsync()
@@ -43,13 +43,13 @@ public class BrokerStatusCommandHandler
 
     private async Task ShowSeedStatusAsync()
     {
-        var status = await _broker.GetSeedStatusAsync();
+        var status = await _mycelium.GetSeedStatusAsync();
         _writer.WriteLine(JsonSerializer.Serialize(status, new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private async Task ListEndpointsAsync()
     {
-        var endpoints = await _broker.GetEndpointsAsync();
+        var endpoints = await _mycelium.GetEndpointsAsync();
         if (endpoints.ValueKind != JsonValueKind.Array || endpoints.GetArrayLength() == 0)
         {
             _writer.WriteLine("No endpoint services registered.");
@@ -68,7 +68,7 @@ public class BrokerStatusCommandHandler
     private void ShowUsage()
     {
         _writer.WriteLine("Usage:");
-        _writer.WriteLine("  broker status             - Show seed loading status");
-        _writer.WriteLine("  broker endpoints          - List registered endpoint services");
+        _writer.WriteLine("  mycelium status             - Show seed loading status");
+        _writer.WriteLine("  mycelium endpoints          - List registered endpoint services");
     }
 }

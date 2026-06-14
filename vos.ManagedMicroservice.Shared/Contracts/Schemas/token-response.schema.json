@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://villageos/contracts/token-response.schema.json",
   "title": "TokenResponse",
-  "description": "Response body of {broker}/api/auth/token. Shape derived from BrokerClientBase.GetTokenAsync.",
+  "description": "Response body of {broker}/api/auth/token. Shape derived from MyceliumClientBase.GetTokenAsync.",
   "type": "object",
   "additionalProperties": false,
   "required": ["token"],

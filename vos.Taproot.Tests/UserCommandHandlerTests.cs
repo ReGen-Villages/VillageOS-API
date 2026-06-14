@@ -5,19 +5,19 @@ namespace vos.Taproot.Tests;
 
 public class UserCommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
     private readonly StringWriter _writer;
 
     public UserCommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
         _writer = new StringWriter();
     }
 
     private async Task ExecuteHandler(string arg, TextReader? reader = null)
     {
         var r = reader ?? new StringReader("");
-        var handler = new UserCommandHandler(arg, r, _writer, _brokerMock.Object);
+        var handler = new UserCommandHandler(arg, r, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
@@ -65,11 +65,11 @@ public class UserCommandHandlerTests
     }
 
     [Fact]
-    public async Task ChangePassword_ValidGuid_PromptsAndDelegatesToBroker()
+    public async Task ChangePassword_ValidGuid_PromptsAndDelegatesToMycelium()
     {
         var userId = Guid.NewGuid();
         var reader = new StringReader("oldPassword\nnewPassword");
-        _brokerMock
+        _myceliumMock
             .Setup(b => b.ChangePasswordAsync(userId, "oldPassword", "newPassword"))
             .ReturnsAsync(System.Text.Json.JsonDocument.Parse("{}").RootElement);
 
@@ -79,15 +79,15 @@ public class UserCommandHandlerTests
         Assert.Contains("Current password:", output);
         Assert.Contains("New password:", output);
         Assert.Contains("Password changed.", output);
-        _brokerMock.Verify(b => b.ChangePasswordAsync(userId, "oldPassword", "newPassword"), Times.Once);
+        _myceliumMock.Verify(b => b.ChangePasswordAsync(userId, "oldPassword", "newPassword"), Times.Once);
     }
 
     [Fact]
-    public async Task ChangePassword_BrokerThrows_ErrorWritten()
+    public async Task ChangePassword_MyceliumThrows_ErrorWritten()
     {
         var userId = Guid.NewGuid();
         var reader = new StringReader("old\nnew");
-        _brokerMock
+        _myceliumMock
             .Setup(b => b.ChangePasswordAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>()))
             .ThrowsAsync(new HttpRequestException("rejected"));
 
@@ -103,7 +103,7 @@ public class UserCommandHandlerTests
     {
         var userId = Guid.NewGuid();
         var reader = new StringReader(""); // both ReadLine() return null → empty string per implementation
-        _brokerMock
+        _myceliumMock
             .Setup(b => b.ChangePasswordAsync(userId, "", ""))
             .ReturnsAsync(System.Text.Json.JsonDocument.Parse("{}").RootElement);
 

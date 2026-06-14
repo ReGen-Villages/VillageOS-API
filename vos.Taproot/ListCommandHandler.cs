@@ -6,23 +6,23 @@ namespace vos.Taproot
     {
         private readonly TextWriter _writer;
         private readonly string _arg;
-        private readonly BrokerClient _broker;
+        private readonly MyceliumClient _mycelium;
         private readonly NameResolver _resolver;
         private readonly OutputOptions _options;
 
-        public ListCommandHandler(string arg, TextWriter writer, BrokerClient broker)
-            : this(arg, writer, broker, OutputOptions.Default)
+        public ListCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : this(arg, writer, mycelium, OutputOptions.Default)
         {
         }
 
-        public ListCommandHandler(string arg, TextWriter writer, BrokerClient broker, OutputOptions options)
+        public ListCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions options)
         {
             var (parsedOptions, remainingArgs) = OutputOptions.ParseFromArgs(arg);
             _options = options.ShowGuids ? options : parsedOptions;
             _arg = remainingArgs;
             _writer = writer;
-            _broker = broker;
-            _resolver = new NameResolver(broker);
+            _mycelium = mycelium;
+            _resolver = new NameResolver(mycelium);
         }
 
         public async Task ExecuteAsync()
@@ -81,7 +81,7 @@ namespace vos.Taproot
 
         private async Task ListThingsAsync()
         {
-            var things = await _broker.GetAllThingsAsync();
+            var things = await _mycelium.GetAllThingsAsync();
 
             if (things.ValueKind != JsonValueKind.Array || things.GetArrayLength() == 0)
             {
@@ -166,7 +166,7 @@ namespace vos.Taproot
         {
             try
             {
-                var modelJson = await _broker.GetModelJsonAsync();
+                var modelJson = await _mycelium.GetModelJsonAsync();
                 var model = JsonDocument.Parse(modelJson).RootElement;
                 if (model.TryGetProperty("Name", out var nameProp))
                 {
@@ -183,7 +183,7 @@ namespace vos.Taproot
 
         private async Task ListRelationsAsync()
         {
-            var relationships = await _broker.GetAllRelationshipsAsync();
+            var relationships = await _mycelium.GetAllRelationshipsAsync();
 
             if (relationships.ValueKind != JsonValueKind.Array || relationships.GetArrayLength() == 0)
             {
@@ -246,7 +246,7 @@ namespace vos.Taproot
 
         private async Task ListPredicatesAsync()
         {
-            var relationships = await _broker.GetAllRelationshipsAsync();
+            var relationships = await _mycelium.GetAllRelationshipsAsync();
 
             if (relationships.ValueKind != JsonValueKind.Array || relationships.GetArrayLength() == 0)
             {
@@ -270,7 +270,7 @@ namespace vos.Taproot
 
         private async Task ListHandlersAsync()
         {
-            var things = await _broker.GetAllThingsAsync();
+            var things = await _mycelium.GetAllThingsAsync();
 
             if (things.ValueKind != JsonValueKind.Array)
             {
@@ -316,7 +316,7 @@ namespace vos.Taproot
 
         private async Task ListServicesAsync()
         {
-            var services = await _broker.GetAllServicesAsync();
+            var services = await _mycelium.GetAllServicesAsync();
 
             if (services.ValueKind != JsonValueKind.Array || services.GetArrayLength() == 0)
             {
@@ -335,7 +335,7 @@ namespace vos.Taproot
 
         private async Task ListDaemonsAsync()
         {
-            var daemons = await _broker.GetAllDaemonsAsync();
+            var daemons = await _mycelium.GetAllDaemonsAsync();
 
             if (daemons.ValueKind != JsonValueKind.Array || daemons.GetArrayLength() == 0)
             {
@@ -370,8 +370,8 @@ namespace vos.Taproot
 
         private async Task ListAgentsAsync()
         {
-            var services = await _broker.GetAllServicesAsync();
-            var daemons = await _broker.GetAllDaemonsAsync();
+            var services = await _mycelium.GetAllServicesAsync();
+            var daemons = await _mycelium.GetAllDaemonsAsync();
             var nameMap = await _resolver.GetGuidToNameMapAsync();
 
             var hasServices = services.ValueKind == JsonValueKind.Array && services.GetArrayLength() > 0;

@@ -2,7 +2,7 @@
   "profiles": {
     "vos.ManagedMicroservice.Delta": {
       "commandName": "Project",
-      "commandLineArgs": "--port=7247 --brokerUrl=https://localhost:7243",
+      "commandLineArgs": "--port=7247 --myceliumUrl=https://localhost:7243",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       },

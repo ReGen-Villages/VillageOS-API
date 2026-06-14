@@ -6,23 +6,23 @@ namespace vos.Taproot
     {
         private readonly TextWriter _writer;
         private readonly string _arg;
-        private readonly BrokerClient _broker;
+        private readonly MyceliumClient _mycelium;
         private readonly NameResolver _resolver;
         private readonly OutputOptions _options;
 
-        public GetCommandHandler(string arg, TextWriter writer, BrokerClient broker)
-            : this(arg, writer, broker, OutputOptions.Default)
+        public GetCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : this(arg, writer, mycelium, OutputOptions.Default)
         {
         }
 
-        public GetCommandHandler(string arg, TextWriter writer, BrokerClient broker, OutputOptions options)
+        public GetCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions options)
         {
             var (parsedOptions, remainingArgs) = OutputOptions.ParseFromArgs(arg);
             _options = options.ShowGuids ? options : parsedOptions;
             _arg = remainingArgs;
             _writer = writer;
-            _broker = broker;
-            _resolver = new NameResolver(broker);
+            _mycelium = mycelium;
+            _resolver = new NameResolver(mycelium);
         }
 
         public async Task ExecuteAsync()
@@ -79,7 +79,7 @@ namespace vos.Taproot
             }
             var id = result.Id;
 
-            var thing = await _broker.GetThingAsync(id);
+            var thing = await _mycelium.GetThingAsync(id);
             if (thing == null)
             {
                 var thingName = await _resolver.ResolveNameAsync(id);

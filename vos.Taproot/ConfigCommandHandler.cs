@@ -7,16 +7,16 @@ namespace vos.Taproot
     {
         private readonly TextWriter _writer;
         private readonly string _arg;
-        private readonly BrokerClient _broker;
+        private readonly MyceliumClient _mycelium;
         private readonly NameResolver _resolver;
         private readonly Dictionary<string, Func<string[], Task>> _commandHandlers;
 
-        public ConfigCommandHandler(string arg, TextWriter writer, BrokerClient broker)
+        public ConfigCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
         {
             _arg = arg ?? string.Empty;
             _writer = writer;
-            _broker = broker;
-            _resolver = new NameResolver(broker);
+            _mycelium = mycelium;
+            _resolver = new NameResolver(mycelium);
             _commandHandlers = new Dictionary<string, Func<string[], Task>>(StringComparer.OrdinalIgnoreCase)
             {
                 ["mode"] = HandlePropertyModeAsync,
@@ -74,7 +74,7 @@ namespace vos.Taproot
 
         private async Task ShowCurrentModeConfigAsync()
         {
-            var result = await _broker.GetDefaultPropertyModeAsync();
+            var result = await _mycelium.GetDefaultPropertyModeAsync();
             _writer.WriteLine("Property Mode Configuration:");
             _writer.WriteLine($"  Default Mode:     {GetStringProperty(result, "DefaultMode")}");
             _writer.WriteLine($"  Ring Buffer Size: {GetIntProperty(result, "RingBufferSize")}");
@@ -128,7 +128,7 @@ namespace vos.Taproot
 
         private async Task ShowDefaultModeAsync()
         {
-            var result = await _broker.GetDefaultPropertyModeAsync();
+            var result = await _mycelium.GetDefaultPropertyModeAsync();
             _writer.WriteLine($"Default property mode: {GetStringProperty(result, "DefaultMode")}");
         }
 
@@ -141,7 +141,7 @@ namespace vos.Taproot
                 return;
             }
 
-            var result = await _broker.GetPropertyModeAsync(resolveResult.Id, propertyName);
+            var result = await _mycelium.GetPropertyModeAsync(resolveResult.Id, propertyName);
             WritePropertyModeDetails(propertyName, result);
         }
 
@@ -191,7 +191,7 @@ namespace vos.Taproot
                 return;
             }
 
-            var result = await _broker.SetPropertyModeAsync(resolveResult.Id, propertyName, mode, ringBufferSize, sampleRate);
+            var result = await _mycelium.SetPropertyModeAsync(resolveResult.Id, propertyName, mode, ringBufferSize, sampleRate);
             _writer.WriteLine($"Set property '{propertyName}' mode to {GetStringProperty(result, "Mode")}");
         }
 
@@ -220,7 +220,7 @@ namespace vos.Taproot
 
         private async Task SetDefaultModeInternalAsync(string mode, int? ringBufferSize, int? sampleRate)
         {
-            var result = await _broker.SetDefaultPropertyModeAsync(mode, ringBufferSize, sampleRate);
+            var result = await _mycelium.SetDefaultPropertyModeAsync(mode, ringBufferSize, sampleRate);
             _writer.WriteLine($"Default property mode set to: {GetStringProperty(result, "DefaultMode")}");
             _writer.WriteLine($"  Ring Buffer Size: {GetIntProperty(result, "RingBufferSize")}");
             _writer.WriteLine($"  Sample Rate: {GetIntProperty(result, "SampleRate")}");

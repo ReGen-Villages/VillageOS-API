@@ -11,7 +11,7 @@ public class SchemaValidatorTests
 
     public static IEnumerable<object[]> PositiveFixtures() => new[]
     {
-        new object[] { "broker-register-request",                "https://villageos/contracts/broker-register-request.schema.json",                "valid" },
+        new object[] { "mycelium-register-request",                "https://villageos/contracts/mycelium-register-request.schema.json",                "valid" },
         new object[] { "token-response",                          "https://villageos/contracts/token-response.schema.json",                         "valid" },
         new object[] { "handle-request-metabolism",              "https://villageos/contracts/handle-request-metabolism.schema.json",              "valid" },
         new object[] { "handle-request-metabolism",              "https://villageos/contracts/handle-request-metabolism.schema.json",              "valid-minimal" },
@@ -22,9 +22,9 @@ public class SchemaValidatorTests
 
     public static IEnumerable<object[]> NegativeFixtures() => new[]
     {
-        new object[] { "broker-register-request",                "https://villageos/contracts/broker-register-request.schema.json",                "invalid-missing-required",   "Required" },
-        new object[] { "broker-register-request",                "https://villageos/contracts/broker-register-request.schema.json",                "invalid-unknown-property",   "AdditionalProperties" },
-        new object[] { "broker-register-request",                "https://villageos/contracts/broker-register-request.schema.json",                "invalid-wrong-type",         "Format" },
+        new object[] { "mycelium-register-request",                "https://villageos/contracts/mycelium-register-request.schema.json",                "invalid-missing-required",   "Required" },
+        new object[] { "mycelium-register-request",                "https://villageos/contracts/mycelium-register-request.schema.json",                "invalid-unknown-property",   "AdditionalProperties" },
+        new object[] { "mycelium-register-request",                "https://villageos/contracts/mycelium-register-request.schema.json",                "invalid-wrong-type",         "Format" },
         new object[] { "token-response",                          "https://villageos/contracts/token-response.schema.json",                         "invalid-missing-required",   "Required" },
         new object[] { "token-response",                          "https://villageos/contracts/token-response.schema.json",                         "invalid-unknown-property",   "AdditionalProperties" },
         new object[] { "handle-request-metabolism",              "https://villageos/contracts/handle-request-metabolism.schema.json",              "invalid-missing-required",   "Required" },

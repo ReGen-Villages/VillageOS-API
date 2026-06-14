@@ -14,7 +14,7 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// still returns 500).
 ///
 /// Pins the contract: <c>deleteAttempted.Should().BeTrue()</c> is the real assertion.
-/// A regression that silently skips compensation would leak orphans in the broker model.
+/// A regression that silently skips compensation would leak orphans in Mycelium model.
 /// </summary>
 public class CompensateAsyncTests
 {

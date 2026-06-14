@@ -6,23 +6,23 @@ namespace vos.Taproot
     {
         private readonly TextWriter _writer;
         private readonly string _arg;
-        private readonly BrokerClient _broker;
+        private readonly MyceliumClient _mycelium;
         private readonly NameResolver _resolver;
         private readonly OutputOptions _options;
 
-        public CreateCommandHandler(string arg, TextWriter writer, BrokerClient broker)
-            : this(arg, writer, broker, OutputOptions.Default)
+        public CreateCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : this(arg, writer, mycelium, OutputOptions.Default)
         {
         }
 
-        public CreateCommandHandler(string arg, TextWriter writer, BrokerClient broker, OutputOptions options)
+        public CreateCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions options)
         {
             var (parsedOptions, remainingArgs) = OutputOptions.ParseFromArgs(arg);
             _options = options.ShowGuids ? options : parsedOptions;
             _arg = remainingArgs;
             _writer = writer;
-            _broker = broker;
-            _resolver = new NameResolver(broker);
+            _mycelium = mycelium;
+            _resolver = new NameResolver(mycelium);
         }
 
         public async Task ExecuteAsync()
@@ -72,7 +72,7 @@ namespace vos.Taproot
                 return;
             }
 
-            var result = await _broker.CreateThingAsync(tok[0]);
+            var result = await _mycelium.CreateThingAsync(tok[0]);
             var id = result.TryGetProperty("Id", out var idProp) ? idProp.GetString() : "unknown";
             var name = result.TryGetProperty("Name", out var nameProp) ? nameProp.GetString() : "unknown";
 
@@ -100,7 +100,7 @@ namespace vos.Taproot
             var type = tok[2];
             var value = tok[3];
 
-            await _broker.SetPropertyAsync(thingId, name, type, value);
+            await _mycelium.SetPropertyAsync(thingId, name, type, value);
 
             // Resolve thing name for display
             var thingName = await _resolver.ResolveNameAsync(thingId);
@@ -141,7 +141,7 @@ namespace vos.Taproot
             var predicateId = results[1].Id;
             var targetId = results[2].Id;
 
-            var result = await _broker.CreateRelationshipAsync(subjectId, predicateId, targetId);
+            var result = await _mycelium.CreateRelationshipAsync(subjectId, predicateId, targetId);
             var id = result.TryGetProperty("Id", out var idProp) ? idProp.GetString() : "unknown";
 
             // Resolve names for display
@@ -171,7 +171,7 @@ namespace vos.Taproot
                 return;
             }
 
-            await _broker.SetRelationshipPropertyAsync(relId, tok[1], tok[2], tok[3]);
+            await _mycelium.SetRelationshipPropertyAsync(relId, tok[1], tok[2], tok[3]);
             _writer.WriteLine($"Added property '{tok[1]}' to relationship {relId}");
         }
 

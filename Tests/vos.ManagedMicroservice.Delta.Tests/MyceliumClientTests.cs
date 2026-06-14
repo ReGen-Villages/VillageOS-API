@@ -11,7 +11,7 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests;
 
-public class BrokerClientTests
+public class MyceliumClientTests
 {
     // ---------- FindThingByNameAsync ----------
 
@@ -125,7 +125,7 @@ public class BrokerClientTests
     // ---------- CreateThingAsync ----------
 
     [Fact]
-    public async Task CreateThingAsync_WhenBrokerReturnsThing_ReturnsParsedThing()
+    public async Task CreateThingAsync_WhenMyceliumReturnsThing_ReturnsParsedThing()
     {
         var thingId = Guid.NewGuid();
         var handler = new MockHttpMessageHandler(request =>
@@ -228,7 +228,7 @@ public class BrokerClientTests
     }
 
     [Fact]
-    public async Task SetThingPropertyAsync_WhenBrokerReturnsBadRequest_ReturnsFalse()
+    public async Task SetThingPropertyAsync_WhenMyceliumReturnsBadRequest_ReturnsFalse()
     {
         var thingId = Guid.NewGuid();
         var handler = new MockHttpMessageHandler(request =>
@@ -252,7 +252,7 @@ public class BrokerClientTests
         (await CreateClient(handler).SetThingPropertyAsync(Guid.NewGuid(), "p", "v")).Should().BeFalse();
     }
 
-    // ResolveBrokerValue arms via SetThingPropertyAsync body capture (camelCase per PutAsJsonAsync's Web policy).
+    // ResolveMyceliumValue arms via SetThingPropertyAsync body capture (camelCase per PutAsJsonAsync's Web policy).
 
     [Theory]
     [InlineData("a string value", "System.String", "\"a string value\"")]
@@ -309,7 +309,7 @@ public class BrokerClientTests
     // ---------- CreateRelationshipAsync ----------
 
     [Fact]
-    public async Task CreateRelationshipAsync_WhenBrokerReturnsCreated_ReturnsTrue()
+    public async Task CreateRelationshipAsync_WhenMyceliumReturnsCreated_ReturnsTrue()
     {
         var handler = new MockHttpMessageHandler(request =>
         {
@@ -348,13 +348,13 @@ public class BrokerClientTests
 
     // ---------- Helpers ----------
 
-    private static BrokerClient CreateClient(HttpMessageHandler handler)
+    private static MyceliumClient CreateClient(HttpMessageHandler handler)
     {
-        // PerCallFactory because BrokerClientBase.CreateAuthenticatedClientAsync mutates
+        // PerCallFactory because MyceliumClientBase.CreateAuthenticatedClientAsync mutates
         // client.Timeout on every call; reusing one HttpClient throws after the first request.
         var factory = new PerCallFactory(handler);
-        var logger = Substitute.For<ILogger<BrokerClient>>();
-        return new BrokerClient(factory, logger, "http://localhost", "test-token");
+        var logger = Substitute.For<ILogger<MyceliumClient>>();
+        return new MyceliumClient(factory, logger, "http://localhost", "test-token");
     }
 
     private sealed class PerCallFactory : IHttpClientFactory

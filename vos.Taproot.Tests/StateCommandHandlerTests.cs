@@ -6,25 +6,25 @@ namespace vos.Taproot.Tests;
 
 public class StateCommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
     private readonly StringWriter _writer;
 
     public StateCommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
         _writer = new StringWriter();
     }
 
     private async Task ExecuteHandler(string arg)
     {
-        var handler = new StateCommandHandler(arg, _writer, _brokerMock.Object);
+        var handler = new StateCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
     private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
     [Fact]
-    public async Task Execute_NoBroker_ShowsHelp()
+    public async Task Execute_NoMycelium_ShowsHelp()
     {
         var handler = new StateCommandHandler("get foo", _writer, client: null);
         await handler.ExecuteAsync();
@@ -54,10 +54,10 @@ public class StateCommandHandlerTests
     public async Task Get_ByGuid_ResolvesAndPrintsStates()
     {
         var thingId = Guid.NewGuid();
-        // NameResolver delegates to broker.GetThingAsync for GUID lookups
-        _brokerMock.Setup(b => b.GetThingAsync(thingId))
+        // NameResolver delegates to mycelium.GetThingAsync for GUID lookups
+        _myceliumMock.Setup(b => b.GetThingAsync(thingId))
             .ReturnsAsync(Parse($"{{\"Id\":\"{thingId}\",\"Name\":\"alice\"}}"));
-        _brokerMock.Setup(b => b.GetStatesAsync(thingId))
+        _myceliumMock.Setup(b => b.GetStatesAsync(thingId))
             .ReturnsAsync(Parse("[\"warm\",\"dry\"]"));
 
         await ExecuteHandler($"get {thingId}");
@@ -71,9 +71,9 @@ public class StateCommandHandlerTests
     public async Task Get_ByName_ResolvesViaGetAllThingsAsync()
     {
         var thingId = Guid.NewGuid();
-        _brokerMock.Setup(b => b.GetAllThingsAsync())
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
             .ReturnsAsync(Parse($"[{{\"Id\":\"{thingId}\",\"Name\":\"alice\"}}]"));
-        _brokerMock.Setup(b => b.GetStatesAsync(thingId)).ReturnsAsync(Parse("[\"awake\"]"));
+        _myceliumMock.Setup(b => b.GetStatesAsync(thingId)).ReturnsAsync(Parse("[\"awake\"]"));
 
         await ExecuteHandler("get alice");
 
@@ -81,15 +81,15 @@ public class StateCommandHandlerTests
     }
 
     [Fact]
-    public async Task Get_ResolveFails_PrintsErrorAndDoesNotCallBroker()
+    public async Task Get_ResolveFails_PrintsErrorAndDoesNotCallMycelium()
     {
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse("[]"));
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(Parse("[]"));
 
         await ExecuteHandler("get nonexistent");
 
         var output = _writer.ToString();
         Assert.DoesNotContain("Error:", output); // error path goes through resolveResult.ErrorMessage, not exception
-        _brokerMock.Verify(b => b.GetStatesAsync(It.IsAny<Guid>()), Times.Never);
+        _myceliumMock.Verify(b => b.GetStatesAsync(It.IsAny<Guid>()), Times.Never);
     }
 
     [Fact]
@@ -101,10 +101,10 @@ public class StateCommandHandlerTests
     }
 
     [Fact]
-    public async Task Query_DelegatesToBroker_PrintsResults()
+    public async Task Query_DelegatesToMycelium_PrintsResults()
     {
         var thingId = Guid.NewGuid();
-        _brokerMock.Setup(b => b.GetThingsInStateAsync("warm"))
+        _myceliumMock.Setup(b => b.GetThingsInStateAsync("warm"))
             .ReturnsAsync(Parse($"[{{\"Id\":\"{thingId}\"}}]"));
 
         await ExecuteHandler("query warm");
@@ -113,14 +113,14 @@ public class StateCommandHandlerTests
     }
 
     [Fact]
-    public async Task Find_AliasForQuery_DelegatesToBroker()
+    public async Task Find_AliasForQuery_DelegatesToMycelium()
     {
-        _brokerMock.Setup(b => b.GetThingsInStateAsync("cold"))
+        _myceliumMock.Setup(b => b.GetThingsInStateAsync("cold"))
             .ReturnsAsync(Parse("[]"));
 
         await ExecuteHandler("find cold");
 
-        _brokerMock.Verify(b => b.GetThingsInStateAsync("cold"), Times.Once);
+        _myceliumMock.Verify(b => b.GetThingsInStateAsync("cold"), Times.Once);
     }
 
     [Fact]
@@ -129,19 +129,19 @@ public class StateCommandHandlerTests
         // The default branch in ExecuteSubcommandAsync re-routes the unknown subcommand
         // as the first argument to HandleGetAsync (e.g. "state alice" → state get alice).
         var thingId = Guid.NewGuid();
-        _brokerMock.Setup(b => b.GetAllThingsAsync())
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
             .ReturnsAsync(Parse($"[{{\"Id\":\"{thingId}\",\"Name\":\"alice\"}}]"));
-        _brokerMock.Setup(b => b.GetStatesAsync(thingId)).ReturnsAsync(Parse("[]"));
+        _myceliumMock.Setup(b => b.GetStatesAsync(thingId)).ReturnsAsync(Parse("[]"));
 
         await ExecuteHandler("alice");
 
-        _brokerMock.Verify(b => b.GetStatesAsync(thingId), Times.Once);
+        _myceliumMock.Verify(b => b.GetStatesAsync(thingId), Times.Once);
     }
 
     [Fact]
-    public async Task BrokerThrows_ErrorWritten()
+    public async Task MyceliumThrows_ErrorWritten()
     {
-        _brokerMock.Setup(b => b.GetThingsInStateAsync(It.IsAny<string>()))
+        _myceliumMock.Setup(b => b.GetThingsInStateAsync(It.IsAny<string>()))
             .ThrowsAsync(new HttpRequestException("offline"));
 
         await ExecuteHandler("query warm");

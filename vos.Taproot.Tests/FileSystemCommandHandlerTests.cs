@@ -5,18 +5,18 @@ namespace vos.Taproot.Tests;
 
 public class FileSystemCommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
     private readonly StringWriter _writer;
 
     public FileSystemCommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
         _writer = new StringWriter();
     }
 
     private async Task ExecuteHandler(string cmd, string arg)
     {
-        var handler = new FileSystemCommandHandler(cmd, arg, _writer, _brokerMock.Object);
+        var handler = new FileSystemCommandHandler(cmd, arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
@@ -67,20 +67,20 @@ public class FileSystemCommandHandlerTests
     [Fact]
     public async Task Serialize_NoPath_OutputsToWriter()
     {
-        _brokerMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"things\": []}");
+        _myceliumMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"things\": []}");
 
         await ExecuteHandler("serialize", "");
 
         var output = _writer.ToString();
         Assert.Contains("{\"things\": []}", output);
-        _brokerMock.Verify(b => b.GetModelJsonAsync(), Times.Once);
+        _myceliumMock.Verify(b => b.GetModelJsonAsync(), Times.Once);
     }
 
     [Fact]
     public async Task Serialize_WithPath_WritesToFile()
     {
         var tempFile = Path.GetTempFileName();
-        _brokerMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"test\": true}");
+        _myceliumMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"test\": true}");
 
         try
         {
@@ -122,13 +122,13 @@ public class FileSystemCommandHandlerTests
         var jsonContent = "{\"things\": []}";
 
         File.WriteAllText(tempFile, jsonContent);
-        _brokerMock.Setup(b => b.SetModelAsync(jsonContent)).ReturnsAsync("OK");
+        _myceliumMock.Setup(b => b.SetModelAsync(jsonContent)).ReturnsAsync("OK");
 
         try
         {
             await ExecuteHandler("deserialize", tempFile);
 
-            _brokerMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
+            _myceliumMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
             Assert.Contains("Model loaded from", _writer.ToString());
         }
         finally
@@ -139,9 +139,9 @@ public class FileSystemCommandHandlerTests
     }
 
     [Fact]
-    public async Task Serialize_BrokerError_ShowsError()
+    public async Task Serialize_MyceliumError_ShowsError()
     {
-        _brokerMock.Setup(b => b.GetModelJsonAsync()).ThrowsAsync(new HttpRequestException("Connection failed"));
+        _myceliumMock.Setup(b => b.GetModelJsonAsync()).ThrowsAsync(new HttpRequestException("Connection failed"));
 
         await ExecuteHandler("serialize", "");
 
@@ -149,13 +149,13 @@ public class FileSystemCommandHandlerTests
     }
 
     [Fact]
-    public async Task Deserialize_BrokerError_ShowsError()
+    public async Task Deserialize_MyceliumError_ShowsError()
     {
         var tempFile = Path.GetTempFileName();
         var jsonContent = "{\"things\": []}";
 
         File.WriteAllText(tempFile, jsonContent);
-        _brokerMock.Setup(b => b.SetModelAsync(It.IsAny<string>())).ThrowsAsync(new HttpRequestException("Connection failed"));
+        _myceliumMock.Setup(b => b.SetModelAsync(It.IsAny<string>())).ThrowsAsync(new HttpRequestException("Connection failed"));
 
         try
         {
@@ -180,7 +180,7 @@ public class FileSystemCommandHandlerTests
         var jsonContent = "{\"things\": []}";
 
         File.WriteAllText(tempFile, jsonContent);
-        _brokerMock.Setup(b => b.SetModelAsync(jsonContent)).ReturnsAsync("OK");
+        _myceliumMock.Setup(b => b.SetModelAsync(jsonContent)).ReturnsAsync("OK");
 
         try
         {
@@ -188,7 +188,7 @@ public class FileSystemCommandHandlerTests
             await ExecuteHandler("deserialize", Path.Combine(tempDir, baseName));
 
             // Assert - Should find the file with .json appended
-            _brokerMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
+            _myceliumMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
             Assert.Contains("Model loaded from", _writer.ToString());
             Assert.Contains(".json", _writer.ToString());
         }
@@ -210,7 +210,7 @@ public class FileSystemCommandHandlerTests
         // Rename to .json extension
         File.Move(tempFile, jsonFile);
         File.WriteAllText(jsonFile, jsonContent);
-        _brokerMock.Setup(b => b.SetModelAsync(jsonContent)).ReturnsAsync("OK");
+        _myceliumMock.Setup(b => b.SetModelAsync(jsonContent)).ReturnsAsync("OK");
 
         try
         {
@@ -218,7 +218,7 @@ public class FileSystemCommandHandlerTests
             await ExecuteHandler("deserialize", jsonFile);
 
             // Assert - Should not look for .json.json
-            _brokerMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
+            _myceliumMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
             Assert.DoesNotContain(".json.json", _writer.ToString());
         }
         finally
@@ -236,7 +236,7 @@ public class FileSystemCommandHandlerTests
         var baseName = $"test_model_{Guid.NewGuid():N}";
         var expectedFile = Path.Combine(tempDir, baseName + ".json");
 
-        _brokerMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"test\": true}");
+        _myceliumMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"test\": true}");
 
         try
         {
@@ -264,7 +264,7 @@ public class FileSystemCommandHandlerTests
         var fileName = $"test_model_{Guid.NewGuid():N}.json";
         var tempFile = Path.Combine(tempDir, fileName);
 
-        _brokerMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"test\": true}");
+        _myceliumMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"test\": true}");
 
         try
         {
@@ -292,7 +292,7 @@ public class FileSystemCommandHandlerTests
 
         File.Move(tempFile, txtFile);
         File.WriteAllText(txtFile, jsonContent);
-        _brokerMock.Setup(b => b.SetModelAsync(jsonContent)).ReturnsAsync("OK");
+        _myceliumMock.Setup(b => b.SetModelAsync(jsonContent)).ReturnsAsync("OK");
 
         try
         {
@@ -300,7 +300,7 @@ public class FileSystemCommandHandlerTests
             await ExecuteHandler("deserialize", txtFile);
 
             // Assert - Should load the .txt file without adding .json
-            _brokerMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
+            _myceliumMock.Verify(b => b.SetModelAsync(jsonContent), Times.Once);
         }
         finally
         {

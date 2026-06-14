@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Pause, Play, PanelRightClose, Search, X } from 'lucide-react';
-import type { ActivityEvent } from '../../types/broker';
+import type { ActivityEvent } from '../../types/mycelium';
 import { formatTimestamp } from '../../utils/formatters';
 
 const typeColors: Record<string, string> = {

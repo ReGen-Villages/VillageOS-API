@@ -4,23 +4,23 @@ namespace vos.Taproot
     {
         private readonly TextWriter _writer;
         private readonly string _arg;
-        private readonly BrokerClient _broker;
+        private readonly MyceliumClient _mycelium;
         private readonly NameResolver _resolver;
         private readonly OutputOptions _options;
 
-        public StopCommandHandler(string arg, TextWriter writer, BrokerClient broker)
-            : this(arg, writer, broker, OutputOptions.Default)
+        public StopCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : this(arg, writer, mycelium, OutputOptions.Default)
         {
         }
 
-        public StopCommandHandler(string arg, TextWriter writer, BrokerClient broker, OutputOptions options)
+        public StopCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions options)
         {
             var (parsedOptions, remainingArgs) = OutputOptions.ParseFromArgs(arg);
             _options = options.ShowGuids ? options : parsedOptions;
             _arg = remainingArgs;
             _writer = writer;
-            _broker = broker;
-            _resolver = new NameResolver(broker);
+            _mycelium = mycelium;
+            _resolver = new NameResolver(mycelium);
         }
 
         public async Task ExecuteAsync()
@@ -90,7 +90,7 @@ namespace vos.Taproot
 
             var display = _options.FormatIdentifier(handlerName, handlerId);
 
-            if (await _broker.StopServiceAsync(handlerId))
+            if (await _mycelium.StopServiceAsync(handlerId))
             {
                 _writer.WriteLine($"Stop request sent to service {display}");
             }
@@ -111,7 +111,7 @@ namespace vos.Taproot
 
             var daemonKey = tok[0];
 
-            if (await _broker.StopDaemonAsync(daemonKey))
+            if (await _mycelium.StopDaemonAsync(daemonKey))
             {
                 _writer.WriteLine($"Daemon '{daemonKey}' stopped");
             }

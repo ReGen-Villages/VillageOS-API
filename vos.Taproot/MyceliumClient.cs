@@ -9,22 +9,22 @@ using System.Text.Json;
 namespace vos.Taproot;
 
 /// <summary>
-/// HTTP client for communicating with the VillageOS Broker.
+/// HTTP client for communicating with the VillageOS Mycelium.
 /// </summary>
-public class BrokerClient
+public class MyceliumClient
 {
     private readonly HttpClient _httpClient;
-    private readonly string _brokerUrl;
+    private readonly string _myceliumUrl;
     private readonly string? _apiKey;
     private readonly Func<DateTime> _clock;
     private string? _cachedToken;
     private DateTime _tokenExpiry;
 
-    public BrokerClient(string brokerUrl) : this(brokerUrl, null) { }
+    public MyceliumClient(string myceliumUrl) : this(myceliumUrl, null) { }
 
-    public BrokerClient(string brokerUrl, string? apiKey)
+    public MyceliumClient(string myceliumUrl, string? apiKey)
     {
-        _brokerUrl = brokerUrl.TrimEnd('/');
+        _myceliumUrl = myceliumUrl.TrimEnd('/');
         _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
         _clock = () => DateTime.UtcNow;
 
@@ -42,16 +42,16 @@ public class BrokerClient
     // Test seam. Production callers use the public constructors above; tests
     // inject an HttpClient backed by a MockHttpMessageHandler (and optionally
     // a virtual clock to exercise the token-cache expiry branch).
-    internal BrokerClient(string brokerUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null)
+    internal MyceliumClient(string myceliumUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null)
     {
-        _brokerUrl = brokerUrl.TrimEnd('/');
+        _myceliumUrl = myceliumUrl.TrimEnd('/');
         _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
         _httpClient = httpClient;
         _clock = clock ?? (() => DateTime.UtcNow);
     }
 
     /// <summary>
-    /// Gets a JWT token from the broker for authentication.
+    /// Gets a JWT token from Mycelium for authentication.
     /// Exchanges an API key for a short-lived JWT via X-API-Key header.
     /// </summary>
     public virtual async Task<string> GetTokenAsync()
@@ -68,7 +68,7 @@ public class BrokerClient
                 "No API key configured. Set VOS_API_KEY environment variable or pass --api-key flag.");
         }
 
-        var request = new HttpRequestMessage(HttpMethod.Post, $"{_brokerUrl}/api/auth/token");
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{_myceliumUrl}/api/auth/token");
         request.Headers.Add("X-API-Key", _apiKey);
 
         var response = await _httpClient.SendAsync(request);
@@ -106,7 +106,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetAllThingsAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/things");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -114,7 +114,7 @@ public class BrokerClient
     public virtual async Task<JsonElement?> GetThingAsync(Guid id)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/things/{id}");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{id}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
         response.EnsureSuccessStatusCode();
@@ -128,7 +128,7 @@ public class BrokerClient
             JsonSerializer.Serialize(new { Name = name }),
             Encoding.UTF8,
             "application/json");
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/things", content);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/things", content);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -136,7 +136,7 @@ public class BrokerClient
     public virtual async Task<bool> DeleteThingAsync(Guid id)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.DeleteAsync($"{_brokerUrl}/api/things/{id}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{id}");
         return response.IsSuccessStatusCode;
     }
 
@@ -147,7 +147,7 @@ public class BrokerClient
             JsonSerializer.Serialize(new { Name = name, Type = type, Value = value }),
             Encoding.UTF8,
             "application/json");
-        var response = await _httpClient.PutAsync($"{_brokerUrl}/api/things/{thingId}/properties", content);
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/things/{thingId}/properties", content);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -155,7 +155,7 @@ public class BrokerClient
     public virtual async Task<bool> DeletePropertyAsync(Guid thingId, string propertyName)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.DeleteAsync($"{_brokerUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}");
         return response.IsSuccessStatusCode;
     }
 
@@ -164,7 +164,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetAllRelationshipsAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/relationships");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/relationships");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -172,7 +172,7 @@ public class BrokerClient
     public virtual async Task<JsonElement?> GetRelationshipAsync(Guid id)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/relationships/{id}");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/relationships/{id}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
         response.EnsureSuccessStatusCode();
@@ -186,7 +186,7 @@ public class BrokerClient
             JsonSerializer.Serialize(new { SubjectId = subjectId, PredicateId = predicateId, TargetId = targetId }),
             Encoding.UTF8,
             "application/json");
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/relationships", content);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/relationships", content);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -194,7 +194,7 @@ public class BrokerClient
     public virtual async Task<bool> DeleteRelationshipAsync(Guid id)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.DeleteAsync($"{_brokerUrl}/api/relationships/{id}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/relationships/{id}");
         return response.IsSuccessStatusCode;
     }
 
@@ -204,7 +204,7 @@ public class BrokerClient
         var content = new StringContent(
             JsonSerializer.Serialize(new { Name = name, Type = type, Value = value }),
             Encoding.UTF8, "application/json");
-        var response = await _httpClient.PutAsync($"{_brokerUrl}/api/relationships/{relId}/properties", content);
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/relationships/{relId}/properties", content);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -212,7 +212,7 @@ public class BrokerClient
     public virtual async Task<bool> DeleteRelationshipPropertyAsync(Guid relId, string propertyName)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.DeleteAsync($"{_brokerUrl}/api/relationships/{relId}/properties/{Uri.EscapeDataString(propertyName)}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/relationships/{relId}/properties/{Uri.EscapeDataString(propertyName)}");
         return response.IsSuccessStatusCode;
     }
 
@@ -221,29 +221,29 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetAllServicesAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/broker/services");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/services");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    public virtual async Task<bool> ShutdownBrokerAsync()
+    public virtual async Task<bool> ShutdownMyceliumAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/broker/shutdown", null);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/shutdown", null);
         return response.IsSuccessStatusCode;
     }
 
     public virtual async Task<bool> StopServiceAsync(Guid handlerId)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/broker/services/{handlerId}/stop", null);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/services/{handlerId}/stop", null);
         return response.IsSuccessStatusCode;
     }
 
     public virtual async Task<bool> StartServiceAsync(Guid handlerId)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/broker/services/{handlerId}/start", null);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/services/{handlerId}/start", null);
         return response.IsSuccessStatusCode;
     }
 
@@ -252,7 +252,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetAllDaemonsAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/broker/daemons");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/daemons");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -260,7 +260,7 @@ public class BrokerClient
     public virtual async Task<bool> StopDaemonAsync(string daemonKey)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/broker/daemons/{Uri.EscapeDataString(daemonKey)}/stop", null);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/daemons/{Uri.EscapeDataString(daemonKey)}/stop", null);
         return response.IsSuccessStatusCode;
     }
 
@@ -269,7 +269,7 @@ public class BrokerClient
     public virtual async Task<string> GetModelJsonAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/model");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/model");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();
     }
@@ -278,7 +278,7 @@ public class BrokerClient
     {
         await SetAuthHeaderAsync();
         var content = new StringContent(modelJson, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/model", content);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model", content);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();
     }
@@ -286,7 +286,7 @@ public class BrokerClient
     public virtual async Task ClearModelAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.DeleteAsync($"{_brokerUrl}/api/model");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/model");
         response.EnsureSuccessStatusCode();
     }
 
@@ -295,7 +295,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetSeedStatusAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/broker/seed-status");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/seed-status");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -303,7 +303,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> ListLibrarySeedsAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/broker/library-seeds");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/library-seeds");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -311,7 +311,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> LoadLibrarySeedAsync(string name)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/broker/library-seeds/{Uri.EscapeDataString(name)}/load", null);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{Uri.EscapeDataString(name)}/load", null);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -319,7 +319,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> SaveLibrarySeedAsync(string name)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.PutAsync($"{_brokerUrl}/api/broker/library-seeds/{Uri.EscapeDataString(name)}", null);
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/mycelium/library-seeds/{Uri.EscapeDataString(name)}", null);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -327,7 +327,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> ReloadSeedsAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/broker/seeds/reload", null);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/seeds/reload", null);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -337,7 +337,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetEndpointsAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/endpoints");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/endpoints");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -347,7 +347,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> ListModelsAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/models");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/models");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -358,7 +358,7 @@ public class BrokerClient
         var content = new StringContent(
             JsonSerializer.Serialize(new { ModelId = modelId }),
             Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/auth/switch-model", content);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/auth/switch-model", content);
         response.EnsureSuccessStatusCode();
         _cachedToken = null;
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -376,7 +376,7 @@ public class BrokerClient
         var content = new StringContent(
             JsonSerializer.Serialize(new { CurrentPassword = currentPassword, NewPassword = newPassword }),
             Encoding.UTF8, "application/json");
-        var response = await _httpClient.PutAsync($"{_brokerUrl}/api/auth/users/{userId}/password", content);
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/auth/users/{userId}/password", content);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -386,7 +386,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetDefaultPropertyModeAsync()
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/config/property-mode");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/config/property-mode");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -402,7 +402,7 @@ public class BrokerClient
             JsonSerializer.Serialize(payload),
             Encoding.UTF8,
             "application/json");
-        var response = await _httpClient.PutAsync($"{_brokerUrl}/api/config/property-mode", content);
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/config/property-mode", content);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -410,7 +410,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetPropertyModeAsync(Guid thingId, string propertyName)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/mode");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/mode");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -426,7 +426,7 @@ public class BrokerClient
             JsonSerializer.Serialize(payload),
             Encoding.UTF8,
             "application/json");
-        var response = await _httpClient.PutAsync($"{_brokerUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/mode", content);
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/mode", content);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -439,7 +439,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetModelAtTimeAsync(DateTime? timestamp = null)
     {
         await SetAuthHeaderAsync();
-        var url = $"{_brokerUrl}/api/model";
+        var url = $"{_myceliumUrl}/api/model";
         if (timestamp.HasValue)
         {
             url += $"?timestamp={timestamp.Value:O}";
@@ -455,7 +455,7 @@ public class BrokerClient
     public virtual async Task<JsonElement?> GetThingAtTimeAsync(Guid id, DateTime? timestamp = null)
     {
         await SetAuthHeaderAsync();
-        var url = $"{_brokerUrl}/api/things/{id}";
+        var url = $"{_myceliumUrl}/api/things/{id}";
         if (timestamp.HasValue)
         {
             url += $"?timestamp={timestamp.Value:O}";
@@ -477,7 +477,7 @@ public class BrokerClient
         DateTime? endTime = null)
     {
         await SetAuthHeaderAsync();
-        var url = $"{_brokerUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/versions{BuildTimeRangeQuery(startTime, endTime)}";
+        var url = $"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/versions{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -492,7 +492,7 @@ public class BrokerClient
         DateTime? endTime = null)
     {
         await SetAuthHeaderAsync();
-        var url = $"{_brokerUrl}/api/things/{thingId}/mutations{BuildTimeRangeQuery(startTime, endTime)}";
+        var url = $"{_myceliumUrl}/api/things/{thingId}/mutations{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -506,7 +506,7 @@ public class BrokerClient
         DateTime? endTime = null)
     {
         await SetAuthHeaderAsync();
-        var url = $"{_brokerUrl}/api/mutations{BuildTimeRangeQuery(startTime, endTime)}";
+        var url = $"{_myceliumUrl}/api/mutations{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -521,7 +521,7 @@ public class BrokerClient
         DateTime? endTime = null)
     {
         await SetAuthHeaderAsync();
-        var url = $"{_brokerUrl}/api/relationships/{relationshipId}/mutations{BuildTimeRangeQuery(startTime, endTime)}";
+        var url = $"{_myceliumUrl}/api/relationships/{relationshipId}/mutations{BuildTimeRangeQuery(startTime, endTime)}";
         var response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -548,7 +548,7 @@ public class BrokerClient
             JsonSerializer.Serialize(payload),
             Encoding.UTF8,
             "application/json");
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/things/{thingId}/ranges", content);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/things/{thingId}/ranges", content);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -559,7 +559,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetRangesAsync(Guid thingId)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/things/{thingId}/ranges");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/ranges");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -570,7 +570,7 @@ public class BrokerClient
     public virtual async Task<JsonElement?> GetRangeAsync(Guid thingId, string rangeName)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/things/{thingId}/ranges/{Uri.EscapeDataString(rangeName)}");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{Uri.EscapeDataString(rangeName)}");
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
         response.EnsureSuccessStatusCode();
@@ -583,7 +583,7 @@ public class BrokerClient
     public virtual async Task<bool> DeleteRangeAsync(Guid thingId, string rangeName)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.DeleteAsync($"{_brokerUrl}/api/things/{thingId}/ranges/{Uri.EscapeDataString(rangeName)}");
+        var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/things/{thingId}/ranges/{Uri.EscapeDataString(rangeName)}");
         return response.IsSuccessStatusCode;
     }
 
@@ -593,7 +593,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetStatesAsync(Guid thingId)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/things/{thingId}/states");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/{thingId}/states");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -609,7 +609,7 @@ public class BrokerClient
             JsonSerializer.Serialize(payload),
             Encoding.UTF8,
             "application/json");
-        var response = await _httpClient.PostAsync($"{_brokerUrl}/api/ranges/validate", content);
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/ranges/validate", content);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
@@ -620,7 +620,7 @@ public class BrokerClient
     public virtual async Task<JsonElement> GetThingsInStateAsync(string stateName)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_brokerUrl}/api/states/{Uri.EscapeDataString(stateName)}/things");
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/states/{Uri.EscapeDataString(stateName)}/things");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }

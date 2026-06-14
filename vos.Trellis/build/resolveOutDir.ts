@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 /**
  * Pick where the production build emits assets. Resolution order:
  *
- *   1. `VOS_BROKER_WWWROOT` env var — explicit override always wins
+ *   1. `VOS_MYCELIUM_WWWROOT` env var — explicit override always wins
  *   2. Smart default: if a sibling `VillageOS/vos.Mycelium/wwwroot/` directory
  *      exists relative to the GUI repo, use it. This is the dominant local-
  *      dev setup (Bug #5332 — silently emitting to `dist/` was sending
@@ -16,12 +16,12 @@ import { resolve } from 'node:path';
 export function resolveOutDir(opts: {
   /** Absolute path of the vos.Trellis directory (typically `__dirname` from vite.config.ts). */
   guiRoot: string;
-  /** Override for testing. Defaults to process.env.VOS_BROKER_WWWROOT. */
+  /** Override for testing. Defaults to process.env.VOS_MYCELIUM_WWWROOT. */
   envOverride?: string;
   /** Override for testing. Defaults to filesystem `existsSync`. */
   pathExists?: (p: string) => boolean;
 }): string {
-  const envOverride = opts.envOverride ?? process.env.VOS_BROKER_WWWROOT;
+  const envOverride = opts.envOverride ?? process.env.VOS_MYCELIUM_WWWROOT;
   if (envOverride) return envOverride;
 
   // Sibling layout assumed: <repos>/VillageOS-API/vos.Trellis + <repos>/VillageOS/vos.Mycelium

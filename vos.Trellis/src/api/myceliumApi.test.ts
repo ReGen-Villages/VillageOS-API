@@ -8,7 +8,7 @@ vi.mock('./client', () => ({
   },
 }));
 
-import { brokerApi } from './brokerApi';
+import { myceliumApi } from './myceliumApi';
 import { apiClient } from './client';
 
 const mockGet = vi.mocked(apiClient.get);
@@ -19,51 +19,51 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('brokerApi.getServices', () => {
+describe('myceliumApi.getServices', () => {
   it('gets from correct URL', async () => {
     mockGet.mockResolvedValue([]);
-    await brokerApi.getServices();
-    expect(mockGet).toHaveBeenCalledWith('/api/broker/services');
+    await myceliumApi.getServices();
+    expect(mockGet).toHaveBeenCalledWith('/api/mycelium/services');
   });
 });
 
-describe('brokerApi.startService', () => {
+describe('myceliumApi.startService', () => {
   it('posts to correct URL', async () => {
     mockPost.mockResolvedValue({ message: 'ok' });
-    await brokerApi.startService('svc-1');
-    expect(mockPost).toHaveBeenCalledWith('/api/broker/services/svc-1/start');
+    await myceliumApi.startService('svc-1');
+    expect(mockPost).toHaveBeenCalledWith('/api/mycelium/services/svc-1/start');
   });
 });
 
-describe('brokerApi.stopService', () => {
+describe('myceliumApi.stopService', () => {
   it('posts to correct URL', async () => {
     mockPost.mockResolvedValue({ message: 'ok' });
-    await brokerApi.stopService('svc-1');
-    expect(mockPost).toHaveBeenCalledWith('/api/broker/services/svc-1/stop');
+    await myceliumApi.stopService('svc-1');
+    expect(mockPost).toHaveBeenCalledWith('/api/mycelium/services/svc-1/stop');
   });
 });
 
-describe('brokerApi.reloadSeeds', () => {
+describe('myceliumApi.reloadSeeds', () => {
   it('posts to correct URL', async () => {
     mockPost.mockResolvedValue({ message: 'Seeds reloaded' });
-    const result = await brokerApi.reloadSeeds();
-    expect(mockPost).toHaveBeenCalledWith('/api/broker/seeds/reload');
+    const result = await myceliumApi.reloadSeeds();
+    expect(mockPost).toHaveBeenCalledWith('/api/mycelium/seeds/reload');
     expect(result.message).toBe('Seeds reloaded');
   });
 });
 
-describe('brokerApi.saveSeed', () => {
+describe('myceliumApi.saveSeed', () => {
   it('encodes seed name', async () => {
     mockPut.mockResolvedValue({ message: 'ok', name: 'my seed', sizeMb: 1.5 });
-    await brokerApi.saveSeed('my seed');
-    expect(mockPut).toHaveBeenCalledWith('/api/broker/library-seeds/my%20seed', {});
+    await myceliumApi.saveSeed('my seed');
+    expect(mockPut).toHaveBeenCalledWith('/api/mycelium/library-seeds/my%20seed', {});
   });
 });
 
-describe('brokerApi.shutdown', () => {
+describe('myceliumApi.shutdown', () => {
   it('posts shutdown', async () => {
     mockPost.mockResolvedValue({ message: 'Shutting down' });
-    await brokerApi.shutdown();
-    expect(mockPost).toHaveBeenCalledWith('/api/broker/shutdown');
+    await myceliumApi.shutdown();
+    expect(mockPost).toHaveBeenCalledWith('/api/mycelium/shutdown');
   });
 });

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ActivityEvent } from '../types/broker';
+import type { ActivityEvent } from '../types/mycelium';
 
 const MAX_EVENTS = 200;
 

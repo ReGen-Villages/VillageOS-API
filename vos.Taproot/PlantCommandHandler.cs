@@ -10,18 +10,18 @@ public class PlantCommandHandler
 {
     private readonly TextWriter _writer;
     private readonly string _arg;
-    private readonly BrokerClient _broker;
+    private readonly MyceliumClient _mycelium;
 
     private static readonly HashSet<string> ValidModes = new(StringComparer.OrdinalIgnoreCase)
     {
         "currentonly", "ringbuffer", "sampled", "fullhistory"
     };
 
-    public PlantCommandHandler(string arg, TextWriter writer, BrokerClient broker)
+    public PlantCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
     {
         _arg = arg ?? string.Empty;
         _writer = writer;
-        _broker = broker;
+        _mycelium = mycelium;
     }
 
     public async Task ExecuteAsync()
@@ -58,7 +58,7 @@ public class PlantCommandHandler
 
         // Load the seed file
         var modelJson = await File.ReadAllTextAsync(filePath);
-        await _broker.SetModelAsync(modelJson);
+        await _mycelium.SetModelAsync(modelJson);
         _writer.WriteLine($"Model loaded from {filePath}");
 
         // If no mode specified, we're done
@@ -73,7 +73,7 @@ public class PlantCommandHandler
     {
         _writer.WriteLine($"Setting all properties to {mode} mode...");
 
-        var things = await _broker.GetAllThingsAsync();
+        var things = await _mycelium.GetAllThingsAsync();
         var propertyCount = 0;
         var thingCount = 0;
 
@@ -93,7 +93,7 @@ public class PlantCommandHandler
                 {
                     try
                     {
-                        await _broker.SetPropertyModeAsync(thingId, prop.Name, mode, ringBufferSize, sampleRate);
+                        await _mycelium.SetPropertyModeAsync(thingId, prop.Name, mode, ringBufferSize, sampleRate);
                         propertyCount++;
                         thingPropertyCount++;
                     }

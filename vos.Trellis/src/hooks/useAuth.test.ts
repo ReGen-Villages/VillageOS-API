@@ -31,8 +31,8 @@ vi.mock('../api/client', () => ({
 }));
 
 const mockGetSeedStatus = vi.fn();
-vi.mock('../api/brokerApi', () => ({
-  brokerApi: {
+vi.mock('../api/myceliumApi', () => ({
+  myceliumApi: {
     getSeedStatus: () => mockGetSeedStatus(),
     getLibrarySeeds: vi.fn().mockResolvedValue([]),
     loadSeed: vi.fn(),
@@ -68,7 +68,7 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
   });
 
   it('surfaces an actionable error when no seed has ever loaded', async () => {
-    // Broker rejects login because no models are loaded
+    // Mycelium rejects login because no models are loaded
     mockLogin.mockRejectedValue(noModelsError());
     // SeedLoadingStatus default: IsLoading=false, Phase="" (never started)
     mockGetSeedStatus.mockResolvedValue({

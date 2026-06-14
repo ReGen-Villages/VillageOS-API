@@ -1,4 +1,4 @@
-import type { EndpointServiceInfo } from '../../types/broker';
+import type { EndpointServiceInfo } from '../../types/mycelium';
 import { formatMs, formatRelativeTime } from '../../utils/formatters';
 import { Globe } from 'lucide-react';
 

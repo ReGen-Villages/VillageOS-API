@@ -6,18 +6,18 @@ namespace vos.Taproot.Tests;
 
 public class ConfigCommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
     private readonly StringWriter _writer;
 
     public ConfigCommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
         _writer = new StringWriter();
     }
 
     private async Task ExecuteHandler(string arg)
     {
-        var handler = new ConfigCommandHandler(arg, _writer, _brokerMock.Object);
+        var handler = new ConfigCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
@@ -57,7 +57,7 @@ public class ConfigCommandHandlerTests
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""DefaultMode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
-        _brokerMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
+        _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode");
 
@@ -70,7 +70,7 @@ public class ConfigCommandHandlerTests
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""DefaultMode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
-        _brokerMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
+        _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("property-mode");
 
@@ -83,7 +83,7 @@ public class ConfigCommandHandlerTests
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""DefaultMode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
-        _brokerMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
+        _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("MODE");
 
@@ -98,7 +98,7 @@ public class ConfigCommandHandlerTests
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""DefaultMode"":""RingBuffer"",""RingBufferSize"":200,""SampleRate"":50}");
-        _brokerMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
+        _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode");
 
@@ -114,7 +114,7 @@ public class ConfigCommandHandlerTests
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""DefaultMode"":""FullHistory"",""RingBufferSize"":100,""SampleRate"":100}");
-        _brokerMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
+        _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode get");
 
@@ -140,8 +140,8 @@ public class ConfigCommandHandlerTests
         var propMode = JsonSerializer.Deserialize<JsonElement>(
             @"{""Mode"":""RingBuffer"",""RingBufferCapacity"":100,""RingBufferCount"":5}");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _brokerMock.Setup(b => b.GetPropertyModeAsync(thingId, "Status")).ReturnsAsync(propMode);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetPropertyModeAsync(thingId, "Status")).ReturnsAsync(propMode);
 
         await ExecuteHandler("mode get MyThing Status");
 
@@ -156,7 +156,7 @@ public class ConfigCommandHandlerTests
     public async Task Mode_GetWithInvalidThing_ShowsError()
     {
         var emptyThings = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
 
         await ExecuteHandler("mode get NonExistent Status");
 
@@ -181,7 +181,7 @@ public class ConfigCommandHandlerTests
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""DefaultMode"":""Sampled"",""RingBufferSize"":100,""SampleRate"":50}");
-        _brokerMock.Setup(b => b.SetDefaultPropertyModeAsync("Sampled", null, null)).ReturnsAsync(modeConfig);
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("Sampled", null, null)).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode set Sampled");
 
@@ -197,7 +197,7 @@ public class ConfigCommandHandlerTests
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
             @"{""DefaultMode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
         // The mode name gets lowercased in HandlePropertyModeAsync before being passed to SetDefaultModeAsync
-        _brokerMock.Setup(b => b.SetDefaultPropertyModeAsync("currentonly", null, null)).ReturnsAsync(modeConfig);
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("currentonly", null, null)).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode CurrentOnly");
 
@@ -220,7 +220,7 @@ public class ConfigCommandHandlerTests
     [Fact]
     public async Task Execute_WhenExceptionThrown_ShowsError()
     {
-        _brokerMock.Setup(b => b.GetDefaultPropertyModeAsync())
+        _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync())
             .ThrowsAsync(new HttpRequestException("Connection refused"));
 
         await ExecuteHandler("mode");
@@ -235,22 +235,22 @@ public class ConfigCommandHandlerTests
     [Fact]
     public async Task Execute_DefaultModeRingBufferWithSize_ParsesNamedArg()
     {
-        _brokerMock.Setup(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null))
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null))
             .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
 
         await ExecuteHandler("mode ringbuffer --ringbuffer=50");
 
-        _brokerMock.Verify(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null), Times.Once);
+        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("ringbuffer", 50, null), Times.Once);
     }
 
     [Fact]
     public async Task Execute_DefaultModeSampledWithRate_ParsesNamedArg()
     {
-        _brokerMock.Setup(b => b.SetDefaultPropertyModeAsync("sampled", null, 100))
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("sampled", null, 100))
             .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
 
         await ExecuteHandler("mode sampled --samplerate=100");
 
-        _brokerMock.Verify(b => b.SetDefaultPropertyModeAsync("sampled", null, 100), Times.Once);
+        _myceliumMock.Verify(b => b.SetDefaultPropertyModeAsync("sampled", null, 100), Times.Once);
     }
 }

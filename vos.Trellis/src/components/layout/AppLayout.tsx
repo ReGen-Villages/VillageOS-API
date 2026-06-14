@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar';
 import { ToastContainer } from '../common/Toast';
 import { useSignalR } from '../../hooks/useSignalR';
 import { useActivityStore } from '../../stores/activityStore';
-import type { ActivityEvent } from '../../types/broker';
+import type { ActivityEvent } from '../../types/mycelium';
 
 export function AppLayout() {
   const { on } = useSignalR();

@@ -1,4 +1,4 @@
-// Broker service and daemon types — mirrors Broker PascalCase JSON
+// Mycelium service and daemon types — mirrors Mycelium PascalCase JSON
 
 export interface ServiceStats {
   RequestsForwarded: number;

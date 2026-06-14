@@ -1,4 +1,4 @@
-import type { DaemonInfo } from '../../types/broker';
+import type { DaemonInfo } from '../../types/mycelium';
 import { Badge } from '../common/Badge';
 import { formatRelativeTime } from '../../utils/formatters';
 import { Square } from 'lucide-react';

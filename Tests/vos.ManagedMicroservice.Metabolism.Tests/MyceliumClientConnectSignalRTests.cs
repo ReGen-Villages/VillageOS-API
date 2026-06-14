@@ -15,7 +15,7 @@ namespace vos.ManagedMicroservice.Metabolism.Tests;
 /// <c>DelayAsync</c> seam (a protected virtual on the class under test, so it can't be mocked)
 /// lets the retry cadence be asserted without real sleeps.
 /// </summary>
-public class BrokerClientConnectSignalRTests
+public class MyceliumClientConnectSignalRTests
 {
     private static readonly int[] ExpectedBackoff = { 0, 1000, 2000, 5000, 10000 };
 
@@ -121,7 +121,7 @@ public class BrokerClientConnectSignalRTests
     public async Task ConnectSignalRAsync_Reconnected_LogsNewConnectionIdWithoutThrowing()
     {
         var (factory, hub) = NewFactoryWithHub();
-        var logger = new RecordingLogger<BrokerClient>();
+        var logger = new RecordingLogger<MyceliumClient>();
         var client = NewClient(factory, TokenAlwaysOkMock(), logger);
         await client.ConnectSignalRAsync();
 
@@ -153,22 +153,22 @@ public class BrokerClientConnectSignalRTests
         return (factory, hub);
     }
 
-    private static RecordingBrokerClient NewClient(
-        Mock<IHubConnectionFactory> factory, MockHttpMessageHandler mock, ILogger<BrokerClient>? logger = null)
+    private static RecordingMyceliumClient NewClient(
+        Mock<IHubConnectionFactory> factory, MockHttpMessageHandler mock, ILogger<MyceliumClient>? logger = null)
     {
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>()))
-            .Returns(() => new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-broker") });
-        return new RecordingBrokerClient(
+            .Returns(() => new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-mycelium") });
+        return new RecordingMyceliumClient(
             httpFactory.Object,
-            logger ?? Mock.Of<ILogger<BrokerClient>>(),
-            "http://test-broker", "consumes", factory.Object);
+            logger ?? Mock.Of<ILogger<MyceliumClient>>(),
+            "http://test-mycelium", "consumes", factory.Object);
     }
 
-    /// <summary>BrokerClient with a synchronous, recording <c>DelayAsync</c> so retry timing is observable and instant.</summary>
-    private sealed class RecordingBrokerClient : BrokerClient
+    /// <summary>MyceliumClient with a synchronous, recording <c>DelayAsync</c> so retry timing is observable and instant.</summary>
+    private sealed class RecordingMyceliumClient : MyceliumClient
     {
-        public RecordingBrokerClient(IHttpClientFactory http, ILogger<BrokerClient> log, string url, string mode, IHubConnectionFactory factory)
+        public RecordingMyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string url, string mode, IHubConnectionFactory factory)
             : base(http, log, url, mode, serviceToken: null, hubFactory: factory) { }
 
         public List<int> RecordedDelays { get; } = new();

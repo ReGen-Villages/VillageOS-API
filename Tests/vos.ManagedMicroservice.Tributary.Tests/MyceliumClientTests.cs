@@ -10,12 +10,12 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Tributary.Tests;
 
-public class BrokerClientTests
+public class MyceliumClientTests
 {
     // ---------- FindThingByNameAsync ----------
 
     [Fact]
-    public async Task FindThingByNameAsync_WhenBrokerReturnsThing_ReturnsParsedThing()
+    public async Task FindThingByNameAsync_WhenMyceliumReturnsThing_ReturnsParsedThing()
     {
         var thingId = Guid.NewGuid();
         var handler = new MockHttpMessageHandler(request =>
@@ -109,7 +109,7 @@ public class BrokerClientTests
     // ---------- GetEffectivePropertiesAsync ----------
 
     [Fact]
-    public async Task GetEffectivePropertiesAsync_WhenBrokerReturnsValueEnvelope_ExtractsValues()
+    public async Task GetEffectivePropertiesAsync_WhenMyceliumReturnsValueEnvelope_ExtractsValues()
     {
         var thingId = Guid.NewGuid();
         var handler = new MockHttpMessageHandler(request =>
@@ -185,7 +185,7 @@ public class BrokerClientTests
     // ---------- SetThingPropertyAsync ----------
 
     [Fact]
-    public async Task SetThingPropertyAsync_WhenBrokerReturnsSuccess_ReturnsTrue()
+    public async Task SetThingPropertyAsync_WhenMyceliumReturnsSuccess_ReturnsTrue()
     {
         var thingId = Guid.NewGuid();
         var handler = new MockHttpMessageHandler(request =>
@@ -223,8 +223,8 @@ public class BrokerClientTests
         (await sut.SetThingPropertyAsync(Guid.NewGuid(), "p", "v")).Should().BeFalse();
     }
 
-    // ---------- SetThingPropertyAsync via ResolveBrokerValue arms ----------
-    // ResolveBrokerValue is private. SetThingPropertyAsync calls it on the value passed in
+    // ---------- SetThingPropertyAsync via ResolveMyceliumValue arms ----------
+    // ResolveMyceliumValue is private. SetThingPropertyAsync calls it on the value passed in
     // and serializes (resolved, type) into the PUT body. Each test asserts the body shape
     // to pin the corresponding switch arm.
 
@@ -528,13 +528,13 @@ public class BrokerClientTests
 
     // ---------- Helpers ----------
 
-    private static BrokerClient CreateClient(HttpMessageHandler handler)
+    private static MyceliumClient CreateClient(HttpMessageHandler handler)
     {
-        // Fresh HttpClient per CreateClient call so BrokerClientBase.CreateAuthenticatedClientAsync
+        // Fresh HttpClient per CreateClient call so MyceliumClientBase.CreateAuthenticatedClientAsync
         // can set client.Timeout without tripping the "already started" guard on a reused client.
         var factory = new PerCallFactory(handler);
-        var logger = Substitute.For<ILogger<BrokerClient>>();
-        return new BrokerClient(factory, logger, "http://localhost", "test-token");
+        var logger = Substitute.For<ILogger<MyceliumClient>>();
+        return new MyceliumClient(factory, logger, "http://localhost", "test-token");
     }
 
     private sealed class PerCallFactory : IHttpClientFactory

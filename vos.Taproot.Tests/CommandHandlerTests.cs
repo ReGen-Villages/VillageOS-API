@@ -6,17 +6,17 @@ namespace vos.Taproot.Tests;
 
 public class CommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
-    private const string BrokerUrl = "https://localhost:7243";
+    private readonly Mock<MyceliumClient> _myceliumMock;
+    private const string MyceliumUrl = "https://localhost:7243";
 
     public CommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>(BrokerUrl) { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>(MyceliumUrl) { CallBase = false };
     }
 
     private CommandHandler CreateHandler(StringReader reader, StringWriter writer, bool interactiveMode = false)
     {
-        return new CommandHandler(reader, writer, _brokerMock.Object, BrokerUrl, interactiveMode);
+        return new CommandHandler(reader, writer, _myceliumMock.Object, MyceliumUrl, interactiveMode);
     }
 
     [Fact]
@@ -67,11 +67,11 @@ public class CommandHandlerTests
         var handler = CreateHandler(reader, writer);
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($@"{{""id"":""{thingId}"",""name"":""TestThing""}}");
-        _brokerMock.Setup(b => b.CreateThingAsync("TestThing")).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.CreateThingAsync("TestThing")).ReturnsAsync(json);
 
         await handler.HandleCommandAsync("create", "thing TestThing");
 
-        _brokerMock.Verify(b => b.CreateThingAsync("TestThing"), Times.Once);
+        _myceliumMock.Verify(b => b.CreateThingAsync("TestThing"), Times.Once);
     }
 
     [Fact]
@@ -81,11 +81,11 @@ public class CommandHandlerTests
         var writer = new StringWriter();
         var handler = CreateHandler(reader, writer);
         var thingsArray = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
 
         await handler.HandleCommandAsync("list", "things");
 
-        _brokerMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
     }
 
     [Fact]
@@ -95,11 +95,11 @@ public class CommandHandlerTests
         var writer = new StringWriter();
         var handler = CreateHandler(reader, writer);
         var thingId = Guid.NewGuid();
-        _brokerMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(true);
 
         await handler.HandleCommandAsync("delete", $"thing {thingId}");
 
-        _brokerMock.Verify(b => b.DeleteThingAsync(thingId), Times.Once);
+        _myceliumMock.Verify(b => b.DeleteThingAsync(thingId), Times.Once);
     }
 
     [Fact]
@@ -110,11 +110,11 @@ public class CommandHandlerTests
         var handler = CreateHandler(reader, writer);
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{thingId}"",""Name"":""TestThing""}}");
-        _brokerMock.Setup(b => b.GetThingAsync(thingId)).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetThingAsync(thingId)).ReturnsAsync(json);
 
         await handler.HandleCommandAsync("get", $"thing {thingId}");
 
-        _brokerMock.Verify(b => b.GetThingAsync(thingId), Times.Once);
+        _myceliumMock.Verify(b => b.GetThingAsync(thingId), Times.Once);
     }
 
     [Fact]
@@ -124,11 +124,11 @@ public class CommandHandlerTests
         var writer = new StringWriter();
         var handler = CreateHandler(reader, writer);
         var thingsArray = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
 
         await handler.HandleCommandAsync("find", "thing Test");
 
-        _brokerMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
     }
 
     [Fact]
@@ -165,13 +165,13 @@ public class CommandHandlerTests
         var writer = new StringWriter();
         var handler = CreateHandler(reader, writer);
         var modelJson = @"{""things"":[],""relationships"":[]}";
-        _brokerMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync(modelJson);
+        _myceliumMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync(modelJson);
 
         // Seed with no file should output JSON to console (same as serialize)
         await handler.HandleCommandAsync("seed", "");
 
         var output = writer.ToString();
-        _brokerMock.Verify(b => b.GetModelJsonAsync(), Times.Once);
+        _myceliumMock.Verify(b => b.GetModelJsonAsync(), Times.Once);
     }
 
     [Fact]
@@ -179,14 +179,14 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("exit\n");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
         var handler = CreateHandler(reader, writer);
 
         await handler.RunAsync();
 
         var output = writer.ToString();
         Assert.Contains("VillageOS CLI", output);
-        Assert.Contains("Connected to broker", output);
+        Assert.Contains("Connected to Mycelium", output);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("help\nexit\n");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
         var handler = CreateHandler(reader, writer);
 
         await handler.RunAsync();
@@ -208,7 +208,7 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("\n\nexit\n");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
         var handler = CreateHandler(reader, writer);
 
         await handler.RunAsync();
@@ -222,8 +222,8 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("create thing TestThing\nexit\n");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
-        _brokerMock.Setup(b => b.CreateThingAsync(It.IsAny<string>())).ThrowsAsync(new InvalidOperationException("Test error"));
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.CreateThingAsync(It.IsAny<string>())).ThrowsAsync(new InvalidOperationException("Test error"));
         var handler = CreateHandler(reader, writer);
 
         await handler.RunAsync();
@@ -233,18 +233,18 @@ public class CommandHandlerTests
     }
 
     [Fact]
-    public async Task RunAsync_BrokerConnectionFailure_ShowsWarning()
+    public async Task RunAsync_MyceliumConnectionFailure_ShowsWarning()
     {
         var reader = new StringReader("exit\n");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.GetTokenAsync()).ThrowsAsync(new HttpRequestException("Connection refused"));
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ThrowsAsync(new HttpRequestException("Connection refused"));
         var handler = CreateHandler(reader, writer);
 
         await handler.RunAsync();
 
         var output = writer.ToString();
         Assert.Contains("Warning:", output);
-        Assert.Contains("Could not connect to broker", output);
+        Assert.Contains("Could not connect to Mycelium", output);
     }
 
     [Theory]
@@ -254,11 +254,11 @@ public class CommandHandlerTests
     {
         var reader = new StringReader($"{input}\nexit\n");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($@"{{""id"":""{thingId}"",""name"":""Test""}}");
-        _brokerMock.Setup(b => b.CreateThingAsync(It.IsAny<string>())).ReturnsAsync(json);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>("[]"));
+        _myceliumMock.Setup(b => b.CreateThingAsync(It.IsAny<string>())).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>("[]"));
         var handler = CreateHandler(reader, writer);
 
         await handler.RunAsync();
@@ -270,17 +270,17 @@ public class CommandHandlerTests
     #region Shutdown and Clear Model Tests
 
     [Fact]
-    public async Task HandleCommandAsync_Shutdown_CallsBrokerShutdown()
+    public async Task HandleCommandAsync_Shutdown_CallsMyceliumShutdown()
     {
         var reader = new StringReader("");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.ShutdownBrokerAsync()).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).ReturnsAsync(true);
         var handler = CreateHandler(reader, writer);
 
         await handler.HandleCommandAsync("shutdown", null);
 
-        _brokerMock.Verify(b => b.ShutdownBrokerAsync(), Times.Once);
-        Assert.Contains("Broker shutdown initiated", writer.ToString());
+        _myceliumMock.Verify(b => b.ShutdownMyceliumAsync(), Times.Once);
+        Assert.Contains("Mycelium shutdown initiated", writer.ToString());
     }
 
     [Fact]
@@ -288,12 +288,12 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.ShutdownBrokerAsync()).ReturnsAsync(false);
+        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).ReturnsAsync(false);
         var handler = CreateHandler(reader, writer);
 
         await handler.HandleCommandAsync("shutdown", null);
 
-        Assert.Contains("Failed to initiate broker shutdown", writer.ToString());
+        Assert.Contains("Failed to initiate Mycelium shutdown", writer.ToString());
     }
 
     [Fact]
@@ -301,12 +301,12 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.ShutdownBrokerAsync()).ThrowsAsync(new HttpRequestException("Connection closed"));
+        _myceliumMock.Setup(b => b.ShutdownMyceliumAsync()).ThrowsAsync(new HttpRequestException("Connection closed"));
         var handler = CreateHandler(reader, writer);
 
         await handler.HandleCommandAsync("shutdown", null);
 
-        Assert.Contains("Broker shutdown initiated (connection closed)", writer.ToString());
+        Assert.Contains("Mycelium shutdown initiated (connection closed)", writer.ToString());
     }
 
     [Fact]
@@ -314,12 +314,12 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.ClearModelAsync()).Returns(Task.CompletedTask);
+        _myceliumMock.Setup(b => b.ClearModelAsync()).Returns(Task.CompletedTask);
         var handler = CreateHandler(reader, writer);
 
         await handler.HandleCommandAsync("clear", "model");
 
-        _brokerMock.Verify(b => b.ClearModelAsync(), Times.Once);
+        _myceliumMock.Verify(b => b.ClearModelAsync(), Times.Once);
         Assert.Contains("Model cleared", writer.ToString());
     }
 
@@ -380,7 +380,7 @@ public class CommandHandlerTests
         var writer = new StringWriter();
 
         // This uses the default value (false)
-        var handler = new CommandHandler(reader, writer, _brokerMock.Object, BrokerUrl);
+        var handler = new CommandHandler(reader, writer, _myceliumMock.Object, MyceliumUrl);
 
         Assert.NotNull(handler);
     }
@@ -390,7 +390,7 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("exit\n");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
         var handler = CreateHandler(reader, writer, interactiveMode: false);
 
         await handler.RunAsync();
@@ -404,7 +404,7 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("help\nexit\n");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
         var handler = CreateHandler(reader, writer, interactiveMode: false);
 
         await handler.RunAsync();
@@ -418,9 +418,9 @@ public class CommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($@"{{""id"":""{thingId}"",""name"":""TestThing""}}");
-        _brokerMock.Setup(b => b.CreateThingAsync("TestThing")).ReturnsAsync(json);
-        _brokerMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>("[]"));
+        _myceliumMock.Setup(b => b.CreateThingAsync("TestThing")).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonSerializer.Deserialize<JsonElement>("[]"));
 
         var reader = new StringReader("create thing TestThing\nlist things\nexit\n");
         var writer = new StringWriter();
@@ -428,8 +428,8 @@ public class CommandHandlerTests
 
         await handler.RunAsync();
 
-        _brokerMock.Verify(b => b.CreateThingAsync("TestThing"), Times.Once);
-        _brokerMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
+        _myceliumMock.Verify(b => b.CreateThingAsync("TestThing"), Times.Once);
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
     }
 
     [Fact]
@@ -437,7 +437,7 @@ public class CommandHandlerTests
     {
         var reader = new StringReader("   \n\t\n\nexit\n");
         var writer = new StringWriter();
-        _brokerMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
         var handler = CreateHandler(reader, writer, interactiveMode: false);
 
         await handler.RunAsync();

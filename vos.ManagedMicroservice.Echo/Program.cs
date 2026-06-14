@@ -12,7 +12,7 @@ if (cliArgs == null)
 }
 
 var servicePort = cliArgs.Port;
-var brokerUrl = cliArgs.BrokerUrl;
+var myceliumUrl = cliArgs.MyceliumUrl;
 var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
 
@@ -33,34 +33,34 @@ Log.Logger = new LoggerConfiguration()
 try
 {
 
-Log.Information("VillageOS Echo Endpoint Service — Port: {Port}, Broker: {BrokerUrl}", servicePort, brokerUrl);
+Log.Information("VillageOS Echo Endpoint Service — Port: {Port}, Mycelium: {MyceliumUrl}", servicePort, myceliumUrl);
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 builder.WebHost.UseUrls($"http://localhost:{servicePort}");
 builder.Services.AddHttpClient();
 
-// Add JWT auth if broker provided a signing key. Bug #5391: use the
-// issuer/audience the broker passes via CLI so validation matches what
-// the broker signed.
+// Add JWT auth if mycelium provided a signing key. Bug #5391: use the
+// issuer/audience Mycelium passes via CLI so validation matches what
+// Mycelium signed.
 var authEnabled = !string.IsNullOrEmpty(signingKey);
 if (authEnabled)
 {
-    builder.AddBrokerTokenAuth(
+    builder.AddMyceliumTokenAuth(
         signingKey!,
         issuer: cliArgs.Issuer ?? "VillageOS",
         audience: cliArgs.Audience ?? "VosClients");
-    Log.Information("JWT authentication enabled for incoming broker requests (issuer={Issuer}, audience={Audience})",
+    Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
         cliArgs.Issuer ?? "VillageOS", cliArgs.Audience ?? "VosClients");
 }
 
 var requestCount = 0;
 
 builder.Services.AddSingleton(sp =>
-    new BrokerClient(
+    new MyceliumClient(
         sp.GetRequiredService<IHttpClientFactory>(),
-        sp.GetRequiredService<ILogger<BrokerClient>>(),
-        brokerUrl,
+        sp.GetRequiredService<ILogger<MyceliumClient>>(),
+        myceliumUrl,
         serviceToken));
 
 var app = builder.Build();
@@ -71,14 +71,14 @@ if (authEnabled)
     app.UseAuthorization();
 }
 
-// Register with broker on startup
+// Register with mycelium on startup
 app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
 {
     try
     {
-        var brokerClient = app.Services.GetRequiredService<BrokerClient>();
-        var registered = await brokerClient.RegisterAsync(servicePort);
-        Log.Information("Echo endpoint service {Status} with broker",
+        var myceliumClient = app.Services.GetRequiredService<MyceliumClient>();
+        var registered = await myceliumClient.RegisterAsync(servicePort);
+        Log.Information("Echo endpoint service {Status} with mycelium",
             registered ? "registered" : "failed to register");
     }
     catch (Exception ex)
@@ -87,14 +87,14 @@ app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
     }
 }));
 
-// Deregister from broker on shutdown
+// Deregister from mycelium on shutdown
 app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
 {
     try
     {
         Log.Information("Shutting down Echo endpoint service — processed {Count} request(s)", requestCount);
-        var brokerClient = app.Services.GetRequiredService<BrokerClient>();
-        await brokerClient.DeregisterAsync();
+        var myceliumClient = app.Services.GetRequiredService<MyceliumClient>();
+        await myceliumClient.DeregisterAsync();
     }
     catch (Exception ex)
     {
@@ -102,7 +102,7 @@ app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
     }
 }));
 
-// POST /handle — Receive JSON payload from broker, echo it back
+// POST /handle — Receive JSON payload from mycelium, echo it back
 var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx) =>
 {
     var count = Interlocked.Increment(ref requestCount);
@@ -132,13 +132,13 @@ app.MapGet("/health", () => new
 });
 
 // GET /stats — Service statistics
-app.MapGet("/stats", (BrokerClient brokerClient) => new
+app.MapGet("/stats", (MyceliumClient myceliumClient) => new
 {
     service = "Echo",
     version = "1.0.0",
     requestsProcessed = requestCount,
-    handlerId = brokerClient.HandlerId.ToString(),
-    brokerUrl
+    handlerId = myceliumClient.HandlerId.ToString(),
+    myceliumUrl
 });
 
 // POST /shutdown — Graceful shutdown

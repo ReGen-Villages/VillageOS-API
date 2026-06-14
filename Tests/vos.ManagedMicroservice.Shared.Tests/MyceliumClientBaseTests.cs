@@ -9,9 +9,9 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Shared.Tests;
 
-public class BrokerClientBaseTests
+public class MyceliumClientBaseTests
 {
-    private const string BrokerUrl = "http://localhost:7243";
+    private const string MyceliumUrl = "http://localhost:7243";
     private const string TestToken = "service-token-abc";
 
     // ---- HandlerId ----
@@ -27,20 +27,20 @@ public class BrokerClientBaseTests
     }
 
     [Fact]
-    public void BrokerUrl_ExposesConstructorArgument()
+    public void MyceliumUrl_ExposesConstructorArgument()
     {
         var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK), serviceToken: TestToken);
 
-        client.BrokerUrl.Should().Be(BrokerUrl);
+        client.MyceliumUrl.Should().Be(MyceliumUrl);
     }
 
     // ---- GetTokenAsync ----
 
     [Fact]
-    public async Task GetTokenAsync_WithProvidedToken_ReturnsItWithoutCallingBroker()
+    public async Task GetTokenAsync_WithProvidedToken_ReturnsItWithoutCallingMycelium()
     {
         var (client, handler) = BuildClient(_ =>
-            throw new InvalidOperationException("Broker should not be contacted when --token is provided"),
+            throw new InvalidOperationException("Mycelium should not be contacted when --token is provided"),
             serviceToken: TestToken);
 
         var token = await client.GetTokenAsync();
@@ -50,23 +50,23 @@ public class BrokerClientBaseTests
     }
 
     [Fact]
-    public async Task GetTokenAsync_NoToken_BrokerReturnsToken_ReturnsBrokerToken()
+    public async Task GetTokenAsync_NoToken_MyceliumReturnsToken_ReturnsMyceliumToken()
     {
         var (client, handler) = BuildClient(req =>
         {
             req.Method.Should().Be(HttpMethod.Post);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/auth/token");
-            return JsonResponse("""{"token":"from-broker"}""");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/auth/token");
+            return JsonResponse("""{"token":"from-mycelium"}""");
         }, serviceToken: null);
 
         var token = await client.GetTokenAsync();
 
-        token.Should().Be("from-broker");
+        token.Should().Be("from-mycelium");
         handler.Requests.Should().ContainSingle();
     }
 
     [Fact]
-    public async Task GetTokenAsync_NoToken_BrokerReturnsError_ReturnsNull()
+    public async Task GetTokenAsync_NoToken_MyceliumReturnsError_ReturnsNull()
     {
         var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError),
             serviceToken: null);
@@ -79,7 +79,7 @@ public class BrokerClientBaseTests
     [Fact]
     public async Task GetTokenAsync_NoToken_HttpThrows_ReturnsNull()
     {
-        var (client, _) = BuildClient(_ => throw new HttpRequestException("broker unreachable"),
+        var (client, _) = BuildClient(_ => throw new HttpRequestException("mycelium unreachable"),
             serviceToken: null);
 
         var token = await client.GetTokenAsync();
@@ -102,7 +102,7 @@ public class BrokerClientBaseTests
     }
 
     [Fact]
-    public async Task CreateAuthenticatedClient_NoToken_BrokerFails_ThrowsInvalidOperationException()
+    public async Task CreateAuthenticatedClient_NoToken_MyceliumFails_ThrowsInvalidOperationException()
     {
         var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError),
             serviceToken: null);
@@ -131,7 +131,7 @@ public class BrokerClientBaseTests
         var (client, _) = BuildClient(req =>
         {
             req.Method.Should().Be(HttpMethod.Post);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/broker/register");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/register");
             capturedBody = ReadJsonBody(req);
             return new HttpResponseMessage(HttpStatusCode.OK);
         }, serviceToken: TestToken);
@@ -150,12 +150,12 @@ public class BrokerClientBaseTests
     }
 
     [Fact]
-    public async Task RegisterAsync_BrokerReturnsNonSuccess_ReturnsFalse()
+    public async Task RegisterAsync_MyceliumReturnsNonSuccess_ReturnsFalse()
     {
         var (client, _) = BuildClient(req =>
         {
             // Token leg returns success; registration leg returns failure.
-            return req.RequestUri!.AbsolutePath == "/api/broker/register"
+            return req.RequestUri!.AbsolutePath == "/api/mycelium/register"
                 ? new HttpResponseMessage(HttpStatusCode.BadRequest)
                 : new HttpResponseMessage(HttpStatusCode.OK);
         }, serviceToken: TestToken);
@@ -168,7 +168,7 @@ public class BrokerClientBaseTests
     [Fact]
     public async Task RegisterAsync_TokenAcquisitionFails_ReturnsFalse()
     {
-        // No service token + broker returns 500 on /api/auth/token => CreateAuthenticatedClient throws
+        // No service token + mycelium returns 500 on /api/auth/token => CreateAuthenticatedClient throws
         // InvalidOperationException, which RegisterAsync catches.
         var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError),
             serviceToken: null);
@@ -183,7 +183,7 @@ public class BrokerClientBaseTests
     {
         var (client, _) = BuildClient(req =>
         {
-            if (req.RequestUri!.AbsolutePath == "/api/broker/register")
+            if (req.RequestUri!.AbsolutePath == "/api/mycelium/register")
                 throw new HttpRequestException("network blew up");
             return new HttpResponseMessage(HttpStatusCode.OK);
         }, serviceToken: TestToken);
@@ -209,7 +209,7 @@ public class BrokerClientBaseTests
 
         captured.Should().NotBeNull();
         captured!.Method.Should().Be(HttpMethod.Delete);
-        captured.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/broker/services/{client.HandlerId}");
+        captured.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/services/{client.HandlerId}");
         captured.Headers.Authorization.Should().NotBeNull();
         captured.Headers.Authorization!.Scheme.Should().Be("Bearer");
         captured.Headers.Authorization.Parameter.Should().Be(TestToken);
@@ -251,14 +251,14 @@ public class BrokerClientBaseTests
 
     // ---- Helpers ----
 
-    private static (TestableBrokerClient client, MockHttpMessageHandler handler) BuildClient(
+    private static (TestableMyceliumClient client, MockHttpMessageHandler handler) BuildClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
         string? serviceToken)
     {
         var handler = new MockHttpMessageHandler(respond);
         var httpClient = new HttpClient(handler);
         var factory = new TestHttpClientFactory(httpClient);
-        var client = new TestableBrokerClient(factory, NullLogger.Instance, BrokerUrl, serviceToken);
+        var client = new TestableMyceliumClient(factory, NullLogger.Instance, MyceliumUrl, serviceToken);
         return (client, handler);
     }
 

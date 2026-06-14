@@ -1,7 +1,7 @@
 // Endpoint-level tests for Metabolism's MapMetabolismEndpoints via WebApplicationFactory<Program>,
 // per the canonical pattern in docs/MICROSERVICES.md §10. Phase 2B landed first; see
 // docs/TEST-STATE.md > "WebApplicationFactory<Program>..." for the shape rationale.
-// Sibling reference: vos.Mycelium.Tests.BrokerWebApplicationFactory.
+// Sibling reference: vos.Mycelium.Tests.MyceliumWebApplicationFactory.
 
 using System.Net;
 using System.Net.Http.Json;
@@ -60,7 +60,7 @@ public class EndpointMapperTests : IAsyncLifetime
         body.GetProperty("service").GetString().Should().Be("Metabolism-consumes");
         body.GetProperty("version").GetString().Should().Be("2.0.0");
         body.GetProperty("requestsProcessed").GetInt32().Should().Be(0);
-        body.GetProperty("brokerUrl").GetString().Should().Be("http://localhost:1");
+        body.GetProperty("myceliumUrl").GetString().Should().Be("http://localhost:1");
         body.TryGetProperty("handlerId", out _).Should().BeTrue();
     }
 

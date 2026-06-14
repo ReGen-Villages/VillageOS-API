@@ -7,16 +7,16 @@ using Microsoft.IdentityModel.Tokens;
 namespace vos.Auth.Shared;
 
 /// <summary>
-/// Extension methods for adding broker-signed JWT auth to relationship service minimal API apps.
-/// Handlers receive --signingKey (base64-encoded) from the broker at startup.
+/// Extension methods for adding mycelium-signed JWT auth to relationship service minimal API apps.
+/// Handlers receive --signingKey (base64-encoded) from Mycelium at startup.
 /// </summary>
 public static class HandlerAuthExtensions
 {
     /// <summary>
-    /// Add JWT Bearer authentication to a handler, validating tokens signed by the broker.
-    /// The signing key is base64-encoded (wrapping the UTF-8 bytes of the broker's key).
+    /// Add JWT Bearer authentication to a handler, validating tokens signed by Mycelium.
+    /// The signing key is base64-encoded (wrapping the UTF-8 bytes of Mycelium's key).
     /// </summary>
-    public static WebApplicationBuilder AddBrokerTokenAuth(
+    public static WebApplicationBuilder AddMyceliumTokenAuth(
         this WebApplicationBuilder builder,
         string base64SigningKey,
         string issuer = "VillageOS",

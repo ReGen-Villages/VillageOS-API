@@ -15,7 +15,7 @@
 
 ## Introduction
 
-The VillageOS CLI is an interactive command-line interface for managing VillageOS temporal graph models. It communicates with the VillageOS Broker via HTTP API, providing a convenient way to:
+The VillageOS CLI is an interactive command-line interface for managing VillageOS temporal graph models. It communicates with the VillageOS Mycelium via HTTP API, providing a convenient way to:
 
 - Create and manage Things (entities) and their properties
 - Define Relationships between Things
@@ -24,36 +24,36 @@ The VillageOS CLI is an interactive command-line interface for managing VillageO
 
 ### Architecture
 
-The CLI operates as a remote client to the VillageOS Broker:
+The CLI operates as a remote client to the VillageOS Mycelium:
 
 ```mermaid
 graph LR
     subgraph CLI["VillageOS CLI"]
-        BC[BrokerClient]
+        BC[MyceliumClient]
     end
 
-    subgraph Broker["VillageOS Broker"]
+    subgraph Mycelium["VillageOS Mycelium"]
         API[REST API]
     end
 
-    CLI -->|HTTP/REST<br/>JWT Auth| Broker
+    CLI -->|HTTP/REST<br/>JWT Auth| Mycelium
 
     style CLI fill:#e1f5ff,stroke:#333,stroke-width:2px
-    style Broker fill:#dae8fc,stroke:#333,stroke-width:2px
+    style Mycelium fill:#dae8fc,stroke:#333,stroke-width:2px
 ```
 
-All operations are performed remotely on the Broker's model.
+All operations are performed remotely on the Mycelium's model.
 
 ## Getting Started
 
 ### Prerequisites
 
 - .NET 10.0 SDK or later
-- A running VillageOS Broker instance
+- A running VillageOS Mycelium instance
 
 ### Starting the CLI
 
-**1. Start the Broker first.** The broker (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there (see that repo's `docs/MYCELIUM_GUIDE.md`). It listens on `https://localhost:7243` by default.
+**1. Start the Mycelium first.** Mycelium (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there (see that repo's `docs/MYCELIUM_GUIDE.md`). It listens on `https://localhost:7243` by default.
 
 **2. In a new terminal, start the CLI:**
 ```bash
@@ -63,9 +63,9 @@ dotnet run
 
 **Expected output:**
 ```
-VillageOS Console - Connected to broker at https://localhost:7243
+VillageOS Console - Connected to Mycelium at https://localhost:7243
 Type 'help' to see available commands.
-Successfully authenticated with broker.
+Successfully authenticated with Mycelium.
 
 >
 ```
@@ -98,7 +98,7 @@ The CLI runs in interactive mode with the following features:
 
 ### Authentication
 
-The CLI requires an API key to communicate with the broker. On first broker start, an admin API key is logged at warning level — copy it from the broker output. You can also create new keys via the `POST /api/auth/keys` endpoint after logging in with `admin` / `admin`.
+The CLI requires an API key to communicate with Mycelium. On first Mycelium start, an admin API key is logged at warning level — copy it from Mycelium output. You can also create new keys via the `POST /api/auth/keys` endpoint after logging in with `admin` / `admin`.
 
 Provide the API key in two ways:
 
@@ -117,20 +117,20 @@ dotnet run
 
 The API key is exchanged for a short-lived JWT via `POST /api/auth/token` with `X-API-Key` header. Tokens are cached for 4 minutes and refreshed automatically.
 
-### Broker URL
+### Mycelium URL
 
-The CLI needs to know where the Broker is running. You can configure this in three ways:
+The CLI needs to know where the Mycelium is running. You can configure this in three ways:
 
 **1. Command-line argument (highest priority):**
 ```bash
-dotnet run -- --broker-url=https://mybroker:8443
+dotnet run -- --mycelium-url=https://mybroker:8443
 # or
-dotnet run -- --broker=https://mybroker:8443
+dotnet run -- --mycelium=https://mybroker:8443
 ```
 
 **2. Environment variable:**
 ```bash
-export VOS_BROKER_URL=https://mybroker:8443
+export VOS_MYCELIUM_URL=https://mybroker:8443
 dotnet run
 ```
 
@@ -170,7 +170,7 @@ Command-line args > Environment variables > Default
 | `stop service <handlerId>` | Stop a running microservice |
 | `stop daemon <key>` | Stop a lazy-started daemon |
 | `clear model` | Clear all things and relationships |
-| `shutdown` | Shut down the broker |
+| `shutdown` | Shut down Mycelium |
 | `query property <name> <value>` | Find by property |
 | `query predicate <name>` | Find relationships by predicate |
 | `query stats` | Show statistics |
@@ -841,7 +841,7 @@ Ranges can be inherited from parent things via "is" relationships, similar to pr
 
 ## Microservice Management
 
-The CLI provides commands to monitor and manage microservices registered with the Broker.
+The CLI provides commands to monitor and manage microservices registered with the Mycelium.
 
 ### Understanding Services vs Daemons
 
@@ -849,7 +849,7 @@ VillageOS has two types of running processes:
 
 | Type | Description | How Started |
 |------|-------------|-------------|
-| **Registered Services** | Explicitly registered with the Broker via the register endpoint | `POST /api/broker/register` |
+| **Registered Services** | Explicitly registered with the Mycelium via the register endpoint | `POST /api/mycelium/register` |
 | **Lazy-started Daemons** | Auto-started when relationships are created with predicates that have handlers | Triggered by relationship creation |
 
 Use `list agents` to see both types together.
@@ -936,7 +936,7 @@ Service Metabolism started successfully
 Service Metabolism (3fa85f64-5717-4562-b3fc-2c963f66afa6) started successfully
 ```
 
-The handler must be registered with the Broker and have a valid `ExecutablePath` property.
+The handler must be registered with the Mycelium and have a valid `ExecutablePath` property.
 
 ### Stopping a Service
 
@@ -954,7 +954,7 @@ Stop request sent to service 'Metabolism'
 Stop request sent to service 'Metabolism' (3fa85f64-5717-4562-b3fc-2c963f66afa6)
 ```
 
-The service will receive a cooperative shutdown request. If the service doesn't respond, use the Broker API for forceful termination.
+The service will receive a cooperative shutdown request. If the service doesn't respond, use the Mycelium API for forceful termination.
 
 ### Stopping a Daemon
 
@@ -979,14 +979,14 @@ Model cleared. All things and relationships have been removed.
 
 This removes all things and relationships from the current model. Use with caution - this operation cannot be undone. The model structure remains, but all data is removed.
 
-### Shutting Down the Broker
+### Shutting Down the Mycelium
 
 ```bash
 > shutdown
-Broker shutdown initiated.
+Mycelium shutdown initiated.
 ```
 
-This gracefully shuts down the Broker and all registered services. The CLI will lose its connection after this command.
+This gracefully shuts down the Mycelium and all registered services. The CLI will lose its connection after this command.
 
 ## Model Import/Export
 
@@ -1119,14 +1119,14 @@ dotnet test
 
 ### Test Architecture
 
-Tests use Moq to mock the `BrokerClient`, enabling isolated unit testing without a running Broker:
+Tests use Moq to mock the `MyceliumClient`, enabling isolated unit testing without a running Mycelium:
 
 ```csharp
-var brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
-brokerMock.Setup(b => b.GetAllThingsAsync())
+var myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
+myceliumMock.Setup(b => b.GetAllThingsAsync())
     .ReturnsAsync(JsonDocument.Parse("[...]").RootElement);
 
-var handler = new ListCommandHandler("things", writer, brokerMock.Object);
+var handler = new ListCommandHandler("things", writer, myceliumMock.Object);
 await handler.ExecuteAsync();
 ```
 
@@ -1134,16 +1134,16 @@ await handler.ExecuteAsync();
 
 ### Connection Issues
 
-**Error:** `Could not connect to broker: Connection refused`
+**Error:** `Could not connect to Mycelium: Connection refused`
 
 **Solutions:**
-1. Ensure the Broker is running:
+1. Ensure the Mycelium is running:
    ```bash
    curl https://localhost:7243/api/auth/token -k
    ```
-2. Check the broker URL:
+2. Check Mycelium URL:
    ```bash
-   dotnet run -- --broker-url=https://localhost:7243
+   dotnet run -- --mycelium-url=https://localhost:7243
    ```
 3. Verify network connectivity
 
@@ -1154,13 +1154,13 @@ await handler.ExecuteAsync();
 **Solutions:**
 1. The CLI handles token refresh automatically
 2. If persistent, restart the CLI
-3. Check Broker logs for authentication errors
+3. Check Mycelium logs for authentication errors
 
 ### Certificate Issues
 
 **Error:** `SSL certificate problem`
 
-The CLI accepts self-signed certificates by default for development. For production, ensure proper certificates are configured on the Broker.
+The CLI accepts self-signed certificates by default for development. For production, ensure proper certificates are configured on the Mycelium.
 
 ### Command Not Found
 
@@ -1171,23 +1171,23 @@ The CLI accepts self-signed certificates by default for development. For product
 2. Commands are case-insensitive
 3. Use `help` to see available commands
 
-### Broker Errors
+### Mycelium Errors
 
-**Error:** `Error communicating with broker: ...`
+**Error:** `Error communicating with Mycelium: ...`
 
 **Solutions:**
-1. Check if the Broker is still running
-2. Review Broker logs for errors
+1. Check if the Mycelium is still running
+2. Review Mycelium logs for errors
 3. Ensure the model hasn't been cleared
 
 ## Getting Help
 
 - **CLI Help:** Type `help` at the prompt
-- **Broker Documentation:** See [BROKER_GUIDE.md](BROKER_GUIDE.md)
+- **Mycelium Documentation:** See [BROKER_GUIDE.md](BROKER_GUIDE.md)
 - **Platform Documentation:** See [VILLAGEOS_PLATFORM_DOCUMENTATION.md](VILLAGEOS_PLATFORM_DOCUMENTATION.md)
 
 ---
 
 **Next Steps:**
 - See [`MICROSERVICES.md`](MICROSERVICES.md) to build relationship or endpoint services.
-- The Broker REST + SignalR reference lives on the broker repo's wiki (`ReGenVillages/VillageOS`).
+- The Mycelium REST + SignalR reference lives on Mycelium repo's wiki (`ReGenVillages/VillageOS`).

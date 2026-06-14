@@ -16,7 +16,7 @@ Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev
 
 ### Taproot (CLI)
 
-**vos.Taproot** — Command-line interface for the VillageOS broker.
+**vos.Taproot** — Command-line interface for the Mycelium.
 
 - Interactive REPL with command history and tab completion
 - CRUD commands (create, get, list, delete, set, query, find)
@@ -59,15 +59,15 @@ npm run build    # Production build into ./dist
 npm test         # Run tests
 ```
 
-Trellis connects to the VillageOS broker at `https://localhost:7243` by default.
+Trellis connects to the Mycelium at `https://localhost:7243` by default.
 
-#### Building directly into a broker's wwwroot
+#### Building directly into a Mycelium's wwwroot
 
-Set `VOS_BROKER_WWWROOT` to an absolute path to have `npm run build` emit the
-bundle straight into a broker's static file directory, e.g.:
+Set `VOS_MYCELIUM_WWWROOT` to an absolute path to have `npm run build` emit the
+bundle straight into a Mycelium's static file directory, e.g.:
 
 ```bash
-VOS_BROKER_WWWROOT=/absolute/path/to/VillageOS/vos.Broker/wwwroot npm run build
+VOS_MYCELIUM_WWWROOT=/absolute/path/to/VillageOS/vos.Mycelium/wwwroot npm run build
 ```
 
 When the env var is unset, the build lands in `vos.Trellis/dist/` as a normal

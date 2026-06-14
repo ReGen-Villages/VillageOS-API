@@ -15,9 +15,9 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 /// <summary>
 /// Unit tests for <see cref="TemplateCatalogProvisioner"/> (Task #5468) — boot-time idempotent
 /// creation of the endpoint-template catalog and its <c>is</c> wiring. The provisioner is exercised
-/// against a real <see cref="BrokerClient"/> over a <see cref="MockHttpMessageHandler"/> (the repo's
-/// broker-faking convention), with a small stateful <see cref="BrokerStub"/> tracking created things
-/// and relationships so we can assert the exact broker writes.
+/// against a real <see cref="MyceliumClient"/> over a <see cref="MockHttpMessageHandler"/> (the repo's
+/// mycelium-faking convention), with a small stateful <see cref="MyceliumStub"/> tracking created things
+/// and relationships so we can assert the exact mycelium writes.
 /// </summary>
 public class TemplateCatalogProvisionerTests
 {
@@ -77,9 +77,9 @@ public class TemplateCatalogProvisionerTests
     """;
 
     [Fact]
-    public async Task ProvisionAsync_FreshBroker_CreatesEveryTemplateThingWithProperties()
+    public async Task ProvisionAsync_FreshMycelium_CreatesEveryTemplateThingWithProperties()
     {
-        var stub = new BrokerStub();
+        var stub = new MyceliumStub();
 
         await Provisioner(stub, TwoLevelSeed).ProvisionAsync();
 
@@ -89,9 +89,9 @@ public class TemplateCatalogProvisionerTests
     }
 
     [Fact]
-    public async Task ProvisionAsync_FreshBroker_WiresChildToParentViaIs()
+    public async Task ProvisionAsync_FreshMycelium_WiresChildToParentViaIs()
     {
-        var stub = new BrokerStub();
+        var stub = new MyceliumStub();
 
         await Provisioner(stub, TwoLevelSeed).ProvisionAsync();
 
@@ -105,7 +105,7 @@ public class TemplateCatalogProvisionerTests
     [Fact]
     public async Task ProvisionAsync_RootOnly_CreatesThingButNoRelationship()
     {
-        var stub = new BrokerStub();
+        var stub = new MyceliumStub();
 
         await Provisioner(stub, RootOnlySeed).ProvisionAsync();
 
@@ -116,7 +116,7 @@ public class TemplateCatalogProvisionerTests
     [Fact]
     public async Task ProvisionAsync_AllTemplatesAlreadyExist_CreatesNothingAndWiresNothing()
     {
-        var stub = new BrokerStub();
+        var stub = new MyceliumStub();
         stub.Preexist("Endpoint", Guid.NewGuid());
         stub.Preexist("EsriEndpoint", Guid.NewGuid());
 
@@ -129,7 +129,7 @@ public class TemplateCatalogProvisionerTests
     [Fact]
     public async Task ProvisionAsync_ParentExistsChildMissing_WiresNewChildToExistingParent()
     {
-        var stub = new BrokerStub();
+        var stub = new MyceliumStub();
         var endpointId = Guid.NewGuid();
         stub.Preexist("Endpoint", endpointId);
 
@@ -144,7 +144,7 @@ public class TemplateCatalogProvisionerTests
     [Fact]
     public async Task ProvisionAsync_IsPredicateMissing_AbortsWithoutCreatingAnything()
     {
-        var stub = new BrokerStub { IsPredicatePresent = false };
+        var stub = new MyceliumStub { IsPredicatePresent = false };
 
         var act = async () => await Provisioner(stub, TwoLevelSeed).ProvisionAsync();
 
@@ -156,7 +156,7 @@ public class TemplateCatalogProvisionerTests
     [Fact]
     public async Task ProvisionAsync_ThreeLevelChain_WiresEachToDirectParentOnly()
     {
-        var stub = new BrokerStub();
+        var stub = new MyceliumStub();
 
         await Provisioner(stub, ThreeLevelSeed).ProvisionAsync();
 
@@ -172,7 +172,7 @@ public class TemplateCatalogProvisionerTests
     [Fact]
     public async Task ProvisionAsync_SiblingsAtSameDepth_AllCreatedAndWiredRegardlessOfSeedOrder()
     {
-        var stub = new BrokerStub();
+        var stub = new MyceliumStub();
 
         await Provisioner(stub, SiblingSeed).ProvisionAsync();
 
@@ -185,7 +185,7 @@ public class TemplateCatalogProvisionerTests
     [Fact]
     public async Task ProvisionAsync_ParentNameCaseVariation_WiresViaCaseInsensitiveLookup()
     {
-        var stub = new BrokerStub();
+        var stub = new MyceliumStub();
 
         await Provisioner(stub, CaseVariationSeed).ProvisionAsync();
 
@@ -197,7 +197,7 @@ public class TemplateCatalogProvisionerTests
     [Fact]
     public async Task ProvisionAsync_TemplateCreateFails_SkipsItAndDoesNotWireDescendants()
     {
-        var stub = new BrokerStub { FailCreateName = "Endpoint" };
+        var stub = new MyceliumStub { FailCreateName = "Endpoint" };
 
         await Provisioner(stub, TwoLevelSeed).ProvisionAsync();
 
@@ -208,13 +208,13 @@ public class TemplateCatalogProvisionerTests
 
     // ---------- Harness ----------
 
-    private static TemplateCatalogProvisioner Provisioner(BrokerStub stub, string seedJson) =>
-        new(BrokerClientOver(stub.Handler()),
+    private static TemplateCatalogProvisioner Provisioner(MyceliumStub stub, string seedJson) =>
+        new(MyceliumClientOver(stub.Handler()),
             new InMemoryEndpointSeedProvider(seedJson).LoadGraph(),
             Substitute.For<ILogger<TemplateCatalogProvisioner>>());
 
-    private static BrokerClient BrokerClientOver(MockHttpMessageHandler handler) =>
-        new(new PerCallFactory(handler), Substitute.For<ILogger<BrokerClient>>(), "http://localhost", "test-token");
+    private static MyceliumClient MyceliumClientOver(MockHttpMessageHandler handler) =>
+        new(new PerCallFactory(handler), Substitute.For<ILogger<MyceliumClient>>(), "http://localhost", "test-token");
 
     private sealed class PerCallFactory : IHttpClientFactory
     {
@@ -223,8 +223,8 @@ public class TemplateCatalogProvisionerTests
         public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
     }
 
-    /// <summary>Stateful fake of the broker's thing/relationship endpoints used by the provisioner.</summary>
-    private sealed class BrokerStub
+    /// <summary>Stateful fake of Mycelium's thing/relationship endpoints used by the provisioner.</summary>
+    private sealed class MyceliumStub
     {
         public Guid IsId { get; } = Guid.NewGuid();
         public bool IsPredicatePresent { get; init; } = true;

@@ -1,6 +1,6 @@
 import { useState, useMemo, type FormEvent } from 'react';
 import type { ModelSummary } from '../../types/vos';
-import type { SeedStatus } from '../../api/brokerApi';
+import type { SeedStatus } from '../../api/myceliumApi';
 import { RegenLogo } from './RegenLogo';
 
 interface LoginFormProps {

@@ -6,13 +6,13 @@ public class ModelCommandHandler
 {
     private readonly TextWriter _writer;
     private readonly string _arg;
-    private readonly BrokerClient _broker;
+    private readonly MyceliumClient _mycelium;
 
-    public ModelCommandHandler(string arg, TextWriter writer, BrokerClient broker)
+    public ModelCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
     {
         _arg = arg;
         _writer = writer;
-        _broker = broker;
+        _mycelium = mycelium;
     }
 
     public async Task ExecuteAsync()
@@ -43,7 +43,7 @@ public class ModelCommandHandler
 
     private async Task ListModelsAsync()
     {
-        var models = await _broker.ListModelsAsync();
+        var models = await _mycelium.ListModelsAsync();
         if (models.ValueKind != JsonValueKind.Array || models.GetArrayLength() == 0)
         {
             _writer.WriteLine("No models found.");
@@ -63,7 +63,7 @@ public class ModelCommandHandler
     {
         if (!Guid.TryParse(modelIdOrName, out var modelId))
         {
-            var models = await _broker.ListModelsAsync();
+            var models = await _mycelium.ListModelsAsync();
             var match = FindModelByName(models, modelIdOrName);
             if (match == null)
             {
@@ -73,7 +73,7 @@ public class ModelCommandHandler
             modelId = match.Value;
         }
 
-        var result = await _broker.SwitchModelAsync(modelId);
+        var result = await _mycelium.SwitchModelAsync(modelId);
         _writer.WriteLine($"Switched to model {modelId}.");
     }
 

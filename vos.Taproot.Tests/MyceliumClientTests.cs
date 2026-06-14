@@ -1,7 +1,7 @@
-// Direct unit tests for vos.Taproot.BrokerClient. Uses the internal test-seam
-// constructor (BrokerClient(brokerUrl, apiKey, HttpClient, Func<DateTime>?))
+// Direct unit tests for vos.Taproot.MyceliumClient. Uses the internal test-seam
+// constructor (MyceliumClient(myceliumUrl, apiKey, HttpClient, Func<DateTime>?))
 // reached via InternalsVisibleTo, and the MockHttpMessageHandler from
-// vos.Tests.Shared to fake broker HTTP without touching the network.
+// vos.Tests.Shared to fake mycelium HTTP without touching the network.
 //
 // See docs/FOLLOW-UPS.md (entry #1) for the design rationale.
 
@@ -16,18 +16,18 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-public class BrokerClientTests
+public class MyceliumClientTests
 {
-    private const string BrokerUrl = "https://localhost:7243";
+    private const string MyceliumUrl = "https://localhost:7243";
     private const string ApiKey = "test-api-key";
-    private const string ServiceToken = "test-jwt-from-broker";
+    private const string ServiceToken = "test-jwt-from-mycelium";
 
     // ---- Construction + API key resolution ----
 
     [Fact]
-    public void Ctor_TrimsTrailingSlashFromBrokerUrl()
+    public void Ctor_TrimsTrailingSlashFromMyceliumUrl()
     {
-        var (client, _) = NewClient(_ => Ok(), brokerUrl: "https://localhost:7243///");
+        var (client, _) = NewClient(_ => Ok(), myceliumUrl: "https://localhost:7243///");
         // Internal field is private; verify indirectly by issuing a request and inspecting the URL.
         // The handler is built fresh inside the helper - we just need NewClient to not crash on trailing slashes.
         client.Should().NotBeNull();
@@ -96,19 +96,19 @@ public class BrokerClientTests
     {
         // Just exercises the public ctor's chain through the single-arg → two-arg(null) path.
         // No HTTP here; constructing must not throw.
-        var act = () => new BrokerClient(BrokerUrl);
+        var act = () => new MyceliumClient(MyceliumUrl);
         act.Should().NotThrow();
     }
 
     // ---- GetTokenAsync token flow ----
 
     [Fact]
-    public async Task GetTokenAsync_SendsXApiKeyAndReturnsBrokerToken()
+    public async Task GetTokenAsync_SendsXApiKeyAndReturnsMyceliumToken()
     {
         var (client, handler) = NewClient(req =>
         {
             req.Method.Should().Be(HttpMethod.Post);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/auth/token");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/auth/token");
             return TokenResponse(ServiceToken);
         });
 
@@ -192,7 +192,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Get);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/things");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/things");
             return JsonResponse("[{\"Id\":\"00000000-0000-0000-0000-000000000001\",\"Name\":\"alice\"}]");
         });
 
@@ -209,27 +209,27 @@ public class BrokerClientTests
     }
 
     [Fact]
-    public async Task GetAllServicesAsync_RoutesToBrokerServicesEndpoint()
+    public async Task GetAllServicesAsync_RoutesToMyceliumServicesEndpoint()
     {
-        await VerifyGetEndpointHit("/api/broker/services", c => c.GetAllServicesAsync());
+        await VerifyGetEndpointHit("/api/mycelium/services", c => c.GetAllServicesAsync());
     }
 
     [Fact]
-    public async Task GetAllDaemonsAsync_RoutesToBrokerDaemonsEndpoint()
+    public async Task GetAllDaemonsAsync_RoutesToMyceliumDaemonsEndpoint()
     {
-        await VerifyGetEndpointHit("/api/broker/daemons", c => c.GetAllDaemonsAsync());
+        await VerifyGetEndpointHit("/api/mycelium/daemons", c => c.GetAllDaemonsAsync());
     }
 
     [Fact]
     public async Task GetSeedStatusAsync_RoutesToSeedStatusEndpoint()
     {
-        await VerifyGetEndpointHit("/api/broker/seed-status", c => c.GetSeedStatusAsync());
+        await VerifyGetEndpointHit("/api/mycelium/seed-status", c => c.GetSeedStatusAsync());
     }
 
     [Fact]
     public async Task ListLibrarySeedsAsync_RoutesToLibrarySeedsEndpoint()
     {
-        await VerifyGetEndpointHit("/api/broker/library-seeds", c => c.ListLibrarySeedsAsync());
+        await VerifyGetEndpointHit("/api/mycelium/library-seeds", c => c.ListLibrarySeedsAsync());
     }
 
     [Fact]
@@ -413,7 +413,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Post);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/things");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/things");
             capturedBody = ReadJsonBody(req);
             return JsonResponse("{\"Id\":\"...\"}");
         });
@@ -432,7 +432,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Post);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/relationships");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/relationships");
             capturedBody = ReadJsonBody(req);
             return JsonResponse("{}");
         });
@@ -451,7 +451,7 @@ public class BrokerClientTests
         var (client, _) = NewClient(req =>
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/ranges/validate");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/ranges/validate");
             capturedBody = ReadJsonBody(req);
             return JsonResponse("{\"isValid\":true}");
         });
@@ -550,28 +550,28 @@ public class BrokerClientTests
     // ---- HTTP method patterns: POST no body → bool ----
 
     [Fact]
-    public async Task ShutdownBrokerAsync_PostsAndReturnsSuccessBoolean()
+    public async Task ShutdownMyceliumAsync_PostsAndReturnsSuccessBoolean()
     {
         var (client, _) = NewClient(req =>
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Post);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/broker/shutdown");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/shutdown");
             return Ok();
         });
 
-        (await client.ShutdownBrokerAsync()).Should().BeTrue();
+        (await client.ShutdownMyceliumAsync()).Should().BeTrue();
     }
 
     [Fact]
-    public async Task ShutdownBrokerAsync_NonSuccessReturnsFalse()
+    public async Task ShutdownMyceliumAsync_NonSuccessReturnsFalse()
     {
         var (client, _) = NewClient(req =>
             req.RequestUri!.AbsolutePath == "/api/auth/token"
                 ? TokenResponse(ServiceToken)
                 : new HttpResponseMessage(HttpStatusCode.InternalServerError));
 
-        (await client.ShutdownBrokerAsync()).Should().BeFalse();
+        (await client.ShutdownMyceliumAsync()).Should().BeFalse();
     }
 
     [Fact]
@@ -581,7 +581,7 @@ public class BrokerClientTests
         var (client, _) = NewClient(req =>
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/broker/services/{handlerId}/stop");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/services/{handlerId}/stop");
             return Ok();
         });
 
@@ -595,7 +595,7 @@ public class BrokerClientTests
         var (client, _) = NewClient(req =>
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/broker/services/{handlerId}/start");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/services/{handlerId}/start");
             return Ok();
         });
 
@@ -608,7 +608,7 @@ public class BrokerClientTests
         var (client, _) = NewClient(req =>
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
-            req.RequestUri!.AbsoluteUri.Should().Contain("/api/broker/daemons/daemon-key/stop");
+            req.RequestUri!.AbsoluteUri.Should().Contain("/api/mycelium/daemons/daemon-key/stop");
             return Ok();
         });
 
@@ -623,7 +623,7 @@ public class BrokerClientTests
         var (client, _) = NewClient(req =>
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
-            req.RequestUri!.AbsoluteUri.Should().Contain("/api/broker/library-seeds/forest/load");
+            req.RequestUri!.AbsoluteUri.Should().Contain("/api/mycelium/library-seeds/forest/load");
             return JsonResponse("{\"loaded\":true}");
         });
 
@@ -637,7 +637,7 @@ public class BrokerClientTests
         var (client, _) = NewClient(req =>
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/broker/seeds/reload");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/seeds/reload");
             return JsonResponse("{}");
         });
 
@@ -654,7 +654,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Post);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/model");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/model");
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent("response-payload", Encoding.UTF8, "application/json")
@@ -676,7 +676,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Put);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/things/{thingId}/properties");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/things/{thingId}/properties");
             capturedBody = ReadJsonBody(req);
             return JsonResponse("{}");
         });
@@ -697,7 +697,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Put);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/relationships/{relId}/properties");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/relationships/{relId}/properties");
             capturedBody = ReadJsonBody(req);
             return JsonResponse("{}");
         });
@@ -773,7 +773,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Put);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/auth/users/{userId}/password");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/auth/users/{userId}/password");
             capturedBody = ReadJsonBody(req);
             return JsonResponse("{}");
         });
@@ -794,7 +794,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Put);
-            req.RequestUri!.AbsoluteUri.Should().Contain("/api/broker/library-seeds/village");
+            req.RequestUri!.AbsoluteUri.Should().Contain("/api/mycelium/library-seeds/village");
             return JsonResponse("{}");
         });
 
@@ -811,7 +811,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Delete);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/things/{id}");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/things/{id}");
             return Ok();
         });
 
@@ -851,7 +851,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Delete);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/relationships/{id}");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/relationships/{id}");
             return Ok();
         });
 
@@ -896,7 +896,7 @@ public class BrokerClientTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             req.Method.Should().Be(HttpMethod.Delete);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/model");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/model");
             return Ok();
         });
 
@@ -1080,19 +1080,19 @@ public class BrokerClientTests
 
     // ---- Helpers ----
 
-    private static (BrokerClient client, MockHttpMessageHandler handler) NewClient(
+    private static (MyceliumClient client, MockHttpMessageHandler handler) NewClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
         string? apiKey = ApiKey,
-        string brokerUrl = BrokerUrl,
+        string myceliumUrl = MyceliumUrl,
         Func<DateTime>? clock = null)
     {
         var handler = new MockHttpMessageHandler(respond);
         var http = new HttpClient(handler);
-        var client = new BrokerClient(brokerUrl, apiKey, http, clock);
+        var client = new MyceliumClient(myceliumUrl, apiKey, http, clock);
         return (client, handler);
     }
 
-    private async Task VerifyGetEndpointHit(string expectedPath, Func<BrokerClient, Task> call)
+    private async Task VerifyGetEndpointHit(string expectedPath, Func<MyceliumClient, Task> call)
     {
         HttpRequestMessage? captured = null;
         var (client, _) = NewClient(req =>

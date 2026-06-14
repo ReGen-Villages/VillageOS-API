@@ -1,13 +1,13 @@
-// Echo's BrokerClient is the canonical thin subclass of BrokerClientBase.
-// These tests document the contract that EVERY microservice's BrokerClient
+// Echo's MyceliumClient is the canonical thin subclass of MyceliumClientBase.
+// These tests document the contract that EVERY microservice's MyceliumClient
 // subclass must satisfy:
-//   1. Inherits HandlerId / BrokerUrl / GetTokenAsync / DeregisterAsync etc.
+//   1. Inherits HandlerId / MyceliumUrl / GetTokenAsync / DeregisterAsync etc.
 //   2. Provides at least one Echo-specific RegisterAsync overload that calls
 //      base RegisterAsync with the service's own (serviceName, startCommand).
-//   3. The body POSTed to /api/broker/register contains the service identity.
+//   3. The body POSTed to /api/mycelium/register contains the service identity.
 //
-// New microservices' BrokerClient tests should mirror this file's shape:
-// HandlerId-uniqueness, BrokerUrl-passthrough, RegisterAsync round-trip
+// New microservices' MyceliumClient tests should mirror this file's shape:
+// HandlerId-uniqueness, MyceliumUrl-passthrough, RegisterAsync round-trip
 // against MockHttpMessageHandler. See docs/MICROSERVICES.md §10.
 
 using System.Net;
@@ -21,9 +21,9 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Echo.Tests;
 
-public class BrokerClientTests
+public class MyceliumClientTests
 {
-    private const string BrokerUrl = "http://localhost:7243";
+    private const string MyceliumUrl = "http://localhost:7243";
     private const string ServiceToken = "svc-jwt-abc";
 
     [Fact]
@@ -37,10 +37,10 @@ public class BrokerClientTests
     }
 
     [Fact]
-    public void BrokerUrl_PassedThroughFromCtor_PerTemplate()
+    public void MyceliumUrl_PassedThroughFromCtor_PerTemplate()
     {
         var (client, _) = NewClient(_ => Ok());
-        client.BrokerUrl.Should().Be(BrokerUrl);
+        client.MyceliumUrl.Should().Be(MyceliumUrl);
     }
 
     [Fact]
@@ -50,7 +50,7 @@ public class BrokerClientTests
         var (client, _) = NewClient(req =>
         {
             req.Method.Should().Be(HttpMethod.Post);
-            req.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/broker/register");
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/register");
             capturedBody = ReadJsonBody(req);
             return Ok();
         });
@@ -61,7 +61,7 @@ public class BrokerClientTests
         capturedBody.Should().NotBeNull();
         var body = capturedBody!.Value;
 
-        // Echo-specific identity — these strings define what Echo declares to the broker.
+        // Echo-specific identity — these strings define what Echo declares to Mycelium.
         body.GetProperty("serviceName").GetString().Should().Be("Echo");
         body.GetProperty("startCommand").GetString().Should().Be("endpoint-service");
 
@@ -73,7 +73,7 @@ public class BrokerClientTests
     }
 
     [Fact]
-    public async Task RegisterAsync_BrokerReturnsFailure_ReturnsFalse_PerTemplate()
+    public async Task RegisterAsync_MyceliumReturnsFailure_ReturnsFalse_PerTemplate()
     {
         var (client, _) = NewClient(_ => new HttpResponseMessage(HttpStatusCode.BadRequest));
 
@@ -85,7 +85,7 @@ public class BrokerClientTests
     [Fact]
     public async Task RegisterAsync_AuthFails_ReturnsFalse_PerTemplate()
     {
-        // No service token + broker returns 500 on /api/auth/token →
+        // No service token + mycelium returns 500 on /api/auth/token →
         // CreateAuthenticatedClient throws InvalidOperationException →
         // RegisterAsync catches and returns false.
         var (client, _) = NewClient(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError),
@@ -97,7 +97,7 @@ public class BrokerClientTests
     }
 
     [Fact]
-    public async Task DeregisterAsync_SendsDeleteToBroker_PerTemplate()
+    public async Task DeregisterAsync_SendsDeleteToMycelium_PerTemplate()
     {
         HttpRequestMessage? captured = null;
         var (client, _) = NewClient(req =>
@@ -110,14 +110,14 @@ public class BrokerClientTests
 
         captured.Should().NotBeNull();
         captured!.Method.Should().Be(HttpMethod.Delete);
-        captured.RequestUri!.AbsoluteUri.Should().Be($"{BrokerUrl}/api/broker/services/{client.HandlerId}");
+        captured.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/services/{client.HandlerId}");
     }
 
     [Fact]
     public async Task GetTokenAsync_WithProvidedToken_ReturnsItDirectly_PerTemplate()
     {
         var (client, handler) = NewClient(_ =>
-            throw new InvalidOperationException("Broker should not be contacted when --token is provided"));
+            throw new InvalidOperationException("Mycelium should not be contacted when --token is provided"));
 
         (await client.GetTokenAsync()).Should().Be(ServiceToken);
         handler.Requests.Should().BeEmpty();
@@ -125,14 +125,14 @@ public class BrokerClientTests
 
     // ---- Helpers (template-shape) ----
 
-    private static (BrokerClient client, MockHttpMessageHandler handler) NewClient(
+    private static (MyceliumClient client, MockHttpMessageHandler handler) NewClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
         string? serviceToken = ServiceToken)
     {
         var handler = new MockHttpMessageHandler(respond);
         var http = new HttpClient(handler);
         var factory = new TestHttpClientFactory(http);
-        var client = new BrokerClient(factory, NullLogger<BrokerClient>.Instance, BrokerUrl, serviceToken);
+        var client = new MyceliumClient(factory, NullLogger<MyceliumClient>.Instance, MyceliumUrl, serviceToken);
         return (client, handler);
     }
 

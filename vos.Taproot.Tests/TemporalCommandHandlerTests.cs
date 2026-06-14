@@ -7,15 +7,15 @@ namespace vos.Taproot.Tests;
 public class TemporalCommandHandlerTests
 {
     private readonly StringWriter _writer;
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
 
     public TemporalCommandHandlerTests()
     {
         _writer = new StringWriter();
-        _brokerMock = new Mock<BrokerClient>("http://localhost:5000");
+        _myceliumMock = new Mock<MyceliumClient>("http://localhost:5000");
     }
 
-    private async Task ExecuteHandler(string arg, BrokerClient? client = null)
+    private async Task ExecuteHandler(string arg, MyceliumClient? client = null)
     {
         var handler = new TemporalCommandHandler(arg, _writer, client);
         await handler.ExecuteAsync();
@@ -48,26 +48,26 @@ public class TemporalCommandHandlerTests
     public async Task Temporal_Snapshot_WithClient_CallsApi()
     {
         var mockResponse = JsonDocument.Parse("{\"Timestamp\":\"2026-01-15T12:00:00Z\",\"Things\":[],\"Relationships\":[]}");
-        _brokerMock.Setup(b => b.GetModelAtTimeAsync(null))
+        _myceliumMock.Setup(b => b.GetModelAtTimeAsync(null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler("snapshot now", _brokerMock.Object);
+        await ExecuteHandler("snapshot now", _myceliumMock.Object);
 
         var output = _writer.ToString();
         Assert.Contains("Timestamp", output);
-        _brokerMock.Verify(b => b.GetModelAtTimeAsync(null), Times.Once);
+        _myceliumMock.Verify(b => b.GetModelAtTimeAsync(null), Times.Once);
     }
 
     [Fact]
     public async Task Temporal_Snapshot_WithTimestamp_PassesTimestampToApi()
     {
         var mockResponse = JsonDocument.Parse("{\"Timestamp\":\"2026-01-15T12:00:00Z\",\"Things\":[],\"Relationships\":[]}");
-        _brokerMock.Setup(b => b.GetModelAtTimeAsync(It.IsAny<DateTime?>()))
+        _myceliumMock.Setup(b => b.GetModelAtTimeAsync(It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler("snapshot 2026-01-15T12:00:00Z", _brokerMock.Object);
+        await ExecuteHandler("snapshot 2026-01-15T12:00:00Z", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetModelAtTimeAsync(It.Is<DateTime?>(d => d.HasValue)), Times.Once);
+        _myceliumMock.Verify(b => b.GetModelAtTimeAsync(It.Is<DateTime?>(d => d.HasValue)), Times.Once);
     }
 
     [Fact]
@@ -75,18 +75,18 @@ public class TemporalCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse($"{{\"ThingId\":\"{thingId}\",\"PropertyName\":\"status\",\"Versions\":[]}}");
-        _brokerMock.Setup(b => b.GetPropertyVersionsAsync(thingId, "status", null, null))
+        _myceliumMock.Setup(b => b.GetPropertyVersionsAsync(thingId, "status", null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"history {thingId} status", _brokerMock.Object);
+        await ExecuteHandler($"history {thingId} status", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetPropertyVersionsAsync(thingId, "status", null, null), Times.Once);
+        _myceliumMock.Verify(b => b.GetPropertyVersionsAsync(thingId, "status", null, null), Times.Once);
     }
 
     [Fact]
     public async Task Temporal_History_InvalidThingId_ShowsError()
     {
-        await ExecuteHandler("history not-a-guid status", _brokerMock.Object);
+        await ExecuteHandler("history not-a-guid status", _myceliumMock.Object);
 
         var output = _writer.ToString();
         // NameResolver returns "No things found. Cannot resolve name" when no things exist in the model
@@ -96,7 +96,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Temporal_History_MissingArgs_ShowsUsage()
     {
-        await ExecuteHandler("history", _brokerMock.Object);
+        await ExecuteHandler("history", _myceliumMock.Object);
 
         var output = _writer.ToString();
         Assert.Contains("Usage:", output);
@@ -107,12 +107,12 @@ public class TemporalCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse($"{{\"Id\":\"{thingId}\",\"Name\":\"Test\",\"Properties\":{{}}}}");
-        _brokerMock.Setup(b => b.GetThingAtTimeAsync(thingId, null))
+        _myceliumMock.Setup(b => b.GetThingAtTimeAsync(thingId, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"at {thingId} now", _brokerMock.Object);
+        await ExecuteHandler($"at {thingId} now", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetThingAtTimeAsync(thingId, null), Times.Once);
+        _myceliumMock.Verify(b => b.GetThingAtTimeAsync(thingId, null), Times.Once);
     }
 
     [Fact]
@@ -120,22 +120,22 @@ public class TemporalCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse($"{{\"Id\":\"{thingId}\",\"Name\":\"Test\",\"Properties\":{{}}}}");
-        _brokerMock.Setup(b => b.GetThingAtTimeAsync(thingId, It.IsAny<DateTime?>()))
+        _myceliumMock.Setup(b => b.GetThingAtTimeAsync(thingId, It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"at {thingId} 2026-01-15T12:00:00Z", _brokerMock.Object);
+        await ExecuteHandler($"at {thingId} 2026-01-15T12:00:00Z", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetThingAtTimeAsync(thingId, It.Is<DateTime?>(d => d.HasValue)), Times.Once);
+        _myceliumMock.Verify(b => b.GetThingAtTimeAsync(thingId, It.Is<DateTime?>(d => d.HasValue)), Times.Once);
     }
 
     [Fact]
     public async Task Temporal_At_ThingNotFound_ShowsError()
     {
         var thingId = Guid.NewGuid();
-        _brokerMock.Setup(b => b.GetThingAtTimeAsync(thingId, It.IsAny<DateTime?>()))
+        _myceliumMock.Setup(b => b.GetThingAtTimeAsync(thingId, It.IsAny<DateTime?>()))
             .ReturnsAsync((JsonElement?)null);
 
-        await ExecuteHandler($"at {thingId} now", _brokerMock.Object);
+        await ExecuteHandler($"at {thingId} now", _myceliumMock.Object);
 
         var output = _writer.ToString();
         Assert.Contains("Thing not found", output);
@@ -145,10 +145,10 @@ public class TemporalCommandHandlerTests
     public async Task Temporal_At_ApiError_ShowsErrorMessage()
     {
         var thingId = Guid.NewGuid();
-        _brokerMock.Setup(b => b.GetThingAtTimeAsync(thingId, It.IsAny<DateTime?>()))
+        _myceliumMock.Setup(b => b.GetThingAtTimeAsync(thingId, It.IsAny<DateTime?>()))
             .ThrowsAsync(new HttpRequestException("Connection failed"));
 
-        await ExecuteHandler($"at {thingId} now", _brokerMock.Object);
+        await ExecuteHandler($"at {thingId} now", _myceliumMock.Object);
 
         var output = _writer.ToString();
         Assert.Contains("Error:", output);
@@ -157,7 +157,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Temporal_Snapshot_InvalidTimestamp_ShowsError()
     {
-        await ExecuteHandler("snapshot not-a-timestamp", _brokerMock.Object);
+        await ExecuteHandler("snapshot not-a-timestamp", _myceliumMock.Object);
 
         var output = _writer.ToString();
         Assert.Contains("Invalid timestamp", output);
@@ -166,7 +166,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Temporal_UnknownSubcommand_ShowsHelp()
     {
-        await ExecuteHandler("unknown", _brokerMock.Object);
+        await ExecuteHandler("unknown", _myceliumMock.Object);
 
         var output = _writer.ToString();
         Assert.Contains("Temporal query commands:", output);
@@ -178,36 +178,36 @@ public class TemporalCommandHandlerTests
     public async Task Mutations_WithNoArgs_CallsGetModelMutationsAsync()
     {
         var mockResponse = JsonDocument.Parse("{\"TotalMutations\":0,\"ThingMutations\":{}}");
-        _brokerMock.Setup(b => b.GetModelMutationsAsync(null, null))
+        _myceliumMock.Setup(b => b.GetModelMutationsAsync(null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler("mutations", _brokerMock.Object);
+        await ExecuteHandler("mutations", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetModelMutationsAsync(null, null), Times.Once);
+        _myceliumMock.Verify(b => b.GetModelMutationsAsync(null, null), Times.Once);
     }
 
     [Fact]
     public async Task Mutations_WithModelArg_CallsGetModelMutationsAsync()
     {
         var mockResponse = JsonDocument.Parse("{\"TotalMutations\":0,\"ThingMutations\":{}}");
-        _brokerMock.Setup(b => b.GetModelMutationsAsync(null, null))
+        _myceliumMock.Setup(b => b.GetModelMutationsAsync(null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler("mutations model", _brokerMock.Object);
+        await ExecuteHandler("mutations model", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetModelMutationsAsync(null, null), Times.Once);
+        _myceliumMock.Verify(b => b.GetModelMutationsAsync(null, null), Times.Once);
     }
 
     [Fact]
     public async Task Mutations_WithModelAndTimeRange_PassesTimeRange()
     {
         var mockResponse = JsonDocument.Parse("{\"TotalMutations\":0,\"ThingMutations\":{}}");
-        _brokerMock.Setup(b => b.GetModelMutationsAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+        _myceliumMock.Setup(b => b.GetModelMutationsAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler("mutations model 2026-01-01T00:00:00Z 2026-01-31T23:59:59Z", _brokerMock.Object);
+        await ExecuteHandler("mutations model 2026-01-01T00:00:00Z 2026-01-31T23:59:59Z", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetModelMutationsAsync(
+        _myceliumMock.Verify(b => b.GetModelMutationsAsync(
             It.Is<DateTime?>(d => d.HasValue),
             It.Is<DateTime?>(d => d.HasValue)), Times.Once);
     }
@@ -217,12 +217,12 @@ public class TemporalCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse($"{{\"ThingId\":\"{thingId}\",\"Mutations\":[]}}");
-        _brokerMock.Setup(b => b.GetThingMutationsAsync(thingId, null, null))
+        _myceliumMock.Setup(b => b.GetThingMutationsAsync(thingId, null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations thing {thingId}", _brokerMock.Object);
+        await ExecuteHandler($"mutations thing {thingId}", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetThingMutationsAsync(thingId, null, null), Times.Once);
+        _myceliumMock.Verify(b => b.GetThingMutationsAsync(thingId, null, null), Times.Once);
     }
 
     [Fact]
@@ -230,18 +230,18 @@ public class TemporalCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse($"{{\"ThingId\":\"{thingId}\",\"Mutations\":[]}}");
-        _brokerMock.Setup(b => b.GetThingMutationsAsync(thingId, It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+        _myceliumMock.Setup(b => b.GetThingMutationsAsync(thingId, It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations thing {thingId} 2026-01-01T00:00:00Z", _brokerMock.Object);
+        await ExecuteHandler($"mutations thing {thingId} 2026-01-01T00:00:00Z", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetThingMutationsAsync(thingId, It.Is<DateTime?>(d => d.HasValue), null), Times.Once);
+        _myceliumMock.Verify(b => b.GetThingMutationsAsync(thingId, It.Is<DateTime?>(d => d.HasValue), null), Times.Once);
     }
 
     [Fact]
     public async Task Mutations_ThingMissingName_ShowsUsage()
     {
-        await ExecuteHandler("mutations thing", _brokerMock.Object);
+        await ExecuteHandler("mutations thing", _myceliumMock.Object);
 
         var output = _writer.ToString();
         Assert.Contains("Usage:", output);
@@ -252,12 +252,12 @@ public class TemporalCommandHandlerTests
     {
         var relId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse($"{{\"RelationshipId\":\"{relId}\",\"Mutations\":[]}}");
-        _brokerMock.Setup(b => b.GetRelationshipMutationsAsync(relId, null, null))
+        _myceliumMock.Setup(b => b.GetRelationshipMutationsAsync(relId, null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations relationship {relId}", _brokerMock.Object);
+        await ExecuteHandler($"mutations relationship {relId}", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetRelationshipMutationsAsync(relId, null, null), Times.Once);
+        _myceliumMock.Verify(b => b.GetRelationshipMutationsAsync(relId, null, null), Times.Once);
     }
 
     [Fact]
@@ -265,12 +265,12 @@ public class TemporalCommandHandlerTests
     {
         var relId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse($"{{\"RelationshipId\":\"{relId}\",\"Mutations\":[]}}");
-        _brokerMock.Setup(b => b.GetRelationshipMutationsAsync(relId, null, null))
+        _myceliumMock.Setup(b => b.GetRelationshipMutationsAsync(relId, null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations rel {relId}", _brokerMock.Object);
+        await ExecuteHandler($"mutations rel {relId}", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetRelationshipMutationsAsync(relId, null, null), Times.Once);
+        _myceliumMock.Verify(b => b.GetRelationshipMutationsAsync(relId, null, null), Times.Once);
     }
 
     [Fact]
@@ -278,12 +278,12 @@ public class TemporalCommandHandlerTests
     {
         var relId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse($"{{\"RelationshipId\":\"{relId}\",\"Mutations\":[]}}");
-        _brokerMock.Setup(b => b.GetRelationshipMutationsAsync(relId, It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
+        _myceliumMock.Setup(b => b.GetRelationshipMutationsAsync(relId, It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations rel {relId} 2026-01-01T00:00:00Z 2026-01-31T23:59:59Z", _brokerMock.Object);
+        await ExecuteHandler($"mutations rel {relId} 2026-01-01T00:00:00Z 2026-01-31T23:59:59Z", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetRelationshipMutationsAsync(
+        _myceliumMock.Verify(b => b.GetRelationshipMutationsAsync(
             relId,
             It.Is<DateTime?>(d => d.HasValue),
             It.Is<DateTime?>(d => d.HasValue)), Times.Once);
@@ -292,7 +292,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Mutations_RelMissingId_ShowsUsage()
     {
-        await ExecuteHandler("mutations rel", _brokerMock.Object);
+        await ExecuteHandler("mutations rel", _myceliumMock.Object);
 
         var output = _writer.ToString();
         Assert.Contains("Usage:", output);
@@ -301,7 +301,7 @@ public class TemporalCommandHandlerTests
     [Fact]
     public async Task Mutations_RelInvalidGuid_ShowsError()
     {
-        await ExecuteHandler("mutations rel not-a-guid", _brokerMock.Object);
+        await ExecuteHandler("mutations rel not-a-guid", _myceliumMock.Object);
 
         var output = _writer.ToString();
         Assert.Contains("Invalid relationship ID", output);
@@ -313,18 +313,18 @@ public class TemporalCommandHandlerTests
         // When mutation type is not recognized but is a valid GUID, try as thing
         var thingId = Guid.NewGuid();
         var mockResponse = JsonDocument.Parse($"{{\"ThingId\":\"{thingId}\",\"Mutations\":[]}}");
-        _brokerMock.Setup(b => b.GetThingMutationsAsync(thingId, null, null))
+        _myceliumMock.Setup(b => b.GetThingMutationsAsync(thingId, null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
-        await ExecuteHandler($"mutations {thingId}", _brokerMock.Object);
+        await ExecuteHandler($"mutations {thingId}", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetThingMutationsAsync(thingId, null, null), Times.Once);
+        _myceliumMock.Verify(b => b.GetThingMutationsAsync(thingId, null, null), Times.Once);
     }
 
     [Fact]
     public async Task Mutations_ImplicitThingNotFound_ShowsError()
     {
-        await ExecuteHandler("mutations SomeUnknownThing", _brokerMock.Object);
+        await ExecuteHandler("mutations SomeUnknownThing", _myceliumMock.Object);
 
         var output = _writer.ToString();
         Assert.Contains("Cannot resolve name", output);
@@ -335,16 +335,16 @@ public class TemporalCommandHandlerTests
     #region Snapshot no-timestamp path
 
     [Fact]
-    public async Task Snapshot_NoTimestamp_PassesNullToBroker()
+    public async Task Snapshot_NoTimestamp_PassesNullToMycelium()
     {
         // Pins the contract that `snapshot` without a trailing timestamp arg routes
         // through ParseOptionalTimestamp's null branch and calls GetModelAtTimeAsync(null).
-        _brokerMock.Setup(b => b.GetModelAtTimeAsync(null))
+        _myceliumMock.Setup(b => b.GetModelAtTimeAsync(null))
             .ReturnsAsync(JsonDocument.Parse("{}").RootElement);
 
-        await ExecuteHandler("snapshot", _brokerMock.Object);
+        await ExecuteHandler("snapshot", _myceliumMock.Object);
 
-        _brokerMock.Verify(b => b.GetModelAtTimeAsync(null), Times.AtLeastOnce);
+        _myceliumMock.Verify(b => b.GetModelAtTimeAsync(null), Times.AtLeastOnce);
     }
 
     #endregion

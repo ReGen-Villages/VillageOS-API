@@ -5,14 +5,14 @@ namespace vos.Taproot
         private readonly TextWriter _writer;
         private readonly string _cmd;
         private readonly string _arg;
-        private readonly BrokerClient _broker;
+        private readonly MyceliumClient _mycelium;
 
-        public FileSystemCommandHandler(string cmd, string arg, TextWriter writer, BrokerClient broker)
+        public FileSystemCommandHandler(string cmd, string arg, TextWriter writer, MyceliumClient mycelium)
         {
             _writer = writer;
             _cmd = cmd;
             _arg = arg;
-            _broker = broker;
+            _mycelium = mycelium;
         }
 
         public async Task ExecuteAsync()
@@ -80,13 +80,13 @@ namespace vos.Taproot
             }
 
             var modelJson = await File.ReadAllTextAsync(filePath);
-            await _broker.SetModelAsync(modelJson);
+            await _mycelium.SetModelAsync(modelJson);
             _writer.WriteLine($"Model loaded from {filePath}");
         }
 
         private async Task SerializeModelAsync(string filePath)
         {
-            var modelJson = await _broker.GetModelJsonAsync();
+            var modelJson = await _mycelium.GetModelJsonAsync();
 
             if (string.IsNullOrWhiteSpace(filePath))
             {

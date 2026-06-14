@@ -10,17 +10,17 @@ using Xunit;
 namespace vos.ManagedMicroservice.Shared.Tests;
 
 /// <summary>
-/// Phase 3 (Feature #5440): outbound + response validation in <see cref="BrokerClientBase"/>.
-/// Both Throw and Log policies tested regardless of build config -- the BrokerClient's
+/// Phase 3 (Feature #5440): outbound + response validation in <see cref="MyceliumClientBase"/>.
+/// Both Throw and Log policies tested regardless of build config -- the MyceliumClient's
 /// <c>OutboundViolationMode</c> is a virtual property the test subclass overrides, so
 /// CI (Release) can exercise both paths without re-running tests in two configurations.
 /// </summary>
-public class BrokerClientBaseValidationTests
+public class MyceliumClientBaseValidationTests
 {
-    private const string BrokerUrl = "http://localhost:7243";
+    private const string MyceliumUrl = "http://localhost:7243";
     private const string TestToken = "service-token-abc";
     private const string TokenResponseSchemaId = "https://villageos/contracts/token-response.schema.json";
-    private const string BrokerRegisterRequestSchemaId = "https://villageos/contracts/broker-register-request.schema.json";
+    private const string MyceliumRegisterRequestSchemaId = "https://villageos/contracts/mycelium-register-request.schema.json";
 
     // ---- RegisterAsync ----
 
@@ -38,55 +38,55 @@ public class BrokerClientBaseValidationTests
     [Fact]
     public async Task RegisterAsync_InvalidPayload_ThrowMode_ThrowsContractValidationException_DoesNotPost()
     {
-        var brokerCalls = 0;
+        var myceliumCalls = 0;
         var (client, _) = BuildClient(req =>
         {
-            if (req.RequestUri!.AbsolutePath == "/api/broker/register") brokerCalls++;
+            if (req.RequestUri!.AbsolutePath == "/api/mycelium/register") myceliumCalls++;
             return new HttpResponseMessage(HttpStatusCode.OK);
         }, serviceToken: TestToken, mode: SchemaViolationMode.Throw);
 
-        // Empty serviceName violates broker-register-request minLength:1
+        // Empty serviceName violates mycelium-register-request minLength:1
         var act = async () => await client.RegisterAsync(7100, "", "endpoint-service");
 
         var ex = (await act.Should().ThrowAsync<ContractValidationException>()).Which;
-        ex.Message.Should().Contain(BrokerRegisterRequestSchemaId);
-        brokerCalls.Should().Be(0, "validation must fail-fast before the POST");
+        ex.Message.Should().Contain(MyceliumRegisterRequestSchemaId);
+        myceliumCalls.Should().Be(0, "validation must fail-fast before the POST");
     }
 
     [Fact]
     public async Task RegisterAsync_InvalidPayload_LogMode_LogsWarning_StillPosts()
     {
         var logger = new RecordingLogger();
-        var brokerCalls = 0;
+        var myceliumCalls = 0;
         var (client, _) = BuildClient(req =>
         {
-            if (req.RequestUri!.AbsolutePath == "/api/broker/register") brokerCalls++;
+            if (req.RequestUri!.AbsolutePath == "/api/mycelium/register") myceliumCalls++;
             return new HttpResponseMessage(HttpStatusCode.OK);
         }, serviceToken: TestToken, mode: SchemaViolationMode.Log, logger: logger);
 
         var result = await client.RegisterAsync(7100, "", "endpoint-service");
 
-        result.Should().BeTrue("Log mode never blocks the call; broker decides on the body");
-        brokerCalls.Should().Be(1, "Log mode lets the malformed request through to the broker");
+        result.Should().BeTrue("Log mode never blocks the call; mycelium decides on the body");
+        myceliumCalls.Should().Be(1, "Log mode lets the malformed request through to Mycelium");
         logger.Warnings.Should().ContainSingle()
-            .Which.Should().Contain(BrokerRegisterRequestSchemaId);
+            .Which.Should().Contain(MyceliumRegisterRequestSchemaId);
     }
 
     // ---- GetTokenAsync ----
 
     [Fact]
-    public async Task GetTokenAsync_BrokerReturnsValidShape_ThrowMode_ReturnsToken()
+    public async Task GetTokenAsync_MyceliumReturnsValidShape_ThrowMode_ReturnsToken()
     {
-        var (client, _) = BuildClient(_ => JsonResponse("""{"token":"from-broker"}"""),
+        var (client, _) = BuildClient(_ => JsonResponse("""{"token":"from-mycelium"}"""),
             serviceToken: null, mode: SchemaViolationMode.Throw);
 
         var token = await client.GetTokenAsync();
 
-        token.Should().Be("from-broker");
+        token.Should().Be("from-mycelium");
     }
 
     [Fact]
-    public async Task GetTokenAsync_BrokerReturnsInvalidShape_ThrowMode_ThrowsContractValidationException()
+    public async Task GetTokenAsync_MyceliumReturnsInvalidShape_ThrowMode_ThrowsContractValidationException()
     {
         var (client, _) = BuildClient(_ => JsonResponse("""{"wrong":"shape"}"""),
             serviceToken: null, mode: SchemaViolationMode.Throw);
@@ -98,7 +98,7 @@ public class BrokerClientBaseValidationTests
     }
 
     [Fact]
-    public async Task GetTokenAsync_BrokerReturnsInvalidShape_LogMode_LogsAndReturnsNull()
+    public async Task GetTokenAsync_MyceliumReturnsInvalidShape_LogMode_LogsAndReturnsNull()
     {
         var logger = new RecordingLogger();
         var (client, _) = BuildClient(_ => JsonResponse("""{"wrong":"shape"}"""),
@@ -113,7 +113,7 @@ public class BrokerClientBaseValidationTests
 
     // ---- Helpers ----
 
-    private static (TestableBrokerClient client, MockHttpMessageHandler handler) BuildClient(
+    private static (TestableMyceliumClient client, MockHttpMessageHandler handler) BuildClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
         string? serviceToken,
         SchemaViolationMode mode,
@@ -122,7 +122,7 @@ public class BrokerClientBaseValidationTests
         var handler = new MockHttpMessageHandler(respond);
         var httpClient = new HttpClient(handler);
         var factory = new TestHttpClientFactory(httpClient);
-        var client = new TestableBrokerClient(factory, logger ?? NullLogger.Instance, BrokerUrl, serviceToken)
+        var client = new TestableMyceliumClient(factory, logger ?? NullLogger.Instance, MyceliumUrl, serviceToken)
         {
             ViolationModeForTests = mode
         };

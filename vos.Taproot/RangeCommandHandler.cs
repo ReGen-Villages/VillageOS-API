@@ -9,11 +9,11 @@ public class RangeCommandHandler
 {
     private readonly TextWriter _writer;
     private readonly string _arg;
-    private readonly BrokerClient? _client;
+    private readonly MyceliumClient? _client;
     private readonly NameResolver? _resolver;
     private readonly Dictionary<string, Func<string[], Task>> _commandHandlers;
 
-    public RangeCommandHandler(string arg, TextWriter writer, BrokerClient? client = null)
+    public RangeCommandHandler(string arg, TextWriter writer, MyceliumClient? client = null)
     {
         _writer = writer;
         _arg = arg;

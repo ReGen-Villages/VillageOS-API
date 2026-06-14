@@ -8,7 +8,7 @@ namespace vos.ManagedMicroservice.Delta.Tests;
 
 // Tests for the /handle (and /register alias) endpoint in
 // vos.ManagedMicroservice.Delta/Program.cs. Each test wires a per-scenario
-// HandlerCallback on the factory so the broker calls all resolve through the same handler.
+// HandlerCallback on the factory so Mycelium calls all resolve through the same handler.
 //
 // Test naming convention: most tests target /handle. The /register alias delegates to the
 // same HandleRegisterEndpointRequestAsync helper, so we cover it with a single shared-routing
@@ -473,7 +473,7 @@ public class RegisterEndpointTests
     [Fact]
     public async Task Handle_UnknownTemplate_Returns400WithDescentMessage()
     {
-        // A template not in the closed-set graph cannot descend from the root -> rejected, no broker call.
+        // A template not in the closed-set graph cannot descend from the root -> rejected, no mycelium call.
         await using var factory = new DeltaWebApplicationFactory();
         await factory.InitializeAsync();
         var isId = Guid.NewGuid();
@@ -497,7 +497,7 @@ public class RegisterEndpointTests
     [Fact]
     public async Task Handle_MultipleIsRelationships_Returns400()
     {
-        // A thing has at most one parent; two `is` rows are ambiguous and rejected before any broker call.
+        // A thing has at most one parent; two `is` rows are ambiguous and rejected before any mycelium call.
         await using var factory = new DeltaWebApplicationFactory();
         await factory.InitializeAsync();
         var isId = Guid.NewGuid();
@@ -657,21 +657,21 @@ public class RegisterEndpointTests
     public async Task Boot_UnderTestingEnvironment_DoesNotProvisionTemplates()
     {
         // The boot-time TemplateCatalogProvisioner is gated on app.Environment != "Testing", so
-        // building the host under the WebApplicationFactory must make zero broker calls at startup.
+        // building the host under the WebApplicationFactory must make zero mycelium calls at startup.
         // A regression that ran provisioning in tests would pollute every other test's request flow.
         await using var factory = new DeltaWebApplicationFactory();
         await factory.InitializeAsync();
-        var brokerCalls = 0;
+        var myceliumCalls = 0;
         factory.HandlerCallback = _ =>
         {
-            Interlocked.Increment(ref brokerCalls);
+            Interlocked.Increment(ref myceliumCalls);
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         };
 
         using var client = factory.CreateClient();
         await Task.Delay(100); // give any (erroneously-registered) startup hook a chance to fire
 
-        brokerCalls.Should().Be(0, "boot-time provisioning must not run under the Testing environment");
+        myceliumCalls.Should().Be(0, "boot-time provisioning must not run under the Testing environment");
     }
 
     // ---------- /health and /shutdown ----------

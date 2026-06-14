@@ -8,10 +8,10 @@ namespace vos.ManagedMicroservice.Shared.Tests;
 // base class's authenticated-client construction can be exercised directly, plus
 // a settable override of OutboundViolationMode so Phase 3 validation tests pin
 // both Throw and Log paths regardless of the test assembly's build configuration.
-internal sealed class TestableBrokerClient : BrokerClientBase
+internal sealed class TestableMyceliumClient : MyceliumClientBase
 {
-    public TestableBrokerClient(IHttpClientFactory httpClientFactory, ILogger logger, string brokerUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, brokerUrl, serviceToken)
+    public TestableMyceliumClient(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
     {
     }
 

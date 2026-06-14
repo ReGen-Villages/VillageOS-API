@@ -4,24 +4,24 @@ namespace vos.Taproot
     {
         private readonly TextWriter _writer;
         private readonly string _arg;
-        private readonly BrokerClient _broker;
+        private readonly MyceliumClient _mycelium;
         private readonly NameResolver _resolver;
         private readonly OutputOptions _options;
         private readonly Dictionary<string, Func<string[], Task>> _commandHandlers;
 
-        public StartCommandHandler(string arg, TextWriter writer, BrokerClient broker)
-            : this(arg, writer, broker, OutputOptions.Default)
+        public StartCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : this(arg, writer, mycelium, OutputOptions.Default)
         {
         }
 
-        public StartCommandHandler(string arg, TextWriter writer, BrokerClient broker, OutputOptions options)
+        public StartCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions options)
         {
             var (parsedOptions, remainingArgs) = OutputOptions.ParseFromArgs(arg);
             _options = options.ShowGuids ? options : parsedOptions;
             _arg = remainingArgs;
             _writer = writer;
-            _broker = broker;
-            _resolver = new NameResolver(broker);
+            _mycelium = mycelium;
+            _resolver = new NameResolver(mycelium);
             _commandHandlers = new Dictionary<string, Func<string[], Task>>(StringComparer.OrdinalIgnoreCase)
             {
                 ["service"] = StartServiceAsync
@@ -88,7 +88,7 @@ namespace vos.Taproot
         private async Task ExecuteStartServiceAsync(Guid handlerId, string handlerName)
         {
             var display = _options.FormatIdentifier(handlerName, handlerId);
-            var success = await _broker.StartServiceAsync(handlerId);
+            var success = await _mycelium.StartServiceAsync(handlerId);
             var message = success
                 ? $"Service {display} started successfully"
                 : $"Failed to start service {display} (not registered or start failed)";

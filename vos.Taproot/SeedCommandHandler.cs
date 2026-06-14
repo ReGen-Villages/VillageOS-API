@@ -6,13 +6,13 @@ public class SeedCommandHandler
 {
     private readonly TextWriter _writer;
     private readonly string _arg;
-    private readonly BrokerClient _broker;
+    private readonly MyceliumClient _mycelium;
 
-    public SeedCommandHandler(string arg, TextWriter writer, BrokerClient broker)
+    public SeedCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
     {
         _arg = arg;
         _writer = writer;
-        _broker = broker;
+        _mycelium = mycelium;
     }
 
     public async Task ExecuteAsync()
@@ -52,13 +52,13 @@ public class SeedCommandHandler
 
     private async Task ShowStatusAsync()
     {
-        var status = await _broker.GetSeedStatusAsync();
+        var status = await _mycelium.GetSeedStatusAsync();
         _writer.WriteLine(JsonSerializer.Serialize(status, new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private async Task ListLibrarySeedsAsync()
     {
-        var seeds = await _broker.ListLibrarySeedsAsync();
+        var seeds = await _mycelium.ListLibrarySeedsAsync();
         if (seeds.ValueKind != JsonValueKind.Array || seeds.GetArrayLength() == 0)
         {
             _writer.WriteLine("No library seeds found.");
@@ -76,21 +76,21 @@ public class SeedCommandHandler
     private async Task LoadSeedAsync(string name)
     {
         _writer.WriteLine($"Loading seed '{name}'...");
-        var result = await _broker.LoadLibrarySeedAsync(name);
+        var result = await _mycelium.LoadLibrarySeedAsync(name);
         _writer.WriteLine($"Seed '{name}' loaded.");
     }
 
     private async Task SaveSeedAsync(string name)
     {
         _writer.WriteLine($"Saving current model as seed '{name}'...");
-        var result = await _broker.SaveLibrarySeedAsync(name);
+        var result = await _mycelium.SaveLibrarySeedAsync(name);
         _writer.WriteLine($"Model saved as seed '{name}'.");
     }
 
     private async Task ReloadSeedsAsync()
     {
         _writer.WriteLine("Reloading seeds from disk...");
-        var result = await _broker.ReloadSeedsAsync();
+        var result = await _mycelium.ReloadSeedsAsync();
         _writer.WriteLine("Seeds reloaded.");
     }
 

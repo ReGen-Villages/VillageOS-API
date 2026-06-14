@@ -22,21 +22,21 @@ public class HandlerAuthExtensionsTests
         WebApplication.CreateBuilder(Array.Empty<string>());
 
     [Fact]
-    public void AddBrokerTokenAuth_ReturnsSameBuilderForFluentChaining()
+    public void AddMyceliumTokenAuth_ReturnsSameBuilderForFluentChaining()
     {
         var builder = NewBuilder();
 
-        var result = builder.AddBrokerTokenAuth(Base64Of(RawKey));
+        var result = builder.AddMyceliumTokenAuth(Base64Of(RawKey));
 
         result.Should().BeSameAs(builder);
     }
 
     [Fact]
-    public void AddBrokerTokenAuth_UsesDefaultIssuerAndAudience()
+    public void AddMyceliumTokenAuth_UsesDefaultIssuerAndAudience()
     {
         var builder = NewBuilder();
 
-        builder.AddBrokerTokenAuth(Base64Of(RawKey));
+        builder.AddMyceliumTokenAuth(Base64Of(RawKey));
 
         var p = ResolveBearerValidationParameters(builder);
         p.ValidIssuer.Should().Be("VillageOS");
@@ -44,11 +44,11 @@ public class HandlerAuthExtensionsTests
     }
 
     [Fact]
-    public void AddBrokerTokenAuth_AppliesCustomIssuerAndAudience()
+    public void AddMyceliumTokenAuth_AppliesCustomIssuerAndAudience()
     {
         var builder = NewBuilder();
 
-        builder.AddBrokerTokenAuth(Base64Of(RawKey), issuer: "custom-iss", audience: "custom-aud");
+        builder.AddMyceliumTokenAuth(Base64Of(RawKey), issuer: "custom-iss", audience: "custom-aud");
 
         var p = ResolveBearerValidationParameters(builder);
         p.ValidIssuer.Should().Be("custom-iss");
@@ -56,11 +56,11 @@ public class HandlerAuthExtensionsTests
     }
 
     [Fact]
-    public void AddBrokerTokenAuth_DecodesBase64SigningKeyAsUtf8Bytes()
+    public void AddMyceliumTokenAuth_DecodesBase64SigningKeyAsUtf8Bytes()
     {
         var builder = NewBuilder();
 
-        builder.AddBrokerTokenAuth(Base64Of(RawKey));
+        builder.AddMyceliumTokenAuth(Base64Of(RawKey));
 
         var p = ResolveBearerValidationParameters(builder);
         var sym = p.IssuerSigningKey.Should().BeOfType<SymmetricSecurityKey>().Subject;
@@ -68,11 +68,11 @@ public class HandlerAuthExtensionsTests
     }
 
     [Fact]
-    public async Task AddBrokerTokenAuth_RegistersBearerScheme()
+    public async Task AddMyceliumTokenAuth_RegistersBearerScheme()
     {
         var builder = NewBuilder();
 
-        builder.AddBrokerTokenAuth(Base64Of(RawKey));
+        builder.AddMyceliumTokenAuth(Base64Of(RawKey));
 
         using var app = builder.Build();
         var provider = app.Services.GetRequiredService<IAuthenticationSchemeProvider>();
@@ -82,11 +82,11 @@ public class HandlerAuthExtensionsTests
     }
 
     [Fact]
-    public void AddBrokerTokenAuth_RegistersAuthorizationServices()
+    public void AddMyceliumTokenAuth_RegistersAuthorizationServices()
     {
         var builder = NewBuilder();
 
-        builder.AddBrokerTokenAuth(Base64Of(RawKey));
+        builder.AddMyceliumTokenAuth(Base64Of(RawKey));
 
         using var app = builder.Build();
         app.Services.GetService<Microsoft.AspNetCore.Authorization.IAuthorizationService>()
@@ -94,11 +94,11 @@ public class HandlerAuthExtensionsTests
     }
 
     [Fact]
-    public void AddBrokerTokenAuth_ThrowsFormatExceptionOnInvalidBase64()
+    public void AddMyceliumTokenAuth_ThrowsFormatExceptionOnInvalidBase64()
     {
         var builder = NewBuilder();
 
-        var act = () => builder.AddBrokerTokenAuth("not!valid!base64!");
+        var act = () => builder.AddMyceliumTokenAuth("not!valid!base64!");
 
         act.Should().Throw<FormatException>();
     }

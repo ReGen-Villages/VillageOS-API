@@ -7,18 +7,18 @@ namespace vos.Taproot.Tests;
 
 public class StopCommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
     private readonly StringWriter _writer;
 
     public StopCommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
         _writer = new StringWriter();
     }
 
     private async Task ExecuteHandler(string arg)
     {
-        var handler = new StopCommandHandler(arg, _writer, _brokerMock.Object);
+        var handler = new StopCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
@@ -52,7 +52,7 @@ public class StopCommandHandlerTests
     public async Task StopService_InvalidName_ShowsError()
     {
         var things = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
         await ExecuteHandler("service invalid-name");
 
@@ -64,12 +64,12 @@ public class StopCommandHandlerTests
     {
         var handlerId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.StopServiceAsync(handlerId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.StopServiceAsync(handlerId)).ReturnsAsync(true);
 
         await ExecuteHandler($"service {handlerId}");
 
-        _brokerMock.Verify(b => b.StopServiceAsync(handlerId), Times.Once);
+        _myceliumMock.Verify(b => b.StopServiceAsync(handlerId), Times.Once);
         var output = _writer.ToString();
         Assert.Contains("Stop request sent to service", output);
         Assert.Contains("MyHandler", output);
@@ -80,12 +80,12 @@ public class StopCommandHandlerTests
     {
         var handlerId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.StopServiceAsync(handlerId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.StopServiceAsync(handlerId)).ReturnsAsync(true);
 
         await ExecuteHandler("service MyHandler");
 
-        _brokerMock.Verify(b => b.StopServiceAsync(handlerId), Times.Once);
+        _myceliumMock.Verify(b => b.StopServiceAsync(handlerId), Times.Once);
         var output = _writer.ToString();
         Assert.Contains("Stop request sent to service", output);
         Assert.Contains("MyHandler", output);
@@ -96,8 +96,8 @@ public class StopCommandHandlerTests
     {
         var handlerId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.StopServiceAsync(handlerId)).ReturnsAsync(false);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.StopServiceAsync(handlerId)).ReturnsAsync(false);
 
         await ExecuteHandler($"service {handlerId}");
 
@@ -113,8 +113,8 @@ public class StopCommandHandlerTests
     {
         var handlerId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.StopServiceAsync(handlerId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.StopServiceAsync(handlerId)).ReturnsAsync(true);
 
         await ExecuteHandler($"service MyHandler --showguids");
 
@@ -129,8 +129,8 @@ public class StopCommandHandlerTests
     {
         var handlerId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.StopServiceAsync(handlerId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.StopServiceAsync(handlerId)).ReturnsAsync(true);
 
         await ExecuteHandler("service MyHandler");
 
@@ -155,11 +155,11 @@ public class StopCommandHandlerTests
     [Fact]
     public async Task StopDaemon_WhenExists_StopsAndShowsMessage()
     {
-        _brokerMock.Setup(b => b.StopDaemonAsync("is:5100")).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.StopDaemonAsync("is:5100")).ReturnsAsync(true);
 
         await ExecuteHandler("daemon is:5100");
 
-        _brokerMock.Verify(b => b.StopDaemonAsync("is:5100"), Times.Once);
+        _myceliumMock.Verify(b => b.StopDaemonAsync("is:5100"), Times.Once);
         var output = _writer.ToString();
         Assert.Contains("Daemon 'is:5100' stopped", output);
     }
@@ -167,7 +167,7 @@ public class StopCommandHandlerTests
     [Fact]
     public async Task StopDaemon_WhenNotFound_ShowsNotFoundMessage()
     {
-        _brokerMock.Setup(b => b.StopDaemonAsync("nonexistent:1234")).ReturnsAsync(false);
+        _myceliumMock.Setup(b => b.StopDaemonAsync("nonexistent:1234")).ReturnsAsync(false);
 
         await ExecuteHandler("daemon nonexistent:1234");
 

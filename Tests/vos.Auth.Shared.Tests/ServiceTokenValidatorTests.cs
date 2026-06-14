@@ -10,7 +10,7 @@ namespace vos.Auth.Shared.Tests;
 
 public class ServiceTokenValidatorTests
 {
-    // HS256 requires at least 128 bits of key material; broker-supplied keys are always sized appropriately.
+    // HS256 requires at least 128 bits of key material; mycelium-supplied keys are always sized appropriately.
     private const string TestKey = "the-quick-brown-fox-jumps-over-the-lazy-dog-256";
     private const string TestIssuer = "VillageOS";
     private const string TestAudience = "VosClients";

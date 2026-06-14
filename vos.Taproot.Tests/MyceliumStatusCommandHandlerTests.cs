@@ -4,20 +4,20 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-public class BrokerStatusCommandHandlerTests
+public class MyceliumStatusCommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
     private readonly StringWriter _writer;
 
-    public BrokerStatusCommandHandlerTests()
+    public MyceliumStatusCommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
         _writer = new StringWriter();
     }
 
     private async Task ExecuteHandler(string arg)
     {
-        var handler = new BrokerStatusCommandHandler(arg, _writer, _brokerMock.Object);
+        var handler = new MyceliumStatusCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
@@ -30,8 +30,8 @@ public class BrokerStatusCommandHandlerTests
 
         var output = _writer.ToString();
         Assert.Contains("Usage:", output);
-        Assert.Contains("broker status", output);
-        Assert.Contains("broker endpoints", output);
+        Assert.Contains("mycelium status", output);
+        Assert.Contains("mycelium endpoints", output);
     }
 
     [Fact]
@@ -51,9 +51,9 @@ public class BrokerStatusCommandHandlerTests
     }
 
     [Fact]
-    public async Task Status_DelegatesToBroker_AndPrintsJson()
+    public async Task Status_DelegatesToMycelium_AndPrintsJson()
     {
-        _brokerMock.Setup(b => b.GetSeedStatusAsync())
+        _myceliumMock.Setup(b => b.GetSeedStatusAsync())
             .ReturnsAsync(Parse("{\"loaded\":true,\"count\":3}"));
 
         await ExecuteHandler("status");
@@ -66,7 +66,7 @@ public class BrokerStatusCommandHandlerTests
     [Fact]
     public async Task Endpoints_NoneRegistered_ShowsFriendlyMessage()
     {
-        _brokerMock.Setup(b => b.GetEndpointsAsync()).ReturnsAsync(Parse("[]"));
+        _myceliumMock.Setup(b => b.GetEndpointsAsync()).ReturnsAsync(Parse("[]"));
 
         await ExecuteHandler("endpoints");
 
@@ -76,7 +76,7 @@ public class BrokerStatusCommandHandlerTests
     [Fact]
     public async Task Endpoints_NotAnArray_ShowsFriendlyMessage()
     {
-        _brokerMock.Setup(b => b.GetEndpointsAsync()).ReturnsAsync(Parse("{}"));
+        _myceliumMock.Setup(b => b.GetEndpointsAsync()).ReturnsAsync(Parse("{}"));
 
         await ExecuteHandler("endpoints");
 
@@ -87,7 +87,7 @@ public class BrokerStatusCommandHandlerTests
     public async Task Endpoints_WithItems_ListsEachWithSubdomainAndUrl()
     {
         var json = "[{\"Subdomain\":\"echo\",\"BaseUrl\":\"https://echo.local\"},{\"Subdomain\":\"meta\",\"BaseUrl\":\"https://meta.local\"}]";
-        _brokerMock.Setup(b => b.GetEndpointsAsync()).ReturnsAsync(Parse(json));
+        _myceliumMock.Setup(b => b.GetEndpointsAsync()).ReturnsAsync(Parse(json));
 
         await ExecuteHandler("endpoints");
 
@@ -102,7 +102,7 @@ public class BrokerStatusCommandHandlerTests
     public async Task Endpoints_MissingFields_FallsBackToUnknown()
     {
         // Endpoint with neither Subdomain nor BaseUrl exercises the GetStringOrDefault default branch.
-        _brokerMock.Setup(b => b.GetEndpointsAsync()).ReturnsAsync(Parse("[{}]"));
+        _myceliumMock.Setup(b => b.GetEndpointsAsync()).ReturnsAsync(Parse("[{}]"));
 
         await ExecuteHandler("endpoints");
 
@@ -110,9 +110,9 @@ public class BrokerStatusCommandHandlerTests
     }
 
     [Fact]
-    public async Task BrokerThrows_ErrorWritten()
+    public async Task MyceliumThrows_ErrorWritten()
     {
-        _brokerMock.Setup(b => b.GetSeedStatusAsync()).ThrowsAsync(new HttpRequestException("offline"));
+        _myceliumMock.Setup(b => b.GetSeedStatusAsync()).ThrowsAsync(new HttpRequestException("offline"));
 
         await ExecuteHandler("status");
 

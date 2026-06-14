@@ -17,7 +17,7 @@ namespace vos.ManagedMicroservice.Metabolism.Tests;
 /// Phase 3, switched via OutboundViolationMode -- tests override it on a thin subclass
 /// so both paths run regardless of build config.
 /// </summary>
-public class BrokerClientValidationTests
+public class MyceliumClientValidationTests
 {
     private const string ApplyQuantitySchemaId = "https://villageos/contracts/apply-quantity-request.schema.json";
     private const string RelationshipIncrementSchemaId = "https://villageos/contracts/relationship-property-increment-request.schema.json";
@@ -51,7 +51,7 @@ public class BrokerClientValidationTests
     [Fact]
     public async Task ApplyQuantityAsync_InvalidPayload_LogMode_LogsAndStillPosts()
     {
-        var logger = new RecordingLogger<BrokerClient>();
+        var logger = new RecordingLogger<MyceliumClient>();
         var (client, mock) = CreateTestClient(SchemaViolationMode.Log,
             applyPayloadOverride: () => new { amount = 5m, subjectName = "x", unit = "kWh", rogue = "field" },
             logger: logger);
@@ -90,7 +90,7 @@ public class BrokerClientValidationTests
     [Fact]
     public async Task IncrementRelationshipPropertyAsync_InvalidPayload_LogMode_LogsAndStillPosts()
     {
-        var logger = new RecordingLogger<BrokerClient>();
+        var logger = new RecordingLogger<MyceliumClient>();
         var (client, mock) = CreateTestClient(SchemaViolationMode.Log,
             incrementPayloadOverride: () => new { wrong = "shape" },
             logger: logger);
@@ -103,11 +103,11 @@ public class BrokerClientValidationTests
 
     // ---- Helpers ----
 
-    private static (TestableMetabolismBrokerClient client, MockHttpMessageHandler mock) CreateTestClient(
+    private static (TestableMetabolismMyceliumClient client, MockHttpMessageHandler mock) CreateTestClient(
         SchemaViolationMode mode,
         Func<object>? applyPayloadOverride = null,
         Func<object>? incrementPayloadOverride = null,
-        ILogger<BrokerClient>? logger = null)
+        ILogger<MyceliumClient>? logger = null)
     {
         var mock = new MockHttpMessageHandler(req =>
         {
@@ -126,12 +126,12 @@ public class BrokerClientValidationTests
 
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(() =>
-            new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-broker") });
+            new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-mycelium") });
 
-        var client = new TestableMetabolismBrokerClient(
+        var client = new TestableMetabolismMyceliumClient(
             httpFactory.Object,
-            logger ?? new Mock<ILogger<BrokerClient>>().Object,
-            "http://test-broker", "consumes")
+            logger ?? new Mock<ILogger<MyceliumClient>>().Object,
+            "http://test-mycelium", "consumes")
         {
             ViolationModeForTests = mode,
             ApplyPayloadOverride = applyPayloadOverride,
@@ -143,12 +143,12 @@ public class BrokerClientValidationTests
     /// <summary>
     /// Subclass that exposes the OutboundViolationMode override + lets tests inject a
     /// deliberately malformed payload object via overrideable build hooks. The hooks
-    /// are protected-virtual on the production BrokerClient (Phase 4).
+    /// are protected-virtual on the production MyceliumClient (Phase 4).
     /// </summary>
-    private sealed class TestableMetabolismBrokerClient : BrokerClient
+    private sealed class TestableMetabolismMyceliumClient : MyceliumClient
     {
-        public TestableMetabolismBrokerClient(IHttpClientFactory http, ILogger<BrokerClient> log, string brokerUrl, string mode)
-            : base(http, log, brokerUrl, mode) { }
+        public TestableMetabolismMyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string myceliumUrl, string mode)
+            : base(http, log, myceliumUrl, mode) { }
 
         public SchemaViolationMode? ViolationModeForTests { get; set; }
         public Func<object>? ApplyPayloadOverride { get; set; }

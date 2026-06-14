@@ -15,7 +15,7 @@ namespace vos.ManagedMicroservice.Metabolism.Tests;
 /// an internal RaiseRelationshipPropertyChanged method that tests call directly via
 /// InternalsVisibleTo.
 /// </summary>
-public class BrokerClientSignalRValidationTests
+public class MyceliumClientSignalRValidationTests
 {
     private const string EventSchemaId = "https://villageos/contracts/relationship-property-changed-event.schema.json";
 
@@ -51,7 +51,7 @@ public class BrokerClientSignalRValidationTests
     [Fact]
     public void RaiseRelationshipPropertyChanged_EmptyPropertyName_LogMode_LogsAndStillRaises()
     {
-        var logger = new RecordingLogger<BrokerClient>();
+        var logger = new RecordingLogger<MyceliumClient>();
         var client = NewClient(SchemaViolationMode.Log, logger);
         var raised = false;
         client.OnRelationshipPropertyChanged += (_, _, _) => raised = true;
@@ -64,22 +64,22 @@ public class BrokerClientSignalRValidationTests
 
     // ---- helpers ----
 
-    private static TestableMetabolismBrokerClient NewClient(SchemaViolationMode mode, ILogger<BrokerClient>? logger = null)
+    private static TestableMetabolismMyceliumClient NewClient(SchemaViolationMode mode, ILogger<MyceliumClient>? logger = null)
     {
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
-        return new TestableMetabolismBrokerClient(
+        return new TestableMetabolismMyceliumClient(
             httpFactory.Object,
-            logger ?? new Mock<ILogger<BrokerClient>>().Object,
+            logger ?? new Mock<ILogger<MyceliumClient>>().Object,
             "http://test", "consumes")
         {
             ViolationModeForTests = mode
         };
     }
 
-    private sealed class TestableMetabolismBrokerClient : BrokerClient
+    private sealed class TestableMetabolismMyceliumClient : MyceliumClient
     {
-        public TestableMetabolismBrokerClient(IHttpClientFactory http, ILogger<BrokerClient> log, string url, string mode)
+        public TestableMetabolismMyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string url, string mode)
             : base(http, log, url, mode) { }
 
         public SchemaViolationMode? ViolationModeForTests { get; set; }

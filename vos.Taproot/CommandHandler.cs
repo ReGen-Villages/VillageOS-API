@@ -4,16 +4,16 @@ namespace vos.Taproot
     {
         private readonly TextReader _reader;
         private readonly TextWriter _writer;
-        private readonly BrokerClient _broker;
-        private readonly string _brokerUrl;
+        private readonly MyceliumClient _mycelium;
+        private readonly string _myceliumUrl;
         private readonly bool _interactiveMode;
 
-        public CommandHandler(TextReader reader, TextWriter writer, BrokerClient broker, string brokerUrl, bool interactiveMode = false)
+        public CommandHandler(TextReader reader, TextWriter writer, MyceliumClient mycelium, string myceliumUrl, bool interactiveMode = false)
         {
             _reader = reader;
             _writer = writer;
-            _broker = broker;
-            _brokerUrl = brokerUrl;
+            _mycelium = mycelium;
+            _myceliumUrl = myceliumUrl;
             _interactiveMode = interactiveMode;
         }
 
@@ -100,15 +100,15 @@ namespace vos.Taproot
             _writer.WriteLine("  model switch <id|name>                      - Switch to a different model");
             _writer.WriteLine("  clear model                                 - Clear all things and relationships");
             _writer.WriteLine();
-            _writer.WriteLine("Broker:");
-            _writer.WriteLine("  broker status                               - Show broker seed status");
-            _writer.WriteLine("  broker endpoints                            - List registered endpoint services");
+            _writer.WriteLine("Mycelium:");
+            _writer.WriteLine("  mycelium status                               - Show Mycelium seed status");
+            _writer.WriteLine("  mycelium endpoints                            - List registered endpoint services");
             _writer.WriteLine();
             _writer.WriteLine("User Management:");
             _writer.WriteLine("  user change-password <userId>               - Change a user's password");
             _writer.WriteLine();
             _writer.WriteLine("Other:");
-            _writer.WriteLine("  shutdown                                    - Shut down the broker");
+            _writer.WriteLine("  shutdown                                    - Shut down Mycelium");
             _writer.WriteLine("  help                                        - Show this help");
             _writer.WriteLine("  exit                                        - Exit the console");
             _writer.WriteLine();
@@ -127,19 +127,19 @@ namespace vos.Taproot
                 _writer.WriteLine("Unknown command; type help for list of commands.");
         }
 
-        private async Task ShutdownBrokerAsync()
+        private async Task ShutdownMyceliumAsync()
         {
             try
             {
-                var success = await _broker.ShutdownBrokerAsync();
+                var success = await _mycelium.ShutdownMyceliumAsync();
                 if (success)
-                    _writer.WriteLine("Broker shutdown initiated.");
+                    _writer.WriteLine("Mycelium shutdown initiated.");
                 else
-                    _writer.WriteLine("Failed to initiate broker shutdown.");
+                    _writer.WriteLine("Failed to initiate Mycelium shutdown.");
             }
             catch (HttpRequestException)
             {
-                _writer.WriteLine("Broker shutdown initiated (connection closed).");
+                _writer.WriteLine("Mycelium shutdown initiated (connection closed).");
             }
         }
 
@@ -152,54 +152,54 @@ namespace vos.Taproot
                 return;
             }
 
-            await _broker.ClearModelAsync();
+            await _mycelium.ClearModelAsync();
             _writer.WriteLine("Model cleared. All things and relationships have been removed.");
         }
 
         private Dictionary<string, Func<string, string, Task>> GetCommandHandlers() => new()
         {
-            ["cd"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _broker).ExecuteAsync(),
-            ["pwd"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _broker).ExecuteAsync(),
-            ["deserialize"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _broker).ExecuteAsync(),
-            ["plant"] = async (_, a) => await new PlantCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["serialize"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _broker).ExecuteAsync(),
-            ["seed"] = async (_, a) => await new FileSystemCommandHandler("serialize", a, _writer, _broker).ExecuteAsync(),
-            ["create"] = async (_, a) => await new CreateCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["delete"] = async (_, a) => await new DeleteCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["find"] = async (_, a) => await new FindCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["get"] = async (_, a) => await new GetCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["list"] = async (_, a) => await new ListCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["set"] = async (_, a) => await new SetCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["temporal"] = async (_, a) => await new TemporalCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["query"] = async (_, a) => await new QueryCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["start"] = async (_, a) => await new StartCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["stop"] = async (_, a) => await new StopCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["config"] = async (_, a) => await new ConfigCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["range"] = async (_, a) => await new RangeCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["state"] = async (_, a) => await new StateCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["shutdown"] = async (_, _) => await ShutdownBrokerAsync(),
+            ["cd"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _mycelium).ExecuteAsync(),
+            ["pwd"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _mycelium).ExecuteAsync(),
+            ["deserialize"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _mycelium).ExecuteAsync(),
+            ["plant"] = async (_, a) => await new PlantCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["serialize"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _mycelium).ExecuteAsync(),
+            ["seed"] = async (_, a) => await new FileSystemCommandHandler("serialize", a, _writer, _mycelium).ExecuteAsync(),
+            ["create"] = async (_, a) => await new CreateCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["delete"] = async (_, a) => await new DeleteCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["find"] = async (_, a) => await new FindCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["get"] = async (_, a) => await new GetCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["list"] = async (_, a) => await new ListCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["set"] = async (_, a) => await new SetCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["temporal"] = async (_, a) => await new TemporalCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["query"] = async (_, a) => await new QueryCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["start"] = async (_, a) => await new StartCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["stop"] = async (_, a) => await new StopCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["config"] = async (_, a) => await new ConfigCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["range"] = async (_, a) => await new RangeCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["state"] = async (_, a) => await new StateCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["shutdown"] = async (_, _) => await ShutdownMyceliumAsync(),
             ["clear"] = async (_, a) => await ClearModelAsync(a),
-            ["seeds"] = async (_, a) => await new SeedCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["broker"] = async (_, a) => await new BrokerStatusCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["model"] = async (_, a) => await new ModelCommandHandler(a, _writer, _broker).ExecuteAsync(),
-            ["user"] = async (_, a) => await new UserCommandHandler(a, _reader, _writer, _broker).ExecuteAsync(),
+            ["seeds"] = async (_, a) => await new SeedCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["mycelium"] = async (_, a) => await new MyceliumStatusCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["model"] = async (_, a) => await new ModelCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["user"] = async (_, a) => await new UserCommandHandler(a, _reader, _writer, _mycelium).ExecuteAsync(),
         };
 
         public async Task RunAsync()
         {
-            _writer.WriteLine($"VillageOS CLI - Connected to broker at {_brokerUrl}");
+            _writer.WriteLine($"VillageOS CLI - Connected to Mycelium at {_myceliumUrl}");
             _writer.WriteLine("Type 'help' to see available commands.");
 
-            // Test broker connection
+            // Test mycelium connection
             try
             {
-                await _broker.GetTokenAsync();
-                _writer.WriteLine("Successfully authenticated with broker.");
+                await _mycelium.GetTokenAsync();
+                _writer.WriteLine("Successfully authenticated with Mycelium.");
             }
             catch (Exception ex)
             {
-                _writer.WriteLine($"Warning: Could not connect to broker: {ex.Message}");
-                _writer.WriteLine("Commands will fail until the broker is available.");
+                _writer.WriteLine($"Warning: Could not connect to Mycelium: {ex.Message}");
+                _writer.WriteLine("Commands will fail until Mycelium is available.");
             }
 
             _writer.WriteLine();
@@ -238,7 +238,7 @@ namespace vos.Taproot
                     }
                     catch (HttpRequestException ex)
                     {
-                        _writer.WriteLine($"Error communicating with broker: {ex.Message}");
+                        _writer.WriteLine($"Error communicating with Mycelium: {ex.Message}");
                     }
                     catch (Exception ex)
                     {

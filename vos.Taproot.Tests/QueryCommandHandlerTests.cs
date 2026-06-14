@@ -6,18 +6,18 @@ namespace vos.Taproot.Tests;
 
 public class QueryCommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
     private readonly StringWriter _writer;
 
     public QueryCommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
         _writer = new StringWriter();
     }
 
     private async Task ExecuteHandler(string arg)
     {
-        var handler = new QueryCommandHandler(arg, _writer, _brokerMock.Object);
+        var handler = new QueryCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
@@ -57,7 +57,7 @@ public class QueryCommandHandlerTests
     public async Task QueryProperty_WithNoMatches_ShowsNotFoundMessage()
     {
         var emptyArray = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyArray);
 
         await ExecuteHandler("property Status Active");
 
@@ -71,7 +71,7 @@ public class QueryCommandHandlerTests
         var thingId = Guid.NewGuid();
         var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing"",""Properties"":{{""Status"":""Active""}}}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
 
         await ExecuteHandler("property Status Active");
 
@@ -90,7 +90,7 @@ public class QueryCommandHandlerTests
             {{""Id"":""{thing2Id}"",""Name"":""Bob"",""Properties"":{{""Status"":""Active""}}}}
         ]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
 
         await ExecuteHandler("property Status Active");
 
@@ -115,7 +115,7 @@ public class QueryCommandHandlerTests
     public async Task QueryPredicate_WithNoMatches_ShowsNotFoundMessage()
     {
         var emptyArray = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyArray);
 
         await ExecuteHandler("predicate likes");
 
@@ -131,7 +131,7 @@ public class QueryCommandHandlerTests
         var targetId = Guid.NewGuid();
         var json = $@"[{{""Id"":""{relId}"",""Name"":""likes"",""SubjectId"":""{subjectId}"",""TargetId"":""{targetId}""}}]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
 
         await ExecuteHandler("predicate likes");
 
@@ -148,7 +148,7 @@ public class QueryCommandHandlerTests
         var targetId = Guid.NewGuid();
         var json = $@"[{{""Id"":""{relId}"",""Name"":""Likes"",""SubjectId"":""{subjectId}"",""TargetId"":""{targetId}""}}]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
 
         await ExecuteHandler("predicate likes");
 
@@ -166,8 +166,8 @@ public class QueryCommandHandlerTests
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(thingsJson);
         var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
 
         await ExecuteHandler("stats");
 
@@ -188,8 +188,8 @@ public class QueryCommandHandlerTests
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
         var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
 
         await ExecuteHandler("stats");
 
@@ -207,8 +207,8 @@ public class QueryCommandHandlerTests
         ]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
 
         await ExecuteHandler("stats");
 
@@ -227,8 +227,8 @@ public class QueryCommandHandlerTests
         ]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
 
         await ExecuteHandler("stats");
 
@@ -247,8 +247,8 @@ public class QueryCommandHandlerTests
         ]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
 
         await ExecuteHandler("stats");
 
@@ -296,7 +296,7 @@ public class QueryCommandHandlerTests
         var thingId = Guid.NewGuid();
         var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing"",""Properties"":{{""Status"":""Active""}}}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
 
         await ExecuteHandler("property Status Active --showguids");
 
@@ -311,7 +311,7 @@ public class QueryCommandHandlerTests
         var thingId = Guid.NewGuid();
         var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing"",""Properties"":{{""Status"":""Active""}}}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
 
         await ExecuteHandler("property Status Active");
 
@@ -330,8 +330,8 @@ public class QueryCommandHandlerTests
             $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}}]");
         var relsJson = $@"[{{""Id"":""{relId}"",""Name"":""likes"",""SubjectId"":""{subjectId}"",""TargetId"":""{targetId}""}}]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
 
         await ExecuteHandler("predicate likes --showguids");
 
@@ -351,8 +351,8 @@ public class QueryCommandHandlerTests
             $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}}]");
         var relsJson = $@"[{{""Id"":""{relId}"",""Name"":""likes"",""SubjectId"":""{subjectId}"",""TargetId"":""{targetId}""}}]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
 
         await ExecuteHandler("predicate likes");
 
@@ -381,7 +381,7 @@ public class QueryCommandHandlerTests
             }}
         }}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
 
         await ExecuteHandler("property serialNumber SN-1234");
 
@@ -407,7 +407,7 @@ public class QueryCommandHandlerTests
             }}
         }}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
 
         await ExecuteHandler("property status active");
 
@@ -433,7 +433,7 @@ public class QueryCommandHandlerTests
             }}
         }}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
 
         await ExecuteHandler("property serialNumber SN-1234");
 
@@ -455,7 +455,7 @@ public class QueryCommandHandlerTests
             ""InheritedProperties"":null
         }}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
 
         await ExecuteHandler("property status active");
 
@@ -473,8 +473,8 @@ public class QueryCommandHandlerTests
         var emptyThings = JsonSerializer.Deserialize<JsonElement>("[]");
         var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
 
         await ExecuteHandler("stats");
 
@@ -495,8 +495,8 @@ public class QueryCommandHandlerTests
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
         var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
 
         await ExecuteHandler("stats");
 
@@ -515,8 +515,8 @@ public class QueryCommandHandlerTests
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
         var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
 
         await ExecuteHandler("stats");
 
@@ -530,8 +530,8 @@ public class QueryCommandHandlerTests
         var notArray = JsonSerializer.Deserialize<JsonElement>("{}");
         var emptyRels = JsonSerializer.Deserialize<JsonElement>("[]");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(notArray);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(notArray);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(emptyRels);
 
         await ExecuteHandler("stats");
 
@@ -545,8 +545,8 @@ public class QueryCommandHandlerTests
         var emptyThings = JsonSerializer.Deserialize<JsonElement>("[]");
         var notArray = JsonSerializer.Deserialize<JsonElement>("{}");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(notArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(notArray);
 
         await ExecuteHandler("stats");
 
@@ -564,8 +564,8 @@ public class QueryCommandHandlerTests
         ]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
 
         await ExecuteHandler("stats");
 
@@ -589,8 +589,8 @@ public class QueryCommandHandlerTests
         ]";
         var relsArray = JsonSerializer.Deserialize<JsonElement>(relsJson);
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyThings);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsArray);
 
         await ExecuteHandler("stats");
 

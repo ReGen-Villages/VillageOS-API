@@ -5,7 +5,7 @@ namespace vos.ManagedMicroservice.Metabolism.Services;
 
 /// <summary>
 /// Minimal abstraction over the SignalR <see cref="HubConnection"/> surface that
-/// <see cref="BrokerClient.ConnectSignalRAsync"/> actually uses. SignalR ships
+/// <see cref="MyceliumClient.ConnectSignalRAsync"/> actually uses. SignalR ships
 /// <c>HubConnection</c> as a sealed class with no public interface, so the connect
 /// loop is untestable against a real hub; this seam lets tests substitute a fake
 /// that records handler registrations and fires events synchronously.
@@ -36,7 +36,7 @@ public interface IHubConnectionFactory
 /// <remarks>
 /// Excluded from coverage: a pass-through to the sealed, un-mockable SignalR
 /// <see cref="HubConnection"/>. This is the irreducible seam the abstraction exists to
-/// isolate — the testable retry/routing logic lives in <see cref="BrokerClient"/>.
+/// isolate — the testable retry/routing logic lives in <see cref="MyceliumClient"/>.
 /// </remarks>
 [ExcludeFromCodeCoverage]
 public sealed class DefaultHubConnectionFactory : IHubConnectionFactory

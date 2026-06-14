@@ -6,24 +6,24 @@ using vos.ManagedMicroservice.Delta.Models;
 namespace vos.ManagedMicroservice.Delta.Services;
 
 /// <summary>
-/// HTTP client for communicating with the VOS Broker.
-/// Extends BrokerClientBase for shared token management.
+/// HTTP client for communicating with the VOS Mycelium.
+/// Extends MyceliumClientBase for shared token management.
 /// Adds Delta-specific operations (thing/relationship CRUD).
 /// </summary>
-public class BrokerClient : BrokerClientBase
+public class MyceliumClient : MyceliumClientBase
 {
-    public BrokerClient(IHttpClientFactory httpClientFactory, ILogger<BrokerClient> logger, string brokerUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, brokerUrl, serviceToken) { }
+    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken) { }
 
-    public readonly record struct BrokerThing(Guid Id, string Name, Dictionary<string, object?> Properties);
+    public readonly record struct MyceliumThing(Guid Id, string Name, Dictionary<string, object?> Properties);
 
-    public async Task<BrokerThing?> FindThingByNameAsync(string name)
+    public async Task<MyceliumThing?> FindThingByNameAsync(string name)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
             var encodedName = Uri.EscapeDataString(name);
-            var response = await client.GetAsync($"{BrokerUrl}/api/things?name={encodedName}");
+            var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={encodedName}");
             if (!response.IsSuccessStatusCode)
             {
                 Logger.LogWarning("Failed to find thing by name {Name}. Status: {StatusCode}", name, response.StatusCode);
@@ -40,12 +40,12 @@ public class BrokerClient : BrokerClientBase
         }
     }
 
-    public async Task<BrokerThing?> CreateThingAsync(RegisterEndpointRequest dto)
+    public async Task<MyceliumThing?> CreateThingAsync(RegisterEndpointRequest dto)
     {
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-            var response = await client.PostAsJsonAsync($"{BrokerUrl}/api/things", dto);
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things", dto);
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();
@@ -68,7 +68,7 @@ public class BrokerClient : BrokerClientBase
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-            var response = await client.DeleteAsync($"{BrokerUrl}/api/things/{thingId}");
+            var response = await client.DeleteAsync($"{MyceliumUrl}/api/things/{thingId}");
             if (response.IsSuccessStatusCode)
                 return true;
 
@@ -89,7 +89,7 @@ public class BrokerClient : BrokerClientBase
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-            var (resolved, type) = ResolveBrokerValue(value);
+            var (resolved, type) = ResolveMyceliumValue(value);
             var payload = new
             {
                 Name = name,
@@ -97,7 +97,7 @@ public class BrokerClient : BrokerClientBase
                 Value = resolved
             };
 
-            var response = await client.PutAsJsonAsync($"{BrokerUrl}/api/things/{thingId}/properties", payload);
+            var response = await client.PutAsJsonAsync($"{MyceliumUrl}/api/things/{thingId}/properties", payload);
             if (response.IsSuccessStatusCode)
                 return true;
 
@@ -121,7 +121,7 @@ public class BrokerClient : BrokerClientBase
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
             var payload = new { subjectId, predicateId, targetId };
 
-            var response = await client.PostAsJsonAsync($"{BrokerUrl}/api/relationships", payload);
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/relationships", payload);
             if (response.IsSuccessStatusCode)
                 return true;
 
@@ -140,7 +140,7 @@ public class BrokerClient : BrokerClientBase
         }
     }
 
-    private static bool TryParseThing(JsonElement element, out BrokerThing? thing)
+    private static bool TryParseThing(JsonElement element, out MyceliumThing? thing)
     {
         thing = null;
 
@@ -173,15 +173,15 @@ public class BrokerClient : BrokerClientBase
             }
         }
 
-        thing = new BrokerThing(id, nameProp.GetString() ?? string.Empty, properties);
+        thing = new MyceliumThing(id, nameProp.GetString() ?? string.Empty, properties);
         return true;
     }
 
     /// <summary>
     /// Unwraps a potential JsonElement (produced by System.Text.Json when deserializing
-    /// Dictionary&lt;string, object&gt;) into a CLR value and infers the broker type string.
+    /// Dictionary&lt;string, object&gt;) into a CLR value and infers Mycelium type string.
     /// </summary>
-    private static (object? Value, string Type) ResolveBrokerValue(object? value)
+    private static (object? Value, string Type) ResolveMyceliumValue(object? value)
     {
         if (value is JsonElement je)
         {

@@ -3,12 +3,12 @@ namespace vos.ManagedMicroservice.Delta.Models;
 /// <summary>
 /// A validated, single-rooted graph of endpoint-template things, built from an
 /// <see cref="EndpointSeedModel"/>. Parentage is derived from the model's <c>is</c> relationships
-/// (the model-native representation of inheritance) — there is no scalar "extends" field. The broker
+/// (the model-native representation of inheritance) — there is no scalar "extends" field. The mycelium
 /// realizes the same shape as <c>is</c> relationships between the template things (Task #5468).
 ///
-/// Construction validates what the broker does NOT: a single root, at most one <c>is</c> parent per
+/// Construction validates what Mycelium does NOT: a single root, at most one <c>is</c> parent per
 /// template, no duplicate template name, no cycle, and no relationship to an unknown template — so a
-/// misconfigured deployment fails fast at boot rather than later stack-overflowing the broker's
+/// misconfigured deployment fails fast at boot rather than later stack-overflowing Mycelium's
 /// (cycle-unsafe) effective-property traversal.
 ///
 /// Introduced under Feature #5465 / Task #5466.
@@ -44,7 +44,7 @@ public sealed class EndpointSeedGraph
     /// The inheritance chain for <paramref name="templateName"/>, nearest-first: the template itself,
     /// then its <c>is</c> parent, up to and including the root. Because the graph is single-rooted and
     /// acyclic (validated at <see cref="Build"/>), every chain terminates at the root — this is the
-    /// closed-set descent guarantee, resolved with no broker round-trip. Throws
+    /// closed-set descent guarantee, resolved with no mycelium round-trip. Throws
     /// <see cref="KeyNotFoundException"/> if the name is not a known template.
     /// </summary>
     public IReadOnlyList<RegisterEndpointRequest> Chain(string templateName)

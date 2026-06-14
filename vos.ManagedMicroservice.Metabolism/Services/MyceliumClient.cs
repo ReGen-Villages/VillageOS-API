@@ -7,31 +7,31 @@ using vos.ManagedMicroservice.Shared;
 namespace vos.ManagedMicroservice.Metabolism.Services;
 
 /// <summary>
-/// HTTP client for communicating with the VOS Broker (Metabolism-specific operations).
+/// HTTP client for communicating with the VOS Mycelium (Metabolism-specific operations).
 /// Adds SignalR subscription and quantity endpoint support on top of shared base.
 /// </summary>
-public class BrokerClient : BrokerClientBase
+public class MyceliumClient : MyceliumClientBase
 {
     private readonly string _mode;
     private readonly IHubConnectionFactory _hubFactory;
     private IHubConnection? _hubConnection;
 
-    /// <summary>Raised when a relationship property changes on the broker.</summary>
+    /// <summary>Raised when a relationship property changes on Mycelium.</summary>
     public event Action<Guid, string, object?>? OnRelationshipPropertyChanged;
 
-    public BrokerClient(IHttpClientFactory httpClientFactory, ILogger<BrokerClient> logger, string brokerUrl, string mode, string? serviceToken = null, IHubConnectionFactory? hubFactory = null)
-        : base(httpClientFactory, logger, brokerUrl, serviceToken)
+    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string mode, string? serviceToken = null, IHubConnectionFactory? hubFactory = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
     {
         _mode = mode;
         _hubFactory = hubFactory ?? new DefaultHubConnectionFactory();
     }
 
-    /// <summary>Registers this handler with the broker.</summary>
+    /// <summary>Registers this handler with Mycelium.</summary>
     public Task<bool> RegisterAsync(int port)
         => RegisterAsync(port, $"Metabolism-{_mode}",
-            $"dotnet run --project vos.ManagedMicroservice.Metabolism -- --port={port} --brokerUrl={BrokerUrl} --mode={_mode}");
+            $"dotnet run --project vos.ManagedMicroservice.Metabolism -- --port={port} --myceliumUrl={MyceliumUrl} --mode={_mode}");
 
-    /// <summary>Deregisters this service from the broker and disconnects SignalR.</summary>
+    /// <summary>Deregisters this service from Mycelium and disconnects SignalR.</summary>
     public override async Task DeregisterAsync()
     {
         if (_hubConnection != null)
@@ -45,7 +45,7 @@ public class BrokerClient : BrokerClientBase
     }
 
     /// <summary>
-    /// Connects to the broker's SignalR hub to subscribe to property change events.
+    /// Connects to Mycelium's SignalR hub to subscribe to property change events.
     /// Retries with backoff until connected or cancelled.
     /// </summary>
     public async Task ConnectSignalRAsync(CancellationToken ct = default)
@@ -64,7 +64,7 @@ public class BrokerClient : BrokerClientBase
                 }
 
                 _hubConnection = _hubFactory.Create(
-                    $"{BrokerUrl}/vosHub",
+                    $"{MyceliumUrl}/vosHub",
                     () => Task.FromResult<string?>(token));
 
                 _hubConnection.On<Guid, string, object?>("RelationshipPropertyChanged", HandleRelationshipPropertyChanged);
@@ -72,7 +72,7 @@ public class BrokerClient : BrokerClientBase
                 _hubConnection.Reconnected += HandleReconnected;
 
                 await _hubConnection.StartAsync(ct);
-                Logger.LogInformation("SignalR connected to broker hub");
+                Logger.LogInformation("SignalR connected to mycelium hub");
                 return;
             }
             catch (OperationCanceledException)
@@ -133,7 +133,7 @@ public class BrokerClient : BrokerClientBase
 
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
         var response = await client.PostAsync(
-            $"{BrokerUrl}/api/things/{thingId}/properties/{propertyPath}/{action}",
+            $"{MyceliumUrl}/api/things/{thingId}/properties/{propertyPath}/{action}",
             new StringContent(json, Encoding.UTF8, "application/json")
         );
 
@@ -176,7 +176,7 @@ public class BrokerClient : BrokerClientBase
 
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
         var response = await client.PostAsync(
-            $"{BrokerUrl}/api/relationships/{relationshipId}/properties/{propertyPath}/increments",
+            $"{MyceliumUrl}/api/relationships/{relationshipId}/properties/{propertyPath}/increments",
             new StringContent(json, Encoding.UTF8, "application/json")
         );
 

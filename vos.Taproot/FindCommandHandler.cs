@@ -6,23 +6,23 @@ namespace vos.Taproot
     {
         private readonly TextWriter _writer;
         private readonly string _arg;
-        private readonly BrokerClient _broker;
+        private readonly MyceliumClient _mycelium;
         private readonly NameResolver _resolver;
         private readonly OutputOptions _options;
 
-        public FindCommandHandler(string arg, TextWriter writer, BrokerClient broker)
-            : this(arg, writer, broker, OutputOptions.Default)
+        public FindCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : this(arg, writer, mycelium, OutputOptions.Default)
         {
         }
 
-        public FindCommandHandler(string arg, TextWriter writer, BrokerClient broker, OutputOptions options)
+        public FindCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions options)
         {
             var (parsedOptions, remainingArgs) = OutputOptions.ParseFromArgs(arg);
             _options = options.ShowGuids ? options : parsedOptions;
             _arg = remainingArgs;
             _writer = writer;
-            _broker = broker;
-            _resolver = new NameResolver(broker);
+            _mycelium = mycelium;
+            _resolver = new NameResolver(mycelium);
         }
 
         public async Task ExecuteAsync()
@@ -72,7 +72,7 @@ namespace vos.Taproot
             }
 
             var pattern = string.Join(" ", tok);
-            var allThings = await _broker.GetAllThingsAsync();
+            var allThings = await _mycelium.GetAllThingsAsync();
 
             if (allThings.ValueKind != JsonValueKind.Array)
             {
@@ -119,7 +119,7 @@ namespace vos.Taproot
                 return;
             }
 
-            var thing = await _broker.GetThingAsync(result.Id);
+            var thing = await _mycelium.GetThingAsync(result.Id);
             if (thing == null)
             {
                 _writer.WriteLine($"Thing {result.Id} not found");
@@ -130,7 +130,7 @@ namespace vos.Taproot
             var thingIdStr = result.Id.ToString();
             var thingDisplay = _options.FormatIdentifier(thingName ?? "Unknown", result.Id);
 
-            var allRelationships = await _broker.GetAllRelationshipsAsync();
+            var allRelationships = await _mycelium.GetAllRelationshipsAsync();
 
             if (allRelationships.ValueKind != JsonValueKind.Array)
             {

@@ -5,14 +5,14 @@ public class UserCommandHandler
     private readonly TextWriter _writer;
     private readonly TextReader _reader;
     private readonly string _arg;
-    private readonly BrokerClient _broker;
+    private readonly MyceliumClient _mycelium;
 
-    public UserCommandHandler(string arg, TextReader reader, TextWriter writer, BrokerClient broker)
+    public UserCommandHandler(string arg, TextReader reader, TextWriter writer, MyceliumClient mycelium)
     {
         _arg = arg;
         _reader = reader;
         _writer = writer;
-        _broker = broker;
+        _mycelium = mycelium;
     }
 
     public async Task ExecuteAsync()
@@ -52,7 +52,7 @@ public class UserCommandHandler
         _writer.Write("New password: ");
         var newPassword = _reader.ReadLine() ?? "";
 
-        await _broker.ChangePasswordAsync(id, currentPassword, newPassword);
+        await _mycelium.ChangePasswordAsync(id, currentPassword, newPassword);
         _writer.WriteLine("Password changed.");
     }
 

@@ -9,38 +9,38 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Metabolism.Tests;
 
-public class BrokerClientTests
+public class MyceliumClientTests
 {
-    private readonly Mock<ILogger<BrokerClient>> _logger = new();
+    private readonly Mock<ILogger<MyceliumClient>> _logger = new();
 
     /// <summary>
-    /// Create a BrokerClient whose GetTokenAsync() always fails (no reachable broker).
+    /// Create a MyceliumClient whose GetTokenAsync() always fails (no reachable mycelium).
     /// </summary>
-    private BrokerClient CreateUnreachableClient()
+    private MyceliumClient CreateUnreachableClient()
     {
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
-        return new BrokerClient(httpFactory.Object, _logger.Object, "http://localhost:0", "consumes");
+        return new MyceliumClient(httpFactory.Object, _logger.Object, "http://localhost:0", "consumes");
     }
 
     /// <summary>
-    /// Create a BrokerClient backed by a MockHttpMessageHandler so HTTP calls
-    /// are intercepted without requiring a running broker.
+    /// Create a MyceliumClient backed by a MockHttpMessageHandler so HTTP calls
+    /// are intercepted without requiring a running mycelium.
     /// </summary>
-    private BrokerClient CreateMockedClient(MockHttpMessageHandler handler, string mode = "consumes")
+    private MyceliumClient CreateMockedClient(MockHttpMessageHandler handler, string mode = "consumes")
     {
-        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://test-broker") };
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://test-mycelium") };
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(() =>
         {
             // Each call returns a fresh HttpClient sharing the same handler,
-            // because BrokerClient sets DefaultRequestHeaders per call.
+            // because MyceliumClient sets DefaultRequestHeaders per call.
             return new HttpClient(handler, disposeHandler: false)
             {
-                BaseAddress = new Uri("http://test-broker")
+                BaseAddress = new Uri("http://test-mycelium")
             };
         });
-        return new BrokerClient(httpFactory.Object, _logger.Object, "http://test-broker", mode);
+        return new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium", mode);
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ public class BrokerClientTests
         var client = CreateUnreachableClient();
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
 
-        // Broker unreachable → GetTokenAsync returns null → retries until cancelled
+        // Mycelium unreachable → GetTokenAsync returns null → retries until cancelled
         await client.ConnectSignalRAsync(cts.Token);
 
         // Verify it logged retry warnings (at least one attempt)
@@ -264,7 +264,7 @@ public class BrokerClientTests
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
 
-        var client = new BrokerClient(httpFactory.Object, _logger.Object, "http://localhost:0", "consumes", "my-service-token");
+        var client = new MyceliumClient(httpFactory.Object, _logger.Object, "http://localhost:0", "consumes", "my-service-token");
 
         var token = await client.GetTokenAsync();
 
@@ -274,12 +274,12 @@ public class BrokerClientTests
     [Fact]
     public async Task GetTokenAsync_WithoutServiceToken_FallsBackToEndpoint()
     {
-        // Without a service token, GetTokenAsync tries the broker endpoint (which will fail here)
+        // Without a service token, GetTokenAsync tries Mycelium endpoint (which will fail here)
         var client = CreateUnreachableClient();
 
         var token = await client.GetTokenAsync();
 
-        token.Should().BeNull("broker is unreachable and no service token was provided");
+        token.Should().BeNull("mycelium is unreachable and no service token was provided");
     }
 
     [Fact]
@@ -294,9 +294,9 @@ public class BrokerClientTests
 
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(() =>
-            new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-broker") });
+            new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-mycelium") });
 
-        var client = new BrokerClient(httpFactory.Object, _logger.Object, "http://test-broker", "consumes", "my-service-token");
+        var client = new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium", "consumes", "my-service-token");
 
         await client.ApplyQuantityAsync("thing-1", "quantity", 5.0m);
 
@@ -319,7 +319,7 @@ public class BrokerClientTests
         System.Text.Json.JsonElement? capturedBody = null;
         var mock = CreateTokenAwareMock(req =>
         {
-            if (req.RequestUri!.AbsolutePath == "/api/broker/register")
+            if (req.RequestUri!.AbsolutePath == "/api/mycelium/register")
             {
                 var raw = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
                 capturedBody = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(raw);
@@ -344,7 +344,7 @@ public class BrokerClientTests
         System.Text.Json.JsonElement? capturedBody = null;
         var mock = CreateTokenAwareMock(req =>
         {
-            if (req.RequestUri!.AbsolutePath == "/api/broker/register")
+            if (req.RequestUri!.AbsolutePath == "/api/mycelium/register")
             {
                 var raw = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
                 capturedBody = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(raw);
@@ -378,7 +378,7 @@ public class BrokerClientTests
     // RetriesWhenTokenUnavailable, StopsRetryingOnCancellation) against the real
     // DefaultHubConnectionFactory. The hub-connection setup, event routing
     // (RelationshipPropertyChanged), and Reconnected handler — previously unreachable
-    // from a unit test — are covered in BrokerClientConnectSignalRTests via the
+    // from a unit test — are covered in MyceliumClientConnectSignalRTests via the
     // IHubConnectionFactory seam (Task #5457), with a mocked IHubConnection. The only
     // remaining un-unit-testable code
     // is DefaultHubConnection/DefaultHubConnectionFactory, the thin pass-through to

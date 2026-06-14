@@ -7,24 +7,24 @@ namespace vos.Taproot.Tests;
 
 public class NameResolverTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
 
     public NameResolverTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
     }
 
     [Fact]
     public async Task ResolveThingAsync_WithValidGuid_ReturnsGuidDirectly()
     {
         var expectedId = Guid.NewGuid();
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
 
         var result = await resolver.ResolveThingAsync(expectedId.ToString());
 
         Assert.True(result.IsSuccess);
         Assert.Equal(expectedId, result.Id);
-        _brokerMock.Verify(b => b.GetAllThingsAsync(), Times.Never);
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Never);
     }
 
     [Fact]
@@ -32,9 +32,9 @@ public class NameResolverTests
     {
         var expectedId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{expectedId}\",\"Name\":\"MyThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var result = await resolver.ResolveThingAsync("MyThing");
 
         Assert.True(result.IsSuccess);
@@ -46,9 +46,9 @@ public class NameResolverTests
     {
         var expectedId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{expectedId}\",\"Name\":\"MyThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var result = await resolver.ResolveThingAsync("MYTHING");
 
         Assert.True(result.IsSuccess);
@@ -62,9 +62,9 @@ public class NameResolverTests
         var id2 = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{id1}\",\"Name\":\"Duplicate\"}},{{\"Id\":\"{id2}\",\"Name\":\"Duplicate\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var result = await resolver.ResolveThingAsync("Duplicate");
 
         Assert.False(result.IsSuccess);
@@ -77,9 +77,9 @@ public class NameResolverTests
     public async Task ResolveThingAsync_WithNonExistentName_ReturnsError()
     {
         var things = JsonSerializer.Deserialize<JsonElement>("[{\"Id\":\"" + Guid.NewGuid() + "\",\"Name\":\"SomethingElse\"}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var result = await resolver.ResolveThingAsync("NonExistent");
 
         Assert.False(result.IsSuccess);
@@ -90,9 +90,9 @@ public class NameResolverTests
     public async Task ResolveThingAsync_WithEmptyThingsList_ReturnsError()
     {
         var things = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var result = await resolver.ResolveThingAsync("AnyName");
 
         Assert.False(result.IsSuccess);
@@ -106,9 +106,9 @@ public class NameResolverTests
         var id2 = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{id1}\",\"Name\":\"Thing1\"}},{{\"Id\":\"{id2}\",\"Name\":\"Thing2\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var results = await resolver.ResolveThingsAsync("Thing1", "Thing2");
 
         Assert.True(results[0].IsSuccess);
@@ -117,13 +117,13 @@ public class NameResolverTests
         Assert.Equal(id2, results[1].Id);
 
         // Should only call GetAllThingsAsync once due to caching
-        _brokerMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Once);
     }
 
     [Fact]
     public void ClearCache_ClearsThingsCache()
     {
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         resolver.ClearCache(); // Should not throw
     }
 
@@ -132,9 +132,9 @@ public class NameResolverTests
     {
         var expectedId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"id\":\"{expectedId}\",\"name\":\"MyThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var result = await resolver.ResolveThingAsync("MyThing");
 
         Assert.True(result.IsSuccess);
@@ -148,9 +148,9 @@ public class NameResolverTests
     {
         // Arrange - Return an object instead of array
         var notAnArray = JsonSerializer.Deserialize<JsonElement>(@"{""error"":""invalid""}");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(notAnArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(notAnArray);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
 
         // Act
         var result = await resolver.ResolveThingAsync("AnyName");
@@ -165,9 +165,9 @@ public class NameResolverTests
     {
         // Arrange - Return null
         JsonElement? nullElement = null;
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(nullElement ?? default);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(nullElement ?? default);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
 
         // Act
         var result = await resolver.ResolveThingAsync("AnyName");
@@ -183,9 +183,9 @@ public class NameResolverTests
         var expectedId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Name\":\"NoIdThing\"}},{{\"Id\":\"{expectedId}\",\"Name\":\"ValidThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
 
         // Act - Looking for NoIdThing should fail
         var result = await resolver.ResolveThingAsync("NoIdThing");
@@ -202,9 +202,9 @@ public class NameResolverTests
         var expectedId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"not-a-guid\",\"Name\":\"InvalidIdThing\"}},{{\"Id\":\"{expectedId}\",\"Name\":\"ValidThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
 
         // Act - Looking for InvalidIdThing should fail
         var result = await resolver.ResolveThingAsync("InvalidIdThing");
@@ -223,9 +223,9 @@ public class NameResolverTests
     {
         var expectedId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{expectedId}\",\"Name\":\"MyThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var result = await resolver.ResolveNameAsync(expectedId.ToString());
 
         Assert.Equal("MyThing", result);
@@ -236,9 +236,9 @@ public class NameResolverTests
     {
         var unknownId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var result = await resolver.ResolveNameAsync(unknownId.ToString());
 
         Assert.Equal(unknownId.ToString(), result);
@@ -249,9 +249,9 @@ public class NameResolverTests
     {
         var expectedId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{expectedId}\",\"Name\":\"TestThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var result = await resolver.ResolveNameAsync(expectedId);
 
         Assert.Equal("TestThing", result);
@@ -268,9 +268,9 @@ public class NameResolverTests
         var id2 = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{id1}\",\"Name\":\"Thing1\"}},{{\"Id\":\"{id2}\",\"Name\":\"Thing2\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var map = await resolver.GetGuidToNameMapAsync();
 
         Assert.Equal(2, map.Count);
@@ -282,9 +282,9 @@ public class NameResolverTests
     public async Task GetGuidToNameMapAsync_WithEmptyArray_ReturnsEmptyMap()
     {
         var things = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var map = await resolver.GetGuidToNameMapAsync();
 
         Assert.Empty(map);
@@ -294,9 +294,9 @@ public class NameResolverTests
     public async Task GetGuidToNameMapAsync_WithNonArrayResponse_ReturnsEmptyMap()
     {
         var notAnArray = JsonSerializer.Deserialize<JsonElement>(@"{""error"":""invalid""}");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(notAnArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(notAnArray);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var map = await resolver.GetGuidToNameMapAsync();
 
         Assert.Empty(map);
@@ -308,9 +308,9 @@ public class NameResolverTests
         var validId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{validId}\",\"Name\":\"ValidThing\"}},{{\"Name\":\"NoId\"}},{{\"Id\":\"{Guid.NewGuid()}\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
         var map = await resolver.GetGuidToNameMapAsync();
 
         // Only ValidThing should be in the map
@@ -330,11 +330,11 @@ public class NameResolverTests
         var id2 = Guid.NewGuid();
         var things2 = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{id2}\",\"Name\":\"Thing2\"}}]");
 
-        _brokerMock.SetupSequence(b => b.GetAllThingsAsync())
+        _myceliumMock.SetupSequence(b => b.GetAllThingsAsync())
             .ReturnsAsync(things1)
             .ReturnsAsync(things2);
 
-        var resolver = new NameResolver(_brokerMock.Object);
+        var resolver = new NameResolver(_myceliumMock.Object);
 
         // First call uses first response
         var result1 = await resolver.ResolveThingAsync("Thing1");
@@ -347,7 +347,7 @@ public class NameResolverTests
         var result2 = await resolver.ResolveThingAsync("Thing2");
         Assert.True(result2.IsSuccess);
 
-        _brokerMock.Verify(b => b.GetAllThingsAsync(), Times.Exactly(2));
+        _myceliumMock.Verify(b => b.GetAllThingsAsync(), Times.Exactly(2));
     }
 
     #endregion

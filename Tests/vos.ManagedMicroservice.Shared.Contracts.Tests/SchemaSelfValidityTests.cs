@@ -34,7 +34,7 @@ public class SchemaSelfValidityTests
     public void Registry_EagerlyLoadsAllEmbeddedSchemas()
     {
         Registry.Ids.Should().NotBeEmpty("schemas embedded under Contracts/Schemas/ must be discoverable at construction time");
-        Registry.Ids.Should().Contain("https://villageos/contracts/broker-register-request.schema.json");
+        Registry.Ids.Should().Contain("https://villageos/contracts/mycelium-register-request.schema.json");
         Registry.Ids.Should().Contain("https://villageos/contracts/token-response.schema.json");
         Registry.Ids.Should().Contain("https://villageos/contracts/handle-request-metabolism.schema.json");
         Registry.Ids.Should().Contain("https://villageos/contracts/relationship-property-changed-event.schema.json");

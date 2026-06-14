@@ -9,13 +9,13 @@ namespace vos.Taproot;
 /// </summary>
 public class NameResolver
 {
-    private readonly BrokerClient _broker;
+    private readonly MyceliumClient _mycelium;
     private JsonElement? _cachedThings;
     private Dictionary<string, string>? _guidToNameMap;
 
-    public NameResolver(BrokerClient broker)
+    public NameResolver(MyceliumClient mycelium)
     {
-        _broker = broker;
+        _mycelium = mycelium;
     }
 
     /// <summary>
@@ -97,7 +97,7 @@ public class NameResolver
     {
         if (_cachedThings == null)
         {
-            _cachedThings = await _broker.GetAllThingsAsync();
+            _cachedThings = await _mycelium.GetAllThingsAsync();
         }
     }
 

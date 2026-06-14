@@ -6,7 +6,7 @@
 // server and samples the rendered pixels.
 //
 // Preconditions (manual setup):
-//   1. Broker running on https://localhost:7243 with a model that has an
+//   1. Mycelium running on https://localhost:7243 with a model that has an
 //      ingested .frag file (MarthasVineyard.frag is the canonical fixture).
 //   2. GUI dev server running on http://localhost:5173 (npm run dev).
 //

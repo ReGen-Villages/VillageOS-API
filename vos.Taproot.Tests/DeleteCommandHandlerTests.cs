@@ -7,18 +7,18 @@ namespace vos.Taproot.Tests;
 
 public class DeleteCommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
     private readonly StringWriter _writer;
 
     public DeleteCommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
         _writer = new StringWriter();
     }
 
     private async Task ExecuteHandler(string arg)
     {
-        var handler = new DeleteCommandHandler(arg, _writer, _brokerMock.Object);
+        var handler = new DeleteCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
@@ -54,7 +54,7 @@ public class DeleteCommandHandlerTests
     public async Task DeleteThing_InvalidNameOrGuid_ShowsError()
     {
         var things = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
         await ExecuteHandler("thing invalid-name");
 
@@ -67,12 +67,12 @@ public class DeleteCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(true);
 
         await ExecuteHandler("thing MyThing");
 
-        _brokerMock.Verify(b => b.DeleteThingAsync(thingId), Times.Once);
+        _myceliumMock.Verify(b => b.DeleteThingAsync(thingId), Times.Once);
         var output = _writer.ToString();
         Assert.Contains("Deleted thing", output);
         Assert.Contains("MyThing", output);
@@ -83,12 +83,12 @@ public class DeleteCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(true);
 
         await ExecuteHandler($"thing {thingId}");
 
-        _brokerMock.Verify(b => b.DeleteThingAsync(thingId), Times.Once);
+        _myceliumMock.Verify(b => b.DeleteThingAsync(thingId), Times.Once);
         var output = _writer.ToString();
         Assert.Contains("Deleted thing", output);
         Assert.Contains("TestThing", output);
@@ -99,8 +99,8 @@ public class DeleteCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(false);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(false);
 
         await ExecuteHandler($"thing {thingId}");
 
@@ -129,11 +129,11 @@ public class DeleteCommandHandlerTests
     public async Task DeleteRelationship_WhenExists_DeletesAndShowsMessage()
     {
         var relationshipId = Guid.NewGuid();
-        _brokerMock.Setup(b => b.DeleteRelationshipAsync(relationshipId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.DeleteRelationshipAsync(relationshipId)).ReturnsAsync(true);
 
         await ExecuteHandler($"relationship {relationshipId}");
 
-        _brokerMock.Verify(b => b.DeleteRelationshipAsync(relationshipId), Times.Once);
+        _myceliumMock.Verify(b => b.DeleteRelationshipAsync(relationshipId), Times.Once);
         Assert.Contains("Deleted relationship", _writer.ToString());
     }
 
@@ -141,7 +141,7 @@ public class DeleteCommandHandlerTests
     public async Task DeleteRelationship_WhenNotFound_ShowsNotFoundMessage()
     {
         var relationshipId = Guid.NewGuid();
-        _brokerMock.Setup(b => b.DeleteRelationshipAsync(relationshipId)).ReturnsAsync(false);
+        _myceliumMock.Setup(b => b.DeleteRelationshipAsync(relationshipId)).ReturnsAsync(false);
 
         await ExecuteHandler($"relationship {relationshipId}");
 
@@ -152,11 +152,11 @@ public class DeleteCommandHandlerTests
     public async Task DeleteRelation_Alias_Works()
     {
         var relationshipId = Guid.NewGuid();
-        _brokerMock.Setup(b => b.DeleteRelationshipAsync(relationshipId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.DeleteRelationshipAsync(relationshipId)).ReturnsAsync(true);
 
         await ExecuteHandler($"relation {relationshipId}");
 
-        _brokerMock.Verify(b => b.DeleteRelationshipAsync(relationshipId), Times.Once);
+        _myceliumMock.Verify(b => b.DeleteRelationshipAsync(relationshipId), Times.Once);
         Assert.Contains("Deleted relationship", _writer.ToString());
     }
 
@@ -181,7 +181,7 @@ public class DeleteCommandHandlerTests
     public async Task DeleteProperty_InvalidNameOrGuid_ShowsError()
     {
         var things = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
         await ExecuteHandler("property invalid-name propName");
 
@@ -193,12 +193,12 @@ public class DeleteCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.DeletePropertyAsync(thingId, "testProp")).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.DeletePropertyAsync(thingId, "testProp")).ReturnsAsync(true);
 
         await ExecuteHandler("property MyThing testProp");
 
-        _brokerMock.Verify(b => b.DeletePropertyAsync(thingId, "testProp"), Times.Once);
+        _myceliumMock.Verify(b => b.DeletePropertyAsync(thingId, "testProp"), Times.Once);
         var output = _writer.ToString();
         Assert.Contains("Deleted property 'testProp' from thing", output);
         Assert.Contains("MyThing", output);
@@ -209,12 +209,12 @@ public class DeleteCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.DeletePropertyAsync(thingId, "testProp")).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.DeletePropertyAsync(thingId, "testProp")).ReturnsAsync(true);
 
         await ExecuteHandler($"property {thingId} testProp");
 
-        _brokerMock.Verify(b => b.DeletePropertyAsync(thingId, "testProp"), Times.Once);
+        _myceliumMock.Verify(b => b.DeletePropertyAsync(thingId, "testProp"), Times.Once);
         var output = _writer.ToString();
         Assert.Contains("Deleted property 'testProp' from thing", output);
         Assert.Contains("TestThing", output);
@@ -225,8 +225,8 @@ public class DeleteCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.DeletePropertyAsync(thingId, "testProp")).ReturnsAsync(false);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.DeletePropertyAsync(thingId, "testProp")).ReturnsAsync(false);
 
         await ExecuteHandler($"property {thingId} testProp");
 
@@ -240,8 +240,8 @@ public class DeleteCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(true);
 
         await ExecuteHandler("thing MyThing --showguids");
 
@@ -256,8 +256,8 @@ public class DeleteCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.DeleteThingAsync(thingId)).ReturnsAsync(true);
 
         await ExecuteHandler("thing MyThing");
 
@@ -272,8 +272,8 @@ public class DeleteCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.DeletePropertyAsync(thingId, "testProp")).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.DeletePropertyAsync(thingId, "testProp")).ReturnsAsync(true);
 
         await ExecuteHandler("property MyThing testProp --showguids");
 
@@ -288,8 +288,8 @@ public class DeleteCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var things = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"MyThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
-        _brokerMock.Setup(b => b.DeletePropertyAsync(thingId, "testProp")).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        _myceliumMock.Setup(b => b.DeletePropertyAsync(thingId, "testProp")).ReturnsAsync(true);
 
         await ExecuteHandler("property MyThing testProp");
 

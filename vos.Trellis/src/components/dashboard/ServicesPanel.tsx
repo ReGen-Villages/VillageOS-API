@@ -1,8 +1,8 @@
-import type { RegisteredService } from '../../types/broker';
+import type { RegisteredService } from '../../types/mycelium';
 import { Badge } from '../common/Badge';
 import { formatMs, formatRelativeTime } from '../../utils/formatters';
 import { Play, Square } from 'lucide-react';
-import type { HealthStatus } from '../../types/broker';
+import type { HealthStatus } from '../../types/mycelium';
 
 interface Props {
   services: RegisteredService[];

@@ -6,23 +6,23 @@ namespace vos.Taproot
     {
         private readonly TextWriter _writer;
         private readonly string _arg;
-        private readonly BrokerClient _broker;
+        private readonly MyceliumClient _mycelium;
         private readonly NameResolver _resolver;
         private readonly OutputOptions _options;
 
-        public QueryCommandHandler(string arg, TextWriter writer, BrokerClient broker)
-            : this(arg, writer, broker, OutputOptions.Default)
+        public QueryCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : this(arg, writer, mycelium, OutputOptions.Default)
         {
         }
 
-        public QueryCommandHandler(string arg, TextWriter writer, BrokerClient broker, OutputOptions options)
+        public QueryCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions options)
         {
             var (parsedOptions, remainingArgs) = OutputOptions.ParseFromArgs(arg);
             _options = options.ShowGuids ? options : parsedOptions;
             _arg = remainingArgs;
             _writer = writer;
-            _broker = broker;
-            _resolver = new NameResolver(broker);
+            _mycelium = mycelium;
+            _resolver = new NameResolver(mycelium);
         }
 
         public async Task ExecuteAsync()
@@ -81,7 +81,7 @@ namespace vos.Taproot
             var propertyName = tok[0];
             var propertyValue = string.Join(" ", tok.Skip(1));
 
-            var allThings = await _broker.GetAllThingsAsync();
+            var allThings = await _mycelium.GetAllThingsAsync();
 
             if (allThings.ValueKind != JsonValueKind.Array)
             {
@@ -200,7 +200,7 @@ namespace vos.Taproot
 
         private async Task<List<JsonElement>> FindRelationshipsByPredicateAsync(string predicateName)
         {
-            var relationships = await _broker.GetAllRelationshipsAsync();
+            var relationships = await _mycelium.GetAllRelationshipsAsync();
             if (relationships.ValueKind != JsonValueKind.Array)
                 return new List<JsonElement>();
 
@@ -249,8 +249,8 @@ namespace vos.Taproot
 
         private async Task ShowStatsAsync()
         {
-            var allThings = await _broker.GetAllThingsAsync();
-            var allRelationships = await _broker.GetAllRelationshipsAsync();
+            var allThings = await _mycelium.GetAllThingsAsync();
+            var allRelationships = await _mycelium.GetAllRelationshipsAsync();
 
             var thingCount = allThings.ValueKind == JsonValueKind.Array ? allThings.GetArrayLength() : 0;
             var relationshipCount = allRelationships.ValueKind == JsonValueKind.Array ? allRelationships.GetArrayLength() : 0;

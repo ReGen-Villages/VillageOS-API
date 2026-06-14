@@ -2,18 +2,18 @@
 
 VillageOS Trellis is the web-based GUI for the VillageOS temporal graph
 database. It lets you visually explore your model as an interactive graph,
-monitor the broker in real time, and perform every CLI operation through
+monitor Mycelium in real time, and perform every CLI operation through
 graphical forms — all from your browser.
 
 This doc has two parts. **[Part 1 — User Guide](#part-1--user-guide)** is a
 how-to for someone clicking around the app: navigating, searching, the
 dashboard, creating data. **[Part 2 — Technical Specification](#part-2--technical-specification)**
 is reference material for someone writing GUI code: architecture, component
-structure, state management, the API and SignalR layer, broker
+structure, state management, the API and SignalR layer, Mycelium
 modifications.
 
 > **Screenshots**: To re-capture screenshots, run
-> `node docs/capture-screenshots.mjs` while the Broker and GUI dev server
+> `node docs/capture-screenshots.mjs` while the Mycelium and GUI dev server
 > are running. See the script for details.
 
 ---
@@ -48,7 +48,7 @@ modifications.
 21. [Dashboard internals](#21-dashboard-internals)
 22. [Common Components](#22-common-components)
 23. [Seed Files](#23-seed-files)
-24. [Broker Modifications](#24-broker-modifications-for-gui-support)
+24. [Mycelium Modifications](#24-Mycelium-modifications-for-gui-support)
 25. [Verification](#25-verification)
 
 ---
@@ -59,7 +59,7 @@ modifications.
 
 ### 1.1 Prerequisites
 
-- **VillageOS Broker** running (provides the REST API and SignalR hub)
+- **VillageOS Mycelium** running (provides the REST API and SignalR hub)
 - **Node.js 20+** installed (for the Vite dev server)
 - A modern browser — Chrome, Firefox, or Safari (Safari has some WebGL limitations, see [Section 6](#6-single-building-3d-view))
 
@@ -68,15 +68,15 @@ modifications.
 Open two terminals:
 
 ```bash
-# Terminal 1: Start the Broker
-dotnet run --project vos.Broker
+# Terminal 1: Start the Mycelium
+dotnet run --project vos.Mycelium
 
 # Terminal 2: Start the GUI dev server
 cd vos.Trellis
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser. You'll see a login form. Sign in with `admin` / `admin` (the default credentials, overridable via `VOS_ADMIN_PASSWORD` env var before first broker run). If multiple models exist, you'll be prompted to select one. Alternatively, set `VITE_API_KEY` in `.env.local` for auto-login during development.
+Open `http://localhost:5173` in your browser. You'll see a login form. Sign in with `admin` / `admin` (the default credentials, overridable via `VOS_ADMIN_PASSWORD` env var before first Mycelium run). If multiple models exist, you'll be prompted to select one. Alternatively, set `VITE_API_KEY` in `.env.local` for auto-login during development.
 
 If your account has been flagged for a password change (e.g., created by an admin with `MustChangePassword: true`), you'll see a password change form after login. Enter your current password and choose a new one — the app won't be accessible until the password is changed.
 
@@ -99,7 +99,7 @@ Both the Dashboard and Graph pages include **Logout** and **Switch Model** butto
 
 ### 1.2a Switching Seeds (Models)
 
-Click the **Switch Model** button in the Dashboard or Graph header to open the seed library picker. This shows all seed files available in the broker's `seeds/library/` folder.
+Click the **Switch Model** button in the Dashboard or Graph header to open the seed library picker. This shows all seed files available in Mycelium's `seeds/library/` folder.
 
 The seed picker provides:
 - **Search bar** — type to filter seeds by name
@@ -107,7 +107,7 @@ The seed picker provides:
 - **Scrollable list** — handles large numbers of seeds with a fixed-height scrollable area
 - **Result count** — shows "N of M seeds" when filtering
 
-Click any seed to load it. The current model is replaced — the broker clears the existing data, loads the seed file, and the GUI automatically re-scopes your authentication to the new model. The graph page resets and renders the new model.
+Click any seed to load it. The current model is replaced — Mycelium clears the existing data, loads the seed file, and the GUI automatically re-scopes your authentication to the new model. The graph page resets and renders the new model.
 
 **Saving a seed:** At the bottom of the seed picker, type a name in the "Save current model" input and click **Save** to snapshot the current model to the library folder. It appears immediately in the seed list above.
 
@@ -118,7 +118,7 @@ The GUI starts with an empty model. To load sample data, use one of these method
 **Via CLI:**
 ```bash
 cd vos.Taproot
-dotnet run -- deserialize ../vos.Broker/seeds/village.seed.json
+dotnet run -- deserialize ../vos.Mycelium/seeds/village.seed.json
 ```
 
 **Via REST API:**
@@ -126,10 +126,10 @@ dotnet run -- deserialize ../vos.Broker/seeds/village.seed.json
 curl -X POST https://localhost:7243/api/model \
   -H "Content-Type: application/json" \
   -H "X-API-Key: <your-api-key>" \
-  -d @vos.Broker/seeds/village.seed.json
+  -d @vos.Mycelium/seeds/village.seed.json
 ```
 
-**Via auto-load:** Place seed files in `vos.Broker/seeds/` — they are loaded automatically on broker startup.
+**Via auto-load:** Place seed files in `vos.Mycelium/seeds/` — they are loaded automatically on Mycelium startup.
 
 After loading, click **Graph** in the sidebar to see your model rendered as an interactive graph.
 
@@ -392,7 +392,7 @@ For IFC containers (IfcBuilding, IfcStorey) that have child elements via `contai
 
 ## 7. Dashboard
 
-The Dashboard page provides real-time monitoring of the VillageOS Broker. It's divided into four sections:
+The Dashboard page provides real-time monitoring of the VillageOS Mycelium. It's divided into four sections:
 
 ### 7.1 Model Statistics
 
@@ -417,7 +417,7 @@ Each service has start/stop buttons and shows request statistics (total requests
 
 ### 7.3 Daemons
 
-Shows background processes managed by the broker. Each daemon shows its running status (green "Running" or red "Stopped"), process ID, and failure count.
+Shows background processes managed by Mycelium. Each daemon shows its running status (green "Running" or red "Stopped"), process ID, and failure count.
 
 ### 7.4 Activity Feed
 
@@ -430,14 +430,14 @@ The right column shows a real-time log of all model mutations, streamed via Sign
 **Collapsible & Resizable** — The feed panel can be collapsed via the header button. When expanded, drag the top edge to resize the panel height. The height is persisted to localStorage.
 
 The top-right controls include:
-- **Broker** (green dot) — REST API connection active
+- **Mycelium** (green dot) — REST API connection active
 - **Live** (green dot) — SignalR WebSocket connected and receiving events
-- **Swagger** (document icon) — Opens the Broker API documentation (Swagger UI) in a new tab
-- **Shutdown** (power icon) — Shuts down the broker (with confirmation dialog)
+- **Swagger** (document icon) — Opens the Mycelium API documentation (Swagger UI) in a new tab
+- **Shutdown** (power icon) — Shuts down Mycelium (with confirmation dialog)
 - **Switch Model** (arrows icon) — Switch to a different seed/model
 - **Log Out** (exit icon) — End the current session
 
-If either status indicator turns red, the broker may be down or unreachable.
+If either status indicator turns red, Mycelium may be down or unreachable.
 
 ---
 
@@ -523,7 +523,7 @@ Safari limits the number of simultaneous WebGL contexts, and the graph already u
 2. As a last resort, reload the page
 
 ### Real-time updates not appearing
-Check the connection indicators on the Dashboard page. If "Live" shows red, the SignalR WebSocket connection has dropped. This usually recovers automatically within 30 seconds (exponential backoff). If "Broker" shows red, the broker process may have stopped.
+Check the connection indicators on the Dashboard page. If "Live" shows red, the SignalR WebSocket connection has dropped. This usually recovers automatically within 30 seconds (exponential backoff). If "Mycelium" shows red, Mycelium process may have stopped.
 
 ### Search finds nothing
 - Check if case-sensitive mode (**Aa**) is accidentally active
@@ -554,13 +554,13 @@ Check the connection indicators on the Dashboard page. If "Live" shows red, the 
 
 ## 12. Context
 
-VillageOS is an in-memory temporal graph database built in .NET 10/C#. Users interact with it via a CLI REPL (`vos.Taproot`) and a web interface (`vos.Trellis`). Both communicate with the REST API server (`vos.Broker`).
+VillageOS is an in-memory temporal graph database built in .NET 10/C#. Users interact with it via a CLI REPL (`vos.Taproot`) and a web interface (`vos.Trellis`). Both communicate with the REST API server (`vos.Mycelium`).
 
 **vos.Trellis** is a React + TypeScript single-page application that provides:
 
 1. **Interactive graph visualization** — the model rendered as a WebGL force-directed graph using Sigma.js v3
 2. **Full CLI parity** — every CLI operation accessible through inline forms, context menus, and detail panels
-3. **Broker dashboard** — real-time monitoring of daemons, services/handlers, and model activity via SignalR
+3. **Mycelium dashboard** — real-time monitoring of daemons, services/handlers, and model activity via SignalR
 
 ---
 
@@ -575,10 +575,10 @@ graph TB
         Graph & Commands & Dashboard --> APIClient["API Client Layer<br/>(fetch + SignalR)"]
     end
 
-    APIClient -->|"HTTPS + WebSocket"| Broker
+    APIClient -->|"HTTPS + WebSocket"| Mycelium
 
-    subgraph Broker["vos.Broker"]
-        API["REST API<br/>(API Controllers, BrokerController)<br/>+ SignalR Hub /vosHub<br/>+ JWT Auth<br/>+ CORS policy"]
+    subgraph Mycelium["vos.Mycelium"]
+        API["REST API<br/>(API Controllers, MyceliumController)<br/>+ SignalR Hub /vosHub<br/>+ JWT Auth<br/>+ CORS policy"]
     end
 ```
 
@@ -621,7 +621,7 @@ vos.Trellis/
     │
     ├── types/
     │   ├── vos.ts              # VosThing, VosRelationship, PropertyValue, ranges, temporal types
-    │   └── broker.ts           # RegisteredService, ServiceStats, DaemonInfo, ActivityEvent, EndpointServiceInfo
+    │   └── Mycelium.ts           # RegisteredService, ServiceStats, DaemonInfo, ActivityEvent, EndpointServiceInfo
     │
     ├── api/
     │   ├── client.ts           # Singleton API client (fetch + JWT auto-refresh + API key exchange + login/logout/switchModel/changePassword + silent token refresh + AuthRequiredError)
@@ -630,7 +630,7 @@ vos.Trellis/
     │   ├── modelApi.ts         # Model export/import/clear + temporal snapshots
     │   ├── temporalApi.ts      # Property versions, mutations, recent values
     │   ├── rangeApi.ts         # Composite range summary for things (rangeApi.getSummary), individual range/state queries for relationships (relationshipRangeApi)
-    │   ├── brokerApi.ts        # Services, daemons, shutdown, seed library (list/load/save)
+    │   ├── myceliumApi.ts        # Services, daemons, shutdown, seed library (list/load/save)
     │   └── endpointApi.ts      # Endpoint services listing (GET /api/endpoints)
     │
     ├── hooks/
@@ -936,9 +936,9 @@ Two Zustand stores (plus React Context for auth), all with TypeScript interfaces
 
 Auth state is managed via React Context (`AuthContext`) and the `useAuth()` hook, not a Zustand store. The `useAuthState()` hook provides `isAuthenticated`, `user`, `modelId`, `modelName`, `availableModels`, and `mustChangePassword` state plus `login()`, `logout()`, `switchModel()`, `selectModel()`, `saveSeed()`, and `changePassword()` actions. The `ApiClient` schedules a background token refresh at 80% of the token's lifetime and notifies the hook via a callback when the user object is updated.
 
-- `switchModel()` — fetches library seeds from the broker and populates `availableModels` to show the seed picker
-- `selectModel(seedName)` — loads a library seed via `brokerApi.loadSeed()`, then re-scopes the JWT to the new model via `apiClient.rescopeToModel()` (handles both login-based and API-key auth modes)
-- `saveSeed(name)` — saves the current model to the library via `brokerApi.saveSeed()` and refreshes the seed list
+- `switchModel()` — fetches library seeds from Mycelium and populates `availableModels` to show the seed picker
+- `selectModel(seedName)` — loads a library seed via `myceliumApi.loadSeed()`, then re-scopes the JWT to the new model via `apiClient.rescopeToModel()` (handles both login-based and API-key auth modes)
+- `saveSeed(name)` — saves the current model to the library via `myceliumApi.saveSeed()` and refreshes the seed list
 - `rescopeToModel(modelId)` on `ApiClient` — for user tokens, calls `switchModel()` to get a new JWT; for API-key tokens, invalidates the cached token and re-exchanges the API key
 
 ### `activityStore.ts`
@@ -972,7 +972,7 @@ Singleton `ApiClient` class with:
 | `temporalApi` | Property versions, recent values, thing/model/relationship mutations |
 | `rangeApi` | Composite range summary for things (`GET /api/things/{id}/range-summary` — returns thing ranges, states, and all relationship range data in one call) |
 | `relationshipRangeApi` | Relationship range listing + state queries (`/api/relationships/{id}/ranges`, `/api/relationships/{id}/states`) |
-| `brokerApi` | Service/daemon listing, start/stop, shutdown, seed library management (`getLibrarySeeds`, `loadSeed`, `saveSeed`), seed-load progress (`GET /api/broker/seed-status`) |
+| `myceliumApi` | Service/daemon listing, start/stop, shutdown, seed library management (`getLibrarySeeds`, `loadSeed`, `saveSeed`), seed-load progress (`GET /api/mycelium/seed-status`) |
 
 ---
 
@@ -980,7 +980,7 @@ Singleton `ApiClient` class with:
 
 ### SignalR Hub
 
-The Broker exposes a SignalR hub at `/vosHub`. Events are push-only (no client-invoked methods).
+The Mycelium exposes a SignalR hub at `/vosHub`. Events are push-only (no client-invoked methods).
 
 **Events:**
 | Event | Payload | Triggered By |
@@ -1075,14 +1075,14 @@ Four components on `DashboardPage`:
 | Component | Data Source | Updates |
 |-----------|-----------|---------|
 | `ModelStatsCard` | `GET /api/things` + `GET /api/relationships` | SignalR model events |
-| `ServicesPanel` | `GET /api/broker/services` | SignalR `ServiceHealthChanged` |
-| `DaemonsPanel` | `GET /api/broker/daemons` | SignalR `DaemonStatusChanged` |
+| `ServicesPanel` | `GET /api/mycelium/services` | SignalR `ServiceHealthChanged` |
+| `DaemonsPanel` | `GET /api/mycelium/daemons` | SignalR `DaemonStatusChanged` |
 | `ActivityFeed` | SignalR `ActivityEvent` only | Real-time (keeps last 200). Pause/resume (buffers new events while paused), category filter chips (Model/Things/Rels/Props/Services), color-coded event types, collapsible panel, resizable height (drag handle, persisted to localStorage) |
 
 ### Dashboard Top-Right Controls
 
-- **Swagger** (FileCode2 icon) — opens `/swagger` in a new tab. In dev mode, Vite proxies `/swagger` to the broker. In production, `Program.cs` serves Swagger UI before auth middleware
-- **Shutdown** (Power icon) — shuts down broker with confirmation dialog
+- **Swagger** (FileCode2 icon) — opens `/swagger` in a new tab. In dev mode, Vite proxies `/swagger` to Mycelium. In production, `Program.cs` serves Swagger UI before auth middleware
+- **Shutdown** (Power icon) — shuts down Mycelium with confirmation dialog
 - **Switch Model** (ArrowLeftRight icon) — opens seed picker
 - **Log Out** (LogOut icon) — ends session
 - **Show Activity Feed** (PanelRightOpen icon) — only visible when feed is collapsed
@@ -1113,7 +1113,7 @@ Four components on `DashboardPage`:
 
 ## 23. Seed Files
 
-Seed files live in `vos.Broker/seeds/` and are auto-loaded by the broker on startup. They can also be loaded via the CLI (`deserialize` command), the REST API (`POST /api/model`), or the IFC importer.
+Seed files live in `vos.Mycelium/seeds/` and are auto-loaded by Mycelium on startup. They can also be loaded via the CLI (`deserialize` command), the REST API (`POST /api/model`), or the IFC importer.
 
 **Format:**
 ```json
@@ -1149,7 +1149,7 @@ Seed files live in `vos.Broker/seeds/` and are auto-loaded by the broker on star
 }
 ```
 
-Note: The warehouse seed uses UUIDs for relationship Subject/Predicate/Target fields (generated by `generate_warehouse_seed.py`). `InheritedProperties` is optional and supports nested `Inherited` for transitive type hierarchies. The Broker's `SeedLoader` deserializes these via `InheritedPropertySetDto`. Seed generators live in `tools/`.
+Note: The warehouse seed uses UUIDs for relationship Subject/Predicate/Target fields (generated by `generate_warehouse_seed.py`). `InheritedProperties` is optional and supports nested `Inherited` for transitive type hierarchies. The Mycelium's `SeedLoader` deserializes these via `InheritedPropertySetDto`. Seed generators live in `tools/`.
 
 **Seed generators:** `tools/generate_warehouse_seed.py` and `tools/generate_village_seed.py` — Python scripts that:
 - Defines types with inheritable properties (e.g., AMR carries `payload_kg`, `nav_version`)
@@ -1173,13 +1173,13 @@ Sensor ← MeasuringSensor ← (weight, temp, proximity sensors)
 
 ---
 
-## 24. Broker Modifications (for GUI support)
+## 24. Mycelium Modifications (for GUI support)
 
 | File | Changes |
 |---|---|
 | `Program.cs` | CORS policy for `localhost:5173`, JWT auth with SignalR query-string token, SignalR hub registration |
 | `Controllers/ThingsController.cs`, `RelationshipsController.cs`, `RangesController.cs`, etc. | `IHubContext<VosHub>` injection, emits events after all mutation endpoints |
-| `Controllers/BrokerController.cs` | `IHubContext<VosHub>` injection, emits events after daemon operations |
+| `Controllers/MyceliumController.cs` | `IHubContext<VosHub>` injection, emits events after daemon operations |
 | `Services/LivenessMonitor.cs` | Emits `ServiceHealthChanged` after health checks |
 | `Services/VillageOSServiceBroker.cs` | Emits `DaemonStatusChanged` after daemon start/stop |
 | `Hubs/VosHub.cs` | SignalR hub class (push-only) |
@@ -1197,7 +1197,7 @@ Sensor ← MeasuringSensor ← (weight, temp, proximity sensors)
 6. **Search**: Type in search bar → matching nodes highlighted, non-matching dimmed. Toggle case-sensitive, exact-match, and regex
 7. **Selection**: Click node → NodeDetailPanel with properties/relationships. Click edge → EdgeDetailPanel with Properties and Ranges tabs
 8. **Real-time**: Create a thing via CLI → verify it appears in GUI graph without page refresh
-9. **Dashboard**: Start broker with seed → services/daemons panels show correct status, health updates flow in real-time
+9. **Dashboard**: Start Mycelium with seed → services/daemons panels show correct status, health updates flow in real-time
 10. **CLI parity**: Walk through each CLI command and verify the equivalent GUI operation produces the same result
 11. **Seed loading**: Import `warehouse.seed.json` via REST API or CLI → nodes and edges render
 12. **Inheritance**: Click a controller instance → Inheritance Chain shows Controller → SmartAppliance hierarchy

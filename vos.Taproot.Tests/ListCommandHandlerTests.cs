@@ -7,18 +7,18 @@ namespace vos.Taproot.Tests;
 
 public class ListCommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
     private readonly StringWriter _writer;
 
     public ListCommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
         _writer = new StringWriter();
     }
 
     private async Task ExecuteHandler(string arg)
     {
-        var handler = new ListCommandHandler(arg, _writer, _brokerMock.Object);
+        var handler = new ListCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
@@ -26,7 +26,7 @@ public class ListCommandHandlerTests
     public async Task ListThings_WithNoThings_ShowsNoThings()
     {
         var json = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("things");
 
@@ -38,7 +38,7 @@ public class ListCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("things");
 
@@ -52,7 +52,7 @@ public class ListCommandHandlerTests
     public async Task ListRelations_WithNoRelationships_ShowsNoRelationships()
     {
         var json = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("relations");
 
@@ -68,7 +68,7 @@ public class ListCommandHandlerTests
         var targetId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{relId}\",\"Name\":\"likes\",\"SubjectId\":\"{subjectId}\",\"PredicateId\":\"{predicateId}\",\"TargetId\":\"{targetId}\"}}]");
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("relations");
 
@@ -82,8 +82,8 @@ public class ListCommandHandlerTests
     {
         var thingsJson = JsonSerializer.Deserialize<JsonElement>("[]");
         var relsJson = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
 
         await ExecuteHandler("predicates");
 
@@ -96,8 +96,8 @@ public class ListCommandHandlerTests
         var thingsJson = JsonSerializer.Deserialize<JsonElement>("[]");
         var relsJson = JsonSerializer.Deserialize<JsonElement>(
             "[{\"Name\":\"likes\"},{\"Name\":\"owns\"},{\"Name\":\"likes\"}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
 
         await ExecuteHandler("predicates");
 
@@ -111,7 +111,7 @@ public class ListCommandHandlerTests
     public async Task ListHandlers_WithNoHandlers_ShowsNoHandlers()
     {
         var json = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("handlers");
 
@@ -124,7 +124,7 @@ public class ListCommandHandlerTests
         var handlerId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\",\"Properties\":{{\"ExecutablePath\":\"/path/to/exec\",\"RunMode\":\"daemon\"}}}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("handlers");
 
@@ -138,7 +138,7 @@ public class ListCommandHandlerTests
     public async Task ListServices_WithNoServices_ShowsNoServices()
     {
         var json = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("services");
 
@@ -151,7 +151,7 @@ public class ListCommandHandlerTests
         var handlerId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("services");
 
@@ -169,7 +169,7 @@ public class ListCommandHandlerTests
         var handlerId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"StoppedService\",\"EndpointUrl\":\"https://localhost:5200\",\"HealthStatus\":\"Unknown\",\"IsRunning\":false}}]");
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("services");
 
@@ -193,7 +193,7 @@ public class ListCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("things --showguids");
 
@@ -207,7 +207,7 @@ public class ListCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("things");
 
@@ -221,7 +221,7 @@ public class ListCommandHandlerTests
     {
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>($"[{{\"Id\":\"{thingId}\",\"Name\":\"TestThing\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("things -g");
 
@@ -241,8 +241,8 @@ public class ListCommandHandlerTests
             $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{predicateId}\",\"Name\":\"IsA\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}}]");
         var relsJson = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{relId}\",\"Name\":\"likes\",\"SubjectId\":\"{subjectId}\",\"PredicateId\":\"{predicateId}\",\"TargetId\":\"{targetId}\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
 
         await ExecuteHandler("relations --showguids");
 
@@ -264,8 +264,8 @@ public class ListCommandHandlerTests
             $"[{{\"Id\":\"{subjectId}\",\"Name\":\"Subject\"}},{{\"Id\":\"{predicateId}\",\"Name\":\"IsA\"}},{{\"Id\":\"{targetId}\",\"Name\":\"Target\"}}]");
         var relsJson = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{relId}\",\"Name\":\"likes\",\"SubjectId\":\"{subjectId}\",\"PredicateId\":\"{predicateId}\",\"TargetId\":\"{targetId}\"}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(relsJson);
 
         await ExecuteHandler("relations");
 
@@ -283,7 +283,7 @@ public class ListCommandHandlerTests
         var handlerId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\",\"Properties\":{{\"ExecutablePath\":\"/path/to/exec\",\"RunMode\":\"daemon\"}}}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("handlers --showguids");
 
@@ -298,7 +298,7 @@ public class ListCommandHandlerTests
         var handlerId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\",\"Properties\":{{\"ExecutablePath\":\"/path/to/exec\",\"RunMode\":\"daemon\"}}}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("handlers");
 
@@ -315,8 +315,8 @@ public class ListCommandHandlerTests
             $"[{{\"Id\":\"{handlerId}\",\"Name\":\"IsHandler\"}}]");
         var servicesJson = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
 
         await ExecuteHandler("services --showguids");
 
@@ -333,8 +333,8 @@ public class ListCommandHandlerTests
             $"[{{\"Id\":\"{handlerId}\",\"Name\":\"IsHandler\"}}]");
         var servicesJson = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
 
         await ExecuteHandler("services");
 
@@ -349,7 +349,7 @@ public class ListCommandHandlerTests
     public async Task ListDaemons_WithNoDaemons_ShowsNoDaemons()
     {
         var json = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("daemons");
 
@@ -361,7 +361,7 @@ public class ListCommandHandlerTests
     {
         var json = JsonSerializer.Deserialize<JsonElement>(
             "[{\"Key\":\"is:5100\",\"IsRunning\":true,\"ProcessId\":12345,\"ConsecutiveFailures\":0,\"LastFailureTime\":null}]");
-        _brokerMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("daemons");
 
@@ -377,7 +377,7 @@ public class ListCommandHandlerTests
     {
         var json = JsonSerializer.Deserialize<JsonElement>(
             "[{\"Key\":\"is:5100\",\"IsRunning\":false,\"ProcessId\":null,\"ConsecutiveFailures\":0,\"LastFailureTime\":null}]");
-        _brokerMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("daemons");
 
@@ -391,7 +391,7 @@ public class ListCommandHandlerTests
     {
         var json = JsonSerializer.Deserialize<JsonElement>(
             "[{\"Key\":\"is:5100\",\"IsRunning\":false,\"ProcessId\":null,\"ConsecutiveFailures\":3,\"LastFailureTime\":\"2025-01-30T10:00:00Z\"}]");
-        _brokerMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("daemons");
 
@@ -406,9 +406,9 @@ public class ListCommandHandlerTests
     public async Task ListAgents_WithNone_ShowsNoAgents()
     {
         var emptyJson = JsonSerializer.Deserialize<JsonElement>("[]");
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(emptyJson);
-        _brokerMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(emptyJson);
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(emptyJson);
+        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(emptyJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyJson);
 
         await ExecuteHandler("agents");
 
@@ -425,9 +425,9 @@ public class ListCommandHandlerTests
             $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
         var emptyJson = JsonSerializer.Deserialize<JsonElement>("[]");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
-        _brokerMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(emptyJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
+        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(emptyJson);
 
         await ExecuteHandler("agents");
 
@@ -445,9 +445,9 @@ public class ListCommandHandlerTests
         var daemonsJson = JsonSerializer.Deserialize<JsonElement>(
             "[{\"Key\":\"is:5100\",\"IsRunning\":true,\"ProcessId\":12345,\"ConsecutiveFailures\":0,\"LastFailureTime\":null}]");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(emptyJson);
-        _brokerMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(daemonsJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(emptyJson);
+        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(daemonsJson);
 
         await ExecuteHandler("agents");
 
@@ -468,9 +468,9 @@ public class ListCommandHandlerTests
         var daemonsJson = JsonSerializer.Deserialize<JsonElement>(
             "[{\"Key\":\"owns:5200\",\"IsRunning\":true,\"ProcessId\":54321,\"ConsecutiveFailures\":0,\"LastFailureTime\":null}]");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
-        _brokerMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(daemonsJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
+        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(daemonsJson);
 
         await ExecuteHandler("agents");
 
@@ -491,9 +491,9 @@ public class ListCommandHandlerTests
             $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
         var emptyJson = JsonSerializer.Deserialize<JsonElement>("[]");
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
-        _brokerMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(emptyJson);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
+        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(emptyJson);
 
         await ExecuteHandler("agents --showguids");
 
@@ -516,7 +516,7 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListThings_ApiThrowsException_ShowsError()
     {
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ThrowsAsync(new HttpRequestException("Connection failed"));
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ThrowsAsync(new HttpRequestException("Connection failed"));
 
         await ExecuteHandler("things");
 
@@ -528,7 +528,7 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListRelations_ApiThrowsException_ShowsError()
     {
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ThrowsAsync(new HttpRequestException("Connection failed"));
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ThrowsAsync(new HttpRequestException("Connection failed"));
 
         await ExecuteHandler("relations");
 
@@ -542,7 +542,7 @@ public class ListCommandHandlerTests
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{thingId}\",\"Name\":\"Sensor\",\"Properties\":{{\"temp\":100,\"status\":\"active\"}}}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("things");
 
@@ -558,7 +558,7 @@ public class ListCommandHandlerTests
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{thingId}\",\"Name\":\"Motor\",\"Properties\":{{\"temp\":50}},\"InheritedProperties\":{{\"Device\":{{\"SourceName\":\"Device\",\"Properties\":{{\"serialNumber\":\"SN-1234\"}}}}}}}}]");
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("things");
 
@@ -573,7 +573,7 @@ public class ListCommandHandlerTests
     public async Task ListDaemons_NonArrayResponse_ShowsError()
     {
         var json = JsonSerializer.Deserialize<JsonElement>("{}"); // Not an array
-        _brokerMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("daemons");
 
@@ -586,7 +586,7 @@ public class ListCommandHandlerTests
     public async Task ListServices_NonArrayResponse_ShowsError()
     {
         var json = JsonSerializer.Deserialize<JsonElement>("{}"); // Not an array
-        _brokerMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(json);
 
         await ExecuteHandler("services");
 
@@ -623,7 +623,7 @@ public class ListCommandHandlerTests
           }
         }]
         """;
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonDocument.Parse(json).RootElement);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonDocument.Parse(json).RootElement);
 
         await ExecuteHandler("things");
 

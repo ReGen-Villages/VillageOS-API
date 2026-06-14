@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { apiClient, type AuthUser } from '../api/client';
-import { brokerApi, type SeedStatus } from '../api/brokerApi';
+import { myceliumApi, type SeedStatus } from '../api/myceliumApi';
 import { useModelStore } from '../stores/modelStore';
 import type { ModelSummary } from '../types/vos';
 
@@ -106,7 +106,7 @@ export function useAuthState(): AuthState {
 
     const poll = async () => {
       try {
-        const status = await brokerApi.getSeedStatus();
+        const status = await myceliumApi.getSeedStatus();
         setSeedStatus(status);
         if (!status.IsLoading && status.Phase === 'Done') {
           // Seed finished loading — auto-retry login
@@ -131,7 +131,7 @@ export function useAuthState(): AuthState {
           }
         }
       } catch {
-        // Broker might not be reachable yet — keep polling
+        // Mycelium might not be reachable yet — keep polling
       }
     };
 
@@ -172,7 +172,7 @@ export function useAuthState(): AuthState {
       // Disambiguate by reading SeedLoadingStatus before deciding.
       if (msg.includes('No models loaded')) {
         try {
-          const status = await brokerApi.getSeedStatus();
+          const status = await myceliumApi.getSeedStatus();
           if (status.IsLoading) {
             setError(null);
             setSeedStatus(status);
@@ -182,7 +182,7 @@ export function useAuthState(): AuthState {
         } catch { /* fall through to actionable error */ }
         setError(
           'No models on broker. Drop a .seed.json into vos.Mycelium/seeds-library/ and reload, '
-          + 'or POST /api/broker/library-seeds/<name>/load.',
+          + 'or POST /api/mycelium/library-seeds/<name>/load.',
         );
         throw err;
       }
@@ -219,7 +219,7 @@ export function useAuthState(): AuthState {
   const switchModel = useCallback(async () => {
     setError(null);
     try {
-      const seeds = await brokerApi.getLibrarySeeds();
+      const seeds = await myceliumApi.getLibrarySeeds();
       const asModels: ModelSummary[] = seeds.map((s) => ({
         Id: s.name,
         Name: `${s.name.replace('.seed.json', '')}  (${s.sizeMb} MB)`,
@@ -254,7 +254,7 @@ export function useAuthState(): AuthState {
     setLoading(true);
     setError(null);
     try {
-      const result = await brokerApi.loadSeed(seedName);
+      const result = await myceliumApi.loadSeed(seedName);
       // The broker removed the old model from the store. Re-scope the JWT
       // to the newly loaded model (works for both login and API-key auth).
       await apiClient.rescopeToModel(result.modelId);
@@ -274,9 +274,9 @@ export function useAuthState(): AuthState {
     setLoading(true);
     setError(null);
     try {
-      await brokerApi.saveSeed(name);
+      await myceliumApi.saveSeed(name);
       // Refresh the seed list to show the newly saved file
-      const seeds = await brokerApi.getLibrarySeeds();
+      const seeds = await myceliumApi.getLibrarySeeds();
       const asModels: ModelSummary[] = seeds.map((s) => ({
         Id: s.name,
         Name: `${s.name.replace('.seed.json', '')}  (${s.sizeMb} MB)`,

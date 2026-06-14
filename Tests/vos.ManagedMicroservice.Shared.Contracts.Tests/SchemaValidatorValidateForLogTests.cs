@@ -9,7 +9,7 @@ namespace vos.ManagedMicroservice.Shared.Contracts.Tests;
 /// Tests for the Phase 3 (Feature #5440) "log instead of throw" failure policy that
 /// <see cref="SchemaValidator.ValidateForLog"/> implements. Pairs with the existing
 /// <see cref="SchemaValidator.ValidateOrThrow"/> -- one explicit policy per method, so
-/// callers (<c>BrokerClientBase</c>) can pick via <c>#if DEBUG</c> and both paths stay
+/// callers (<c>MyceliumClientBase</c>) can pick via <c>#if DEBUG</c> and both paths stay
 /// unit-testable regardless of the test assembly's build configuration.
 /// </summary>
 public class SchemaValidatorValidateForLogTests

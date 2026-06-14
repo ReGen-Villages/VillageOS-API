@@ -8,10 +8,10 @@ namespace vos.ManagedMicroservice.Tributary.Tests;
 
 // Integration tests for the generic token-exchange + offset-paging handling in /handle (Task #5470),
 // exercised through an ESRI-shaped configuration (and one header-attach variant to show the code
-// carries no source-specific assumptions). The broker calls, the token-endpoint call, and the
+// carries no source-specific assumptions). The mycelium calls, the token-endpoint call, and the
 // outbound data call all resolve through one MockHttpMessageHandler set per scenario.
 //
-// Effective-property keys are namespaced (e.g. "Esri.tokenUrl") to mirror the broker's template-merged
+// Effective-property keys are namespaced (e.g. "Esri.tokenUrl") to mirror Mycelium's template-merged
 // shape; EffectivePropertyResolver suffix-matches them to the lookups the handler performs.
 public class EsriHandleTests
 {

@@ -4,23 +4,23 @@ namespace vos.Taproot
     {
         private readonly TextWriter _writer;
         private readonly string _arg;
-        private readonly BrokerClient _broker;
+        private readonly MyceliumClient _mycelium;
         private readonly NameResolver _resolver;
         private readonly OutputOptions _options;
 
-        public DeleteCommandHandler(string arg, TextWriter writer, BrokerClient broker)
-            : this(arg, writer, broker, OutputOptions.Default)
+        public DeleteCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
+            : this(arg, writer, mycelium, OutputOptions.Default)
         {
         }
 
-        public DeleteCommandHandler(string arg, TextWriter writer, BrokerClient broker, OutputOptions options)
+        public DeleteCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions options)
         {
             var (parsedOptions, remainingArgs) = OutputOptions.ParseFromArgs(arg);
             _options = options.ShowGuids ? options : parsedOptions;
             _arg = remainingArgs;
             _writer = writer;
-            _broker = broker;
-            _resolver = new NameResolver(broker);
+            _mycelium = mycelium;
+            _resolver = new NameResolver(mycelium);
         }
 
         public async Task ExecuteAsync()
@@ -92,7 +92,7 @@ namespace vos.Taproot
                 thingName = await _resolver.ResolveNameAsync(id);
             }
 
-            if (await _broker.DeleteThingAsync(id))
+            if (await _mycelium.DeleteThingAsync(id))
             {
                 var display = _options.FormatIdentifier(thingName, id);
                 _writer.WriteLine($"Deleted thing {display}");
@@ -118,7 +118,7 @@ namespace vos.Taproot
                 return;
             }
 
-            if (await _broker.DeleteRelationshipAsync(id))
+            if (await _mycelium.DeleteRelationshipAsync(id))
             {
                 var display = _options.ShowGuids ? id.ToString() : "relationship";
                 _writer.WriteLine($"Deleted {display}");
@@ -151,7 +151,7 @@ namespace vos.Taproot
             var thingName = await _resolver.ResolveNameAsync(thingId);
             var thingDisplay = _options.FormatIdentifier(thingName, thingId);
 
-            if (await _broker.DeletePropertyAsync(thingId, propertyName))
+            if (await _mycelium.DeletePropertyAsync(thingId, propertyName))
             {
                 _writer.WriteLine($"Deleted property '{propertyName}' from thing {thingDisplay}");
             }
@@ -175,7 +175,7 @@ namespace vos.Taproot
                 return;
             }
 
-            if (await _broker.DeleteRelationshipPropertyAsync(relId, tok[1]))
+            if (await _mycelium.DeleteRelationshipPropertyAsync(relId, tok[1]))
                 _writer.WriteLine($"Deleted property '{tok[1]}' from relationship {relId}");
             else
                 _writer.WriteLine($"Property '{tok[1]}' not found on relationship {relId}");

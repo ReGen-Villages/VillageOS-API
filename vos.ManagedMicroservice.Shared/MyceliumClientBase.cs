@@ -8,13 +8,13 @@ using vos.ManagedMicroservice.Shared.Contracts.Validation;
 namespace vos.ManagedMicroservice.Shared;
 
 /// <summary>
-/// Base class for microservice BrokerClients that communicate with the VOS Broker.
+/// Base class for microservice MyceliumClients that communicate with the VOS Mycelium.
 /// Provides shared token management, registration, deregistration, and authenticated HTTP helpers.
 /// Used by IsHandler, Metabolism, and Delta handler services.
 /// </summary>
-public abstract class BrokerClientBase
+public abstract class MyceliumClientBase
 {
-    private const string BrokerRegisterRequestSchemaId = "https://villageos/contracts/broker-register-request.schema.json";
+    private const string MyceliumRegisterRequestSchemaId = "https://villageos/contracts/mycelium-register-request.schema.json";
     private const string TokenResponseSchemaId = "https://villageos/contracts/token-response.schema.json";
 
     // Schemas are eagerly loaded once per process. SchemaRegistry's ctor parses every embedded
@@ -25,7 +25,7 @@ public abstract class BrokerClientBase
 
     protected readonly IHttpClientFactory HttpClientFactory;
     protected readonly ILogger Logger;
-    public string BrokerUrl { get; }
+    public string MyceliumUrl { get; }
     private readonly string? _serviceToken;
 
     public Guid HandlerId { get; } = Guid.NewGuid();
@@ -47,8 +47,8 @@ public abstract class BrokerClientBase
     /// Validates <paramref name="json"/> against the schema with <paramref name="schemaId"/>
     /// according to the current <see cref="OutboundViolationMode"/>. Used by RegisterAsync,
     /// GetTokenAsync, and (Phase 4) service-specific subclass calls. Name is a slight
-    /// misnomer for inbound traffic (SignalR events, broker responses) but the validation
-    /// shape is direction-agnostic; treat "outbound" as "crossing the BrokerClient boundary".
+    /// misnomer for inbound traffic (SignalR events, mycelium responses) but the validation
+    /// shape is direction-agnostic; treat "outbound" as "crossing the MyceliumClient boundary".
     /// </summary>
     protected void ValidateOutbound(string json, string schemaId)
     {
@@ -64,16 +64,16 @@ public abstract class BrokerClientBase
         }
     }
 
-    protected BrokerClientBase(IHttpClientFactory httpClientFactory, ILogger logger, string brokerUrl, string? serviceToken = null)
+    protected MyceliumClientBase(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null)
     {
         HttpClientFactory = httpClientFactory;
         Logger = logger;
-        BrokerUrl = brokerUrl;
+        MyceliumUrl = myceliumUrl;
         _serviceToken = serviceToken;
     }
 
     /// <summary>
-    /// Gets a JWT token for authenticating with the broker.
+    /// Gets a JWT token for authenticating with Mycelium.
     /// Uses the service token passed via --token if available, otherwise falls back
     /// to the legacy open token endpoint for backward compatibility.
     /// </summary>
@@ -88,14 +88,14 @@ public abstract class BrokerClientBase
             var client = HttpClientFactory.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(5);
 
-            var response = await client.PostAsync($"{BrokerUrl}/api/auth/token", null);
+            var response = await client.PostAsync($"{MyceliumUrl}/api/auth/token", null);
             response.EnsureSuccessStatusCode();
 
             body = await response.Content.ReadAsStringAsync();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to get token from broker");
+            Logger.LogError(ex, "Failed to get token from mycelium");
             return null;
         }
 
@@ -111,7 +111,7 @@ public abstract class BrokerClientBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to parse token from broker response");
+            Logger.LogError(ex, "Failed to parse token from mycelium response");
             return null;
         }
     }
@@ -128,7 +128,7 @@ public abstract class BrokerClientBase
         return client;
     }
 
-    /// <summary>Registers this service with the broker.</summary>
+    /// <summary>Registers this service with Mycelium.</summary>
     public async Task<bool> RegisterAsync(int port, string serviceName, string startCommand)
     {
         var registration = new
@@ -147,18 +147,18 @@ public abstract class BrokerClientBase
         // dev; Log mode warns and lets the request through so production never blocks on
         // stale schemas. Schema-violation exceptions intentionally propagate past the
         // network try/catch below.
-        ValidateOutbound(json, BrokerRegisterRequestSchemaId);
+        ValidateOutbound(json, MyceliumRegisterRequestSchemaId);
 
         try
         {
             var client = await CreateAuthenticatedClientAsync();
             var response = await client.PostAsync(
-                $"{BrokerUrl}/api/broker/register",
+                $"{MyceliumUrl}/api/mycelium/register",
                 new StringContent(json, Encoding.UTF8, "application/json"));
 
             if (response.IsSuccessStatusCode)
             {
-                Logger.LogInformation("Registered with broker as {HandlerId}", HandlerId);
+                Logger.LogInformation("Registered with mycelium as {HandlerId}", HandlerId);
                 return true;
             }
 
@@ -172,12 +172,12 @@ public abstract class BrokerClientBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error registering with broker");
+            Logger.LogError(ex, "Error registering with mycelium");
             return false;
         }
     }
 
-    /// <summary>Deregisters this service from the broker.</summary>
+    /// <summary>Deregisters this service from Mycelium.</summary>
     public virtual async Task DeregisterAsync()
     {
         try
@@ -193,16 +193,16 @@ public abstract class BrokerClientBase
             client.Timeout = TimeSpan.FromSeconds(5);
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            var response = await client.DeleteAsync($"{BrokerUrl}/api/broker/services/{HandlerId}");
+            var response = await client.DeleteAsync($"{MyceliumUrl}/api/mycelium/services/{HandlerId}");
 
             if (response.IsSuccessStatusCode)
-                Logger.LogInformation("Deregistered from broker");
+                Logger.LogInformation("Deregistered from mycelium");
             else
                 Logger.LogWarning("Deregistration returned: {StatusCode}", response.StatusCode);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error deregistering from broker");
+            Logger.LogError(ex, "Error deregistering from mycelium");
         }
     }
 }

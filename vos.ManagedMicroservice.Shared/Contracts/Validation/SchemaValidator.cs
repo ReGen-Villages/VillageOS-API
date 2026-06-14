@@ -39,7 +39,7 @@ public sealed class SchemaValidator
     /// single <see cref="LogLevel.Warning"/> entry naming the schema, error count, and the
     /// first error's path/code/message. Never throws on a validation failure -- pairs with
     /// <see cref="ValidateOrThrow"/> so callers can pick a policy explicitly. Used by Release
-    /// builds of <c>BrokerClientBase</c> to keep production traffic flowing past stale schemas.
+    /// builds of <c>MyceliumClientBase</c> to keep production traffic flowing past stale schemas.
     /// </summary>
     public void ValidateForLog(string json, JsonSchema schema, string schemaId, ILogger logger)
     {

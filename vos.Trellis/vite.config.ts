@@ -8,7 +8,7 @@ import { pickChunk } from './build/manualChunks'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
-    // Resolution: VOS_BROKER_WWWROOT > sibling vos.Mycelium/wwwroot > dist/.
+    // Resolution: VOS_MYCELIUM_WWWROOT > sibling vos.Mycelium/wwwroot > dist/.
     // The sibling auto-detect (Bug #5332) keeps `npm run build` from silently
     // emitting to `dist/` while developers wonder why the broker URL still
     // serves a stale bundle.

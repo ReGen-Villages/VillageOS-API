@@ -5,16 +5,16 @@ using Xunit;
 namespace vos.Taproot.Tests;
 
 /// <summary>
-/// Integration tests that test CLI command flows using mocked broker responses.
+/// Integration tests that test CLI command flows using mocked mycelium responses.
 /// These tests verify that commands are correctly dispatched and produce expected output.
-/// For true end-to-end tests, a running broker is required.
+/// For true end-to-end tests, a running mycelium is required.
 /// </summary>
 public class IntegrationTests : IDisposable
 {
     private readonly string _testDirectory;
     private readonly string _originalDirectory;
-    private readonly Mock<BrokerClient> _brokerMock;
-    private const string BrokerUrl = "https://localhost:7243";
+    private readonly Mock<MyceliumClient> _myceliumMock;
+    private const string MyceliumUrl = "https://localhost:7243";
 
     public IntegrationTests()
     {
@@ -22,7 +22,7 @@ public class IntegrationTests : IDisposable
         _testDirectory = Path.Combine(Path.GetTempPath(), $"VosTests_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testDirectory);
 
-        _brokerMock = new Mock<BrokerClient>(BrokerUrl) { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>(MyceliumUrl) { CallBase = false };
     }
 
     public void Dispose()
@@ -44,7 +44,7 @@ public class IntegrationTests : IDisposable
 
     private CommandHandler CreateHandler(StringReader reader, StringWriter writer)
     {
-        return new CommandHandler(reader, writer, _brokerMock.Object, BrokerUrl);
+        return new CommandHandler(reader, writer, _myceliumMock.Object, MyceliumUrl);
     }
 
     [Fact]
@@ -55,14 +55,14 @@ public class IntegrationTests : IDisposable
         var likesId = Guid.NewGuid();
         var relationshipId = Guid.NewGuid();
 
-        // Setup broker responses for the workflow
-        _brokerMock.Setup(b => b.CreateThingAsync("Alice")).ReturnsAsync(
+        // Setup mycelium responses for the workflow
+        _myceliumMock.Setup(b => b.CreateThingAsync("Alice")).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{aliceId}"",""Name"":""Alice""}}"));
-        _brokerMock.Setup(b => b.CreateThingAsync("Bob")).ReturnsAsync(
+        _myceliumMock.Setup(b => b.CreateThingAsync("Bob")).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{bobId}"",""Name"":""Bob""}}"));
-        _brokerMock.Setup(b => b.CreateThingAsync("likes")).ReturnsAsync(
+        _myceliumMock.Setup(b => b.CreateThingAsync("likes")).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{likesId}"",""Name"":""likes""}}"));
-        _brokerMock.Setup(b => b.CreateRelationshipAsync(aliceId, likesId, bobId)).ReturnsAsync(
+        _myceliumMock.Setup(b => b.CreateRelationshipAsync(aliceId, likesId, bobId)).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{relationshipId}"",""SubjectId"":""{aliceId}"",""PredicateId"":""{likesId}"",""TargetId"":""{bobId}""}}"));
 
         var writer = new StringWriter();
@@ -85,9 +85,9 @@ public class IntegrationTests : IDisposable
         await handler.HandleCommandAsync("create", $"relation {aliceId} {likesId} {bobId}");
         Assert.Contains("Created Relationship", writer.ToString());
 
-        _brokerMock.Verify(b => b.CreateThingAsync("Alice"), Times.Once);
-        _brokerMock.Verify(b => b.CreateThingAsync("Bob"), Times.Once);
-        _brokerMock.Verify(b => b.CreateRelationshipAsync(aliceId, likesId, bobId), Times.Once);
+        _myceliumMock.Verify(b => b.CreateThingAsync("Alice"), Times.Once);
+        _myceliumMock.Verify(b => b.CreateThingAsync("Bob"), Times.Once);
+        _myceliumMock.Verify(b => b.CreateRelationshipAsync(aliceId, likesId, bobId), Times.Once);
     }
 
     [Fact]
@@ -104,9 +104,9 @@ public class IntegrationTests : IDisposable
             {{""Id"":""{Guid.NewGuid()}"",""Name"":""likes"",""SubjectId"":""{aliceId}"",""TargetId"":""{bobId}""}}
         ]";
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(thingsJson));
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(relationshipsJson));
 
         // Test list things
@@ -141,11 +141,11 @@ public class IntegrationTests : IDisposable
             {{""Id"":""{Guid.NewGuid()}"",""Name"":""likes"",""SubjectId"":""{aliceId}"",""TargetId"":""{bobId}""}}
         ]";
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(thingsJson));
-        _brokerMock.Setup(b => b.GetThingAsync(aliceId)).ReturnsAsync(
+        _myceliumMock.Setup(b => b.GetThingAsync(aliceId)).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{aliceId}"",""Name"":""Alice""}}"));
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(relationshipsJson));
 
         // Test find thing
@@ -166,10 +166,10 @@ public class IntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task Integration_TemporalCommands_CallBrokerApi()
+    public async Task Integration_TemporalCommands_CallMyceliumApi()
     {
         var mockResponse = JsonDocument.Parse("{\"Timestamp\":\"2026-01-15T12:00:00Z\",\"Things\":[],\"Relationships\":[]}");
-        _brokerMock.Setup(b => b.GetModelAtTimeAsync(null))
+        _myceliumMock.Setup(b => b.GetModelAtTimeAsync(null))
             .ReturnsAsync(mockResponse.RootElement);
 
         var writer = new StringWriter();
@@ -179,7 +179,7 @@ public class IntegrationTests : IDisposable
 
         var output = writer.ToString();
         Assert.Contains("Timestamp", output);
-        _brokerMock.Verify(b => b.GetModelAtTimeAsync(null), Times.Once);
+        _myceliumMock.Verify(b => b.GetModelAtTimeAsync(null), Times.Once);
     }
 
     [Fact]
@@ -196,9 +196,9 @@ public class IntegrationTests : IDisposable
             {{""Id"":""{Guid.NewGuid()}"",""Name"":""likes"",""SubjectId"":""{aliceId}"",""TargetId"":""{bobId}""}}
         ]";
 
-        _brokerMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(thingsJson));
-        _brokerMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
+        _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(relationshipsJson));
 
         // Test query stats
@@ -220,14 +220,14 @@ public class IntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task Integration_DeleteOperations_CallBroker()
+    public async Task Integration_DeleteOperations_CallMycelium()
     {
         var aliceId = Guid.NewGuid();
         var relationshipId = Guid.NewGuid();
 
-        _brokerMock.Setup(b => b.DeletePropertyAsync(aliceId, "Age")).ReturnsAsync(true);
-        _brokerMock.Setup(b => b.DeleteRelationshipAsync(relationshipId)).ReturnsAsync(true);
-        _brokerMock.Setup(b => b.DeleteThingAsync(aliceId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.DeletePropertyAsync(aliceId, "Age")).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.DeleteRelationshipAsync(relationshipId)).ReturnsAsync(true);
+        _myceliumMock.Setup(b => b.DeleteThingAsync(aliceId)).ReturnsAsync(true);
 
         // Delete property
         var writer = new StringWriter();
@@ -247,16 +247,16 @@ public class IntegrationTests : IDisposable
         await handler.HandleCommandAsync("delete", $"thing {aliceId}");
         Assert.Contains("Deleted thing", writer.ToString());
 
-        _brokerMock.Verify(b => b.DeletePropertyAsync(aliceId, "Age"), Times.Once);
-        _brokerMock.Verify(b => b.DeleteRelationshipAsync(relationshipId), Times.Once);
-        _brokerMock.Verify(b => b.DeleteThingAsync(aliceId), Times.Once);
+        _myceliumMock.Verify(b => b.DeletePropertyAsync(aliceId, "Age"), Times.Once);
+        _myceliumMock.Verify(b => b.DeleteRelationshipAsync(relationshipId), Times.Once);
+        _myceliumMock.Verify(b => b.DeleteThingAsync(aliceId), Times.Once);
     }
 
     [Fact]
     public async Task Integration_FileSystemCommands_WithRealFiles()
     {
-        _brokerMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"things\": [], \"relationships\": []}");
-        _brokerMock.Setup(b => b.SetModelAsync(It.IsAny<string>())).ReturnsAsync("OK");
+        _myceliumMock.Setup(b => b.GetModelJsonAsync()).ReturnsAsync("{\"things\": [], \"relationships\": []}");
+        _myceliumMock.Setup(b => b.SetModelAsync(It.IsAny<string>())).ReturnsAsync("OK");
 
         // Test pwd
         var writer = new StringWriter();
@@ -291,7 +291,7 @@ public class IntegrationTests : IDisposable
         var aliceId = Guid.NewGuid();
         var relationshipId = Guid.NewGuid();
 
-        _brokerMock.Setup(b => b.GetThingAsync(aliceId)).ReturnsAsync(
+        _myceliumMock.Setup(b => b.GetThingAsync(aliceId)).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{aliceId}"",""Name"":""Alice"",""Properties"":{{""Age"":30}}}}"));
 
         // Test get thing
@@ -301,21 +301,21 @@ public class IntegrationTests : IDisposable
         var output = writer.ToString();
         Assert.Contains("Alice", output);
 
-        _brokerMock.Verify(b => b.GetThingAsync(aliceId), Times.Once);
+        _myceliumMock.Verify(b => b.GetThingAsync(aliceId), Times.Once);
     }
 
     [Fact]
-    public async Task Integration_SetProperty_CallsBroker()
+    public async Task Integration_SetProperty_CallsMycelium()
     {
         var aliceId = Guid.NewGuid();
 
-        _brokerMock.Setup(b => b.SetPropertyAsync(aliceId, "Age", "System.Int32", 25)).ReturnsAsync(
+        _myceliumMock.Setup(b => b.SetPropertyAsync(aliceId, "Age", "System.Int32", 25)).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>($@"{{""Name"":""Age"",""Value"":25}}"));
 
         var writer = new StringWriter();
         var handler = CreateHandler(new StringReader(""), writer);
         await handler.HandleCommandAsync("set", $"{aliceId} Age 25");
 
-        _brokerMock.Verify(b => b.SetPropertyAsync(aliceId, "Age", It.IsAny<string>(), It.IsAny<object>()), Times.Once);
+        _myceliumMock.Verify(b => b.SetPropertyAsync(aliceId, "Age", It.IsAny<string>(), It.IsAny<object>()), Times.Once);
     }
 }

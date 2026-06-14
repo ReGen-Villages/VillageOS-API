@@ -5,10 +5,10 @@ namespace vos.Taproot;
 /// </summary>
 public class ConsoleOptions
 {
-    private static readonly string[] BrokerUrlPrefixes = { "--broker-url=", "--broker=" };
+    private static readonly string[] MyceliumUrlPrefixes = { "--mycelium-url=", "--mycelium=" };
     private static readonly string[] ApiKeyPrefixes = { "--api-key=", "--apikey=" };
 
-    public string BrokerUrl { get; set; } = "https://localhost:7243";
+    public string MyceliumUrl { get; set; } = "https://localhost:7243";
     public string? ApiKey { get; set; }
 
     /// <summary>
@@ -25,9 +25,9 @@ public class ConsoleOptions
 
     private static void ApplyEnvironmentVariables(ConsoleOptions options)
     {
-        var envUrl = Environment.GetEnvironmentVariable("VOS_BROKER_URL");
+        var envUrl = Environment.GetEnvironmentVariable("VOS_MYCELIUM_URL");
         if (!string.IsNullOrWhiteSpace(envUrl))
-            options.BrokerUrl = envUrl;
+            options.MyceliumUrl = envUrl;
 
         var envKey = Environment.GetEnvironmentVariable("VOS_API_KEY");
         if (!string.IsNullOrWhiteSpace(envKey))
@@ -38,8 +38,8 @@ public class ConsoleOptions
     {
         foreach (var arg in args)
         {
-            if (TryExtractValue(arg, BrokerUrlPrefixes, out var url))
-                options.BrokerUrl = url;
+            if (TryExtractValue(arg, MyceliumUrlPrefixes, out var url))
+                options.MyceliumUrl = url;
             else if (TryExtractValue(arg, ApiKeyPrefixes, out var key))
                 options.ApiKey = key;
         }

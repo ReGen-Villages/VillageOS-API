@@ -8,15 +8,15 @@ namespace vos.ManagedMicroservice.Metabolism.Services;
 public class Metabolism
 {
     private readonly ConcurrentDictionary<string, SimulationEntry> _simulations = new();
-    private readonly BrokerClient _brokerClient;
+    private readonly MyceliumClient _myceliumClient;
     private readonly ILogger<Metabolism> _logger;
     private readonly string _mode;
     private readonly object _updateLock = new();
     private int _registrationOrder;
 
-    public Metabolism(BrokerClient brokerClient, ILogger<Metabolism> logger, string mode)
+    public Metabolism(MyceliumClient myceliumClient, ILogger<Metabolism> logger, string mode)
     {
-        _brokerClient = brokerClient;
+        _myceliumClient = myceliumClient;
         _logger = logger;
         _mode = mode;
     }
@@ -89,7 +89,7 @@ public class Metabolism
         {
             try
             {
-                await _brokerClient.ApplyQuantityAsync(config.TargetId, config.PropertyPath, config.Quantity, config.SubjectName, config.Unit);
+                await _myceliumClient.ApplyQuantityAsync(config.TargetId, config.PropertyPath, config.Quantity, config.SubjectName, config.Unit);
                 entry.TickCount++;
                 entry.LastTickUtc = DateTime.UtcNow;
                 entry.LastError = null;
@@ -98,7 +98,7 @@ public class Metabolism
                 try
                 {
                     var trackingProp = _mode == "consumes" ? "total_consumed" : "total_produced";
-                    await _brokerClient.IncrementRelationshipPropertyAsync(
+                    await _myceliumClient.IncrementRelationshipPropertyAsync(
                         config.RelationshipId, trackingProp, config.Quantity);
                 }
                 catch (Exception relEx)

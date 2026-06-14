@@ -5,7 +5,7 @@ import { DaemonsPanel } from '../components/dashboard/DaemonsPanel';
 import { EndpointServicesPanel } from '../components/dashboard/EndpointServicesPanel';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
-import { brokerApi } from '../api/brokerApi';
+import { myceliumApi } from '../api/myceliumApi';
 import { endpointApi } from '../api/endpointApi';
 import { useSignalR } from '../hooks/useSignalR';
 import { useActivityStore } from '../stores/activityStore';
@@ -16,7 +16,7 @@ import { Power, PanelRightOpen, LogOut, ArrowLeftRight, FileCode2, RefreshCw } f
 import { useAuth } from '../hooks/useAuth';
 import { RegenLogo } from '../components/auth/RegenLogo';
 
-import type { RegisteredService, DaemonInfo, EndpointServiceInfo } from '../types/broker';
+import type { RegisteredService, DaemonInfo, EndpointServiceInfo } from '../types/mycelium';
 
 const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 
@@ -41,11 +41,11 @@ export function DashboardPage() {
     });
   }, []);
 
-  const loadBrokerData = useCallback(async () => {
+  const loadMyceliumData = useCallback(async () => {
     try {
       const [s, d, ep] = await Promise.all([
-        brokerApi.getServices(),
-        brokerApi.getDaemons(),
+        myceliumApi.getServices(),
+        myceliumApi.getDaemons(),
         endpointApi.getAll(),
       ]);
       setServices(s);
@@ -53,14 +53,14 @@ export function DashboardPage() {
       setEndpointServices(ep);
       setHttpOk(true);
     } catch (err) {
-      console.warn('Broker services load failed (non-fatal):', err);
+      console.warn('Mycelium services load failed (non-fatal):', err);
       setHttpOk(false);
     }
   }, []);
 
   useEffect(() => {
-    loadBrokerData();
-  }, [loadBrokerData]);
+    loadMyceliumData();
+  }, [loadMyceliumData]);
 
   // When connection drops, mark all services/daemons as offline (no stale "running" state)
   useEffect(() => {
@@ -75,19 +75,19 @@ export function DashboardPage() {
   // SignalR live updates (broker-specific only — model data handled at app level)
   useEffect(() => {
     const unsubs = [
-      on('ServiceHealthChanged', () => brokerApi.getServices().then(setServices)),
-      on('DaemonStatusChanged', () => brokerApi.getDaemons().then(setDaemons)),
+      on('ServiceHealthChanged', () => myceliumApi.getServices().then(setServices)),
+      on('DaemonStatusChanged', () => myceliumApi.getDaemons().then(setDaemons)),
       on('EndpointServiceRequestCompleted', () => endpointApi.getAll().then(setEndpointServices)),
-      on('ModelChanged', () => loadBrokerData()),
+      on('ModelChanged', () => loadMyceliumData()),
     ];
     return () => unsubs.forEach((u) => u());
-  }, [on, loadBrokerData]);
+  }, [on, loadMyceliumData]);
 
   const handleStartService = async (id: string) => {
     try {
-      await brokerApi.startService(id);
+      await myceliumApi.startService(id);
       toast.success('Service started');
-      setServices(await brokerApi.getServices());
+      setServices(await myceliumApi.getServices());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Start failed');
     }
@@ -95,9 +95,9 @@ export function DashboardPage() {
 
   const handleStopService = async (id: string) => {
     try {
-      await brokerApi.stopService(id);
+      await myceliumApi.stopService(id);
       toast.success('Stop requested');
-      setServices(await brokerApi.getServices());
+      setServices(await myceliumApi.getServices());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Stop failed');
     }
@@ -105,9 +105,9 @@ export function DashboardPage() {
 
   const handleStopDaemon = async (key: string) => {
     try {
-      await brokerApi.stopDaemon(key);
+      await myceliumApi.stopDaemon(key);
       toast.success('Daemon stopped');
-      setDaemons(await brokerApi.getDaemons());
+      setDaemons(await myceliumApi.getDaemons());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Stop failed');
     }
@@ -115,7 +115,7 @@ export function DashboardPage() {
 
   const handleReloadSeeds = async () => {
     try {
-      await brokerApi.reloadSeeds();
+      await myceliumApi.reloadSeeds();
       toast.success('Seeds reloaded from disk');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Reload failed');
@@ -125,8 +125,8 @@ export function DashboardPage() {
   const handleShutdown = async () => {
     setShowShutdown(false);
     try {
-      await brokerApi.shutdown();
-      toast.success('Broker shutdown initiated');
+      await myceliumApi.shutdown();
+      toast.success('Mycelium shutdown initiated');
       setHttpOk(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Shutdown failed');
@@ -138,12 +138,12 @@ export function DashboardPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <RegenLogo className="w-8 h-8" />
-          <h2 className="text-xl font-bold">Broker Dashboard</h2>
+          <h2 className="text-xl font-bold">Mycelium Dashboard</h2>
         </div>
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${httpOk ? 'bg-emerald-500' : 'bg-red-500'}`} />
-            <span className="text-zinc-500">Broker</span>
+            <span className="text-zinc-500">Mycelium</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
@@ -215,7 +215,7 @@ export function DashboardPage() {
 
       <ConfirmDialog
         open={showShutdown}
-        title="Shutdown Broker"
+        title="Shutdown Mycelium"
         message="Are you sure you want to shut down the broker? All services and daemons will be stopped. The GUI will lose its connection."
         confirmLabel="Shutdown"
         danger

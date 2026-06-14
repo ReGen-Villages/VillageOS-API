@@ -6,18 +6,18 @@ namespace vos.Taproot.Tests;
 
 public class ModelCommandHandlerTests
 {
-    private readonly Mock<BrokerClient> _brokerMock;
+    private readonly Mock<MyceliumClient> _myceliumMock;
     private readonly StringWriter _writer;
 
     public ModelCommandHandlerTests()
     {
-        _brokerMock = new Mock<BrokerClient>("https://localhost:7243") { CallBase = false };
+        _myceliumMock = new Mock<MyceliumClient>("https://localhost:7243") { CallBase = false };
         _writer = new StringWriter();
     }
 
     private async Task ExecuteHandler(string arg)
     {
-        var handler = new ModelCommandHandler(arg, _writer, _brokerMock.Object);
+        var handler = new ModelCommandHandler(arg, _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
     }
 
@@ -62,7 +62,7 @@ public class ModelCommandHandlerTests
     [Fact]
     public async Task List_EmptyArray_ShowsNoModelsMessage()
     {
-        _brokerMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse("[]"));
+        _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse("[]"));
 
         await ExecuteHandler("list");
 
@@ -72,7 +72,7 @@ public class ModelCommandHandlerTests
     [Fact]
     public async Task List_NotAnArray_ShowsNoModelsMessage()
     {
-        _brokerMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse("{}"));
+        _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse("{}"));
 
         await ExecuteHandler("list");
 
@@ -83,7 +83,7 @@ public class ModelCommandHandlerTests
     public async Task List_WithModels_ListsEach()
     {
         var json = "[{\"Id\":\"00000000-0000-0000-0000-000000000001\",\"Name\":\"Estate\"},{\"Id\":\"00000000-0000-0000-0000-000000000002\",\"Name\":\"Demo\"}]";
-        _brokerMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse(json));
+        _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse(json));
 
         await ExecuteHandler("list");
 
@@ -97,14 +97,14 @@ public class ModelCommandHandlerTests
     public async Task Switch_ValidGuid_DelegatesDirectly()
     {
         var modelId = Guid.NewGuid();
-        _brokerMock.Setup(b => b.SwitchModelAsync(modelId)).ReturnsAsync(Parse("{}"));
+        _myceliumMock.Setup(b => b.SwitchModelAsync(modelId)).ReturnsAsync(Parse("{}"));
 
         await ExecuteHandler($"switch {modelId}");
 
         var output = _writer.ToString();
         Assert.Contains("Switched to model", output);
         Assert.Contains(modelId.ToString(), output);
-        _brokerMock.Verify(b => b.SwitchModelAsync(modelId), Times.Once);
+        _myceliumMock.Verify(b => b.SwitchModelAsync(modelId), Times.Once);
     }
 
     [Fact]
@@ -112,24 +112,24 @@ public class ModelCommandHandlerTests
     {
         var modelId = Guid.NewGuid();
         var json = $"[{{\"Id\":\"{modelId}\",\"Name\":\"Estate\"}}]";
-        _brokerMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse(json));
-        _brokerMock.Setup(b => b.SwitchModelAsync(modelId)).ReturnsAsync(Parse("{}"));
+        _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse(json));
+        _myceliumMock.Setup(b => b.SwitchModelAsync(modelId)).ReturnsAsync(Parse("{}"));
 
         await ExecuteHandler("switch estate"); // case-insensitive
 
         Assert.Contains("Switched to model", _writer.ToString());
-        _brokerMock.Verify(b => b.SwitchModelAsync(modelId), Times.Once);
+        _myceliumMock.Verify(b => b.SwitchModelAsync(modelId), Times.Once);
     }
 
     [Fact]
     public async Task Switch_NameNotFound_PrintsNotFound()
     {
-        _brokerMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse("[]"));
+        _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse("[]"));
 
         await ExecuteHandler("switch ghost");
 
         Assert.Contains("Model not found:", _writer.ToString());
-        _brokerMock.Verify(b => b.SwitchModelAsync(It.IsAny<Guid>()), Times.Never);
+        _myceliumMock.Verify(b => b.SwitchModelAsync(It.IsAny<Guid>()), Times.Never);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class ModelCommandHandlerTests
     {
         // Model in list has a Name match but a missing/invalid Id → FindModelByName returns null
         var json = "[{\"Name\":\"NoId\"}]";
-        _brokerMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse(json));
+        _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse(json));
 
         await ExecuteHandler("switch NoId");
 
@@ -147,7 +147,7 @@ public class ModelCommandHandlerTests
     [Fact]
     public async Task Switch_NameLookupFromNonArrayModels_NotFound()
     {
-        _brokerMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse("{}"));
+        _myceliumMock.Setup(b => b.ListModelsAsync()).ReturnsAsync(Parse("{}"));
 
         await ExecuteHandler("switch anything");
 
@@ -155,9 +155,9 @@ public class ModelCommandHandlerTests
     }
 
     [Fact]
-    public async Task BrokerThrows_ErrorWritten()
+    public async Task MyceliumThrows_ErrorWritten()
     {
-        _brokerMock.Setup(b => b.ListModelsAsync()).ThrowsAsync(new HttpRequestException("offline"));
+        _myceliumMock.Setup(b => b.ListModelsAsync()).ThrowsAsync(new HttpRequestException("offline"));
 
         await ExecuteHandler("list");
 

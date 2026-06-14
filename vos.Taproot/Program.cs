@@ -31,8 +31,8 @@ internal class Program
 ");
 
             var options = ConsoleOptions.Parse(args);
-            var brokerClient = new BrokerClient(options.BrokerUrl, options.ApiKey);
-            var handler = new CommandHandler(Console.In, Console.Out, brokerClient, options.BrokerUrl, interactiveMode: true);
+            var myceliumClient = new MyceliumClient(options.MyceliumUrl, options.ApiKey);
+            var handler = new CommandHandler(Console.In, Console.Out, myceliumClient, options.MyceliumUrl, interactiveMode: true);
             await handler.RunAsync();
         }
         catch (Exception ex)

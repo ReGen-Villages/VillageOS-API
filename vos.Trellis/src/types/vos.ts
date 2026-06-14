@@ -1,4 +1,4 @@
-// Core domain model types — mirrors Broker PascalCase JSON serialization
+// Core domain model types — mirrors Mycelium PascalCase JSON serialization
 
 export interface VosThing {
   Id: string;
