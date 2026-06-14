@@ -5,7 +5,7 @@ A complete VillageOS handler written in **Rust with Axum**. It implements the fu
 It's the Rust analogue of the canonical C# [`vos.ManagedMicroservice.Echo`](../vos.ManagedMicroservice.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace `handle_relationship()` in `src/main.rs` with your own logic.
 
 > ⚠️ **Compile status:** this example was authored against pinned crate versions (axum 0.7, jsonwebtoken 9, reqwest 0.12, tokio 1) but **has not been compiled in this environment** (no Rust toolchain was available when it was written). Run `cargo build` / `cargo test` in CI or locally to verify; the pure logic is covered by `#[cfg(test)]` unit tests.
-
+>
 > `is` is **not** an external predicate — Mycelium handles it in-process. Register your service for a custom predicate (or `consumes`/`produces`). See the authoring doc.
 
 ## Run

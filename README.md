@@ -83,6 +83,7 @@ local artifact.
 Full documentation is available in the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki).
 
 Key pages:
+
 - [Trellis](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTrellis) — visualization stack, tech spec, user guide
 - [Taproot](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTaproot) — command reference
 - [Services](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/40/Services) — microservice documentation

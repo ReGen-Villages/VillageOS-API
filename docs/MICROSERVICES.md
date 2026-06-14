@@ -54,7 +54,7 @@ curl -H "Authorization: Bearer $TOKEN" https://localhost:7243/api/mycelium/servi
 
 ## 3. Project shape
 
-```
+```text
 vos.ManagedMicroservice.<Name>/
 ├── Configuration/
 │   └── CliArgs.cs           ← record + Parse(string[]) + UsageMessage
@@ -208,7 +208,7 @@ the route.
 Mycelium's `LivenessMonitor` polls `/health` every 15 seconds. Three
 consecutive failures (a 45 s window) trigger auto-deregistration:
 
-```
+```text
 00:00 - Service registers         (FailureCount = 0)
 00:15 - GET /health → 200 OK     (FailureCount = 0)
 00:30 - GET /health → 200 OK     (FailureCount = 0)
@@ -388,7 +388,7 @@ project's reference graph + adds:
 
 Standard test files (one per testable unit):
 
-```
+```text
 Tests/vos.ManagedMicroservice.<Name>.Tests/
 ├── CliArgsTests.cs          ← CLI parser contract
 ├── MyceliumClientTests.cs     ← service-specific RegisterAsync + inherited base behavior
@@ -481,7 +481,7 @@ Per-microservice acceptance: **≥95 % line on `CliArgs` + `MyceliumClient` + an
 2. Add the new project to `VillageOS-API.sln`.
 3. Copy `Tests/vos.ManagedMicroservice.Echo.Tests/` to
    `Tests/vos.ManagedMicroservice.<Name>.Tests/`. Update the project reference
-   + namespace; the test patterns transfer 1:1.
+   - namespace; the test patterns transfer 1:1.
 4. Add the test project to `VillageOS-API.sln`.
 5. Run `dotnet test` from the repo root — the new project should be picked up
    automatically by the `**/*Tests.csproj` glob in `azure-pipelines.yml`.
@@ -544,31 +544,31 @@ it is only shown once. Exchange it for a JWT via `POST /api/auth/token`
 
 ## 13. Common issues
 
-#### "Registration error: Connection refused"
+### "Registration error: Connection refused"
 
 Mycelium is not running or not accessible. Start it
 (`cd ../VillageOS/vos.Mycelium && dotnet run`), verify with
 `curl https://localhost:7243/api/auth/token`, and check `--myceliumUrl` matches
 Mycelium's actual URL.
 
-#### Service shows as "Unreachable" in `/api/mycelium/services`
+### Service shows as "Unreachable" in `/api/mycelium/services`
 
 The `/health` endpoint is not responding. Test directly:
 `curl http://localhost:<port>/health`. Check the port is bound
 (`netstat -an | findstr :<port>`) and that the handler returns
 `{ "status": "Healthy" }` with `200`.
 
-#### Service was auto-deregistered
+### Service was auto-deregistered
 
 Three consecutive `/health` failures (45 s window). Fix the health issue,
 then restart — the service re-registers with a new `HandlerId`.
 
-#### Port already in use
+### Port already in use
 
 `Get-Process -Id (Get-NetTCPConnection -LocalPort <port>).OwningProcess | Stop-Process`
 (PowerShell), then restart. Or pass `--port=<other>`.
 
-#### Schema validation rejecting valid-looking payloads
+### Schema validation rejecting valid-looking payloads
 
 Schemas use `additionalProperties: false` strictly. Check that DTO field
 casing matches the schema, that no extra fields are present, and that

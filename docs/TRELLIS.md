@@ -1,3 +1,6 @@
+<!-- markdownlint-disable-file MD025 -->
+<!-- Intentional two-part document: a top-level title plus "Part 1 — User Guide"
+     and "Part 2 — Technical Specification", each authored as its own H1. -->
 # VillageOS Trellis (GUI)
 
 VillageOS Trellis is the web-based GUI for the VillageOS temporal graph
@@ -36,20 +39,20 @@ modifications.
 
 **[Part 2 — Technical Specification](#part-2--technical-specification)**
 
-12. [Context](#12-context)
-13. [Architecture Overview](#13-architecture-overview)
-14. [Project Structure](#14-project-structure)
-15. [Graph Visualization](#15-graph-visualization)
-16. [Pages & Routing](#16-pages--routing)
-17. [State Management](#17-state-management)
-18. [API Layer](#18-api-layer)
-19. [Real-Time Infrastructure](#19-real-time-infrastructure)
-20. [CLI Command Parity](#20-cli-command-parity)
-21. [Dashboard internals](#21-dashboard-internals)
-22. [Common Components](#22-common-components)
-23. [Seed Files](#23-seed-files)
-24. [Mycelium Modifications](#24-Mycelium-modifications-for-gui-support)
-25. [Verification](#25-verification)
+1. [Context](#12-context)
+2. [Architecture Overview](#13-architecture-overview)
+3. [Project Structure](#14-project-structure)
+4. [Graph Visualization](#15-graph-visualization)
+5. [Pages & Routing](#16-pages--routing)
+6. [State Management](#17-state-management)
+7. [API Layer](#18-api-layer)
+8. [Real-Time Infrastructure](#19-real-time-infrastructure)
+9. [CLI Command Parity](#20-cli-command-parity)
+10. [Dashboard internals](#21-dashboard-internals)
+11. [Common Components](#22-common-components)
+12. [Seed Files](#23-seed-files)
+13. [Mycelium Modifications](#24-mycelium-modifications-for-gui-support)
+14. [Verification](#25-verification)
 
 ---
 
@@ -102,6 +105,7 @@ Both the Dashboard and Graph pages include **Logout** and **Switch Model** butto
 Click the **Switch Model** button in the Dashboard or Graph header to open the seed library picker. This shows all seed files available in Mycelium's `seeds/library/` folder.
 
 The seed picker provides:
+
 - **Search bar** — type to filter seeds by name
 - **Sortable columns** — click "Name" or "Size" headers to sort ascending/descending
 - **Scrollable list** — handles large numbers of seeds with a fixed-height scrollable area
@@ -116,12 +120,14 @@ Click any seed to load it. The current model is replaced — Mycelium clears the
 The GUI starts with an empty model. To load sample data, use one of these methods:
 
 **Via CLI:**
+
 ```bash
 cd vos.Taproot
 dotnet run -- deserialize ../vos.Mycelium/seeds/village.seed.json
 ```
 
 **Via REST API:**
+
 ```bash
 curl -X POST https://localhost:7243/api/model \
   -H "Content-Type: application/json" \
@@ -156,6 +162,7 @@ After loading the village seed, you'll see the model rendered as nodes connected
 **Node size** reflects importance: nodes with more incoming relationships appear larger. The "PhysicalThing" type node, for example, is one of the largest because many things in the village have an "is PhysicalThing" relationship.
 
 **Node colors** are derived from the data — no hardcoded color assignments:
+
 - **Blue (large)** — Type definitions like "Home", "Sensor", "PhysicalThing" — anything that is a target of "is" relationships
 - **Gold/amber (small)** — Predicate things like "is", "has", "feeds", "powers" — these define relationship types
 - **Vibrant colors (medium)** — Instance nodes are colored by their type via "is" relationships. Every "Home" instance shares one color, every "SolarArray" shares another, every "GardenPlot" yet another. This happens automatically — adding new types gets them distinct colors without any configuration
@@ -217,6 +224,7 @@ The detail panel has three tabs (four for things with geometry):
 **Properties** — Shows the thing's own properties (name, value, type). Click the **pencil icon** to toggle inline editing mode: each property value becomes an editable input field with a delete button (trash icon). Edit a value and press **Enter** or click away to save; press **Escape** to cancel. A blue border indicates unsaved changes. The property type is automatically preserved (a number stays a number, a boolean stays a boolean). In edit mode, an **Add Property** row appears at the bottom with name, type dropdown, and value inputs — press Enter or click "+" to add a new property. Below the own properties, inherited properties are displayed with a clickable "← SourceName" link showing which type they come from. For example, clicking a "Serpentine-Home-4" node might show properties like `energy_rating: A+` inherited from the "Home" type. Clicking the source link navigates you to that type node. In edit mode, inherited property values are also editable (but cannot be deleted) — editing an inherited property creates an own property override that shadows the inherited value.
 
 **Relationships** — Lists all incoming and outgoing relationships. Each row shows the other thing's name and the predicate. For example, "Serpentine-Home-4" might show:
+
 - Outgoing: `→ is → Home` (this is a Home)
 - Outgoing: `→ has → SerpentineRoofSolar-4` (has a solar panel)
 - Incoming: `← feeds ← VillageMicrogrid` (fed by the microgrid)
@@ -276,7 +284,7 @@ Three toggle buttons next to the search bar modify matching behavior:
 
 Type multiple names separated by commas to find several things at once:
 
-```
+```text
 Home-1, SolarGreenhouse-1, VillageMicrogrid
 ```
 
@@ -291,6 +299,7 @@ Delete the text in the search bar (or select all and press Backspace) to return 
 Click **Things** in the sidebar to open the dedicated thing search page (`/things`). Unlike the Graph search bar (which filters the live graph visualization), this page lets you find things by name without the graph rendering overhead — useful for large models.
 
 **How to use it:**
+
 1. Type any part of a thing's name in the search field. Results update automatically after 250 ms.
 2. Each result card shows:
    - **Name** (blue link) — click to navigate directly to that thing in the Graph with its detail panel open
@@ -316,6 +325,7 @@ Click **Things** in the sidebar to open the dedicated thing search page (`/thing
 Click **Properties** in the sidebar to open the property search page (`/properties`). This searches across all thing and relationship properties by **property name** — useful when you know a field exists but not which things have it.
 
 **How to use it:**
+
 1. Type any part of a property name (e.g. `quantity`, `temperature`, `pool`). Results update after 250 ms.
 2. Results are grouped by property name. Each entry shows:
    - **T** badge (blue) for thing properties, **R** badge (purple) for relationship properties
@@ -353,6 +363,7 @@ Click a predicate to activate clustering on that relationship type. Click multip
 ### 5.2 What Clustering Looks Like
 
 When you activate "is" clustering, for example:
+
 - Nodes connected by "is" relationships group together and appear at full opacity — you'll see "Home" surrounded by Home-1 through Home-N, "GardenPlot" surrounded by its instances, etc.
 - Predicate nodes ("is", "has", "feeds") become tiny and dimmed — they're structural connectors, not interesting in this view
 - Unclustered nodes (things not connected by "is") dim to dark gray and shrink
@@ -397,6 +408,7 @@ The Dashboard page provides real-time monitoring of the VillageOS Mycelium. It's
 ### 7.1 Model Statistics
 
 The top-left card shows at-a-glance counts for your model:
+
 - **Things** — total count
 - **Relationships** — total count
 - **Predicates** — number of distinct predicate things
@@ -408,6 +420,7 @@ Below the counts, a **Top Predicates** list shows the most-used relationship typ
 ### 7.2 Registered Services
 
 Shows health status for each registered service handler. Services can be in one of four states:
+
 - **Healthy** (green badge) — responding normally
 - **Unhealthy** (yellow badge) — degraded performance
 - **Unreachable** (red badge) — not responding
@@ -430,6 +443,7 @@ The right column shows a real-time log of all model mutations, streamed via Sign
 **Collapsible & Resizable** — The feed panel can be collapsed via the header button. When expanded, drag the top edge to resize the panel height. The height is persisted to localStorage.
 
 The top-right controls include:
+
 - **Mycelium** (green dot) — REST API connection active
 - **Live** (green dot) — SignalR WebSocket connected and receiving events
 - **Swagger** (document icon) — Opens the Mycelium API documentation (Swagger UI) in a new tab
@@ -489,6 +503,7 @@ Click the **+** button next to the search bar at the top of the Graph page. An i
 ### 8.6 Model Operations
 
 Model-level operations (import/export/clear) are available via the CLI or REST API:
+
 - **Export**: `serialize` CLI command or `GET /api/model`
 - **Import**: `deserialize` CLI command or `POST /api/model`
 - **Clear**: `clear model` CLI command or `DELETE /api/model`
@@ -515,17 +530,22 @@ Model-level operations (import/export/clear) are available via the CLI or REST A
 ## 10. Troubleshooting
 
 ### Layout won't settle / nodes keep moving
+
 Click the **Freeze** (pause) button to stop the force simulation. You can then manually inspect the graph. Click **Play** to resume.
 
 ### Safari: blank canvas in the 3D tab
+
 Safari limits the number of simultaneous WebGL contexts, and the graph already uses several. The 3D tab is hidden on Safari for this reason. If the main graph canvas goes blank:
+
 1. Try resizing the browser window (triggers a refresh)
 2. As a last resort, reload the page
 
 ### Real-time updates not appearing
+
 Check the connection indicators on the Dashboard page. If "Live" shows red, the SignalR WebSocket connection has dropped. This usually recovers automatically within 30 seconds (exponential backoff). If "Mycelium" shows red, Mycelium process may have stopped.
 
 ### Search finds nothing
+
 - Check if case-sensitive mode (**Aa**) is accidentally active
 - Check if exact-match (**=**) is active — this requires the full name, not a substring
 - Check if regex mode (**.\***) is active — special characters like `.` or `(` have regex meaning
@@ -601,13 +621,13 @@ graph TB
 | **3D renderer** | three (Three.js) | 0.182 |
 | **3D React bindings** | @react-three/fiber | 9.5 |
 | **3D helpers** | @react-three/drei (OrbitControls) | 10.7 |
-| **Auth** | JWT + API key auth (login form, `VITE_API_KEY` env var auto-exchange, `X-API-Key` header, silent token refresh, forced password change) |
+| **Auth** | JWT + API key auth (login form, `VITE_API_KEY` env var auto-exchange, `X-API-Key` header, silent token refresh, forced password change) | — |
 
 ---
 
 ## 14. Project Structure
 
-```
+```text
 vos.Trellis/
 ├── package.json
 ├── vite.config.ts              # Proxy /api + /vosHub → https://localhost:7243
@@ -730,7 +750,7 @@ vos.Trellis/
 
 All graph components are children of `<SigmaContainer>` and access the Sigma instance via React hooks.
 
-```
+```text
 <ErrorBoundary>
   <SigmaContainer graph={multiDirectedGraph} settings={SIGMA_SETTINGS}>
     <GraphDataLoader />           ← useLoadGraph: builds & imports graphology graph
@@ -758,6 +778,7 @@ GraphPage fetches the full thing list (`GET /api/things`) and the relationship l
 `buildGraph(things, relationships)` transforms VillageOS domain data into a graphology graph:
 
 **Node classification:**
+
 - **Predicate**: has `ExecutablePath`/`ServicePort` property, or is used as a `PredicateId` in any relationship
 - **Type**: is the target of an `is` relationship (e.g., "Zone", "Sensor", "AMR")
 - **Default**: regular instances
@@ -765,6 +786,7 @@ GraphPage fetches the full thing list (`GET /api/things`) and the relationship l
 **Node sizing:** `Math.max(3, Math.min(15, 3 + incomingRelationshipCount * 1.5))` — sized by incoming edges only (how many things point at this node), so types and hubs appear larger than leaf nodes
 
 **Color palettes (data-driven, no hardcoding):**
+
 - **Predicate nodes**: amber `#fbbf24` — things used as `PredicateId` or with `ExecutablePath`/`ServicePort`
 - **Type nodes**: blue `#60a5fa` — things that are targets of "is" relationships
 - **Instance nodes**: color derived from the "is" type name via `hashStringToIndex()` into a 16-color vibrant palette. Every instance of the same type shares the same color (e.g., all "Home" instances are one color, all "SolarArray" another). New types automatically get distinct colors without code changes.
@@ -783,6 +805,7 @@ Two layout algorithms selected by graph size:
 - **Large graphs (≥ 2000 nodes)**: `graphology-layout-forceatlas2/worker` (`FA2Supervisor`) — runs in a **real Web Worker** using Barnes-Hut optimization (O(N log N) vs O(N²)). Provides ~70x speedup at 10K nodes
 
 Layout parameters are read from the model's "GUI Settings" Thing (via `extractLayoutSettings()` in `guiSettings.ts`), stored in `uiStore.layoutSettings`. Defaults when no settings thing is present:
+
 - `attraction: 0.0005`, `repulsion: 0.1` (cluster mode: `clusterRepulsion: 0.4`), `gravity: 0.0001`, `inertia: 0.6`, `maxMove: 200`
 - Properties on the "GUI Settings" Thing: `LayoutAttraction`, `LayoutRepulsion`, `LayoutGravity`, `LayoutInertia`, `LayoutMaxMove`, `ClusterRepulsion`, `FlashEdgeSize`, `FlashNodeSizeFactor`, `FlashNodeBrighten`, `PredicateColors` (JSON string: `{"consumes":"#fb7185",...}`)
 - **Spread mode**: Toggle via toolbar — boosts repulsion 5x and reduces gravity 10x, causing nodes to push apart while maintaining cluster structure. Toggling off restores normal parameters and nodes re-settle
@@ -791,6 +814,7 @@ Layout parameters are read from the model's "GUI Settings" Thing (via `extractLa
 ### Search & Filtering
 
 **GraphPage** provides a search bar with:
+
 - Text search (substring match by default)
 - Case-sensitive toggle (`Aa` button)
 - Exact-match toggle (`=` button)
@@ -800,16 +824,19 @@ Layout parameters are read from the model's "GUI Settings" Thing (via `extractLa
 Search filtering expands matched nodes to include their direct neighbors and predicate things so edges always have both endpoints and edge labels resolve to names (not GUIDs).
 
 **NodeReducer** installs Sigma `nodeReducer`/`edgeReducer` for visual filtering. Edges are **hidden by default** and only shown when triggered:
+
 - **Hover**: edges touching hovered node are brightened
 - **Selection**: edges touching selected node are shown
 - **Search**: edges where both endpoints match the query are shown
 - **Predicate filter**: edges matching active predicate filters are shown
 
 Node reducers follow two priority modes:
+
 1. **Search active** → dim non-matching physical nodes; hide non-matching logical nodes
 2. **Default** → all nodes visible; selection highlight applied (selected node gets `zIndex: 2`); edges follow the unified rules above
 
 Helper functions and constants exported for testability (`nodeVisibility.ts`):
+
 - `isGeoNode(attrs)` — checks if a graph node has geometry metadata
 - `hasGeoProperties(props)` — checks if raw `VosThing.Properties` has geometry indicators
 - `getFullNeighborSet(graph, nodeId)` — all direct neighbors regardless of predicate filters
@@ -912,6 +939,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 Two Zustand stores (plus React Context for auth), all with TypeScript interfaces:
 
 ### `uiStore.ts`
+
 | State | Type | Persistence |
 |-------|------|-------------|
 | `selectedNodeId` | `string \| null` | — |
@@ -942,6 +970,7 @@ Auth state is managed via React Context (`AuthContext`) and the `useAuth()` hook
 - `rescopeToModel(modelId)` on `ApiClient` — for user tokens, calls `switchModel()` to get a new JWT; for API-key tokens, invalidates the cached token and re-exchanges the API key
 
 ### `activityStore.ts`
+
 | State | Type |
 |-------|------|
 | `events` | `ActivityEvent[]` (max 200) |
@@ -953,6 +982,7 @@ Auth state is managed via React Context (`AuthContext`) and the `useAuth()` hook
 ### Client Pattern (`client.ts`)
 
 Singleton `ApiClient` class with:
+
 - `get<T>()`, `getText()`, `post<T>()`, `put<T>()`, `del<T>()`
 - `switchModel(modelId)` — calls `POST /api/auth/switch-model` to get a new JWT scoped to a different model without re-entering credentials
 - `rescopeToModel(modelId)` — re-scopes the session after a seed switch: for user tokens calls `switchModel()`; for API-key tokens invalidates the cached token and re-exchanges via `ensureToken()`
@@ -983,6 +1013,7 @@ Singleton `ApiClient` class with:
 The Mycelium exposes a SignalR hub at `/vosHub`. Events are push-only (no client-invoked methods).
 
 **Events:**
+
 | Event | Payload | Triggered By |
 |-------|---------|-------------|
 | `ThingCreated` | `VosThing` | `POST /api/things` |
@@ -1028,6 +1059,7 @@ Detail panels use dedicated `detailThing` / `detailRelationship` state (React st
 Every CLI command maps to an inline GUI action — all CRUD operations are performed directly on the Graph page via toolbar buttons, detail panels, and context menus (no separate command page):
 
 ### Create Operations (GraphPage)
+
 | CLI Command | GUI Element |
 |---|---|
 | `create thing <name>` | **+** button in GraphPage toolbar → inline name input (Enter to submit, Escape to cancel) |
@@ -1036,6 +1068,7 @@ Every CLI command maps to an inline GUI action — all CRUD operations are perfo
 | `set relationship property <rel> <name> <type> <value>` | Click edge → edit mode → `AddPropertyRow` in EdgeDetailPanel |
 
 ### Delete Operations (GraphPage)
+
 | CLI Command | GUI Element |
 |---|---|
 | `delete thing` | Node context menu (right-click node → Delete) + `ConfirmDialog` |
@@ -1043,6 +1076,7 @@ Every CLI command maps to an inline GUI action — all CRUD operations are perfo
 | `delete property` | Edit mode → trash icon on each property row |
 
 ### Query (GraphPage)
+
 | CLI Command | GUI Element |
 |---|---|
 | `find thing <pattern>` | Search bar with case-sensitive + exact-match + regex toggles |
@@ -1051,6 +1085,7 @@ Every CLI command maps to an inline GUI action — all CRUD operations are perfo
 | `list things` / `list relations` / `list predicates` | Graph view shows all |
 
 ### Temporal (TemporalPage)
+
 | CLI Command | GUI Element |
 |---|---|
 | `temporal snapshot [timestamp]` | Date/time picker → loads model at that time |
@@ -1058,6 +1093,7 @@ Every CLI command maps to an inline GUI action — all CRUD operations are perfo
 | `temporal mutations` | Mutations query with time range picker |
 
 ### Ranges / Services
+
 | CLI Command | GUI Element |
 |---|---|
 | `range list/get` | Select node → Ranges tab in NodeDetailPanel (own + inherited ranges, active states) |
@@ -1116,6 +1152,7 @@ Four components on `DashboardPage`:
 Seed files live in `vos.Mycelium/seeds/` and are auto-loaded by Mycelium on startup. They can also be loaded via the CLI (`deserialize` command), the REST API (`POST /api/model`), or the IFC importer.
 
 **Format:**
+
 ```json
 {
   "Id": "<uuid>",
@@ -1152,13 +1189,15 @@ Seed files live in `vos.Mycelium/seeds/` and are auto-loaded by Mycelium on star
 Note: The warehouse seed uses UUIDs for relationship Subject/Predicate/Target fields (generated by `generate_warehouse_seed.py`). `InheritedProperties` is optional and supports nested `Inherited` for transitive type hierarchies. The Mycelium's `SeedLoader` deserializes these via `InheritedPropertySetDto`. Seed generators live in `tools/`.
 
 **Seed generators:** `tools/generate_warehouse_seed.py` and `tools/generate_village_seed.py` — Python scripts that:
+
 - Defines types with inheritable properties (e.g., AMR carries `payload_kg`, `nav_version`)
 - Creates instances with per-thing varying state (e.g., `battery_pct`, `status`)
 - Builds type hierarchy via "is" relationships (e.g., `Controller is SmartAppliance`)
 - Computes transitive `InheritedProperties` automatically from "is" relationships
 
 **Type hierarchy in warehouse seed:**
-```
+
+```text
 PhysicalAsset ← ConveyorSegment, AMR, StorageRack, ChargingStation, Dock, Workstation, SortationLane
 SmartAppliance ← Controller
 Sensor ← MeasuringSensor ← (weight, temp, proximity sensors)
@@ -1166,6 +1205,7 @@ Sensor ← MeasuringSensor ← (weight, temp, proximity sensors)
 ```
 
 **Available seeds:**
+
 | File | Domain |
 |------|--------|
 | `warehouse.seed.json` | Modern warehouse: zones, conveyors, AMRs, pickers, sensors, controllers, abstract types (PhysicalAsset, SmartAppliance, MeasuringSensor, DetectionSensor) |
@@ -1205,17 +1245,17 @@ Sensor ← MeasuringSensor ← (weight, temp, proximity sensors)
 14. **Edge visibility**: Edges hidden by default; select a node → its edges appear; activate predicates → matching edges appear
 15. **Node sizing**: Type nodes (many incoming "is" edges) appear larger than leaf instances
 16. **Logical expansion**: Click geo node with logical children → children appear radially; click again → collapse
-18. **Semantic zoom**: Zoom in deeply → nearby logical children auto-expand; zoom out → all collapse
-19. **Search finds logical**: Search for a logical node name → appears even if parent collapsed
-20. **ThingPicker search**: Type "a" in Subject picker → thing "a" appears at top (exact match), before "WaterAsset" etc.
-21. **AddRelationshipRow**: Select a node, toggle edit mode, use AddRelationshipRow with predicate picker (known predicates sorted first) + other-thing picker → relationship created inline
-22. **Node colors by type**: Import village seed → all "Home" instances share one color, all "SolarArray" another, predicates amber, types blue
-23. **3D detail tab**: Select a geo node → NodeDetailPanel shows "3D" tab → renders auto-rotating single building
-24. **3D lazy load**: Check network tab → Three.js chunks only loaded when 3D is first activated
-25. **Node context menu**: Right-click a node → dropdown menu appears with View Details, Expand, Copy ID, Delete
-26. **Context menu actions**: Click "View Details" → detail panel opens. Click "Copy ID" → ID copied, toast shows. Click "Delete" → confirm dialog
-27. **Context menu vs radial**: Right-click node → context menu (not radial). Right-click background → radial predicate menu (not context menu). Only one open at a time
-28. **Hover edge highlighting**: Hover over a node → edges touching that node brighten
-29. **Seed library picker**: Click "Switch Model" → seed library picker shows with search, sort columns, scrollable list, and result count
-30. **Seed switching**: Select a seed from the library → model loads, graph renders correctly with new data, JWT re-scoped
-31. **Seed save**: In seed picker, type a name and click Save → seed saved, appears in list immediately
+17. **Semantic zoom**: Zoom in deeply → nearby logical children auto-expand; zoom out → all collapse
+18. **Search finds logical**: Search for a logical node name → appears even if parent collapsed
+19. **ThingPicker search**: Type "a" in Subject picker → thing "a" appears at top (exact match), before "WaterAsset" etc.
+20. **AddRelationshipRow**: Select a node, toggle edit mode, use AddRelationshipRow with predicate picker (known predicates sorted first) + other-thing picker → relationship created inline
+21. **Node colors by type**: Import village seed → all "Home" instances share one color, all "SolarArray" another, predicates amber, types blue
+22. **3D detail tab**: Select a geo node → NodeDetailPanel shows "3D" tab → renders auto-rotating single building
+23. **3D lazy load**: Check network tab → Three.js chunks only loaded when 3D is first activated
+24. **Node context menu**: Right-click a node → dropdown menu appears with View Details, Expand, Copy ID, Delete
+25. **Context menu actions**: Click "View Details" → detail panel opens. Click "Copy ID" → ID copied, toast shows. Click "Delete" → confirm dialog
+26. **Context menu vs radial**: Right-click node → context menu (not radial). Right-click background → radial predicate menu (not context menu). Only one open at a time
+27. **Hover edge highlighting**: Hover over a node → edges touching that node brighten
+28. **Seed library picker**: Click "Switch Model" → seed library picker shows with search, sort columns, scrollable list, and result count
+29. **Seed switching**: Select a seed from the library → model loads, graph renders correctly with new data, JWT re-scoped
+30. **Seed save**: In seed picker, type a name and click Save → seed saved, appears in list immediately

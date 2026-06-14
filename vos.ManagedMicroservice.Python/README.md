@@ -54,4 +54,5 @@ Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 pip install -r requirements.txt
 pytest -v
 ```
+
 Covers all four endpoints plus JWT validation (valid / missing / tampered / expired / wrong-issuer).

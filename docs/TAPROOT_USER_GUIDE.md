@@ -1,6 +1,7 @@
 # VillageOS Taproot (CLI) — User Guide
 
 ## Table of Contents
+
 - [Introduction](#introduction)
 - [Getting Started](#getting-started)
 - [Configuration](#configuration)
@@ -56,13 +57,15 @@ All operations are performed remotely on the Mycelium's model.
 **1. Start the Mycelium first.** Mycelium (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there (see that repo's `docs/MYCELIUM_GUIDE.md`). It listens on `https://localhost:7243` by default.
 
 **2. In a new terminal, start the CLI:**
+
 ```bash
 cd vos.Taproot
 dotnet run
 ```
 
 **Expected output:**
-```
+
+```text
 VillageOS Console - Connected to Mycelium at https://localhost:7243
 Type 'help' to see available commands.
 Successfully authenticated with Mycelium.
@@ -103,6 +106,7 @@ The CLI requires an API key to communicate with Mycelium. On first Mycelium star
 Provide the API key in two ways:
 
 **1. Command-line argument (highest priority):**
+
 ```bash
 dotnet run -- --api-key=vos_ak_...
 # or
@@ -110,6 +114,7 @@ dotnet run -- --apikey=vos_ak_...
 ```
 
 **2. Environment variable:**
+
 ```bash
 export VOS_API_KEY=vos_ak_...
 dotnet run
@@ -122,6 +127,7 @@ The API key is exchanged for a short-lived JWT via `POST /api/auth/token` with `
 The CLI needs to know where the Mycelium is running. You can configure this in three ways:
 
 **1. Command-line argument (highest priority):**
+
 ```bash
 dotnet run -- --mycelium-url=https://mybroker:8443
 # or
@@ -129,6 +135,7 @@ dotnet run -- --mycelium=https://mybroker:8443
 ```
 
 **2. Environment variable:**
+
 ```bash
 export VOS_MYCELIUM_URL=https://mybroker:8443
 dotnet run
@@ -233,6 +240,7 @@ The flag can be placed anywhere in the command:
 ```
 
 All commands that display things, relationships, or services support this flag:
+
 - `list things`, `list relations`, `list predicates`, `list handlers`, `list services`
 - `find thing`, `find relationships`
 - `create thing`, `create relation`, `create property`
@@ -251,6 +259,7 @@ Most commands that accept a thing ID also accept a thing name. The CLI resolves 
 3. **Uniqueness Check**: If multiple things have the same name, an error is shown listing the matching IDs
 
 **Examples:**
+
 ```bash
 # Using GUID (always works)
 > get thing 3fa85f64-5717-4562-b3fc-2c963f66afa6
@@ -420,7 +429,7 @@ Deleted property 'carbonLevel' from thing 'Forest' (3fa85f64-5717-4562-b3fc-2c96
 
 Relationships in VillageOS follow the Subject-Predicate-Target pattern:
 
-```
+```text
 Subject --[Predicate]--> Target
 Forest  --[part_of]-->   Watershed
 ```
@@ -430,12 +439,14 @@ All three parts (Subject, Predicate, Target) are Things. The Predicate defines t
 ### Creating Relationships
 
 **Step 1: Create the predicate thing:**
+
 ```bash
 > create thing part_of
 Created thing: part_of (id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d)
 ```
 
 **Step 2: Create the relationship using names:**
+
 ```bash
 # Using names (convenient)
 > create relation Forest part_of Watershed
@@ -647,6 +658,7 @@ Get a log of all property value changes (mutations) across the model, for a spec
 ```
 
 **Mutation targets:**
+
 - `model` (or omit) - All mutations across the entire model
 - `<name>` or `<guid>` - Mutations for a thing by name or ID
 - `thing <name>` - Explicit thing mutations (by name or ID)
@@ -657,6 +669,7 @@ Get a log of all property value changes (mutations) across the model, for a spec
 All timestamps use ISO 8601 format: `YYYY-MM-DDTHH:mm:ssZ`
 
 Examples:
+
 - `2026-01-15T12:30:00Z` (UTC)
 - `2026-01-15T12:30:00-05:00` (with timezone offset)
 - `now` (current time)
@@ -694,6 +707,7 @@ Create an expected range on a thing with the `range create` command:
 ```
 
 **Options:**
+
 - `--property <name>` - Property this range describes (for deviation reporting)
 - `--bounds-min <val>` - Minimum numeric bound
 - `--bounds-max <val>` - Maximum numeric bound
@@ -713,6 +727,7 @@ The criteria DSL supports various expressions:
 | State check | `[powered_by].state HAS 'running'` | Check related thing's state |
 
 **Examples:**
+
 ```bash
 # Simple comparison
 > range create Motor running "rpm > 0"
@@ -892,6 +907,7 @@ Daemons (2):
 ```
 
 Daemons are tracked by a key in the format `<predicate>:<port>`. The daemon info shows:
+
 - **Process ID**: The system process ID if running
 - **Consecutive Failures**: Number of recent startup failures (for cooldown tracking)
 - **Last Failure**: Timestamp of the most recent failure
@@ -1064,6 +1080,7 @@ Exported models include full inheritance metadata:
 ```
 
 **Key points:**
+
 - `Properties` contains only own properties (directly set on the thing)
 - `InheritedProperties` contains property sets copied via "is" relationships
 - When deserializing, relationship services do NOT re-run (inheritance is restored from JSON)
@@ -1137,14 +1154,19 @@ await handler.ExecuteAsync();
 **Error:** `Could not connect to Mycelium: Connection refused`
 
 **Solutions:**
+
 1. Ensure the Mycelium is running:
+
    ```bash
    curl https://localhost:7243/api/auth/token -k
    ```
+
 2. Check Mycelium URL:
+
    ```bash
    dotnet run -- --mycelium-url=https://localhost:7243
    ```
+
 3. Verify network connectivity
 
 ### Authentication Issues
@@ -1152,6 +1174,7 @@ await handler.ExecuteAsync();
 **Error:** `401 Unauthorized`
 
 **Solutions:**
+
 1. The CLI handles token refresh automatically
 2. If persistent, restart the CLI
 3. Check Mycelium logs for authentication errors
@@ -1167,6 +1190,7 @@ The CLI accepts self-signed certificates by default for development. For product
 **Error:** `Unknown command; type help for list of commands.`
 
 **Solutions:**
+
 1. Check spelling
 2. Commands are case-insensitive
 3. Use `help` to see available commands
@@ -1176,6 +1200,7 @@ The CLI accepts self-signed certificates by default for development. For product
 **Error:** `Error communicating with Mycelium: ...`
 
 **Solutions:**
+
 1. Check if the Mycelium is still running
 2. Review Mycelium logs for errors
 3. Ensure the model hasn't been cleared
@@ -1189,5 +1214,6 @@ The CLI accepts self-signed certificates by default for development. For product
 ---
 
 **Next Steps:**
+
 - See [`MICROSERVICES.md`](MICROSERVICES.md) to build relationship or endpoint services.
 - The Mycelium REST + SignalR reference lives on Mycelium repo's wiki (`ReGenVillages/VillageOS`).

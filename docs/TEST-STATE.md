@@ -58,7 +58,7 @@ Numbers below are from a local `dotnet test --collect:"XPlat Code Coverage"` run
 
 Healthy:
 
-- Zero skipped tests (no `Skip = `, `[Fact(Skip…`, `it.skip`, `xit`, etc.).
+- Zero skipped tests (no `Skip =`, `[Fact(Skip…`, `it.skip`, `xit`, etc.).
 - Zero `TODO`/`FIXME`/`HACK` markers inside test files.
 - No flakiness markers (`// FIXME flaky`, `// TODO re-enable`).
 - Test projects are actively maintained, not stale.

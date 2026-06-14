@@ -60,4 +60,5 @@ go vet ./...
 ```bash
 docker build -t vos-microservice-go .
 ```
+
 See the `Dockerfile` note about `localhost` vs `0.0.0.0` binding for containerized runs.
