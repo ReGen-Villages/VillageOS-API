@@ -20,6 +20,23 @@ pr:
     include:
       - '*'  # Trigger on all pull requests
 
+# Declare the project wiki as a repository resource (Bug #5525). The project has
+# "Protect access to repositories in YAML pipelines" enabled
+# (enforceReferencedRepoScopedToken), which scopes the job's System.AccessToken to
+# ONLY the repositories referenced by the pipeline. The wiki was never referenced,
+# so the "Mirror Wiki to GitHub" clone failed with TF401019 regardless of ACLs.
+# Declaring it here authorizes the scoped token to read it. No `checkout: wiki`
+# step is added on purpose: a second checkout would remap the self-repo source
+# directory into a subfolder and break every build step that assumes repo root.
+# First develop/main run after this change may need a one-time resource
+# authorization (Pipelines → the run → "Permit") by a build admin.
+resources:
+  repositories:
+    - repository: wiki
+      type: git
+      name: VillageOS-API/VillageOS-API-Wiki
+      ref: refs/heads/wikiMaster
+
 pool:
   vmImage: 'windows-latest'
 
@@ -142,8 +159,10 @@ steps:
 #
 # Prerequisites (one-time):
 #   - GitHub: enable Wikis in repo Settings → Features (creates the .wiki.git repo).
-#   - Azure DevOps: the build service identity needs Read on the project wiki repo
-#     (System.AccessToken is used to clone it).
+#   - Azure DevOps: the project wiki must be declared as the `wiki` repository
+#     resource (see the resources block near the top of this file) so the scoped
+#     System.AccessToken is authorized to clone it. The build identity already has
+#     inherited Read; an explicit ACL grant is NOT required (Bug #5525).
 #   - GITHUB_PAT: same secret as the repo mirror (Contents:Read+Write covers the
 #     wiki repo for fine-grained PATs; classic tokens need repo scope).
 - bash: |
@@ -154,6 +173,9 @@ steps:
     WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/regenrob/VillageOS-API.wiki.git"
 
     # 1. Clone the canonical Azure DevOps project wiki (OAuth build token).
+    #    Works because the wiki is declared as the `wiki` repository resource
+    #    above, which authorizes the scoped System.AccessToken to read it
+    #    (see Bug #5525). The build identity already has inherited Read.
     rm -rf "$SRC"
     git -c http.extraheader="AUTHORIZATION: bearer ${SYSTEM_ACCESSTOKEN}" \
       clone --depth 1 \
