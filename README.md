@@ -31,8 +31,13 @@ Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev
 | vos.ManagedMicroservice.Delta | Production | Registers data sources against a single-rooted endpoint-template graph (`is`-inheritance), with schema discovery and saga compensation |
 | vos.ManagedMicroservice.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
 | vos.ManagedMicroservice.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
-| vos.ManagedMicroservice.Echo | Example | Minimal managed microservice demonstrating lifecycle |
-| vos.ManagedMicroservice.Python | Example | Python/Flask-based microservice with Docker support |
+| vos.ManagedMicroservice.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference |
+| vos.ManagedMicroservice.Go | Example (Go) | The same handler in Go (standard library, zero deps) |
+| vos.ManagedMicroservice.Node | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |
+| vos.ManagedMicroservice.Python | Example (Python) | The same handler in FastAPI |
+| vos.ManagedMicroservice.Rust | Example (Rust) | The same handler in Axum |
+
+Writing your own handler in any language? See **[docs/MICROSERVICE_AUTHORING.md](docs/MICROSERVICE_AUTHORING.md)** — the language-agnostic contract (HTTP + one HS256 JWT) that every example above implements.
 
 ## Prerequisites
 

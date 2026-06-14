@@ -12,9 +12,15 @@ A `ManagedMicroservice` is a `Microsoft.NET.Sdk.Web` minimal-API binary on
 `https://localhost:7243`). It auto-registers on start, auto-deregisters on
 stop, and exposes a `/health` endpoint Mycelium's `LivenessMonitor` polls.
 
-Today's services: `Echo`, `Tributary`, `Delta`, `Metabolism`. **Echo is the
-canonical reference implementation** — the simplest of the four. When adding a
-new microservice, copy Echo's structure and the test patterns in §10.
+The handler contract is just **HTTP + one HS256 JWT**, so it is not tied to
+.NET — a microservice can be written in any language. This doc is the C#
+reference; for the **language-agnostic contract** plus runnable reference
+handlers in Go, Node/TypeScript, Python, and Rust, see
+[`MICROSERVICE_AUTHORING.md`](MICROSERVICE_AUTHORING.md).
+
+Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`. **Echo is
+the canonical reference implementation** — the simplest. When adding a new
+microservice, copy Echo's structure and the test patterns in §10.
 
 Project references: `vos.Auth.Shared` (inbound JWT validation) and
 `vos.ManagedMicroservice.Shared` (Mycelium-client base, validators, contract-
