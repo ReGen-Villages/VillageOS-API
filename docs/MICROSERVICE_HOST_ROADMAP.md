@@ -1,6 +1,7 @@
-# Future architecture
+# Microservice host roadmap
 
-This file collects design proposals and roadmap items that have **not yet been
+This file collects design proposals and roadmap items for the open-source
+microservice host and delivery-contract framework that have **not yet been
 implemented**. Each section opens with a status line. Once a section ships, move
 its description to the relevant topic file (`MICROSERVICES.md`,
 `TEST-STATE.md`, …) and delete the entry here.
@@ -26,11 +27,11 @@ receive side. That is a real source of silent bugs:
 - Services can only respond `200` or `500` in practice, with the occasional
   `400`/`404`/`502`. There is no way to express "this was a duplicate, do not
   retry", "I am overloaded, back off", or "I refuse this permanently".
-- Mycelium's `LivenessMonitor` polls `/health` every 15 s and auto-deregisters
-  after 3 consecutive failures. Today's services comply with the polling rhythm
-  but not with the response envelope — Echo returns `requestsProcessed`,
+- The platform polls each handler's `/health` endpoint and may deregister a
+  handler it judges unhealthy. Today's services comply with liveness polling
+  but not with a common response envelope — Echo returns `requestsProcessed`,
   Tributary returns the bare minimum, Metabolism returns five fields. The
-  monitor cannot rely on any field beyond `status`.
+  platform cannot rely on any field beyond `status`.
 - Services that need to send follow-up work (e.g. Tributary posting ingested
   observations) do so synchronously via `MyceliumClientBase` with no retry, no
   buffering, and no visibility into failures.
@@ -92,7 +93,7 @@ public static class Ack
 }
 ```
 
-Callers (today: Mycelium) interpret the codes per the contract:
+Callers (the platform) interpret the codes per the contract:
 
 | Code | Meaning | Caller behaviour |
 |---|---|---|
@@ -102,7 +103,7 @@ Callers (today: Mycelium) interpret the codes per the contract:
 | 500 | Transient failure | Retry per caller's retry policy. |
 | 501 | Permanent refusal — request malformed or not supported | Do not retry; surface as permanent failure. |
 
-The schema-validation middleware that landed in Feature #5426 currently returns
+The schema-validation middleware that already landed currently returns
 a generic `{ schemaId, errors[] }` envelope on schema failure. When the Ack
 contract here ships, that response shape collapses into `Ack.Refused(...)` (the
 501 kind — schema violation is non-retryable by definition). A one-line change
@@ -167,12 +168,12 @@ variant.
 
 ### 1.8 Health envelope (fixed shape)
 
-Health endpoint composes a fixed envelope with optional service extras —
-matching the 15 s polling rhythm and 3-strike failure tolerance:
+Health endpoint composes a fixed envelope with optional service extras,
+suitable for the platform's liveness polling:
 
 ```jsonc
 {
-  "status": "Healthy",                  // shared — only field LivenessMonitor reads
+  "status": "Healthy",                  // shared — only field the platform reads
   "service": "Echo",                    // shared — from serviceName
   "uptimeSeconds": 1234,                // shared
   "requestsReceived": 42,               // shared — incremented by middleware
@@ -183,8 +184,8 @@ matching the 15 s polling rhythm and 3-strike failure tolerance:
 ```
 
 Stops the current shape drift across Echo, Tributary, Delta, and Metabolism
-and gives Mycelium's monitor a single shape to scrape — without breaking the
-existing `LivenessMonitor`, which only reads `status`.
+and gives the platform's liveness polling a single shape to scrape — without
+breaking existing pollers, which only read `status`.
 
 ### 1.9 DI surface — the whole adoption diff
 
@@ -199,11 +200,11 @@ var builder = WebApplication.CreateBuilder(rawArgs)
     .AddMicroserviceLogging(serviceName: "MyService")
     .AddMicroserviceAuth(args.SigningKey)
     .AddMicroserviceBrokerClient<MyMyceliumClient>(args);
-builder.Services.AddContractValidation();   // landed in Feature #5426
+builder.Services.AddContractValidation();   // already landed
 
 var app = builder.Build()
     .UseMyceliumAuth()
-    .UseRequestContractValidation()         // landed in Feature #5426
+    .UseRequestContractValidation()         // already landed
     .UseDeliveryReceive()
     .UseMyceliumLifecycle(serviceName: "MyService", startCommand: "endpoint-service");
 
@@ -212,7 +213,7 @@ app.MapStandardEndpoints("MyService");
 app.MapPost("/handle", async (MyRequest req, MyMyceliumClient Mycelium) =>
     await MyService.HandleAsync(req, Mycelium))
    .RequireMyceliumAuth()
-   .RequireContract<MyRequest>()             // landed in Feature #5426
+   .RequireContract<MyRequest>()             // already landed
    .RequireDeliveryId();
 
 app.Run();
@@ -307,15 +308,15 @@ flowchart LR
 
 ## 2. DI refactors still on the table
 
-All three targeted DI items under Feature #5454 have shipped and are no longer
-roadmap items: item 1 (Metabolism `Program.cs` DI alignment) under Task #5456,
-item 3 (`IEndpointSeedProvider` for Delta) under Task #5455, and item 2 (the
-SignalR hub-connection factory, formerly §2.1) under Task #5457 — see below.
+All three targeted DI items have shipped and are no longer roadmap items: item
+1 (Metabolism `Program.cs` DI alignment), item 3 (`IEndpointSeedProvider` for
+Delta), and item 2 (the SignalR hub-connection factory, formerly §2.1) — see
+below.
 
 ### 2.1 `IHubConnectionFactory` in Metabolism's `MyceliumClient` (shipped)
 
-> **Status:** `SHIPPED` (Task #5457). Closed the largest single line-coverage
-> gap in the codebase — `Services.MyceliumClient` went from ~59% to 100%.
+> **Status:** `SHIPPED`. Closed the largest single line-coverage gap in the
+> codebase — `Services.MyceliumClient` went from ~59% to 100%.
 
 `MyceliumClient.ConnectSignalRAsync` previously built its SignalR connection inline
 with `new HubConnectionBuilder()`, so no test could substitute the real hub and
@@ -412,9 +413,8 @@ and reviewers should evaluate it on its own merits.
 
 ## 3. Contract validation — possible later phases
 
-Phases 1–4 of contract validation have shipped (Features #5419, #5426, #5440, #5445).
-See `MICROSERVICES.md` §9 for the landed surface. Two further phases
-were sketched but not scheduled:
+Phases 1–4 of contract validation have shipped. See `MICROSERVICES.md` §9 for
+the landed surface. Two further phases were sketched but not scheduled:
 
 ### 3.1 Phase 5 — GUI runtime validation
 
@@ -449,34 +449,13 @@ turning them into services would add ceremony with no testing benefit.
 `Microsoft.Extensions.Logging` once the host is up. No change needed.
 
 `CliArgs` is a static `Parse` — input goes in, output comes out, no
-dependencies. Routed through `IConfiguration` for the env-var fallback (post
-Task #5453), which is the right shape; the `Parse` method itself is correctly a
-pure static.
+dependencies. Routed through `IConfiguration` for the env-var fallback, which
+is the right shape; the `Parse` method itself is correctly a pure static.
 
-## 5. Multi-tenant model routing for endpoint daemons (deferred)
+## 5. Multi-tenant model routing for endpoint daemons (out of scope)
 
-Mycelium's "model as tenant" isolation is complete for the direct request
-path, but the endpoint-daemon write-back path does not yet propagate the
-caller's model. Mycelium launches an endpoint service (Delta, Tributary, …) as
-a **shared** daemon keyed by `endpoint:{subdomain}:{port}` with no `model_id`,
-and that process writes back with a single process-lifetime `--token` scoped to
-the model of its *first* lazy start (Mycelium `DaemonLifecycleManager.StartDaemonProcess`),
-while each forwarded `/handle` call carries a `mycelium_request` token with **no**
-`model_id` claim (Mycelium `JwtTokenService.GenerateMyceliumRequestToken`). So a
-shared daemon's `POST /api/things` and `/api/relationships` land in its *startup*
-model, not the caller's.
-
-**Current assumption.** The Delta endpoint-template work (Feature #5465) ships
-under the simplifying assumption that **only one model is active at a time**, so
-Delta's writes — provisioning the template catalog at boot (Task #5468), and
-creating each registered endpoint thing and its `is` relationship —
-target that one model correctly. The `/handle` contract is intentionally left
-unchanged.
-
-**What's deferred.** True multi-tenant operation — where Delta idempotently
-provisions its template catalog into the *caller's* project model ("approach A")
-— is blocked by the routing gap above and is tracked separately in **Feature #5478**,
-which captures the two candidate fixes (one daemon per model, matching
-the "one Delta per tenant" intent; or per-request model propagation via the
-forwarded token). That work is Mycelium-side and must be decided before per-model
-template provisioning (evolving the single-model Task #5468 catalog) can be built.
+How a hosted endpoint service's write-backs are routed to the correct tenant
+model is a private platform (Mycelium-side) concern, not part of the
+open-source microservice-host contract. The delivery contract a microservice
+implements is identical regardless of how the platform isolates tenants, so the
+routing mechanism is deliberately out of scope for this roadmap.

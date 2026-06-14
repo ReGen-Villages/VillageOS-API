@@ -2,7 +2,7 @@
 
 Canonical doc for `ManagedMicroservice` projects. Forward-looking design
 (delivery contract, dispatch, ACK envelope) lives in
-[`FUTURE_ARCHITECTURE.md`](FUTURE_ARCHITECTURE.md) §1. For the simulation-
+[`MICROSERVICE_HOST_ROADMAP.md`](MICROSERVICE_HOST_ROADMAP.md) §1. For the simulation-
 specific behavior of Metabolism, see [`METABOLISM.md`](METABOLISM.md).
 
 ## 1. What a microservice is in this repo
@@ -142,7 +142,7 @@ switches — extract them into `vos.ManagedMicroservice.<Name>/Helpers/<Name>.cs
 as a static class. This pulls the testable surface off the
 `WebApplicationFactory` integration-test path and onto fast unit tests.
 
-Worked examples from Feature #5433 / Task #5436:
+Worked examples:
 
 - `vos.ManagedMicroservice.Delta/Helpers/JsonValueCoercion.cs` —
   `CoerceToString(object?)`, `TryGetPropertyValue(IDictionary, string, out object?)`,
@@ -198,7 +198,7 @@ Every microservice's `Program.cs`:
 
 The contract-validation wiring is the canonical reference in
 `vos.ManagedMicroservice.Metabolism/Program.cs` +
-`Endpoints/EndpointMapper.cs` (Feature #5426). Adopting it in a new
+`Endpoints/EndpointMapper.cs`. Adopting it in a new
 microservice is three local edits: `AddContractValidation()`,
 `UseRequestContractValidation()`, and `.RequireContract<HandleRequest>()` on
 the route.
@@ -227,7 +227,7 @@ ungraceful exits.
 Today each service hand-rolls the `/health` body shape (Echo returns
 `requestsProcessed`; Metabolism returns five fields). The monitor only reads
 `status`. The fixed-envelope health shape arrives with the Delivery contract;
-see [`FUTURE_ARCHITECTURE.md`](FUTURE_ARCHITECTURE.md) §1.8.
+see [`MICROSERVICE_HOST_ROADMAP.md`](MICROSERVICE_HOST_ROADMAP.md) §1.8.
 
 ### Deregistration triggers
 
@@ -243,7 +243,7 @@ see [`FUTURE_ARCHITECTURE.md`](FUTURE_ARCHITECTURE.md) §1.8.
 JSON Schema artifacts + a runtime that loads and validates against them.
 Schemas pin the wire format of Mycelium ↔ microservice payloads so future
 changes are a schema diff in code review rather than a silent runtime
-surprise. Phases 1–4 have landed (Features #5419, #5426, #5440, #5445).
+surprise. Phases 1–4 have landed.
 
 Schemas live under `vos.ManagedMicroservice.Shared/Contracts/Schemas/` and are
 embedded as resources in the shared assembly. The validator runtime lives in
@@ -325,7 +325,7 @@ Schemas are authored against Draft 2020-12 by default. The
 NJsonSchema's runtime validator does not implement Draft 2020-12
 `prefixItems`; switch back to Draft 2020-12 if NJsonSchema gains support.
 
-### 9.4 Inbound middleware (Phase 2, Feature #5426)
+### 9.4 Inbound middleware (Phase 2)
 
 `app.UseRequestContractValidation()` + `endpoint.RequireContract<T>()` gate
 the inbound `/handle` body. A schema violation returns `400` with a
@@ -333,7 +333,7 @@ the inbound `/handle` body. A schema violation returns `400` with a
 per-service: tag the request DTO with `[ContractSchema]` and add
 `.RequireContract<T>()` to the route. Today Metabolism is the only adopter.
 
-### 9.5 MyceliumClientBase outbound + response validation (Phase 3, Feature #5440)
+### 9.5 MyceliumClientBase outbound + response validation (Phase 3)
 
 `RegisterAsync` body and `GetTokenAsync` response are validated on every call.
 Failure policy is per-call via `SchemaViolationMode`:
@@ -346,7 +346,7 @@ Tests pin both paths regardless of build config via a virtual
 `OutboundViolationMode` on `MyceliumClientBase`. No metrics infra yet — counter
 follow-up tracked separately.
 
-### 9.6 Metabolism hot-path validation (Phase 4, Feature #5445)
+### 9.6 Metabolism hot-path validation (Phase 4)
 
 `ApplyQuantityAsync`, `IncrementRelationshipPropertyAsync`, and the SignalR
 `RelationshipPropertyChanged` event all validate on every tick.
@@ -370,7 +370,7 @@ surface; the parsing and registration logic it feeds *is* covered, via the
 internal `SchemaRegistry` constructor that takes raw `(name, json)` pairs.
 
 Two further phases (GUI runtime validation, CI drift gate) are sketched in
-[`FUTURE_ARCHITECTURE.md`](FUTURE_ARCHITECTURE.md) §3 but unscheduled.
+[`MICROSERVICE_HOST_ROADMAP.md`](MICROSERVICE_HOST_ROADMAP.md) §3 but unscheduled.
 
 ## 10. Testing patterns
 
@@ -380,8 +380,7 @@ project's reference graph + adds:
 
 - `Microsoft.NET.Test.Sdk`, `xunit`, `xunit.runner.visualstudio`,
   `coverlet.collector`
-- `FluentAssertions`, `Moq` (or NSubstitute — see
-  [`TEST-STATE.md`](TEST-STATE.md) "Watch items" #4)
+- `FluentAssertions`, `Moq` (or NSubstitute)
 - `Microsoft.AspNetCore.Mvc.Testing` if exercising endpoints via
   `WebApplicationFactory<Program>`
 - Project references: the microservice + `vos.Tests.Shared`
@@ -469,7 +468,7 @@ Per-microservice acceptance: **≥95 % line on `CliArgs` + `MyceliumClient` + an
 > The original wildcard `**/vos.ManagedMicroservice.*/Program.cs` was silently
 > ignored because Phase 0 used nested `<File>` elements inside
 > `<ExcludeByFile>` — coverlet's XPlat data collector expects a single
-> comma-separated string. Fixed under Feature #5433 / Task #5435 with explicit
+> comma-separated string. Fixed with explicit
 > per-microservice paths. New microservices need to add their own `Program.cs`
 > to the comma-separated list in `coverage.runsettings`.
 
@@ -487,7 +486,6 @@ Per-microservice acceptance: **≥95 % line on `CliArgs` + `MyceliumClient` + an
    automatically by the `**/*Tests.csproj` glob in `azure-pipelines.yml`.
 6. Append the new `Program.cs` path to the `<ExcludeByFile>` list in
    `coverage.runsettings`.
-7. Add a row to [`TEST-STATE.md`](TEST-STATE.md) under "Where tests live".
 
 ## 12. Pointers
 
@@ -537,9 +535,7 @@ it is only shown once. Exchange it for a JWT via `POST /api/auth/token`
 
 - [`METABOLISM.md`](METABOLISM.md) — Metabolism simulation lifecycle, two-mode
   binary (`--mode=consumes|produces`), tick logic.
-- [`TEST-STATE.md`](TEST-STATE.md) — test infrastructure, coverage state,
-  watch items.
-- [`FUTURE_ARCHITECTURE.md`](FUTURE_ARCHITECTURE.md) — Delivery contract,
+- [`MICROSERVICE_HOST_ROADMAP.md`](MICROSERVICE_HOST_ROADMAP.md) — Delivery contract,
   remaining DI refactors, possible contract-validation phases 5+6.
 
 ## 13. Common issues
@@ -581,82 +577,32 @@ In addition to relationship-service daemons (invoked when relationships are
 created), Mycelium supports **endpoint services** — custom HTTP
 microservices that expose their own API endpoints through
 `POST /api/endpoints/{subdomain}`. They are auto-discovered from seed data
-(things with an `EndpointSubdomain` property), use the same daemon lifecycle
-as relationship services via `DaemonLifecycleManager`, and act as
-pass-through proxies — Mycelium forwards request bodies as-is to the
-service's `/handle` endpoint. Per-subdomain request metrics (count, avg
-response time, errors) are tracked Mycelium-side.
+(things with an `EndpointSubdomain` property), share the same managed daemon
+lifecycle as relationship services, and act as pass-through proxies — Mycelium
+forwards request bodies as-is to the service's `/handle` endpoint. Mycelium
+also exposes per-subdomain request metrics (count, avg response time, errors).
 
 Full implementation details: the *Endpoint Services* section in the Mycelium
 Guide on Mycelium repo's wiki.
 
-### 14.1 Tributary token-exchange auth + offset paging (Task #5470)
+### 14.1 Tributary token-exchange auth + offset paging
 
-> The endpoint-template graph, the property field taxonomy (required-structural /
-> canonical-default / sensible-default / optional), and the fetch-and-shape (no derived
-> calculation) boundary versus Metabolism are covered in [`TRIBUTARY.md`](TRIBUTARY.md).
+Tributary is an endpoint service that stays source-agnostic: it has two
+**generic** capabilities — a token-exchange auth provider and an offset
+paginator — both driven entirely by endpoint-template config. There is no
+ArcGIS vocabulary in the code; ESRI is just one configuration. No special
+binary, and no Delta change — the endpoint-template catalog already resolves
+multi-level hierarchies.
 
-Tributary stays source-agnostic: it gained two **generic** capabilities — a
-token-exchange auth provider and an offset paginator — both driven entirely by
-endpoint-template config. There is no ArcGIS vocabulary in the code; ESRI is just one
-configuration (see *The `EsriEndpoint` template* below). No new binary, and no Delta
-change — the endpoint-template catalog already resolves multi-level hierarchies.
+At the contract level: `/handle` branches on a template-supplied `authKind`
+(`none` for a plain REST call, `tokenExchange` to mint or reuse a credential)
+and a `pagingKind` (`offset` to walk an offset-paginated source and aggregate
+all pages before transforming). Both default to off on the root `Endpoint`
+template, and a source-specific child template selects the mode.
 
-**Auth kind.** `authKind` is a structural key on the **root `Endpoint`** template, so
-it is admissible for every endpoint and carries no inherited default (an unset value is
-treated as `none`). Descendant templates (or a registration) resolve the value.
-`/handle` branches on it:
-
-- `none` (or unset) — a plain REST call, unchanged. (A *static* key needs no auth kind —
-  configure it directly as a `queryParams` entry or header.)
-- `tokenExchange` — a pre-minted `token` is used directly; otherwise a token is minted
-  by POSTing the configured `tokenRequest` form fields to `tokenUrl`, reading the token
-  out at the simple dotted `tokenPath` (and optional `expiryPath` + `expiryUnit` of
-  `epochMillis`/`epochSeconds`/`seconds`). Tokens live in a per-process
-  `TokenExchangeCache` keyed by `(tokenUrl, request-fields)`, reused until ~75% of
-  lifetime elapses (`TimeProvider`-driven), then refreshed. The credential attaches as a
-  query param (`tokenParam`, default `token`) or, if `tokenHeader` is set, a request
-  header (`tokenScheme` + value). Missing mint config is a 400; a token-endpoint failure
-  surfaces as a **generic** 502 (the upstream message may name the credential and is not
-  echoed to the caller — it is logged).
-
-**Offset paging.** When `pagingKind = offset`, `OffsetPaginator` loops the query
-advancing `offsetParam` (by `pageSize` via `pageSizeParam`, else by the returned item
-count) while the page's `hasMorePath` boolean is true, and concatenates every page's
-array at `itemsPath` into the first page's body. Aggregation happens **before** the
-JSONata `responseTransform` runs, so the transform sees the complete result, not page
-one. Paths are simple dotted keys (e.g. `data.features`).
-
-**The `EsriEndpoint` template.** Seeds are deployment-supplied runtime data (not
-committed; `seed.json` stores every template as a thing plus the `is` relationships
-between them), so the canonical shape lives here. ESRI is expressed purely as config on
-a child template that extends `Endpoint` and restates only the keys it narrows:
-
-```json
-{
-  "things": [
-    { "name": "Endpoint", "properties": {
-        "url": "", "httpMethod": "GET", "responseTransform": "$",
-        "headers": "", "queryParams": "", "requestContentType": "",
-        "timeout": "", "authKind": "" } },
-    { "name": "EsriEndpoint", "properties": {
-        "httpMethod": "POST", "requestContentType": "application/x-www-form-urlencoded",
-        "authKind": "tokenExchange",
-        "token": "", "tokenUrl": "", "tokenRequest": "",
-        "tokenPath": "token", "expiryPath": "expires", "expiryUnit": "epochMillis",
-        "pagingKind": "offset", "offsetParam": "resultOffset",
-        "pageSizeParam": "resultRecordCount", "hasMorePath": "exceededTransferLimit",
-        "itemsPath": "features", "pageSize": "" } }
-  ],
-  "relationships": [ { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" } ]
-}
-```
-
-A registration under `EsriEndpoint` supplies the blanks (`url`, `tokenUrl`,
-`tokenRequest` = `{username, password, referer, f, client}`, optional `pageSize`). An
-OAuth2 source reuses the same code with `tokenPath=access_token`,
-`expiryPath=expires_in`, `expiryUnit=seconds`, `tokenHeader=Authorization`,
-`tokenScheme=Bearer`. Blank values are structural keys — admissible for a registration
-but supplying no inherited default. Graph composition is pinned by
-`EsriEndpointTemplateTests` (Delta); behavior by `EsriHandleTests`,
-`TokenExchangeCacheTests`, and `OffsetPaginatorTests` (Tributary).
+The canonical `EsriEndpoint` template JSON, the token-exchange/caching
+mechanics, and the offset-paging mechanics live in
+[`TRIBUTARY.md`](TRIBUTARY.md) — the doc for the service that implements them.
+The endpoint-template graph, the property field taxonomy, and the
+fetch-and-shape (no derived calculation) boundary versus Metabolism are also
+covered there.

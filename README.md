@@ -9,7 +9,7 @@ Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev
 **vos.Trellis** — React application for graph visualization and interaction.
 
 - Sigma.js v3 + graphology for graph rendering
-- Three.js + `@thatopen/fragments` for the IFC Model viewer (Feature #5248; loader, picking, plan/section toolbar, and shared `NodeDetailPanel` all shipped)
+- Three.js + `@thatopen/fragments` for the IFC Model viewer (loader, picking, plan/section toolbar, and shared `NodeDetailPanel`)
 - SignalR real-time updates with flash effects
 - Zustand state management
 - Dashboard, Graph, Model, Temporal, Things, and Properties pages

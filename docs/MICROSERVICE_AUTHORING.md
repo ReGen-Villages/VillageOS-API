@@ -16,7 +16,7 @@ Each reference is an **echo handler**: `/handle` acknowledges the relationship a
 
 ## A note on `is`
 
-`is` is the one **built-in** predicate. Mycelium applies `is` inheritance in-process (`VosRelationshipService`) and **never dispatches it to an external handler** — `VosServiceBroker` maps only predicates like `consumes`/`produces` to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
+`is` is the one **built-in** predicate. Mycelium applies `is` inheritance in-process and **never dispatches it to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
 
 ## Lifecycle
 
@@ -112,7 +112,7 @@ When `--signingKey` is supplied, validate the Bearer JWT on `/handle` and `/shut
 2. **Algorithm** = HS256.
 3. **Claims** — validate `iss == --issuer`, `aud == --audience`, and `exp`/`nbf`, allowing **30 seconds** clock skew.
 
-Mycelium signs `/handle` calls with a 1-minute token carrying `iss`/`aud` and `vos:token_type = "mycelium_request"`. This mirrors `vos.Auth.Shared/ServiceTokenValidator.cs`. Reject with 401 on any failure.
+Mycelium signs `/handle` calls with a 1-minute token carrying `iss`/`aud` and `vos:token_type = "mycelium_request"`; the platform validates this same HS256 JWT before dispatch, so your handler should apply the identical checks. Reject with 401 on any failure.
 
 ## Deregistration & health
 
