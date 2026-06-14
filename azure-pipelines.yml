@@ -118,9 +118,9 @@ steps:
     # Rewrite Azure DevOps wiki URLs → GitHub wiki URLs so the GitHub README
     # links to the GitHub wiki (the canonical README keeps DevOps links).
     sed -i'' \
-      -e 's|https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/[0-9]*/|https://github.com/regenrob/VillageOS-API/wiki/|g' \
+      -e 's|https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki/[0-9]*/|https://github.com/regenrob/VillageOS-API/wiki/|g' \
       -e 's|\[VillageOS\](https://dev.azure.com/ReGenVillages/VillageOS)|VillageOS|g' \
-      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki)|[VillageOS API Wiki](https://github.com/regenrob/VillageOS-API/wiki)|g' \
+      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)|[VillageOS API Wiki](https://github.com/regenrob/VillageOS-API/wiki)|g' \
       README.md
     git add README.md
     git -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
