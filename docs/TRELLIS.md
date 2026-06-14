@@ -143,7 +143,7 @@ After loading, click **Graph** in the sidebar to see your model rendered as an i
 |-----------|----------|
 | `village.seed.json` | Full-featured demo: type hierarchies, multi-domain relationships (energy, water, biodiversity, transport), IFC geometry for single-building 3D views |
 | `warehouse.seed.json` | Type hierarchy exploration: zones, conveyors, AMRs, sensors, controllers with multi-level inheritance (e.g., `ConveyorPLC → Controller → SmartAppliance`) |
-| IFC-imported seeds | Import IFC (BIM) files via `vos.Tools.IfcIngest`. See the IFC import documentation in the [VillageOS API wiki](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki). |
+| IFC-imported seeds | Import IFC (BIM) files via `vos.Tools.IfcIngest`. See the IFC import documentation in the [VillageOS API wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki). |
 
 The **village seed** is recommended for this guide because it demonstrates all features including per-building 3D views.
 
