@@ -43,7 +43,7 @@ function acquireConnection(): HubConnection {
       .withUrl('/vosHub', {
         // Return a Promise<string> — fetches a fresh token if the cache is empty
         // or expired. Previously this called getToken() which returned null on
-        // first load, causing the broker to reject the WebSocket upgrade.
+        // first load, causing Mycelium to reject the WebSocket upgrade.
         accessTokenFactory: () => apiClient.ensureToken(),
       })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
@@ -63,7 +63,7 @@ function acquireConnection(): HubConnection {
       notifyListeners();
     });
 
-    // Start with retry — handles broker not ready, token fetch failures, etc.
+    // Start with retry — handles Mycelium not ready, token fetch failures, etc.
     startWithRetry(connection);
 
     sharedConnection = connection;

@@ -12,7 +12,7 @@ export function AppLayout() {
 
   useEffect(() => {
     return on('ActivityEvent', (event: unknown) => {
-      // Normalise casing — SignalR sends camelCase by default unless the broker
+      // Normalise casing — SignalR sends camelCase by default unless Mycelium
       // configures AddJsonProtocol with PropertyNamingPolicy = null.
       // Accept both camelCase and PascalCase for robustness.
       const raw = event as Record<string, unknown>;

@@ -72,7 +72,7 @@ export function DashboardPage() {
     }
   }, [connected]);
 
-  // SignalR live updates (broker-specific only — model data handled at app level)
+  // SignalR live updates (Mycelium-specific only — model data handled at app level)
   useEffect(() => {
     const unsubs = [
       on('ServiceHealthChanged', () => myceliumApi.getServices().then(setServices)),
@@ -167,7 +167,7 @@ export function DashboardPage() {
           </button>
           <button
             onClick={() => setShowShutdown(true)}
-            title="Shutdown broker"
+            title="Shutdown Mycelium"
             className="p-1.5 rounded hover:bg-red-600/20 text-zinc-500 hover:text-red-400 transition-colors"
           >
             <Power size={14} />
@@ -216,7 +216,7 @@ export function DashboardPage() {
       <ConfirmDialog
         open={showShutdown}
         title="Shutdown Mycelium"
-        message="Are you sure you want to shut down the broker? All services and daemons will be stopped. The GUI will lose its connection."
+        message="Are you sure you want to shut down Mycelium? All services and daemons will be stopped. Trellis will lose its connection."
         confirmLabel="Shutdown"
         danger
         onConfirm={handleShutdown}

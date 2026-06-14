@@ -10,7 +10,7 @@ export default defineConfig({
   build: {
     // Resolution: VOS_MYCELIUM_WWWROOT > sibling vos.Mycelium/wwwroot > dist/.
     // The sibling auto-detect (Bug #5332) keeps `npm run build` from silently
-    // emitting to `dist/` while developers wonder why the broker URL still
+    // emitting to `dist/` while developers wonder why Mycelium URL still
     // serves a stale bundle.
     outDir: resolveOutDir({ guiRoot: __dirname }),
     emptyOutDir: true,

@@ -2,11 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://villageos/contracts/token-response.schema.json",
   "title": "TokenResponse",
-  "description": "Response body of {broker}/api/auth/token. Shape derived from MyceliumClientBase.GetTokenAsync.",
+  "description": "Response body of {mycelium}/api/auth/token. Shape derived from MyceliumClientBase.GetTokenAsync.",
   "type": "object",
   "additionalProperties": false,
   "required": ["token"],
   "properties": {
-    "token": { "type": "string", "minLength": 1, "description": "Bearer JWT for subsequent broker calls." }
+    "token": { "type": "string", "minLength": 1, "description": "Bearer JWT for subsequent Mycelium calls." }
   }
 }

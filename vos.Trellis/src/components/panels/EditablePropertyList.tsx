@@ -9,7 +9,7 @@ import { PROPERTY_TYPES } from '../../utils/constants';
 /** Max characters before truncating a property value and showing an expand button. */
 const VALUE_TRUNCATE_LIMIT = 60;
 
-/** Infer the broker type string from a JS runtime value. */
+/** Infer Mycelium type string from a JS runtime value. */
 export function inferType(val: unknown): string {
   if (typeof val === 'number') return Number.isInteger(val) ? 'int' : 'double';
   if (typeof val === 'boolean') return 'bool';
@@ -17,11 +17,11 @@ export function inferType(val: unknown): string {
 }
 
 /**
- * Infer the broker type string from user-entered text.
+ * Infer Mycelium type string from user-entered text.
  * Always uses 'double' for numeric text so that decimal values are never
  * rejected when the previous value happened to be a whole number
  * (e.g. vos.Decimal 1.0 → JS integer 1 → inferType returns "int" →
- * broker rejects "0.5" as invalid int).
+ * Mycelium rejects "0.5" as invalid int).
  */
 export function inferTypeFromText(text: string): string {
   if (text === 'true' || text === 'false') return 'bool';

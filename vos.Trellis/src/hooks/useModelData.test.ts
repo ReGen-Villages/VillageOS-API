@@ -57,7 +57,7 @@ describe('useModelData', () => {
     expect(useModelStore.getState().relationships).toHaveLength(1);
   });
 
-  it('reloads from the broker when ThingCreated fires', async () => {
+  it('reloads from Mycelium when ThingCreated fires', async () => {
     mockGetAllThings.mockResolvedValue([]);
     mockGetAllRels.mockResolvedValue([]);
     renderHook(() => useModelData());

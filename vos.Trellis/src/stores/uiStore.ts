@@ -86,7 +86,7 @@ interface UiState {
   setDetailPanelWidth: (width: number) => void;
 
   // ── States refresh counter ────────────────────────────────────────
-  // Bumped by useModelData on the broker's `StatesChanged` SignalR
+  // Bumped by useModelData on the Mycelium's `StatesChanged` SignalR
   // event so detail panels re-fetch ranges without each page owning a
   // local subscription.
   statesVersion: number;

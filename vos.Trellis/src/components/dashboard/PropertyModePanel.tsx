@@ -22,7 +22,7 @@ export function PropertyModePanel() {
       setRingBufferSize(data.RingBufferSize?.toString() ?? '');
       setSampleRate(data.SampleRate?.toString() ?? '');
     } catch {
-      // endpoint may not exist on older brokers
+      // endpoint may not exist on older Mycelium instances
     } finally {
       setLoading(false);
     }

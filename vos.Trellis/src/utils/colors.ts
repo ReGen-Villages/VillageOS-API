@@ -109,7 +109,7 @@ import { CURATED_PREDICATE_COLORS } from './predicatePalette';
  * Resolve a predicate's edge color. Three-tier priority chain (Bug #5340):
  *
  *   1. User override from GUI_Settings.PredicateColors (per-deployment
- *      customization — broker-stored, fetched on login)
+ *      customization — Mycelium-stored, fetched on login)
  *   2. Curated default from CURATED_PREDICATE_COLORS (semantic grouping
  *      so material edges read as a family, MEP connectivity stands out, etc.)
  *   3. Hash fallback into PREDICATE_PALETTE (deterministic per name —

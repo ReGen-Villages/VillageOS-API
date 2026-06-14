@@ -17,7 +17,7 @@ describe('resolveOutDir', () => {
     ).toBe(SIBLING_WWWROOT);
   });
 
-  it('falls back to "dist" when no env var and no sibling broker dir exists', () => {
+  it('falls back to "dist" when no env var and no sibling Mycelium dir exists', () => {
     expect(
       resolveOutDir({ guiRoot: GUI, envOverride: undefined, pathExists: () => false }),
     ).toBe('dist');

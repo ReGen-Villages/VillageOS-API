@@ -10,7 +10,7 @@ import { orbitMouseButtonsFor } from '../../utils/orbitMouseButtons';
 
 /**
  * Map of IFC GlobalId → VosThing GUID, produced by vos.Tools.IfcIngest and
- * served by the broker at /api/model/mapping. Used to resolve a picked
+ * served by Mycelium at /api/model/mapping. Used to resolve a picked
  * Fragments element to its graph identity.
  */
 export type FragmentsMapping = Record<string, string>;

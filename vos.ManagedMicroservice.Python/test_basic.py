@@ -9,16 +9,16 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock
 import uuid
 
-# Import the app (but we'll mock the lifespan to avoid broker calls during testing)
-from app import app, handler_id, broker_url_stored
+# Import the app (but we'll mock the lifespan to avoid Mycelium calls during testing)
+from app import app, handler_id, mycelium_url_stored
 
 
 @pytest.fixture
 def client():
     """Create a test client with mocked lifespan."""
-    # Mock the lifespan to avoid actual broker registration during tests
-    with patch('app.register_with_broker', new=AsyncMock()):
-        with patch('app.deregister_from_broker', new=AsyncMock()):
+    # Mock the lifespan to avoid actual Mycelium registration during tests
+    with patch('app.register_with_mycelium', new=AsyncMock()):
+        with patch('app.deregister_from_mycelium', new=AsyncMock()):
             with TestClient(app) as c:
                 yield c
 

@@ -9,7 +9,7 @@ import { toast } from '../components/common/Toast';
 import { isGraphAffectingProperty, applyThingPropertyUpdate, applyRelationshipPropertyUpdate, isVisibleRelationship } from '../utils/propertyUpdates';
 
 /**
- * Reload things + relationships from the broker into the model store.
+ * Reload things + relationships from Mycelium into the model store.
  * Exported so mutation handlers (delete thing, create relationship, save
  * property) can refresh after their action without going through the hook.
  * Single source of truth for the wire fetch.
@@ -28,7 +28,7 @@ export async function reloadModelData(): Promise<void> {
  * App-shell hook (Feature #5329): owns the lifecycle of model data so that
  * every authenticated page sees a populated `useModelStore` from the moment
  * they mount — not just GraphPage. Pulls the initial load and subscribes to
- * the broker's SignalR events that keep the store live.
+ * the Mycelium's SignalR events that keep the store live.
  *
  * Mount once in `AuthenticatedApp`. Returns nothing — it's effects-only.
  */

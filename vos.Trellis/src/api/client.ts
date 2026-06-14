@@ -74,7 +74,7 @@ class ApiClient {
 
   /**
    * Attempt to restore a session from an HttpOnly cookie set during a prior login.
-   * If the cookie exists and the JWT inside it is still valid, the broker returns
+   * If the cookie exists and the JWT inside it is still valid, Mycelium returns
    * the token + user + model and we restore in-memory state without re-entering
    * credentials. Returns true if restored, false if no valid session.
    */
@@ -136,7 +136,7 @@ class ApiClient {
   /**
    * Clear stored credentials and cancel any pending refresh.
    *
-   * Also tells the broker to clear the HttpOnly session cookie via
+   * Also tells Mycelium to clear the HttpOnly session cookie via
    * POST /api/auth/session/logout. Without this, a subsequent page refresh
    * would succeed in restoreSession() and silently log the user back in
    * (Bug #5290).

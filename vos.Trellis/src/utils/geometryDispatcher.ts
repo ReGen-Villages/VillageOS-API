@@ -3,7 +3,7 @@
  *
  * The legacy .NET IFC importer tessellated geometry server-side and stored
  * it as an IfcGeometry property: { positions, indices, normals, height,
- * localCenter }. The broker sends it as
+ * localCenter }. The Mycelium sends it as
  * { typeInfo: "vos.IfcGeometry", value: {...} } which is unwrapped by
  * propertyMapper to just the IFC mesh data object.
  *

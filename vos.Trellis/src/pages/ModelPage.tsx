@@ -23,7 +23,7 @@ type FragmentsState =
   | { status: 'error'; message: string }
   | { status: 'ready'; bytes: ArrayBuffer };
 
-// Build the IFC-GlobalId → VosThing-Id map by scanning the broker's authoritative
+// Build the IFC-GlobalId → VosThing-Id map by scanning the Mycelium's authoritative
 // thing list rather than the pre-baked .mapping.json sidecar (which drifts whenever
 // the seed is regenerated — Bug #5298 follow-up).
 function buildMappingFromThings(things: VosThing[]): FragmentsMapping {

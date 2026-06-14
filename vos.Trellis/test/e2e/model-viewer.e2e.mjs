@@ -1,8 +1,8 @@
 // Puppeteer e2e test for the Fragments viewer.
 //
 // What this covers that vitest can't: real WebGL rendering of the Fragments
-// artifact streamed from the broker. jsdom has no WebGL, so the unit tests
-// stub the viewer; this test drives Chromium against a live broker + dev
+// artifact streamed from Mycelium. jsdom has no WebGL, so the unit tests
+// stub the viewer; this test drives Chromium against a live Mycelium + dev
 // server and samples the rendered pixels.
 //
 // Preconditions (manual setup):

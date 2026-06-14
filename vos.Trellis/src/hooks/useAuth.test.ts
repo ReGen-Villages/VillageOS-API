@@ -47,7 +47,7 @@ vi.mock('../stores/modelStore', () => ({
 import { useAuthState } from './useAuth';
 
 // Helper: shape an ApiError-ish rejection that matches what apiClient.login
-// surfaces when the broker returns 400 { error: "No models loaded" }.
+// surfaces when Mycelium returns 400 { error: "No models loaded" }.
 function noModelsError(): Error & { body: string } {
   const err = new Error('No models loaded') as Error & { body: string };
   err.body = JSON.stringify({ error: 'No models loaded' });
@@ -142,7 +142,7 @@ describe('useAuthState logout: forces a re-render gate (Bug #5325)', () => {
 
     // The bug: with apiClient.isAuthenticated() still returning true (we
     // deliberately leave mockIsAuth=true to mirror the real-world race where
-    // the in-memory token field clears AFTER the awaited broker round-trip),
+    // the in-memory token field clears AFTER the awaited Mycelium round-trip),
     // the hook must still flip isAuthenticated to false on its own React state
     // — otherwise App.tsx never re-renders to the login form.
     expect(result.current.isAuthenticated).toBe(false);

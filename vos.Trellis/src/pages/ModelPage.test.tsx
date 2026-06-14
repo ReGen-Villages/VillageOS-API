@@ -111,7 +111,7 @@ describe('ModelPage', () => {
     expect(screen.getByTestId('model-viewer-loading')).toBeInTheDocument();
   });
 
-  it('shows empty placeholder when broker returns 404', async () => {
+  it('shows empty placeholder when Mycelium returns 404', async () => {
     mockGetBytes.mockResolvedValue(null);
     render(<ModelPage />);
     await waitFor(() => {

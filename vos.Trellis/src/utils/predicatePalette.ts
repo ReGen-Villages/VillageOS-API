@@ -3,7 +3,7 @@
 // Resolution priority for an edge color (see resolvePredicateColor in
 // ./colors.ts):
 //
-//   1. User override from GUI_Settings.PredicateColors (broker-stored,
+//   1. User override from GUI_Settings.PredicateColors (Mycelium-stored,
 //      per-deployment customization — already wired)
 //   2. Curated default from this map (shipped with the GUI; semantic
 //      grouping so related predicates read as a family on the graph)

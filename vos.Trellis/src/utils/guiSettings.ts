@@ -15,7 +15,7 @@ export interface FlashSettings {
  * runtime-tunable through GUI_Settings, the same way attraction / repulsion
  * / gravity already were. Feature #5362 added classifyingProperty so the
  * GUI can run against any domain ontology, not just IFC. Editing the
- * GUI_Settings Thing on the broker (or in the seed JSON) overrides any of
+ * GUI_Settings Thing on Mycelium (or in the seed JSON) overrides any of
  * these without a rebuild.
  */
 export interface LayoutSettings {

@@ -74,7 +74,7 @@ export function useAuthState(): AuthState {
   }, []);
 
   // On mount, attempt to restore a prior session from the HttpOnly cookie.
-  // If the cookie exists and the JWT inside is still valid, the broker returns
+  // If the cookie exists and the JWT inside is still valid, Mycelium returns
   // the token + user + model and we skip the login form entirely.
   useEffect(() => {
     if (apiClient.isAuthenticated()) return;
@@ -166,7 +166,7 @@ export function useAuthState(): AuthState {
       const msg = err instanceof Error ? err.message : 'Login failed';
       // "No models loaded" can mean two very different things:
       //   (a) a seed is currently being loaded at startup → poll and auto-retry
-      //   (b) the broker has nothing in its library and never will on its own
+      //   (b) Mycelium has nothing in its library and never will on its own
       //       → must surface an actionable error instead of silently polling a
       //         seed-status that will never reach Phase=Done (Bug #5324).
       // Disambiguate by reading SeedLoadingStatus before deciding.
@@ -181,7 +181,7 @@ export function useAuthState(): AuthState {
           }
         } catch { /* fall through to actionable error */ }
         setError(
-          'No models on broker. Drop a .seed.json into vos.Mycelium/seeds-library/ and reload, '
+          'No models on Mycelium. Drop a .seed.json into vos.Mycelium/seeds-library/ and reload, '
           + 'or POST /api/mycelium/library-seeds/<name>/load.',
         );
         throw err;
@@ -195,7 +195,7 @@ export function useAuthState(): AuthState {
 
   const logout = useCallback(async () => {
     // Clear UI state immediately so the user sees the login form without
-    // waiting for the network round-trip. The broker-side cookie clear
+    // waiting for the network round-trip. The Mycelium-side cookie clear
     // (Bug #5290) happens in apiClient.logout() and is awaited so callers
     // that want to be sure the cookie is gone (e.g. before a programmatic
     // navigation) can rely on it.
@@ -203,7 +203,7 @@ export function useAuthState(): AuthState {
     // setAuthFailed(true) is the load-bearing call for Bug #5325: it forces
     // the next render to evaluate isAuthenticated to false even though
     // apiClient.isAuthenticated() (which reads a non-React field) still
-    // returns true until the awaited broker round-trip completes. login()
+    // returns true until the awaited Mycelium round-trip completes. login()
     // resets authFailed back to false on success.
     useModelStore.getState().clear();
     setUser(null);
@@ -255,7 +255,7 @@ export function useAuthState(): AuthState {
     setError(null);
     try {
       const result = await myceliumApi.loadSeed(seedName);
-      // The broker removed the old model from the store. Re-scope the JWT
+      // The Mycelium removed the old model from the store. Re-scope the JWT
       // to the newly loaded model (works for both login and API-key auth).
       await apiClient.rescopeToModel(result.modelId);
       useModelStore.getState().clear();

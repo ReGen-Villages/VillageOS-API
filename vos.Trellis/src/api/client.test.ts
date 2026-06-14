@@ -129,7 +129,7 @@ describe('ApiClient', () => {
       await apiClient.login('testuser', 'pass');
       expect(apiClient.isAuthenticated()).toBe(true);
 
-      // Logout also calls the broker to clear the session cookie.
+      // Logout also calls Mycelium to clear the session cookie.
       fetchSpy.mockResolvedValueOnce(mockResponse(200, '{}'));
       await apiClient.logout();
 
@@ -139,7 +139,7 @@ describe('ApiClient', () => {
       expect(apiClient.getModelName()).toBeNull();
     });
 
-    it('calls POST /api/auth/session/logout on the broker (Bug #5290)', async () => {
+    it('calls POST /api/auth/session/logout on Mycelium (Bug #5290)', async () => {
       fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse));
       await apiClient.login('testuser', 'pass');
       fetchSpy.mockClear();
@@ -155,7 +155,7 @@ describe('ApiClient', () => {
       expect(authHeader).toMatch(/^Bearer /);
     });
 
-    it('clears local state even when broker logout fails', async () => {
+    it('clears local state even when Mycelium logout fails', async () => {
       fetchSpy.mockResolvedValueOnce(mockResponse(200, tokenResponse));
       await apiClient.login('testuser', 'pass');
 
@@ -166,7 +166,7 @@ describe('ApiClient', () => {
       expect(apiClient.getUser()).toBeNull();
     });
 
-    it('skips the broker call when no token is stored', async () => {
+    it('skips Mycelium call when no token is stored', async () => {
       // Fresh client, never logged in — logout should be a pure no-op.
       fetchSpy.mockClear();
       await apiClient.logout();

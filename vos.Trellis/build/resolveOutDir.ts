@@ -9,7 +9,7 @@ import { resolve } from 'node:path';
  *      exists relative to the GUI repo, use it. This is the dominant local-
  *      dev setup (Bug #5332 — silently emitting to `dist/` was sending
  *      developers down a stale-bundle rabbit hole).
- *   3. Fallback: `dist/` (CI / standalone builds where no sibling broker exists)
+ *   3. Fallback: `dist/` (CI / standalone builds where no sibling Mycelium exists)
  *
  * Pure function — no side effects beyond filesystem stat.
  */
