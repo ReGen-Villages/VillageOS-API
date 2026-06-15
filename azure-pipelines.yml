@@ -20,6 +20,23 @@ pr:
     include:
       - '*'  # Trigger on all pull requests
 
+# Declare the project wiki as a repository resource (Bug #5525). The project has
+# "Protect access to repositories in YAML pipelines" enabled
+# (enforceReferencedRepoScopedToken), which scopes the job's System.AccessToken to
+# ONLY the repositories referenced by the pipeline. The wiki was never referenced,
+# so the "Mirror Wiki to GitHub" clone failed with TF401019 regardless of ACLs.
+# Declaring it here authorizes the scoped token to read it. No `checkout: wiki`
+# step is added on purpose: a second checkout would remap the self-repo source
+# directory into a subfolder and break every build step that assumes repo root.
+# First develop/main run after this change may need a one-time resource
+# authorization (Pipelines → the run → "Permit") by a build admin.
+resources:
+  repositories:
+    - repository: wiki
+      type: git
+      name: VillageOS-API/VillageOS-API-Wiki
+      ref: refs/heads/wikiMaster
+
 pool:
   vmImage: 'windows-latest'
 
@@ -110,17 +127,17 @@ steps:
 # MIRROR TO GITHUB (develop and main only)
 # --------------------------------------------
 # Requires pipeline variable GITHUB_PAT (secret) — fine-grained PAT with
-# Contents:Read+Write on regenrob/VillageOS-API, or a classic token with repo scope.
+# Contents:Read+Write on ReGen-Villages/VillageOS-API, or a classic token with repo scope.
 # Set in Azure DevOps > Pipelines > Edit > Variables
 - bash: |
-    git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/regenrob/VillageOS-API.git" 2>/dev/null || true
+    git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.git" 2>/dev/null || true
 
     # Rewrite Azure DevOps wiki URLs → GitHub wiki URLs so the GitHub README
     # links to the GitHub wiki (the canonical README keeps DevOps links).
     sed -i'' \
-      -e 's|https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/[0-9]*/|https://github.com/regenrob/VillageOS-API/wiki/|g' \
+      -e 's|https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/[0-9]*/|https://github.com/ReGen-Villages/VillageOS-API/wiki/|g' \
       -e 's|\[VillageOS\](https://dev.azure.com/ReGenVillages/VillageOS)|VillageOS|g' \
-      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki)|[VillageOS API Wiki](https://github.com/regenrob/VillageOS-API/wiki)|g' \
+      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki)|[VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki)|g' \
       README.md
     git add README.md
     git -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
@@ -142,8 +159,10 @@ steps:
 #
 # Prerequisites (one-time):
 #   - GitHub: enable Wikis in repo Settings → Features (creates the .wiki.git repo).
-#   - Azure DevOps: the build service identity needs Read on the project wiki repo
-#     (System.AccessToken is used to clone it).
+#   - Azure DevOps: the project wiki must be declared as the `wiki` repository
+#     resource (see the resources block near the top of this file) so the scoped
+#     System.AccessToken is authorized to clone it. The build identity already has
+#     inherited Read; an explicit ACL grant is NOT required (Bug #5525).
 #   - GITHUB_PAT: same secret as the repo mirror (Contents:Read+Write covers the
 #     wiki repo for fine-grained PATs; classic tokens need repo scope).
 - bash: |
@@ -151,9 +170,12 @@ steps:
     SRC="$AGENT_TEMPDIRECTORY/devops-wiki"
     OUT="$AGENT_TEMPDIRECTORY/wiki-out"
     DEST="$AGENT_TEMPDIRECTORY/github-wiki"
-    WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/regenrob/VillageOS-API.wiki.git"
+    WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.wiki.git"
 
     # 1. Clone the canonical Azure DevOps project wiki (OAuth build token).
+    #    Works because the wiki is declared as the `wiki` repository resource
+    #    above, which authorizes the scoped System.AccessToken to read it
+    #    (see Bug #5525). The build identity already has inherited Read.
     rm -rf "$SRC"
     git -c http.extraheader="AUTHORIZATION: bearer ${SYSTEM_ACCESSTOKEN}" \
       clone --depth 1 \
