@@ -71,7 +71,7 @@ export default function App() {
         error={auth.error}
         loading={auth.loading}
         availableModels={auth.availableModels}
-        seedStatus={auth.seedStatus}
+        startupProgress={auth.startupProgress}
       />
     );
   }

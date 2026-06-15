@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { apiClient, type AuthUser } from '../api/client';
-import { myceliumApi, type SeedStatus } from '../api/myceliumApi';
+import { myceliumApi, type StartupProgress } from '../api/myceliumApi';
 import { useModelStore } from '../stores/modelStore';
 import type { ModelSummary } from '../types/vos';
 
@@ -12,7 +12,7 @@ export interface AuthState {
   modelName: string | null;
   availableModels: ModelSummary[] | null;
   mustChangePassword: boolean;
-  seedStatus: SeedStatus | null;
+  startupProgress: StartupProgress | null;
   login: (username: string, password: string, modelId?: string) => Promise<void>;
   selectModel: (modelId: string) => Promise<void>;
   switchModel: () => Promise<void>;
@@ -43,7 +43,7 @@ export function useAuthState(): AuthState {
   const [modelName, setModelName] = useState<string | null>(apiClient.getModelName());
   const [availableModels, setAvailableModels] = useState<ModelSummary[] | null>(null);
   const [authFailed, setAuthFailed] = useState(false);
-  const [seedStatus, setSeedStatus] = useState<SeedStatus | null>(null);
+  const [startupProgress, setStartupProgress] = useState<StartupProgress | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingCredsRef = useRef<{ username: string; password: string } | null>(null);
 
@@ -106,14 +106,14 @@ export function useAuthState(): AuthState {
 
     const poll = async () => {
       try {
-        const status = await myceliumApi.getSeedStatus();
-        setSeedStatus(status);
+        const status = await myceliumApi.getStartupStatus();
+        setStartupProgress(status);
         if (!status.IsLoading && status.Phase === 'Done') {
           // Seed finished loading — auto-retry login
           // Read creds BEFORE stopPolling (which clears pendingCredsRef)
           const creds = pendingCredsRef.current;
           stopPolling();
-          setSeedStatus(null);
+          setStartupProgress(null);
           if (creds) {
             try {
               const u = await apiClient.login(creds.username, creds.password);
@@ -143,7 +143,7 @@ export function useAuthState(): AuthState {
     setLoading(true);
     setError(null);
     stopPolling();
-    setSeedStatus(null);
+    setStartupProgress(null);
     try {
       const u = await apiClient.login(username, password, selectedModelId);
       setUser(u);
@@ -168,14 +168,14 @@ export function useAuthState(): AuthState {
       //   (a) a seed is currently being loaded at startup → poll and auto-retry
       //   (b) Mycelium has nothing in its library and never will on its own
       //       → must surface an actionable error instead of silently polling a
-      //         seed-status that will never reach Phase=Done (Bug #5324).
+      //         startup-status that will never reach Phase=Done (Bug #5324).
       // Disambiguate by reading SeedLoadingStatus before deciding.
       if (msg.includes('No models loaded')) {
         try {
-          const status = await myceliumApi.getSeedStatus();
+          const status = await myceliumApi.getStartupStatus();
           if (status.IsLoading) {
             setError(null);
-            setSeedStatus(status);
+            setStartupProgress(status);
             startSeedPolling(username, password);
             return;
           }
@@ -297,7 +297,7 @@ export function useAuthState(): AuthState {
     modelName,
     availableModels,
     mustChangePassword: user?.MustChangePassword ?? false,
-    seedStatus,
+    startupProgress,
     login,
     selectModel,
     switchModel,

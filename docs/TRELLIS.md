@@ -1002,7 +1002,7 @@ Singleton `ApiClient` class with:
 | `temporalApi` | Property versions, recent values, thing/model/relationship mutations |
 | `rangeApi` | Composite range summary for things (`GET /api/things/{id}/range-summary` — returns thing ranges, states, and all relationship range data in one call) |
 | `relationshipRangeApi` | Relationship range listing + state queries (`/api/relationships/{id}/ranges`, `/api/relationships/{id}/states`) |
-| `myceliumApi` | Service/daemon listing, start/stop, shutdown, seed library management (`getLibrarySeeds`, `loadSeed`, `saveSeed`), seed-load progress (`GET /api/mycelium/seed-status`) |
+| `myceliumApi` | Service/daemon listing, start/stop, shutdown, seed library management (`getLibrarySeeds`, `loadSeed`, `saveSeed`), startup progress (`GET /api/mycelium/startup-status`) |
 
 ---
 
