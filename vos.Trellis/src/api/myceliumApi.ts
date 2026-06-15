@@ -1,7 +1,7 @@
 import { apiClient } from './client';
 import type { RegisteredService, DaemonInfo } from '../types/mycelium';
 
-export interface SeedStatus {
+export interface StartupProgress {
   IsLoading: boolean;
   CurrentFile: string;
   Phase: string;
@@ -11,9 +11,9 @@ export interface SeedStatus {
 
 export const myceliumApi = {
   /** Unauthenticated — check seed loading progress before login completes. */
-  getSeedStatus: async (): Promise<SeedStatus> => {
+  getStartupStatus: async (): Promise<StartupProgress> => {
     const baseUrl = import.meta.env.VITE_BROKER_URL || '';
-    const res = await fetch(`${baseUrl}/api/mycelium/seed-status`);
+    const res = await fetch(`${baseUrl}/api/mycelium/startup-status`);
     if (!res.ok) throw new Error('Failed to fetch seed status');
     return res.json();
   },

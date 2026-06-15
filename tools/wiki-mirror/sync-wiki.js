@@ -5,7 +5,7 @@
 //
 // The canonical wiki lives in the Azure DevOps project wiki. This tool transforms
 // a clone of that wiki into the flat, GitHub-flavoured form expected by the GitHub
-// wiki repo (regenrob/VillageOS-API.wiki), rewriting every DevOps-specific link to
+// wiki repo (ReGen-Villages/VillageOS-API.wiki), rewriting every DevOps-specific link to
 // its GitHub target so visitors stay on GitHub.
 //
 // Usage: node sync-wiki.js <devops-wiki-dir> <output-dir>
@@ -16,7 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const REPO = 'https://github.com/regenrob/VillageOS-API';
+const REPO = 'https://github.com/ReGen-Villages/VillageOS-API';
 const WIKI = `${REPO}/wiki`;
 // Branch that GitHub blob links point at. The mirror pushes develop and main;
 // main is the stable branch for documentation deep-links.

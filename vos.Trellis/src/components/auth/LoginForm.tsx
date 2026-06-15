@@ -1,6 +1,6 @@
 import { useState, useMemo, type FormEvent } from 'react';
 import type { ModelSummary } from '../../types/vos';
-import type { SeedStatus } from '../../api/myceliumApi';
+import type { StartupProgress } from '../../api/myceliumApi';
 import { RegenLogo } from './RegenLogo';
 
 interface LoginFormProps {
@@ -10,7 +10,7 @@ interface LoginFormProps {
   error: string | null;
   loading: boolean;
   availableModels: ModelSummary[] | null;
-  seedStatus?: SeedStatus | null;
+  startupProgress?: StartupProgress | null;
 }
 
 type SortKey = 'name' | 'size';
@@ -23,7 +23,7 @@ function parseSeedInfo(name: string): { label: string; sizeMb: number | null } {
   return { label: name, sizeMb: null };
 }
 
-export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, availableModels, seedStatus }: LoginFormProps) {
+export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, availableModels, startupProgress }: LoginFormProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -242,19 +242,19 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
               disabled={loading}
             />
           </div>
-          {seedStatus?.IsLoading && (
+          {startupProgress?.IsLoading && (
             <div className="bg-blue-900/40 border border-blue-700 text-blue-200 px-3 py-3 rounded text-sm space-y-1">
               <div className="flex items-center gap-2">
                 <svg className="animate-spin h-4 w-4 text-blue-400" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                <span className="font-medium">Loading seed: {seedStatus.CurrentFile}</span>
+                <span className="font-medium">Loading seed: {startupProgress.CurrentFile}</span>
               </div>
               <div className="text-xs text-blue-300 pl-6">
-                {seedStatus.Phase}
-                {seedStatus.ThingsLoaded > 0 && ` — ${seedStatus.ThingsLoaded.toLocaleString()} things`}
-                {seedStatus.RelationshipsLoaded > 0 && `, ${seedStatus.RelationshipsLoaded.toLocaleString()} relationships`}
+                {startupProgress.Phase}
+                {startupProgress.ThingsLoaded > 0 && ` — ${startupProgress.ThingsLoaded.toLocaleString()} things`}
+                {startupProgress.RelationshipsLoaded > 0 && `, ${startupProgress.RelationshipsLoaded.toLocaleString()} relationships`}
               </div>
               <div className="text-xs text-blue-400 pl-6">
                 Will sign in automatically when ready.
@@ -263,10 +263,10 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
           )}
           <button
             type="submit"
-            disabled={loading || !username || !password || !!seedStatus?.IsLoading}
+            disabled={loading || !username || !password || !!startupProgress?.IsLoading}
             className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"
           >
-            {seedStatus?.IsLoading ? 'Waiting for seed...' : loading ? 'Signing in...' : 'Sign In'}
+            {startupProgress?.IsLoading ? 'Waiting for seed...' : loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
       </div>

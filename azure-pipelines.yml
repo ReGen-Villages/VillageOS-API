@@ -110,17 +110,17 @@ steps:
 # MIRROR TO GITHUB (develop and main only)
 # --------------------------------------------
 # Requires pipeline variable GITHUB_PAT (secret) — fine-grained PAT with
-# Contents:Read+Write on regenrob/VillageOS-API, or a classic token with repo scope.
+# Contents:Read+Write on ReGen-Villages/VillageOS-API, or a classic token with repo scope.
 # Set in Azure DevOps > Pipelines > Edit > Variables
 - bash: |
-    git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/regenrob/VillageOS-API.git" 2>/dev/null || true
+    git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.git" 2>/dev/null || true
 
     # Rewrite Azure DevOps wiki URLs → GitHub wiki URLs so the GitHub README
     # links to the GitHub wiki (the canonical README keeps DevOps links).
     sed -i'' \
-      -e 's|https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki/[0-9]*/|https://github.com/regenrob/VillageOS-API/wiki/|g' \
+      -e 's|https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/[0-9]*/|https://github.com/ReGen-Villages/VillageOS-API/wiki/|g' \
       -e 's|\[VillageOS\](https://dev.azure.com/ReGenVillages/VillageOS)|VillageOS|g' \
-      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)|[VillageOS API Wiki](https://github.com/regenrob/VillageOS-API/wiki)|g' \
+      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki)|[VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki)|g' \
       README.md
     git add README.md
     git -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
@@ -142,20 +142,29 @@ steps:
 #
 # Prerequisites (one-time):
 #   - GitHub: enable Wikis in repo Settings → Features (creates the .wiki.git repo).
-#   - Azure DevOps: the build service identity needs Read on the project wiki repo
-#     (System.AccessToken is used to clone it).
-#   - GITHUB_PAT: same secret as the repo mirror (Contents:Read+Write covers the
-#     wiki repo for fine-grained PATs; classic tokens need repo scope).
+#   - AZURE_DEVOPS_PAT (secret pipeline variable): a PAT with Code:Read used to
+#     clone the canonical project wiki. System.AccessToken can NOT be used here:
+#     the project has "Protect access to repositories in YAML pipelines"
+#     (enforceReferencedRepoScopedToken), which scopes the build token to only
+#     checked-out repos — the wiki isn't one, so it returns TF401019. A PAT
+#     bypasses that scoping. Declaring the wiki as a repository resource does NOT
+#     extend the scoped token (verified), and a `checkout: wiki` step would remap
+#     the self-repo source dir and break the build (Bug #5525).
+#   - GITHUB_PAT: classic token with repo scope (covers both the repo push and the
+#     wiki push; fine-grained PATs cannot reliably push to GitHub wikis).
 - bash: |
     set -euo pipefail
     SRC="$AGENT_TEMPDIRECTORY/devops-wiki"
     OUT="$AGENT_TEMPDIRECTORY/wiki-out"
     DEST="$AGENT_TEMPDIRECTORY/github-wiki"
-    WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/regenrob/VillageOS-API.wiki.git"
+    WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.wiki.git"
 
-    # 1. Clone the canonical Azure DevOps project wiki (OAuth build token).
+    # 1. Clone the canonical Azure DevOps project wiki using AZURE_DEVOPS_PAT.
+    #    System.AccessToken is scoped to checked-out repos only and the wiki is
+    #    not one, so it returns TF401019; a PAT bypasses that scoping (Bug #5525).
     rm -rf "$SRC"
-    git -c http.extraheader="AUTHORIZATION: bearer ${SYSTEM_ACCESSTOKEN}" \
+    AZDO_AUTH=$(printf ':%s' "$AZURE_DEVOPS_PAT" | base64 | tr -d '\n')
+    git -c http.extraheader="Authorization: Basic ${AZDO_AUTH}" \
       clone --depth 1 \
       "https://dev.azure.com/ReGenVillages/VillageOS-API/_git/$(wikiRepoId)" "$SRC"
 
@@ -183,5 +192,5 @@ steps:
   condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
   env:
     GITHUB_PAT: $(GITHUB_PAT)
-    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
 

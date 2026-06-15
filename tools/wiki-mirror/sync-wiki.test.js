@@ -11,8 +11,8 @@ const {
   decodeName,
 } = require('./sync-wiki');
 
-const WIKI = 'https://github.com/regenrob/VillageOS-API/wiki';
-const BLOB = 'https://github.com/regenrob/VillageOS-API/blob/main';
+const WIKI = 'https://github.com/ReGen-Villages/VillageOS-API/wiki';
+const BLOB = 'https://github.com/ReGen-Villages/VillageOS-API/blob/main';
 
 test('internal wiki links become absolute GitHub wiki URLs', () => {
   assert.equal(convert('[vos.Trellis](/GUI)'), `[vos.Trellis](${WIKI}/GUI)`);

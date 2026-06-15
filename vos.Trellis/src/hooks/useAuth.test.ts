@@ -30,10 +30,10 @@ vi.mock('../api/client', () => ({
   AuthRequiredError: class extends Error {},
 }));
 
-const mockGetSeedStatus = vi.fn();
+const mockGetStartupProgress = vi.fn();
 vi.mock('../api/myceliumApi', () => ({
   myceliumApi: {
-    getSeedStatus: () => mockGetSeedStatus(),
+    getStartupStatus: () => mockGetStartupProgress(),
     getLibrarySeeds: vi.fn().mockResolvedValue([]),
     loadSeed: vi.fn(),
     saveSeed: vi.fn(),
@@ -57,7 +57,7 @@ function noModelsError(): Error & { body: string } {
 describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
   beforeEach(() => {
     mockLogin.mockReset();
-    mockGetSeedStatus.mockReset();
+    mockGetStartupProgress.mockReset();
     mockRestoreSession.mockReset().mockResolvedValue(false);
     mockInitialUser = null;
     mockIsAuth = false;
@@ -71,7 +71,7 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
     // Mycelium rejects login because no models are loaded
     mockLogin.mockRejectedValue(noModelsError());
     // SeedLoadingStatus default: IsLoading=false, Phase="" (never started)
-    mockGetSeedStatus.mockResolvedValue({
+    mockGetStartupProgress.mockResolvedValue({
       IsLoading: false,
       CurrentFile: '',
       Phase: '',
@@ -95,9 +95,9 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
     expect(result.current.isAuthenticated).toBe(false);
   });
 
-  it('starts seed-status polling (and clears the error) when a seed is actively loading', async () => {
+  it('starts startup-status polling (and clears the error) when a seed is actively loading', async () => {
     mockLogin.mockRejectedValueOnce(noModelsError());
-    mockGetSeedStatus.mockResolvedValue({
+    mockGetStartupProgress.mockResolvedValue({
       IsLoading: true,
       CurrentFile: 'MarthasVineyard.seed.json',
       Phase: 'Deserializing',
@@ -111,19 +111,19 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
       try { await result.current.login('admin', 'admin'); } catch { /* expected */ }
     });
 
-    // Seed-loading path: error suppressed, seedStatus surfaced for the banner
+    // Seed-loading path: error suppressed, startupProgress surfaced for the banner
     await waitFor(() => {
-      expect(result.current.seedStatus?.IsLoading).toBe(true);
+      expect(result.current.startupProgress?.IsLoading).toBe(true);
     });
     expect(result.current.error).toBeNull();
-    expect(result.current.seedStatus?.CurrentFile).toBe('MarthasVineyard.seed.json');
+    expect(result.current.startupProgress?.CurrentFile).toBe('MarthasVineyard.seed.json');
   });
 });
 
 describe('useAuthState logout: forces a re-render gate (Bug #5325)', () => {
   beforeEach(() => {
     mockLogin.mockReset();
-    mockGetSeedStatus.mockReset();
+    mockGetStartupProgress.mockReset();
     mockRestoreSession.mockReset().mockResolvedValue(false);
     // Simulate "already logged in" — the hook reads getUser() at mount and
     // isAuthenticated() at every render. The latter mirrors apiClient.token,
