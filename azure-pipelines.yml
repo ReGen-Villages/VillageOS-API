@@ -20,23 +20,6 @@ pr:
     include:
       - '*'  # Trigger on all pull requests
 
-# Declare the project wiki as a repository resource (Bug #5525). The project has
-# "Protect access to repositories in YAML pipelines" enabled
-# (enforceReferencedRepoScopedToken), which scopes the job's System.AccessToken to
-# ONLY the repositories referenced by the pipeline. The wiki was never referenced,
-# so the "Mirror Wiki to GitHub" clone failed with TF401019 regardless of ACLs.
-# Declaring it here authorizes the scoped token to read it. No `checkout: wiki`
-# step is added on purpose: a second checkout would remap the self-repo source
-# directory into a subfolder and break every build step that assumes repo root.
-# First develop/main run after this change may need a one-time resource
-# authorization (Pipelines → the run → "Permit") by a build admin.
-resources:
-  repositories:
-    - repository: wiki
-      type: git
-      name: VillageOS-API/VillageOS-API-Wiki
-      ref: refs/heads/wikiMaster
-
 pool:
   vmImage: 'windows-latest'
 
@@ -159,12 +142,16 @@ steps:
 #
 # Prerequisites (one-time):
 #   - GitHub: enable Wikis in repo Settings → Features (creates the .wiki.git repo).
-#   - Azure DevOps: the project wiki must be declared as the `wiki` repository
-#     resource (see the resources block near the top of this file) so the scoped
-#     System.AccessToken is authorized to clone it. The build identity already has
-#     inherited Read; an explicit ACL grant is NOT required (Bug #5525).
-#   - GITHUB_PAT: same secret as the repo mirror (Contents:Read+Write covers the
-#     wiki repo for fine-grained PATs; classic tokens need repo scope).
+#   - AZURE_DEVOPS_PAT (secret pipeline variable): a PAT with Code:Read used to
+#     clone the canonical project wiki. System.AccessToken can NOT be used here:
+#     the project has "Protect access to repositories in YAML pipelines"
+#     (enforceReferencedRepoScopedToken), which scopes the build token to only
+#     checked-out repos — the wiki isn't one, so it returns TF401019. A PAT
+#     bypasses that scoping. Declaring the wiki as a repository resource does NOT
+#     extend the scoped token (verified), and a `checkout: wiki` step would remap
+#     the self-repo source dir and break the build (Bug #5525).
+#   - GITHUB_PAT: classic token with repo scope (covers both the repo push and the
+#     wiki push; fine-grained PATs cannot reliably push to GitHub wikis).
 - bash: |
     set -euo pipefail
     SRC="$AGENT_TEMPDIRECTORY/devops-wiki"
@@ -172,12 +159,12 @@ steps:
     DEST="$AGENT_TEMPDIRECTORY/github-wiki"
     WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.wiki.git"
 
-    # 1. Clone the canonical Azure DevOps project wiki (OAuth build token).
-    #    Works because the wiki is declared as the `wiki` repository resource
-    #    above, which authorizes the scoped System.AccessToken to read it
-    #    (see Bug #5525). The build identity already has inherited Read.
+    # 1. Clone the canonical Azure DevOps project wiki using AZURE_DEVOPS_PAT.
+    #    System.AccessToken is scoped to checked-out repos only and the wiki is
+    #    not one, so it returns TF401019; a PAT bypasses that scoping (Bug #5525).
     rm -rf "$SRC"
-    git -c http.extraheader="AUTHORIZATION: bearer ${SYSTEM_ACCESSTOKEN}" \
+    AZDO_AUTH=$(printf ':%s' "$AZURE_DEVOPS_PAT" | base64 | tr -d '\n')
+    git -c http.extraheader="Authorization: Basic ${AZDO_AUTH}" \
       clone --depth 1 \
       "https://dev.azure.com/ReGenVillages/VillageOS-API/_git/$(wikiRepoId)" "$SRC"
 
@@ -205,5 +192,5 @@ steps:
   condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
   env:
     GITHUB_PAT: $(GITHUB_PAT)
-    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
 
