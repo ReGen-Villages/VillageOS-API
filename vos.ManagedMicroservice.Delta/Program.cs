@@ -155,7 +155,7 @@ finally
 // template thing, creating the registered thing + its `is` relationship) target whichever model
 // Delta's --token is scoped to. The mycelium launches one shared endpoint daemon and does not yet
 // propagate the caller's model on /handle, so true per-model routing is deferred — see
-// docs/FUTURE_ARCHITECTURE.md section 5 and Feature #5478.
+// docs/MICROSERVICE_HOST_ROADMAP.md section 5 and Feature #5478.
 static async Task<IResult> HandleRegisterEndpointRequestAsync(
     RegisterEndpointRequest request,
     MyceliumClient myceliumClient,
