@@ -8,6 +8,19 @@ let refCount = 0;
 let connectedState = false;
 const listeners = new Set<() => void>();
 
+// Hub handlers, registered independently of any single HubConnection instance.
+// The connection can be torn down and rebuilt (StrictMode remount, refCount
+// cycling, reconnect) — when that happens we must re-attach every handler to
+// the new connection, otherwise the server pushes to a live socket that has no
+// client methods and the GUI silently drops PropertyChanged/ActivityEvent
+// (Bug #5527: no node flash, no live panel update, no activity feed).
+type HubHandler = { event: string; handler: (...args: unknown[]) => void };
+const hubHandlers = new Set<HubHandler>();
+
+function attachAllHandlers(connection: HubConnection) {
+  hubHandlers.forEach(({ event, handler }) => connection.on(event, handler));
+}
+
 function notifyListeners() {
   listeners.forEach((l) => l());
 }
@@ -22,6 +35,11 @@ async function startWithRetry(connection: HubConnection) {
   for (let i = 0; i < delays.length; i++) {
     try {
       if (delays[i] > 0) await new Promise((r) => setTimeout(r, delays[i]));
+      // Bug #5527: bail if this connection was released/replaced while we were
+      // waiting. Otherwise a lingering retry loop resurrects an orphaned socket
+      // that the server then pushes to — but its handlers live on the current
+      // sharedConnection, so those messages are dropped.
+      if (connection !== sharedConnection) return;
       if (connection.state !== HubConnectionState.Disconnected) return; // already started
       await connection.start();
       connectedState = true;
@@ -63,10 +81,16 @@ function acquireConnection(): HubConnection {
       notifyListeners();
     });
 
+    // Re-attach any handlers registered before this (re)build so a rebuilt
+    // connection is never left without client methods (Bug #5527).
+    attachAllHandlers(connection);
+
+    // Publish as the shared connection *before* starting so the startWithRetry
+    // orphan-abort guard (connection === sharedConnection) holds.
+    sharedConnection = connection;
+
     // Start with retry — handles Mycelium not ready, token fetch failures, etc.
     startWithRetry(connection);
-
-    sharedConnection = connection;
   }
   refCount++;
   return sharedConnection;
@@ -101,10 +125,16 @@ export function useSignalR() {
   const connected = useSyncExternalStore(subscribe, getSnapshot);
 
   const on = useCallback((event: string, handler: (...args: unknown[]) => void) => {
-    const conn = sharedConnection;
-    if (!conn) return () => {};
-    conn.on(event, handler);
-    return () => conn.off(event, handler);
+    // Register in the connection-independent registry so the handler is
+    // re-attached across connection rebuilds (Bug #5527), and attach it to the
+    // live connection now if one exists.
+    const entry: HubHandler = { event, handler };
+    hubHandlers.add(entry);
+    sharedConnection?.on(event, handler);
+    return () => {
+      hubHandlers.delete(entry);
+      sharedConnection?.off(event, handler);
+    };
   }, []);
 
   const isConnected = useCallback(() => {
