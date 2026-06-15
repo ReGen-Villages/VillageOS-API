@@ -54,7 +54,7 @@ All operations are performed remotely on the Mycelium's model.
 
 ### Starting the CLI
 
-**1. Start the Mycelium first.** Mycelium (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there (see that repo's `docs/MYCELIUM_GUIDE.md`). It listens on `https://localhost:7243` by default.
+**1. Start the Mycelium first.** Mycelium (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there (see the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki) for the Mycelium Guide). It listens on `https://localhost:7243` by default.
 
 **2. In a new terminal, start the CLI:**
 
@@ -1208,8 +1208,8 @@ The CLI accepts self-signed certificates by default for development. For product
 ## Getting Help
 
 - **CLI Help:** Type `help` at the prompt
-- **Mycelium Documentation:** See [BROKER_GUIDE.md](BROKER_GUIDE.md)
-- **Platform Documentation:** See [VILLAGEOS_PLATFORM_DOCUMENTATION.md](VILLAGEOS_PLATFORM_DOCUMENTATION.md)
+- **Mycelium Documentation:** See the Mycelium Guide in the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)
+- **Platform Documentation:** See the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)
 
 ---
 

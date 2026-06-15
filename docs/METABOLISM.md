@@ -157,7 +157,7 @@ These are set on the relationship (not the things) and control the simulation:
 | `startUtc` | ISO 8601 | now | When to start ticking |
 | `endUtc` | ISO 8601 | 2099-12-31 | When to stop |
 
-> **Typed envelopes in seed files**: When defining metabolism properties in seed JSON files, numeric properties (`quantity`, `frequencySeconds`, `startDelaySeconds`, `reorder_point`) **must** use typed envelopes: `{"typeInfo": "vos.Decimal", "value": 5.0}`. Plain numeric values are stored as `vos.Integer`, which truncates decimal increments to 0. This applies to both pool thing properties and relationship properties. See [Mycelium Guide — Seed Format](BROKER_GUIDE.md) for details.
+> **Typed envelopes in seed files**: When defining metabolism properties in seed JSON files, numeric properties (`quantity`, `frequencySeconds`, `startDelaySeconds`, `reorder_point`) **must** use typed envelopes: `{"typeInfo": "vos.Decimal", "value": 5.0}`. Plain numeric values are stored as `vos.Integer`, which truncates decimal increments to 0. This applies to both pool thing properties and relationship properties. See the Mycelium Guide — Seed Format in the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki) for details.
 
 ## How to Use
 

@@ -12,8 +12,7 @@ This doc has two parts. **[Part 1 — User Guide](#part-1--user-guide)** is a
 how-to for someone clicking around the app: navigating, searching, the
 dashboard, creating data. **[Part 2 — Technical Specification](#part-2--technical-specification)**
 is reference material for someone writing GUI code: architecture, component
-structure, state management, the API and SignalR layer, Mycelium
-modifications.
+structure, state management, and the API and SignalR layer.
 
 > **Screenshots**: To re-capture screenshots, run
 > `node docs/capture-screenshots.mjs` while the Mycelium and GUI dev server
@@ -51,8 +50,7 @@ modifications.
 10. [Dashboard internals](#21-dashboard-internals)
 11. [Common Components](#22-common-components)
 12. [Seed Files](#23-seed-files)
-13. [Mycelium Modifications](#24-mycelium-modifications-for-gui-support)
-14. [Verification](#25-verification)
+13. [Verification](#24-verification)
 
 ---
 
@@ -145,7 +143,7 @@ After loading, click **Graph** in the sidebar to see your model rendered as an i
 |-----------|----------|
 | `village.seed.json` | Full-featured demo: type hierarchies, multi-domain relationships (energy, water, biodiversity, transport), IFC geometry for single-building 3D views |
 | `warehouse.seed.json` | Type hierarchy exploration: zones, conveyors, AMRs, sensors, controllers with multi-level inheritance (e.g., `ConveyorPLC → Controller → SmartAppliance`) |
-| IFC-imported seeds | Import IFC (BIM) files via `vos.Tools.IfcIngest` — see [IFC_IMPORT_GUIDE.md](IFC_IMPORT_GUIDE.md). |
+| IFC-imported seeds | Import IFC (BIM) files via `vos.Tools.IfcIngest`. See the IFC import documentation in the [VillageOS API wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki). |
 
 The **village seed** is recommended for this guide because it demonstrates all features including per-building 3D views.
 
@@ -813,13 +811,9 @@ Layout parameters are read from the model's "GUI Settings" Thing (via `extractLa
 
 ### Search & Filtering
 
-**GraphPage** provides a search bar with:
-
-- Text search (substring match by default)
-- Case-sensitive toggle (`Aa` button)
-- Exact-match toggle (`=` button)
-- Regex toggle (`.*` button)
-- Match count display
+**GraphPage** provides the search bar described in [Section 4](#4-searching)
+(substring/case-sensitive/exact-match/regex toggles plus a match count). The
+technical notes below cover how that search drives the renderer.
 
 Search filtering expands matched nodes to include their direct neighbors and predicate things so edges always have both endpoints and edge labels resolve to names (not GUIDs).
 
@@ -1125,12 +1119,9 @@ Four components on `DashboardPage`:
 
 ### Health Status Indicators
 
-- **Healthy** → Green badge
-- **Unhealthy** → Yellow badge
-- **Unreachable** → Red badge
-- **Unknown** → Gray badge
-- **Running** → Green pill
-- **Stopped** → Red pill
+Service health badges (Healthy/Unhealthy/Unreachable/Unknown) and daemon
+running/stopped pills follow the color scheme documented in
+[Section 7.2](#72-registered-services) and [Section 7.3](#73-daemons).
 
 ---
 
@@ -1213,21 +1204,7 @@ Sensor ← MeasuringSensor ← (weight, temp, proximity sensors)
 
 ---
 
-## 24. Mycelium Modifications (for GUI support)
-
-| File | Changes |
-|---|---|
-| `Program.cs` | CORS policy for `localhost:5173`, JWT auth with SignalR query-string token, SignalR hub registration |
-| `Controllers/ThingsController.cs`, `RelationshipsController.cs`, `RangesController.cs`, etc. | `IHubContext<VosHub>` injection, emits events after all mutation endpoints |
-| `Controllers/MyceliumController.cs` | `IHubContext<VosHub>` injection, emits events after daemon operations |
-| `Services/LivenessMonitor.cs` | Emits `ServiceHealthChanged` after health checks |
-| `Services/VillageOSServiceBroker.cs` | Emits `DaemonStatusChanged` after daemon start/stop |
-| `Hubs/VosHub.cs` | SignalR hub class (push-only) |
-| `Hubs/IVosHubClient.cs` | Strongly-typed client interface (10+ event methods) |
-
----
-
-## 25. Verification
+## 24. Verification
 
 1. **Dev server**: `cd vos.Trellis && npm run dev` — Vite serves at `localhost:5173`
 2. **Type check**: `npx tsc --noEmit` — no errors

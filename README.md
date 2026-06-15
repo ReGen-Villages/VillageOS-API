@@ -9,7 +9,7 @@ Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev
 **vos.Trellis** — React application for graph visualization and interaction.
 
 - Sigma.js v3 + graphology for graph rendering
-- Three.js + `@thatopen/fragments` for the IFC Model viewer (Feature #5248; loader, picking, plan/section toolbar, and shared `NodeDetailPanel` all shipped)
+- Three.js + `@thatopen/fragments` for the IFC Model viewer (loader, picking, plan/section toolbar, and shared `NodeDetailPanel`)
 - SignalR real-time updates with flash effects
 - Zustand state management
 - Dashboard, Graph, Model, Temporal, Things, and Properties pages
@@ -80,14 +80,14 @@ local artifact.
 
 ## Documentation
 
-Full documentation is available in the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki).
+Full documentation is available in the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki).
 
 Key pages:
 
-- [Trellis](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTrellis) — visualization stack, tech spec, user guide
-- [Taproot](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTaproot) — command reference
-- [Services](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/40/Services) — microservice documentation
-- [API Reference](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/45/API-Reference) — REST endpoints, SignalR, authentication
+- [Trellis](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTrellis) — visualization stack, tech spec, user guide
+- [Taproot](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTaproot) — command reference
+- [Services](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki/40/Services) — microservice documentation
+- [API Reference](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki/45/API-Reference) — REST endpoints, SignalR, authentication
 
 ## License
 
