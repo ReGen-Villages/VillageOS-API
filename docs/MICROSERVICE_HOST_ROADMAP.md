@@ -3,8 +3,8 @@
 This file collects design proposals and roadmap items for the open-source
 microservice host and delivery-contract framework that have **not yet been
 implemented**. Each section opens with a status line. Once a section ships, move
-its description to the relevant topic file (`MICROSERVICES.md`,
-`TEST-STATE.md`, …) and delete the entry here.
+its description to the relevant topic file (`MICROSERVICES.md`, …) and delete
+the entry here.
 
 > **Status legend:** `PROPOSED` (idea, no work item) · `PLANNED` (Feature exists,
 > not started) · `IN PROGRESS` (Phase N landing) · `BLOCKED` (waiting on X) ·
@@ -345,7 +345,6 @@ command-handler construction. Several rough edges fall out of that:
 
 - `vos.Taproot.MyceliumClient` is unit-testable only via an `internal`
   HttpClient-injection constructor plus `InternalsVisibleTo`.
-  `docs/TEST-STATE.md` flags this as a workaround.
 - `Program` shows 0 % coverage in the snapshot. The entry-point exclusion is
   honest — there's no shell to test, just a `Main` that wires things up — but
   a `HostBuilder` makes `Program` a thin bootstrap that *can* be touched by

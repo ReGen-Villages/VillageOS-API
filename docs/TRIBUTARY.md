@@ -152,4 +152,3 @@ calculation deliberately lives on the other side of the boundary.
   registrations are validated against it.
 - `METABOLISM.md` — the derived-calculation engine on the other side of the
   fetch-and-shape boundary.
-- `TEST-STATE.md` — Tributary coverage and the `WebApplicationFactory` test patterns.
