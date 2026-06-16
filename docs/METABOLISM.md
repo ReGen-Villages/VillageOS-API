@@ -18,6 +18,13 @@ When a relationship like `Chemistry-Test --[consumes]--> Reagent-Pool` is create
 { "ServiceArgs": "--mode=consumes" }
 ```
 
+> `ServiceArgs` also supports `{{...}}` template expressions that Mycelium resolves
+> against the model before launching the daemon — e.g. `{{thing:Name}}` (a thing's
+> GUID), `{{thing:Name.property}}` (a property value), `{{predicate:self}}` (this
+> handler's predicate GUID), and `{{Mycelium:url}}`. Metabolism uses only the static
+> `--mode` flag, but other handlers can pull startup context this way. An unresolvable
+> expression fails the launch rather than passing a raw template string to the daemon.
+
 This means there are two running processes (on ports 7102 and 7103), but built from the same source.
 
 ### Daemon mode, not request-response
