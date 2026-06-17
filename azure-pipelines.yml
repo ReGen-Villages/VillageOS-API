@@ -117,10 +117,14 @@ steps:
 
     # Rewrite Azure DevOps wiki URLs → GitHub wiki URLs so the GitHub README
     # links to the GitHub wiki (the canonical README keeps DevOps links).
+    # The canonical README uses the ID-stable pagePath form
+    # (.../VillageOS-API-Wiki?pagePath=%2FPage); the page name maps to the
+    # GitHub wiki slug. The wiki-root link and the VillageOS project link are
+    # rewritten by exact match. Keep these patterns in sync with README.md.
     sed -i'' \
-      -e 's|https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki/wikis/VillageOS-API-Wiki/[0-9]*/|https://github.com/ReGen-Villages/VillageOS-API/wiki/|g' \
+      -e 's|https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2F\([^)]*\)|https://github.com/ReGen-Villages/VillageOS-API/wiki/\1|g' \
       -e 's|\[VillageOS\](https://dev.azure.com/ReGenVillages/VillageOS)|VillageOS|g' \
-      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS%20API/_wiki)|[VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki)|g' \
+      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)|[VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki)|g' \
       README.md
     git add README.md
     git -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
