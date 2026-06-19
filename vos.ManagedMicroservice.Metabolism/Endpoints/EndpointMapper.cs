@@ -5,14 +5,6 @@ using Serilog;
 
 namespace vos.ManagedMicroservice.Metabolism.Endpoints;
 
-/// <summary>
-/// Maps all HTTP endpoints for the Metabolism service. Route handlers receive their
-/// dependencies (<see cref="HandleRequestProcessor"/>, <see cref="Services.Metabolism"/>,
-/// <see cref="MyceliumClient"/>) through minimal-API DI parameter injection rather than via
-/// captured locals — Task #5456 brings this in line with Tributary's shape. Cross-cutting
-/// values that aren't services (the daemon's <c>mode</c> label, the in-process request
-/// counter) stay as method parameters.
-/// </summary>
 public static class EndpointMapper
 {
     public static WebApplication MapMetabolismEndpoints(
@@ -22,7 +14,6 @@ public static class EndpointMapper
         Action incrementRequestCount,
         bool authEnabled = false)
     {
-        // POST /handle - Register a relationship for continuous simulation
         var handleEndpoint = app.MapPost("/handle", (HandleRequest request, HandleRequestProcessor processor) =>
         {
             incrementRequestCount();
@@ -58,7 +49,6 @@ public static class EndpointMapper
         handleEndpoint.RequireContract<HandleRequest>();
         if (authEnabled) handleEndpoint.RequireAuthorization();
 
-        // GET /simulations - List all active simulations
         app.MapGet("/simulations", (Services.Metabolism engine) =>
         {
             return engine.GetAll().Select(e => new
@@ -81,7 +71,6 @@ public static class EndpointMapper
             });
         });
 
-        // DELETE /simulations/{relationshipId} - Cancel a specific simulation
         app.MapDelete("/simulations/{relationshipId}", (string relationshipId, Services.Metabolism engine) =>
         {
             if (engine.Cancel(relationshipId))
@@ -89,7 +78,6 @@ public static class EndpointMapper
             return Results.NotFound(new { error = $"No simulation found for {relationshipId}" });
         });
 
-        // GET /health - Health check endpoint
         app.MapGet("/health", (Services.Metabolism engine) => new
         {
             status = "Healthy",
@@ -100,7 +88,6 @@ public static class EndpointMapper
             uptime = "active"
         });
 
-        // GET /stats - Service statistics
         app.MapGet("/stats", (Services.Metabolism engine, MyceliumClient client) => new
         {
             service = $"Metabolism-{mode}",
@@ -112,7 +99,6 @@ public static class EndpointMapper
             totalSimulations = engine.GetAll().Count()
         });
 
-        // POST /shutdown - Graceful shutdown
         var shutdownEndpoint = app.MapPost("/shutdown", (IHostApplicationLifetime lifetime, Services.Metabolism engine) =>
         {
             _ = Task.Run(async () =>

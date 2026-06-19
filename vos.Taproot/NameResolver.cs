@@ -2,11 +2,7 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-/// <summary>
-/// Resolves thing names or IDs to GUIDs and vice versa.
-/// Supports both explicit GUIDs and name-based lookups.
-/// Names must be unambiguous (unique) for resolution to succeed.
-/// </summary>
+/// <summary>Resolves between thing GUIDs and names; name lookups must be unambiguous to succeed.</summary>
 public class NameResolver
 {
     private readonly MyceliumClient _mycelium;
@@ -18,38 +14,25 @@ public class NameResolver
         _mycelium = mycelium;
     }
 
-    /// <summary>
-    /// Clears the cached things, forcing a fresh fetch on next resolution.
-    /// </summary>
     public void ClearCache()
     {
         _cachedThings = null;
         _guidToNameMap = null;
     }
 
-    /// <summary>
-    /// Resolves a name or ID string to a GUID.
-    /// </summary>
-    /// <param name="nameOrId">A GUID string or thing name</param>
-    /// <returns>A result containing the resolved GUID or an error message</returns>
     public async Task<ResolveResult> ResolveThingAsync(string nameOrId)
     {
-        // First, try to parse as GUID (maintains backwards compatibility)
         if (Guid.TryParse(nameOrId, out var id))
         {
             return ResolveResult.Success(id);
         }
 
-        // Not a GUID, so try to look up by name
         return await ResolveByNameAsync(nameOrId);
     }
 
-    /// <summary>
-    /// Resolves multiple names or IDs in a single call, using a single API fetch.
-    /// </summary>
+    /// <summary>Resolves multiple names or IDs with a single API fetch.</summary>
     public async Task<ResolveResult[]> ResolveThingsAsync(params string[] namesOrIds)
     {
-        // Pre-fetch things once for all resolutions
         await EnsureThingsCachedAsync();
 
         var results = new ResolveResult[namesOrIds.Length];
@@ -60,9 +43,7 @@ public class NameResolver
         return results;
     }
 
-    /// <summary>
-    /// Resolves a GUID to a thing name. Returns the GUID string if name not found.
-    /// </summary>
+    /// <summary>Resolves a GUID to a thing name, falling back to the GUID string if not found.</summary>
     public async Task<string> ResolveNameAsync(string guidString)
     {
         await EnsureGuidToNameMapAsync();
@@ -76,17 +57,11 @@ public class NameResolver
         return guidString;
     }
 
-    /// <summary>
-    /// Resolves a GUID to a thing name. Returns the GUID string if name not found.
-    /// </summary>
     public async Task<string> ResolveNameAsync(Guid guid)
     {
         return await ResolveNameAsync(guid.ToString());
     }
 
-    /// <summary>
-    /// Builds a dictionary mapping GUIDs to names for quick lookup.
-    /// </summary>
     public async Task<Dictionary<string, string>> GetGuidToNameMapAsync()
     {
         await EnsureGuidToNameMapAsync();
@@ -169,9 +144,6 @@ public class NameResolver
     }
 }
 
-/// <summary>
-/// Result of a name resolution attempt.
-/// </summary>
 public readonly struct ResolveResult
 {
     public bool IsSuccess { get; }

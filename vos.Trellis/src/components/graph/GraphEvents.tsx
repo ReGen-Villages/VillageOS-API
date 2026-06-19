@@ -6,10 +6,10 @@ import { countLogicalChildren } from '../../utils/graphologyMapper';
 
 /** Pixel distance threshold for detecting overlapping nodes. */
 const OVERLAP_PX = 20;
-/** Fan-out radius in graph units for non-map mode. */
+/** Fan-out radius in graph units. */
 const FAN_RADIUS = 50;
 
-/** If the clicked node is a collapsed cluster representative, expand it. Returns true if handled. */
+/** Expands the cluster only if nodeId is its collapsed representative. */
 function tryExpandCluster(nodeId: string): boolean {
   const state = useUiStore.getState();
   if (!state.clusterMap || state.collapsedClusters.size === 0) return false;
@@ -24,7 +24,6 @@ function tryExpandCluster(nodeId: string): boolean {
   return false;
 }
 
-/** If the node is a geo parent with logical children, toggle expansion. */
 function tryToggleLogicalExpansion(nodeId: string, sigma: Sigma): void {
   const state = useUiStore.getState();
   const graph = sigma.getGraph();
@@ -36,7 +35,6 @@ function tryToggleLogicalExpansion(nodeId: string, sigma: Sigma): void {
   }
 }
 
-/** Find overlapping nodes and fan them out. */
 function fanOutOverlappingNodes(nodeId: string, sigma: Sigma): void {
   const display = sigma.getNodeDisplayData(nodeId);
   if (!display) return;
@@ -67,18 +65,12 @@ function fanOutOverlappingNodes(nodeId: string, sigma: Sigma): void {
   });
 }
 
-/** Convert a mouse event to container-relative coordinates. */
 function toContainerCoords(event: MouseEvent, container: HTMLElement) {
   const rect = container.getBoundingClientRect();
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 }
 
-/**
- * Wires Sigma click events to the Zustand UI store for node/edge selection
- * and predicate clustering interactions.
- *
- * Must be rendered as a child of <SigmaContainer>.
- */
+/** Wires Sigma pointer events to the UI store. Child of <SigmaContainer>. */
 export function GraphEvents() {
   const sigma = useSigma();
   const registerEvents = useRegisterEvents();

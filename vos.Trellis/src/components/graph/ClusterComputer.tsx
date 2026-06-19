@@ -4,26 +4,17 @@ import { useUiStore } from '../../stores/uiStore';
 import { useModelStore } from '../../stores/modelStore';
 import { computePredicateStatsFromModel, computeClusters } from '../../utils/predicateCluster';
 
-/**
- * Renderless component that computes predicate stats and cluster maps.
- * Runs inside <SigmaContainer> to access the graphology graph.
- *
- * Responsibilities:
- * 1. When graph data changes → recompute predicate stats
- * 2. When activePredicateIds changes → compute clusters via BFS (union of edges)
- */
+/** Renderless; runs inside <SigmaContainer> to access the graphology graph. */
 export function ClusterComputer() {
   const sigma = useSigma();
   const activePredicateIds = useUiStore((s) => s.activePredicateIds);
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
 
-  // Stable serialization of the set for use as a React dependency
   const activePredicateKey = [...activePredicateIds].sort().join(',');
 
-  // Recompute predicate stats from full model data (not filtered graph)
-  // so predicates like consumes/produces always appear in the radial menu
-  // even when map-mode surface reduction filters out their endpoints.
+  // Stats from full model (not filtered graph) so predicates like
+  // consumes/produces still appear when map-mode reduction hides endpoints.
   useEffect(() => {
     if (things.length === 0) return;
     const state = useUiStore.getState();
@@ -31,16 +22,13 @@ export function ClusterComputer() {
     state.setPredicateStats(stats);
   }, [things, relationships]);
 
-  // Keep clusters in sync with graph structure changes
   useEffect(() => {
     const graph = sigma.getGraph();
 
     const handleUpdate = () => {
       if (graph.order === 0) return;
-      // Recompute clusters when graph edges change (e.g. after remount
-      // or SignalR updates). Critical after remount: the Zustand clusterMap
-      // is stale but the timer in the predicate effect already fired on
-      // an empty graph.
+      // After remount the clusterMap is stale but the predicate-effect timer
+      // already fired on an empty graph, so recompute here on edge changes.
       const currentIds = useUiStore.getState().activePredicateIds;
       if (currentIds.size > 0) {
         useUiStore.getState().setClusterMap(computeClusters(graph, currentIds));
@@ -60,7 +48,6 @@ export function ClusterComputer() {
     };
   }, [sigma]);
 
-  // Recompute clusters when activePredicateIds changes
   useEffect(() => {
     const graph = sigma.getGraph();
 
@@ -69,11 +56,11 @@ export function ClusterComputer() {
       return;
     }
 
-    // Small delay — allow graph data to settle after SignalR updates
+    // Delay lets graph data settle after SignalR updates.
     const timer = setTimeout(() => {
       if (graph.order === 0) {
-        // Graph not loaded yet — clear stale cluster data so NodeReducer
-        // falls through to default reducers instead of using outdated maps
+        // Graph not loaded yet — clear stale data so NodeReducer falls
+        // through to defaults instead of using outdated maps.
         useUiStore.getState().setClusterMap(null);
         return;
       }

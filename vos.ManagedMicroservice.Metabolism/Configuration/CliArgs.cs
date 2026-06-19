@@ -2,9 +2,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace vos.ManagedMicroservice.Metabolism.Configuration;
 
-/// <summary>
-/// Parsed command-line arguments for the Metabolism service.
-/// </summary>
 public record CliArgs(
     int Port,
     string MyceliumUrl,
@@ -14,12 +11,7 @@ public record CliArgs(
     string? Issuer = null,
     string? Audience = null)
 {
-    /// <summary>
-    /// Parses command-line arguments. Returns null if required args are missing or invalid.
-    /// If <paramref name="config"/> is provided, any flag absent from <paramref name="args"/>
-    /// falls back to <c>config[key]</c> — keys are flat: Port, MyceliumUrl, Mode, Token,
-    /// SigningKey, Issuer, Audience. CLI args always take precedence over config.
-    /// </summary>
+    /// <summary>Returns null on missing/invalid required args. CLI args override config; absent flags fall back to config[key].</summary>
     public static CliArgs? Parse(string[] args, IConfiguration? config = null)
     {
         string? FromArgsOrConfig(string flagPrefix, string configKey)

@@ -1,6 +1,5 @@
 namespace vos.ManagedMicroservice.Metabolism.Models;
 
-/// <summary>Configuration for a continuous simulation task.</summary>
 public record SimulationConfig(
     string RelationshipId,
     string SubjectId,

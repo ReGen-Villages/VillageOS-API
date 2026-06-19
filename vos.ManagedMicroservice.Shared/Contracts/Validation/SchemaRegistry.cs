@@ -7,10 +7,7 @@ using NJsonSchema;
 
 namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
-/// <summary>
-/// Eagerly loads every JSON Schema embedded under <c>Contracts/Schemas/</c> and exposes them by <c>$id</c>.
-/// One instance per process is sufficient; treat as a singleton.
-/// </summary>
+/// <summary>Eagerly loads every embedded JSON Schema and exposes them by $id; treat as a singleton.</summary>
 public sealed class SchemaRegistry
 {
     private const string ResourcePrefix = "vos.ManagedMicroservice.Shared.Contracts.Schemas.";
@@ -28,8 +25,7 @@ public sealed class SchemaRegistry
         var loaded = new Dictionary<string, JsonSchema>(StringComparer.Ordinal);
         foreach (var (resourceName, json) in rawSchemas)
         {
-            // NJsonSchema's JsonSchema.Id is inconsistent across drafts; read $id from the raw JSON so
-            // the registry key matches what the schema file declares verbatim.
+            // NJsonSchema's JsonSchema.Id is inconsistent across drafts; read $id from the raw JSON instead.
             var id = ReadDollarId(json)
                 ?? throw new InvalidOperationException(
                     $"Embedded schema '{resourceName}' has no top-level $id.");

@@ -2,8 +2,7 @@
 //
 // A managed microservice is a handler that Mycelium (the VillageOS gateway)
 // launches as a daemon and calls when a relationship with the service's
-// predicate is created. The full contract is HTTP + a single HS256 JWT; this
-// file implements all of it with nothing but the Go standard library.
+// predicate is created. The full contract is HTTP + a single HS256 JWT.
 //
 // Lifecycle:
 //  1. Mycelium launches:  ./app --port=5101 --myceliumUrl=https://localhost:7243 \
@@ -13,9 +12,6 @@
 //  3. Mycelium calls POST /handle for each matching relationship (JWT-authed).
 //  4. On shutdown (SIGINT/SIGTERM or POST /shutdown) it deregisters
 //     (DELETE /api/mycelium/services/{handlerId}).
-//
-// This example is an "echo" handler: /handle acknowledges the relationship and
-// echoes the payload back. Swap the body of handleRelationship for real logic.
 package main
 
 import (
@@ -42,17 +38,15 @@ import (
 
 const serviceName = "Go"
 
-// config holds the CLI arguments Mycelium passes at launch.
 type config struct {
 	Port        int
 	MyceliumURL string
-	Token       string // pre-minted service JWT (optional; else fetched from Mycelium)
-	SigningKey  string // base64-encoded HMAC key for validating inbound JWTs (optional)
+	Token       string // pre-minted service JWT; else fetched from Mycelium
+	SigningKey  string // base64-encoded HMAC key for validating inbound JWTs
 	Issuer      string
 	Audience    string
 }
 
-// parseArgs parses the standard six flags. Port and myceliumUrl are required.
 func parseArgs(args []string) (config, error) {
 	c := config{Issuer: "VillageOS", Audience: "VosClients"}
 	var portSet, urlSet bool
@@ -98,8 +92,6 @@ const usage = `Usage: app --port=<port> --myceliumUrl=<url> [--token=<jwt>] [--s
   --issuer      JWT issuer Mycelium signs with (default VillageOS)
   --audience    JWT audience Mycelium signs with (default VosClients)`
 
-// ---- handler state -------------------------------------------------------
-
 type service struct {
 	cfg       config
 	handlerID string
@@ -107,10 +99,6 @@ type service struct {
 	client    *http.Client
 }
 
-// ---- Mycelium registration ----------------------------------------------
-
-// token returns the service JWT: the --token value if provided, otherwise one
-// fetched from Mycelium's open token endpoint.
 func (s *service) token() (string, error) {
 	if s.cfg.Token != "" {
 		return s.cfg.Token, nil
@@ -176,8 +164,6 @@ func (s *service) deregister() {
 	resp.Body.Close()
 }
 
-// ---- HTTP endpoints ------------------------------------------------------
-
 // relationship mirrors the payload Mycelium POSTs to /handle.
 type relationship struct {
 	RelationshipID string                 `json:"relationshipId"`
@@ -203,11 +189,9 @@ func (s *service) handleRelationship(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var rel relationship
-	_ = json.Unmarshal(raw, &rel) // tolerate unknown/missing fields; this is a demo
+	_ = json.Unmarshal(raw, &rel)
 	log.Printf("handle #%d: relationship %s (%s -> %s)", n, rel.RelationshipID, rel.SubjectName, rel.TargetName)
 
-	// Real handlers do their predicate work here. The echo example just acks
-	// and reflects the payload back so you can see the wire shape end to end.
 	var echo any
 	_ = json.Unmarshal(raw, &echo)
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -238,11 +222,8 @@ func (s *service) stats(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-// ---- inbound JWT validation (HS256) -------------------------------------
-
-// requireAuth wraps a handler so that, when a signing key was supplied, the
-// request must carry a valid Mycelium-signed Bearer JWT. With no signing key
-// auth is disabled (matches the .NET handlers' behaviour).
+// requireAuth requires a valid Bearer JWT only when a signing key was supplied;
+// with no signing key, auth is disabled (matches the .NET handlers).
 func (s *service) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	if s.cfg.SigningKey == "" {
 		return next
@@ -266,8 +247,7 @@ func (s *service) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// verifyHS256 validates an HS256 JWT against key, issuer and audience, allowing
-// 30s of clock skew — matching ServiceTokenValidator on the .NET side.
+// verifyHS256 allows 30s of clock skew, matching ServiceTokenValidator on the .NET side.
 func verifyHS256(token string, key []byte, issuer, audience string) error {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
@@ -334,8 +314,6 @@ func audienceMatches(raw json.RawMessage, want string) bool {
 	return false
 }
 
-// ---- bootstrap -----------------------------------------------------------
-
 func newUUID() string {
 	var b [16]byte
 	_, _ = rand.Read(b[:])
@@ -363,7 +341,6 @@ func main() {
 
 	srv := &http.Server{Addr: fmt.Sprintf("localhost:%d", cfg.Port), Handler: mux}
 
-	// /shutdown triggers a graceful stop (auth-protected like the .NET handlers).
 	mux.HandleFunc("POST /shutdown", s.requireAuth(func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"message": "Shutting down " + serviceName + " microservice"})
 		go func() {
@@ -372,7 +349,6 @@ func main() {
 		}()
 	}))
 
-	// Register once the listener is up.
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		if err := s.register(); err != nil {
@@ -382,7 +358,6 @@ func main() {
 		}
 	}()
 
-	// Deregister on SIGINT/SIGTERM, then stop the server.
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	go func() {

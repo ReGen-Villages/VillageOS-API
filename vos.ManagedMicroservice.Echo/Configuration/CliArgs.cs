@@ -1,8 +1,5 @@
 namespace vos.ManagedMicroservice.Echo.Configuration;
 
-/// <summary>
-/// Parsed command-line arguments for the Echo endpoint service.
-/// </summary>
 public record CliArgs(
     int Port,
     string MyceliumUrl,
@@ -11,9 +8,7 @@ public record CliArgs(
     string? Issuer = null,
     string? Audience = null)
 {
-    /// <summary>
-    /// Parses command-line arguments. Returns null if required args are missing or invalid.
-    /// </summary>
+    /// <summary>Returns null if required args are missing or invalid.</summary>
     public static CliArgs? Parse(string[] args)
     {
         var portArg = args.FirstOrDefault(a => a.StartsWith("--port="));

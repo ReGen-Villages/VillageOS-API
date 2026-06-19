@@ -3,20 +3,7 @@ import { useSigma } from '@react-sigma/core';
 import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, ScanSearch, Unplug } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 
-/**
- * Graph toolbar with zoom, fit, re-layout, and layout-mode controls.
- * Must be rendered as a child of <SigmaContainer>.
- *
- * Predicate selection used to live here as a Layers button + active-predicate
- * chips. Both moved to the bottom-right PredicateFilterPanel in Feature #5362
- * — same data, more discoverable surface that mirrors the type filter. The
- * radial menu (right-click on the graph) still works for quick selection.
- *
- * The 'show all edges' toggle was removed in Bug #5364 — superseded by the
- * predicate filter panel which gives the same effect with finer control.
- * Edges now always show by default; hover/select/search continue to brighten
- * or filter as before.
- */
+/** Zoom/fit/re-layout/layout-mode controls. Child of <SigmaContainer>. */
 export function GraphToolbar() {
   const sigma = useSigma();
   const isLayoutFrozen = useUiStore((s) => s.isLayoutFrozen);
@@ -41,7 +28,7 @@ export function GraphToolbar() {
   }, [sigma]);
 
   const handleRelayout = useCallback(() => {
-    // Randomise positions slightly to force the layout to re-settle
+    // Jitter positions to force the layout to re-settle.
     const graph = sigma.getGraph();
     graph.forEachNode((node) => {
       const attrs = graph.getNodeAttributes(node);
@@ -55,7 +42,6 @@ export function GraphToolbar() {
 
   return (
     <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1">
-      {/* Standard controls */}
       <div className="flex gap-1 bg-zinc-800/80 backdrop-blur rounded-lg p-1">
         <ToolButton icon={ZoomIn} label="Zoom in" onClick={handleZoomIn} />
         <ToolButton icon={ZoomOut} label="Zoom out" onClick={handleZoomOut} />

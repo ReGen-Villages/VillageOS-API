@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 
 namespace vos.ManagedMicroservice.Shared.Subscriptions;
 
-/// <summary>Mycelium snapshot-subscription operations consumed by managed microservices.</summary>
 public interface ISubscriptionClient
 {
     Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default);
@@ -16,20 +15,13 @@ public interface ISubscriptionClient
 }
 
 /// <summary>
-/// Shared client for Mycelium snapshot subscriptions (Phase 4, #5557). A managed
-/// microservice calls <see cref="SubscribeAsync"/> once at startup to receive the full
-/// objects it cares about (no GET storm), then <see cref="StreamAsync"/> to follow live
-/// changes over SSE. The stream auto-reconnects and resumes from the last sequence it
-/// delivered via Last-Event-ID, so no change is missed or double-applied across drops.
-///
-/// Replaces the SignalR consumer path (Metabolism's MyceliumClient.ConnectSignalRAsync)
-/// during the Phase 5 cutover.
+/// Subscribe once for a snapshot, then stream live changes over SSE, resuming via Last-Event-ID
+/// so no change is missed or double-applied across drops.
 /// </summary>
 public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    /// <summary>Backoff between stream reconnect attempts. Small in tests.</summary>
     public TimeSpan ReconnectDelay { get; set; } = TimeSpan.FromSeconds(2);
 
     public SubscriptionClient(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null)
@@ -37,7 +29,6 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
     {
     }
 
-    /// <summary>Resolve a selector to a snapshot + watermark and register the subscription.</summary>
     public async Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
@@ -47,10 +38,6 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
             ?? throw new InvalidOperationException("Mycelium returned an empty subscription response");
     }
 
-    /// <summary>
-    /// Add objects to a live subscription (no reconnect). Returns an incremental snapshot of the
-    /// newly-added objects so the caller hydrates them; the existing SSE stream then delivers their changes.
-    /// </summary>
     public async Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
@@ -60,7 +47,6 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
             ?? throw new InvalidOperationException("Mycelium returned an empty add-objects response");
     }
 
-    /// <summary>Remove objects from a live subscription's membership (no reconnect).</summary>
     public async Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
@@ -71,7 +57,6 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
         (await client.SendAsync(request, ct)).EnsureSuccessStatusCode();
     }
 
-    /// <summary>Unsubscribe and release the server-side stream.</summary>
     public async Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
@@ -91,7 +76,7 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
         while (!ct.IsCancellationRequested)
         {
             var connection = await ConnectAsync(subscriptionId, lastSequence, ct);
-            if (connection is null) // connect failed — back off and retry
+            if (connection is null)
             {
                 if (!await DelayReconnectAsync(ct)) yield break;
                 continue;

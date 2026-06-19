@@ -8,9 +8,6 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-/// <summary>
-/// HTTP client for communicating with the VillageOS Mycelium.
-/// </summary>
 public class MyceliumClient
 {
     private readonly HttpClient _httpClient;
@@ -28,7 +25,6 @@ public class MyceliumClient
         _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
         _clock = () => DateTime.UtcNow;
 
-        // Accept self-signed certificates for development
         var handler = new HttpClientHandler
         {
             ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
@@ -39,9 +35,7 @@ public class MyceliumClient
         };
     }
 
-    // Test seam. Production callers use the public constructors above; tests
-    // inject an HttpClient backed by a MockHttpMessageHandler (and optionally
-    // a virtual clock to exercise the token-cache expiry branch).
+    // Test seam: lets tests inject a mock handler and a virtual clock.
     internal MyceliumClient(string myceliumUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null)
     {
         _myceliumUrl = myceliumUrl.TrimEnd('/');
@@ -50,13 +44,8 @@ public class MyceliumClient
         _clock = clock ?? (() => DateTime.UtcNow);
     }
 
-    /// <summary>
-    /// Gets a JWT token from Mycelium for authentication.
-    /// Exchanges an API key for a short-lived JWT via X-API-Key header.
-    /// </summary>
     public virtual async Task<string> GetTokenAsync()
     {
-        // Return cached token if still valid
         if (_cachedToken != null && _clock() < _tokenExpiry)
         {
             return _cachedToken;
@@ -100,8 +89,6 @@ public class MyceliumClient
 
         return queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
     }
-
-    // ==================== Thing Operations ====================
 
     public virtual async Task<JsonElement> GetAllThingsAsync()
     {
@@ -159,8 +146,6 @@ public class MyceliumClient
         return response.IsSuccessStatusCode;
     }
 
-    // ==================== Relationship Operations ====================
-
     public virtual async Task<JsonElement> GetAllRelationshipsAsync()
     {
         await SetAuthHeaderAsync();
@@ -216,8 +201,6 @@ public class MyceliumClient
         return response.IsSuccessStatusCode;
     }
 
-    // ==================== Service Operations ====================
-
     public virtual async Task<JsonElement> GetAllServicesAsync()
     {
         await SetAuthHeaderAsync();
@@ -247,8 +230,6 @@ public class MyceliumClient
         return response.IsSuccessStatusCode;
     }
 
-    // ==================== Daemon Operations ====================
-
     public virtual async Task<JsonElement> GetAllDaemonsAsync()
     {
         await SetAuthHeaderAsync();
@@ -263,8 +244,6 @@ public class MyceliumClient
         var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/daemons/{Uri.EscapeDataString(daemonKey)}/stop", null);
         return response.IsSuccessStatusCode;
     }
-
-    // ==================== Model Operations ====================
 
     public virtual async Task<string> GetModelJsonAsync()
     {
@@ -289,8 +268,6 @@ public class MyceliumClient
         var response = await _httpClient.DeleteAsync($"{_myceliumUrl}/api/model");
         response.EnsureSuccessStatusCode();
     }
-
-    // ==================== Library Seed Operations ====================
 
     public virtual async Task<JsonElement> GetSeedStatusAsync()
     {
@@ -332,8 +309,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    // ==================== Endpoint Operations ====================
-
     public virtual async Task<JsonElement> GetEndpointsAsync()
     {
         await SetAuthHeaderAsync();
@@ -341,8 +316,6 @@ public class MyceliumClient
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
-
-    // ==================== Model Management Operations ====================
 
     public virtual async Task<JsonElement> ListModelsAsync()
     {
@@ -380,8 +353,6 @@ public class MyceliumClient
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
-
-    // ==================== Property Mode Operations ====================
 
     public virtual async Task<JsonElement> GetDefaultPropertyModeAsync()
     {
@@ -431,11 +402,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    // ==================== Temporal Query Operations ====================
-
-    /// <summary>
-    /// Get the model state at a specific timestamp (temporal snapshot).
-    /// </summary>
     public virtual async Task<JsonElement> GetModelAtTimeAsync(DateTime? timestamp = null)
     {
         await SetAuthHeaderAsync();
@@ -449,9 +415,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// Get a thing's state at a specific timestamp.
-    /// </summary>
     public virtual async Task<JsonElement?> GetThingAtTimeAsync(Guid id, DateTime? timestamp = null)
     {
         await SetAuthHeaderAsync();
@@ -467,9 +430,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// Get the version history of a property.
-    /// </summary>
     public virtual async Task<JsonElement> GetPropertyVersionsAsync(
         Guid thingId,
         string propertyName,
@@ -483,9 +443,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// Get all property mutations for a thing within a time range.
-    /// </summary>
     public virtual async Task<JsonElement> GetThingMutationsAsync(
         Guid thingId,
         DateTime? startTime = null,
@@ -498,9 +455,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// Get all property mutations across all things in the model.
-    /// </summary>
     public virtual async Task<JsonElement> GetModelMutationsAsync(
         DateTime? startTime = null,
         DateTime? endTime = null)
@@ -512,9 +466,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// Get all mutations for a relationship within a time range.
-    /// </summary>
     public virtual async Task<JsonElement> GetRelationshipMutationsAsync(
         Guid relationshipId,
         DateTime? startTime = null,
@@ -527,11 +478,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    // ==================== Expected Ranges Operations ====================
-
-    /// <summary>
-    /// Create an expected range on a thing.
-    /// </summary>
     public virtual async Task<JsonElement> CreateRangeAsync(
         Guid thingId,
         string name,
@@ -553,9 +499,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// Get all ranges for a thing.
-    /// </summary>
     public virtual async Task<JsonElement> GetRangesAsync(Guid thingId)
     {
         await SetAuthHeaderAsync();
@@ -564,9 +507,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// Get a specific range by name.
-    /// </summary>
     public virtual async Task<JsonElement?> GetRangeAsync(Guid thingId, string rangeName)
     {
         await SetAuthHeaderAsync();
@@ -577,9 +517,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// Delete a range from a thing.
-    /// </summary>
     public virtual async Task<bool> DeleteRangeAsync(Guid thingId, string rangeName)
     {
         await SetAuthHeaderAsync();
@@ -587,9 +524,6 @@ public class MyceliumClient
         return response.IsSuccessStatusCode;
     }
 
-    /// <summary>
-    /// Get current states for a thing.
-    /// </summary>
     public virtual async Task<JsonElement> GetStatesAsync(Guid thingId)
     {
         await SetAuthHeaderAsync();
@@ -598,9 +532,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// Validate criteria syntax.
-    /// </summary>
     public virtual async Task<JsonElement> ValidateCriteriaAsync(string criteria)
     {
         await SetAuthHeaderAsync();
@@ -614,9 +545,6 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    /// <summary>
-    /// Find all things currently in a specific state.
-    /// </summary>
     public virtual async Task<JsonElement> GetThingsInStateAsync(string stateName)
     {
         await SetAuthHeaderAsync();

@@ -5,7 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import { useUiStore } from './stores/uiStore'
 
-// Expose Zustand store for screenshot capture script & dev tools
+// Exposed for the screenshot-capture script and dev tools.
 if (import.meta.env.DEV) {
   (window as any).__vosStore = useUiStore;
 }

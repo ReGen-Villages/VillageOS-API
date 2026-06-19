@@ -20,17 +20,14 @@ class ApiClient {
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private onUserUpdated: ((user: AuthUser) => void) | null = null;
 
-  /** Register a callback for when the user object is updated (e.g. after token refresh). */
   setUserUpdatedCallback(cb: (user: AuthUser) => void) {
     this.onUserUpdated = cb;
   }
 
-  /** Register a callback to trigger when authentication is needed. */
   setAuthRequiredCallback(cb: () => void) {
     this.onAuthRequired = cb;
   }
 
-  /** Fetch available models (does not require model context in token). */
   async fetchModels(): Promise<ModelSummary[]> {
     const resp = await fetch(`${BASE_URL}/api/models`, {
       headers: await this.headers(),
@@ -40,7 +37,6 @@ class ApiClient {
     return resp.json();
   }
 
-  /** Apply a token response (shared by login, switchModel, refreshToken). */
   private applyTokenResponse(data: { token: string; user: AuthUser; model?: { Id: string; Name: string } }) {
     this.token = data.token;
     this.tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
@@ -52,7 +48,6 @@ class ApiClient {
     this.scheduleRefresh();
   }
 
-  /** Login with username and password. Optionally specify a model. */
   async login(username: string, password: string, modelId?: string): Promise<AuthUser> {
     const body: Record<string, string> = { Username: username, Password: password };
     if (modelId) body.ModelId = modelId;
@@ -72,12 +67,7 @@ class ApiClient {
     return this.currentUser!;
   }
 
-  /**
-   * Attempt to restore a session from an HttpOnly cookie set during a prior login.
-   * If the cookie exists and the JWT inside it is still valid, Mycelium returns
-   * the token + user + model and we restore in-memory state without re-entering
-   * credentials. Returns true if restored, false if no valid session.
-   */
+  /** Restore in-memory state from the HttpOnly session cookie. Returns false if no valid session. */
   async restoreSession(): Promise<boolean> {
     try {
       const resp = await fetch(`${BASE_URL}/api/auth/restore-session`, {
@@ -92,10 +82,6 @@ class ApiClient {
     }
   }
 
-  /**
-   * Switch to a different model using the current JWT (no credentials needed).
-   * Calls POST /api/auth/switch-model which issues a new token scoped to the target model.
-   */
   async switchModel(modelId: string): Promise<AuthUser> {
     const resp = await fetch(`${BASE_URL}/api/auth/switch-model`, {
       method: 'POST',
@@ -110,14 +96,11 @@ class ApiClient {
   }
 
   /**
-   * Re-scope the current session to a different model.
-   * For user tokens: calls switch-model to get a new JWT.
-   * For API-key tokens: invalidates the cached token so ensureToken()
-   * re-exchanges the API key (auto-selects the single remaining model).
+   * Re-scope the current session to a different model. User tokens switch-model
+   * for a new JWT; API-key tokens invalidate so the next ensureToken() re-exchanges.
    */
   async rescopeToModel(modelId: string): Promise<void> {
     if (API_KEY) {
-      // API-key mode: invalidate token; next ensureToken() re-exchanges
       if (this.refreshTimer) {
         clearTimeout(this.refreshTimer);
         this.refreshTimer = null;
@@ -128,24 +111,14 @@ class ApiClient {
       this.currentModelName = null;
       await this.ensureToken();
     } else {
-      // Login mode: switch-model issues a new JWT
       await this.switchModel(modelId);
     }
   }
 
   /**
-   * Clear stored credentials and cancel any pending refresh.
-   *
-   * Also tells Mycelium to clear the HttpOnly session cookie via
-   * POST /api/auth/session/logout. Without this, a subsequent page refresh
-   * would succeed in restoreSession() and silently log the user back in
-   * (Bug #5290).
-   *
-   * Best-effort: local state is cleared even if the network call fails, so
-   * the user isn't stuck signed in from the UI's perspective. Bearer JWTs
-   * themselves can't be revoked before their exp claim without a server-side
-   * blacklist — clearing the HttpOnly cookie is what prevents
-   * restoreSession() from handing the token back on the next page load.
+   * Clear credentials and cancel pending refresh. Must clear the HttpOnly session
+   * cookie too, else restoreSession() silently signs the user back in (Bug #5290).
+   * Best-effort: local state clears even if the network call fails.
    */
   async logout(): Promise<void> {
     if (this.refreshTimer) {
@@ -172,11 +145,7 @@ class ApiClient {
     this.currentModelName = null;
   }
 
-  /**
-   * Schedule a background token refresh at 80% of the token's remaining lifetime.
-   * On success, updates stored token/user and schedules the next refresh.
-   * On failure, clears state and fires onAuthRequired.
-   */
+  /** Schedule a background token refresh at 80% of the token's remaining lifetime. */
   private scheduleRefresh() {
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     if (!this.tokenExpiry) return;
@@ -188,14 +157,12 @@ class ApiClient {
       try {
         await this.refreshToken();
       } catch {
-        // Refresh failed — auth required
         void this.logout();
         if (this.onAuthRequired) this.onAuthRequired();
       }
     }, refreshAt);
   }
 
-  /** Call POST /api/auth/refresh to get a new token with the same identity and model scope. */
   private async refreshToken(): Promise<void> {
     if (!this.token) throw new Error('No token to refresh');
 
@@ -214,7 +181,7 @@ class ApiClient {
     if (this.onUserUpdated) this.onUserUpdated(this.currentUser!);
   }
 
-  /** Change a user's password. Non-admin users must provide their current password. */
+  /** Non-admin users must provide their current password. */
   async changePassword(userId: string, newPassword: string, currentPassword?: string): Promise<void> {
     const body: Record<string, string> = { NewPassword: newPassword };
     if (currentPassword) body.CurrentPassword = currentPassword;
@@ -231,38 +198,31 @@ class ApiClient {
     }
   }
 
-  /** Get the currently authenticated user, if any. */
   getUser(): AuthUser | null {
     return this.currentUser;
   }
 
-  /** Get the current model ID. */
   getModelId(): string | null {
     return this.currentModelId;
   }
 
-  /** Get the current model name. */
   getModelName(): string | null {
     return this.currentModelName;
   }
 
-  /** Returns true if the client has a valid (non-expired) token. */
   isAuthenticated(): boolean {
     return !!(this.token && this.tokenExpiry && new Date() < this.tokenExpiry);
   }
 
   /**
-   * Ensure we have a valid token. Supports three auth modes:
-   * 1. VITE_API_KEY env var → exchange for short-lived JWT via X-API-Key header
-   * 2. Existing token from login → use directly
-   * 3. Neither → signal that auth is required
+   * Ensure we have a valid token. Auth modes: existing login token used directly;
+   * else VITE_API_KEY exchanged for a short-lived JWT; else auth is required.
    */
   async ensureToken(): Promise<string> {
     if (this.token && this.tokenExpiry && new Date() < this.tokenExpiry) {
       return this.token;
     }
 
-    // Try API key exchange
     if (API_KEY) {
       const params = this.currentModelId ? `?modelId=${this.currentModelId}` : '';
       const resp = await fetch(`${BASE_URL}/api/auth/token${params}`, {
@@ -281,7 +241,6 @@ class ApiClient {
       return this.token!;
     }
 
-    // No token and no API key — auth is required
     if (this.onAuthRequired) this.onAuthRequired();
     throw new AuthRequiredError();
   }
@@ -294,7 +253,6 @@ class ApiClient {
     };
   }
 
-  /** Check response for auth failure (401) and redirect to login if needed. */
   private async assertOk(resp: Response): Promise<void> {
     if (resp.status === 401) {
       this.token = null;

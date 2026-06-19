@@ -3,32 +3,15 @@ using System.Text.Json;
 
 namespace vos.ManagedMicroservice.Tributary.Helpers;
 
-/// <summary>
-/// Pure construction of the outbound HTTP request Tributary dispatches to a REST source, from the
-/// endpoint thing's effective properties: custom headers, query-string parameters, request
-/// content-type, and timeout (Task #5469). These are the base capabilities any REST source needs;
-/// source-specific behavior (e.g. ESRI token auth and FeatureServer pagination) is layered on top
-/// under Task #5470 and does not live here.
-///
-/// Extracted from <c>Program.cs</c>'s <c>CallEndpointAsync</c> so each capability is unit-testable in
-/// isolation, mirroring the <see cref="EffectivePropertyResolver"/> extraction under Task #5436.
-/// </summary>
 public static class OutboundRequest
 {
-    /// <summary>Default request body content-type when <c>requestContentType</c> is not configured.</summary>
     public const string DefaultContentType = "application/json";
 
-    /// <summary>Default outbound timeout when <c>timeout</c> is absent or invalid.</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
 
-    /// <summary>Methods that carry a request body. GET/DELETE/HEAD do not.</summary>
     public static bool MethodSupportsBody(string method) =>
         method is "POST" or "PUT" or "PATCH";
 
-    /// <summary>
-    /// Append <paramref name="queryParameters"/> to <paramref name="baseUri"/>, preserving any query
-    /// already present in the URI. Null/empty leaves the URI unchanged.
-    /// </summary>
     public static Uri ApplyQueryParameters(Uri baseUri, IReadOnlyDictionary<string, string>? queryParameters)
     {
         if (queryParameters == null || queryParameters.Count == 0)
@@ -44,11 +27,6 @@ public static class OutboundRequest
         return builder.Uri;
     }
 
-    /// <summary>
-    /// Interpret an effective <c>timeout</c> value (seconds, as a JSON number or numeric string) as a
-    /// <see cref="TimeSpan"/>. Non-numeric, non-positive, or out-of-range values fall back to
-    /// <see cref="DefaultTimeout"/>.
-    /// </summary>
     public static TimeSpan ResolveTimeout(JsonElement value)
     {
         double seconds;
@@ -71,11 +49,6 @@ public static class OutboundRequest
         return TimeSpan.FromSeconds(seconds);
     }
 
-    /// <summary>
-    /// Parse a JSON object of string values (e.g. <c>headers</c>, <c>queryParams</c>) into a
-    /// case-insensitive name/value map. Returns null if <paramref name="value"/> is not a JSON object;
-    /// non-string member values are coerced to their raw text.
-    /// </summary>
     public static Dictionary<string, string>? TryParseStringMap(JsonElement value)
     {
         if (value.ValueKind != JsonValueKind.Object)
@@ -91,11 +64,6 @@ public static class OutboundRequest
         return map;
     }
 
-    /// <summary>
-    /// Build the outbound <see cref="HttpRequestMessage"/>: method + URI (with query params merged),
-    /// optional JSON body for body-bearing methods using <paramref name="contentType"/>, and custom
-    /// <paramref name="headers"/>.
-    /// </summary>
     public static HttpRequestMessage Build(
         string method,
         Uri url,

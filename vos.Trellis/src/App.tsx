@@ -16,12 +16,11 @@ const ThingSearchPage = lazy(() => import('./pages/ThingSearchPage').then(m => (
 const ModelPage = lazy(() => import('./pages/ModelPage').then(m => ({ default: m.ModelPage })));
 
 /** Inner shell rendered only when authenticated. Owns the live model-data
- *  load so every page sees a populated store from mount (Feature #5329). */
+ *  load so every page sees a populated store from mount. */
 function AuthenticatedApp() {
   useModelData();
-  // Feature #5362 — push the active modelId into the UI store so the type
-  // filter (and any other per-model UI state) can load/persist its
-  // localStorage entry against the right key.
+  // Per-model UI state (e.g. type filter) keys its localStorage entry off
+  // the active modelId.
   const { modelId } = useAuth();
   const setCurrentModelId = useUiStore((s) => s.setCurrentModelId);
   useEffect(() => {
@@ -51,9 +50,7 @@ export default function App() {
   const auth = useAuthState();
   const theme = useThemeStore((s) => s.theme);
 
-  // Mirror theme to <html class="dark"> so Tailwind's class-based dark variant
-  // (configured in index.css) flips, and live-follow OS preference until the
-  // user manually overrides via the toggle button.
+  // Mirror theme to <html class="dark"> so Tailwind's class-based dark variant flips.
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') root.classList.add('dark');

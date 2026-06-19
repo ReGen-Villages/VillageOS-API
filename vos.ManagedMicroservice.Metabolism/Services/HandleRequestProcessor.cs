@@ -4,9 +4,6 @@ using vos.ManagedMicroservice.Metabolism.Models;
 
 namespace vos.ManagedMicroservice.Metabolism.Services;
 
-/// <summary>
-/// Processes /handle requests by extracting simulation config from JSON and registering with the engine.
-/// </summary>
 public class HandleRequestProcessor
 {
     private readonly Metabolism _engine;
@@ -18,10 +15,7 @@ public class HandleRequestProcessor
         _logger = logger;
     }
 
-    /// <summary>
-    /// Validates the request, extracts config, and registers a simulation.
-    /// Returns (entry, null) on success or (null, errorMessage) on failure.
-    /// </summary>
+    /// <summary>Returns (entry, null) on success or (null, errorMessage) on failure.</summary>
     public (SimulationEntry? entry, string? error) ProcessHandle(HandleRequest request)
     {
         if (string.IsNullOrEmpty(request.SubjectId) || string.IsNullOrEmpty(request.TargetId))

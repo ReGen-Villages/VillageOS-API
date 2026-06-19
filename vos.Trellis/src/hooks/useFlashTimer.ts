@@ -3,12 +3,6 @@ import { useUiStore } from '../stores/uiStore';
 
 const FLASH_DURATION_MS = 500;
 
-/**
- * Manages flash-on-update timers for nodes and edges.
- *
- * Adds/removes IDs from the uiStore flash sets and automatically clears
- * them after FLASH_DURATION_MS.  All timers are cleaned up on unmount.
- */
 export function useFlashTimer() {
   const addFlashNode = useUiStore((s) => s.addFlashNode);
   const removeFlashNode = useUiStore((s) => s.removeFlashNode);
@@ -35,7 +29,6 @@ export function useFlashTimer() {
     timers.set(key, setTimeout(() => { removeFlashEdge(edgeId); timers.delete(key); }, FLASH_DURATION_MS));
   }, [addFlashEdge, removeFlashEdge]);
 
-  // Cleanup on unmount
   useEffect(() => {
     const timers = timersRef.current;
     return () => { timers.forEach((t) => clearTimeout(t)); timers.clear(); };

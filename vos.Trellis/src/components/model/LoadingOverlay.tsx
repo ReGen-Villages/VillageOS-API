@@ -3,10 +3,6 @@ interface LoadingOverlayProps {
   progress: number;
 }
 
-/**
- * Full-viewer overlay that shows the Fragments load stage + percent.
- * Stays mounted until FragmentsModels reports stage='done'.
- */
 export function LoadingOverlay({ stage, progress }: LoadingOverlayProps) {
   const pct = Math.round(Math.min(Math.max(progress, 0), 1) * 100);
   return (

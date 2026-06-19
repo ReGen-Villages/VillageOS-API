@@ -20,10 +20,6 @@ interface UseGraphDataResult {
   searchOptions: SearchOptions;
 }
 
-/**
- * Computes the filtered graph data for the Graph page. Applies search
- * filtering and returns memoised result.
- */
 export function useGraphData({
   things,
   relationships,

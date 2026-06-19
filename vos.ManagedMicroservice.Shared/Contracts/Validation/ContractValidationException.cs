@@ -1,9 +1,6 @@
 namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
-/// <summary>
-/// Thrown by <see cref="SchemaValidator.ValidateOrThrow"/> when strict-mode validation fails.
-/// Carries the structured <see cref="ContractValidationResult"/> so callers can map errors back to the wire.
-/// </summary>
+/// <summary>Carries the structured <see cref="ContractValidationResult"/> so callers can map errors back to the wire.</summary>
 public sealed class ContractValidationException : Exception
 {
     public ContractValidationResult Result { get; }

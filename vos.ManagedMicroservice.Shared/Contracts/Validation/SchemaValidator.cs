@@ -4,13 +4,9 @@ using NJsonSchema.Validation;
 
 namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
-/// <summary>
-/// Validates JSON payloads against a <see cref="JsonSchema"/> and produces a structured
-/// <see cref="ContractValidationResult"/>. Stateless; safe to share.
-/// </summary>
+/// <summary>Stateless; safe to share.</summary>
 public sealed class SchemaValidator
 {
-    /// <summary>Validates <paramref name="json"/> against <paramref name="schema"/>.</summary>
     public ContractValidationResult Validate(string json, JsonSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
@@ -26,7 +22,6 @@ public sealed class SchemaValidator
         return ContractValidationResult.Failure(flat);
     }
 
-    /// <summary>Validates <paramref name="json"/> against <paramref name="schema"/>, throwing on failure.</summary>
     public void ValidateOrThrow(string json, JsonSchema schema, string schemaId)
     {
         var result = Validate(json, schema);
@@ -34,13 +29,7 @@ public sealed class SchemaValidator
             throw new ContractValidationException(schemaId, result);
     }
 
-    /// <summary>
-    /// Validates <paramref name="json"/> against <paramref name="schema"/>; on failure emits a
-    /// single <see cref="LogLevel.Warning"/> entry naming the schema, error count, and the
-    /// first error's path/code/message. Never throws on a validation failure -- pairs with
-    /// <see cref="ValidateOrThrow"/> so callers can pick a policy explicitly. Used by Release
-    /// builds of <c>MyceliumClientBase</c> to keep production traffic flowing past stale schemas.
-    /// </summary>
+    /// <summary>Never throws on validation failure; lets production traffic flow past stale schemas.</summary>
     public void ValidateForLog(string json, JsonSchema schema, string schemaId, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
@@ -66,9 +55,8 @@ public sealed class SchemaValidator
         }
     }
 
-    // Format-keyword failures surface in NJsonSchema as e.g. UuidExpected / UriExpected — group them
-    // under "Format" so the public code family matches the JSON Schema keyword, not the validator's
-    // internal enum naming. Lookup keeps NormalizeCode branch count low.
+    // NJsonSchema reports format failures as UuidExpected/UriExpected/etc; group under "Format"
+    // so the public code matches the JSON Schema keyword, not the validator's enum naming.
     private static readonly HashSet<string> FormatExpectedKinds = new(StringComparer.Ordinal)
     {
         "UuidExpected", "UriExpected", "DateExpected", "DateTimeExpected",
@@ -82,11 +70,7 @@ public sealed class SchemaValidator
         "BooleanExpected", "ArrayExpected", "ObjectExpected", "NullExpected"
     };
 
-    /// <summary>
-    /// Maps NJsonSchema's <see cref="ValidationErrorKind"/> into a stable, public code family
-    /// so the contract surface is decoupled from the underlying validator's enum naming.
-    /// Unrecognised kinds fall through to the raw enum name.
-    /// </summary>
+    /// <summary>Maps NJsonSchema's kinds to a stable public code family; unknown kinds fall through to the raw name.</summary>
     internal static string NormalizeCode(ValidationErrorKind kind)
     {
         var name = kind.ToString();

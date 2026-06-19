@@ -1,26 +1,18 @@
 namespace vos.ManagedMicroservice.Delta.Models;
 
 /// <summary>
-/// A validated, single-rooted graph of endpoint-template things, built from an
-/// <see cref="EndpointSeedModel"/>. Parentage is derived from the model's <c>is</c> relationships
-/// (the model-native representation of inheritance) — there is no scalar "extends" field. The mycelium
-/// realizes the same shape as <c>is</c> relationships between the template things (Task #5468).
-///
-/// Construction validates what Mycelium does NOT: a single root, at most one <c>is</c> parent per
-/// template, no duplicate template name, no cycle, and no relationship to an unknown template — so a
-/// misconfigured deployment fails fast at boot rather than later stack-overflowing Mycelium's
-/// (cycle-unsafe) effective-property traversal.
-///
-/// Introduced under Feature #5465 / Task #5466.
+/// A validated, single-rooted graph of endpoint-template things. Parentage is derived from the
+/// model's <c>is</c> relationships, not a scalar field. Construction validates what Mycelium does
+/// NOT (single root, at most one <c>is</c> parent, no duplicate name, no cycle, no unknown-template
+/// reference) so a misconfigured deployment fails fast at boot rather than stack-overflowing
+/// Mycelium's cycle-unsafe effective-property traversal.
 /// </summary>
 public sealed class EndpointSeedGraph
 {
     private readonly IReadOnlyDictionary<string, string> _parents;
 
-    /// <summary>All template things keyed by Name (case-insensitive). Includes the root.</summary>
     public IReadOnlyDictionary<string, RegisterEndpointRequest> Templates { get; }
 
-    /// <summary>The single template with no <c>is</c> parent.</summary>
     public RegisterEndpointRequest Root { get; }
 
     private EndpointSeedGraph(
@@ -33,20 +25,12 @@ public sealed class EndpointSeedGraph
         _parents = parents;
     }
 
-    /// <summary>The parent template name for <paramref name="templateName"/>, or null if it is the root.</summary>
     public string? ParentName(string templateName) =>
         _parents.TryGetValue(templateName, out var parent) ? parent : null;
 
-    /// <summary>True if <paramref name="templateName"/> is a known template in the closed set.</summary>
     public bool ContainsTemplate(string templateName) => Templates.ContainsKey(templateName);
 
-    /// <summary>
-    /// The inheritance chain for <paramref name="templateName"/>, nearest-first: the template itself,
-    /// then its <c>is</c> parent, up to and including the root. Because the graph is single-rooted and
-    /// acyclic (validated at <see cref="Build"/>), every chain terminates at the root — this is the
-    /// closed-set descent guarantee, resolved with no mycelium round-trip. Throws
-    /// <see cref="KeyNotFoundException"/> if the name is not a known template.
-    /// </summary>
+    /// <summary>The inheritance chain for the template, nearest-first up to and including the root.</summary>
     public IReadOnlyList<RegisterEndpointRequest> Chain(string templateName)
     {
         if (!Templates.TryGetValue(templateName, out var template))
@@ -62,11 +46,7 @@ public sealed class EndpointSeedGraph
         return chain;
     }
 
-    /// <summary>
-    /// The union of property keys declared anywhere along <paramref name="templateName"/>'s chain —
-    /// the admissible property set for a registration under that template. Keys only; seed values are
-    /// irrelevant to admissibility.
-    /// </summary>
+    /// <summary>The union of property keys along the chain — the admissible property set for a registration.</summary>
     public ISet<string> AllowedKeys(string templateName)
     {
         var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -80,11 +60,7 @@ public sealed class EndpointSeedGraph
         return keys;
     }
 
-    /// <summary>
-    /// The closest-ancestor-wins seed value for <paramref name="key"/> along the chain. The nearest
-    /// template that declares a non-blank value for <paramref name="key"/> wins. Returns false (with
-    /// <paramref name="value"/> null) if no template in the chain declares a non-blank value.
-    /// </summary>
+    /// <summary>The closest-ancestor-wins seed value for the key along the chain; false if none is non-blank.</summary>
     public bool TryGetEffectiveSeedValue(string templateName, string key, out object? value)
     {
         foreach (var template in Chain(templateName))
@@ -101,10 +77,8 @@ public sealed class EndpointSeedGraph
         return false;
     }
 
-    // A seed key may exist purely for structure with a blank value ("in the structure" is not "has a
-    // value"); such keys contribute admissibility but no inherited default. Seed values arrive as CLR
-    // strings (graph built in-process) or as JsonElement (graph deserialized from seed.json), so both
-    // shapes must be recognized as blank.
+    // A structural key with a blank value contributes admissibility but no inherited default. Values
+    // arrive as CLR strings (built in-process) or JsonElement (deserialized from seed.json).
     private static bool IsBlank(object? value) => value switch
     {
         null => true,
@@ -115,11 +89,6 @@ public sealed class EndpointSeedGraph
         _ => false
     };
 
-    /// <summary>
-    /// Validate <paramref name="seed"/> and build the graph. Throws <see cref="InvalidOperationException"/>
-    /// on: no things, an empty thing name, a duplicate name, a relationship referencing an unknown template,
-    /// a template with more than one <c>is</c> parent, no root, more than one root, or a cycle.
-    /// </summary>
     public static EndpointSeedGraph Build(EndpointSeedModel seed)
     {
         if (seed == null)
@@ -138,7 +107,6 @@ public sealed class EndpointSeedGraph
                 throw new InvalidOperationException($"Duplicate template name '{thing.Name}' in endpoint seed graph.");
         }
 
-        // Derive parentage from 'is' relationships; validate every relationship references known things.
         var parents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var rel in seed.Relationships ?? new List<SeedRelationship>())
         {
@@ -152,7 +120,7 @@ public sealed class EndpointSeedGraph
                 throw new InvalidOperationException($"Relationship references unknown template '{rel.Target}'.");
 
             if (!string.Equals(rel.Predicate, "is", StringComparison.OrdinalIgnoreCase))
-                continue; // only 'is' contributes to the template hierarchy
+                continue;
 
             if (parents.ContainsKey(rel.Subject))
                 throw new InvalidOperationException($"Template '{rel.Subject}' declares more than one 'is' parent.");
@@ -166,7 +134,6 @@ public sealed class EndpointSeedGraph
             throw new InvalidOperationException(
                 $"Endpoint seed graph has multiple root templates: {string.Join(", ", roots)}.");
 
-        // Every parent-chain must terminate at the root; revisiting a name means a cycle.
         foreach (var start in byName.Keys)
         {
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

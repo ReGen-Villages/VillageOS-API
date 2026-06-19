@@ -6,51 +6,37 @@ import { useUiStore } from '../../stores/uiStore';
 import { resolveFA2Settings } from '../../utils/fa2Settings';
 
 /**
- * Node count above which we switch from graphology-layout-force (O(N²) on
- * main thread) to ForceAtlas2 (Barnes-Hut O(N log N) in a real Web Worker).
+ * Above this node count, switch from graphology-layout-force (O(N²), main
+ * thread) to ForceAtlas2 (Barnes-Hut O(N log N), Web Worker).
  */
 const FA2_THRESHOLD = 2000;
 
-/** Kill the current supervisor and clear the ref. */
 function killSupervisor(ref: React.MutableRefObject<ForceSupervisor | FA2Supervisor | null>) {
   ref.current?.kill();
   ref.current = null;
 }
 
 /**
- * Manages the force-directed layout lifecycle.
- *
- * For **small graphs** (< FA2_THRESHOLD nodes): uses graphology-layout-force
- * which supports `shouldSkipNode`, `shouldSkipEdge`, and `isNodeFixed`
- * callbacks needed for predicate clustering.
- *
- * For **large graphs** (>= FA2_THRESHOLD nodes): uses ForceAtlas2 with
- * Barnes-Hut approximation running in a real Web Worker, so the main thread
- * stays responsive.
- *
- * Must be rendered as a child of <SigmaContainer>.
+ * Force-directed layout lifecycle. Small graphs use graphology-layout-force
+ * (needed for the shouldSkipNode/Edge callbacks that drive predicate
+ * clustering); large graphs use worker-based ForceAtlas2. Child of <SigmaContainer>.
  */
 export function LayoutController() {
   const sigma = useSigma();
   const activePredicateIds = useUiStore((s) => s.activePredicateIds);
 
-  // Stable serialization for React dependency tracking
   const activePredicateKey = [...activePredicateIds].sort().join(',');
   const isLayoutFrozen = useUiStore((s) => s.isLayoutFrozen);
   const isSpreadActive = useUiStore((s) => s.isSpreadActive);
   const layoutSettings = useUiStore((s) => s.layoutSettings);
 
-  // Either supervisor type — both have start()/stop()/kill()
   const supervisorRef = useRef<ForceSupervisor | FA2Supervisor | null>(null);
 
-  // Stable key for layout settings to avoid unnecessary re-creates
   const layoutKey = JSON.stringify(layoutSettings);
 
-  // Create / recreate the supervisor when clustering, spread, or settings change
   useEffect(() => {
     const graph = sigma.getGraph();
 
-    // Kill any previous supervisor
     killSupervisor(supervisorRef);
 
     const isClustering = activePredicateIds.size > 0;
@@ -71,7 +57,6 @@ export function LayoutController() {
       };
     }
 
-    // ── Simple force layout path (small graphs or clustering) ──────────
     let clusterNodeIds: Set<string> | null = null;
     if (isClustering) {
       clusterNodeIds = new Set<string>();
@@ -83,7 +68,7 @@ export function LayoutController() {
       });
     }
 
-    // In spread mode: boost repulsion 5x, reduce gravity 10x
+    // Spread mode: 5x repulsion, 0.1x gravity.
     const baseRepulsion = isClustering ? layoutSettings.clusterRepulsion : layoutSettings.repulsion;
     const repulsion = isSpreadActive ? baseRepulsion * 5 : baseRepulsion;
     const gravity = isSpreadActive ? layoutSettings.gravity * 0.1 : layoutSettings.gravity;

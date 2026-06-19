@@ -3,12 +3,6 @@ using System.Text.Json;
 
 namespace vos.ManagedMicroservice.Tributary.Services;
 
-/// <summary>
-/// The request that mints a token: where to POST, which form fields to send, and how to read the token
-/// (and its expiry) back out of the response by simple dotted paths. It is source-agnostic — ArcGIS
-/// <c>generateToken</c> and OAuth2 client-credentials are the same shape with different field names and
-/// <see cref="ExpiryUnit"/>, supplied entirely by the endpoint template.
-/// </summary>
 public sealed record TokenExchangeRequest(
     string TokenUrl,
     IReadOnlyDictionary<string, string> RequestFields,
@@ -17,15 +11,9 @@ public sealed record TokenExchangeRequest(
     string? ExpiryUnit);
 
 /// <summary>
-/// Per-process cache of bearer tokens obtained by a credential exchange (Task #5470). It POSTs the
-/// configured <see cref="TokenExchangeRequest.RequestFields"/> to the token endpoint, extracts the
-/// token (and optional expiry) by simple dotted path, and reuses the token until ~75% of its lifetime
-/// elapses, then refreshes. Nothing here knows about ArcGIS — the field names and expiry unit are the
-/// only source-specific bits, and they arrive as config.
-///
-/// Keyed by the token URL plus the full request-field set, so distinct credentials/services cache
-/// independently. One fetch gate per key: same-key callers collapse onto a single mint (no stampede);
-/// distinct keys mint concurrently. The clock is a <see cref="TimeProvider"/> for deterministic tests.
+/// Per-process cache of bearer tokens, keyed by token URL plus the full request-field set so distinct
+/// credentials cache independently. One fetch gate per key: same-key callers collapse onto a single mint
+/// (no stampede); distinct keys mint concurrently. Refreshes once ~75% of a token's lifetime has elapsed.
 /// </summary>
 public sealed class TokenExchangeCache
 {
@@ -51,20 +39,14 @@ public sealed class TokenExchangeCache
         _logger = logger;
     }
 
-    /// <summary>
-    /// Return a valid token for <paramref name="request"/>, minting a fresh one only when the cache is
-    /// cold or the cached token has passed its refresh threshold. Throws
-    /// <see cref="InvalidOperationException"/> when the token endpoint fails or returns no token.
-    /// </summary>
     public async Task<string> GetTokenAsync(TokenExchangeRequest request, CancellationToken cancellationToken = default)
     {
         var key = BuildKey(request);
 
-        // Fast path: a still-fresh cached token needs no lock.
         if (_cache.TryGetValue(key, out var cached) && _timeProvider.GetUtcNow() < cached.RefreshAt)
             return cached.Token;
 
-        // Slow path: serialize per key and re-check, so a burst of same-key callers shares one mint.
+        // Serialize per key and re-check, so a burst of same-key callers shares one mint.
         var gate = _gates.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync(cancellationToken);
         try
@@ -152,7 +134,6 @@ public sealed class TokenExchangeCache
         return lifetime <= TimeSpan.Zero ? now : now + lifetime * RefreshAtLifetimeFraction;
     }
 
-    /// <summary>Walk a dotted path (e.g. <c>data.token</c>) through nested JSON objects.</summary>
     private static bool TryNavigate(JsonElement root, string dottedPath, out JsonElement result)
     {
         result = root;

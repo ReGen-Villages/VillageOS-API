@@ -121,11 +121,9 @@ namespace vos.Taproot
         private static (bool IsInherited, string? Source)? FindPropertyMatch(
             JsonElement thing, string propertyName, string propertyValue)
         {
-            // Check own properties first
             if (TryMatchProperty(thing, "Properties", propertyName, propertyValue))
                 return (false, null);
 
-            // Check inherited properties
             if (!thing.TryGetProperty("InheritedProperties", out var inherited) ||
                 inherited.ValueKind != JsonValueKind.Object)
                 return null;
@@ -255,7 +253,6 @@ namespace vos.Taproot
             var thingCount = allThings.ValueKind == JsonValueKind.Array ? allThings.GetArrayLength() : 0;
             var relationshipCount = allRelationships.ValueKind == JsonValueKind.Array ? allRelationships.GetArrayLength() : 0;
 
-            // Count properties and handlers
             var totalProperties = 0;
             var handlerCount = 0;
             if (allThings.ValueKind == JsonValueKind.Array)
@@ -271,7 +268,6 @@ namespace vos.Taproot
                 }
             }
 
-            // Count unique predicates
             var predicates = new HashSet<string>();
             if (allRelationships.ValueKind == JsonValueKind.Array)
             {

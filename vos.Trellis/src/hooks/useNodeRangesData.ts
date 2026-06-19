@@ -4,13 +4,10 @@ import type { RelationshipRangesEntry } from '../components/panels/RangesTabCont
 import { rangeApi } from '../api/rangeApi';
 
 /**
- * Hook that lazily fetches a composite range summary for a thing and all its
- * relationships in a single API call when the 'ranges' tab is active.
- *
- * Uses a temporal snapshot approach: statesVersion is captured when the tab
- * opens (or when thingId changes), and all fetches use that snapshot.
- * Continuous SignalR pushes are ignored until the user navigates away and back
- * or selects a different node.
+ * Lazily fetches a composite range summary when the 'ranges' tab is active.
+ * Point-in-time: statesVersion is snapshotted when the tab opens or thingId
+ * changes, so live SignalR pushes are ignored until the user navigates away
+ * and back or selects a different node.
  */
 export function useNodeRangesData(
   thingId: string,
@@ -22,9 +19,6 @@ export function useNodeRangesData(
   const [rangesLoading, setRangesLoading] = useState(false);
   const [relRangesEntries, setRelRangesEntries] = useState<RelationshipRangesEntry[]>([]);
 
-  // Snapshot statesVersion when the ranges tab becomes active or thingId changes.
-  // This gives us a point-in-time view — mutations arriving via SignalR after the
-  // snapshot don't trigger re-fetches until the user navigates away and back.
   const [snapshot, setSnapshot] = useState<number | undefined>(undefined);
   const [refreshKey, setRefreshKey] = useState(0);
   const prevThingId = useRef('');
@@ -41,7 +35,6 @@ export function useNodeRangesData(
     }
   }, [thingId, tab, statesVersion]);
 
-  // Single fetch: range-summary returns thing ranges, states, and relationship data
   useEffect(() => {
     if (tab !== 'ranges' || snapshot === undefined) return;
     let cancelled = false;

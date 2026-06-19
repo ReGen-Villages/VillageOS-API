@@ -1,8 +1,5 @@
 namespace vos.Taproot;
 
-/// <summary>
-/// Configuration options for the console application.
-/// </summary>
 public class ConsoleOptions
 {
     private static readonly string[] MyceliumUrlPrefixes = { "--mycelium-url=", "--mycelium=" };
@@ -11,10 +8,7 @@ public class ConsoleOptions
     public string MyceliumUrl { get; set; } = "https://localhost:7243";
     public string? ApiKey { get; set; }
 
-    /// <summary>
-    /// Parses command-line arguments and environment variables.
-    /// Priority: command-line args > environment variables > defaults
-    /// </summary>
+    // Precedence: command-line args > environment variables > defaults.
     public static ConsoleOptions Parse(string[] args)
     {
         var options = new ConsoleOptions();

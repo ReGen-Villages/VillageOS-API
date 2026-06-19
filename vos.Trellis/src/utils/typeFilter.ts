@@ -1,38 +1,19 @@
-// Feature #5362 — discover the set of "type Things" in a loaded model and
-// count how many Things belong to each, plus a synthetic "(no type)" bucket
-// for Things without an `is` relation. The bucket-of-everything-else makes
-// the filter panel match the user's mental model: "None" means "show
-// nothing" — empty graph.
-//
-// Domain-agnostic by design. The system has no fixed vocabulary of types —
-// a "type" is simply any Thing that some other Thing `is`-relates to.
+// A "type" is any Thing that some other Thing `is`-relates to; there is no
+// fixed vocabulary. The synthetic "(no type)" bucket lets the panel's "None"
+// action mean "show nothing → empty graph".
 
 import type { VosThing, VosRelationship } from '../types/vos';
 
 const IS_PREDICATE_NAME = 'is';
 
-/**
- * Synthetic typeId for the "(no type)" bucket — Things in the graph that
- * have no `is` relationship to any type (predicates, the GUI_Settings
- * instance, any Thing the user created directly without classifying it).
- * Treated as a first-class entry in the type-filter panel so users can hide
- * them too: the panel's "None" action then matches "show nothing → empty
- * graph".
- *
- * Reserved sentinel — guaranteed not to collide with any real Thing id
- * because real ids are GUIDs.
- */
+// Reserved sentinel — cannot collide with a real Thing id because real ids are GUIDs.
 export const NO_TYPE_ID = '__noType__';
 
-/** Display name shown in the panel for the synthetic bucket. */
 export const NO_TYPE_NAME = '(no type)';
 
 export interface TypeStat {
-  /** Thing id of the type Thing, or NO_TYPE_ID for the synthetic bucket. */
   typeId: string;
-  /** Display name (the type Thing's Name, or NO_TYPE_NAME). */
   name: string;
-  /** Number of Things in this bucket. */
   instanceCount: number;
 }
 

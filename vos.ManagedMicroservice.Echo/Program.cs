@@ -16,7 +16,6 @@ var myceliumUrl = cliArgs.MyceliumUrl;
 var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
 
-// Configure Serilog
 var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "echo-.log");
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -40,9 +39,7 @@ builder.Host.UseSerilog();
 builder.WebHost.UseUrls($"http://localhost:{servicePort}");
 builder.Services.AddHttpClient();
 
-// Add JWT auth if mycelium provided a signing key. Bug #5391: use the
-// issuer/audience Mycelium passes via CLI so validation matches what
-// Mycelium signed.
+// Bug #5391: issuer/audience must come from the CLI so validation matches what Mycelium signed.
 var authEnabled = !string.IsNullOrEmpty(signingKey);
 if (authEnabled)
 {
@@ -71,7 +68,6 @@ if (authEnabled)
     app.UseAuthorization();
 }
 
-// Register with mycelium on startup
 app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
 {
     try
@@ -87,7 +83,6 @@ app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
     }
 }));
 
-// Deregister from mycelium on shutdown
 app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
 {
     try
@@ -102,7 +97,6 @@ app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
     }
 }));
 
-// POST /handle — Receive JSON payload from mycelium, echo it back
 var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx) =>
 {
     var count = Interlocked.Increment(ref requestCount);
@@ -123,7 +117,6 @@ var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx) =>
 });
 if (authEnabled) handleEndpoint.RequireAuthorization();
 
-// GET /health — Health check endpoint
 app.MapGet("/health", () => new
 {
     status = "Healthy",
@@ -131,7 +124,6 @@ app.MapGet("/health", () => new
     requestsProcessed = requestCount
 });
 
-// GET /stats — Service statistics
 app.MapGet("/stats", (MyceliumClient myceliumClient) => new
 {
     service = "Echo",
@@ -141,7 +133,6 @@ app.MapGet("/stats", (MyceliumClient myceliumClient) => new
     myceliumUrl
 });
 
-// POST /shutdown — Graceful shutdown
 var shutdownEndpoint = app.MapPost("/shutdown", (IHostApplicationLifetime lifetime) =>
 {
     _ = Task.Run(async () =>

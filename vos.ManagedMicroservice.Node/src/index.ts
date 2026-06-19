@@ -2,12 +2,7 @@
 //
 // A managed microservice is a handler that Mycelium (the VillageOS gateway)
 // launches as a daemon and calls when a relationship with the service's
-// predicate is created. The whole contract is HTTP + a single HS256 JWT, and
-// this file implements all of it using only Node's standard library
-// (node:http, node:crypto, global fetch) — no runtime dependencies.
-//
-// This is an "echo" handler: POST /handle acknowledges the relationship and
-// reflects the payload back. Replace handleRelationship() with real logic.
+// predicate is created. The whole contract is HTTP + a single HS256 JWT.
 //
 // `is` is NOT an external predicate — Mycelium handles `is` inheritance
 // in-process and never dispatches it. Register for a custom predicate instead.
@@ -56,8 +51,6 @@ export function parseArgs(argv: string[]): Config | null {
   };
 }
 
-// ---- Mycelium registration ------------------------------------------------
-
 const handlerId = randomUUID();
 let requestsProcessed = 0;
 
@@ -99,14 +92,11 @@ async function deregister(cfg: Config): Promise<void> {
   }
 }
 
-// ---- inbound JWT validation (HS256) --------------------------------------
-
 function b64urlToBuf(s: string): Buffer {
   return Buffer.from(s, "base64url");
 }
 
-// Validates an HS256 JWT against key/issuer/audience with 30s clock skew,
-// matching ServiceTokenValidator on the .NET side. Returns true if valid.
+// 30s clock skew matches ServiceTokenValidator on the .NET side.
 export function verifyJwt(token: string, key: Buffer, issuer: string, audience: string): boolean {
   const parts = token.split(".");
   if (parts.length !== 3) return false;
@@ -130,8 +120,6 @@ export function verifyJwt(token: string, key: Buffer, issuer: string, audience: 
   const audOk = Array.isArray(aud) ? aud.includes(audience) : aud === audience;
   return audOk;
 }
-
-// ---- HTTP plumbing --------------------------------------------------------
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const json = JSON.stringify(body);
@@ -192,7 +180,6 @@ function main(): void {
       } catch {
         return sendJson(res, 400, { success: false, error: "invalid json" });
       }
-      // Real handlers do their predicate work here; the echo example acks + reflects.
       console.log(`handle #${n}: relationship ${payload["relationshipId"] ?? "?"}`);
       return sendJson(res, 200, {
         success: true,
@@ -229,7 +216,7 @@ async function shutdown(cfg: Config, server: ReturnType<typeof createServer>): P
   server.close(() => process.exit(0));
 }
 
-// Only boot the server when run directly (so tests can import the pure helpers).
+// Only boot the server when run directly, so tests can import the pure helpers.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }
