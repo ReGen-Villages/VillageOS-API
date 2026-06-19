@@ -14,8 +14,6 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
 
     public readonly record struct MyceliumThing(Guid Id, string Name);
 
-    public readonly record struct EndpointConfig(string Url, string HttpMethod);
-
     public async Task<MyceliumThing?> FindThingByNameAsync(string name)
     {
         try
@@ -37,28 +35,6 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
             Logger.LogError(ex, "Error finding thing by name {Name}", name);
             return null;
         }
-    }
-
-    public async Task<EndpointConfig?> GetEndpointConfigByNameAsync(string endpointName)
-    {
-        var thing = await FindThingByNameAsync(endpointName);
-        if (thing == null)
-            return null;
-
-        var effective = await GetEffectivePropertiesAsync(thing.Value.Id);
-        if (effective == null)
-            return null;
-
-        var url = TryGetString(effective, "url");
-        var method = TryGetString(effective, "httpMethod");
-
-        if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(method))
-        {
-            Logger.LogWarning("Thing {Name} missing required Endpoint properties (url/httpMethod)", endpointName);
-            return null;
-        }
-
-        return new EndpointConfig(url!, method!);
     }
 
     public async Task<MyceliumThing?> CreateThingAsync(string name, Dictionary<string, object?>? properties = null)
@@ -146,6 +122,58 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
+    public async Task<bool> SubmitObservationsAsync(Guid thingId, IReadOnlyList<ObservationSample> samples)
+    {
+        if (samples.Count == 0) return true;
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
+            var payload = samples.Select(s => new
+            {
+                property = s.Property,
+                value = ResolveMyceliumValue(s.Value).Value,
+                observedAt = s.ObservedAt
+            });
+
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things/{thingId}/observations", payload);
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            var error = await response.Content.ReadAsStringAsync();
+            Logger.LogWarning("Failed to submit {Count} observations to thing {ThingId}. Status: {StatusCode}. Error: {Error}",
+                samples.Count, thingId, response.StatusCode, error);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error submitting observations to thing {ThingId}", thingId);
+            return false;
+        }
+    }
+
+    public async Task<bool> SetPropertyModeAsync(Guid thingId, string property, string mode)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            var encoded = Uri.EscapeDataString(property);
+            var response = await client.PutAsJsonAsync(
+                $"{MyceliumUrl}/api/things/{thingId}/properties/{encoded}/mode", new { Mode = mode });
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            var error = await response.Content.ReadAsStringAsync();
+            Logger.LogWarning("Failed to set mode {Mode} on {ThingId}.{Property}. Status: {StatusCode}. Error: {Error}",
+                mode, thingId, property, response.StatusCode, error);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error setting mode on {ThingId}.{Property}", thingId, property);
+            return false;
+        }
+    }
+
     public async Task<Dictionary<string, JsonElement>?> GetEffectivePropertiesAsync(Guid thingId)
     {
         try
@@ -215,22 +243,6 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
 
         value = default;
         return false;
-    }
-
-    private static string? TryGetString(Dictionary<string, JsonElement> properties, string name)
-    {
-        if (!properties.TryGetValue(name, out var value))
-            return null;
-
-        return value.ValueKind switch
-        {
-            JsonValueKind.String => value.GetString(),
-            JsonValueKind.Number => value.GetRawText(),
-            JsonValueKind.True => "true",
-            JsonValueKind.False => "false",
-            JsonValueKind.Null => null,
-            _ => value.ToString()
-        };
     }
 
     private static (object? Value, string Type) ResolveMyceliumValue(object? value)

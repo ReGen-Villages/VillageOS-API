@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Jsonata.Net.Native;
 
@@ -5,14 +6,24 @@ namespace vos.ManagedMicroservice.Tributary.Services;
 
 public record ObservationIngestResult(
     bool Success,
-    int ObservedCount,
+    int EntitiesTouched,
+    int ObservationsSubmitted,
     string? Error,
-    string? Detail,
-    int? Index = null,
-    Guid? ObservationThingId = null);
+    string? Detail);
 
+/// <summary>
+/// Ingests fetched-and-reshaped readings as time-series observations (Phase 5b hybrid, #5587).
+/// Each reading names an entity and carries a bag of property values at an observed time. Entities
+/// become structural Things — created once, related to the source endpoint once — so the graph
+/// scales with the number of entities, not readings; the readings themselves are written as
+/// observations on each entity's property series (Canopy → Sapwood), bounded by PropertyMode.
+/// </summary>
 public class ObservationIngestService
 {
+    /// <summary>Retention applied to newly-declared observed properties. Sampled bounds storage
+    /// growth at the source — the right default for high-volume sediment series.</summary>
+    public const string DefaultObservationMode = "Sampled";
+
     private readonly IEndpointMyceliumClient _myceliumClient;
     private readonly ILogger<ObservationIngestService> _logger;
 
@@ -65,46 +76,69 @@ public class ObservationIngestService
     public async Task<ObservationIngestResult> CreateObservationsAsync(Guid endpointThingId, JsonataQuery query, string body)
     {
         if (!TryTransform(body, query, out var transformed, out var transformError))
+            return new ObservationIngestResult(false, 0, 0, "Endpoint response transform failed", transformError);
+
+        if (!TryParseReadings(transformed, out var readings, out var parseError))
+            return new ObservationIngestResult(false, 0, 0, "Transformed output is not a valid reading array.", parseError);
+
+        // Things scale with entities, observations with readings — so group by entity name and
+        // touch each entity's structure once.
+        MyceliumClient.MyceliumThing? observedPredicate = null;
+        var entitiesTouched = 0;
+        var observationsSubmitted = 0;
+
+        foreach (var group in readings.GroupBy(r => r.Name, StringComparer.Ordinal))
         {
-            return new ObservationIngestResult(false, 0, "Endpoint response transform failed", transformError);
-        }
+            var name = group.Key;
+            var entityReadings = group.ToList();
 
-        if (!TryParseObservationPayloads(transformed, out var observations, out var parseError))
-        {
-            return new ObservationIngestResult(false, 0, "Transformed output is not a valid observation thing array.", parseError);
-        }
-
-        var observedPredicate = await _myceliumClient.FindThingByNameAsync("observed");
-        if (observedPredicate == null)
-            observedPredicate = await _myceliumClient.CreateThingAsync("observed");
-
-        if (observedPredicate == null)
-            return new ObservationIngestResult(false, 0, "Failed to resolve or create 'observed' predicate.", null);
-
-        var createdCount = 0;
-        for (var i = 0; i < observations.Count; i++)
-        {
-            var obs = observations[i];
-            var created = await _myceliumClient.CreateThingAsync(obs.Name, obs.Properties);
-            if (created == null)
+            var entity = await _myceliumClient.FindThingByNameAsync(name);
+            var created = false;
+            if (entity == null)
             {
-                return new ObservationIngestResult(false, createdCount, "Failed to create observation thing.", null, i);
+                // First sighting: declare the entity and its observable properties (the first
+                // reading seeds the shape), bound their retention, and link it to the source once.
+                entity = await _myceliumClient.CreateThingAsync(name, entityReadings[0].Properties);
+                if (entity == null)
+                    return new ObservationIngestResult(false, entitiesTouched, observationsSubmitted,
+                        "Failed to create entity thing.", name);
+                created = true;
+
+                foreach (var prop in entityReadings[0].Properties.Keys)
+                    await _myceliumClient.SetPropertyModeAsync(entity.Value.Id, prop, DefaultObservationMode);
+
+                observedPredicate ??= await _myceliumClient.FindThingByNameAsync("observed")
+                                      ?? await _myceliumClient.CreateThingAsync("observed");
+                if (observedPredicate == null)
+                    return new ObservationIngestResult(false, entitiesTouched, observationsSubmitted,
+                        "Failed to resolve or create 'observed' predicate.", null);
+
+                var related = await _myceliumClient.CreateRelationshipAsync(
+                    endpointThingId, observedPredicate.Value.Id, entity.Value.Id);
+                if (!related)
+                    return new ObservationIngestResult(false, entitiesTouched, observationsSubmitted,
+                        "Failed to relate entity to endpoint.", name);
             }
 
-            var related = await _myceliumClient.CreateRelationshipAsync(
-                endpointThingId,
-                observedPredicate.Value.Id,
-                created.Value.Id);
+            entitiesTouched++;
 
-            if (!related)
+            // The reading consumed by creation is captured as each property's seed Fact; every
+            // remaining reading becomes an observation on the entity's series.
+            var toObserve = created ? entityReadings.Skip(1) : entityReadings;
+            var samples = toObserve
+                .SelectMany(r => r.Properties.Select(kv => new ObservationSample(kv.Key, kv.Value, r.ObservedAt)))
+                .ToList();
+
+            if (samples.Count > 0)
             {
-                return new ObservationIngestResult(false, createdCount, "Failed to relate observation thing to endpoint.", null, i, created.Value.Id);
+                if (!await _myceliumClient.SubmitObservationsAsync(entity.Value.Id, samples))
+                    return new ObservationIngestResult(false, entitiesTouched, observationsSubmitted,
+                        "Failed to submit observations for entity.", name);
+                observationsSubmitted += samples.Count;
             }
-
-            createdCount++;
         }
 
-        return new ObservationIngestResult(true, createdCount, null, null);
+        return new ObservationIngestResult(true, entitiesTouched, observationsSubmitted, null, null);
     }
 
     private static bool TryNormalizeJson(string input, out string normalized)
@@ -122,9 +156,9 @@ public class ObservationIngestService
         }
     }
 
-    private static bool TryParseObservationPayloads(string json, out List<ObservationPayload> observations, out string error)
+    private static bool TryParseReadings(string json, out List<Reading> readings, out string error)
     {
-        observations = new List<ObservationPayload>();
+        readings = new List<Reading>();
         error = string.Empty;
 
         JsonDocument doc;
@@ -141,9 +175,7 @@ public class ObservationIngestService
         using (doc)
         {
             if (doc.RootElement.ValueKind == JsonValueKind.Object)
-            {
-                return TryParseObservation(doc.RootElement, observations, out error);
-            }
+                return TryParseReading(doc.RootElement, readings, out error);
 
             if (doc.RootElement.ValueKind != JsonValueKind.Array)
             {
@@ -153,7 +185,7 @@ public class ObservationIngestService
 
             foreach (var element in doc.RootElement.EnumerateArray())
             {
-                if (!TryParseObservation(element, observations, out error))
+                if (!TryParseReading(element, readings, out error))
                     return false;
             }
         }
@@ -161,34 +193,42 @@ public class ObservationIngestService
         return true;
     }
 
-    private static bool TryParseObservation(JsonElement element, List<ObservationPayload> observations, out string error)
+    private static bool TryParseReading(JsonElement element, List<Reading> readings, out string error)
     {
         error = string.Empty;
 
         if (element.ValueKind != JsonValueKind.Object)
         {
-            error = "Each observation must be a JSON object.";
+            error = "Each reading must be a JSON object.";
             return false;
         }
 
         if (!element.TryGetProperty("name", out var nameProp) || nameProp.ValueKind != JsonValueKind.String)
         {
-            error = "Observation is missing a string 'name' property.";
+            error = "Reading is missing a string 'name' property.";
             return false;
         }
 
         if (!element.TryGetProperty("properties", out var propsProp) || propsProp.ValueKind != JsonValueKind.Object)
         {
-            error = "Observation is missing an object 'properties' property.";
+            error = "Reading is missing an object 'properties' property.";
             return false;
         }
 
         var props = JsonSerializer.Deserialize<Dictionary<string, object?>>(propsProp.GetRawText())
                     ?? new Dictionary<string, object?>();
 
-        observations.Add(new ObservationPayload(nameProp.GetString() ?? string.Empty, props));
+        var observedAt = DateTime.UtcNow;
+        if (element.TryGetProperty("observedAt", out var atProp) && atProp.ValueKind == JsonValueKind.String
+            && DateTime.TryParse(atProp.GetString(), CultureInfo.InvariantCulture,
+                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed))
+        {
+            observedAt = parsed;
+        }
+
+        readings.Add(new Reading(nameProp.GetString() ?? string.Empty, props, observedAt));
         return true;
     }
 
-    private record ObservationPayload(string Name, Dictionary<string, object?> Properties);
+    private record Reading(string Name, Dictionary<string, object?> Properties, DateTime ObservedAt);
 }

@@ -283,150 +283,6 @@ public class MyceliumClientTests
         body.Should().Contain($"\"type\":\"{expectedType}\"");
     }
 
-    // ---------- GetEndpointConfigByNameAsync (exercises TryGetString arms) ----------
-
-    [Fact]
-    public async Task GetEndpointConfigByName_HappyPath_ReturnsConfig()
-    {
-        var thingId = Guid.NewGuid();
-        var handler = new MockHttpMessageHandler(req =>
-            RouteEndpoint(req, thingId, """
-            {
-              "url":        {"Value":"https://api.test/x"},
-              "httpMethod": {"Value":"GET"}
-            }
-            """) ?? new HttpResponseMessage(HttpStatusCode.NotFound));
-
-        var sut = CreateClient(handler);
-        var result = await sut.GetEndpointConfigByNameAsync("EP");
-
-        result.Should().NotBeNull();
-        result!.Value.Url.Should().Be("https://api.test/x");
-        result.Value.HttpMethod.Should().Be("GET");
-    }
-
-    [Fact]
-    public async Task GetEndpointConfigByName_NumberKindUrl_RawTextUsed()
-    {
-        // ValueKind.Number path in TryGetString → GetRawText is used as the url.
-        var thingId = Guid.NewGuid();
-        var handler = new MockHttpMessageHandler(req =>
-            RouteEndpoint(req, thingId, """
-            {
-              "url":        {"Value":99},
-              "httpMethod": {"Value":"GET"}
-            }
-            """) ?? new HttpResponseMessage(HttpStatusCode.NotFound));
-
-        var sut = CreateClient(handler);
-        var result = await sut.GetEndpointConfigByNameAsync("EP");
-
-        result.Should().NotBeNull();
-        result!.Value.Url.Should().Be("99");
-    }
-
-    [Fact]
-    public async Task GetEndpointConfigByName_BoolTrueUrl_StringTrueUsed()
-    {
-        var thingId = Guid.NewGuid();
-        var handler = new MockHttpMessageHandler(req =>
-            RouteEndpoint(req, thingId, """
-            {
-              "url":        {"Value":true},
-              "httpMethod": {"Value":"GET"}
-            }
-            """) ?? new HttpResponseMessage(HttpStatusCode.NotFound));
-
-        var sut = CreateClient(handler);
-        var result = await sut.GetEndpointConfigByNameAsync("EP");
-
-        result.Should().NotBeNull();
-        result!.Value.Url.Should().Be("true");
-    }
-
-    [Fact]
-    public async Task GetEndpointConfigByName_BoolFalseUrl_StringFalseUsed()
-    {
-        var thingId = Guid.NewGuid();
-        var handler = new MockHttpMessageHandler(req =>
-            RouteEndpoint(req, thingId, """
-            {
-              "url":        {"Value":false},
-              "httpMethod": {"Value":"GET"}
-            }
-            """) ?? new HttpResponseMessage(HttpStatusCode.NotFound));
-
-        var sut = CreateClient(handler);
-        var result = await sut.GetEndpointConfigByNameAsync("EP");
-
-        // GetEndpointConfig validates the resulting strings — "false" is non-empty, but
-        // the response is still a valid EndpointConfig.
-        result.Should().NotBeNull();
-        result!.Value.Url.Should().Be("false");
-    }
-
-    [Fact]
-    public async Task GetEndpointConfigByName_ArrayUrl_ToStringFallback()
-    {
-        var thingId = Guid.NewGuid();
-        var handler = new MockHttpMessageHandler(req =>
-            RouteEndpoint(req, thingId, """
-            {
-              "url":        {"Value":[1,2]},
-              "httpMethod": {"Value":"GET"}
-            }
-            """) ?? new HttpResponseMessage(HttpStatusCode.NotFound));
-
-        var sut = CreateClient(handler);
-        var result = await sut.GetEndpointConfigByNameAsync("EP");
-
-        result.Should().NotBeNull();
-        result!.Value.Url.Should().Be("[1,2]");
-    }
-
-    [Fact]
-    public async Task GetEndpointConfigByName_NullUrl_ReturnsNull()
-    {
-        // Null kind → TryGetString returns null → IsNullOrWhiteSpace → null config.
-        var thingId = Guid.NewGuid();
-        var handler = new MockHttpMessageHandler(req =>
-            RouteEndpoint(req, thingId, """
-            {
-              "url":        {"Value":null},
-              "httpMethod": {"Value":"GET"}
-            }
-            """) ?? new HttpResponseMessage(HttpStatusCode.NotFound));
-
-        var sut = CreateClient(handler);
-
-        (await sut.GetEndpointConfigByNameAsync("EP")).Should().BeNull();
-    }
-
-    [Fact]
-    public async Task GetEndpointConfigByName_ThingMissing_ReturnsNull()
-    {
-        var handler = new MockHttpMessageHandler(_ => JsonResponse("null"));
-        var sut = CreateClient(handler);
-
-        (await sut.GetEndpointConfigByNameAsync("MissingEP")).Should().BeNull();
-    }
-
-    [Fact]
-    public async Task GetEndpointConfigByName_EffectivePropsNull_ReturnsNull()
-    {
-        var thingId = Guid.NewGuid();
-        var handler = new MockHttpMessageHandler(req =>
-        {
-            if (req.RequestUri!.AbsolutePath == "/api/things")
-                return JsonResponse($$"""{"Id":"{{thingId}}","Name":"EP"}""");
-            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
-        });
-
-        var sut = CreateClient(handler);
-
-        (await sut.GetEndpointConfigByNameAsync("EP")).Should().BeNull();
-    }
-
     // ---------- CreateThingAsync ----------
 
     [Fact]
@@ -527,6 +383,91 @@ public class MyceliumClientTests
     }
 
     // ---------- Helpers ----------
+
+    // ---------- SubmitObservationsAsync ----------
+
+    [Fact]
+    public async Task SubmitObservationsAsync_PostsBatchToObservationsRoute()
+    {
+        var thingId = Guid.NewGuid();
+        string path = string.Empty, body = string.Empty;
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            path = req.RequestUri!.AbsolutePath;
+            body = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
+            return JsonResponse("""{"accepted":2}""");
+        });
+        var sut = CreateClient(handler);
+
+        var at = new DateTime(2026, 3, 3, 0, 0, 0, DateTimeKind.Utc);
+        var ok = await sut.SubmitObservationsAsync(thingId, new[]
+        {
+            new ObservationSample("temp", 21.0, at),
+            new ObservationSample("humidity", 55.0, at),
+        });
+
+        ok.Should().BeTrue();
+        path.Should().Be($"/api/things/{thingId}/observations");
+        body.Should().Contain("\"property\":\"temp\"").And.Contain("\"value\":21").And.Contain("observedAt");
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_EmptyBatch_ShortCircuitsToTrue()
+    {
+        var called = false;
+        var handler = new MockHttpMessageHandler(_ => { called = true; return JsonResponse("{}"); });
+        var sut = CreateClient(handler);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), Array.Empty<ObservationSample>());
+
+        ok.Should().BeTrue();
+        called.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_NonSuccess_ReturnsFalse()
+    {
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest));
+        var sut = CreateClient(handler);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(),
+            new[] { new ObservationSample("temp", 1.0, DateTime.UtcNow) });
+
+        ok.Should().BeFalse();
+    }
+
+    // ---------- SetPropertyModeAsync ----------
+
+    [Fact]
+    public async Task SetPropertyModeAsync_PutsModeToPropertyModeRoute()
+    {
+        var thingId = Guid.NewGuid();
+        string path = string.Empty, body = string.Empty;
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            path = req.RequestUri!.AbsolutePath;
+            body = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var sut = CreateClient(handler);
+
+        var ok = await sut.SetPropertyModeAsync(thingId, "temp", "Sampled");
+
+        ok.Should().BeTrue();
+        path.Should().Be($"/api/things/{thingId}/properties/temp/mode");
+        body.Should().Contain("Sampled");
+    }
+
+    [Fact]
+    public async Task SetPropertyModeAsync_NonSuccess_ReturnsFalse()
+    {
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest));
+        var sut = CreateClient(handler);
+
+        var ok = await sut.SetPropertyModeAsync(Guid.NewGuid(), "temp", "Sampled");
+
+        ok.Should().BeFalse();
+    }
 
     private static MyceliumClient CreateClient(HttpMessageHandler handler)
     {

@@ -3,7 +3,7 @@
 Tributary is VillageOS's generic outbound HTTP fetcher. Given an endpoint registered
 in Mycelium, it resolves that endpoint's effective properties, performs the HTTP call
 (with optional auth and pagination), optionally reshapes the response with a JSONata
-expression, and ingests the result as observation Things related to the endpoint.
+expression, and ingests the readings as time-series observations on each entity's series.
 
 It is deliberately **source-agnostic** — there is no per-API code. A specific source
 (ArcGIS/ESRI, an OAuth2 REST API, a plain JSON endpoint) is expressed entirely as an
@@ -130,10 +130,14 @@ Tributary's contract is **fetch-and-shape**:
 1. **Fetch** — one outbound HTTP call (auth + pagination as configured), aggregating any
    pages into a single body.
 2. **Shape** — an optional JSONata `responseTransform` projects the response into the
-   observation shape (`[{ name, properties }]`). JSONata here is *structural* — selecting,
-   renaming, and restructuring fields — not a place to compute new domain quantities.
-3. **Ingest** — each shaped item becomes an observation Thing related to the endpoint via
-   an `observed` relationship.
+   reading shape (`[{ name, properties, observedAt? }]`). JSONata here is *structural* —
+   selecting, renaming, and restructuring fields — not a place to compute new domain quantities.
+3. **Ingest** (Phase 5b hybrid, #5587) — readings are grouped by entity `name`. Each entity is a
+   Thing created **once** (its first reading seeds the observable properties, each bounded to
+   `Sampled` PropertyMode) and linked to the endpoint **once** via an `observed` relationship;
+   every reading's values are then written as **observations** on that entity's property series
+   (`POST /api/things/{id}/observations`). So Things scale with the number of entities, not
+   readings — the readings live in the time-series tier (Canopy → Sapwood), not the structural graph.
 
 Tributary keeps **no state about the data** and computes **no derived values**. Anything
 time-evolving or calculated — simulations, rates, accumulations, consumes/produces
