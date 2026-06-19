@@ -12,7 +12,7 @@ This doc has two parts. **[Part 1 — User Guide](#part-1--user-guide)** is a
 how-to for someone clicking around the app: navigating, searching, the
 dashboard, creating data. **[Part 2 — Technical Specification](#part-2--technical-specification)**
 is reference material for someone writing GUI code: architecture, component
-structure, state management, and the API and SignalR layer.
+structure, state management, and the API and SSE (Server-Sent Events) layer.
 
 > **Screenshots**: To re-capture screenshots, run
 > `node docs/capture-screenshots.mjs` while the Mycelium and GUI dev server
@@ -60,7 +60,7 @@ structure, state management, and the API and SignalR layer.
 
 ### 1.1 Prerequisites
 
-- **VillageOS Mycelium** running (provides the REST API and SignalR hub)
+- **VillageOS Mycelium** running (provides the REST API and SSE streams)
 - **Node.js 20+** installed (for the Vite dev server)
 - A modern browser — Chrome, Firefox, or Safari (Safari has some WebGL limitations, see [Section 6](#6-single-building-3d-view))
 
@@ -229,7 +229,7 @@ The detail panel has three tabs (four for things with geometry):
 
 Each thing name is a clickable link — clicking it navigates to that node, selecting it and scrolling the graph to center on it. Click the **chevron** next to a relationship to expand it and see its properties. Multiple relationships can be expanded simultaneously. Relationship properties also support inline editing (pencil toggle, same as own properties). Each relationship row also has an **edge-detail icon** — clicking it opens the **EdgeDetailPanel** for that relationship, where you can view and edit its properties and ranges without having to click the edge in the graph. In edit mode, an **Add Relationship** row appears at the bottom of each section (outgoing/incoming) with predicate and other-thing pickers — select both and click "+" to create a new relationship inline.
 
-**Ranges** — Shows any active ranges defined on this thing with their current state. A windmill spinner appears while data loads. Own ranges, inherited ranges, current states, and relationship ranges are all fetched in a single composite API call for efficiency. The tab uses a temporal snapshot approach — data reflects a point-in-time view when the tab was opened, and is not disrupted by ongoing SignalR state-change events. Click the **refresh icon** in the tab bar to re-fetch the latest data without navigating away.
+**Ranges** — Shows any active ranges defined on this thing with their current state. A windmill spinner appears while data loads. Own ranges, inherited ranges, current states, and relationship ranges are all fetched in a single composite API call for efficiency. The tab uses a temporal snapshot approach — data reflects a point-in-time view when the tab was opened, and is not disrupted by ongoing SSE state-change events. Click the **refresh icon** in the tab bar to re-fetch the latest data without navigating away.
 
 **3D** (conditional) — For things with IFC mesh geometry, a "3D" tab appears showing an interactive 3D view of the element. The model auto-rotates slowly. You can drag to orbit, scroll to zoom, and examine the element from any angle. For IFC container things (e.g., IfcBuilding, IfcBuildingStorey) that have no own geometry but contain child elements via `contains`/`aggregates` relationships, the 3D view renders all child meshes together, colored by IFC class. This tab is hidden on Safari due to WebGL context limits.
 
@@ -432,7 +432,7 @@ Shows background processes managed by Mycelium. Each daemon shows its running st
 
 ### 7.4 Activity Feed
 
-The right column shows a real-time log of all model mutations, streamed via SignalR WebSocket. Events include "ThingCreated", "RelationshipCreated", "PropertyChanged", etc. The feed keeps the most recent 200 events. Each event type has a distinct color (green for created, red for deleted, amber for property changes, purple/cyan for services).
+The right column shows a real-time log of all model mutations, streamed via Server-Sent Events (SSE). Events include "ThingCreated", "RelationshipCreated", "PropertyChanged", etc. The feed keeps the most recent 200 events. Each event type has a distinct color (green for created, red for deleted, amber for property changes, purple/cyan for services).
 
 **Pause/Resume** — Click the pause button to freeze the feed at its current snapshot. New events are buffered in the background and a badge shows how many are waiting. Click play to resume and see all buffered events.
 
@@ -443,7 +443,7 @@ The right column shows a real-time log of all model mutations, streamed via Sign
 The top-right controls include:
 
 - **Mycelium** (green dot) — REST API connection active
-- **Live** (green dot) — SignalR WebSocket connected and receiving events
+- **Live** (green dot) — SSE streams connected and receiving events
 - **Swagger** (document icon) — Opens the Mycelium API documentation (Swagger UI) in a new tab
 - **Shutdown** (power icon) — Shuts down Mycelium (with confirmation dialog)
 - **Switch Model** (arrows icon) — Switch to a different seed/model
@@ -463,7 +463,7 @@ Click the **+** button next to the search bar at the top of the Graph page. An i
 
 1. Type a name for the new thing
 2. Press **Enter** or click the **+** submit button
-3. The new thing appears immediately in the graph (via SignalR push)
+3. The new thing appears immediately in the graph (via SSE push)
 4. Press **Escape** to cancel
 
 ### 8.2 Adding Properties
@@ -540,7 +540,7 @@ Safari limits the number of simultaneous WebGL contexts, and the graph already u
 
 ### Real-time updates not appearing
 
-Check the connection indicators on the Dashboard page. If "Live" shows red, the SignalR WebSocket connection has dropped. This usually recovers automatically within 30 seconds (exponential backoff). If "Mycelium" shows red, Mycelium process may have stopped.
+Check the connection indicators on the Dashboard page. If "Live" shows red, the SSE connection has dropped. This usually recovers automatically within 30 seconds (exponential backoff). If "Mycelium" shows red, Mycelium process may have stopped.
 
 ### Search finds nothing
 
@@ -578,7 +578,7 @@ VillageOS is an in-memory temporal graph database built in .NET 10/C#. Users int
 
 1. **Interactive graph visualization** — the model rendered as a WebGL force-directed graph using Sigma.js v3
 2. **Full CLI parity** — every CLI operation accessible through inline forms, context menus, and detail panels
-3. **Mycelium dashboard** — real-time monitoring of daemons, services/handlers, and model activity via SignalR
+3. **Mycelium dashboard** — real-time monitoring of daemons, services/handlers, and model activity via SSE
 
 ---
 
@@ -590,13 +590,13 @@ graph TB
         Graph["Graph View<br/>(Sigma.js v3 + graphology)"]
         Commands["Inline CRUD<br/>Panels"]
         Dashboard["Dashboard<br/>(Services/Daemons)"]
-        Graph & Commands & Dashboard --> APIClient["API Client Layer<br/>(fetch + SignalR)"]
+        Graph & Commands & Dashboard --> APIClient["API Client Layer<br/>(fetch + SSE/EventSource)"]
     end
 
     APIClient -->|"HTTPS + WebSocket"| Mycelium
 
     subgraph Mycelium["vos.Mycelium"]
-        API["REST API<br/>(API Controllers, MyceliumController)<br/>+ SignalR Hub /vosHub<br/>+ JWT Auth<br/>+ CORS policy"]
+        API["REST API<br/>(API Controllers, MyceliumController)<br/>+ SSE streams (/api/subscriptions, /api/events)<br/>+ JWT Auth<br/>+ CORS policy"]
     end
 ```
 
@@ -613,7 +613,7 @@ graph TB
 | **Graph layout (large)** | graphology-layout-forceatlas2 (FA2 worker) | 0.10 |
 | **Styling** | Tailwind CSS | 4.1 |
 | **State management** | Zustand | 5.0.11 |
-| **Real-time** | @microsoft/signalr | 10.0 |
+| **Real-time** | EventSource (SSE) | native |
 | **Icons** | lucide-react | 0.563 |
 | **Dates** | date-fns | 4.1 |
 | **3D renderer** | three (Three.js) | 0.182 |
@@ -628,7 +628,7 @@ graph TB
 ```text
 vos.Trellis/
 ├── package.json
-├── vite.config.ts              # Proxy /api + /vosHub → https://localhost:7243
+├── vite.config.ts              # Proxy /api → https://localhost:7243
 ├── tsconfig.json
 ├── index.html
 └── src/
@@ -652,7 +652,7 @@ vos.Trellis/
     │   └── endpointApi.ts      # Endpoint services listing (GET /api/endpoints)
     │
     ├── hooks/
-    │   ├── useSignalR.ts       # SignalR connection singleton + subscription hook
+    │   ├── useSse.ts          # SSE connection singleton + subscription hook
     │   └── useAuth.ts          # AuthContext, useAuth() hook, useAuthState() with login/logout/switchModel/selectModel/saveSeed/changePassword/VITE_API_KEY auto-exchange
     │
     ├── stores/
@@ -670,7 +670,7 @@ vos.Trellis/
     │   ├── nodeVisibility.ts    # Pure helpers for node/edge visibility + edgeTouchesNode (testable without WebGL)
     │   ├── predicateCluster.ts  # Predicate-based clustering algorithm + stats
     │   ├── searchFilter.ts      # Graph search with case-sensitive, exact-match, and regex options
-    │   ├── propertyUpdates.ts   # Pure helpers for incremental SignalR property updates (avoids full reload)
+    │   ├── propertyUpdates.ts   # Pure helpers for incremental SSE property updates (avoids full reload)
     │   ├── guiSettings.ts       # Extracts GUI settings (flash effects, force layout, predicate colors) from GUI_Settings Thing; extractAllGuiSettings() single-traversal
     │   ├── formatters.ts        # GUID, date, value display helpers
     │   └── constants.ts         # Health colors, property types
@@ -728,7 +728,7 @@ vos.Trellis/
         │   ├── ServicesPanel.tsx           # Health status, start/stop, request stats
         │   ├── DaemonsPanel.tsx            # Running status, PID, failures
         │   ├── EndpointServicesPanel.tsx   # Endpoint service traffic/performance metrics
-        │   └── ActivityFeed.tsx            # Real-time SignalR event log
+        │   └── ActivityFeed.tsx            # Real-time SSE event log
         │
         └── common/
             ├── ErrorBoundary.tsx     # React error boundary with stack trace display
@@ -863,7 +863,7 @@ When a node is selected, **NodeDetailPanel** fetches the full thing detail (incl
 2. **Inherited** (flat view) — from the effective-properties API, showing each inherited property with a clickable "← SourceName" link to navigate to the source type. In edit mode, inherited property values are editable (no delete) — saving creates an own property override that shadows the inherited value. After saving, effective properties are re-fetched so the overridden property moves to the Own section. Uses `EditablePropertyList` with `showAddRow={false}` and no `onDeleteProperty`
 3. **Inheritance Chain** (tree view) — recursive `InheritedPropertySetView` component rendering the full type hierarchy with nested indentation
 4. **Relationships** — `RelationshipList` component showing incoming/outgoing relationships with multi-expand (multiple relationships can be expanded simultaneously). Expanded relationships show their properties via `EditablePropertyList` with inline editing support. Each relationship row has an edge-detail icon that calls `selectEdge(id)` to open the **EdgeDetailPanel** for that relationship. In edit mode, an **AddRelationshipRow** appears at the bottom of each section (outgoing/incoming) with predicate and other-thing pickers for creating new relationships inline. Known predicates are sorted to the top of the predicate picker
-5. **Ranges** — `RangesTabContent` showing active states as colored severity badges (green/yellow/red), own ranges with criteria and evaluation status, inherited ranges grouped by source, relationship ranges, and per-binding detail with deviation deltas. Data is fetched via a single composite `GET /api/things/{id}/range-summary` call that returns the thing's ranges, states, and all relationship range data in one response. Uses a **temporal snapshot** approach: `statesVersion` is captured when the tab opens (or when the selected node changes), and all fetches use that snapshot. Continuous SignalR state-change pushes do not trigger re-fetches — the user gets a consistent point-in-time view. A windmill spinner shows while the summary loads. A **refresh button** in the tab bar lets the user manually re-fetch the latest data without navigating away
+5. **Ranges** — `RangesTabContent` showing active states as colored severity badges (green/yellow/red), own ranges with criteria and evaluation status, inherited ranges grouped by source, relationship ranges, and per-binding detail with deviation deltas. Data is fetched via a single composite `GET /api/things/{id}/range-summary` call that returns the thing's ranges, states, and all relationship range data in one response. Uses a **temporal snapshot** approach: `statesVersion` is captured when the tab opens (or when the selected node changes), and all fetches use that snapshot. Continuous SSE state-change pushes do not trigger re-fetches — the user gets a consistent point-in-time view. A windmill spinner shows while the summary loads. A **refresh button** in the tab bar lets the user manually re-fetch the latest data without navigating away
 6. **3D** (conditional) — appears for things with a `geometry` property on non-Safari browsers, or for IFC containers (things with an `ifcClass` property like IfcBuilding/IfcStorey) whose `contains`/`aggregates` children have geometry. Renders a lazy-loaded `BuildingDetail3D` viewer with auto-rotation and OrbitControls. IFC containers pass `childElements` to render all child meshes in a combined scene
 
 The seed data supports multi-level transitive inheritance (e.g., `ConveyorPLC → Controller → SmartAppliance`), rendered as nested tree nodes in the chain view.
@@ -1002,9 +1002,14 @@ Singleton `ApiClient` class with:
 
 ## 19. Real-Time Infrastructure
 
-### SignalR Hub
+### SSE Streams
 
-The Mycelium exposes a SignalR hub at `/vosHub`. Events are push-only (no client-invoked methods).
+The Mycelium exposes two **Server-Sent Events** streams (push-only): the per-subscription
+object change stream (`GET /api/subscriptions/{id}/stream`, opened after `POST /api/subscriptions {all:true}`)
+and the system/operational events stream (`GET /api/events/stream`). The object stream is
+resumable via `Last-Event-ID`; both authenticate via `?access_token` (EventSource can't set the
+Authorization header). The first six events below ride the object stream; the rest ride the
+system stream.
 
 **Events:**
 
@@ -1023,14 +1028,17 @@ The Mycelium exposes a SignalR hub at `/vosHub`. Events are push-only (no client
 | `DaemonStatusChanged` | `key, isRunning, processId` | Daemon start/stop |
 | `ActivityEvent` | `{ Type, Timestamp, Description, Details }` | All mutations |
 
-### React Hook (`useSignalR.ts`)
+### React Hook (`useSse.ts`)
 
-- Module-level singleton connection (shared across all hook consumers)
-- Auto-reconnect with exponential backoff: [0, 2s, 5s, 10s, 30s]
+- Module-level singleton managing both EventSources (shared across all hook consumers)
+- Manual reconnect with backoff [1s, 2s, 5s, 10s, 30s], reopening with a fresh `?access_token`
+  (EventSource can't refresh the token on its own retry); the object stream resumes via Last-Event-ID
 - `useSyncExternalStore` subscription model for `connected` state
-- Ref counting (acquire/release) for connection lifecycle
-- Bearer token from `apiClient` for authentication
-- Returns: `{ connected, on(event, handler), isConnected() }`
+- Ref counting (acquire/release) for stream lifecycle
+- Token from `apiClient.ensureToken()` for authentication
+- Maps each event's SSE `data` to the handler args (property changes → `(id, name, value)`;
+  others → the data object), so consumers are unchanged from the SignalR surface
+- Returns: `{ connected, on(event, handler) }`
 
 ### Integration
 
@@ -1104,10 +1112,10 @@ Four components on `DashboardPage`:
 
 | Component | Data Source | Updates |
 |-----------|-----------|---------|
-| `ModelStatsCard` | `GET /api/things` + `GET /api/relationships` | SignalR model events |
-| `ServicesPanel` | `GET /api/mycelium/services` | SignalR `ServiceHealthChanged` |
-| `DaemonsPanel` | `GET /api/mycelium/daemons` | SignalR `DaemonStatusChanged` |
-| `ActivityFeed` | SignalR `ActivityEvent` only | Real-time (keeps last 200). Pause/resume (buffers new events while paused), category filter chips (Model/Things/Rels/Props/Services), color-coded event types, collapsible panel, resizable height (drag handle, persisted to localStorage) |
+| `ModelStatsCard` | `GET /api/things` + `GET /api/relationships` | SSE model events |
+| `ServicesPanel` | `GET /api/mycelium/services` | SSE `ServiceHealthChanged` |
+| `DaemonsPanel` | `GET /api/mycelium/daemons` | SSE `DaemonStatusChanged` |
+| `ActivityFeed` | SSE `ActivityEvent` only | Real-time (keeps last 200). Pause/resume (buffers new events while paused), category filter chips (Model/Things/Rels/Props/Services), color-coded event types, collapsible panel, resizable height (drag handle, persisted to localStorage) |
 
 ### Dashboard Top-Right Controls
 

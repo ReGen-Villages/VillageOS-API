@@ -7,7 +7,7 @@ import { ActivityFeed } from '../components/dashboard/ActivityFeed';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { myceliumApi } from '../api/myceliumApi';
 import { endpointApi } from '../api/endpointApi';
-import { useSignalR } from '../hooks/useSignalR';
+import { useSse } from '../hooks/useSse';
 import { useActivityStore } from '../stores/activityStore';
 import { useModelStore } from '../stores/modelStore';
 import { toast } from '../components/common/Toast';
@@ -30,7 +30,7 @@ export function DashboardPage() {
   const [showShutdown, setShowShutdown] = useState(false);
   const [feedCollapsed, setFeedCollapsed] = useState(() => localStorage.getItem(FEED_COLLAPSED_KEY) === 'true');
   const events = useActivityStore((s) => s.events);
-  const { on, connected } = useSignalR();
+  const { on, connected } = useSse();
   const { logout, switchModel } = useAuth();
 
   const toggleFeedCollapsed = useCallback(() => {

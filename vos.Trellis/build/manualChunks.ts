@@ -9,10 +9,9 @@
  *   for OrbitControls + Fragments raycasting.
  * - Bug #5359 documented the inverse problem: a too-broad catch-all `vendor`
  *   chunk that grew past the 1000 kB warning limit. This helper splits
- *   `react`, `react-dom`, `scheduler` into `vendor-react`, and
- *   `@microsoft/signalr` into `vendor-signalr`, so the residual `vendor`
- *   chunk drops back below the limit and stable libs (react) keep their own
- *   cache key independent of the rest of node_modules.
+ *   `react`, `react-dom`, `scheduler` into `vendor-react`, so the residual
+ *   `vendor` chunk drops back below the limit and stable libs (react) keep
+ *   their own cache key independent of the rest of node_modules.
  *
  * Order matters — the three-ecosystem rule must run first so three-stdlib /
  * three-mesh-bvh don't fall through to `vendor`.
@@ -47,13 +46,6 @@ export function pickChunk(id: string): string | undefined {
     /node_modules\/(react|react-dom|scheduler)\//.test(id)
   ) {
     return 'vendor-react';
-  }
-
-  // Bug #5359 — @microsoft/signalr is the next-largest single dep in `vendor`
-  // and is only needed by the temporal-stream code path. Splitting it lets
-  // routes that don't subscribe to SignalR avoid the download cost.
-  if (id.includes('node_modules/@microsoft/signalr')) {
-    return 'vendor-signalr';
   }
 
   if (id.includes('node_modules/')) {

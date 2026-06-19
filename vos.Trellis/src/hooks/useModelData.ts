@@ -3,7 +3,7 @@ import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
-import { useSignalR } from './useSignalR';
+import { useSse } from './useSse';
 import { useFlashTimer } from './useFlashTimer';
 import { toast } from '../components/common/Toast';
 import { isGraphAffectingProperty, applyThingPropertyUpdate, applyRelationshipPropertyUpdate, isVisibleRelationship } from '../utils/propertyUpdates';
@@ -33,7 +33,7 @@ export async function reloadModelData(): Promise<void> {
  * Mount once in `AuthenticatedApp`. Returns nothing — it's effects-only.
  */
 export function useModelData(): void {
-  const { on } = useSignalR();
+  const { on } = useSse();
   const { triggerFlashNode, triggerFlashEdge } = useFlashTimer();
 
   // Initial load on mount

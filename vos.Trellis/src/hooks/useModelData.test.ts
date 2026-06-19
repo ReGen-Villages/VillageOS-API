@@ -13,8 +13,8 @@ vi.mock('../api/relationshipApi', () => ({
 // Capture the SignalR handler registry so tests can fire events synthetically.
 type Handler = (...args: unknown[]) => void;
 const handlers = new Map<string, Handler>();
-vi.mock('./useSignalR', () => ({
-  useSignalR: () => ({
+vi.mock('./useSse', () => ({
+  useSse: () => ({
     on: (event: string, cb: Handler) => {
       handlers.set(event, cb);
       return () => handlers.delete(event);
