@@ -56,11 +56,6 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      '/vosHub': {
-        target: 'https://localhost:7243',
-        ws: true,
-        secure: false,
-      },
       '/swagger': {
         target: 'https://localhost:7243',
         changeOrigin: true,

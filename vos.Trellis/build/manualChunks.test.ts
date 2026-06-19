@@ -25,12 +25,6 @@ describe('pickChunk (Bug #5359 — vendor split + Bug #5297 — three identity)'
     });
   });
 
-  describe('vendor-signalr (Bug #5359 — only loaded by temporal stream)', () => {
-    it('routes @microsoft/signalr to vendor-signalr', () => {
-      expect(pickChunk('/repo/node_modules/@microsoft/signalr/dist/esm/index.js')).toBe('vendor-signalr');
-    });
-  });
-
   describe('vendor-graph', () => {
     it.each([
       '/repo/node_modules/sigma/dist/sigma.esm.js',

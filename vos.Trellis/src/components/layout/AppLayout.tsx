@@ -2,12 +2,12 @@ import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { ToastContainer } from '../common/Toast';
-import { useSignalR } from '../../hooks/useSignalR';
+import { useSse } from '../../hooks/useSse';
 import { useActivityStore } from '../../stores/activityStore';
 import type { ActivityEvent } from '../../types/mycelium';
 
 export function AppLayout() {
-  const { on } = useSignalR();
+  const { on } = useSse();
   const pushEvent = useActivityStore((s) => s.pushEvent);
 
   useEffect(() => {
