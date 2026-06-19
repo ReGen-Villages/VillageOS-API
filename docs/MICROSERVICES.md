@@ -98,6 +98,33 @@ service-agnostic plumbing:
   envelope
 - `DeregisterAsync()` — `DELETE /api/mycelium/services/{HandlerId}`
 
+### 5.1 Snapshot subscriptions — startup data + live stream (SSE)
+
+`vos.ManagedMicroservice.Shared.Subscriptions.SubscriptionClient` (also a
+`MyceliumClientBase` subclass) is how a service gets its working set **without a
+GET storm** and follows changes afterward. It replaces the SignalR consumer path.
+
+```csharp
+var sub = new SubscriptionClient(httpFactory, logger, myceliumUrl, token);
+
+// 1) One call at startup: full objects + a commit-sequence watermark.
+var result = await sub.SubscribeAsync(new SubscriptionSelector
+{
+    Types = new() { "Pump" },
+    Traverse = new() { new TraverseRule { Predicate = "produces", Direction = "outgoing", Depth = 1 } },
+});
+ApplySnapshot(result.Snapshot); // own + inherited properties are kept separate
+
+// 2) Follow live changes; resumes from the watermark and auto-reconnects.
+await foreach (var change in sub.StreamAsync(result.SubscriptionId, result.Watermark, ct))
+    Apply(change); // change.Sequence is the commit order / Last-Event-ID
+```
+
+The stream tracks the last delivered `Sequence` and re-sends it as `Last-Event-ID`
+on every reconnect, so delivery is gap-free and exactly-once across drops. Call
+`UnsubscribeAsync(subscriptionId)` on shutdown. The wire contract and the resume
+semantics are documented in the platform repo: `docs/SNAPSHOT_SUBSCRIPTIONS.md`.
+
 The subclass's job is to provide a service-specific `RegisterAsync(port)`
 overload that calls the base with the right `(serviceName, startCommand)`,
 plus any service-specific calls (`CreateThingAsync`, `ApplyQuantityAsync`, …).
