@@ -157,4 +157,32 @@ public class SubscriptionClientTests
         lastEventIds[0].Should().Be("49");  // initial resume from fromSequence
         lastEventIds[1].Should().Be("50");  // reconnect resumes after the last delivered event
     }
+
+    [Fact]
+    public async Task UnsubscribeAsync_sends_delete_to_the_subscription()
+    {
+        HttpRequestMessage? captured = null;
+        var (client, _) = Build(req => { captured = req; return new HttpResponseMessage(HttpStatusCode.OK); });
+        var subId = Guid.NewGuid();
+
+        await client.UnsubscribeAsync(subId);
+
+        captured!.Method.Should().Be(HttpMethod.Delete);
+        captured.RequestUri!.AbsolutePath.Should().Be($"/api/subscriptions/{subId}");
+    }
+
+    [Fact]
+    public async Task StreamAsync_stops_cleanly_when_connect_fails_and_token_is_cancelled()
+    {
+        // 500 -> EnsureSuccessStatusCode throws -> ConnectAsync returns null -> StreamAsync
+        // delays-reconnect, which returns false once the token is cancelled -> yield break.
+        var (client, _) = Build(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        var events = new List<ModelChangeEvent>();
+        await foreach (var e in client.StreamAsync(Guid.NewGuid(), 0, cts.Token))
+            events.Add(e);
+
+        events.Should().BeEmpty();
+    }
 }
