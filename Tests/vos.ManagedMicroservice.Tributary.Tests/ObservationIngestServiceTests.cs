@@ -43,16 +43,9 @@ public class ObservationIngestServiceTests
         error.Should().Contain("not valid JSON");
     }
 
-    // Note: the `string.IsNullOrWhiteSpace(rawResult) → transformed = "null"` branch in
-    // TryTransform is unreachable through Jsonata.Net.Native's public API — Eval returns
-    // the literal string "undefined" for missing-path expressions rather than null/empty.
-    // The branch stays as a defensive guard for hypothetical future library behavior.
-
     [Fact]
     public void TryTransform_QueryEvalReturnsScalar_NormalizedToJson()
     {
-        // Number-typed jsonata result still round-trips through TryNormalizeJson because
-        // a bare number is a valid JSON document.
         var sut = CreateService();
         var query = new JsonataQuery("x");
 
@@ -65,11 +58,6 @@ public class ObservationIngestServiceTests
     [Fact]
     public void TryTransform_QueryReturnsRawStringConcat_TryNormalizeJsonFallsBackToSerialize()
     {
-        // String concatenation in jsonata yields raw text (e.g. "abchello"), not a JSON-quoted
-        // string. TryNormalizeJson's JsonDocument.Parse rejects bare text, falling through to
-        // JsonSerializer.Serialize which wraps the raw string in quotes. Pins:
-        //   ObservationIngestService.cs:55-56 (Serialize fallback)
-        //   ObservationIngestService.cs:118-121 (TryNormalizeJson JsonException catch)
         var sut = CreateService();
         var query = new JsonataQuery("name & \"hello\"");
 
@@ -82,8 +70,6 @@ public class ObservationIngestServiceTests
     [Fact]
     public void TryTransform_QueryEvalThrows_ReturnsErrorFromOuterCatch()
     {
-        // Calling an undefined jsonata function throws JsonataException during Eval —
-        // pins the outer try/catch (ObservationIngestService.cs:58-61).
         var sut = CreateService();
         var query = new JsonataQuery("$noSuchFunction()");
 
@@ -93,246 +79,247 @@ public class ObservationIngestServiceTests
         error.Should().NotBeEmpty();
     }
 
-    // ---------- CreateObservationsAsync — happy path ----------
+    // ---------- CreateObservationsAsync — hybrid ingest (readings -> observations) ----------
 
     [Fact]
-    public async Task CreateObservationsAsync_WithValidTransform_CreatesAndRelatesObservations()
+    public async Task ExistingEntity_WritesAllReadingsAsObservations_NoThingCreated()
     {
         var endpointThingId = Guid.NewGuid();
-        var observedPredicateId = Guid.NewGuid();
-        var createdObservationId = Guid.NewGuid();
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        myceliumClient.FindThingByNameAsync("observed")
-            .Returns(new MyceliumClient.MyceliumThing(observedPredicateId, "observed"));
-        myceliumClient.CreateThingAsync(
-                "Observation - temperature_2m",
-                Arg.Is<Dictionary<string, object?>>(d => d.ContainsKey("time") && d.ContainsKey("value")))
-            .Returns(new MyceliumClient.MyceliumThing(createdObservationId, "Observation - temperature_2m"));
-        myceliumClient.CreateRelationshipAsync(endpointThingId, observedPredicateId, createdObservationId)
-            .Returns(true);
+        var entityId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("Sensor-1").Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
+        client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var logger = Substitute.For<ILogger<ObservationIngestService>>();
-        var sut = new ObservationIngestService(myceliumClient, logger);
-
-        var query = new JsonataQuery(
-            "{\"name\":\"Observation - temperature_2m\",\"properties\":{\"time\":hourly.time[0],\"value\":hourly.temperature_2m[0]}}");
-        var upstream = """
-        {
-          "hourly": {
-            "time": ["2026-03-03T00:00"],
-            "temperature_2m": [5.8]
-          }
-        }
-        """;
+        var query = new JsonataQuery("readings.{\"name\":\"Sensor-1\",\"properties\":{\"temp\":temp},\"observedAt\":at}");
+        var upstream = """{"readings":[{"temp":5.8,"at":"2026-03-03T00:00:00Z"},{"temp":6.1,"at":"2026-03-03T01:00:00Z"}]}""";
 
         var result = await sut.CreateObservationsAsync(endpointThingId, query, upstream);
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
-        result.ObservedCount.Should().Be(1);
-        await myceliumClient.Received(1).CreateThingAsync(
-            "Observation - temperature_2m",
-            Arg.Any<Dictionary<string, object?>>());
-        await myceliumClient.Received(1).CreateRelationshipAsync(endpointThingId, observedPredicateId, createdObservationId);
+        result.EntitiesTouched.Should().Be(1);
+        result.ObservationsSubmitted.Should().Be(2);
+        await client.DidNotReceive().CreateThingAsync(Arg.Any<string>(), Arg.Any<Dictionary<string, object?>>());
+        await client.Received(1).SubmitObservationsAsync(entityId,
+            Arg.Is<IReadOnlyList<ObservationSample>>(s => s.Count == 2 && s.All(x => x.Property == "temp")));
     }
 
     [Fact]
-    public async Task CreateObservationsAsync_WithArrayTransform_CreatesAllObservations()
+    public async Task NewEntity_DeclaresThing_SetsMode_RelatesToSource_ObservesRemaining()
+    {
+        var endpointThingId = Guid.NewGuid();
+        var entityId = Guid.NewGuid();
+        var observedId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("Sensor-1").Returns((MyceliumClient.MyceliumThing?)null);
+        client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
+        client.CreateThingAsync("Sensor-1", Arg.Any<Dictionary<string, object?>>())
+            .Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
+        client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        client.CreateRelationshipAsync(endpointThingId, observedId, entityId).Returns(true);
+        client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var query = new JsonataQuery("readings.{\"name\":\"Sensor-1\",\"properties\":{\"temp\":temp}}");
+        var upstream = """{"readings":[{"temp":5.8},{"temp":6.1}]}""";
+
+        var result = await sut.CreateObservationsAsync(endpointThingId, query, upstream);
+
+        result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
+        result.EntitiesTouched.Should().Be(1);
+        // First reading seeds the property declaration (a Fact); the second is observed.
+        result.ObservationsSubmitted.Should().Be(1);
+        await client.Received(1).CreateThingAsync("Sensor-1", Arg.Any<Dictionary<string, object?>>());
+        await client.Received(1).SetPropertyModeAsync(entityId, "temp", ObservationIngestService.DefaultObservationMode);
+        await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, entityId);
+        await client.Received(1).SubmitObservationsAsync(entityId,
+            Arg.Is<IReadOnlyList<ObservationSample>>(s => s.Count == 1));
+    }
+
+    [Fact]
+    public async Task MultipleEntities_AreGroupedAndTouchedOnce()
     {
         var endpointThingId = Guid.NewGuid();
         var observedId = Guid.NewGuid();
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        myceliumClient.FindThingByNameAsync("observed")
-            .Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
-        myceliumClient.CreateThingAsync(Arg.Any<string>(), Arg.Any<Dictionary<string, object?>>())
-            .Returns(_ => new MyceliumClient.MyceliumThing(Guid.NewGuid(), "Obs"));
-        myceliumClient.CreateRelationshipAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>())
-            .Returns(true);
-        var sut = new ObservationIngestService(myceliumClient, Substitute.For<ILogger<ObservationIngestService>>());
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
+        client.FindThingByNameAsync(Arg.Is<string>(s => s != "observed")).Returns((MyceliumClient.MyceliumThing?)null);
+        client.CreateThingAsync(Arg.Is<string>(s => s != "observed"), Arg.Any<Dictionary<string, object?>>())
+            .Returns(_ => new MyceliumClient.MyceliumThing(Guid.NewGuid(), "e"));
+        client.SetPropertyModeAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        client.CreateRelationshipAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>()).Returns(true);
+        client.SubmitObservationsAsync(Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        // jsonata expression maps an upstream array into an array of observation objects.
-        var query = new JsonataQuery(
-            "items.{\"name\":name,\"properties\":{\"value\":value}}");
-        var upstream = """
-        {
-          "items":[
-            {"name":"A","value":1},
-            {"name":"B","value":2},
-            {"name":"C","value":3}
-          ]
-        }
-        """;
+        var query = new JsonataQuery("items.{\"name\":name,\"properties\":{\"v\":value}}");
+        var upstream = """{"items":[{"name":"A","value":1},{"name":"B","value":2},{"name":"A","value":3}]}""";
 
         var result = await sut.CreateObservationsAsync(endpointThingId, query, upstream);
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
-        result.ObservedCount.Should().Be(3);
+        result.EntitiesTouched.Should().Be(2); // A and B, each created once
+        await client.Received(1).CreateThingAsync("A", Arg.Any<Dictionary<string, object?>>());
+        await client.Received(1).CreateThingAsync("B", Arg.Any<Dictionary<string, object?>>());
     }
 
-    // ---------- CreateObservationsAsync — failure paths ----------
+    [Fact]
+    public async Task ObservedAt_IsParsedFromReading()
+    {
+        var entityId = Guid.NewGuid();
+        IReadOnlyList<ObservationSample>? captured = null;
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("S").Returns(new MyceliumClient.MyceliumThing(entityId, "S"));
+        client.SubmitObservationsAsync(entityId, Arg.Do<IReadOnlyList<ObservationSample>>(s => captured = s)).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var query = new JsonataQuery("{\"name\":\"S\",\"properties\":{\"v\":1},\"observedAt\":\"2026-03-03T12:00:00Z\"}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "{\"x\":1}");
+
+        result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
+        captured.Should().NotBeNull();
+        captured![0].ObservedAt.Should().Be(new DateTime(2026, 3, 3, 12, 0, 0, DateTimeKind.Utc));
+    }
+
+    // ---------- failure paths ----------
 
     [Fact]
-    public async Task CreateObservationsAsync_TransformFails_ReturnsFailureWithDetail()
+    public async Task TransformFails_ReturnsFailure_AndTouchesNothing()
     {
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(myceliumClient, Substitute.For<ILogger<ObservationIngestService>>());
-        var query = new JsonataQuery("$");
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "not-json");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataQuery("$"), "not-json");
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("transform failed");
         result.Detail.Should().Contain("not valid JSON");
-        await myceliumClient.DidNotReceive().FindThingByNameAsync(Arg.Any<string>());
+        await client.DidNotReceive().FindThingByNameAsync(Arg.Any<string>());
     }
 
     [Fact]
-    public async Task CreateObservationsAsync_TransformedOutputNotObjectOrArray_ReturnsFailure()
+    public async Task TransformedOutputNotObjectOrArray_ReturnsFailure()
     {
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(myceliumClient, Substitute.For<ILogger<ObservationIngestService>>());
-        // $ returns the input — but our input is a JSON number, not an object/array.
-        var query = new JsonataQuery("$");
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "42");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataQuery("$"), "42");
 
         result.Success.Should().BeFalse();
-        result.Error.Should().Contain("not a valid observation thing array");
+        result.Error.Should().Contain("not a valid reading array");
     }
 
     [Fact]
-    public async Task CreateObservationsAsync_ObservationMissingName_ReturnsFailure()
+    public async Task ReadingMissingName_ReturnsFailure()
     {
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(myceliumClient, Substitute.For<ILogger<ObservationIngestService>>());
-        var query = new JsonataQuery("{\"properties\":{\"v\":1}}");
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataQuery("{\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Detail.Should().Contain("missing a string 'name'");
     }
 
     [Fact]
-    public async Task CreateObservationsAsync_ObservationMissingProperties_ReturnsFailure()
+    public async Task ReadingMissingProperties_ReturnsFailure()
     {
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(myceliumClient, Substitute.For<ILogger<ObservationIngestService>>());
-        var query = new JsonataQuery("{\"name\":\"X\"}");
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataQuery("{\"name\":\"X\"}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Detail.Should().Contain("missing an object 'properties'");
     }
 
     [Fact]
-    public async Task CreateObservationsAsync_ObservationNotAnObject_ReturnsFailure()
+    public async Task ReadingNotAnObject_ReturnsFailure()
     {
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        var sut = new ObservationIngestService(myceliumClient, Substitute.For<ILogger<ObservationIngestService>>());
-        // Array containing a primitive — TryParseObservation rejects non-object element.
-        var query = new JsonataQuery("[\"not-an-object\"]");
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataQuery("[\"not-an-object\"]"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Detail.Should().Contain("must be a JSON object");
     }
 
     [Fact]
-    public async Task CreateObservationsAsync_PredicateNotFoundButCreatesNewPredicate_Succeeds()
+    public async Task CreateEntityFails_ReturnsFailure()
     {
-        // FindThingByNameAsync("observed") returns null → fallback to CreateThingAsync("observed").
-        var endpointThingId = Guid.NewGuid();
-        var observedId = Guid.NewGuid();
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        myceliumClient.FindThingByNameAsync("observed").Returns((MyceliumClient.MyceliumThing?)null);
-        myceliumClient.CreateThingAsync("observed", Arg.Any<Dictionary<string, object?>>())
-            .Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
-        myceliumClient.CreateThingAsync(Arg.Is<string>(s => s != "observed"), Arg.Any<Dictionary<string, object?>>())
-            .Returns(new MyceliumClient.MyceliumThing(Guid.NewGuid(), "Obs"));
-        myceliumClient.CreateRelationshipAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>()).Returns(true);
-        var sut = new ObservationIngestService(myceliumClient, Substitute.For<ILogger<ObservationIngestService>>());
-        var query = new JsonataQuery("{\"name\":\"Obs\",\"properties\":{\"v\":1}}");
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("X").Returns((MyceliumClient.MyceliumThing?)null);
+        client.CreateThingAsync("X", Arg.Any<Dictionary<string, object?>>()).Returns((MyceliumClient.MyceliumThing?)null);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(endpointThingId, query, "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
+            new JsonataQuery("{\"name\":\"X\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
-        result.Success.Should().BeTrue();
-        await myceliumClient.Received(1).CreateThingAsync("observed", Arg.Any<Dictionary<string, object?>>());
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("Failed to create entity thing");
     }
 
     [Fact]
-    public async Task CreateObservationsAsync_PredicateResolutionFails_ReturnsFailure()
+    public async Task ObservedPredicateResolutionFails_ReturnsFailure()
     {
-        // Both FindThingByName and CreateThing for "observed" return null → fail with detail message.
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        myceliumClient.FindThingByNameAsync("observed").Returns((MyceliumClient.MyceliumThing?)null);
-        myceliumClient.CreateThingAsync("observed", Arg.Any<Dictionary<string, object?>>())
-            .Returns((MyceliumClient.MyceliumThing?)null);
-        var sut = new ObservationIngestService(myceliumClient, Substitute.For<ILogger<ObservationIngestService>>());
-        var query = new JsonataQuery("{\"name\":\"Obs\",\"properties\":{\"v\":1}}");
+        var entityId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("E").Returns((MyceliumClient.MyceliumThing?)null);
+        client.CreateThingAsync("E", Arg.Any<Dictionary<string, object?>>())
+            .Returns(new MyceliumClient.MyceliumThing(entityId, "E"));
+        client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        client.FindThingByNameAsync("observed").Returns((MyceliumClient.MyceliumThing?)null);
+        client.CreateThingAsync("observed", Arg.Any<Dictionary<string, object?>>()).Returns((MyceliumClient.MyceliumThing?)null);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
+            new JsonataQuery("{\"name\":\"E\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("resolve or create 'observed' predicate");
     }
 
     [Fact]
-    public async Task CreateObservationsAsync_CreateObservationFails_ReturnsFailureWithIndex()
+    public async Task RelateFails_ReturnsFailure()
     {
-        var endpointThingId = Guid.NewGuid();
+        var entityId = Guid.NewGuid();
         var observedId = Guid.NewGuid();
-        var firstObsId = Guid.NewGuid();
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        myceliumClient.FindThingByNameAsync("observed")
-            .Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
-        // First creation succeeds, second returns null → fail at index 1.
-        myceliumClient.CreateThingAsync("A", Arg.Any<Dictionary<string, object?>>())
-            .Returns(new MyceliumClient.MyceliumThing(firstObsId, "A"));
-        myceliumClient.CreateThingAsync("B", Arg.Any<Dictionary<string, object?>>())
-            .Returns((MyceliumClient.MyceliumThing?)null);
-        myceliumClient.CreateRelationshipAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>()).Returns(true);
-        var sut = new ObservationIngestService(myceliumClient, Substitute.For<ILogger<ObservationIngestService>>());
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("E").Returns((MyceliumClient.MyceliumThing?)null);
+        client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
+        client.CreateThingAsync("E", Arg.Any<Dictionary<string, object?>>())
+            .Returns(new MyceliumClient.MyceliumThing(entityId, "E"));
+        client.SetPropertyModeAsync(entityId, Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, entityId).Returns(false);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var query = new JsonataQuery("items.{\"name\":name,\"properties\":{\"v\":value}}");
-        var upstream = """{"items":[{"name":"A","value":1},{"name":"B","value":2}]}""";
-
-        var result = await sut.CreateObservationsAsync(endpointThingId, query, upstream);
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
+            new JsonataQuery("{\"name\":\"E\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
-        result.Error.Should().Contain("Failed to create observation thing");
-        result.Index.Should().Be(1);
-        result.ObservedCount.Should().Be(1);
+        result.Error.Should().Contain("relate entity to endpoint");
     }
 
     [Fact]
-    public async Task CreateObservationsAsync_RelateFails_ReturnsFailureWithObservationId()
+    public async Task SubmitObservationsFails_ReturnsFailure()
     {
-        var endpointThingId = Guid.NewGuid();
-        var observedId = Guid.NewGuid();
-        var obsId = Guid.NewGuid();
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
-        myceliumClient.FindThingByNameAsync("observed")
-            .Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
-        myceliumClient.CreateThingAsync(Arg.Any<string>(), Arg.Any<Dictionary<string, object?>>())
-            .Returns(new MyceliumClient.MyceliumThing(obsId, "Obs"));
-        myceliumClient.CreateRelationshipAsync(endpointThingId, observedId, obsId).Returns(false);
-        var sut = new ObservationIngestService(myceliumClient, Substitute.For<ILogger<ObservationIngestService>>());
+        var entityId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("S").Returns(new MyceliumClient.MyceliumThing(entityId, "S"));
+        client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(false);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var query = new JsonataQuery("{\"name\":\"Obs\",\"properties\":{\"v\":1}}");
-
-        var result = await sut.CreateObservationsAsync(endpointThingId, query, "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
+            new JsonataQuery("{\"name\":\"S\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
-        result.Error.Should().Contain("relate observation thing");
-        result.ObservationThingId.Should().Be(obsId);
+        result.Error.Should().Contain("submit observations");
     }
 
     private static ObservationIngestService CreateService()
     {
-        var myceliumClient = Substitute.For<IEndpointMyceliumClient>();
+        var client = Substitute.For<IEndpointMyceliumClient>();
         var logger = Substitute.For<ILogger<ObservationIngestService>>();
-        return new ObservationIngestService(myceliumClient, logger);
+        return new ObservationIngestService(client, logger);
     }
 }

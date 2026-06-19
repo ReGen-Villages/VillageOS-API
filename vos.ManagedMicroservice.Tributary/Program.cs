@@ -412,9 +412,7 @@ try
                     return Results.BadRequest(new
                     {
                         error = ingestResult.Error,
-                        detail = ingestResult.Detail,
-                        index = ingestResult.Index,
-                        observationThingId = ingestResult.ObservationThingId
+                        detail = ingestResult.Detail
                     });
                 }
 
@@ -422,8 +420,9 @@ try
                 {
                     success = true,
                     endpointThingId = thing.Value.Id,
-                    observedCount = ingestResult.ObservedCount,
-                    message = "Observations created and related to endpoint."
+                    entitiesTouched = ingestResult.EntitiesTouched,
+                    observationsSubmitted = ingestResult.ObservationsSubmitted,
+                    message = "Readings ingested as observations on entity series."
                 });
             }
 

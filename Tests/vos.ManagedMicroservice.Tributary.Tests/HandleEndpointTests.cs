@@ -355,9 +355,14 @@ public class HandleEndpointTests
             if (req.RequestUri!.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
                 && req.RequestUri.Query.Contains("name=observed"))
                 return Json($$"""{"Id":"{{observedId}}","Name":"observed"}""");
-            // Create observation thing
+            // Create entity thing
             if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
                 return Json($$"""{"Id":"{{createdId}}","Name":"Obs"}""");
+            // Set property mode (best-effort) + submit observations
+            if (req.RequestUri.AbsolutePath.Contains("/mode") && req.Method == HttpMethod.Put)
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            if (req.RequestUri.AbsolutePath.EndsWith("/observations") && req.Method == HttpMethod.Post)
+                return Json("""{"accepted":1}""");
             // Create relationship
             if (req.RequestUri.AbsolutePath == "/api/relationships" && req.Method == HttpMethod.Post)
                 return new HttpResponseMessage(HttpStatusCode.OK);
@@ -379,7 +384,7 @@ public class HandleEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("\"success\":true");
-        body.Should().Contain("\"observedCount\":1");
+        body.Should().Contain("\"entitiesTouched\":1");
     }
 
     [Fact]
