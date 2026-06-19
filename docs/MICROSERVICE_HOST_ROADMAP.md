@@ -308,37 +308,28 @@ flowchart LR
 
 ## 2. DI refactors still on the table
 
-All three targeted DI items have shipped and are no longer roadmap items: item
-1 (Metabolism `Program.cs` DI alignment), item 3 (`IEndpointSeedProvider` for
-Delta), and item 2 (the SignalR hub-connection factory, formerly §2.1) — see
-below.
+Two of the three targeted DI items shipped and are no longer roadmap items:
+item 1 (Metabolism `Program.cs` DI alignment) and item 3
+(`IEndpointSeedProvider` for Delta).
 
-### 2.1 `IHubConnectionFactory` in Metabolism's `MyceliumClient` (shipped)
+### 2.1 `IHubConnectionFactory` in Metabolism's `MyceliumClient` (removed)
 
-> **Status:** `SHIPPED`. Closed the largest single line-coverage gap in the
-> codebase — `Services.MyceliumClient` went from ~59% to 100%.
+> **Status:** `REMOVED`. This seam existed only to make SignalR's sealed,
+> un-mockable `HubConnection` testable. The SignalR→SSE migration deleted it
+> outright — there is no hub connection to abstract.
 
-`MyceliumClient.ConnectSignalRAsync` previously built its SignalR connection inline
-with `new HubConnectionBuilder()`, so no test could substitute the real hub and
-the retry/backoff/cancellation shell plus the `RelationshipPropertyChanged` /
-`Reconnected` handlers were unreachable from a unit test. The connection is now
-built through an injected `IHubConnectionFactory` (`DefaultHubConnectionFactory`
-in production, registered in `Program.cs`; a mocked `IHubConnection` in tests
-that captures the `On<T...>` handler and raises events synchronously). A
-`protected virtual DelayAsync` seam lets tests assert the `{0,1000,2000,5000,10000}`
-backoff cadence without real sleeps. The thin pass-through wrappers
-(`DefaultHubConnection`/`DefaultHubConnectionFactory`) to SignalR's sealed,
-un-mockable `HubConnection` are the irreducible seam and carry
-`[ExcludeFromCodeCoverage]`. Scenarios pinned: cancellation honored mid-retry,
-backoff sequence, token re-fetch per attempt, `RelationshipPropertyChanged`
-payload shape, and `Reconnected` logging.
+Metabolism now consumes live changes over the shared
+`SubscriptionClient` (SSE), driven by `MetabolismSubscriptionService`. That
+path is plain `HttpClient` + an `IAsyncEnumerable` change stream, so it is
+directly testable by feeding events through the hosted service — no factory
+seam required. See `docs/METABOLISM.md` for the current design.
 
 ### 2.2 `vos.Taproot` gets a `HostBuilder`
 
 > **Status:** `PROPOSED` for discussion — not to be implemented yet. This is a
 > significant refactor. Captured here so the option is documented and the
 > rationale is preserved; implementation should be its own Feature with its own
-> Tasks, scoped after §2.1 has landed.
+> Tasks.
 
 **Today.** `vos.Taproot` uses a plain `static void Main` entry point with manual
 command-handler construction. Several rough edges fall out of that:
@@ -405,7 +396,7 @@ services live for the duration of the REPL).
 - `ConsoleOptions` has its own test suite. Decide whether to keep it as a thin
   façade over `IConfiguration` or replace it entirely.
 
-**When to do this.** After §2.1 lands. Don't bundle — this Feature stands alone
+**When to do this.** Don't bundle — this Feature stands alone
 and reviewers should evaluate it on its own merits.
 
 ---

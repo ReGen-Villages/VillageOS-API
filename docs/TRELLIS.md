@@ -593,7 +593,7 @@ graph TB
         Graph & Commands & Dashboard --> APIClient["API Client Layer<br/>(fetch + SSE/EventSource)"]
     end
 
-    APIClient -->|"HTTPS + WebSocket"| Mycelium
+    APIClient -->|"HTTPS + SSE"| Mycelium
 
     subgraph Mycelium["vos.Mycelium"]
         API["REST API<br/>(API Controllers, MyceliumController)<br/>+ SSE streams (/api/subscriptions, /api/events)<br/>+ JWT Auth<br/>+ CORS policy"]
@@ -1037,7 +1037,7 @@ system stream.
 - Ref counting (acquire/release) for stream lifecycle
 - Token from `apiClient.ensureToken()` for authentication
 - Maps each event's SSE `data` to the handler args (property changes → `(id, name, value)`;
-  others → the data object), so consumers are unchanged from the SignalR surface
+  others → the data object), so consumers stay decoupled from the transport
 - Returns: `{ connected, on(event, handler) }`
 
 ### Integration

@@ -33,7 +33,7 @@ The handler doesn't do one thing and exit. It stays alive, running simulation lo
 
 ### SSE for live updates
 
-When someone changes a relationship property in the GUI (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it in real-time over a **Server-Sent Events** subscription (`SubscriptionClient`, Phase 5c — replaced SignalR). It cancels the running simulation loop and restarts it with the new config. No Mycelium round-trip, no re-invocation needed. The handler holds one subscription and keeps its membership in step with its simulations — adding a relationship when it registers, removing it when it cancels — so it streams exactly the changes it cares about. The stream auto-reconnects and resumes via `Last-Event-ID`, so no change is missed across drops.
+When someone changes a relationship property in the GUI (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it in real-time over a **Server-Sent Events** subscription (`SubscriptionClient`). It cancels the running simulation loop and restarts it with the new config. No Mycelium round-trip, no re-invocation needed. The handler holds one subscription and keeps its membership in step with its simulations — adding a relationship when it registers, removing it when it cancels — so it streams exactly the changes it cares about. The stream auto-reconnects and resumes via `Last-Event-ID`, so no change is missed across drops.
 
 ### Staggered ticks
 
@@ -136,7 +136,7 @@ vos.ManagedMicroservice.Metabolism/
 
 **`MyceliumClient`** — HTTP communication with Mycelium: pre-minted service token from `--token` startup arg (with open-endpoint fallback), service registration/deregistration, and quantity increment/decrement API calls.
 
-**`MetabolismSubscriptionService`** — Hosted service owning the SSE subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations (add on Register, remove on Cancel). Replaced the SignalR consumer.
+**`MetabolismSubscriptionService`** — Hosted service owning the SSE subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations (add on Register, remove on Cancel).
 
 **`HandleRequestProcessor`** — Pure extraction logic. Takes a `HandleRequest`, extracts a `SimulationConfig` with sensible defaults, and registers it with Metabolism. The `ExtractConfig` method is `internal static` and side-effect-free, making it testable.
 
