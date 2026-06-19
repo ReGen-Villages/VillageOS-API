@@ -125,6 +125,18 @@ on every reconnect, so delivery is gap-free and exactly-once across drops. Call
 `UnsubscribeAsync(subscriptionId)` on shutdown. The wire contract and the resume
 semantics are documented in the platform repo: `docs/SNAPSHOT_SUBSCRIPTIONS.md`.
 
+Membership is mutable — no reconnect needed to change what you watch:
+
+```csharp
+// Whole-model consumer (e.g. a GUI): one subscription, every change incl. future objects.
+var all = await sub.SubscribeAsync(new SubscriptionSelector { All = true });
+
+// Widen / narrow a live subscription as needs change:
+var added = await sub.AddObjectsAsync(sub.Id, new SubscriptionSelector { Ids = new() { relId } });
+ApplySnapshot(added.Snapshot); // incremental snapshot hydrates the newly-added objects
+await sub.RemoveObjectsAsync(sub.Id, new[] { relId });
+```
+
 The subclass's job is to provide a service-specific `RegisterAsync(port)`
 overload that calls the base with the right `(serviceName, startCommand)`,
 plus any service-specific calls (`CreateThingAsync`, `ApplyQuantityAsync`, …).
