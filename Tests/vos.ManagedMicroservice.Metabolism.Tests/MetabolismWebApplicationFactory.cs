@@ -17,7 +17,7 @@ namespace vos.ManagedMicroservice.Metabolism.Tests;
 /// Config is injected via <c>UseSetting</c> on the host builder; <c>CliArgs.Parse</c> reads
 /// these as a fallback when CLI args are absent (always the case under WebApplicationFactory).
 /// The Testing environment guard in <c>Program.cs</c> already skips Serilog file logging,
-/// SignalR connect, and mycelium deregister.
+/// SSE subscription, and mycelium deregister.
 ///
 /// The test still hits a real MyceliumClient instance inside Program.cs, but no method on it
 /// is invoked by the /handle / /simulations / /health / /stats / /shutdown endpoints under

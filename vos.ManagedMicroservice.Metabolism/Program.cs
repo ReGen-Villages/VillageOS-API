@@ -3,6 +3,7 @@ using vos.ManagedMicroservice.Metabolism.Configuration;
 using vos.ManagedMicroservice.Metabolism.Endpoints;
 using vos.ManagedMicroservice.Metabolism.Services;
 using vos.ManagedMicroservice.Shared.Middleware;
+using vos.ManagedMicroservice.Shared.Subscriptions;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -68,20 +69,24 @@ try
             cliArgs.Issuer ?? "VillageOS", cliArgs.Audience ?? "VosClients");
     }
 
-    builder.Services.AddSingleton<IHubConnectionFactory, DefaultHubConnectionFactory>();
     builder.Services.AddSingleton(sp =>
         new MyceliumClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumClient>>(),
-            myceliumUrl, mode, serviceToken,
-            sp.GetRequiredService<IHubConnectionFactory>()));
+            myceliumUrl, mode, serviceToken));
     builder.Services.AddSingleton(sp =>
         new Metabolism(
             sp.GetRequiredService<MyceliumClient>(),
             sp.GetRequiredService<ILogger<Metabolism>>(),
             mode));
     builder.Services.AddSingleton<HandleRequestProcessor>();
-    builder.Services.AddHostedService<MetabolismEventSubscriber>();
+    // Live property updates via SSE (Phase 5c, #5558) — replaces the SignalR consumer.
+    builder.Services.AddSingleton<ISubscriptionClient>(sp =>
+        new SubscriptionClient(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<SubscriptionClient>>(),
+            myceliumUrl, serviceToken));
+    builder.Services.AddHostedService<MetabolismSubscriptionService>();
 
     var requestCount = 0;
     var app = builder.Build();
@@ -100,25 +105,13 @@ try
 
     app.UseRequestContractValidation();
 
-    // Connect SignalR for live property updates. Skip under WebApplicationFactory<Program>
-    // tests — Mycelium URL is synthetic, the connection would fail in a background task,
-    // and the noise (failed retries) pollutes test output.
+    // Live property updates arrive via the SSE MetabolismSubscriptionService (hosted, Phase 5c).
+    // Skip the shutdown deregister under WebApplicationFactory<Program> tests — Mycelium URL is
+    // synthetic, so the calls would fail in a background task and pollute test output.
     if (!app.Environment.IsEnvironment("Testing"))
     {
         var myceliumClient = app.Services.GetRequiredService<MyceliumClient>();
         var metabolism = app.Services.GetRequiredService<Metabolism>();
-
-        app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
-        {
-            try
-            {
-                await myceliumClient.ConnectSignalRAsync(app.Lifetime.ApplicationStopping);
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error connecting SignalR during Metabolism startup");
-            }
-        }));
 
         // Stop simulations and deregister from mycelium on shutdown
         app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>

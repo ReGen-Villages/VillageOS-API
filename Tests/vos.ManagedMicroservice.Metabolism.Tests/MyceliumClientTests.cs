@@ -64,73 +64,6 @@ public class MyceliumClientTests
         });
     }
 
-    #region ConnectSignalR Tests
-
-    [Fact]
-    public async Task ConnectSignalRAsync_RespectsImmediateCancellation()
-    {
-        var client = CreateUnreachableClient();
-        var cts = new CancellationTokenSource();
-        cts.Cancel(); // pre-cancelled
-
-        // Should return immediately, not hang
-        var task = client.ConnectSignalRAsync(cts.Token);
-        var completed = await Task.WhenAny(task, Task.Delay(2000));
-        completed.Should().Be(task, "ConnectSignalRAsync should respect cancellation immediately");
-    }
-
-    [Fact]
-    public async Task ConnectSignalRAsync_RetriesWhenTokenUnavailable()
-    {
-        var client = CreateUnreachableClient();
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
-
-        // Mycelium unreachable → GetTokenAsync returns null → retries until cancelled
-        await client.ConnectSignalRAsync(cts.Token);
-
-        // Verify it logged retry warnings (at least one attempt)
-        _logger.Verify(
-            l => l.Log(
-                LogLevel.Warning,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("cannot get token")),
-                null,
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.AtLeastOnce());
-    }
-
-    [Fact]
-    public async Task ConnectSignalRAsync_StopsRetryingOnCancellation()
-    {
-        var client = CreateUnreachableClient();
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
-
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        await client.ConnectSignalRAsync(cts.Token);
-        sw.Stop();
-
-        // Should stop within a reasonable time after cancellation (not hang forever)
-        sw.ElapsedMilliseconds.Should().BeLessThan(5000,
-            "ConnectSignalRAsync should stop retrying when the token is cancelled");
-    }
-
-    [Fact]
-    public void OnRelationshipPropertyChanged_IsSubscribableWithoutConnection()
-    {
-        var client = CreateUnreachableClient();
-
-        Guid receivedId = Guid.Empty;
-
-        client.OnRelationshipPropertyChanged += (id, prop, value) =>
-        {
-            receivedId = id;
-        };
-
-        // Event should be subscribable even without a SignalR connection.
-        receivedId.Should().Be(Guid.Empty, "event should not fire until invoked");
-    }
-
-    #endregion
 
     #region ApplyQuantityAsync Tests
 
@@ -360,9 +293,9 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task DeregisterAsync_NoSignalRConnection_DelegatesToBaseWithoutThrowing()
+    public async Task DeregisterAsync_DelegatesToBaseWithoutThrowing()
     {
-        // No ConnectSignalRAsync called → _hubConnection is null → base DeregisterAsync runs.
+        // Live updates now arrive over SSE, not SignalR — DeregisterAsync is just the base call.
         var client = CreateUnreachableClient();
 
         var act = async () => await client.DeregisterAsync();
@@ -371,16 +304,4 @@ public class MyceliumClientTests
     }
 
     #endregion
-
-    // ---- ConnectSignalR coverage ----
-    //
-    // The retry/cancellation surface is exercised here (RespectsImmediateCancellation,
-    // RetriesWhenTokenUnavailable, StopsRetryingOnCancellation) against the real
-    // DefaultHubConnectionFactory. The hub-connection setup, event routing
-    // (RelationshipPropertyChanged), and Reconnected handler — previously unreachable
-    // from a unit test — are covered in MyceliumClientConnectSignalRTests via the
-    // IHubConnectionFactory seam (Task #5457), with a mocked IHubConnection. The only
-    // remaining un-unit-testable code
-    // is DefaultHubConnection/DefaultHubConnectionFactory, the thin pass-through to
-    // SignalR's sealed HubConnection, marked [ExcludeFromCodeCoverage].
 }

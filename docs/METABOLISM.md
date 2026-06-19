@@ -31,9 +31,9 @@ This means there are two running processes (on ports 7102 and 7103), but built f
 
 The handler doesn't do one thing and exit. It stays alive, running simulation loops for every relationship registered with it. This avoids process startup overhead (dotnet cold start is expensive) and lets it maintain in-memory state about all active simulations.
 
-### SignalR for live updates
+### SSE for live updates
 
-When someone changes a relationship property in the GUI (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it via SignalR in real-time. It cancels the running simulation loop and restarts it with the new config. No Mycelium round-trip, no re-invocation needed.
+When someone changes a relationship property in the GUI (say, increasing `frequencySeconds` from 30 to 60), the handler hears about it in real-time over a **Server-Sent Events** subscription (`SubscriptionClient`, Phase 5c — replaced SignalR). It cancels the running simulation loop and restarts it with the new config. No Mycelium round-trip, no re-invocation needed. The handler holds one subscription and keeps its membership in step with its simulations — adding a relationship when it registers, removing it when it cancels — so it streams exactly the changes it cares about. The stream auto-reconnects and resumes via `Last-Event-ID`, so no change is missed across drops.
 
 ### Staggered ticks
 
@@ -47,7 +47,7 @@ When a seed loads with 20 `consumes` relationships, all 20 get registered within
 1. Parse CLI args (--port, --myceliumUrl, --mode, --token, --signingKey)
 2. Use pre-minted service JWT received via --token for Mycelium authentication
 3. Start ASP.NET minimal API on the given port (with Mycelium token validation via vos.Auth.Shared)
-4. Connect to Mycelium's SignalR hub for property change events
+4. Open an SSE subscription to Mycelium for relationship property-change events
 5. Wait for /handle requests from Mycelium (validated via Mycelium-signed request tokens)
 ```
 
@@ -99,7 +99,7 @@ If a relationship is registered again (e.g., on seed reload), the previous simul
 
 ### Live hot-reload
 
-The handler subscribes to `RelationshipPropertyChanged` events on Mycelium's SignalR hub. When a tracked property changes:
+The handler receives `RelationshipPropertyChanged` events over its Mycelium SSE subscription. When a tracked property changes:
 
 | Property | Effect |
 |----------|--------|
@@ -122,7 +122,8 @@ vos.ManagedMicroservice.Metabolism/
 │   ├── HandleRequest.cs                # /handle request payload
 │   └── SimulationConfig.cs             # Simulation loop parameters
 ├── Services/
-│   ├── MyceliumClient.cs                 # HTTP + SignalR communication with Mycelium
+│   ├── MyceliumClient.cs                 # HTTP write calls to Mycelium (quantity/increment)
+│   ├── MetabolismSubscriptionService.cs  # SSE subscription: streams changes + manages membership
 │   ├── Metabolism.cs                   # Simulation loop engine
 │   └── HandleRequestProcessor.cs       # Request validation + config extraction
 └── Endpoints/
@@ -133,7 +134,9 @@ vos.ManagedMicroservice.Metabolism/
 
 **`Metabolism`** — The simulation engine. Holds a `ConcurrentDictionary<string, SimulationEntry>` keyed by relationship ID. Each entry has its own async loop running in a `Task`. Handles registration, cancellation, property hot-reload, and graceful shutdown.
 
-**`MyceliumClient`** — All communication with Mycelium. Uses pre-minted service token from `--token` startup arg (with open-endpoint fallback), service registration/deregistration, quantity increment/decrement API calls, and SignalR hub connection with retry backoff.
+**`MyceliumClient`** — HTTP communication with Mycelium: pre-minted service token from `--token` startup arg (with open-endpoint fallback), service registration/deregistration, and quantity increment/decrement API calls.
+
+**`MetabolismSubscriptionService`** — Hosted service owning the SSE subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations (add on Register, remove on Cancel). Replaced the SignalR consumer.
 
 **`HandleRequestProcessor`** — Pure extraction logic. Takes a `HandleRequest`, extracts a `SimulationConfig` with sensible defaults, and registers it with Metabolism. The `ExtractConfig` method is `internal static` and side-effect-free, making it testable.
 
@@ -242,7 +245,7 @@ curl http://localhost:7102/simulations
 
 ### 5. Monitor and adjust live
 
-Change a relationship property in the GUI or via API — the handler picks it up via SignalR and adjusts immediately. No restart needed.
+Change a relationship property in the GUI or via API — the handler picks it up over its SSE subscription and adjusts immediately. No restart needed.
 
 ## Shutdown
 
@@ -251,7 +254,7 @@ On `ApplicationStopping`:
 1. All simulation loops are cancelled via their `CancellationTokenSource`
 2. `Task.WhenAll` waits for all loops to finish
 3. The handler deregisters from Mycelium via `DELETE /api/mycelium/services/{handlerId}`
-4. The SignalR connection is disposed
+4. The SSE subscription is cancelled and unsubscribed
 
 Mycelium can also trigger shutdown by POSTing to `/shutdown`, which follows the same sequence.
 

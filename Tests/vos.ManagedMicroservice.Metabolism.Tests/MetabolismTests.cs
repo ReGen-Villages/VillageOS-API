@@ -101,7 +101,7 @@ public class MetabolismTests
 
     #endregion
 
-    #region UpdateProperty with JsonElement values (SignalR scenario)
+    #region UpdateProperty with JsonElement values (SSE scenario)
 
     [Fact]
     public void UpdateProperty_JsonElement_Double_UpdatesQuantity()
@@ -196,7 +196,7 @@ public class MetabolismTests
     {
         _engine.Register(MakeConfig(quantity: 1.0m, freqSeconds: 60));
 
-        // Simulate two rapid SignalR callbacks on thread pool
+        // Simulate two rapid SSE callbacks on thread pool
         var barrier = new Barrier(2);
         var t1 = Task.Run(() => { barrier.SignalAndWait(); _engine.UpdateProperty("rel-1", "quantity", 3.0m); });
         var t2 = Task.Run(() => { barrier.SignalAndWait(); _engine.UpdateProperty("rel-1", "frequencySeconds", 5); });
