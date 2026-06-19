@@ -1,7 +1,9 @@
 # Microservices
 
-Canonical doc for `ManagedMicroservice` projects. Forward-looking design
-(delivery contract, dispatch, ACK envelope) lives in
+Canonical C# how-to for `ManagedMicroservice` projects. For the **language-agnostic HTTP + SSE
+wire contract** (Go/Node/Python/Rust subscribe snippets) see
+[`MICROSERVICE_CONTRACT.md`](MICROSERVICE_CONTRACT.md). Forward-looking design (delivery
+contract, dispatch, ACK envelope) lives in
 [`MICROSERVICE_HOST_ROADMAP.md`](MICROSERVICE_HOST_ROADMAP.md) §1. For the simulation-
 specific behavior of Metabolism, see [`METABOLISM.md`](METABOLISM.md).
 
