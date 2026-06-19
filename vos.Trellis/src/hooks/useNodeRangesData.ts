@@ -6,7 +6,7 @@ import { rangeApi } from '../api/rangeApi';
 /**
  * Lazily fetches a composite range summary when the 'ranges' tab is active.
  * Point-in-time: statesVersion is snapshotted when the tab opens or thingId
- * changes, so live SignalR pushes are ignored until the user navigates away
+ * changes, so live SSE pushes are ignored until the user navigates away
  * and back or selects a different node.
  */
 export function useNodeRangesData(

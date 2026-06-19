@@ -10,7 +10,7 @@ vi.mock('../api/relationshipApi', () => ({
   relationshipApi: { getAll: () => mockGetAllRels() },
 }));
 
-// Capture the SignalR handler registry so tests can fire events synthetically.
+// Capture the SSE handler registry so tests can fire events synthetically.
 type Handler = (...args: unknown[]) => void;
 const handlers = new Map<string, Handler>();
 vi.mock('./useSse', () => ({

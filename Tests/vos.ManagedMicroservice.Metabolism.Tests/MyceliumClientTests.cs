@@ -295,7 +295,7 @@ public class MyceliumClientTests
     [Fact]
     public async Task DeregisterAsync_DelegatesToBaseWithoutThrowing()
     {
-        // Live updates now arrive over SSE, not SignalR — DeregisterAsync is just the base call.
+        // Live updates arrive over SSE; DeregisterAsync is just the base call.
         var client = CreateUnreachableClient();
 
         var act = async () => await client.DeregisterAsync();

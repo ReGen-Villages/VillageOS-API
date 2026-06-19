@@ -20,15 +20,9 @@ export default defineConfig({
     // and cannot be reduced without breaking raycasting. Raise the warning
     // limit to 1500 so vendor-three doesn't trip it; every other chunk is
     // still expected to stay below 1000 kB (Bug #5359 split vendor itself
-    // into vendor-react + vendor-signalr + vendor for that reason).
+    // into vendor-react + vendor for that reason).
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
-      onwarn(warning, defaultHandler) {
-        // @microsoft/signalr ships /*#__PURE__*/ annotations in positions Rollup
-        // cannot interpret; the build is unaffected so suppress the noise.
-        if (warning.code === 'INVALID_ANNOTATION' && warning.id?.includes('@microsoft/signalr')) return;
-        defaultHandler(warning);
-      },
       output: {
         // Chunking rule lives in build/manualChunks.ts so it can be unit-
         // tested. See Bug #5297 (three identity) and Bug #5359 (vendor split).

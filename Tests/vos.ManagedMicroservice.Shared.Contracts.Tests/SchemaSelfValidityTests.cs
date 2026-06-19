@@ -37,7 +37,6 @@ public class SchemaSelfValidityTests
         Registry.Ids.Should().Contain("https://villageos/contracts/mycelium-register-request.schema.json");
         Registry.Ids.Should().Contain("https://villageos/contracts/token-response.schema.json");
         Registry.Ids.Should().Contain("https://villageos/contracts/handle-request-metabolism.schema.json");
-        Registry.Ids.Should().Contain("https://villageos/contracts/relationship-property-changed-event.schema.json");
     }
 
     [Fact]

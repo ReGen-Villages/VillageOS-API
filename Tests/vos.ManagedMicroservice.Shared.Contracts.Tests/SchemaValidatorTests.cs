@@ -15,7 +15,6 @@ public class SchemaValidatorTests
         new object[] { "token-response",                          "https://villageos/contracts/token-response.schema.json",                         "valid" },
         new object[] { "handle-request-metabolism",              "https://villageos/contracts/handle-request-metabolism.schema.json",              "valid" },
         new object[] { "handle-request-metabolism",              "https://villageos/contracts/handle-request-metabolism.schema.json",              "valid-minimal" },
-        new object[] { "relationship-property-changed-event",    "https://villageos/contracts/relationship-property-changed-event.schema.json",    "valid" },
         new object[] { "apply-quantity-request",                 "https://villageos/contracts/apply-quantity-request.schema.json",                 "valid" },
         new object[] { "relationship-property-increment-request","https://villageos/contracts/relationship-property-increment-request.schema.json","valid" }
     };
@@ -30,8 +29,6 @@ public class SchemaValidatorTests
         new object[] { "handle-request-metabolism",              "https://villageos/contracts/handle-request-metabolism.schema.json",              "invalid-missing-required",   "Required" },
         new object[] { "handle-request-metabolism",              "https://villageos/contracts/handle-request-metabolism.schema.json",              "invalid-unknown-property",   "AdditionalProperties" },
         new object[] { "handle-request-metabolism",              "https://villageos/contracts/handle-request-metabolism.schema.json",              "invalid-wrong-type",         "Type" },
-        new object[] { "relationship-property-changed-event",    "https://villageos/contracts/relationship-property-changed-event.schema.json",    "invalid-wrong-length",       "ArrayLength" },
-        new object[] { "relationship-property-changed-event",    "https://villageos/contracts/relationship-property-changed-event.schema.json",    "invalid-wrong-type",         "Format" },
         new object[] { "apply-quantity-request",                 "https://villageos/contracts/apply-quantity-request.schema.json",                 "invalid-missing-required",   "Required" },
         new object[] { "apply-quantity-request",                 "https://villageos/contracts/apply-quantity-request.schema.json",                 "invalid-unknown-property",   "AdditionalProperties" },
         new object[] { "apply-quantity-request",                 "https://villageos/contracts/apply-quantity-request.schema.json",                 "invalid-wrong-type",         "Type" },

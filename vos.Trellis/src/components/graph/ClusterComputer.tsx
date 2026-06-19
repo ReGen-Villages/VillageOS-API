@@ -56,7 +56,7 @@ export function ClusterComputer() {
       return;
     }
 
-    // Delay lets graph data settle after SignalR updates.
+    // Delay lets graph data settle after SSE updates.
     const timer = setTimeout(() => {
       if (graph.order === 0) {
         // Graph not loaded yet — clear stale data so NodeReducer falls

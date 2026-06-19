@@ -9,7 +9,7 @@ namespace vos.ManagedMicroservice.Metabolism.Services;
 /// HTTP client for communicating with the VOS Mycelium (Metabolism-specific operations).
 /// Adds the resource/quantity write endpoints on top of the shared base. Live property
 /// updates now arrive via the SSE <see cref="Shared.Subscriptions.SubscriptionClient"/>
-/// (Phase 5c, #5558) — the SignalR consumer was removed.
+/// (Phase 5c, #5558).
 /// </summary>
 public class MyceliumClient : MyceliumClientBase
 {

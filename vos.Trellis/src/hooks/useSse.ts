@@ -1,9 +1,9 @@
 import { useEffect, useCallback, useSyncExternalStore } from 'react';
 import { apiClient } from '../api/client';
 
-// Replaces useSignalR (#5588): live model + operational updates over Server-Sent Events.
+// Live model + operational updates over Server-Sent Events.
 // Two streams — the whole-model object subscription and the system/operational events —
-// feed one dispatch surface. Same { connected, on } API the consumers used with SignalR.
+// feed one dispatch surface. Same { connected, on } API the consumers use.
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 
@@ -34,7 +34,7 @@ let generation = 0; // bumped on release/reconnect to abort stale async opens
 function notify() { listeners.forEach((l) => l()); }
 function setConnected(v: boolean) { if (connectedState !== v) { connectedState = v; notify(); } }
 
-// Map an SSE event's data object to the positional args the legacy SignalR handlers expect.
+// Map an SSE event's data object to the positional args the handlers expect.
 // Property changes are (id, name, value); everything else passes the data object through.
 function toArgs(kind: string, data: { EntityId?: string; PropertyName?: string; Value?: unknown } | unknown): unknown[] {
   if (kind === 'PropertyChanged' || kind === 'RelationshipPropertyChanged') {
