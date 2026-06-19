@@ -2,10 +2,6 @@ using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Echo.Services;
 
-/// <summary>
-/// Mycelium client for the Echo endpoint service.
-/// Extends MyceliumClientBase with shared token management and registration.
-/// </summary>
 public class MyceliumClient : MyceliumClientBase
 {
     public MyceliumClient(

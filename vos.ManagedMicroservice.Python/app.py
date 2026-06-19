@@ -2,11 +2,7 @@
 
 A managed microservice is a handler that Mycelium (the VillageOS gateway)
 launches as a daemon and calls when a relationship with the service's predicate
-is created. The whole contract is HTTP + a single HS256 JWT; this module
-implements all of it with FastAPI + httpx + PyJWT.
-
-This is an "echo" handler: POST /handle acknowledges the relationship and
-reflects the payload back. Replace handle_relationship() with real logic.
+is created. The whole contract is HTTP + a single HS256 JWT.
 
 `is` is NOT an external predicate — Mycelium handles `is` inheritance in-process
 and never dispatches it to a handler. Register for a custom predicate instead.
@@ -42,7 +38,6 @@ class Config:
 
 
 def parse_args(argv: list[str]) -> Config | None:
-    """Parse the standard --key=value flags. Returns None if required ones missing."""
     cfg = Config()
     seen_port = seen_url = False
     for arg in argv:
@@ -71,14 +66,11 @@ USAGE = (
     "[--token=<jwt>] [--signingKey=<base64>] [--issuer=<iss>] [--audience=<aud>]"
 )
 
-# Module-level state (imported by tests).
 config = parse_args(sys.argv[1:]) or Config()
 handler_id = str(uuid.uuid4())
 mycelium_url_stored = config.mycelium_url
 requests_processed = 0
 
-
-# ---- Mycelium registration ------------------------------------------------
 
 async def _get_token() -> str:
     if config.token:
@@ -90,7 +82,6 @@ async def _get_token() -> str:
 
 
 async def register_with_mycelium() -> bool:
-    """POST /api/mycelium/register so Mycelium can route relationships to us."""
     token = await _get_token()
     base = f"http://localhost:{config.port}"
     payload = {
@@ -111,7 +102,6 @@ async def register_with_mycelium() -> bool:
 
 
 async def deregister_from_mycelium() -> None:
-    """DELETE /api/mycelium/services/{handler_id} on shutdown."""
     try:
         token = await _get_token()
         async with httpx.AsyncClient(timeout=5, verify=False) as client:
@@ -123,14 +113,12 @@ async def deregister_from_mycelium() -> None:
         print(f"deregister failed: {exc}", file=sys.stderr)
 
 
-# ---- inbound JWT validation (HS256) --------------------------------------
-
 def verify_request(request: Request) -> None:
-    """FastAPI dependency: validate a Mycelium-signed Bearer JWT.
+    """FastAPI dependency validating a Bearer JWT.
 
     No-op when no signing key was supplied (matches the .NET handlers).
-    Key bytes are base64decode(--signingKey); issuer/audience/expiry are
-    validated with 30s clock skew, mirroring ServiceTokenValidator.
+    Issuer/audience/expiry are validated with 30s clock skew, mirroring
+    ServiceTokenValidator.
     """
     if not config.signing_key:
         return
@@ -150,8 +138,6 @@ def verify_request(request: Request) -> None:
     except jwt.PyJWTError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
-
-# ---- app + endpoints ------------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -188,7 +174,6 @@ async def handle_relationship(request: Request, _: None = Depends(verify_request
     global requests_processed
     requests_processed += 1
     payload = await request.json()
-    # Real handlers do their predicate work here; the echo example acks + reflects.
     print(f"handle #{requests_processed}: relationship {payload.get('relationshipId')}")
     return JSONResponse(
         {
@@ -205,7 +190,7 @@ async def handle_relationship(request: Request, _: None = Depends(verify_request
 
 @app.post("/shutdown")
 def shutdown(_: None = Depends(verify_request)) -> dict:
-    # In production Mycelium kills the daemon; here we just acknowledge.
+    # Mycelium kills the daemon in production; this only acknowledges the request.
     return {"message": f"Shutting down {SERVICE_NAME} microservice"}
 
 

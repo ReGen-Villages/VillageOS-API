@@ -1,20 +1,10 @@
-// ── Colour palettes ────────────────────────────────────────────────────
-// Shared across graphologyMapper, predicateCluster, and other modules
-// that need deterministic colouring.
-
-/** Role-based colors for structural node kinds (predicates, types). */
 export const ROLE_COLORS = {
-  predicate: '#fbbf24', // amber — predicates / handlers
-  type: '#60a5fa',      // blue  — type definitions
+  predicate: '#fbbf24', // amber
+  type: '#60a5fa',      // blue
   noType: '#94a3b8',    // slate — instances with no "is" relationship
 };
 
-/**
- * Vibrant palette for instance nodes.  A type name is hashed into this
- * palette so every instance of the same type shares a colour.  The palette
- * is intentionally large and saturated so buildings, sensors, etc. are
- * visually distinct on the map.
- */
+// Type name hashed into this palette so instances of a type share a colour.
 export const INSTANCE_PALETTE = [
   '#f87171', // red-400
   '#fb923c', // orange-400
@@ -34,11 +24,7 @@ export const INSTANCE_PALETTE = [
   '#facc15', // yellow-400
 ];
 
-/**
- * Softer palette for logical (non-geo) instance nodes.  Uses pastel /
- * desaturated tones so they are clearly distinct from the vibrant physical
- * nodes on the map while still being legible against the dark background.
- */
+// Pastel palette for logical (non-geo) nodes, distinct from the vibrant physical ones.
 export const LOGICAL_PALETTE = [
   '#fca5a5', // red-300
   '#fdba74', // orange-300
@@ -58,7 +44,7 @@ export const LOGICAL_PALETTE = [
   '#fde047', // yellow-300
 ];
 
-/** Muted palette for 3D building/IFC element coloring (by name hash). */
+// Muted palette for 3D building/IFC elements (by name hash).
 export const ELEMENT_COLORS = [
   '#6d8ea8', // steel blue
   '#7a9b6d', // sage

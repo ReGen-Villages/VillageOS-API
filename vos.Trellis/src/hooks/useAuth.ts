@@ -31,10 +31,6 @@ export function useAuth(): AuthState {
   return ctx;
 }
 
-/**
- * Hook that provides auth state management. Used by the AuthProvider component.
- * Tries VITE_API_KEY auto-login on mount if available.
- */
 export function useAuthState(): AuthState {
   const [user, setUser] = useState<AuthUser | null>(apiClient.getUser());
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +45,6 @@ export function useAuthState(): AuthState {
 
   const isAuthenticated = !authFailed && (apiClient.isAuthenticated() || !!import.meta.env.VITE_API_KEY);
 
-  // Stop polling when component unmounts or auth succeeds
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
@@ -60,7 +55,6 @@ export function useAuthState(): AuthState {
 
   useEffect(() => stopPolling, [stopPolling]);
 
-  // Register callbacks so the client can trigger re-render on auth changes
   useEffect(() => {
     apiClient.setAuthRequiredCallback(() => {
       setUser(null);
@@ -73,9 +67,7 @@ export function useAuthState(): AuthState {
     });
   }, []);
 
-  // On mount, attempt to restore a prior session from the HttpOnly cookie.
-  // If the cookie exists and the JWT inside is still valid, Mycelium returns
-  // the token + user + model and we skip the login form entirely.
+  // Restore a prior session from the HttpOnly cookie if its JWT is still valid.
   useEffect(() => {
     if (apiClient.isAuthenticated()) return;
     apiClient.restoreSession().then((restored) => {
@@ -85,31 +77,24 @@ export function useAuthState(): AuthState {
         setModelName(apiClient.getModelName());
         setAuthFailed(false);
       }
-    }).catch(() => {
-      // No session to restore — user will see login form
-    });
+    }).catch(() => {});
   }, []);
 
-  // If VITE_API_KEY is set, try token exchange on mount (auto-login)
   useEffect(() => {
     if (import.meta.env.VITE_API_KEY && !apiClient.isAuthenticated()) {
-      apiClient.ensureToken().catch(() => {
-        // API key exchange failed — user will see login form
-      });
+      apiClient.ensureToken().catch(() => {});
     }
   }, []);
 
-  // Start polling seed status and auto-retry login when seed finishes
   const startSeedPolling = useCallback((username: string, password: string) => {
     pendingCredsRef.current = { username, password };
-    if (pollTimerRef.current) return; // already polling
+    if (pollTimerRef.current) return;
 
     const poll = async () => {
       try {
         const status = await myceliumApi.getStartupStatus();
         setStartupProgress(status);
         if (!status.IsLoading && status.Phase === 'Done') {
-          // Seed finished loading — auto-retry login
           // Read creds BEFORE stopPolling (which clears pendingCredsRef)
           const creds = pendingCredsRef.current;
           stopPolling();
@@ -135,7 +120,7 @@ export function useAuthState(): AuthState {
       }
     };
 
-    poll(); // immediate first check
+    poll();
     pollTimerRef.current = setInterval(poll, 2000);
   }, [stopPolling]);
 
@@ -152,7 +137,7 @@ export function useAuthState(): AuthState {
       setAvailableModels(null);
       setAuthFailed(false);
     } catch (err: unknown) {
-      // Check if the error contains available models (multi-model, no selection)
+      // A multi-model login with no selection returns the available models in the error body.
       if (err instanceof Error && 'body' in err) {
         try {
           const parsed = JSON.parse((err as { body: string }).body);
@@ -164,12 +149,9 @@ export function useAuthState(): AuthState {
         } catch { /* not a models response */ }
       }
       const msg = err instanceof Error ? err.message : 'Login failed';
-      // "No models loaded" can mean two very different things:
-      //   (a) a seed is currently being loaded at startup → poll and auto-retry
-      //   (b) Mycelium has nothing in its library and never will on its own
-      //       → must surface an actionable error instead of silently polling a
-      //         startup-status that will never reach Phase=Done (Bug #5324).
-      // Disambiguate by reading SeedLoadingStatus before deciding.
+      // "No models loaded" is ambiguous: a seed loading at startup (poll + retry)
+      // vs. an empty library that will never reach Phase=Done (Bug #5324 — surface
+      // an actionable error). Disambiguate via SeedLoadingStatus before deciding.
       if (msg.includes('No models loaded')) {
         try {
           const status = await myceliumApi.getStartupStatus();
@@ -194,17 +176,10 @@ export function useAuthState(): AuthState {
   }, [stopPolling, startSeedPolling]);
 
   const logout = useCallback(async () => {
-    // Clear UI state immediately so the user sees the login form without
-    // waiting for the network round-trip. The Mycelium-side cookie clear
-    // (Bug #5290) happens in apiClient.logout() and is awaited so callers
-    // that want to be sure the cookie is gone (e.g. before a programmatic
-    // navigation) can rely on it.
-    //
-    // setAuthFailed(true) is the load-bearing call for Bug #5325: it forces
-    // the next render to evaluate isAuthenticated to false even though
-    // apiClient.isAuthenticated() (which reads a non-React field) still
-    // returns true until the awaited Mycelium round-trip completes. login()
-    // resets authFailed back to false on success.
+    // setAuthFailed(true) is load-bearing (Bug #5325): it forces the next render
+    // to see isAuthenticated as false even though apiClient.isAuthenticated()
+    // (a non-React field) stays true until the awaited round-trip completes.
+    // login() resets authFailed on success.
     useModelStore.getState().clear();
     setUser(null);
     setModelId(null);
@@ -215,7 +190,6 @@ export function useAuthState(): AuthState {
     await apiClient.logout();
   }, []);
 
-  /** Show the seed library picker. Fetches available seeds from the library folder. */
   const switchModel = useCallback(async () => {
     setError(null);
     try {
@@ -230,7 +204,6 @@ export function useAuthState(): AuthState {
     }
   }, []);
 
-  /** Change the current user's password. Clears the mustChangePassword flag on success. */
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
     setLoading(true);
     setError(null);
@@ -238,7 +211,6 @@ export function useAuthState(): AuthState {
       const userId = user?.Id;
       if (!userId) throw new Error('No user logged in');
       await apiClient.changePassword(userId, newPassword, currentPassword);
-      // Update local user state to clear the flag
       setUser(prev => prev ? { ...prev, MustChangePassword: false } : null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Password change failed';
@@ -249,14 +221,12 @@ export function useAuthState(): AuthState {
     }
   }, [user]);
 
-  /** Load a seed file from the library folder. */
   const selectModel = useCallback(async (seedName: string) => {
     setLoading(true);
     setError(null);
     try {
       const result = await myceliumApi.loadSeed(seedName);
-      // The Mycelium removed the old model from the store. Re-scope the JWT
-      // to the newly loaded model (works for both login and API-key auth).
+      // Re-scope the JWT to the newly loaded model (works for login and API-key auth).
       await apiClient.rescopeToModel(result.modelId);
       useModelStore.getState().clear();
       setModelId(result.modelId);
@@ -269,13 +239,11 @@ export function useAuthState(): AuthState {
     }
   }, []);
 
-  /** Save the current model to the library as a seed file. */
   const saveSeed = useCallback(async (name: string) => {
     setLoading(true);
     setError(null);
     try {
       await myceliumApi.saveSeed(name);
-      // Refresh the seed list to show the newly saved file
       const seeds = await myceliumApi.getLibrarySeeds();
       const asModels: ModelSummary[] = seeds.map((s) => ({
         Id: s.name,

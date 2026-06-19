@@ -62,7 +62,7 @@ export function DashboardPage() {
     loadMyceliumData();
   }, [loadMyceliumData]);
 
-  // When connection drops, mark all services/daemons as offline (no stale "running" state)
+  // On connection drop, mark services/daemons offline so no stale "running" state shows.
   useEffect(() => {
     if (!connected) {
       setServices((prev) =>
@@ -72,7 +72,7 @@ export function DashboardPage() {
     }
   }, [connected]);
 
-  // SignalR live updates (Mycelium-specific only — model data handled at app level)
+  // Mycelium-specific live updates only; model data is handled at app level.
   useEffect(() => {
     const unsubs = [
       on('ServiceHealthChanged', () => myceliumApi.getServices().then(setServices)),

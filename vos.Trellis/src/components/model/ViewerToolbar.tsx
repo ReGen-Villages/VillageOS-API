@@ -13,11 +13,6 @@ export interface ViewerToolbarProps {
   maxY: number;
 }
 
-/**
- * Toolbar overlay for the Fragments viewer: 3D/Plan camera switch and
- * horizontal section-cut slider. Positioned absolutely at the top-right of
- * the viewer container.
- */
 export function ViewerToolbar({
   cameraMode,
   onCameraModeChange,

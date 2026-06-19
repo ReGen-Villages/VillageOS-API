@@ -9,10 +9,8 @@ import { toast } from '../components/common/Toast';
 import { isGraphAffectingProperty, applyThingPropertyUpdate, applyRelationshipPropertyUpdate, isVisibleRelationship } from '../utils/propertyUpdates';
 
 /**
- * Reload things + relationships from Mycelium into the model store.
- * Exported so mutation handlers (delete thing, create relationship, save
- * property) can refresh after their action without going through the hook.
- * Single source of truth for the wire fetch.
+ * Single source of truth for the model fetch. Exported so mutation handlers can
+ * refresh after their action without going through the hook.
  */
 export async function reloadModelData(): Promise<void> {
   try {
@@ -25,21 +23,15 @@ export async function reloadModelData(): Promise<void> {
 }
 
 /**
- * App-shell hook (Feature #5329): owns the lifecycle of model data so that
- * every authenticated page sees a populated `useModelStore` from the moment
- * they mount — not just GraphPage. Pulls the initial load and subscribes to
- * the Mycelium's SignalR events that keep the store live.
- *
- * Mount once in `AuthenticatedApp`. Returns nothing — it's effects-only.
+ * App-shell hook: owns model-data lifecycle so every authenticated page sees a
+ * populated useModelStore from mount. Mount once in AuthenticatedApp.
  */
 export function useModelData(): void {
   const { on } = useSse();
   const { triggerFlashNode, triggerFlashEdge } = useFlashTimer();
 
-  // Initial load on mount
   useEffect(() => { reloadModelData(); }, []);
 
-  // SignalR live updates
   useEffect(() => {
     const unsubs = [
       on('ThingCreated', () => reloadModelData()),
@@ -52,9 +44,8 @@ export function useModelData(): void {
         const newValue = args[2] as unknown;
         if (thingId && propertyPath !== undefined) {
           triggerFlashNode(thingId);
-          // Only rebuild things array for properties that affect graph
-          // rendering (geometry). Other property changes are detail-panel
-          // concerns only — skip the O(n) array rebuild.
+          // Skip the O(n) rebuild unless the property affects graph rendering;
+          // other changes are detail-panel concerns only.
           if (isGraphAffectingProperty(propertyPath)) {
             useModelStore.getState().updateThings((prev) => prev.map((t) =>
               t.Id === thingId ? applyThingPropertyUpdate(t, propertyPath, newValue) : t,
@@ -68,8 +59,7 @@ export function useModelData(): void {
         const newValue = args[2] as unknown;
         if (relId && propertyName !== undefined) {
           triggerFlashEdge(relId);
-          // Only rebuild relationships array if this rel is currently
-          // visible (selected node has it as outgoing/incoming).
+          // Only rebuild if this rel is currently visible on the selected node.
           const selNode = useUiStore.getState().selectedNodeId;
           const rels = useModelStore.getState().relationships;
           if (isVisibleRelationship(relId, selNode, rels)) {

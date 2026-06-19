@@ -21,9 +21,7 @@ var myceliumUrl = cliArgs.MyceliumUrl;
 var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
 
-// Skip the file sink when running under WebApplicationFactory<Program> tests. Same
-// rationale as Metabolism/Tributary — file I/O under the test host has no value and invites
-// flakiness on shared CI agents.
+// Skip the file sink under tests: file I/O on shared CI agents invites flakiness.
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 
 var loggerConfig = new LoggerConfiguration()
@@ -52,9 +50,7 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    // Add JWT auth if mycelium provided a signing key. Bug #5391: use the
-    // issuer/audience Mycelium passes via CLI so validation matches what
-    // Mycelium signed.
+    // Issuer/audience must match what Mycelium signed, hence taken from CLI (Bug #5391).
     var authEnabled = !string.IsNullOrEmpty(signingKey);
     if (authEnabled)
     {
@@ -76,9 +72,7 @@ try
     builder.Services.AddSingleton<IEndpointSeedProvider, FileEndpointSeedProvider>();
 
     var app = builder.Build();
-    // LoadGraph validates the whole template graph; an invalid graph throws here and fails boot.
-    // The handler consumes the full graph for template selection, closed-set descent verification,
-    // and effective-value resolution along the inheritance chain (Task #5467).
+    // An invalid template graph throws here and fails boot.
     var graph = app.Services.GetRequiredService<IEndpointSeedProvider>().LoadGraph();
 
     if (authEnabled)
@@ -87,11 +81,8 @@ try
         app.UseAuthorization();
     }
 
-    // Provision the endpoint-template catalog into Mycelium once at startup (Task #5468): every
-    // template thing is find-or-created and wired to its parent via `is`, so registrations never
-    // create templates lazily. Gated on the built-app environment — skipped under
-    // WebApplicationFactory<Program> tests, mirroring how Metabolism gates its SignalR/lifecycle
-    // work — so tests make no mycelium calls at boot.
+    // Find-or-create every template thing at startup so registrations never create templates lazily.
+    // Skipped under tests so they make no mycelium calls at boot.
     if (!app.Environment.IsEnvironment("Testing"))
     {
         var provisioner = new TemplateCatalogProvisioner(
@@ -112,14 +103,12 @@ try
         }));
     }
 
-    // Endpoint-service entry point used by mycelium /api/endpoints/{subdomain}.
     var handleEndpoint = app.MapPost("/handle", async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
     {
         return await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph);
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
-    // Alias that uses the same registration logic.
     var registerEndpoint = app.MapPost("/register", async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
     {
         return await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph);
@@ -151,11 +140,8 @@ finally
     Log.CloseAndFlush();
 }
 
-// Single-active-model assumption: this handler's mycelium writes (resolving the boot-provisioned
-// template thing, creating the registered thing + its `is` relationship) target whichever model
-// Delta's --token is scoped to. The mycelium launches one shared endpoint daemon and does not yet
-// propagate the caller's model on /handle, so true per-model routing is deferred — see
-// docs/MICROSERVICE_HOST_ROADMAP.md section 5 and Feature #5478.
+// Single-active-model assumption: writes target whichever model Delta's --token is scoped to.
+// /handle does not yet propagate the caller's model, so per-model routing is deferred (Feature #5478).
 static async Task<IResult> HandleRegisterEndpointRequestAsync(
     RegisterEndpointRequest request,
     MyceliumClient myceliumClient,
@@ -170,8 +156,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         if (request.Properties == null)
             return Results.BadRequest(new { error = "Request must include properties." });
 
-        // Template selection is model-native: an `is` relationship from the new thing to a template,
-        // not a scalar field (a vos.Thing has none). No `is` row means the root Endpoint.
+        // Template selection is an `is` relationship, not a scalar field. No `is` row means the root.
         var isRelationships = (request.Relationships ?? new List<SeedRelationship>())
             .Where(r => r != null
                 && string.Equals(r.Predicate, "is", StringComparison.OrdinalIgnoreCase)
@@ -184,9 +169,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         if (string.IsNullOrWhiteSpace(templateName))
             return Results.BadRequest(new { error = "Registration 'is' relationship has an empty target template." });
 
-        // Descent verification is a closed-set membership check — the graph is single-rooted and
-        // acyclic, so a known template necessarily descends from the root; an unknown one does not.
-        // No mycelium round-trip.
+        // Single-rooted + acyclic, so membership in the graph proves descent from the root.
         if (!graph.ContainsTemplate(templateName))
         {
             return Results.BadRequest(new
@@ -204,7 +187,6 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
                 title: "Registration failed");
         }
 
-        // Admissible keys are the union of property keys along the nominated template's chain.
         var allowedSet = graph.AllowedKeys(templateName);
         if (allowedSet.Count == 0)
         {
@@ -227,8 +209,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         if (!JsonValueCoercion.TryGetStringProperty(request.Properties, "url", out var url) || string.IsNullOrWhiteSpace(url))
             return Results.BadRequest(new { error = "Endpoint url must be a non-empty string." });
 
-        // httpMethod is inheritable: validate the effective value — the request body merged over the
-        // in-memory seed chain (closest-ancestor-wins) — not the body alone.
+        // httpMethod is inheritable: validate the effective value (request over seed chain), not the body alone.
         string? effectiveMethod = null;
         if (JsonValueCoercion.TryGetStringProperty(request.Properties, "httpMethod", out var requestMethod)
             && !string.IsNullOrWhiteSpace(requestMethod))
@@ -246,9 +227,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         if (!HttpMethodValidator.IsSupportedMethod(normalizedMethod))
             return Results.BadRequest(new { error = $"Unsupported httpMethod: {effectiveMethod}" });
 
-        // The template catalog is provisioned at boot (TemplateCatalogProvisioner, Task #5468), so the
-        // nominated template thing is expected to already exist wired to its parent. Resolve it; its
-        // absence is a provisioning failure, not something the handler repairs by creating it lazily.
+        // Templates are provisioned at boot; a missing one is a provisioning failure, not repaired lazily here.
         var templateSeed = graph.Templates[templateName];
         var templateThing = await myceliumClient.FindThingByNameAsync(templateSeed.Name);
         if (templateThing == null)
@@ -259,7 +238,6 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
                 title: "Registration failed");
         }
 
-        // Create thing with name only - no own properties.
         registeredThing = await myceliumClient.CreateThingAsync(new RegisterEndpointRequest
         {
             Name = request.Name
@@ -273,8 +251,7 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
                 title: "Registration failed");
         }
 
-        // Create 'is' relationship to the nominated template. The mycelium awaits the is-handler
-        // synchronously, so inherited properties are available before this call returns.
+        // Mycelium awaits the is-handler synchronously, so inherited properties exist once this returns.
         var relationshipCreated = await myceliumClient.CreateRelationshipAsync(
             registeredThing.Value.Id,
             isPredicate.Value.Id,

@@ -4,9 +4,6 @@
 //! launches as a daemon and calls when a relationship with the service's
 //! predicate is created. The whole contract is HTTP + a single HS256 JWT.
 //!
-//! This is an "echo" handler: POST /handle acknowledges the relationship and
-//! reflects the payload back. Replace handle_relationship() with real logic.
-//!
 //! `is` is NOT an external predicate — Mycelium handles `is` inheritance
 //! in-process and never dispatches it. Register for a custom predicate instead.
 //!
@@ -38,6 +35,7 @@ struct Config {
     mycelium_url: String,
     token: Option<String>,
     signing_key: Option<String>, // base64-encoded HMAC key
+    #[allow(dead_code)]
     issuer: String,
     audience: String,
 }

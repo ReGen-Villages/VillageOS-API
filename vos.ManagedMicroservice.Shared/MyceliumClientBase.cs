@@ -7,19 +7,11 @@ using vos.ManagedMicroservice.Shared.Contracts.Validation;
 
 namespace vos.ManagedMicroservice.Shared;
 
-/// <summary>
-/// Base class for microservice MyceliumClients that communicate with the VOS Mycelium.
-/// Provides shared token management, registration, deregistration, and authenticated HTTP helpers.
-/// Used by IsHandler, Metabolism, and Delta handler services.
-/// </summary>
 public abstract class MyceliumClientBase
 {
     private const string MyceliumRegisterRequestSchemaId = "https://villageos/contracts/mycelium-register-request.schema.json";
     private const string TokenResponseSchemaId = "https://villageos/contracts/token-response.schema.json";
 
-    // Schemas are eagerly loaded once per process. SchemaRegistry's ctor parses every embedded
-    // schema and fails closed on duplicate/missing $id, so first access on a misconfigured
-    // assembly throws -- but happens at most once.
     private static readonly Lazy<SchemaRegistry> _registry = new(() => new SchemaRegistry());
     private static readonly SchemaValidator _validator = new();
 
@@ -31,10 +23,8 @@ public abstract class MyceliumClientBase
     public Guid HandlerId { get; } = Guid.NewGuid();
 
     /// <summary>
-    /// Failure policy for outbound contract violations. Debug builds throw to surface
-    /// schema drift immediately during development; Release builds log and let the
-    /// request through so a stale schema never blocks production traffic. Test
-    /// subclasses override this property to pin both paths deterministically.
+    /// Failure policy for outbound contract violations: Debug throws to surface schema drift;
+    /// Release logs so a stale schema never blocks production traffic.
     /// </summary>
     protected virtual SchemaViolationMode OutboundViolationMode =>
 #if DEBUG
@@ -43,13 +33,6 @@ public abstract class MyceliumClientBase
         SchemaViolationMode.Log;
 #endif
 
-    /// <summary>
-    /// Validates <paramref name="json"/> against the schema with <paramref name="schemaId"/>
-    /// according to the current <see cref="OutboundViolationMode"/>. Used by RegisterAsync,
-    /// GetTokenAsync, and (Phase 4) service-specific subclass calls. Name is a slight
-    /// misnomer for inbound traffic (SignalR events, mycelium responses) but the validation
-    /// shape is direction-agnostic; treat "outbound" as "crossing the MyceliumClient boundary".
-    /// </summary>
     protected void ValidateOutbound(string json, string schemaId)
     {
         var schema = _registry.Value.Get(schemaId);
@@ -72,11 +55,6 @@ public abstract class MyceliumClientBase
         _serviceToken = serviceToken;
     }
 
-    /// <summary>
-    /// Gets a JWT token for authenticating with Mycelium.
-    /// Uses the service token passed via --token if available, otherwise falls back
-    /// to the legacy open token endpoint for backward compatibility.
-    /// </summary>
     public async Task<string?> GetTokenAsync()
     {
         if (!string.IsNullOrEmpty(_serviceToken))
@@ -99,9 +77,7 @@ public abstract class MyceliumClientBase
             return null;
         }
 
-        // Validation runs outside the network try/catch so contract violations are not
-        // swallowed: Throw mode propagates ContractValidationException to the caller;
-        // Log mode warns and falls through to best-effort parse.
+        // Outside the network try/catch so contract violations are not swallowed.
         ValidateOutbound(body, TokenResponseSchemaId);
 
         try
@@ -116,7 +92,6 @@ public abstract class MyceliumClientBase
         }
     }
 
-    /// <summary>Creates an HttpClient with Bearer auth header set from current token.</summary>
     protected async Task<HttpClient> CreateAuthenticatedClientAsync(TimeSpan? timeout = null)
     {
         var token = await GetTokenAsync()
@@ -128,7 +103,6 @@ public abstract class MyceliumClientBase
         return client;
     }
 
-    /// <summary>Registers this service with Mycelium.</summary>
     public async Task<bool> RegisterAsync(int port, string serviceName, string startCommand)
     {
         var registration = new
@@ -143,10 +117,7 @@ public abstract class MyceliumClientBase
 
         var json = JsonSerializer.Serialize(registration);
 
-        // Validate the outbound payload before any network call. Throw mode fails fast in
-        // dev; Log mode warns and lets the request through so production never blocks on
-        // stale schemas. Schema-violation exceptions intentionally propagate past the
-        // network try/catch below.
+        // Outside the network try/catch so schema-violation exceptions are not swallowed.
         ValidateOutbound(json, MyceliumRegisterRequestSchemaId);
 
         try
@@ -177,7 +148,6 @@ public abstract class MyceliumClientBase
         }
     }
 
-    /// <summary>Deregisters this service from Mycelium.</summary>
     public virtual async Task DeregisterAsync()
     {
         try

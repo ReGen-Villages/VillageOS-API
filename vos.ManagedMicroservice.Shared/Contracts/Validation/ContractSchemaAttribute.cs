@@ -1,9 +1,6 @@
 namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
-/// <summary>
-/// Marks a DTO with the <c>$id</c> of the JSON Schema that pins its wire format.
-/// Used by <see cref="SchemaRegistry.Get{T}"/> to resolve a schema by type instead of by string.
-/// </summary>
+/// <summary>Marks a DTO with the $id of the JSON Schema that pins its wire format.</summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
 public sealed class ContractSchemaAttribute : Attribute
 {

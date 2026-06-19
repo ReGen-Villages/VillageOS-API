@@ -3,21 +3,13 @@ using vos.ManagedMicroservice.Delta.Models;
 namespace vos.ManagedMicroservice.Delta.Services;
 
 /// <summary>
-/// Idempotently provisions the endpoint-template catalog into Mycelium at startup (Task #5468):
-/// every template in the seed graph is created as a thing (name + seed properties) and wired to its
-/// parent with an <c>is</c> relationship, so a registration never has to create a template lazily on
-/// first use.
+/// Idempotently provisions the endpoint-template catalog into Mycelium at startup. Idempotency rests on
+/// find-or-create by name; a template's <c>is</c> edge is created only when the thing was newly created
+/// this run. The <c>is</c> predicate is a model primitive and is never created — if missing, provisioning
+/// logs and aborts (best-effort startup; Mycelium's liveness monitor covers an unusable model).
 ///
-/// Idempotency: each template thing is find-or-created by name, and a template's <c>is</c> edge to
-/// its parent is created only when the template thing was newly created on this run. On a restart
-/// where the things already exist, nothing is created or rewired. The <c>is</c> predicate is a mycelium
-/// model primitive and is never created — if it is missing, provisioning logs and aborts (best-effort
-/// startup, mirroring the service's courtesy registration; Mycelium's liveness monitor covers a
-/// service that cannot reach a usable model).
-///
-/// Caveat: if a thing was created on a prior run but its <c>is</c> edge failed, a later run finds the
-/// thing and will not repair the missing edge — there is no mycelium relationship-query API to detect
-/// it. Acceptable pre-release under the single-active-model assumption; the failure is logged loudly.
+/// Known gap: if a thing was created on a prior run but its <c>is</c> edge failed, a later run finds the
+/// thing and cannot repair the missing edge — no mycelium relationship-query API exists to detect it.
 /// </summary>
 public sealed class TemplateCatalogProvisioner
 {
@@ -35,10 +27,6 @@ public sealed class TemplateCatalogProvisioner
         _logger = logger;
     }
 
-    /// <summary>
-    /// Create every template thing (root-first) and wire each newly-created child to its parent via
-    /// <c>is</c>. Best-effort: a mycelium failure on one template is logged and does not throw.
-    /// </summary>
     public async Task ProvisionAsync()
     {
         var isPredicate = await _myceliumClient.FindThingByNameAsync("is");
@@ -48,8 +36,8 @@ public sealed class TemplateCatalogProvisioner
             return;
         }
 
-        // Parents before children: a template's chain is strictly longer than its parent's, so
-        // ascending chain length is a valid topological order (same-depth siblings are independent).
+        // Ascending chain length is a valid topological order: a template's chain is strictly longer
+        // than its parent's, so parents are always provisioned before their children.
         var templatesRootFirst = _graph.Templates.Values
             .OrderBy(t => _graph.Chain(t.Name).Count)
             .ToList();
@@ -63,7 +51,6 @@ public sealed class TemplateCatalogProvisioner
             var existing = await _myceliumClient.FindThingByNameAsync(template.Name);
             if (existing != null)
             {
-                // Already provisioned (assume wired on the run that created it — see class caveat).
                 idByName[template.Name] = existing.Value.Id;
                 continue;
             }
@@ -86,7 +73,7 @@ public sealed class TemplateCatalogProvisioner
 
             var parentName = _graph.ParentName(template.Name);
             if (parentName == null)
-                continue; // root: no `is` relationship
+                continue;
 
             if (!idByName.TryGetValue(parentName, out var parentId))
             {

@@ -13,7 +13,7 @@ if (cliArgs == null)
 {
     Console.WriteLine(CliArgs.UsageMessage);
     Environment.Exit(1);
-    return; // unreachable but helps flow analysis
+    return;
 }
 
 var servicePort = cliArgs.Port;
@@ -22,8 +22,7 @@ var mode = cliArgs.Mode;
 var serviceToken = cliArgs.Token;
 var signingKey = cliArgs.SigningKey;
 
-// Configure Serilog. Skip the file sink when running under WebApplicationFactory<Program>
-// tests — file I/O under the test host has no value and invites flakiness on shared CI agents.
+// Skip the file sink under WebApplicationFactory<Program> tests — file I/O invites flakiness on shared CI agents.
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 
 var loggerConfig = new LoggerConfiguration()
@@ -54,11 +53,8 @@ try
     builder.Services.AddHttpClient();
     builder.Services.AddContractValidation();
 
-    // Add JWT auth if mycelium provided a signing key. Bug #5391: use the
-    // issuer/audience Mycelium passes via CLI so validation matches what
-    // Mycelium signed; falling back to the hardcoded library defaults
-    // silently accepted nothing in production because Mycelium config
-    // diverged from the daemon defaults.
+    // Bug #5391: validate with the issuer/audience Mycelium passes via CLI, not library defaults —
+    // defaults diverged from Mycelium config and silently accepted nothing in production.
     if (!string.IsNullOrEmpty(signingKey))
     {
         builder.AddMyceliumTokenAuth(
@@ -80,7 +76,6 @@ try
             sp.GetRequiredService<ILogger<Metabolism>>(),
             mode));
     builder.Services.AddSingleton<HandleRequestProcessor>();
-    // Live property updates via SSE (Phase 5c, #5558) — replaces the SignalR consumer.
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>
         new SubscriptionClient(
             sp.GetRequiredService<IHttpClientFactory>(),
@@ -91,12 +86,9 @@ try
     var requestCount = 0;
     var app = builder.Build();
 
-    // UseRouting is required before middleware that inspects endpoint metadata
-    // (RequestContractValidationMiddleware reads ContractValidationMetadata via
-    // context.GetEndpoint()). WebApplication auto-inserts UseEndpoints at the end.
+    // Must precede RequestContractValidationMiddleware, which reads endpoint metadata via context.GetEndpoint().
     app.UseRouting();
 
-    // Enable auth middleware when signing key is configured
     if (!string.IsNullOrEmpty(signingKey))
     {
         app.UseAuthentication();
@@ -105,15 +97,12 @@ try
 
     app.UseRequestContractValidation();
 
-    // Live property updates arrive via the SSE MetabolismSubscriptionService (hosted, Phase 5c).
-    // Skip the shutdown deregister under WebApplicationFactory<Program> tests — Mycelium URL is
-    // synthetic, so the calls would fail in a background task and pollute test output.
+    // Skip shutdown deregister under tests — synthetic Mycelium URL would fail in a background task and pollute output.
     if (!app.Environment.IsEnvironment("Testing"))
     {
         var myceliumClient = app.Services.GetRequiredService<MyceliumClient>();
         var metabolism = app.Services.GetRequiredService<Metabolism>();
 
-        // Stop simulations and deregister from mycelium on shutdown
         app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
         {
             try
@@ -146,7 +135,5 @@ finally
     Log.CloseAndFlush();
 }
 
-// Exposed to WebApplicationFactory<Program> in the test project per docs/MICROSERVICES.md.
-// Top-level statements compile to a `Program` class that is internal by default — this empty
-// partial declaration just elevates it to public so the test factory can name it.
+// Elevates the implicit top-level Program class to public so WebApplicationFactory<Program> can name it in tests.
 public partial class Program { }

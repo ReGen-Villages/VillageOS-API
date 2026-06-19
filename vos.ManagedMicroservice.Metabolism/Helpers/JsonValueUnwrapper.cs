@@ -3,22 +3,12 @@ using System.Text.Json;
 namespace vos.ManagedMicroservice.Metabolism.Helpers;
 
 /// <summary>
-/// Unwraps a <see cref="JsonElement"/> to its native CLR type. SignalR (and other JSON
-/// transports) hand the simulation engine values as <c>object?</c> that are actually
-/// <see cref="JsonElement"/> instances; the engine wants <c>int</c>/<c>long</c>/<c>decimal</c>/
-/// <c>string</c>/<c>bool</c>/<c>null</c> so property assignment compares cleanly.
-///
-/// Extracted from <c>Services/Metabolism.cs</c> under Feature #5433 / Task #5436 so the
-/// <see cref="JsonValueKind"/> arms are unit-testable with semantic value-out assertions.
+/// Unwraps a <see cref="JsonElement"/> to its native CLR type — JSON transports hand the engine
+/// values typed as <c>object?</c> that are really <see cref="JsonElement"/>, and the engine needs
+/// native types so property assignment compares cleanly.
 /// </summary>
 public static class JsonValueUnwrapper
 {
-    /// <summary>
-    /// If <paramref name="value"/> is a <see cref="JsonElement"/>, unwrap it to the
-    /// narrowest native CLR type that fits its <see cref="JsonValueKind"/>. Numbers prefer
-    /// <c>int</c>, then <c>long</c>, then <c>decimal</c>. Non-element values pass through
-    /// unchanged.
-    /// </summary>
     public static object? Unwrap(object? value)
     {
         if (value is not JsonElement je) return value;

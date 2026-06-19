@@ -13,7 +13,6 @@ import { NodeReducer } from './NodeReducer';
 import { GraphToolbar } from './GraphToolbar';
 import { WebGLContextGuard } from './WebGLContextGuard';
 
-/** Draw a rounded-rectangle pill on the given canvas context. */
 function drawRoundedPill(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -35,10 +34,7 @@ function drawRoundedPill(
   ctx.closePath();
 }
 
-/**
- * Truncate `text` with an ellipsis so its measured width fits within `maxWidth`.
- * Returns `null` if the result would be too short to be meaningful (< 4 chars).
- */
+/** Returns null if truncation would leave fewer than 4 chars. */
 function truncateLabel(
   ctx: CanvasRenderingContext2D,
   text: string,

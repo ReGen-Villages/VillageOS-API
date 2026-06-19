@@ -11,13 +11,9 @@ interface Props {
 }
 
 /**
- * Loads a graphology Graph into Sigma whenever the source data changes.
- * Must be rendered as a child of <SigmaContainer>.
- *
- * Distinguishes structural changes (nodes/edges added or removed) from
- * property-only changes.  Full `loadGraph()` only runs for structural
- * changes; property changes update Sigma node attributes in-place to
- * avoid destroying the layout or resetting the camera.
+ * Loads a graphology Graph into Sigma when source data changes.
+ * Property-only changes update node attributes in-place rather than calling
+ * loadGraph(), to avoid destroying the layout or resetting the camera.
  */
 export function GraphDataLoader({ things, relationships }: Props) {
   const sigma = useSigma();
@@ -26,19 +22,14 @@ export function GraphDataLoader({ things, relationships }: Props) {
   const prevRelIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // Extract GUI settings from the "GUI Settings" Thing (single traversal)
     const { flash, layout, predicateColors: predColors } = extractAllGuiSettings(things, relationships);
     useUiStore.getState().setFlashSettings(flash);
     useUiStore.getState().setLayoutSettings(layout);
     useUiStore.getState().setPredicateColors(predColors);
 
-    // Build the graphology graph from domain data. classColorOverrides is
-    // empty today (the future GUI_Settings panel will populate it per
-    // Feature #5340); layoutSettings carries the runtime perf knobs and
-    // node/edge sizes (Bug #5361).
+    // classColorOverrides is empty today (future GUI_Settings panel populates it).
     const graph = buildGraph(things, relationships, predColors, {}, layout);
 
-    // Determine whether this is a structural change
     const newThingIds = new Set(things.map((t) => t.Id));
     const newRelIds = new Set(relationships.map((r) => r.Id));
     const prevThingIds = prevThingIdsRef.current;
@@ -49,7 +40,7 @@ export function GraphDataLoader({ things, relationships }: Props) {
       newRelIds.size !== prevRelIds.size;
 
     const isStructural =
-      prevThingIds.size === 0 || // first load
+      prevThingIds.size === 0 ||
       countChanged ||
       [...newThingIds].some((id) => !prevThingIds.has(id)) ||
       [...prevThingIds].some((id) => !newThingIds.has(id)) ||
@@ -60,7 +51,6 @@ export function GraphDataLoader({ things, relationships }: Props) {
     prevRelIdsRef.current = newRelIds;
 
     if (isStructural) {
-      // Structural change — full reload
       loadGraph(graph);
 
       if (countChanged) {
@@ -69,7 +59,6 @@ export function GraphDataLoader({ things, relationships }: Props) {
         });
       }
     } else {
-      // Property-only change — update attributes in-place.
       // Skip positional attrs (x, y) to avoid disrupting the layout.
       const currentGraph = sigma.getGraph();
       graph.forEachNode((nodeId, attrs) => {

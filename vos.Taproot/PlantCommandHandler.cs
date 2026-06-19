@@ -2,10 +2,6 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-/// <summary>
-/// Handles the plant command which loads a seed file and optionally sets
-/// temporal modes for all properties in the loaded model.
-/// </summary>
 public class PlantCommandHandler
 {
     private readonly TextWriter _writer;
@@ -46,7 +42,6 @@ public class PlantCommandHandler
 
     private async Task PlantSeedAsync(string filePath, string? mode, int? ringBufferSize, int? sampleRate)
     {
-        // Add .json extension if not provided
         if (!Path.HasExtension(filePath))
             filePath += ".json";
 
@@ -56,16 +51,13 @@ public class PlantCommandHandler
             return;
         }
 
-        // Load the seed file
         var modelJson = await File.ReadAllTextAsync(filePath);
         await _mycelium.SetModelAsync(modelJson);
         _writer.WriteLine($"Model loaded from {filePath}");
 
-        // If no mode specified, we're done
         if (string.IsNullOrEmpty(mode))
             return;
 
-        // Set temporal mode for all properties
         await SetAllPropertyModesAsync(mode, ringBufferSize, sampleRate);
     }
 
@@ -86,7 +78,6 @@ public class PlantCommandHandler
             var thingName = GetStringProperty(thing, "Name");
             var thingPropertyCount = 0;
 
-            // Process own properties
             if (thing.TryGetProperty("Properties", out var props) && props.ValueKind == JsonValueKind.Object)
             {
                 foreach (var prop in props.EnumerateObject())

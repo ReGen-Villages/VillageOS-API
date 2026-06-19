@@ -8,11 +8,7 @@ import { LoadingOverlay } from './LoadingOverlay';
 import { ViewerToolbar, type CameraMode } from './ViewerToolbar';
 import { orbitMouseButtonsFor } from '../../utils/orbitMouseButtons';
 
-/**
- * Map of IFC GlobalId → VosThing GUID, produced by vos.Tools.IfcIngest and
- * served by Mycelium at /api/model/mapping. Used to resolve a picked
- * Fragments element to its graph identity.
- */
+/** Map of IFC GlobalId → VosThing GUID, served by Mycelium at /api/model/mapping. */
 export type FragmentsMapping = Record<string, string>;
 
 interface ModelBounds {
@@ -32,21 +28,10 @@ interface FragmentsViewerProps {
   mapping: FragmentsMapping;
   /** Fires with the VosThing GUID of the clicked element, or null when the click missed geometry. */
   onPick: (vosGuid: string | null) => void;
-  /**
-   * IFC GlobalIds whose Fragments instances should be hidden from view
-   * (Feature #5362 type filter). Empty array → everything visible. Resolved
-   * via `model.getLocalIdsByGuids` and applied with `model.setVisible`.
-   */
+  /** IFC GlobalIds whose Fragments instances should be hidden. Empty → everything visible. */
   hiddenIfcGuids?: readonly string[];
 }
 
-/**
- * Loads a ThatOpen Fragments .frag artifact into a three.js scene and
- * exposes click-to-pick, 2D plan toggle, and horizontal section cuts.
- *
- * Sub-tasks C (loader), D (picking), and E (loading UX + plan + cuts) of
- * Feature #5248.
- */
 export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuids = [] }: FragmentsViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl | null>(null);
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading', stage: 'fetching worker', progress: 0 });
@@ -54,18 +39,13 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuid
   const [sectionEnabled, setSectionEnabled] = useState(false);
   const [sectionY, setSectionY] = useState<number>(0);
 
-  // Feature #5385 — track modifier keys so Shift/Cmd/Ctrl + left-drag becomes
-  // pan. Without this, touchpad users have no easy way to pan (right-click is
-  // awkward on macOS trackpads). State changes re-render and OrbitControls
-  // re-receives the swapped mouseButtons prop.
+  // Shift/Cmd/Ctrl + left-drag becomes pan (right-click is awkward on macOS trackpads).
   const [panModifier, setPanModifier] = useState({ shift: false, meta: false, ctrl: false });
   useEffect(() => {
     const sync = (e: KeyboardEvent) => {
       setPanModifier({ shift: e.shiftKey, meta: e.metaKey, ctrl: e.ctrlKey });
     };
-    // Also clear on blur in case the user releases the key while the window
-    // isn't focused (e.g. Cmd+Tab) — otherwise the viewer would stay in pan
-    // mode until the next keypress.
+    // Clear on blur so a key released while unfocused (e.g. Cmd+Tab) doesn't stick.
     const clear = () => setPanModifier({ shift: false, meta: false, ctrl: false });
     window.addEventListener('keydown', sync);
     window.addEventListener('keyup', sync);
@@ -78,9 +58,8 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuid
   }, []);
   const mouseButtons = orbitMouseButtonsFor(panModifier);
 
-  // The clipping plane is read from a ref by the Fragments worker via
-  // getClippingPlanesEvent, which is called every frame. Keep it in a ref
-  // so the worker sees current state without re-subscribing.
+  // Held in a ref because the Fragments worker reads it every frame via
+  // getClippingPlanesEvent and must see current state without re-subscribing.
   const clipPlanesRef = useRef<THREE.Plane[]>([]);
   useEffect(() => {
     if (sectionEnabled) {
@@ -97,7 +76,7 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuid
 
   const onReady = useCallback((bounds: ModelBounds) => {
     setLoadState({ kind: 'ready', bounds });
-    setSectionY(bounds.maxY); // start with the plane above everything
+    setSectionY(bounds.maxY);
   }, []);
 
   const bounds = loadState.kind === 'ready' ? loadState.bounds : null;
@@ -113,18 +92,9 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuid
         <ambientLight intensity={0.6} />
         <directionalLight position={[30, 50, 20]} intensity={0.8} castShadow />
 
-        {/*
-         * Using the Canvas's built-in default camera rather than drei's
-         * <PerspectiveCamera makeDefault> + <OrthographicCamera makeDefault>
-         * pair. Swapping between two drei cameras broke
-         * FragmentsModel.raycast (Bug #5298) — the raycast returned null for
-         * every click even after updateMatrixWorld / useCamera fixes. The
-         * single-camera setup from sub-task D is known to pick correctly.
-         *
-         * Plan mode is now emulated by repositioning the same perspective
-         * camera directly above the model and narrowing the FOV for a
-         * near-orthographic look, instead of swapping to OrthographicCamera.
-         */}
+        {/* Bug #5298: swapping between two drei cameras broke FragmentsModel.raycast
+            (returned null for every click). Use the single built-in camera; plan mode
+            is faked by lifting it overhead and narrowing FOV instead of an ortho camera. */}
         <OrbitControls
           ref={orbitRef}
           makeDefault
@@ -166,8 +136,6 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuid
   );
 }
 
-// ── Fragments scene ─────────────────────────────────────────────────────────
-
 interface FragmentsSceneProps {
   bytes: ArrayBuffer;
   orbitRef: React.MutableRefObject<OrbitControlsImpl | null>;
@@ -183,16 +151,12 @@ interface FragmentsSceneProps {
 const CLICK_MAX_DRAG_PX = 4;
 
 const HIGHLIGHT_MATERIAL = {
-  color: new THREE.Color('#fde047'), // tailwind yellow-300
+  color: new THREE.Color('#fde047'),
   renderedFaces: 1,
   opacity: 1,
   transparent: false,
 };
 
-/**
- * Loads the Fragments model into the r3f scene. Runs inside <Canvas> so
- * useThree is available.
- */
 function FragmentsScene({
   bytes,
   orbitRef,
@@ -211,8 +175,7 @@ function FragmentsScene({
   const lastUpdateRef = useRef<number>(0);
   const highlightedRef = useRef<number | null>(null);
 
-  // Enable local clipping so scene objects respect the plane we pass to
-  // Fragments via getClippingPlanesEvent.
+  // Local clipping must be enabled for the section plane to take effect.
   useEffect(() => {
     const prev = gl.localClippingEnabled;
     gl.localClippingEnabled = true;
@@ -244,8 +207,6 @@ function FragmentsScene({
         await fragments.dispose();
         return;
       }
-      // Per-model clipping planes — the worker calls this callback each
-      // frame, so it always sees the current ref value.
       loaded.getClippingPlanesEvent = () => clipPlanesRef.current;
 
       const bounds = await computeBounds(loaded);
@@ -265,11 +226,10 @@ function FragmentsScene({
       fragmentsRef.current = null;
       if (fragments) void fragments.dispose();
     };
-    // intentional: we only load once per bytes instance
+    // Load once per bytes instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bytes]);
 
-  // Re-fit camera when the user toggles plan ↔ 3D.
   useEffect(() => {
     if (!model || !boundsRef.current) return;
     void fitCameraToBounds(cameraMode, camera, boundsRef.current, orbitRef.current);
@@ -285,10 +245,8 @@ function FragmentsScene({
     void fragments.update();
   });
 
-  // Feature #5362 — apply the type filter as Fragments instance visibility.
-  // When hiddenIfcGuids changes, resolve to localIds via the model's
-  // GUID→localId index and call setVisible. resetVisible() first so a removed
-  // entry comes back into view (cheaper than diffing the previous set).
+  // resetVisible() first so a removed entry comes back into view (cheaper than
+  // diffing the previous hidden set).
   useEffect(() => {
     if (!model) return;
     let cancelled = false;
@@ -325,11 +283,8 @@ function FragmentsScene({
       if (dx > CLICK_MAX_DRAG_PX || dy > CLICK_MAX_DRAG_PX) return;
       if (e.button !== 0) return;
 
-      // Fragments' raycaster runs the NDC conversion itself (see
-      // RaycastManager.screenToCast in @thatopen/fragments) — pass raw
-      // client-space pixel coordinates, not pre-normalised NDC, or the
-      // ray is computed from a mouse vector of (~0, ~0) and misses every
-      // piece of geometry (Bug #5298).
+      // Bug #5298: Fragments' raycaster does the NDC conversion itself, so pass
+      // raw client pixels — pre-normalised NDC makes it miss all geometry.
       const mouse = new THREE.Vector2(e.clientX, e.clientY);
 
       let hit;
