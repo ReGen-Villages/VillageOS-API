@@ -21,7 +21,24 @@ public class Metabolism
         _mode = mode;
     }
 
+    /// <summary>Raised when a relationship gains a simulation via a /handle request — the
+    /// subscription coordinator adds it to the SSE membership so its changes are streamed.</summary>
+    public event Action<string>? RelationshipRegistered;
+
+    /// <summary>Raised when a simulation is cancelled — the coordinator drops it from membership.</summary>
+    public event Action<string>? RelationshipCancelled;
+
+    /// <summary>Public registration (from /handle): registers + announces the relationship for SSE membership.</summary>
     public SimulationEntry Register(SimulationConfig config)
+    {
+        var entry = RegisterCore(config);
+        RelationshipRegistered?.Invoke(config.RelationshipId);
+        return entry;
+    }
+
+    // Core registration without the membership announcement, so the internal restart from
+    // UpdateProperty doesn't re-trigger an AddObjects on every property change.
+    private SimulationEntry RegisterCore(SimulationConfig config)
     {
         // Cancel existing simulation for same relationship if re-registered
         if (_simulations.TryRemove(config.RelationshipId, out var existing))
@@ -125,7 +142,7 @@ public class Metabolism
     /// <summary>
     /// Update a single property on a running simulation, restarting the loop with the new config.
     /// </summary>
-    public void UpdateProperty(string relationshipId, string propertyName, object? newValue)
+    public virtual void UpdateProperty(string relationshipId, string propertyName, object? newValue)
     {
         // Lock so rapid sequential changes (e.g. quantity then frequencySeconds) don't race —
         // without this, both threads read the same old config and the first change is lost.
@@ -161,7 +178,7 @@ public class Metabolism
 
             _logger.LogInformation("Simulation {RelId}: property {Prop} changed to {Value} — restarting",
                 relationshipId, propertyName, value);
-            Register(updated);
+            RegisterCore(updated); // restart only; membership already covers this relationship
         }
     }
 
@@ -170,6 +187,7 @@ public class Metabolism
         if (_simulations.TryRemove(relationshipId, out var entry))
         {
             entry.Cts.Cancel();
+            RelationshipCancelled?.Invoke(relationshipId);
             return true;
         }
         return false;

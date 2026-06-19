@@ -5,6 +5,16 @@ using Microsoft.Extensions.Logging;
 
 namespace vos.ManagedMicroservice.Shared.Subscriptions;
 
+/// <summary>Mycelium snapshot-subscription operations consumed by managed microservices.</summary>
+public interface ISubscriptionClient
+{
+    Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default);
+    Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default);
+    Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default);
+    Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default);
+    IAsyncEnumerable<ModelChangeEvent> StreamAsync(Guid subscriptionId, long fromSequence, CancellationToken ct = default);
+}
+
 /// <summary>
 /// Shared client for Mycelium snapshot subscriptions (Phase 4, #5557). A managed
 /// microservice calls <see cref="SubscribeAsync"/> once at startup to receive the full
@@ -15,7 +25,7 @@ namespace vos.ManagedMicroservice.Shared.Subscriptions;
 /// Replaces the SignalR consumer path (Metabolism's MyceliumClient.ConnectSignalRAsync)
 /// during the Phase 5 cutover.
 /// </summary>
-public sealed class SubscriptionClient : MyceliumClientBase
+public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 

@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -8,22 +7,18 @@ namespace vos.ManagedMicroservice.Metabolism.Services;
 
 /// <summary>
 /// HTTP client for communicating with the VOS Mycelium (Metabolism-specific operations).
-/// Adds SignalR subscription and quantity endpoint support on top of shared base.
+/// Adds the resource/quantity write endpoints on top of the shared base. Live property
+/// updates now arrive via the SSE <see cref="Shared.Subscriptions.SubscriptionClient"/>
+/// (Phase 5c, #5558) — the SignalR consumer was removed.
 /// </summary>
 public class MyceliumClient : MyceliumClientBase
 {
     private readonly string _mode;
-    private readonly IHubConnectionFactory _hubFactory;
-    private IHubConnection? _hubConnection;
 
-    /// <summary>Raised when a relationship property changes on Mycelium.</summary>
-    public event Action<Guid, string, object?>? OnRelationshipPropertyChanged;
-
-    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string mode, string? serviceToken = null, IHubConnectionFactory? hubFactory = null)
+    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string mode, string? serviceToken = null)
         : base(httpClientFactory, logger, myceliumUrl, serviceToken)
     {
         _mode = mode;
-        _hubFactory = hubFactory ?? new DefaultHubConnectionFactory();
     }
 
     /// <summary>Registers this handler with Mycelium.</summary>
@@ -31,85 +26,8 @@ public class MyceliumClient : MyceliumClientBase
         => RegisterAsync(port, $"Metabolism-{_mode}",
             $"dotnet run --project vos.ManagedMicroservice.Metabolism -- --port={port} --myceliumUrl={MyceliumUrl} --mode={_mode}");
 
-    /// <summary>Deregisters this service from Mycelium and disconnects SignalR.</summary>
-    public override async Task DeregisterAsync()
-    {
-        if (_hubConnection != null)
-        {
-            await _hubConnection.DisposeAsync();
-            _hubConnection = null;
-            Logger.LogInformation("SignalR connection closed");
-        }
-
-        await base.DeregisterAsync();
-    }
-
-    /// <summary>
-    /// Connects to Mycelium's SignalR hub to subscribe to property change events.
-    /// Retries with backoff until connected or cancelled.
-    /// </summary>
-    public async Task ConnectSignalRAsync(CancellationToken ct = default)
-    {
-        var delays = new[] { 0, 1000, 2000, 5000, 10000 };
-        for (var attempt = 0; !ct.IsCancellationRequested; attempt++)
-        {
-            try
-            {
-                var token = await GetTokenAsync();
-                if (token == null)
-                {
-                    Logger.LogWarning("SignalR: cannot get token, will retry");
-                    await DelayAsync(delays[Math.Min(attempt, delays.Length - 1)], ct);
-                    continue;
-                }
-
-                _hubConnection = _hubFactory.Create(
-                    $"{MyceliumUrl}/vosHub",
-                    () => Task.FromResult<string?>(token));
-
-                _hubConnection.On<Guid, string, object?>("RelationshipPropertyChanged", HandleRelationshipPropertyChanged);
-
-                _hubConnection.Reconnected += HandleReconnected;
-
-                await _hubConnection.StartAsync(ct);
-                Logger.LogInformation("SignalR connected to mycelium hub");
-                return;
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning("SignalR connection attempt {Attempt} failed: {Error}", attempt + 1, ex.Message);
-                await DelayAsync(delays[Math.Min(attempt, delays.Length - 1)], ct);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Backoff delay between SignalR connect attempts. Extracted as a seam so tests can
-    /// assert the retry cadence without sleeping for real; production delegates to
-    /// <see cref="Task.Delay(int, CancellationToken)"/>.
-    /// </summary>
-    protected virtual Task DelayAsync(int milliseconds, CancellationToken ct) => Task.Delay(milliseconds, ct);
-
     private const string ApplyQuantitySchemaId = "https://villageos/contracts/apply-quantity-request.schema.json";
     private const string RelationshipIncrementSchemaId = "https://villageos/contracts/relationship-property-increment-request.schema.json";
-    private const string RelationshipPropertyChangedEventSchemaId = "https://villageos/contracts/relationship-property-changed-event.schema.json";
-
-    /// <summary>
-    /// Validates an inbound RelationshipPropertyChanged event payload against its schema
-    /// then raises the public <see cref="OnRelationshipPropertyChanged"/> event. Separated
-    /// from the SignalR callback so the validation path is unit-testable without a real hub.
-    /// </summary>
-    internal void RaiseRelationshipPropertyChanged(Guid relationshipId, string propertyName, object? newValue)
-    {
-        // Schema pins the JSON Hub Protocol arguments array shape: [uuid, string, untyped].
-        var argsJson = JsonSerializer.Serialize(new object?[] { relationshipId, propertyName, newValue });
-        ValidateOutbound(argsJson, RelationshipPropertyChangedEventSchemaId);
-        OnRelationshipPropertyChanged?.Invoke(relationshipId, propertyName, newValue);
-    }
 
     // Payload shape lives in a virtual builder so tests can inject a malformed object to
     // exercise the validation paths. Default returns the production wire shape.
@@ -151,19 +69,6 @@ public class MyceliumClient : MyceliumClientBase
             var error = await response.Content.ReadAsStringAsync();
             throw new HttpRequestException($"POST {action} failed ({response.StatusCode}): {error}");
         }
-    }
-
-    private void HandleRelationshipPropertyChanged(Guid relationshipId, string propertyName, object? newValue)
-    {
-        Logger.LogDebug("SignalR: RelationshipPropertyChanged {RelId} {Prop}={Value}",
-            relationshipId, propertyName, newValue);
-        RaiseRelationshipPropertyChanged(relationshipId, propertyName, newValue);
-    }
-
-    private Task HandleReconnected(string? connectionId)
-    {
-        Logger.LogInformation("SignalR reconnected: {ConnectionId}", connectionId);
-        return Task.CompletedTask;
     }
 
     /// <summary>Increment a property on a relationship (for tracking per-relationship cumulative totals).</summary>
