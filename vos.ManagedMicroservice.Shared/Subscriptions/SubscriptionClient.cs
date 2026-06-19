@@ -37,6 +37,30 @@ public sealed class SubscriptionClient : MyceliumClientBase
             ?? throw new InvalidOperationException("Mycelium returned an empty subscription response");
     }
 
+    /// <summary>
+    /// Add objects to a live subscription (no reconnect). Returns an incremental snapshot of the
+    /// newly-added objects so the caller hydrates them; the existing SSE stream then delivers their changes.
+    /// </summary>
+    public async Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
+        var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/subscriptions/{subscriptionId}/objects", selector, Json, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<AddObjectsResult>(Json, ct)
+            ?? throw new InvalidOperationException("Mycelium returned an empty add-objects response");
+    }
+
+    /// <summary>Remove objects from a live subscription's membership (no reconnect).</summary>
+    public async Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+        var request = new HttpRequestMessage(HttpMethod.Delete, $"{MyceliumUrl}/api/subscriptions/{subscriptionId}/objects")
+        {
+            Content = JsonContent.Create(new { Ids = objectIds }, options: Json),
+        };
+        (await client.SendAsync(request, ct)).EnsureSuccessStatusCode();
+    }
+
     /// <summary>Unsubscribe and release the server-side stream.</summary>
     public async Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default)
     {

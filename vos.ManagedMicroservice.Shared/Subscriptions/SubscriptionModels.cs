@@ -10,6 +10,8 @@ namespace vos.ManagedMicroservice.Shared.Subscriptions;
 /// </summary>
 public sealed class SubscriptionSelector
 {
+    /// <summary>Cover the whole model + all future objects (e.g. a GUI holding the entire model).</summary>
+    public bool All { get; set; }
     public List<Guid>? Ids { get; set; }
     public List<string>? Names { get; set; }
     public List<string>? Types { get; set; }
@@ -28,6 +30,9 @@ public sealed class TraverseRule
 
 /// <summary>Result of <c>POST /api/subscriptions</c>: the registration id, the watermark, and the snapshot.</summary>
 public sealed record SubscribeResult(Guid SubscriptionId, long Watermark, SnapshotDocument Snapshot);
+
+/// <summary>Result of extending a subscription via <c>POST /api/subscriptions/{id}/objects</c>: an incremental snapshot of the added objects.</summary>
+public sealed record AddObjectsResult(long Watermark, SnapshotDocument Snapshot);
 
 /// <summary>The startup snapshot — full objects as of <see cref="Watermark"/> (a commit sequence).</summary>
 public sealed record SnapshotDocument(

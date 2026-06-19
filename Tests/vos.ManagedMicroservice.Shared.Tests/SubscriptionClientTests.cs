@@ -74,6 +74,38 @@ public class SubscriptionClientTests
     }
 
     [Fact]
+    public async Task AddObjectsAsync_posts_selector_and_returns_incremental_snapshot()
+    {
+        var thingId = Guid.NewGuid();
+        HttpRequestMessage? captured = null;
+        var body = $$"""
+        { "watermark": 99, "snapshot": { "watermark": 99,
+          "things": [{ "id": "{{thingId}}", "name": "New", "properties": {}, "inheritedProperties": {}, "states": [], "relationships": [] }],
+          "relationships": [] } }
+        """;
+        var (client, _) = Build(req => { captured = req; return Json(body); });
+
+        var result = await client.AddObjectsAsync(Guid.NewGuid(), new SubscriptionSelector { Ids = new() { thingId } });
+
+        captured!.Method.Should().Be(HttpMethod.Post);
+        captured.RequestUri!.AbsoluteUri.Should().EndWith("/objects");
+        result.Watermark.Should().Be(99);
+        result.Snapshot.Things.Should().ContainSingle().Which.Id.Should().Be(thingId);
+    }
+
+    [Fact]
+    public async Task RemoveObjectsAsync_sends_delete_with_ids()
+    {
+        HttpRequestMessage? captured = null;
+        var (client, _) = Build(req => { captured = req; return new HttpResponseMessage(HttpStatusCode.OK); });
+
+        await client.RemoveObjectsAsync(Guid.NewGuid(), new[] { Guid.NewGuid() });
+
+        captured!.Method.Should().Be(HttpMethod.Delete);
+        captured.RequestUri!.AbsoluteUri.Should().EndWith("/objects");
+    }
+
+    [Fact]
     public async Task StreamAsync_yields_parsed_change_events()
     {
         var entityId = Guid.NewGuid();
