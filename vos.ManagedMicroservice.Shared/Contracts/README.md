@@ -25,7 +25,7 @@ Phase 1 ships the schemas + validator as a *dormant library* &mdash; no producti
 
 - Phase 2: inbound `/handle` middleware (`UseRequestContractValidation`).
 - Phase 3: outbound checks in `MyceliumClientBase`.
-- Phase 4: SignalR receive-side in Metabolism.
+- Phase 4: SSE change-stream receive-side in Metabolism (via the shared `SubscriptionClient`).
 - Phase 5: GUI runtime validation (TS types generated from the same schemas).
 
 See `docs/MICROSERVICES.md` §9 for the full design.

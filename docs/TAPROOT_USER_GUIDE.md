@@ -1216,4 +1216,4 @@ The CLI accepts self-signed certificates by default for development. For product
 **Next Steps:**
 
 - See [`MICROSERVICES.md`](MICROSERVICES.md) to build relationship or endpoint services.
-- The Mycelium REST + SignalR reference lives on Mycelium repo's wiki (`ReGenVillages/VillageOS`).
+- The Mycelium REST + SSE reference lives on Mycelium repo's wiki (`ReGenVillages/VillageOS`).

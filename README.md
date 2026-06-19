@@ -10,7 +10,7 @@ Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev
 
 - Sigma.js v3 + graphology for graph rendering
 - Three.js + `@thatopen/fragments` for the IFC Model viewer (loader, picking, plan/section toolbar, and shared `NodeDetailPanel`)
-- SignalR real-time updates with flash effects
+- Server-Sent Events (SSE) real-time updates with flash effects
 - Zustand state management
 - Dashboard, Graph, Model, Temporal, Things, and Properties pages
 
@@ -59,7 +59,7 @@ dotnet test
 ```bash
 cd vos.Trellis
 npm ci
-npm run dev      # Development server on :5173 (proxies /api + /vosHub to https://localhost:7243)
+npm run dev      # Development server on :5173 (proxies /api to https://localhost:7243)
 npm run build    # Production build into ./dist
 npm test         # Run tests
 ```
@@ -87,7 +87,7 @@ Key pages:
 - [Trellis](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTrellis) — visualization stack, tech spec, user guide
 - [Taproot](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTaproot) — command reference
 - [Services](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FServices) — microservice documentation
-- [API Reference](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FAPI-Reference) — REST endpoints, SignalR, authentication
+- [API Reference](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FAPI-Reference) — REST endpoints, SSE streams, authentication
 
 ## License
 

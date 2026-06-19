@@ -295,7 +295,7 @@ embedded as resources in the shared assembly. The validator runtime lives in
 | `mycelium-register-request` | every microservice → Mycelium `POST /api/mycelium/register` | `MyceliumClientBase.RegisterAsync` | 1 (schema) / 3 (wired) |
 | `token-response` | Mycelium `POST /api/auth/token` → every microservice | `MyceliumClientBase.GetTokenAsync` | 1 / 3 |
 | `handle-request-metabolism` | Mycelium → Metabolism `POST /handle` | `vos.ManagedMicroservice.Metabolism.Models.HandleRequest` | 1 / 2 |
-| `relationship-property-changed-event` | Mycelium `/vosHub` → Metabolism (SignalR) | `vos.ManagedMicroservice.Metabolism.Services.MyceliumClient.RaiseRelationshipPropertyChanged` | 1 / 4 |
+| `relationship-property-changed-event` | Mycelium SSE change stream → Metabolism (via shared `SubscriptionClient`) | `vos.ManagedMicroservice.Metabolism.Services.MetabolismSubscriptionService` | 1 / 4 |
 | `apply-quantity-request` | Metabolism → Mycelium `POST /api/things/{id}/properties/{path}/{decrements\|increments}` | `vos.ManagedMicroservice.Metabolism.Services.MyceliumClient.ApplyQuantityAsync` | 4 |
 | `relationship-property-increment-request` | Metabolism → Mycelium `POST /api/relationships/{id}/properties/{path}/increments` | `vos.ManagedMicroservice.Metabolism.Services.MyceliumClient.IncrementRelationshipPropertyAsync` | 4 |
 
@@ -387,13 +387,12 @@ follow-up tracked separately.
 
 ### 9.6 Metabolism hot-path validation (Phase 4)
 
-`ApplyQuantityAsync`, `IncrementRelationshipPropertyAsync`, and the SignalR
-`RelationshipPropertyChanged` event all validate on every tick.
-`ValidateOutbound` is promoted to `protected` so service-specific subclasses
-can call it. The SignalR callback delegates to an internal
-`RaiseRelationshipPropertyChanged` helper tested via `InternalsVisibleTo`, so
-the validation path is exercised without a real hub. Same Throw/Log policy as
-§9.5.
+`ApplyQuantityAsync`, `IncrementRelationshipPropertyAsync`, and the
+`RelationshipPropertyChanged` events arriving over the SSE subscription all
+validate on every tick. `ValidateOutbound` is promoted to `protected` so
+service-specific subclasses can call it. The validation path is exercised
+without a live stream by feeding events through `MetabolismSubscriptionService`
+in tests. Same Throw/Log policy as §9.5.
 
 ### 9.7 Tests + coverage
 
@@ -528,8 +527,8 @@ Per-microservice acceptance: **≥95 % line on `CliArgs` + `MyceliumClient` + an
 
 ## 12. Pointers
 
-Mycelium repo (`ReGenVillages/VillageOS`) owns the REST surface, SignalR
-hub, seed-loading, and JWT minting. Quick map for what calls what:
+Mycelium repo (`ReGenVillages/VillageOS`) owns the REST surface, SSE change
+streams, seed-loading, and JWT minting. Quick map for what calls what:
 
 | Area | Endpoint (on Mycelium) | Method |
 |---|---|---|
@@ -540,7 +539,8 @@ hub, seed-loading, and JWT minting. Quick map for what calls what:
 | Properties | `/api/properties` | GET, PUT, DELETE |
 | Relationships | `/api/relationships` | GET, POST, DELETE |
 | Mycelium registry | `/api/mycelium/register`, `/api/mycelium/services/{id}` | POST, DELETE |
-| SignalR Hub | `/vosHub` | WebSocket |
+| Subscriptions (SSE) | `/api/subscriptions`, `/api/subscriptions/{id}/stream` | POST, GET (SSE) |
+| System events (SSE) | `/api/events/stream` | GET (SSE) |
 
 Full reference: the **Mycelium Guide** on Mycelium repo's wiki
 (`ReGenVillages/VillageOS` → wiki → Mycelium). Swagger UI is available at
