@@ -312,17 +312,12 @@ Two of the three targeted DI items shipped and are no longer roadmap items:
 item 1 (Metabolism `Program.cs` DI alignment) and item 3
 (`IEndpointSeedProvider` for Delta).
 
-### 2.1 `IHubConnectionFactory` in Metabolism's `MyceliumClient` (removed)
+### 2.1 Metabolism live-change consumption (done)
 
-> **Status:** `REMOVED`. This seam existed only to make SignalR's sealed,
-> un-mockable `HubConnection` testable. The SignalR→SSE migration deleted it
-> outright — there is no hub connection to abstract.
-
-Metabolism now consumes live changes over the shared
-`SubscriptionClient` (SSE), driven by `MetabolismSubscriptionService`. That
-path is plain `HttpClient` + an `IAsyncEnumerable` change stream, so it is
-directly testable by feeding events through the hosted service — no factory
-seam required. See `docs/METABOLISM.md` for the current design.
+> **Status:** `DONE`. Metabolism consumes live changes over the shared
+> `SubscriptionClient` (SSE), driven by `MetabolismSubscriptionService` — plain
+> `HttpClient` + an `IAsyncEnumerable` change stream, directly testable by feeding
+> events through the hosted service. See `docs/METABOLISM.md` for the design.
 
 ### 2.2 `vos.Taproot` gets a `HostBuilder`
 

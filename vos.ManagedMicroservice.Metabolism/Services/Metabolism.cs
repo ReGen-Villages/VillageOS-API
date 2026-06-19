@@ -151,7 +151,7 @@ public class Metabolism
             if (!_simulations.TryGetValue(relationshipId, out var entry))
                 return;
 
-            // SignalR delivers values as JsonElement — unwrap to native types
+            // SSE delivers values as JsonElement — unwrap to native types
             var value = JsonValueUnwrapper.Unwrap(newValue);
 
             var old = entry.Config;

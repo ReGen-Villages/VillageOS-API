@@ -104,7 +104,7 @@ service-agnostic plumbing:
 
 `vos.ManagedMicroservice.Shared.Subscriptions.SubscriptionClient` (also a
 `MyceliumClientBase` subclass) is how a service gets its working set **without a
-GET storm** and follows changes afterward. It replaces the SignalR consumer path.
+GET storm** and follows changes afterward.
 
 ```csharp
 var sub = new SubscriptionClient(httpFactory, logger, myceliumUrl, token);
