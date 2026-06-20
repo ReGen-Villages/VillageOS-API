@@ -13,7 +13,7 @@ import { pathToFileURL } from "node:url";
 
 const SERVICE_NAME = "Node";
 
-interface Config {
+export interface Config {
   port: number;
   myceliumUrl: string;
   token?: string;
@@ -90,6 +90,80 @@ async function deregister(cfg: Config): Promise<void> {
   } catch (err) {
     console.error("deregister failed:", err);
   }
+}
+
+// ---- Snapshot selector: subscribe to a slice of the model -----------------------------------
+//
+// The selector replaced launch-time object IDs (the retired ServiceArgs ID template): a handler
+// POSTs a selector to /api/subscriptions describing the slice it needs, gets that closure as a
+// snapshot, then follows the SSE stream. See docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
+
+export interface TraverseRule {
+  predicate: string;
+  direction?: "outgoing" | "incoming" | "both";
+  depth?: number;
+}
+
+export interface Selector {
+  all?: boolean;
+  ids?: string[];
+  names?: string[];
+  types?: string[];
+  traverse?: TraverseRule[];
+}
+
+export interface SubscribeResult {
+  subscriptionId: string;
+  watermark: number;
+  snapshot: { things: { id: string; name?: string }[]; relationships: { id: string }[] };
+}
+
+/** A representative slice selector: every Thing of `type` plus its depth-1 `predicate` neighbours. */
+export function sliceByTypeAndTraverse(type: string, predicate: string): Selector {
+  return { types: [type], traverse: [{ predicate, direction: "outgoing", depth: 1 }] };
+}
+
+/** POST the selector to /api/subscriptions and return the resolved snapshot closure. */
+export async function subscribe(cfg: Config, selector: Selector): Promise<SubscribeResult> {
+  const token = await getToken(cfg);
+  const res = await fetch(`${cfg.myceliumUrl}/api/subscriptions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(selector),
+  });
+  if (!res.ok) throw new Error(`subscribe returned ${res.status}`);
+  return (await res.json()) as SubscribeResult;
+}
+
+/** Release a subscription (best-effort). */
+export async function unsubscribe(cfg: Config, subscriptionId: string): Promise<void> {
+  const token = await getToken(cfg);
+  await fetch(`${cfg.myceliumUrl}/api/subscriptions/${subscriptionId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export interface SelectorDemoResult {
+  subscriptionId: string;
+  watermark: number;
+  things: number;
+  relationships: number;
+  thingNames: string[];
+}
+
+/** Runnable worked example: subscribe for a by-type+traverse slice, report the closure, unsubscribe. */
+export async function demoSubscribe(cfg: Config, type = "Battery", predicate = "powers"): Promise<SelectorDemoResult> {
+  const sub = await subscribe(cfg, sliceByTypeAndTraverse(type, predicate));
+  const names = sub.snapshot.things.map((t) => t.name ?? t.id);
+  await unsubscribe(cfg, sub.subscriptionId); // demo: release rather than stream
+  return {
+    subscriptionId: sub.subscriptionId,
+    watermark: sub.watermark,
+    things: sub.snapshot.things.length,
+    relationships: sub.snapshot.relationships.length,
+    thingNames: names,
+  };
 }
 
 function b64urlToBuf(s: string): Buffer {
@@ -189,6 +263,20 @@ function main(): void {
         status: "handled",
         echo: payload,
       });
+    }
+    if (method === "POST" && url === "/demo/subscribe") {
+      if (!authorized(req, cfg, key)) return sendJson(res, 401, { error: "unauthorized" });
+      let body: { type?: string; predicate?: string } = {};
+      try {
+        body = JSON.parse((await readBody(req)) || "{}");
+      } catch {
+        return sendJson(res, 400, { error: "invalid json" });
+      }
+      try {
+        return sendJson(res, 200, await demoSubscribe(cfg, body.type ?? "Battery", body.predicate ?? "powers"));
+      } catch (err) {
+        return sendJson(res, 500, { error: String(err) });
+      }
     }
     if (method === "POST" && url === "/shutdown") {
       if (!authorized(req, cfg, key)) return sendJson(res, 401, { error: "unauthorized" });
