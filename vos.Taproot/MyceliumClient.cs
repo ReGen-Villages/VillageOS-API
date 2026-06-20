@@ -25,15 +25,24 @@ public class MyceliumClient
         _apiKey = apiKey ?? Environment.GetEnvironmentVariable("VOS_API_KEY");
         _clock = () => DateTime.UtcNow;
 
-        var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-        };
-        _httpClient = new HttpClient(handler)
+        _httpClient = new HttpClient(CreateHandler())
         {
             Timeout = TimeSpan.FromSeconds(30)
         };
     }
+
+    // TLS certificates are validated by default. Validation is bypassed only when VOS_INSECURE_TLS
+    // is explicitly set — for local dev against self-signed certs, never in production.
+    internal static HttpClientHandler CreateHandler()
+    {
+        var handler = new HttpClientHandler();
+        if (IsInsecureTlsEnabled())
+            handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+        return handler;
+    }
+
+    internal static bool IsInsecureTlsEnabled()
+        => Environment.GetEnvironmentVariable("VOS_INSECURE_TLS") is "1" or "true" or "TRUE" or "True";
 
     // Test seam: lets tests inject a mock handler and a virtual clock.
     internal MyceliumClient(string myceliumUrl, string? apiKey, HttpClient httpClient, Func<DateTime>? clock = null)
