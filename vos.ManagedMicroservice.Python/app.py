@@ -114,11 +114,8 @@ async def deregister_from_mycelium() -> None:
         print(f"deregister failed: {exc}", file=sys.stderr)
 
 
-# ---- Write kinds: Facts · Observations · Sediment ----------------------------------------------
-#
-# Three ways a microservice writes back to the model, over httpx so the wire contract is explicit.
-# Each takes an optional ``client`` for tests (inject an httpx.AsyncClient with a MockTransport);
-# production callers omit it. See docs/MICROSERVICE_CONTRACT.md § "Writing data back".
+# Write kinds — Facts, Observations, Sediment. docs/MICROSERVICE_CONTRACT.md § "Writing data back".
+# The optional `client` lets tests inject an httpx.AsyncClient with a MockTransport.
 
 
 async def _authed_post(path: str, json_body, *, client: httpx.AsyncClient | None = None) -> httpx.Response:
@@ -132,8 +129,7 @@ async def _authed_post(path: str, json_body, *, client: httpx.AsyncClient | None
 
 
 async def set_fact(thing_id: str, prop: str, value, *, client: httpx.AsyncClient | None = None) -> int:
-    """Assert a structural Fact (synchronous, never lossy). Returns the commit sequence number.
-    405 means the property is ObservationOnly; 404 means the thing/property is unknown."""
+    """Assert a structural Fact; return the commit sequence number (405 if ObservationOnly)."""
     res = await _authed_post(f"/api/things/{thing_id}/properties/{quote(prop, safe='')}/facts", {"value": value}, client=client)
     if res.status_code != 201:
         raise RuntimeError(f"fact write returned {res.status_code}")
@@ -141,8 +137,7 @@ async def set_fact(thing_id: str, prop: str, value, *, client: httpx.AsyncClient
 
 
 async def record_observation(thing_id: str, prop: str, value, observed_at: str | None = None, *, client: httpx.AsyncClient | None = None) -> None:
-    """Record one sampled Observation (queued/batched; 202). Pass observed_at (ISO-8601) for late or
-    out-of-order samples, or omit to let Mycelium stamp now. 405 if the property is FactOnly."""
+    """Record one Observation (202); pass observed_at for late samples, omit for now (405 if FactOnly)."""
     body = {"value": value}
     if observed_at:
         body["observedAt"] = observed_at
@@ -152,8 +147,7 @@ async def record_observation(thing_id: str, prop: str, value, observed_at: str |
 
 
 async def record_observations(thing_id: str, samples: list[dict], *, client: httpx.AsyncClient | None = None) -> int:
-    """Record many samples across an entity's properties in one batch (202). Each sample is a dict
-    {property, value, observedAt?}. Returns the accepted-sample count Mycelium reports."""
+    """Record many samples (dicts of {property, value, observedAt?}) in one batch (202); return the accepted count."""
     if not samples:
         return 0
     res = await _authed_post(f"/api/things/{thing_id}/observations", samples, client=client)
@@ -163,9 +157,7 @@ async def record_observations(thing_id: str, samples: list[dict], *, client: htt
 
 
 async def deposit_sediment(readings: list[dict], *, client: httpx.AsyncClient | None = None) -> dict:
-    """Bulk-load historical readings straight to sealed Sapwood (202). Each reading is a dict
-    {thingId, property, value, observedAt}; entities must already exist and observedAt is required.
-    Returns the deposit summary {batchId, series, buckets, samples}."""
+    """Bulk-load historical readings (dicts of {thingId, property, value, observedAt}) to sealed Sapwood (202)."""
     if not readings:
         raise ValueError("at least one reading is required")
     res = await _authed_post("/api/sediment", readings, client=client)
@@ -174,10 +166,7 @@ async def deposit_sediment(readings: list[dict], *, client: httpx.AsyncClient | 
     return res.json()
 
 
-# ---- Snapshot selector: subscribe to a slice of the model --------------------------------------
-#
-# The selector replaced launch-time object IDs (the retired ServiceArgs ID template). Reuses the
-# _authed_post helper above. See docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
+# Snapshot selector — subscribe to a slice (replaced launch-time IDs). docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
 
 
 def slice_by_type_and_traverse(type_: str, predicate: str) -> dict:
@@ -298,8 +287,7 @@ async def handle_relationship(request: Request, _: None = Depends(verify_request
 
 @app.post("/demo/write-kinds")
 async def demo_write_kinds(request: Request, _: None = Depends(verify_request)) -> JSONResponse:
-    """Runnable worked example: POST {"thingId": "..."} drives one Fact, one single + one batch
-    Observation, and one Sediment deposit against an already-existing Thing."""
+    """Drive one of each write kind against an existing Thing. POST {"thingId": "..."}."""
     payload = await request.json()
     thing_id = payload.get("thingId")
     if not thing_id:
@@ -330,8 +318,7 @@ async def demo_write_kinds(request: Request, _: None = Depends(verify_request)) 
 
 @app.post("/demo/subscribe")
 async def demo_subscribe_endpoint(request: Request, _: None = Depends(verify_request)) -> JSONResponse:
-    """POST {"type": "...", "predicate": "..."} (defaults to Battery/powers); subscribes for that
-    slice, returns the resolved snapshot closure, and unsubscribes."""
+    """Subscribe for a slice and return its closure. POST optional {"type": "...", "predicate": "..."}."""
     try:
         payload = await request.json()
     except Exception:

@@ -1,12 +1,5 @@
-// Contract tests for the three write kinds every microservice can use from MyceliumClientBase:
-//   Fact         → POST /api/things/{id}/properties/{p}/facts        → 201 { sequenceNumber }
-//   Observation  → POST /api/things/{id}/properties/{p}/observations → 202   (single)
-//                  POST /api/things/{id}/observations                → 202 { accepted }   (batch)
-//   Sediment     → POST /api/sediment                                → 202 { batchId, series, buckets, samples }
-//
-// These pin the wire shape (URL, body, success code) and the failure surface (HttpRequestException
-// carrying the StatusCode, e.g. 405 when a property rejects the write kind). They also prove the
-// embedded request schemas accept the real payloads — ViolationMode is forced to Throw.
+// Contract tests for the three write-kind helpers on MyceliumClientBase: wire shape, success codes,
+// the StatusCode-carrying failure, and that the embedded schemas accept the real payloads (Throw mode).
 
 using System.Net;
 using System.Text;

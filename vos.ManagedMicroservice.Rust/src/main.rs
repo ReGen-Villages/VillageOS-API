@@ -214,10 +214,7 @@ async fn deregister(state: &AppState, http: &reqwest::Client) {
         .await;
 }
 
-// ---- Write kinds: Facts · Observations · Sediment ------------------------
-//
-// Three ways a microservice writes back to the model, over reqwest so the wire
-// contract is explicit. See docs/MICROSERVICE_CONTRACT.md § "Writing data back".
+// Write kinds — Facts, Observations, Sediment. docs/MICROSERVICE_CONTRACT.md § "Writing data back".
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -258,8 +255,7 @@ fn enc(s: &str) -> String {
         .collect()
 }
 
-/// Assert a structural Fact (synchronous, never lossy). Returns the commit sequence number.
-/// 405 means the property is ObservationOnly; 404 means the thing/property is unknown.
+/// Assert a structural Fact; return the commit sequence number (405 if ObservationOnly).
 async fn set_fact(cfg: &Config, http: &reqwest::Client, thing_id: &str, property: &str, value: Value) -> Result<i64, String> {
     let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
     let url = format!("{}/api/things/{}/properties/{}/facts", cfg.mycelium_url, thing_id, enc(property));
@@ -271,8 +267,7 @@ async fn set_fact(cfg: &Config, http: &reqwest::Client, thing_id: &str, property
     Ok(body.get("sequenceNumber").and_then(Value::as_i64).unwrap_or(0))
 }
 
-/// Record one sampled Observation (queued/batched; 202). Pass observed_at (ISO-8601) for late or
-/// out-of-order samples, or None to let Mycelium stamp now. 405 if the property is FactOnly.
+/// Record one Observation (202); pass observed_at for late samples, None for now (405 if FactOnly).
 async fn record_observation(cfg: &Config, http: &reqwest::Client, thing_id: &str, property: &str, value: Value, observed_at: Option<&str>) -> Result<(), String> {
     let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
     let mut body = json!({ "value": value });
@@ -302,8 +297,7 @@ async fn record_observations(cfg: &Config, http: &reqwest::Client, thing_id: &st
     Ok(body.get("accepted").and_then(Value::as_i64).unwrap_or(samples.len() as i64))
 }
 
-/// Bulk-load historical readings straight to sealed Sapwood (202). Entities must already exist and
-/// every reading must carry observed_at. Returns the deposit summary.
+/// Bulk-load historical readings to sealed Sapwood (202); entities must already exist.
 async fn deposit_sediment(cfg: &Config, http: &reqwest::Client, readings: &[SedimentReading]) -> Result<SedimentResult, String> {
     if readings.is_empty() {
         return Err("at least one reading is required".to_string());
@@ -323,9 +317,7 @@ struct DemoReq {
     thing_id: Option<String>,
 }
 
-/// Runnable worked example: POST {"thingId":"..."} drives one Fact, one single + one batch
-/// Observation, and one Sediment deposit against an already-existing Thing. Timestamps are
-/// illustrative fixed values to keep the example dependency-free.
+/// Drive one of each write kind against an existing Thing (fixed timestamps keep it dependency-free).
 async fn demo_write_kinds(State(state): State<Arc<AppState>>, body: Option<Json<DemoReq>>) -> Response {
     let thing_id = match body.and_then(|Json(b)| b.thing_id) {
         Some(t) if !t.is_empty() => t,
@@ -362,10 +354,7 @@ async fn demo_write_kinds(State(state): State<Arc<AppState>>, body: Option<Json<
     }
 }
 
-// ---- Snapshot selector: subscribe to a slice of the model ----------------
-//
-// The selector replaced launch-time object IDs (the retired ServiceArgs ID
-// template). See docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
+// Snapshot selector — subscribe to a slice (replaced launch-time IDs). docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -458,8 +447,7 @@ struct SubDemoReq {
     predicate: Option<String>,
 }
 
-/// POST {"type":"...","predicate":"..."} (defaults to Battery/powers); subscribes for that slice,
-/// reports the resolved closure, and unsubscribes.
+/// Subscribe for a slice and report its closure. POST optional {"type":"...","predicate":"..."}.
 async fn demo_subscribe(State(state): State<Arc<AppState>>, body: Option<Json<SubDemoReq>>) -> Response {
     let (type_, predicate) = body.map(|Json(b)| (b.type_, b.predicate)).unwrap_or((None, None));
     let type_ = type_.unwrap_or_else(|| "Battery".into());
