@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -150,5 +151,96 @@ func TestHealth(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	if resp["status"] != "Healthy" {
 		t.Fatalf("health: %v", resp)
+	}
+}
+
+// captured records one inbound request to the mock Mycelium.
+type capturedReq struct{ method, path, auth, body string }
+
+func mockMycelium(t *testing.T, got *[]capturedReq) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		*got = append(*got, capturedReq{r.Method, r.URL.Path, r.Header.Get("Authorization"), string(b)})
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/facts"):
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"sequenceNumber":42,"value":"active"}`))
+		case strings.Contains(r.URL.Path, "/properties/") && strings.HasSuffix(r.URL.Path, "/observations"):
+			w.WriteHeader(http.StatusAccepted)
+		case strings.HasSuffix(r.URL.Path, "/observations"):
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"accepted":2}`))
+		case r.URL.Path == "/api/sediment":
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"batchId":"b-1","series":1,"buckets":3,"samples":10}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+}
+
+func TestWriteKinds(t *testing.T) {
+	var got []capturedReq
+	srv := mockMycelium(t, &got)
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, Token: "tok"}, handlerID: "id", client: srv.Client()}
+
+	seq, err := s.setFact("t1", "status", "active")
+	if err != nil || seq != 42 {
+		t.Fatalf("setFact: %d %v", seq, err)
+	}
+	if err := s.recordObservation("t1", "temperature", 21.5, "2026-06-20T14:00:00Z"); err != nil {
+		t.Fatalf("recordObservation: %v", err)
+	}
+	n, err := s.recordObservations("t1", []observationSample{{Property: "temperature", Value: 21.7}, {Property: "flow", Value: 3.1}})
+	if err != nil || n != 2 {
+		t.Fatalf("recordObservations: %d %v", n, err)
+	}
+	res, err := s.depositSediment([]sedimentReading{{ThingID: "t1", Property: "flow", Value: 1.0, ObservedAt: "2026-06-19T00:00:00Z"}})
+	if err != nil || res.BatchID != "b-1" || res.Samples != 10 {
+		t.Fatalf("depositSediment: %+v %v", res, err)
+	}
+
+	wantPaths := []string{
+		"/api/things/t1/properties/status/facts",
+		"/api/things/t1/properties/temperature/observations",
+		"/api/things/t1/observations",
+		"/api/sediment",
+	}
+	if len(got) != 4 {
+		t.Fatalf("expected 4 requests, got %d", len(got))
+	}
+	for i, want := range wantPaths {
+		if got[i].path != want {
+			t.Fatalf("req %d path = %s, want %s", i, got[i].path, want)
+		}
+		if got[i].auth != "Bearer tok" {
+			t.Fatalf("req %d auth = %q", i, got[i].auth)
+		}
+	}
+	if !strings.HasPrefix(strings.TrimSpace(got[2].body), "[") {
+		t.Fatalf("batch body is not a JSON array: %s", got[2].body)
+	}
+	if !strings.Contains(got[3].body, "observedAt") {
+		t.Fatalf("sediment body missing observedAt: %s", got[3].body)
+	}
+}
+
+func TestWriteKinds_Errors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusMethodNotAllowed) // e.g. wrong write kind for the property
+	}))
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, Token: "tok"}, client: srv.Client()}
+
+	if _, err := s.setFact("t", "p", "v"); err == nil {
+		t.Fatal("expected error when fact write returns 405")
+	}
+	if err := s.recordObservation("t", "p", "v", ""); err == nil {
+		t.Fatal("expected error when observation returns 405")
+	}
+	if _, err := s.depositSediment(nil); err == nil {
+		t.Fatal("expected error for empty sediment batch")
 	}
 }
