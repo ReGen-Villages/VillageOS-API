@@ -17,7 +17,8 @@ import sys
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import httpx
 import jwt
@@ -113,6 +114,66 @@ async def deregister_from_mycelium() -> None:
         print(f"deregister failed: {exc}", file=sys.stderr)
 
 
+# ---- Write kinds: Facts · Observations · Sediment ----------------------------------------------
+#
+# Three ways a microservice writes back to the model, over httpx so the wire contract is explicit.
+# Each takes an optional ``client`` for tests (inject an httpx.AsyncClient with a MockTransport);
+# production callers omit it. See docs/MICROSERVICE_CONTRACT.md § "Writing data back".
+
+
+async def _authed_post(path: str, json_body, *, client: httpx.AsyncClient | None = None) -> httpx.Response:
+    token = await _get_token()
+    url = f"{config.mycelium_url}{path}"
+    headers = {"Authorization": f"Bearer {token}"}
+    if client is not None:
+        return await client.post(url, json=json_body, headers=headers)
+    async with httpx.AsyncClient(timeout=30, verify=False) as c:
+        return await c.post(url, json=json_body, headers=headers)
+
+
+async def set_fact(thing_id: str, prop: str, value, *, client: httpx.AsyncClient | None = None) -> int:
+    """Assert a structural Fact (synchronous, never lossy). Returns the commit sequence number.
+    405 means the property is ObservationOnly; 404 means the thing/property is unknown."""
+    res = await _authed_post(f"/api/things/{thing_id}/properties/{quote(prop, safe='')}/facts", {"value": value}, client=client)
+    if res.status_code != 201:
+        raise RuntimeError(f"fact write returned {res.status_code}")
+    return res.json().get("sequenceNumber", 0)
+
+
+async def record_observation(thing_id: str, prop: str, value, observed_at: str | None = None, *, client: httpx.AsyncClient | None = None) -> None:
+    """Record one sampled Observation (queued/batched; 202). Pass observed_at (ISO-8601) for late or
+    out-of-order samples, or omit to let Mycelium stamp now. 405 if the property is FactOnly."""
+    body = {"value": value}
+    if observed_at:
+        body["observedAt"] = observed_at
+    res = await _authed_post(f"/api/things/{thing_id}/properties/{quote(prop, safe='')}/observations", body, client=client)
+    if not res.is_success:
+        raise RuntimeError(f"observation write returned {res.status_code}")
+
+
+async def record_observations(thing_id: str, samples: list[dict], *, client: httpx.AsyncClient | None = None) -> int:
+    """Record many samples across an entity's properties in one batch (202). Each sample is a dict
+    {property, value, observedAt?}. Returns the accepted-sample count Mycelium reports."""
+    if not samples:
+        return 0
+    res = await _authed_post(f"/api/things/{thing_id}/observations", samples, client=client)
+    if not res.is_success:
+        raise RuntimeError(f"observation batch returned {res.status_code}")
+    return res.json().get("accepted", len(samples))
+
+
+async def deposit_sediment(readings: list[dict], *, client: httpx.AsyncClient | None = None) -> dict:
+    """Bulk-load historical readings straight to sealed Sapwood (202). Each reading is a dict
+    {thingId, property, value, observedAt}; entities must already exist and observedAt is required.
+    Returns the deposit summary {batchId, series, buckets, samples}."""
+    if not readings:
+        raise ValueError("at least one reading is required")
+    res = await _authed_post("/api/sediment", readings, client=client)
+    if not res.is_success:
+        raise RuntimeError(f"sediment deposit returned {res.status_code}")
+    return res.json()
+
+
 def verify_request(request: Request) -> None:
     """FastAPI dependency validating a Bearer JWT.
 
@@ -184,6 +245,38 @@ async def handle_relationship(request: Request, _: None = Depends(verify_request
             "status": "handled",
             "echo": payload,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+
+@app.post("/demo/write-kinds")
+async def demo_write_kinds(request: Request, _: None = Depends(verify_request)) -> JSONResponse:
+    """Runnable worked example: POST {"thingId": "..."} drives one Fact, one single + one batch
+    Observation, and one Sediment deposit against an already-existing Thing."""
+    payload = await request.json()
+    thing_id = payload.get("thingId")
+    if not thing_id:
+        raise HTTPException(status_code=400, detail="thingId is required")
+
+    now = datetime.now(timezone.utc)
+    day_ago = now - timedelta(days=1)
+    seq = await set_fact(thing_id, "status", "active")
+    await record_observation(thing_id, "temperature", 21.5, now.isoformat())
+    accepted = await record_observations(
+        thing_id, [{"property": "temperature", "value": 21.7}, {"property": "flow", "value": 3.1}]
+    )
+    deposit = await deposit_sediment(
+        [
+            {"thingId": thing_id, "property": "temperature", "value": 19.8, "observedAt": day_ago.isoformat()},
+            {"thingId": thing_id, "property": "temperature", "value": 20.4, "observedAt": (day_ago + timedelta(hours=1)).isoformat()},
+        ]
+    )
+    return JSONResponse(
+        {
+            "factSequence": seq,
+            "observationsAccepted": accepted + 1,
+            "sedimentBatchId": deposit.get("batchId"),
+            "sedimentSamples": deposit.get("samples"),
         }
     )
 

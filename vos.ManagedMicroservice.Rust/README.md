@@ -51,3 +51,21 @@ cargo run -- --port=5104 --myceliumUrl=https://localhost:7243 \
 cargo build
 cargo test     # unit tests for parse_args + verify_jwt
 ```
+
+## Writing data back (Facts / Observations / Sediment)
+
+Besides answering `/handle`, a service can write to the model. This example provides an async helper
+for each write kind (`set_fact`, `record_observation`, `record_observations`, `deposit_sediment`) and
+a runnable demo at `POST /demo/write-kinds { "thingId": "<existing>" }` that drives one of each.
+
+```rust
+let seq = set_fact(cfg, &http, thing_id, "status", json!("active")).await?;        // Fact → 201
+record_observation(cfg, &http, thing_id, "temperature", json!(21.5), Some("2026-06-20T12:00:00Z")).await?;
+let n = record_observations(cfg, &http, thing_id,
+    &[ObservationSample { property: "temperature".into(), value: json!(21.7), observed_at: None }]).await?;
+let res = deposit_sediment(cfg, &http,                                             // bulk → sealed Sapwood
+    &[SedimentReading { thing_id: thing_id.into(), property: "temperature".into(),
+        value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() }]).await?;
+```
+
+Full wire contract (routes, status codes, 405/404 gating): [`docs/MICROSERVICE_CONTRACT.md`](../docs/MICROSERVICE_CONTRACT.md) § "Writing data back".

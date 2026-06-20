@@ -24,7 +24,7 @@ use axum::{
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 const SERVICE_NAME: &str = "Rust";
@@ -214,6 +214,154 @@ async fn deregister(state: &AppState, http: &reqwest::Client) {
         .await;
 }
 
+// ---- Write kinds: Facts · Observations · Sediment ------------------------
+//
+// Three ways a microservice writes back to the model, over reqwest so the wire
+// contract is explicit. See docs/MICROSERVICE_CONTRACT.md § "Writing data back".
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ObservationSample {
+    property: String,
+    value: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    observed_at: Option<String>, // ISO-8601; None lets Mycelium stamp now
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SedimentReading {
+    thing_id: String,
+    property: String,
+    value: Value,
+    observed_at: String, // required — sediment is historical
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SedimentResult {
+    batch_id: String,
+    #[allow(dead_code)]
+    series: i64,
+    #[allow(dead_code)]
+    buckets: i64,
+    samples: i64,
+}
+
+/// Percent-encode a single URL path segment (property names are usually safe, but be correct).
+fn enc(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+/// Assert a structural Fact (synchronous, never lossy). Returns the commit sequence number.
+/// 405 means the property is ObservationOnly; 404 means the thing/property is unknown.
+async fn set_fact(cfg: &Config, http: &reqwest::Client, thing_id: &str, property: &str, value: Value) -> Result<i64, String> {
+    let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
+    let url = format!("{}/api/things/{}/properties/{}/facts", cfg.mycelium_url, thing_id, enc(property));
+    let resp = http.post(url).bearer_auth(token).json(&json!({ "value": value })).send().await.map_err(|e| e.to_string())?;
+    if resp.status().as_u16() != 201 {
+        return Err(format!("fact write returned {}", resp.status()));
+    }
+    let body: Value = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(body.get("sequenceNumber").and_then(Value::as_i64).unwrap_or(0))
+}
+
+/// Record one sampled Observation (queued/batched; 202). Pass observed_at (ISO-8601) for late or
+/// out-of-order samples, or None to let Mycelium stamp now. 405 if the property is FactOnly.
+async fn record_observation(cfg: &Config, http: &reqwest::Client, thing_id: &str, property: &str, value: Value, observed_at: Option<&str>) -> Result<(), String> {
+    let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
+    let mut body = json!({ "value": value });
+    if let Some(at) = observed_at {
+        body["observedAt"] = json!(at);
+    }
+    let url = format!("{}/api/things/{}/properties/{}/observations", cfg.mycelium_url, thing_id, enc(property));
+    let resp = http.post(url).bearer_auth(token).json(&body).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("observation write returned {}", resp.status()));
+    }
+    Ok(())
+}
+
+/// Record many samples across an entity's properties in one batch (202). Returns accepted count.
+async fn record_observations(cfg: &Config, http: &reqwest::Client, thing_id: &str, samples: &[ObservationSample]) -> Result<i64, String> {
+    if samples.is_empty() {
+        return Ok(0);
+    }
+    let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
+    let url = format!("{}/api/things/{}/observations", cfg.mycelium_url, thing_id);
+    let resp = http.post(url).bearer_auth(token).json(&samples).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("observation batch returned {}", resp.status()));
+    }
+    let body: Value = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(body.get("accepted").and_then(Value::as_i64).unwrap_or(samples.len() as i64))
+}
+
+/// Bulk-load historical readings straight to sealed Sapwood (202). Entities must already exist and
+/// every reading must carry observed_at. Returns the deposit summary.
+async fn deposit_sediment(cfg: &Config, http: &reqwest::Client, readings: &[SedimentReading]) -> Result<SedimentResult, String> {
+    if readings.is_empty() {
+        return Err("at least one reading is required".to_string());
+    }
+    let token = get_token(cfg, http).await.map_err(|e| e.to_string())?;
+    let url = format!("{}/api/sediment", cfg.mycelium_url);
+    let resp = http.post(url).bearer_auth(token).json(&readings).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("sediment deposit returned {}", resp.status()));
+    }
+    resp.json::<SedimentResult>().await.map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize)]
+struct DemoReq {
+    #[serde(rename = "thingId")]
+    thing_id: Option<String>,
+}
+
+/// Runnable worked example: POST {"thingId":"..."} drives one Fact, one single + one batch
+/// Observation, and one Sediment deposit against an already-existing Thing. Timestamps are
+/// illustrative fixed values to keep the example dependency-free.
+async fn demo_write_kinds(State(state): State<Arc<AppState>>, body: Option<Json<DemoReq>>) -> Response {
+    let thing_id = match body.and_then(|Json(b)| b.thing_id) {
+        Some(t) if !t.is_empty() => t,
+        _ => return (StatusCode::BAD_REQUEST, Json(json!({ "error": "thingId is required" }))).into_response(),
+    };
+    let http = match reqwest::Client::builder().danger_accept_invalid_certs(true).build() {
+        Ok(c) => c,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+    };
+    let cfg = &state.config;
+
+    let run = async {
+        let seq = set_fact(cfg, &http, &thing_id, "status", json!("active")).await?;
+        record_observation(cfg, &http, &thing_id, "temperature", json!(21.5), Some("2026-06-20T12:00:00Z")).await?;
+        let accepted = record_observations(cfg, &http, &thing_id, &[
+            ObservationSample { property: "temperature".into(), value: json!(21.7), observed_at: None },
+            ObservationSample { property: "flow".into(), value: json!(3.1), observed_at: None },
+        ]).await?;
+        let deposit = deposit_sediment(cfg, &http, &[
+            SedimentReading { thing_id: thing_id.clone(), property: "temperature".into(), value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() },
+            SedimentReading { thing_id: thing_id.clone(), property: "temperature".into(), value: json!(20.4), observed_at: "2026-06-19T13:00:00Z".into() },
+        ]).await?;
+        Ok::<_, String>(json!({
+            "factSequence": seq,
+            "observationsAccepted": accepted + 1,
+            "sedimentBatchId": deposit.batch_id,
+            "sedimentSamples": deposit.samples,
+        }))
+    };
+
+    match run.await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e }))).into_response(),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -237,6 +385,7 @@ async fn main() {
     // /handle and /shutdown are auth-protected; /health and /stats are open.
     let protected = Router::new()
         .route("/handle", post(handle_relationship))
+        .route("/demo/write-kinds", post(demo_write_kinds))
         .route("/shutdown", post(shutdown))
         .layer(middleware::from_fn_with_state(state.clone(), auth));
     let app = Router::new()
@@ -363,5 +512,111 @@ mod tests {
         let bad_aud = make_token("VillageOS", "Nope", 60);
         assert!(!verify_jwt(&bad_iss, &b64_key(), "VillageOS", "VosClients"));
         assert!(!verify_jwt(&bad_aud, &b64_key(), "VillageOS", "VosClients"));
+    }
+
+    // ---- Write kinds (Fact / Observation / Sediment) ----
+    // Spin up an in-process Axum mock Mycelium (no extra dependencies) and assert the write
+    // helpers hit the right routes, carry the bearer token, and parse the responses.
+
+    use axum::http::header::AUTHORIZATION;
+    use std::sync::Mutex;
+
+    type Captured = Arc<Mutex<Vec<(String, String, String)>>>; // (path, auth, body)
+
+    async fn mock_handler(State(cap): State<Captured>, req: Request) -> Response {
+        let path = req.uri().path().to_string();
+        let auth = req
+            .headers()
+            .get(AUTHORIZATION)
+            .and_then(|h| h.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+        let bytes = axum::body::to_bytes(req.into_body(), usize::MAX).await.unwrap_or_default();
+        let body = String::from_utf8_lossy(&bytes).to_string();
+        cap.lock().unwrap().push((path.clone(), auth, body));
+
+        if path.ends_with("/facts") {
+            (StatusCode::CREATED, Json(json!({ "sequenceNumber": 42, "value": "active" }))).into_response()
+        } else if path.contains("/properties/") && path.ends_with("/observations") {
+            StatusCode::ACCEPTED.into_response()
+        } else if path.ends_with("/observations") {
+            (StatusCode::ACCEPTED, Json(json!({ "accepted": 2 }))).into_response()
+        } else if path.ends_with("/sediment") {
+            (StatusCode::ACCEPTED, Json(json!({ "batchId": "b-1", "series": 1, "buckets": 3, "samples": 10 }))).into_response()
+        } else {
+            StatusCode::NOT_FOUND.into_response()
+        }
+    }
+
+    async fn spawn_mock(cap: Captured) -> String {
+        let app = Router::new().fallback(mock_handler).with_state(cap);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        format!("http://{addr}")
+    }
+
+    fn test_cfg(url: String) -> Config {
+        Config {
+            port: 0,
+            mycelium_url: url,
+            token: Some("tok".into()),
+            signing_key: None,
+            issuer: "VillageOS".into(),
+            audience: "VosClients".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn write_kinds_hit_the_right_routes() {
+        let cap: Captured = Arc::new(Mutex::new(Vec::new()));
+        let cfg = test_cfg(spawn_mock(cap.clone()).await);
+        let http = reqwest::Client::new();
+
+        let seq = set_fact(&cfg, &http, "t1", "status", json!("active")).await.unwrap();
+        assert_eq!(seq, 42);
+        record_observation(&cfg, &http, "t1", "temperature", json!(21.5), Some("2026-06-20T14:00:00Z")).await.unwrap();
+        let n = record_observations(&cfg, &http, "t1", &[
+            ObservationSample { property: "temperature".into(), value: json!(21.7), observed_at: None },
+            ObservationSample { property: "flow".into(), value: json!(3.1), observed_at: None },
+        ]).await.unwrap();
+        assert_eq!(n, 2);
+        let res = deposit_sediment(&cfg, &http, &[
+            SedimentReading { thing_id: "t1".into(), property: "flow".into(), value: json!(1.0), observed_at: "2026-06-19T00:00:00Z".into() },
+        ]).await.unwrap();
+        assert_eq!(res.batch_id, "b-1");
+        assert_eq!(res.samples, 10);
+
+        let calls = cap.lock().unwrap();
+        let paths: Vec<&str> = calls.iter().map(|(p, _, _)| p.as_str()).collect();
+        assert!(paths.contains(&"/api/things/t1/properties/status/facts"));
+        assert!(paths.contains(&"/api/things/t1/properties/temperature/observations"));
+        assert!(paths.contains(&"/api/things/t1/observations"));
+        assert!(paths.contains(&"/api/sediment"));
+        assert!(calls.iter().all(|(_, a, _)| a == "Bearer tok"));
+        let sed = calls.iter().find(|(p, _, _)| p == "/api/sediment").unwrap();
+        assert!(sed.2.contains("observedAt"));
+    }
+
+    #[tokio::test]
+    async fn set_fact_errors_on_405() {
+        async fn always_405() -> Response {
+            StatusCode::METHOD_NOT_ALLOWED.into_response()
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, Router::<()>::new().fallback(always_405)).await.unwrap() });
+
+        let cfg = test_cfg(format!("http://{addr}"));
+        let err = set_fact(&cfg, &reqwest::Client::new(), "t1", "temperature", json!(1)).await.unwrap_err();
+        assert!(err.contains("405"));
+    }
+
+    #[tokio::test]
+    async fn empty_batches_short_circuit() {
+        let cfg = test_cfg("http://127.0.0.1:1".into()); // never contacted
+        let http = reqwest::Client::new();
+        assert_eq!(record_observations(&cfg, &http, "t1", &[]).await.unwrap(), 0);
+        assert!(deposit_sediment(&cfg, &http, &[]).await.is_err());
     }
 }

@@ -210,3 +210,82 @@ loop {
     while let Some(Ok(chunk)) = stream.next().await { /* parse id:/event:/data:/blank per SSE */ }
 }
 ```
+
+## Writing data back: Facts, Observations, Sediment
+
+A handler often needs to write to the model, not just read it. There are three write kinds, each a
+Bearer-authed POST. Pick by intent:
+
+| Kind | When | Route | Body | Success |
+|---|---|---|---|---|
+| **Fact** | structural truth that must survive replay (status, config, a corrected value) — synchronous, never lossy | `POST /api/things/{id}/properties/{property}/facts` | `{ "value": <scalar> }` | `201 { sequenceNumber, value }` |
+| **Observation** (single) | one sampled telemetry value — queued & batched | `POST /api/things/{id}/properties/{property}/observations` | `{ "value": <scalar>, "observedAt"?: <iso8601> }` | `202` |
+| **Observation** (batch) | many samples across one entity's properties, one call | `POST /api/things/{id}/observations` | `[{ "property", "value", "observedAt"? }]` | `202 { accepted }` |
+| **Sediment** | bulk historical load written straight to sealed Sapwood; entities must already exist; `observedAt` **required** | `POST /api/sediment` | `[{ "thingId", "property", "value", "observedAt" }]` | `202 { batchId, series, buckets, samples }` |
+
+**Gating.** A property declares which kinds it accepts (`AllowedWriteKinds`: `Both` / `FactOnly` /
+`ObservationOnly`). Writing the wrong kind is rejected with **405** — a Fact to an `ObservationOnly`
+property, or an observation to a `FactOnly` one. An unknown thing/property is **404**.
+
+**Runnable demo.** Every reference handler exposes `POST /demo/write-kinds { "thingId": "<existing>" }`,
+which performs one of each kind against a Thing whose `status` accepts Facts and `temperature`/`flow`
+accept Observations.
+
+### Reference: write the three kinds, per language
+
+#### C# (.NET) — `MyceliumClientBase` helpers
+
+```csharp
+long seq = await mycelium.SetFactAsync(thingId, "status", "active");                 // Fact → 201
+await mycelium.RecordObservationAsync(thingId, "temperature", 21.5m, DateTime.UtcNow); // Observation → 202
+int n = await mycelium.RecordObservationsAsync(thingId, new[] {                       // batch → 202
+    new ObservationSample("temperature", 21.7m),
+    new ObservationSample("flow", 3.1m),
+});
+SedimentDepositResult d = await mycelium.DepositSedimentAsync(new[] {                 // Sediment → 202
+    new SedimentReading(thingId, "temperature", 19.8m, DateTime.UtcNow.AddDays(-1)),
+});
+```
+
+#### Go
+
+```go
+seq, _ := s.setFact(thingID, "status", "active")                                   // Fact
+_ = s.recordObservation(thingID, "temperature", 21.5, time.Now().UTC().Format(time.RFC3339))
+n, _ := s.recordObservations(thingID, []observationSample{{Property: "temperature", Value: 21.7}})
+res, _ := s.depositSediment([]sedimentReading{{ThingID: thingID, Property: "temperature",
+    Value: 19.8, ObservedAt: "2026-06-19T12:00:00Z"}})
+```
+
+#### Node / TypeScript
+
+```ts
+const seq = await setFact(cfg, thingId, "status", "active");
+await recordObservation(cfg, thingId, "temperature", 21.5, new Date().toISOString());
+const n = await recordObservations(cfg, thingId, [{ property: "temperature", value: 21.7 }]);
+const res = await depositSediment(cfg, [
+  { thingId, property: "temperature", value: 19.8, observedAt: "2026-06-19T12:00:00Z" },
+]);
+```
+
+#### Python
+
+```python
+seq = await set_fact(thing_id, "status", "active")
+await record_observation(thing_id, "temperature", 21.5, datetime.now(timezone.utc).isoformat())
+n = await record_observations(thing_id, [{"property": "temperature", "value": 21.7}])
+res = await deposit_sediment([{"thingId": thing_id, "property": "temperature",
+    "value": 19.8, "observedAt": "2026-06-19T12:00:00Z"}])
+```
+
+#### Rust
+
+```rust
+let seq = set_fact(cfg, &http, thing_id, "status", json!("active")).await?;
+record_observation(cfg, &http, thing_id, "temperature", json!(21.5), Some("2026-06-20T12:00:00Z")).await?;
+let n = record_observations(cfg, &http, thing_id,
+    &[ObservationSample { property: "temperature".into(), value: json!(21.7), observed_at: None }]).await?;
+let res = deposit_sediment(cfg, &http,
+    &[SedimentReading { thing_id: thing_id.into(), property: "temperature".into(),
+        value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() }]).await?;
+```
