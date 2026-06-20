@@ -56,3 +56,16 @@ pytest -v
 ```
 
 Covers all four endpoints plus JWT validation (valid / missing / tampered / expired / wrong-issuer).
+
+## Selecting a slice (snapshot selector)
+
+The selector replaced launch-time object IDs: subscribe with a selector describing the slice you
+need. This example provides `subscribe` / `unsubscribe` / `slice_by_type_and_traverse` /
+`demo_subscribe` and a runnable demo at `POST /demo/subscribe {"type": "Battery", "predicate": "powers"}`.
+
+```python
+sub = await subscribe(slice_by_type_and_traverse("Battery", "powers"))
+# sub["snapshot"]["things"] / ["relationships"] = exactly the requested closure
+```
+
+All selector fields and recipes: [`docs/MICROSERVICE_CONTRACT.md`](../docs/MICROSERVICE_CONTRACT.md) § "Selecting a slice".

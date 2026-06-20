@@ -52,3 +52,16 @@ node dist/index.js --port=5102 --myceliumUrl=https://localhost:7243 \
 ```bash
 npm run typecheck   # tsc --noEmit
 ```
+
+## Selecting a slice (snapshot selector)
+
+The selector replaced launch-time object IDs: subscribe with a selector describing the slice you
+need. This example exports `subscribe` / `unsubscribe` / `sliceByTypeAndTraverse` / `demoSubscribe`
+and a runnable demo at `POST /demo/subscribe { "type": "Battery", "predicate": "powers" }`.
+
+```ts
+const sub = await subscribe(cfg, sliceByTypeAndTraverse("Battery", "powers"));
+// sub.snapshot.things / sub.snapshot.relationships = exactly the requested closure
+```
+
+All selector fields and recipes: [`docs/MICROSERVICE_CONTRACT.md`](../docs/MICROSERVICE_CONTRACT.md) § "Selecting a slice".
