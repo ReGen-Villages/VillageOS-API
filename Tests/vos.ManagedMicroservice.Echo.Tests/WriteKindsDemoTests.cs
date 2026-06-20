@@ -1,6 +1,4 @@
-// Echo's worked example of the three write kinds. Verifies WriteKindsDemo drives one Fact, one
-// single Observation, one batch Observation, and one Sediment deposit — hitting the right routes
-// and aggregating the result. Mirrors the MyceliumClientWriteKindsTests shape in the Shared suite.
+// Verifies WriteKindsDemo drives one of each write kind on the right routes and aggregates the result.
 
 using System.Net;
 using System.Text;

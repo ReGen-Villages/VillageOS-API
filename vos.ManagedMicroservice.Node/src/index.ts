@@ -92,10 +92,7 @@ async function deregister(cfg: Config): Promise<void> {
   }
 }
 
-// ---- Write kinds: Facts · Observations · Sediment -------------------------------------------
-//
-// Three ways a microservice writes back to the model, using the global fetch so the wire contract
-// is explicit. See docs/MICROSERVICE_CONTRACT.md § "Writing data back".
+// Write kinds — Facts, Observations, Sediment. docs/MICROSERVICE_CONTRACT.md § "Writing data back".
 
 export interface ObservationSample {
   property: string;
@@ -126,8 +123,7 @@ async function authedPost(cfg: Config, path: string, body: unknown): Promise<Res
   });
 }
 
-/** Assert a structural Fact (synchronous, never lossy). Returns the commit sequence number.
- *  405 means the property is ObservationOnly; 404 means the thing/property is unknown. */
+/** Assert a structural Fact; returns the commit sequence number (405 if ObservationOnly). */
 export async function setFact(cfg: Config, thingId: string, property: string, value: unknown): Promise<number> {
   const res = await authedPost(cfg, `/api/things/${thingId}/properties/${encodeURIComponent(property)}/facts`, { value });
   if (res.status !== 201) throw new Error(`fact write returned ${res.status}`);
@@ -135,8 +131,7 @@ export async function setFact(cfg: Config, thingId: string, property: string, va
   return body.sequenceNumber ?? 0;
 }
 
-/** Record one sampled Observation (queued/batched; 202). Pass observedAt (ISO-8601) for late or
- *  out-of-order samples, or omit to let Mycelium stamp now. 405 if the property is FactOnly. */
+/** Record one Observation (202); pass observedAt for late samples, omit for now (405 if FactOnly). */
 export async function recordObservation(
   cfg: Config,
   thingId: string,
@@ -159,8 +154,7 @@ export async function recordObservations(cfg: Config, thingId: string, samples: 
   return body.accepted ?? samples.length;
 }
 
-/** Bulk-load historical readings straight to sealed Sapwood (202). Entities must already exist and
- *  every reading must carry observedAt. Returns the deposit summary. */
+/** Bulk-load historical readings to sealed Sapwood (202); entities must already exist. */
 export async function depositSediment(cfg: Config, readings: SedimentReading[]): Promise<SedimentResult> {
   if (readings.length === 0) throw new Error("at least one reading is required");
   const res = await authedPost(cfg, `/api/sediment`, readings);
@@ -175,8 +169,7 @@ export interface WriteKindsDemoResult {
   sedimentSamples: number;
 }
 
-/** Runnable worked example: drive one Fact, one single + one batch Observation, and one Sediment
- *  deposit against an already-existing Thing. */
+/** Drive one of each write kind against an existing Thing. */
 export async function demoWriteKinds(cfg: Config, thingId: string, now: Date = new Date()): Promise<WriteKindsDemoResult> {
   const iso = (d: Date) => d.toISOString();
   const factSequence = await setFact(cfg, thingId, "status", "active");
@@ -198,12 +191,7 @@ export async function demoWriteKinds(cfg: Config, thingId: string, now: Date = n
   };
 }
 
-// ---- Snapshot selector: subscribe to a slice of the model -----------------------------------
-//
-// The selector replaced launch-time object IDs (the retired ServiceArgs ID template): a handler
-// POSTs a selector to /api/subscriptions describing the slice it needs, gets that closure as a
-// snapshot, then follows the SSE stream. See docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
-// (Reuses the authedPost helper above.)
+// Snapshot selector — subscribe to a slice (replaced launch-time IDs). docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
 
 export interface TraverseRule {
   predicate: string;

@@ -165,10 +165,7 @@ func (s *service) deregister() {
 	resp.Body.Close()
 }
 
-// ---- Write kinds: Facts · Observations · Sediment -------------------------------------------
-//
-// Three ways a microservice writes back to the model. Raw stdlib HTTP so the wire contract is
-// explicit. See docs/MICROSERVICE_CONTRACT.md § "Writing data back".
+// Write kinds — Facts, Observations, Sediment. docs/MICROSERVICE_CONTRACT.md § "Writing data back".
 
 type observationSample struct {
 	Property   string `json:"property"`
@@ -206,8 +203,7 @@ func (s *service) post(path string, body any) (*http.Response, error) {
 	return s.client.Do(req)
 }
 
-// setFact asserts a structural Fact (synchronous, never lossy). Returns the commit sequence number.
-// A 405 means the property is ObservationOnly; a 404 means the thing/property is unknown.
+// setFact asserts a structural Fact and returns the commit sequence number (405 if ObservationOnly).
 func (s *service) setFact(thingID, property string, value any) (int64, error) {
 	resp, err := s.post(fmt.Sprintf("/api/things/%s/properties/%s/facts", thingID, url.PathEscape(property)),
 		map[string]any{"value": value})
@@ -225,8 +221,7 @@ func (s *service) setFact(thingID, property string, value any) (int64, error) {
 	return out.SequenceNumber, nil
 }
 
-// recordObservation records one sampled Observation (queued/batched; 202 Accepted). Pass observedAt
-// (ISO-8601) for late/out-of-order samples, or "" to let Mycelium stamp now. 405 if FactOnly.
+// recordObservation records one Observation (202); pass observedAt for late samples, "" for now (405 if FactOnly).
 func (s *service) recordObservation(thingID, property string, value any, observedAt string) error {
 	body := map[string]any{"value": value}
 	if observedAt != "" {
@@ -243,8 +238,7 @@ func (s *service) recordObservation(thingID, property string, value any, observe
 	return nil
 }
 
-// recordObservations records many samples across an entity's properties in one batch (202).
-// Returns the accepted-sample count Mycelium reports.
+// recordObservations records many samples in one batch (202) and returns the accepted count.
 func (s *service) recordObservations(thingID string, samples []observationSample) (int, error) {
 	if len(samples) == 0 {
 		return 0, nil
@@ -264,8 +258,7 @@ func (s *service) recordObservations(thingID string, samples []observationSample
 	return out.Accepted, nil
 }
 
-// depositSediment bulk-loads historical readings straight to sealed Sapwood (202). Entities must
-// already exist and every reading must carry observedAt. Returns the deposit summary.
+// depositSediment bulk-loads historical readings to sealed Sapwood (202); entities must already exist.
 func (s *service) depositSediment(readings []sedimentReading) (sedimentResult, error) {
 	var res sedimentResult
 	if len(readings) == 0 {
@@ -283,8 +276,7 @@ func (s *service) depositSediment(readings []sedimentReading) (sedimentResult, e
 	return res, nil
 }
 
-// demoWriteKinds is a runnable worked example: POST {"thingId":"..."} drives one Fact, one single
-// Observation, one batch Observation, and one Sediment deposit against that (already-existing) Thing.
+// demoWriteKinds drives one of each write kind against an existing Thing. POST {"thingId":"..."}.
 func (s *service) demoWriteKinds(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ThingID string `json:"thingId"`
@@ -365,8 +357,7 @@ type subscribeResult struct {
 	} `json:"snapshot"`
 }
 
-// sliceByTypeAndTraverse builds a representative selector: every Thing of typ plus its depth-1
-// neighbours along predicate. Ask for the slice by shape, not by id.
+// sliceByTypeAndTraverse selects every Thing of typ plus its depth-1 neighbours along predicate.
 func sliceByTypeAndTraverse(typ, predicate string) selector {
 	return selector{Types: []string{typ}, Traverse: []traverseRule{{Predicate: predicate, Direction: "outgoing", Depth: 1}}}
 }
@@ -398,8 +389,7 @@ func (s *service) unsubscribe(id string) {
 	}
 }
 
-// demoSubscribe is a runnable worked example: POST {"type":"...","predicate":"..."} (defaults to
-// Battery/powers) subscribes for that slice, reports the resolved closure, and unsubscribes.
+// demoSubscribe subscribes for a slice and reports its closure. POST {"type":"...","predicate":"..."}.
 func (s *service) demoSubscribe(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Type      string `json:"type"`

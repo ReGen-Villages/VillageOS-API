@@ -134,9 +134,7 @@ app.MapGet("/stats", (MyceliumClient myceliumClient) => new
     myceliumUrl
 });
 
-// Worked example of the three write kinds (Fact, Observation, Sediment). POST { "thingId": "..." }
-// against a Thing whose properties accept the kinds (see WriteKindsDemo). Demonstration only —
-// errors (404/405) surface as 500 so the wire contract stays visible.
+// Write-kinds demo — POST { "thingId": "..." } (see WriteKindsDemo for prerequisites).
 var writeKindsEndpoint = app.MapPost("/demo/write-kinds", async (WriteKindsDemoRequest req, MyceliumClient myceliumClient) =>
 {
     var result = await new WriteKindsDemo(myceliumClient).RunAsync(req.ThingId, DateTime.UtcNow);
@@ -144,9 +142,7 @@ var writeKindsEndpoint = app.MapPost("/demo/write-kinds", async (WriteKindsDemoR
 });
 if (authEnabled) writeKindsEndpoint.RequireAuthorization();
 
-// Worked example of the snapshot selector (the startup-template replacement). POST an optional
-// { "type": "...", "predicate": "..." } (defaults to Battery/powers); subscribes for that slice,
-// returns the resolved snapshot closure, and unsubscribes. See SelectorDemo.
+// Selector demo — POST optional { "type": "...", "predicate": "..." } (defaults to Battery/powers).
 var selectorEndpoint = app.MapPost("/demo/subscribe",
     async (SelectorDemoRequest? req, IHttpClientFactory httpFactory, ILoggerFactory loggerFactory) =>
 {

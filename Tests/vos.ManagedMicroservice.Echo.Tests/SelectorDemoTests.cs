@@ -1,6 +1,4 @@
-// The snapshot-selector worked example. Verifies SelectorDemo subscribes for the requested slice,
-// summarises the resolved closure, and unsubscribes — and that the selector serialises to the
-// documented POST /api/subscriptions body (types + traverse) over the real SubscriptionClient.
+// Verifies SelectorDemo subscribes/summarises/unsubscribes and that the selector serialises correctly.
 
 using System.Net;
 using System.Text;
