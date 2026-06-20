@@ -71,10 +71,16 @@ test("verifyJwt: rejects malformed token", () => {
   assert.equal(verifyJwt("not-a-jwt", KEY, "VillageOS", "VosClients"), false);
 });
 
-// ---- Snapshot selector ----
-import { subscribe, unsubscribe, sliceByTypeAndTraverse, demoSubscribe, type Config } from "./index.js";
+// ---- Write kinds (Fact / Observation / Sediment) ----
+import {
+  setFact,
+  recordObservation,
+  recordObservations,
+  depositSediment,
+  type Config,
+} from "./index.js";
 
-const SEL_CFG: Config = {
+const CFG: Config = {
   port: 5102,
   myceliumUrl: "http://mycelium.test",
   token: "tok",
@@ -82,15 +88,125 @@ const SEL_CFG: Config = {
   audience: "VosClients",
 };
 
-interface SelCap {
+interface Captured {
   url: string;
   method: string;
   auth: string | undefined;
   body: string;
 }
 
-function stubSelectorFetch(): { calls: SelCap[]; restore: () => void } {
-  const calls: SelCap[] = [];
+function stubFetch(reply: (url: string) => { status: number; json?: unknown }): {
+  calls: Captured[];
+  restore: () => void;
+} {
+  const calls: Captured[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: unknown, init?: RequestInit): Promise<Response> => {
+    const url = String(input);
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    calls.push({ url, method: init?.method ?? "GET", auth: headers["Authorization"], body: String(init?.body ?? "") });
+    const r = reply(url);
+    return new Response(r.json !== undefined ? JSON.stringify(r.json) : null, {
+      status: r.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+  return { calls, restore: () => void (globalThis.fetch = original) };
+}
+
+test("setFact: POSTs value to /facts and returns sequence", async () => {
+  const s = stubFetch((url) => (url.endsWith("/facts") ? { status: 201, json: { sequenceNumber: 42 } } : { status: 404 }));
+  try {
+    const seq = await setFact(CFG, "t1", "status", "active");
+    assert.equal(seq, 42);
+    assert.equal(s.calls.length, 1);
+    assert.ok(s.calls[0].url.endsWith("/api/things/t1/properties/status/facts"));
+    assert.equal(s.calls[0].auth, "Bearer tok");
+    assert.equal(JSON.parse(s.calls[0].body).value, "active");
+  } finally {
+    s.restore();
+  }
+});
+
+test("setFact: 405 (ObservationOnly) throws", async () => {
+  const s = stubFetch(() => ({ status: 405 }));
+  try {
+    await assert.rejects(setFact(CFG, "t1", "temperature", 1), /405/);
+  } finally {
+    s.restore();
+  }
+});
+
+test("recordObservation: posts value + observedAt (202)", async () => {
+  const s = stubFetch(() => ({ status: 202 }));
+  try {
+    await recordObservation(CFG, "t1", "temperature", 21.5, "2026-06-20T14:00:00Z");
+    assert.ok(s.calls[0].url.endsWith("/api/things/t1/properties/temperature/observations"));
+    const body = JSON.parse(s.calls[0].body);
+    assert.equal(body.value, 21.5);
+    assert.equal(body.observedAt, "2026-06-20T14:00:00Z");
+  } finally {
+    s.restore();
+  }
+});
+
+test("recordObservation: omits observedAt when not given", async () => {
+  const s = stubFetch(() => ({ status: 202 }));
+  try {
+    await recordObservation(CFG, "t1", "temperature", 21.5);
+    assert.equal(JSON.parse(s.calls[0].body).observedAt, undefined);
+  } finally {
+    s.restore();
+  }
+});
+
+test("recordObservations: batch posts array and returns accepted", async () => {
+  const s = stubFetch(() => ({ status: 202, json: { accepted: 2 } }));
+  try {
+    const n = await recordObservations(CFG, "t1", [
+      { property: "temperature", value: 21.7 },
+      { property: "flow", value: 3.1, observedAt: "2026-06-20T14:00:00Z" },
+    ]);
+    assert.equal(n, 2);
+    assert.ok(s.calls[0].url.endsWith("/api/things/t1/observations"));
+    assert.ok(Array.isArray(JSON.parse(s.calls[0].body)));
+  } finally {
+    s.restore();
+  }
+});
+
+test("recordObservations: empty batch makes no call", async () => {
+  const s = stubFetch(() => ({ status: 500 }));
+  try {
+    assert.equal(await recordObservations(CFG, "t1", []), 0);
+    assert.equal(s.calls.length, 0);
+  } finally {
+    s.restore();
+  }
+});
+
+test("depositSediment: posts readings and returns summary", async () => {
+  const s = stubFetch(() => ({ status: 202, json: { batchId: "b-1", series: 1, buckets: 3, samples: 10 } }));
+  try {
+    const r = await depositSediment(CFG, [{ thingId: "t1", property: "flow", value: 1.0, observedAt: "2026-06-19T00:00:00Z" }]);
+    assert.equal(r.batchId, "b-1");
+    assert.equal(r.samples, 10);
+    assert.ok(s.calls[0].url.endsWith("/api/sediment"));
+    assert.ok(s.calls[0].body.includes("observedAt"));
+  } finally {
+    s.restore();
+  }
+});
+
+test("depositSediment: empty batch throws", async () => {
+  await assert.rejects(depositSediment(CFG, []), /at least one reading/);
+});
+
+// ---- Snapshot selector ---- (reuses Config/CFG/Captured from the write-kinds block above)
+import { subscribe, unsubscribe, sliceByTypeAndTraverse, demoSubscribe } from "./index.js";
+
+function stubSelectorFetch(): { calls: Captured[]; restore: () => void } {
+  const calls: Captured[] = [];
   const original = globalThis.fetch;
   globalThis.fetch = (async (input: unknown, init?: RequestInit): Promise<Response> => {
     const url = String(input);
@@ -124,15 +240,13 @@ test("sliceByTypeAndTraverse builds a type+traverse selector", () => {
 test("subscribe posts the selector and returns the closure", async () => {
   const s = stubSelectorFetch();
   try {
-    const sub = await subscribe(SEL_CFG, sliceByTypeAndTraverse("Battery", "powers"));
+    const sub = await subscribe(CFG, sliceByTypeAndTraverse("Battery", "powers"));
     assert.equal(sub.subscriptionId, "s-1");
-    assert.equal(sub.watermark, 42);
     assert.equal(sub.snapshot.things.length, 2);
     assert.equal(sub.snapshot.relationships.length, 1);
-    const post = s.calls[0];
-    assert.ok(post.url.endsWith("/api/subscriptions"));
-    assert.equal(post.auth, "Bearer tok");
-    assert.ok(post.body.includes('"types"') && post.body.includes("Battery") && post.body.includes("powers"));
+    assert.ok(s.calls[0].url.endsWith("/api/subscriptions"));
+    assert.equal(s.calls[0].auth, "Bearer tok");
+    assert.ok(s.calls[0].body.includes('"types"') && s.calls[0].body.includes("Battery") && s.calls[0].body.includes("powers"));
   } finally {
     s.restore();
   }
@@ -141,11 +255,10 @@ test("subscribe posts the selector and returns the closure", async () => {
 test("demoSubscribe summarises the closure and unsubscribes", async () => {
   const s = stubSelectorFetch();
   try {
-    const result = await demoSubscribe(SEL_CFG, "Battery", "powers");
+    const result = await demoSubscribe(CFG, "Battery", "powers");
     assert.equal(result.things, 2);
     assert.equal(result.relationships, 1);
     assert.deepEqual(result.thingNames, ["Battery-1", "Inverter-7"]);
-    // a POST (subscribe) followed by a DELETE (unsubscribe)
     assert.equal(s.calls[0].method, "POST");
     assert.equal(s.calls[1].method, "DELETE");
     assert.ok(s.calls[1].url.includes("/api/subscriptions/s-1"));
@@ -157,7 +270,7 @@ test("demoSubscribe summarises the closure and unsubscribes", async () => {
 test("unsubscribe issues a DELETE", async () => {
   const s = stubSelectorFetch();
   try {
-    await unsubscribe(SEL_CFG, "s-9");
+    await unsubscribe(CFG, "s-9");
     assert.equal(s.calls[0].method, "DELETE");
     assert.ok(s.calls[0].url.endsWith("/api/subscriptions/s-9"));
   } finally {

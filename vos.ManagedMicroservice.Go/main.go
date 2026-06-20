@@ -27,6 +27,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -164,16 +165,179 @@ func (s *service) deregister() {
 	resp.Body.Close()
 }
 
-// ---- Snapshot selector: subscribe to a slice of the model ----------------------------------
+// ---- Write kinds: Facts · Observations · Sediment -------------------------------------------
 //
-// The selector replaced launch-time object IDs (the retired ServiceArgs ID template): instead of
-// being handed IDs at startup, a handler POSTs a selector to /api/subscriptions describing the slice
-// it needs, gets that closure as a snapshot, then follows the SSE stream. See
+// Three ways a microservice writes back to the model. Raw stdlib HTTP so the wire contract is
+// explicit. See docs/MICROSERVICE_CONTRACT.md § "Writing data back".
+
+type observationSample struct {
+	Property   string `json:"property"`
+	Value      any    `json:"value"`
+	ObservedAt string `json:"observedAt,omitempty"` // ISO-8601; omit to let Mycelium stamp now
+}
+
+type sedimentReading struct {
+	ThingID    string `json:"thingId"`
+	Property   string `json:"property"`
+	Value      any    `json:"value"`
+	ObservedAt string `json:"observedAt"` // required — sediment is historical
+}
+
+type sedimentResult struct {
+	BatchID string `json:"batchId"`
+	Series  int    `json:"series"`
+	Buckets int    `json:"buckets"`
+	Samples int64  `json:"samples"`
+}
+
+// post issues an authenticated JSON POST to a Mycelium path.
+func (s *service) post(path string, body any) (*http.Response, error) {
+	tok, err := s.token()
+	if err != nil {
+		return nil, fmt.Errorf("get token: %w", err)
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, _ := http.NewRequest(http.MethodPost, s.cfg.MyceliumURL+path, strings.NewReader(string(payload)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tok)
+	return s.client.Do(req)
+}
+
+// setFact asserts a structural Fact (synchronous, never lossy). Returns the commit sequence number.
+// A 405 means the property is ObservationOnly; a 404 means the thing/property is unknown.
+func (s *service) setFact(thingID, property string, value any) (int64, error) {
+	resp, err := s.post(fmt.Sprintf("/api/things/%s/properties/%s/facts", thingID, url.PathEscape(property)),
+		map[string]any{"value": value})
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		return 0, fmt.Errorf("fact write returned %d", resp.StatusCode)
+	}
+	var out struct {
+		SequenceNumber int64 `json:"sequenceNumber"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	return out.SequenceNumber, nil
+}
+
+// recordObservation records one sampled Observation (queued/batched; 202 Accepted). Pass observedAt
+// (ISO-8601) for late/out-of-order samples, or "" to let Mycelium stamp now. 405 if FactOnly.
+func (s *service) recordObservation(thingID, property string, value any, observedAt string) error {
+	body := map[string]any{"value": value}
+	if observedAt != "" {
+		body["observedAt"] = observedAt
+	}
+	resp, err := s.post(fmt.Sprintf("/api/things/%s/properties/%s/observations", thingID, url.PathEscape(property)), body)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("observation write returned %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// recordObservations records many samples across an entity's properties in one batch (202).
+// Returns the accepted-sample count Mycelium reports.
+func (s *service) recordObservations(thingID string, samples []observationSample) (int, error) {
+	if len(samples) == 0 {
+		return 0, nil
+	}
+	resp, err := s.post(fmt.Sprintf("/api/things/%s/observations", thingID), samples)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return 0, fmt.Errorf("observation batch returned %d", resp.StatusCode)
+	}
+	var out struct {
+		Accepted int `json:"accepted"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	return out.Accepted, nil
+}
+
+// depositSediment bulk-loads historical readings straight to sealed Sapwood (202). Entities must
+// already exist and every reading must carry observedAt. Returns the deposit summary.
+func (s *service) depositSediment(readings []sedimentReading) (sedimentResult, error) {
+	var res sedimentResult
+	if len(readings) == 0 {
+		return res, errors.New("at least one reading is required")
+	}
+	resp, err := s.post("/api/sediment", readings)
+	if err != nil {
+		return res, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return res, fmt.Errorf("sediment deposit returned %d", resp.StatusCode)
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&res)
+	return res, nil
+}
+
+// demoWriteKinds is a runnable worked example: POST {"thingId":"..."} drives one Fact, one single
+// Observation, one batch Observation, and one Sediment deposit against that (already-existing) Thing.
+func (s *service) demoWriteKinds(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ThingID string `json:"thingId"`
+	}
+	raw, _ := io.ReadAll(r.Body)
+	_ = json.Unmarshal(raw, &req)
+	if req.ThingID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "thingId is required"})
+		return
+	}
+	now := time.Now().UTC()
+	fail := func(step string, err error) {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"step": step, "error": err.Error()})
+	}
+
+	seq, err := s.setFact(req.ThingID, "status", "active")
+	if err != nil {
+		fail("fact", err)
+		return
+	}
+	if err := s.recordObservation(req.ThingID, "temperature", 21.5, now.Format(time.RFC3339)); err != nil {
+		fail("observation", err)
+		return
+	}
+	accepted, err := s.recordObservations(req.ThingID, []observationSample{
+		{Property: "temperature", Value: 21.7}, {Property: "flow", Value: 3.1},
+	})
+	if err != nil {
+		fail("observation-batch", err)
+		return
+	}
+	deposit, err := s.depositSediment([]sedimentReading{
+		{ThingID: req.ThingID, Property: "temperature", Value: 19.8, ObservedAt: now.AddDate(0, 0, -1).Format(time.RFC3339)},
+		{ThingID: req.ThingID, Property: "temperature", Value: 20.4, ObservedAt: now.AddDate(0, 0, -1).Add(time.Hour).Format(time.RFC3339)},
+	})
+	if err != nil {
+		fail("sediment", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"factSequence":         seq,
+		"observationsAccepted": accepted + 1,
+		"sedimentBatchId":      deposit.BatchID,
+		"sedimentSamples":      deposit.Samples,
+	})
+}
+
+// Snapshot selector — subscribe to a slice of the model (replaced launch-time IDs).
 // docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
 
 type traverseRule struct {
 	Predicate string `json:"predicate"`
-	Direction string `json:"direction,omitempty"` // outgoing | incoming | both
+	Direction string `json:"direction,omitempty"`
 	Depth     int    `json:"depth,omitempty"`
 }
 
@@ -234,22 +398,6 @@ func (s *service) unsubscribe(id string) {
 	}
 }
 
-// post issues an authenticated JSON POST to a Mycelium path.
-func (s *service) post(path string, body any) (*http.Response, error) {
-	tok, err := s.token()
-	if err != nil {
-		return nil, fmt.Errorf("get token: %w", err)
-	}
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	req, _ := http.NewRequest(http.MethodPost, s.cfg.MyceliumURL+path, strings.NewReader(string(payload)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+tok)
-	return s.client.Do(req)
-}
-
 // demoSubscribe is a runnable worked example: POST {"type":"...","predicate":"..."} (defaults to
 // Battery/powers) subscribes for that slice, reports the resolved closure, and unsubscribes.
 func (s *service) demoSubscribe(w http.ResponseWriter, r *http.Request) {
@@ -278,7 +426,7 @@ func (s *service) demoSubscribe(w http.ResponseWriter, r *http.Request) {
 			names = append(names, t.ID)
 		}
 	}
-	s.unsubscribe(sub.SubscriptionID) // demo: release the subscription rather than stream
+	s.unsubscribe(sub.SubscriptionID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"subscriptionId": sub.SubscriptionID,
 		"watermark":      sub.Watermark,
@@ -460,6 +608,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /handle", s.requireAuth(s.handleRelationship))
+	mux.HandleFunc("POST /demo/write-kinds", s.requireAuth(s.demoWriteKinds))
 	mux.HandleFunc("POST /demo/subscribe", s.requireAuth(s.demoSubscribe))
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /stats", s.stats)

@@ -57,6 +57,22 @@ pytest -v
 
 Covers all four endpoints plus JWT validation (valid / missing / tampered / expired / wrong-issuer).
 
+## Writing data back (Facts / Observations / Sediment)
+
+Besides answering `/handle`, a service can write to the model. This example provides an async helper
+for each write kind (`set_fact`, `record_observation`, `record_observations`, `deposit_sediment`) and
+a runnable demo at `POST /demo/write-kinds {"thingId": "<existing>"}` that drives one of each.
+
+```python
+seq = await set_fact(thing_id, "status", "active")                                  # Fact → 201
+await record_observation(thing_id, "temperature", 21.5, datetime.now(timezone.utc).isoformat())  # 202
+n = await record_observations(thing_id, [{"property": "temperature", "value": 21.7}])
+res = await deposit_sediment([{"thingId": thing_id, "property": "temperature",      # bulk → sealed Sapwood
+    "value": 19.8, "observedAt": "2026-06-19T12:00:00Z"}])
+```
+
+Full wire contract (routes, status codes, 405/404 gating): [`docs/MICROSERVICE_CONTRACT.md`](../docs/MICROSERVICE_CONTRACT.md) § "Writing data back".
+
 ## Selecting a slice (snapshot selector)
 
 The selector replaced launch-time object IDs: subscribe with a selector describing the slice you

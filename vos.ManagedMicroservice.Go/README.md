@@ -63,15 +63,31 @@ docker build -t vos-microservice-go .
 
 See the `Dockerfile` note about `localhost` vs `0.0.0.0` binding for containerized runs.
 
+## Writing data back (Facts / Observations / Sediment)
+
+Besides answering `/handle`, a service can write to the model. This example ships a helper for each
+write kind (`setFact`, `recordObservation`, `recordObservations`, `depositSediment`) and a runnable
+demo at `POST /demo/write-kinds { "thingId": "<existing>" }` that drives one of each.
+
+```go
+seq, _ := s.setFact(thingID, "status", "active")                                  // Fact → 201
+_ = s.recordObservation(thingID, "temperature", 21.5, time.Now().UTC().Format(time.RFC3339)) // 202
+n, _ := s.recordObservations(thingID, []observationSample{{Property: "temperature", Value: 21.7}})
+res, _ := s.depositSediment([]sedimentReading{{ThingID: thingID, Property: "temperature",
+    Value: 19.8, ObservedAt: "2026-06-19T12:00:00Z"}})                            // bulk → sealed Sapwood
+```
+
+Full wire contract (routes, status codes, 405/404 gating): [`docs/MICROSERVICE_CONTRACT.md`](../docs/MICROSERVICE_CONTRACT.md) § "Writing data back".
+
 ## Selecting a slice (snapshot selector)
 
-The selector replaced launch-time object IDs: instead of being handed IDs at startup, subscribe with
-a selector describing the slice you need. This example provides `subscribe` / `unsubscribe` /
-`sliceByTypeAndTraverse` and a runnable demo at `POST /demo/subscribe { "type": "Battery", "predicate": "powers" }`.
+The selector replaced launch-time object IDs: subscribe with a selector describing the slice you
+need. This example provides `subscribe` / `unsubscribe` / `sliceByTypeAndTraverse` and a runnable
+demo at `POST /demo/subscribe { "type": "Battery", "predicate": "powers" }`.
 
 ```go
 sub, _ := s.subscribe(sliceByTypeAndTraverse("Battery", "powers"))
 // sub.Snapshot.Things / sub.Snapshot.Relationships = exactly the requested closure
 ```
 
-All selector fields (ids/names/types/traverse/all + flags) and recipes: [`docs/MICROSERVICE_CONTRACT.md`](../docs/MICROSERVICE_CONTRACT.md) § "Selecting a slice".
+All selector fields and recipes: [`docs/MICROSERVICE_CONTRACT.md`](../docs/MICROSERVICE_CONTRACT.md) § "Selecting a slice".

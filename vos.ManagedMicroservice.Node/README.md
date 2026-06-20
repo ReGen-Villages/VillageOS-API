@@ -53,6 +53,23 @@ node dist/index.js --port=5102 --myceliumUrl=https://localhost:7243 \
 npm run typecheck   # tsc --noEmit
 ```
 
+## Writing data back (Facts / Observations / Sediment)
+
+Besides answering `/handle`, a service can write to the model. This example exports a helper for each
+write kind (`setFact`, `recordObservation`, `recordObservations`, `depositSediment`) and a runnable
+demo at `POST /demo/write-kinds { "thingId": "<existing>" }` that drives one of each.
+
+```ts
+const seq = await setFact(cfg, thingId, "status", "active");                       // Fact → 201
+await recordObservation(cfg, thingId, "temperature", 21.5, new Date().toISOString()); // 202
+const n = await recordObservations(cfg, thingId, [{ property: "temperature", value: 21.7 }]);
+const res = await depositSediment(cfg, [                                           // bulk → sealed Sapwood
+  { thingId, property: "temperature", value: 19.8, observedAt: "2026-06-19T12:00:00Z" },
+]);
+```
+
+Full wire contract (routes, status codes, 405/404 gating): [`docs/MICROSERVICE_CONTRACT.md`](../docs/MICROSERVICE_CONTRACT.md) § "Writing data back".
+
 ## Selecting a slice (snapshot selector)
 
 The selector replaced launch-time object IDs: subscribe with a selector describing the slice you

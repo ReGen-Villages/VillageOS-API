@@ -92,11 +92,118 @@ async function deregister(cfg: Config): Promise<void> {
   }
 }
 
+// ---- Write kinds: Facts · Observations · Sediment -------------------------------------------
+//
+// Three ways a microservice writes back to the model, using the global fetch so the wire contract
+// is explicit. See docs/MICROSERVICE_CONTRACT.md § "Writing data back".
+
+export interface ObservationSample {
+  property: string;
+  value: unknown;
+  observedAt?: string; // ISO-8601; omit to let Mycelium stamp now
+}
+
+export interface SedimentReading {
+  thingId: string;
+  property: string;
+  value: unknown;
+  observedAt: string; // required — sediment is historical
+}
+
+export interface SedimentResult {
+  batchId: string;
+  series: number;
+  buckets: number;
+  samples: number;
+}
+
+async function authedPost(cfg: Config, path: string, body: unknown): Promise<Response> {
+  const token = await getToken(cfg);
+  return fetch(`${cfg.myceliumUrl}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Assert a structural Fact (synchronous, never lossy). Returns the commit sequence number.
+ *  405 means the property is ObservationOnly; 404 means the thing/property is unknown. */
+export async function setFact(cfg: Config, thingId: string, property: string, value: unknown): Promise<number> {
+  const res = await authedPost(cfg, `/api/things/${thingId}/properties/${encodeURIComponent(property)}/facts`, { value });
+  if (res.status !== 201) throw new Error(`fact write returned ${res.status}`);
+  const body = (await res.json()) as { sequenceNumber?: number };
+  return body.sequenceNumber ?? 0;
+}
+
+/** Record one sampled Observation (queued/batched; 202). Pass observedAt (ISO-8601) for late or
+ *  out-of-order samples, or omit to let Mycelium stamp now. 405 if the property is FactOnly. */
+export async function recordObservation(
+  cfg: Config,
+  thingId: string,
+  property: string,
+  value: unknown,
+  observedAt?: string,
+): Promise<void> {
+  const body: Record<string, unknown> = { value };
+  if (observedAt) body.observedAt = observedAt;
+  const res = await authedPost(cfg, `/api/things/${thingId}/properties/${encodeURIComponent(property)}/observations`, body);
+  if (!res.ok) throw new Error(`observation write returned ${res.status}`);
+}
+
+/** Record many samples across an entity's properties in one batch (202). Returns accepted count. */
+export async function recordObservations(cfg: Config, thingId: string, samples: ObservationSample[]): Promise<number> {
+  if (samples.length === 0) return 0;
+  const res = await authedPost(cfg, `/api/things/${thingId}/observations`, samples);
+  if (!res.ok) throw new Error(`observation batch returned ${res.status}`);
+  const body = (await res.json()) as { accepted?: number };
+  return body.accepted ?? samples.length;
+}
+
+/** Bulk-load historical readings straight to sealed Sapwood (202). Entities must already exist and
+ *  every reading must carry observedAt. Returns the deposit summary. */
+export async function depositSediment(cfg: Config, readings: SedimentReading[]): Promise<SedimentResult> {
+  if (readings.length === 0) throw new Error("at least one reading is required");
+  const res = await authedPost(cfg, `/api/sediment`, readings);
+  if (!res.ok) throw new Error(`sediment deposit returned ${res.status}`);
+  return (await res.json()) as SedimentResult;
+}
+
+export interface WriteKindsDemoResult {
+  factSequence: number;
+  observationsAccepted: number;
+  sedimentBatchId: string;
+  sedimentSamples: number;
+}
+
+/** Runnable worked example: drive one Fact, one single + one batch Observation, and one Sediment
+ *  deposit against an already-existing Thing. */
+export async function demoWriteKinds(cfg: Config, thingId: string, now: Date = new Date()): Promise<WriteKindsDemoResult> {
+  const iso = (d: Date) => d.toISOString();
+  const factSequence = await setFact(cfg, thingId, "status", "active");
+  await recordObservation(cfg, thingId, "temperature", 21.5, iso(now));
+  const accepted = await recordObservations(cfg, thingId, [
+    { property: "temperature", value: 21.7 },
+    { property: "flow", value: 3.1 },
+  ]);
+  const dayAgo = new Date(now.getTime() - 86_400_000);
+  const deposit = await depositSediment(cfg, [
+    { thingId, property: "temperature", value: 19.8, observedAt: iso(dayAgo) },
+    { thingId, property: "temperature", value: 20.4, observedAt: iso(new Date(dayAgo.getTime() + 3_600_000)) },
+  ]);
+  return {
+    factSequence,
+    observationsAccepted: accepted + 1,
+    sedimentBatchId: deposit.batchId,
+    sedimentSamples: deposit.samples,
+  };
+}
+
 // ---- Snapshot selector: subscribe to a slice of the model -----------------------------------
 //
 // The selector replaced launch-time object IDs (the retired ServiceArgs ID template): a handler
 // POSTs a selector to /api/subscriptions describing the slice it needs, gets that closure as a
 // snapshot, then follows the SSE stream. See docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
+// (Reuses the authedPost helper above.)
 
 export interface TraverseRule {
   predicate: string;
@@ -125,12 +232,7 @@ export function sliceByTypeAndTraverse(type: string, predicate: string): Selecto
 
 /** POST the selector to /api/subscriptions and return the resolved snapshot closure. */
 export async function subscribe(cfg: Config, selector: Selector): Promise<SubscribeResult> {
-  const token = await getToken(cfg);
-  const res = await fetch(`${cfg.myceliumUrl}/api/subscriptions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify(selector),
-  });
+  const res = await authedPost(cfg, "/api/subscriptions", selector);
   if (!res.ok) throw new Error(`subscribe returned ${res.status}`);
   return (await res.json()) as SubscribeResult;
 }
@@ -263,6 +365,22 @@ function main(): void {
         status: "handled",
         echo: payload,
       });
+    }
+    if (method === "POST" && url === "/demo/write-kinds") {
+      if (!authorized(req, cfg, key)) return sendJson(res, 401, { error: "unauthorized" });
+      const raw = await readBody(req);
+      let payload: { thingId?: string } = {};
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        return sendJson(res, 400, { error: "invalid json" });
+      }
+      if (!payload.thingId) return sendJson(res, 400, { error: "thingId is required" });
+      try {
+        return sendJson(res, 200, await demoWriteKinds(cfg, payload.thingId));
+      } catch (err) {
+        return sendJson(res, 500, { error: String(err) });
+      }
     }
     if (method === "POST" && url === "/demo/subscribe") {
       if (!authorized(req, cfg, key)) return sendJson(res, 401, { error: "unauthorized" });
