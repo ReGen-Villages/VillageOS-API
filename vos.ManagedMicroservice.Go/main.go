@@ -6,8 +6,8 @@
 //
 // Lifecycle:
 //  1. Mycelium launches:  ./app --port=5101 --myceliumUrl=https://localhost:7243 \
-//                               [--token=<jwt>] [--signingKey=<base64>] \
-//                               [--issuer=VillageOS] [--audience=VosClients]
+//     [--token=<jwt>] [--signingKey=<base64>] \
+//     [--issuer=VillageOS] [--audience=VosClients]
 //  2. On startup the service registers (POST /api/mycelium/register).
 //  3. Mycelium calls POST /handle for each matching relationship (JWT-authed).
 //  4. On shutdown (SIGINT/SIGTERM or POST /shutdown) it deregisters
@@ -164,15 +164,139 @@ func (s *service) deregister() {
 	resp.Body.Close()
 }
 
+// ---- Snapshot selector: subscribe to a slice of the model ----------------------------------
+//
+// The selector replaced launch-time object IDs (the retired ServiceArgs ID template): instead of
+// being handed IDs at startup, a handler POSTs a selector to /api/subscriptions describing the slice
+// it needs, gets that closure as a snapshot, then follows the SSE stream. See
+// docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
+
+type traverseRule struct {
+	Predicate string `json:"predicate"`
+	Direction string `json:"direction,omitempty"` // outgoing | incoming | both
+	Depth     int    `json:"depth,omitempty"`
+}
+
+type selector struct {
+	All      bool           `json:"all,omitempty"`
+	Ids      []string       `json:"ids,omitempty"`
+	Names    []string       `json:"names,omitempty"`
+	Types    []string       `json:"types,omitempty"`
+	Traverse []traverseRule `json:"traverse,omitempty"`
+}
+
+type snapshotThing struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type subscribeResult struct {
+	SubscriptionID string `json:"subscriptionId"`
+	Watermark      int64  `json:"watermark"`
+	Snapshot       struct {
+		Things        []snapshotThing `json:"things"`
+		Relationships []struct {
+			ID string `json:"id"`
+		} `json:"relationships"`
+	} `json:"snapshot"`
+}
+
+// sliceByTypeAndTraverse builds a representative selector: every Thing of typ plus its depth-1
+// neighbours along predicate. Ask for the slice by shape, not by id.
+func sliceByTypeAndTraverse(typ, predicate string) selector {
+	return selector{Types: []string{typ}, Traverse: []traverseRule{{Predicate: predicate, Direction: "outgoing", Depth: 1}}}
+}
+
+// subscribe POSTs the selector to /api/subscriptions and returns the resolved snapshot closure.
+func (s *service) subscribe(sel selector) (subscribeResult, error) {
+	var res subscribeResult
+	resp, err := s.post("/api/subscriptions", sel)
+	if err != nil {
+		return res, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return res, fmt.Errorf("subscribe returned %d", resp.StatusCode)
+	}
+	return res, json.NewDecoder(resp.Body).Decode(&res)
+}
+
+// unsubscribe releases a subscription (best-effort).
+func (s *service) unsubscribe(id string) {
+	tok, err := s.token()
+	if err != nil {
+		return
+	}
+	req, _ := http.NewRequest(http.MethodDelete, s.cfg.MyceliumURL+"/api/subscriptions/"+id, nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	if resp, err := s.client.Do(req); err == nil {
+		resp.Body.Close()
+	}
+}
+
+// post issues an authenticated JSON POST to a Mycelium path.
+func (s *service) post(path string, body any) (*http.Response, error) {
+	tok, err := s.token()
+	if err != nil {
+		return nil, fmt.Errorf("get token: %w", err)
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, _ := http.NewRequest(http.MethodPost, s.cfg.MyceliumURL+path, strings.NewReader(string(payload)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tok)
+	return s.client.Do(req)
+}
+
+// demoSubscribe is a runnable worked example: POST {"type":"...","predicate":"..."} (defaults to
+// Battery/powers) subscribes for that slice, reports the resolved closure, and unsubscribes.
+func (s *service) demoSubscribe(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Type      string `json:"type"`
+		Predicate string `json:"predicate"`
+	}
+	raw, _ := io.ReadAll(r.Body)
+	_ = json.Unmarshal(raw, &req)
+	if req.Type == "" {
+		req.Type = "Battery"
+	}
+	if req.Predicate == "" {
+		req.Predicate = "powers"
+	}
+	sub, err := s.subscribe(sliceByTypeAndTraverse(req.Type, req.Predicate))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	names := make([]string, 0, len(sub.Snapshot.Things))
+	for _, t := range sub.Snapshot.Things {
+		if t.Name != "" {
+			names = append(names, t.Name)
+		} else {
+			names = append(names, t.ID)
+		}
+	}
+	s.unsubscribe(sub.SubscriptionID) // demo: release the subscription rather than stream
+	writeJSON(w, http.StatusOK, map[string]any{
+		"subscriptionId": sub.SubscriptionID,
+		"watermark":      sub.Watermark,
+		"things":         len(sub.Snapshot.Things),
+		"relationships":  len(sub.Snapshot.Relationships),
+		"thingNames":     names,
+	})
+}
+
 // relationship mirrors the payload Mycelium POSTs to /handle.
 type relationship struct {
-	RelationshipID string                 `json:"relationshipId"`
-	SubjectID      string                 `json:"subjectId"`
-	TargetID       string                 `json:"targetId"`
-	SubjectName    string                 `json:"subjectName"`
-	TargetName     string                 `json:"targetName"`
-	ModelID        string                 `json:"modelId"`
-	Properties     map[string]any         `json:"properties"`
+	RelationshipID string         `json:"relationshipId"`
+	SubjectID      string         `json:"subjectId"`
+	TargetID       string         `json:"targetId"`
+	SubjectName    string         `json:"subjectName"`
+	TargetName     string         `json:"targetName"`
+	ModelID        string         `json:"modelId"`
+	Properties     map[string]any `json:"properties"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -336,6 +460,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /handle", s.requireAuth(s.handleRelationship))
+	mux.HandleFunc("POST /demo/subscribe", s.requireAuth(s.demoSubscribe))
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /stats", s.stats)
 

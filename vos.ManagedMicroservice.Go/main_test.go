@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -151,4 +152,46 @@ func TestHealth(t *testing.T) {
 	if resp["status"] != "Healthy" {
 		t.Fatalf("health: %v", resp)
 	}
+}
+
+func TestSelectorSubscribe(t *testing.T) {
+	type cap struct{ method, path, auth, body string }
+	var got cap
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		if r.URL.Path == "/api/subscriptions" && r.Method == http.MethodPost {
+			got = cap{r.Method, r.URL.Path, r.Header.Get("Authorization"), string(b)}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"subscriptionId":"s-1","watermark":42,"snapshot":{` +
+				`"things":[{"id":"t1","name":"Battery-1"},{"id":"t2","name":"Inverter-7"}],` +
+				`"relationships":[{"id":"r1"}]}}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK) // DELETE unsubscribe
+	}))
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, Token: "tok"}, client: srv.Client()}
+
+	sub, err := s.subscribe(sliceByTypeAndTraverse("Battery", "powers"))
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	if sub.SubscriptionID != "s-1" || sub.Watermark != 42 {
+		t.Fatalf("bad result: %+v", sub)
+	}
+	if len(sub.Snapshot.Things) != 2 || len(sub.Snapshot.Relationships) != 1 {
+		t.Fatalf("closure: %+v", sub.Snapshot)
+	}
+	if got.auth != "Bearer tok" {
+		t.Fatalf("auth: %q", got.auth)
+	}
+	if !strings.Contains(got.body, `"types"`) || !strings.Contains(got.body, "Battery") {
+		t.Fatalf("selector body missing types: %s", got.body)
+	}
+	if !strings.Contains(got.body, "powers") {
+		t.Fatalf("selector body missing traverse: %s", got.body)
+	}
+
+	// unsubscribe must not panic / error path
+	s.unsubscribe(sub.SubscriptionID)
 }
