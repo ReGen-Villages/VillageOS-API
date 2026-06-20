@@ -148,6 +148,12 @@ If neither is specified, the CLI uses `https://localhost:7243`
 
 Command-line args > Environment variables > Default
 
+### TLS Validation
+
+The CLI validates the broker's TLS certificate by default. For local development against a
+self-signed certificate, set `VOS_INSECURE_TLS=true` to bypass validation. **Never set this in
+production** — it disables protection against man-in-the-middle attacks.
+
 ## Command Reference
 
 ### Quick Reference
