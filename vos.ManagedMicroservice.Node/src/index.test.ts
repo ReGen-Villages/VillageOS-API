@@ -201,3 +201,79 @@ test("depositSediment: posts readings and returns summary", async () => {
 test("depositSediment: empty batch throws", async () => {
   await assert.rejects(depositSediment(CFG, []), /at least one reading/);
 });
+
+// ---- Snapshot selector ---- (reuses Config/CFG/Captured from the write-kinds block above)
+import { subscribe, unsubscribe, sliceByTypeAndTraverse, demoSubscribe } from "./index.js";
+
+function stubSelectorFetch(): { calls: Captured[]; restore: () => void } {
+  const calls: Captured[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: unknown, init?: RequestInit): Promise<Response> => {
+    const url = String(input);
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    calls.push({ url, method: init?.method ?? "GET", auth: headers["Authorization"], body: String(init?.body ?? "") });
+    if (url.endsWith("/api/subscriptions") && init?.method === "POST") {
+      return new Response(
+        JSON.stringify({
+          subscriptionId: "s-1",
+          watermark: 42,
+          snapshot: {
+            things: [{ id: "t1", name: "Battery-1" }, { id: "t2", name: "Inverter-7" }],
+            relationships: [{ id: "r1" }],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return new Response(null, { status: 200 }); // DELETE unsubscribe
+  }) as typeof fetch;
+  return { calls, restore: () => void (globalThis.fetch = original) };
+}
+
+test("sliceByTypeAndTraverse builds a type+traverse selector", () => {
+  const sel = sliceByTypeAndTraverse("Battery", "powers");
+  assert.deepEqual(sel.types, ["Battery"]);
+  assert.equal(sel.traverse?.[0].predicate, "powers");
+  assert.equal(sel.traverse?.[0].direction, "outgoing");
+});
+
+test("subscribe posts the selector and returns the closure", async () => {
+  const s = stubSelectorFetch();
+  try {
+    const sub = await subscribe(CFG, sliceByTypeAndTraverse("Battery", "powers"));
+    assert.equal(sub.subscriptionId, "s-1");
+    assert.equal(sub.snapshot.things.length, 2);
+    assert.equal(sub.snapshot.relationships.length, 1);
+    assert.ok(s.calls[0].url.endsWith("/api/subscriptions"));
+    assert.equal(s.calls[0].auth, "Bearer tok");
+    assert.ok(s.calls[0].body.includes('"types"') && s.calls[0].body.includes("Battery") && s.calls[0].body.includes("powers"));
+  } finally {
+    s.restore();
+  }
+});
+
+test("demoSubscribe summarises the closure and unsubscribes", async () => {
+  const s = stubSelectorFetch();
+  try {
+    const result = await demoSubscribe(CFG, "Battery", "powers");
+    assert.equal(result.things, 2);
+    assert.equal(result.relationships, 1);
+    assert.deepEqual(result.thingNames, ["Battery-1", "Inverter-7"]);
+    assert.equal(s.calls[0].method, "POST");
+    assert.equal(s.calls[1].method, "DELETE");
+    assert.ok(s.calls[1].url.includes("/api/subscriptions/s-1"));
+  } finally {
+    s.restore();
+  }
+});
+
+test("unsubscribe issues a DELETE", async () => {
+  const s = stubSelectorFetch();
+  try {
+    await unsubscribe(CFG, "s-9");
+    assert.equal(s.calls[0].method, "DELETE");
+    assert.ok(s.calls[0].url.endsWith("/api/subscriptions/s-9"));
+  } finally {
+    s.restore();
+  }
+});

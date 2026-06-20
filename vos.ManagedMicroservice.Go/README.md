@@ -78,3 +78,16 @@ res, _ := s.depositSediment([]sedimentReading{{ThingID: thingID, Property: "temp
 ```
 
 Full wire contract (routes, status codes, 405/404 gating): [`docs/MICROSERVICE_CONTRACT.md`](../docs/MICROSERVICE_CONTRACT.md) § "Writing data back".
+
+## Selecting a slice (snapshot selector)
+
+The selector replaced launch-time object IDs: subscribe with a selector describing the slice you
+need. This example provides `subscribe` / `unsubscribe` / `sliceByTypeAndTraverse` and a runnable
+demo at `POST /demo/subscribe { "type": "Battery", "predicate": "powers" }`.
+
+```go
+sub, _ := s.subscribe(sliceByTypeAndTraverse("Battery", "powers"))
+// sub.Snapshot.Things / sub.Snapshot.Relationships = exactly the requested closure
+```
+
+All selector fields and recipes: [`docs/MICROSERVICE_CONTRACT.md`](../docs/MICROSERVICE_CONTRACT.md) § "Selecting a slice".

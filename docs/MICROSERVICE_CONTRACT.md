@@ -75,6 +75,55 @@ Returns `{ subscriptionId, watermark, snapshot }`. The snapshot lists `things` a
 `relationships`, each with own `Properties` and `InheritedProperties` (kept separate), `States`,
 and incident relationship ids. `watermark` is the commit sequence the snapshot was taken at.
 
+### Selecting a slice (the startup-template replacement)
+
+The selector is how a handler says *which* objects it wants — it replaced the retired `ServiceArgs`
+ID template (#5559). Instead of Mycelium injecting object IDs into your launch command, you ask for
+the slice **by shape** and get exactly that closure. Recipes:
+
+| Need | Selector body |
+|---|---|
+| Whole model + all future objects | `{ "all": true }` |
+| Specific objects by id | `{ "ids": ["<guid>", …] }` |
+| By name | `{ "names": ["Pump-01"] }` |
+| Every Thing of a type (transitive `is`) | `{ "types": ["Pump"] }` |
+| A type **and** its neighbours along an edge | `{ "types": ["Battery"], "traverse": [{ "predicate": "powers", "direction": "outgoing", "depth": 1 }] }` |
+| Drop inherited type-default values | add `"includeIsAncestors": false` |
+| Things only, no relationships | add `"includeRelationships": false` |
+
+`traverse.direction` is `outgoing` \| `incoming` \| `both`; `depth` walks N hops. Fields combine —
+the closure is the union of all seeds, then the traversal and `is`-ancestor expansion. Every
+reference handler ships a runnable example at `POST /demo/subscribe { "type": "Battery", "predicate":
+"powers" }` that subscribes for that slice, reports the resolved closure (counts + names), and
+unsubscribes.
+
+#### Reference: select a slice, per language
+
+```csharp
+// C# (.NET) — SubscriptionClient
+var sel = new SubscriptionSelector { Types = new() { "Battery" },
+    Traverse = new() { new() { Predicate = "powers", Direction = "outgoing", Depth = 1 } } };
+SubscribeResult sub = await subscriptions.SubscribeAsync(sel);
+// sub.Snapshot.Things / .Relationships is exactly the requested closure; then follow StreamAsync.
+```
+
+```go
+sub, _ := s.subscribe(sliceByTypeAndTraverse("Battery", "powers"))
+// sub.Snapshot.Things / sub.Snapshot.Relationships = the requested closure
+```
+
+```ts
+const sub = await subscribe(cfg, sliceByTypeAndTraverse("Battery", "powers"));
+```
+
+```python
+sub = await subscribe(slice_by_type_and_traverse("Battery", "powers"))
+```
+
+```rust
+let sub = subscribe(cfg, &http, &slice_by_type_and_traverse("Battery", "powers")).await?;
+```
+
 ### `GET /api/subscriptions/{id}/stream` → SSE change stream
 
 `Accept: text/event-stream`. Each event:

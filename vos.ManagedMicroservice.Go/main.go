@@ -332,6 +332,110 @@ func (s *service) demoWriteKinds(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Snapshot selector — subscribe to a slice of the model (replaced launch-time IDs).
+// docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
+
+type traverseRule struct {
+	Predicate string `json:"predicate"`
+	Direction string `json:"direction,omitempty"`
+	Depth     int    `json:"depth,omitempty"`
+}
+
+type selector struct {
+	All      bool           `json:"all,omitempty"`
+	Ids      []string       `json:"ids,omitempty"`
+	Names    []string       `json:"names,omitempty"`
+	Types    []string       `json:"types,omitempty"`
+	Traverse []traverseRule `json:"traverse,omitempty"`
+}
+
+type snapshotThing struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type subscribeResult struct {
+	SubscriptionID string `json:"subscriptionId"`
+	Watermark      int64  `json:"watermark"`
+	Snapshot       struct {
+		Things        []snapshotThing `json:"things"`
+		Relationships []struct {
+			ID string `json:"id"`
+		} `json:"relationships"`
+	} `json:"snapshot"`
+}
+
+// sliceByTypeAndTraverse builds a representative selector: every Thing of typ plus its depth-1
+// neighbours along predicate. Ask for the slice by shape, not by id.
+func sliceByTypeAndTraverse(typ, predicate string) selector {
+	return selector{Types: []string{typ}, Traverse: []traverseRule{{Predicate: predicate, Direction: "outgoing", Depth: 1}}}
+}
+
+// subscribe POSTs the selector to /api/subscriptions and returns the resolved snapshot closure.
+func (s *service) subscribe(sel selector) (subscribeResult, error) {
+	var res subscribeResult
+	resp, err := s.post("/api/subscriptions", sel)
+	if err != nil {
+		return res, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return res, fmt.Errorf("subscribe returned %d", resp.StatusCode)
+	}
+	return res, json.NewDecoder(resp.Body).Decode(&res)
+}
+
+// unsubscribe releases a subscription (best-effort).
+func (s *service) unsubscribe(id string) {
+	tok, err := s.token()
+	if err != nil {
+		return
+	}
+	req, _ := http.NewRequest(http.MethodDelete, s.cfg.MyceliumURL+"/api/subscriptions/"+id, nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	if resp, err := s.client.Do(req); err == nil {
+		resp.Body.Close()
+	}
+}
+
+// demoSubscribe is a runnable worked example: POST {"type":"...","predicate":"..."} (defaults to
+// Battery/powers) subscribes for that slice, reports the resolved closure, and unsubscribes.
+func (s *service) demoSubscribe(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Type      string `json:"type"`
+		Predicate string `json:"predicate"`
+	}
+	raw, _ := io.ReadAll(r.Body)
+	_ = json.Unmarshal(raw, &req)
+	if req.Type == "" {
+		req.Type = "Battery"
+	}
+	if req.Predicate == "" {
+		req.Predicate = "powers"
+	}
+	sub, err := s.subscribe(sliceByTypeAndTraverse(req.Type, req.Predicate))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	names := make([]string, 0, len(sub.Snapshot.Things))
+	for _, t := range sub.Snapshot.Things {
+		if t.Name != "" {
+			names = append(names, t.Name)
+		} else {
+			names = append(names, t.ID)
+		}
+	}
+	s.unsubscribe(sub.SubscriptionID)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"subscriptionId": sub.SubscriptionID,
+		"watermark":      sub.Watermark,
+		"things":         len(sub.Snapshot.Things),
+		"relationships":  len(sub.Snapshot.Relationships),
+		"thingNames":     names,
+	})
+}
+
 // relationship mirrors the payload Mycelium POSTs to /handle.
 type relationship struct {
 	RelationshipID string         `json:"relationshipId"`
@@ -505,6 +609,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /handle", s.requireAuth(s.handleRelationship))
 	mux.HandleFunc("POST /demo/write-kinds", s.requireAuth(s.demoWriteKinds))
+	mux.HandleFunc("POST /demo/subscribe", s.requireAuth(s.demoSubscribe))
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /stats", s.stats)
 

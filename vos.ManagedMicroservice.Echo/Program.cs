@@ -1,6 +1,7 @@
 using vos.Auth.Shared;
 using vos.ManagedMicroservice.Echo.Configuration;
 using vos.ManagedMicroservice.Echo.Services;
+using vos.ManagedMicroservice.Shared.Subscriptions;
 using Serilog;
 
 var cliArgs = CliArgs.Parse(args);
@@ -142,6 +143,20 @@ var writeKindsEndpoint = app.MapPost("/demo/write-kinds", async (WriteKindsDemoR
     return Results.Ok(result);
 });
 if (authEnabled) writeKindsEndpoint.RequireAuthorization();
+
+// Worked example of the snapshot selector (the startup-template replacement). POST an optional
+// { "type": "...", "predicate": "..." } (defaults to Battery/powers); subscribes for that slice,
+// returns the resolved snapshot closure, and unsubscribes. See SelectorDemo.
+var selectorEndpoint = app.MapPost("/demo/subscribe",
+    async (SelectorDemoRequest? req, IHttpClientFactory httpFactory, ILoggerFactory loggerFactory) =>
+{
+    var subscriptions = new SubscriptionClient(
+        httpFactory, loggerFactory.CreateLogger("SelectorDemo"), myceliumUrl, serviceToken);
+    var selector = SelectorDemo.SliceByTypeAndTraverse(req?.Type ?? "Battery", req?.Predicate ?? "powers");
+    var result = await new SelectorDemo(subscriptions).RunAsync(selector);
+    return Results.Ok(result);
+});
+if (authEnabled) selectorEndpoint.RequireAuthorization();
 
 var shutdownEndpoint = app.MapPost("/shutdown", (IHostApplicationLifetime lifetime) =>
 {
