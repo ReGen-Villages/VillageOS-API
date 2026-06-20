@@ -150,3 +150,8 @@ tools/migration/
 
 # Per-developer project guidance (each contributor maintains their own).
 CLAUDE.md
+
+# Python example venvs
+**/.venv/
+**/__pycache__/
+*.pyc

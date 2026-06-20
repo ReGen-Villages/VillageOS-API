@@ -113,6 +113,65 @@ async def deregister_from_mycelium() -> None:
         print(f"deregister failed: {exc}", file=sys.stderr)
 
 
+# ---- Snapshot selector: subscribe to a slice of the model --------------------------------------
+#
+# The selector replaced launch-time object IDs (the retired ServiceArgs ID template): a handler
+# POSTs a selector to /api/subscriptions describing the slice it needs, gets that closure as a
+# snapshot, then follows the SSE stream. Each helper takes an optional ``client`` for tests (inject
+# an httpx.AsyncClient with a MockTransport). See docs/MICROSERVICE_CONTRACT.md § "Selecting a slice".
+
+
+def slice_by_type_and_traverse(type_: str, predicate: str) -> dict:
+    """A representative slice: every Thing of type_ plus its depth-1 predicate neighbours."""
+    return {"types": [type_], "traverse": [{"predicate": predicate, "direction": "outgoing", "depth": 1}]}
+
+
+async def subscribe(selector: dict, *, client: httpx.AsyncClient | None = None) -> dict:
+    """POST the selector to /api/subscriptions; return the resolved snapshot closure."""
+    res = await _authed_post("/api/subscriptions", selector, client=client)
+    if not res.is_success:
+        raise RuntimeError(f"subscribe returned {res.status_code}")
+    return res.json()
+
+
+async def unsubscribe(subscription_id: str, *, client: httpx.AsyncClient | None = None) -> None:
+    """Release a subscription (best-effort)."""
+    token = await _get_token()
+    headers = {"Authorization": f"Bearer {token}"}
+    url = f"{config.mycelium_url}/api/subscriptions/{subscription_id}"
+    if client is not None:
+        await client.delete(url, headers=headers)
+    else:
+        async with httpx.AsyncClient(timeout=10, verify=False) as c:
+            await c.delete(url, headers=headers)
+
+
+async def demo_subscribe(type_: str = "Battery", predicate: str = "powers", *, client: httpx.AsyncClient | None = None) -> dict:
+    """Runnable worked example: subscribe for a by-type+traverse slice, report the closure, unsubscribe."""
+    sub = await subscribe(slice_by_type_and_traverse(type_, predicate), client=client)
+    snap = sub.get("snapshot", {})
+    things = snap.get("things", [])
+    names = [t.get("name") or t.get("id") for t in things]
+    await unsubscribe(sub["subscriptionId"], client=client)  # demo: release rather than stream
+    return {
+        "subscriptionId": sub["subscriptionId"],
+        "watermark": sub.get("watermark"),
+        "things": len(things),
+        "relationships": len(snap.get("relationships", [])),
+        "thingNames": names,
+    }
+
+
+async def _authed_post(path: str, json_body, *, client: httpx.AsyncClient | None = None) -> httpx.Response:
+    token = await _get_token()
+    url = f"{config.mycelium_url}{path}"
+    headers = {"Authorization": f"Bearer {token}"}
+    if client is not None:
+        return await client.post(url, json=json_body, headers=headers)
+    async with httpx.AsyncClient(timeout=30, verify=False) as c:
+        return await c.post(url, json=json_body, headers=headers)
+
+
 def verify_request(request: Request) -> None:
     """FastAPI dependency validating a Bearer JWT.
 
@@ -186,6 +245,18 @@ async def handle_relationship(request: Request, _: None = Depends(verify_request
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     )
+
+
+@app.post("/demo/subscribe")
+async def demo_subscribe_endpoint(request: Request, _: None = Depends(verify_request)) -> JSONResponse:
+    """Runnable worked example: POST {"type": "...", "predicate": "..."} (defaults to Battery/powers);
+    subscribes for that slice, returns the resolved snapshot closure, and unsubscribes."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    result = await demo_subscribe(payload.get("type", "Battery"), payload.get("predicate", "powers"))
+    return JSONResponse(result)
 
 
 @app.post("/shutdown")
