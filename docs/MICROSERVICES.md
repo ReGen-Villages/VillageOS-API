@@ -647,3 +647,47 @@ mechanics, and the offset-paging mechanics live in
 The endpoint-template graph, the property field taxonomy, and the
 fetch-and-shape (no derived calculation) boundary versus Metabolism are also
 covered there.
+
+## 15. Writing data back — Facts, Observations, Sediment
+
+A handler usually reacts to model changes (via subscriptions, §5.1) and writes results back.
+`MyceliumClientBase` ships a helper for each of the three write kinds, so every microservice's
+`MyceliumClient` inherits them — no per-service plumbing. Each validates its outbound payload against
+an embedded contract schema (§9) before the call and surfaces failures as an `HttpRequestException`
+carrying the `StatusCode`.
+
+| Helper | Write kind | Route | Returns |
+|---|---|---|---|
+| `SetFactAsync(thingId, property, value)` | **Fact** — structural, synchronous, never lossy | `POST …/properties/{p}/facts` → 201 | commit `sequenceNumber` |
+| `RecordObservationAsync(thingId, property, value, observedAt?)` | **Observation** (single) | `POST …/properties/{p}/observations` → 202 | — |
+| `RecordObservationsAsync(thingId, samples)` | **Observation** (batch) | `POST …/{id}/observations` → 202 | accepted count |
+| `DepositSedimentAsync(readings)` | **Sediment** — bulk historical, straight to sealed Sapwood | `POST /api/sediment` → 202 | `SedimentDepositResult` |
+
+```csharp
+long seq = await mycelium.SetFactAsync(thingId, "status", "active");
+await mycelium.RecordObservationAsync(thingId, "temperature", 21.5m, DateTime.UtcNow);
+int accepted = await mycelium.RecordObservationsAsync(thingId, new[]
+{
+    new ObservationSample("temperature", 21.7m),
+    new ObservationSample("flow", 3.1m, DateTime.UtcNow), // optional observed-time
+});
+SedimentDepositResult deposit = await mycelium.DepositSedimentAsync(new[]
+{
+    new SedimentReading(thingId, "temperature", 19.8m, DateTime.UtcNow.AddDays(-1)), // observedAt required
+});
+```
+
+**Pick by intent.** A *Fact* is truth that must survive replay (status, configuration, a corrected
+value). An *Observation* is sampled telemetry — high-volume, queued, and coalesced. *Sediment* is a
+one-shot historical backfill that bypasses the live queue and writes sealed Sapwood buckets directly;
+its entities must already exist and every reading must carry an `observedAt`.
+
+**Gating.** A property's `AllowedWriteKinds` (`Both` / `FactOnly` / `ObservationOnly`) decides what it
+accepts; the wrong kind returns **405**, an unknown thing/property **404**.
+
+**Reference.** The **Echo** service demonstrates all three in
+`Services/WriteKindsDemo.cs`, wired to `POST /demo/write-kinds`. The contract and the per-language
+(Go/Node/Python/Rust) snippets are in
+[`MICROSERVICE_CONTRACT.md`](MICROSERVICE_CONTRACT.md) § "Writing data back". The schemas live in
+`vos.ManagedMicroservice.Shared/Contracts/Schemas/{fact-write,observation-write,observation-batch,sediment-deposit}-request.schema.json`
+(§9.3). Tests: `MyceliumClientWriteKindsTests` (Shared) and `WriteKindsDemoTests` (Echo).
