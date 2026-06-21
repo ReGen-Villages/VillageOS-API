@@ -101,7 +101,7 @@ The CLI runs in interactive mode with the following features:
 
 ### Authentication
 
-The CLI requires an API key to communicate with Mycelium. On first Mycelium start, an admin API key is logged at warning level — copy it from Mycelium output. You can also create new keys via the `POST /api/auth/keys` endpoint after logging in with `admin` / `admin`.
+The CLI requires an API key to communicate with Mycelium. On first Mycelium start, the admin user and a default API key are written to `bootstrap-credentials.txt` (mode 0600) in Mycelium's data directory — credentials are **never** logged. Copy the API key from that file. You can create additional keys via the `POST /api/auth/keys` endpoint after signing in as `admin` (its password comes from `VOS_ADMIN_PASSWORD`, or is the random one recorded in `bootstrap-credentials.txt`).
 
 Provide the API key in two ways:
 
