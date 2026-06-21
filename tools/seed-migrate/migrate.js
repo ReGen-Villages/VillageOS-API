@@ -1,25 +1,32 @@
 'use strict';
 
-// Migrates a VillageOS seed file from fused service definitions (launch
-// properties living directly on Handled-Predicate / EndpointService Things)
-// to the Connection --hasHandler--> Handler --is--> PrototypeHandler model.
+// Migrates a VillageOS seed from the old fused service model (launch properties
+// living directly on Handled-Predicate / EndpointService Things) to the model
+// where a user-style `is` relationship to archetype Things does all the work:
+//
+//   Connection --has--> Service --is--> <shared Service prototype> --is--> Service
+//   <connection> --is--> Connection
+//
+// Recognition is not hardcoded: the broker is told the archetype Thing names via
+// config (PrototypeConnectionThingName / PrototypeServiceThingName) and finds
+// instances by transitive `is`. The helper just establishes those `is`
+// relationships — the role a user normally plays — for pre-existing seeds.
 // See Feature #5615 and tools/seed-migrate/README.md.
 
 const crypto = require('crypto');
 
 const NAMESPACE = '7c9e6f50-5e15-4d2a-9b3a-5e6d12340000';
 
-const TYPE_ENDPOINT_SERVICE = 'EndpointService';
-const TYPE_HANDLED_PREDICATE = 'Handled Predicate';
+const OLD_TYPE_ENDPOINT_SERVICE = 'EndpointService';
+const OLD_TYPE_HANDLED_PREDICATE = 'Handled Predicate';
 const PREDICATE_IS = 'is';
 const PREDICATE_HAS = 'has';
 
-const FLAG_CONNECTION = '__IsConnection';
-const FLAG_HANDLER = '__IsHandler';
-const FLAG_PROTOTYPE = '__IsPrototypeHandler';
+const DEFAULT_CONNECTION_ARCHETYPE = 'Connection';
+const DEFAULT_SERVICE_ARCHETYPE = 'Service';
 
-// Launch properties that move off the connection onto the handler/prototype.
-// Subdomain is deliberately excluded — it is a connection selector, not launch info.
+// Launch properties that move off the connection onto the service/prototype.
+// Subdomain is excluded — it is a connection selector, not launch info.
 const LAUNCH_PROPS = ['ExecutablePath', 'ServicePort', 'ServiceArgs', 'onLoad'];
 
 function uuidv5(name) {
@@ -47,10 +54,12 @@ function effective(thing, name) {
   return undefined;
 }
 
+// "…/vos.ManagedMicroservice.Metabolism.dll" -> "Metabolism prototype".
+// The " prototype" suffix avoids colliding with a connection of the same name
+// (an EndpointService instance "Echo" vs the Echo binary).
 function prototypeName(executablePath) {
   const file = String(executablePath).split(/[\\/]/).pop().replace(/\.dll$/i, '');
-  const stripped = file.replace(/^vos\.ManagedMicroservice\./i, '');
-  return `${stripped} Prototype`;
+  return `${file.replace(/^vos\.ManagedMicroservice\./i, '')} prototype`;
 }
 
 function findIdByName(things, name) {
@@ -58,57 +67,54 @@ function findIdByName(things, name) {
   return t ? t.Id : null;
 }
 
-// Type Things are the targets of `is`; connection instances are their subjects.
-function typeIds(things) {
-  const ids = {};
-  for (const name of [TYPE_ENDPOINT_SERVICE, TYPE_HANDLED_PREDICATE]) {
-    ids[name] = findIdByName(things, name);
-  }
-  return ids;
+function addRelationship(seed, id, name, subject, predicate, target) {
+  if (seed.Relationships.some((r) => r.Id === id)) return;
+  seed.Relationships.push({ Id: id, Name: name, Subject: subject, Predicate: predicate, Target: target, Properties: {} });
 }
 
-function migrateSeed(input) {
+function migrateSeed(input, options = {}) {
+  const connectionArchetype = options.connectionArchetype || DEFAULT_CONNECTION_ARCHETYPE;
+  const serviceArchetype = options.serviceArchetype || DEFAULT_SERVICE_ARCHETYPE;
+
   const seed = JSON.parse(JSON.stringify(input));
   seed.Things = seed.Things || [];
   seed.Relationships = seed.Relationships || [];
 
-  const summary = { connections: 0, handlers: 0, prototypes: 0, skipped: 0, alreadyMigrated: 0 };
+  const summary = { connections: 0, services: 0, prototypes: 0, skipped: 0 };
 
   const isPredicateId = findIdByName(seed.Things, PREDICATE_IS);
   if (!isPredicateId) throw new Error("Seed has no 'is' predicate; not a recognizable VillageOS seed.");
 
-  const types = typeIds(seed.Things);
-  const typeIdSet = new Set(Object.values(types).filter(Boolean));
-
+  const oldTypeIds = [OLD_TYPE_ENDPOINT_SERVICE, OLD_TYPE_HANDLED_PREDICATE]
+    .map((n) => findIdByName(seed.Things, n))
+    .filter(Boolean);
+  const oldTypeIdSet = new Set(oldTypeIds);
   const byId = new Map(seed.Things.map((t) => [t.Id, t]));
 
-  // Connection instances: subjects of `is` pointing at a service type, excluding the type Things themselves.
+  // Connection instances: subjects of `is` pointing at an old service type,
+  // excluding the type Things themselves. Once migrated, the old types are
+  // gone, so a second run finds nothing — idempotent by construction.
   const connectionInstances = [];
   for (const rel of seed.Relationships) {
-    if (rel.Predicate !== isPredicateId) continue;
-    if (rel.Target !== types[TYPE_ENDPOINT_SERVICE] && rel.Target !== types[TYPE_HANDLED_PREDICATE]) continue;
+    if (rel.Predicate !== isPredicateId || !oldTypeIdSet.has(rel.Target)) continue;
     const inst = byId.get(rel.Subject);
-    if (!inst || typeIdSet.has(inst.Id)) continue;
-    connectionInstances.push(inst);
+    if (inst && !oldTypeIdSet.has(inst.Id)) connectionInstances.push(inst);
   }
+  if (connectionInstances.length === 0) return { seed, summary };
 
-  const hasId = ensureHasPredicate(seed.Things);
+  const hasId = ensureHasPredicate(seed);
+  const connArchetypeId = ensureArchetype(seed, connectionArchetype, { trigger: prop('graph') });
+  const serviceArchetypeId = ensureArchetype(seed, serviceArchetype,
+    { ExecutablePath: prop(''), ServicePort: prop(0), ServiceArgs: prop(''), AutoStart: prop(false), RunMode: prop('daemon') });
+
   const prototypesByExe = new Map();
-  const existingIds = new Set(seed.Things.map((t) => t.Id));
 
   for (const conn of connectionInstances) {
-    if (conn.Properties && conn.Properties[FLAG_CONNECTION]) {
-      summary.alreadyMigrated++;
-      continue;
-    }
     const executablePath = effective(conn, 'ExecutablePath');
     if (!executablePath) {
       summary.skipped++; // in-process (e.g. `is`) — no daemon
       continue;
     }
-    const servicePort = effective(conn, 'ServicePort');
-    const serviceArgs = effective(conn, 'ServiceArgs');
-    const onLoad = effective(conn, 'onLoad');
     const subdomain = effective(conn, 'Subdomain');
 
     let proto = prototypesByExe.get(executablePath);
@@ -116,76 +122,93 @@ function migrateSeed(input) {
       const protoId = uuidv5(`prototype:${executablePath}`);
       proto = byId.get(protoId);
       if (!proto) {
-        proto = {
-          Id: protoId,
-          Name: prototypeName(executablePath),
-          Properties: {
-            ExecutablePath: prop(executablePath),
-            RunMode: prop('daemon'),
-            [FLAG_PROTOTYPE]: prop(true),
-          },
-        };
+        proto = { Id: protoId, Name: prototypeName(executablePath), Properties: { ExecutablePath: prop(executablePath) } };
         seed.Things.push(proto);
-        existingIds.add(protoId);
+        addRelationship(seed, uuidv5(`is:${protoId}`), `${proto.Name} is ${serviceArchetype}`, protoId, isPredicateId, serviceArchetypeId);
         summary.prototypes++;
       }
       prototypesByExe.set(executablePath, proto);
     }
 
-    const handlerId = uuidv5(`handler:${conn.Id}`);
-    const handlerProps = { [FLAG_HANDLER]: prop(true) };
-    if (servicePort !== undefined) handlerProps.ServicePort = prop(servicePort);
-    if (serviceArgs !== undefined && serviceArgs !== '') handlerProps.ServiceArgs = prop(serviceArgs);
-    if (onLoad !== undefined) handlerProps.AutoStart = prop(!!onLoad);
-    const handler = { Id: handlerId, Name: `${conn.Name} handler`, Properties: handlerProps };
-    seed.Things.push(handler);
-    summary.handlers++;
+    const serviceId = uuidv5(`service:${conn.Id}`);
+    const serviceProps = {};
+    const servicePort = effective(conn, 'ServicePort');
+    const serviceArgs = effective(conn, 'ServiceArgs');
+    const onLoad = effective(conn, 'onLoad');
+    if (servicePort !== undefined) serviceProps.ServicePort = prop(servicePort);
+    if (serviceArgs !== undefined && serviceArgs !== '') serviceProps.ServiceArgs = prop(serviceArgs);
+    if (onLoad !== undefined) serviceProps.AutoStart = prop(!!onLoad);
+    const service = { Id: serviceId, Name: `${conn.Name} service`, Properties: serviceProps };
+    seed.Things.push(service);
+    summary.services++;
 
-    addRelationship(seed, uuidv5(`is:${handlerId}`), `${handler.Name} is ${proto.Name}`, handlerId, isPredicateId, proto.Id);
-    addRelationship(seed, uuidv5(`bind:${conn.Id}`), `${conn.Name} has ${handler.Name}`, conn.Id, hasId, handlerId);
+    addRelationship(seed, uuidv5(`is:${serviceId}`), `${service.Name} is ${proto.Name}`, serviceId, isPredicateId, proto.Id);
+    addRelationship(seed, uuidv5(`has:${conn.Id}`), `${conn.Name} has ${service.Name}`, conn.Id, hasId, serviceId);
+    addRelationship(seed, uuidv5(`isconn:${conn.Id}`), `${conn.Name} is ${connectionArchetype}`, conn.Id, isPredicateId, connArchetypeId);
 
     conn.Properties = conn.Properties || {};
-    conn.Properties[FLAG_CONNECTION] = prop(true);
     conn.Properties.trigger = prop(subdomain !== undefined ? 'http' : 'graph');
     if (subdomain !== undefined) conn.Properties.Subdomain = prop(subdomain);
     for (const key of LAUNCH_PROPS) delete conn.Properties[key];
     summary.connections++;
   }
 
-  // Launch props must not survive on type templates or inherited snapshots,
-  // or inheritance would re-supply what we just lifted onto handlers.
-  const ownsLaunchInfo = new Set(
-    seed.Things.filter((t) => t.Properties && (t.Properties[FLAG_HANDLER] || t.Properties[FLAG_PROTOTYPE])).map((t) => t.Id),
-  );
+  // Drop the superseded old type memberships and the now-orphan type Things.
+  seed.Relationships = seed.Relationships.filter((r) => !(r.Predicate === isPredicateId && oldTypeIdSet.has(r.Target)));
+  seed.Things = seed.Things.filter((t) => !oldTypeIdSet.has(t.Id));
+
+  // Launch props must survive only on the Service archetype (the schema) and on
+  // Services (anything transitively `is` it); strip them everywhere else, or
+  // inheritance would re-supply what we just lifted.
+  const keepLaunchInfo = (id) => id === serviceArchetypeId || isService(seed, id, serviceArchetypeId, isPredicateId);
   for (const t of seed.Things) {
-    if (ownsLaunchInfo.has(t.Id)) continue;
-    for (const key of LAUNCH_PROPS) {
-      if (t.Properties) delete t.Properties[key];
-    }
-    if (typeIdSet.has(t.Id) && t.Properties) delete t.Properties.Subdomain;
+    if (keepLaunchInfo(t.Id)) continue;
+    for (const key of LAUNCH_PROPS) if (t.Properties) delete t.Properties[key];
     for (const src of Object.values(t.InheritedProperties || {})) {
-      for (const key of [...LAUNCH_PROPS, 'Subdomain']) {
-        if (src.Properties) delete src.Properties[key];
-      }
+      for (const key of [...LAUNCH_PROPS, 'Subdomain']) if (src.Properties) delete src.Properties[key];
     }
   }
 
   return { seed, summary };
 }
 
-// The binding uses the generic `has` predicate; a reader identifies the handler
-// as the `has`-target flagged __IsHandler, never by the predicate name.
-function ensureHasPredicate(things) {
-  const named = things.find((t) => t.Name === PREDICATE_HAS);
-  if (named) return named.Id;
-  const id = uuidv5('predicate:has');
-  things.push({ Id: id, Name: PREDICATE_HAS, Properties: {} });
+// A Service is anything transitively `is` the service archetype.
+function isService(seed, thingId, serviceArchetypeId, isPredicateId) {
+  const seen = new Set();
+  let frontier = [thingId];
+  while (frontier.length) {
+    const next = [];
+    for (const id of frontier) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      for (const r of seed.Relationships) {
+        if (r.Predicate === isPredicateId && r.Subject === id) {
+          if (r.Target === serviceArchetypeId) return true;
+          next.push(r.Target);
+        }
+      }
+    }
+    frontier = next;
+  }
+  return false;
+}
+
+function ensureArchetype(seed, name, templateProps) {
+  const existing = seed.Things.find((t) => t.Name === name);
+  if (existing) return existing.Id;
+  const id = uuidv5(`archetype:${name}`);
+  seed.Things.push({ Id: id, Name: name, Properties: { ...templateProps } });
   return id;
 }
 
-function addRelationship(seed, id, name, subject, predicate, target) {
-  if (seed.Relationships.some((r) => r.Id === id)) return;
-  seed.Relationships.push({ Id: id, Name: name, Subject: subject, Predicate: predicate, Target: target, Properties: {} });
+// The binding uses the generic `has`; a reader identifies the service as the
+// `has`-target that is (transitively) a Service, never by the predicate name.
+function ensureHasPredicate(seed) {
+  const named = seed.Things.find((t) => t.Name === PREDICATE_HAS);
+  if (named) return named.Id;
+  const id = uuidv5('predicate:has');
+  seed.Things.push({ Id: id, Name: PREDICATE_HAS, Properties: {} });
+  return id;
 }
 
 module.exports = { migrateSeed, uuidv5 };
@@ -200,18 +223,10 @@ if (require.main === module) {
     console.error('Usage: node migrate.js <seed.json> [--write] [--check]');
     process.exit(2);
   }
-  const original = fs.readFileSync(file, 'utf8');
-  const { seed, summary } = migrateSeed(JSON.parse(original));
+  const { seed, summary } = migrateSeed(JSON.parse(fs.readFileSync(file, 'utf8')));
   const output = JSON.stringify(seed, null, 2);
-  const changed = summary.connections > 0;
   console.error(`seed-migrate: ${JSON.stringify(summary)}`);
-  if (check) {
-    if (changed) {
-      console.error(`${file} needs migration (run with --write).`);
-      process.exit(1);
-    }
-    process.exit(0);
-  }
+  if (check) process.exit(summary.connections > 0 ? 1 : 0);
   if (write) {
     fs.writeFileSync(file, output + '\n');
     console.error(`Wrote ${file}`);
