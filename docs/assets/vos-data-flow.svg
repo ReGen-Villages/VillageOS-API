@@ -1,0 +1,217 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1840 852" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f1c17"/><stop offset="1" stop-color="#16241d"/></linearGradient>
+    <linearGradient id="railF" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#10402d"/><stop offset="1" stop-color="#0c2a1d"/></linearGradient>
+    <linearGradient id="railO" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0c3340"/><stop offset="1" stop-color="#0a2530"/></linearGradient>
+    <linearGradient id="railB" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#14385a"/><stop offset="1" stop-color="#0e2640"/></linearGradient>
+    <linearGradient id="capg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#14b8a6"/></linearGradient>
+    <linearGradient id="perg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/></linearGradient>
+    <linearGradient id="anag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#22c55e"/></linearGradient>
+    <linearGradient id="pubg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.35"/></filter>
+    <marker id="aF" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#34d399"/></marker>
+    <marker id="aO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/></marker>
+    <marker id="aS" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f59e0b"/></marker>
+    <marker id="aG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/></marker>
+    <marker id="aT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#60a5fa"/></marker>
+  </defs>
+
+  <rect width="1840" height="852" fill="url(#bg)"/>
+
+  <!-- Title -->
+  <text x="56" y="56" fill="#ecfdf5" font-size="34" font-weight="700">VillageOS</text>
+  <text x="245" y="56" fill="#5eead4" font-size="34" font-weight="300">Data Flow</text>
+  <text x="58" y="84" fill="#9fb3ab" font-size="14.5">Every change is captured as a Fact, made durable, projected into views, and streamed live.</text>
+
+  <!-- Zone pills -->
+  <g font-size="13" font-weight="700">
+    <g transform="translate(56,100)"><rect width="196" height="26" rx="13" fill="url(#capg)"/><text x="98" y="18" fill="#04332e" text-anchor="middle">①  CAPTURE</text></g>
+    <g transform="translate(310,100)"><rect width="190" height="26" rx="13" fill="url(#perg)"/><text x="95" y="18" fill="#1e1b4b" text-anchor="middle">②  PERSIST</text></g>
+    <g transform="translate(540,100)"><rect width="780" height="26" rx="13" fill="url(#anag)"/><text x="390" y="18" fill="#052e16" text-anchor="middle">③  ANALYZE — events fan out to projections</text></g>
+    <g transform="translate(1378,100)"><rect width="382" height="26" rx="13" fill="url(#pubg)"/><text x="191" y="18" fill="#451a03" text-anchor="middle">④  PUBLISH</text></g>
+  </g>
+
+  <!-- ============ WRITE PATH (left) ============ -->
+  <g filter="url(#sh)"><rect x="56" y="150" width="196" height="66" rx="11" fill="#16312b" stroke="#2dd4bf" stroke-width="1.4"/></g>
+  <text x="70" y="173" fill="#5eead4" font-size="13.5" font-weight="700">⛓  Facts</text>
+  <text x="70" y="191" fill="#bcd9d2" font-size="10.5">structural truth · sync · never lossy</text>
+  <text x="70" y="207" fill="#7c948b" font-size="10">POST …/facts · DELETE ⇒ retraction</text>
+
+  <g filter="url(#sh)"><rect x="56" y="226" width="196" height="66" rx="11" fill="#15302e" stroke="#22d3ee" stroke-width="1.4"/></g>
+  <text x="70" y="249" fill="#7dd3fc" font-size="13.5" font-weight="700">📈  Observations</text>
+  <text x="70" y="267" fill="#bcd5da" font-size="10.5">telemetry · queued + batched</text>
+  <text x="70" y="283" fill="#7c948b" font-size="10">POST …/observations → 202</text>
+
+  <g filter="url(#sh)"><rect x="56" y="302" width="196" height="70" rx="11" fill="#10243a" stroke="#60a5fa" stroke-width="1.4"/></g>
+  <text x="70" y="325" fill="#93c5fd" font-size="13" font-weight="700">🌊  Sediment</text>
+  <text x="70" y="343" fill="#bcd0ea" font-size="10.5">stream: Delta + Tributary → obs</text>
+  <text x="70" y="361" fill="#7f9fc8" font-size="10">bulk: POST /api/sediment → Sapwood</text>
+
+  <g filter="url(#sh)"><rect x="310" y="186" width="200" height="124" rx="12" fill="#1c1f3a" stroke="#818cf8" stroke-width="1.5"/></g>
+  <text x="330" y="210" fill="#c7d2fe" font-size="14" font-weight="700">🪵  Cambium</text>
+  <text x="330" y="230" fill="#aab3ea" font-size="10.5">per-tenant write coordinator</text>
+  <text x="330" y="252" fill="#34d399" font-size="10.5" font-weight="700">Facts ▸ Submit (sync)</text>
+  <text x="330" y="269" fill="#9aa3e0" font-size="10">SubmitAtomic ⇒ exactly-once</text>
+  <text x="330" y="289" fill="#22d3ee" font-size="10.5" font-weight="700">Obs ▸ SubmitObservation</text>
+  <text x="330" y="305" fill="#9aa3e0" font-size="10">channel → DrainLoop (batch)</text>
+
+  <g filter="url(#sh)" transform="translate(310,330)">
+    <path d="M0,16 a100,13 0 0,1 200,0 v74 a100,13 0 0,1 -200,0 z" fill="#252a52" stroke="#818cf8" stroke-width="1.5"/>
+    <ellipse cx="100" cy="16" rx="100" ry="13" fill="#2f3568" stroke="#818cf8" stroke-width="1.5"/>
+  </g>
+  <text x="410" y="351" fill="#e0e7ff" font-size="13.5" font-weight="700" text-anchor="middle">⊟ COMMIT LOG</text>
+  <text x="410" y="375" fill="#bcc3ee" font-size="10" text-anchor="middle">append-only · fsync · per model</text>
+  <text x="410" y="391" fill="#9aa3e0" font-size="9.5" text-anchor="middle">one sequence space · replay on restart</text>
+  <text x="410" y="407" fill="#8b93cf" font-size="9.5" text-anchor="middle">FactCommit + ObservationCommit</text>
+
+  <!-- write-path arrows (smooth, perpendicular arrival) -->
+  <g fill="none" stroke-width="2">
+    <path d="M252,183 C272,183 290,206 310,206" stroke="#34d399" marker-end="url(#aF)"/>
+    <path d="M252,259 L310,259" stroke="#22d3ee" marker-end="url(#aO)"/>
+    <path d="M252,337 C272,337 290,296 310,296" stroke="#22d3ee" marker-end="url(#aO)"/>
+    <path d="M410,310 L410,332" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#aG)"/>
+  </g>
+  <text x="418" y="328" fill="#7c948b" font-size="9.5">commit</text>
+
+  <!-- admission gate (AllowedWriteKinds) on the capture → Cambium edge -->
+  <rect x="277" y="183" width="9" height="138" rx="4" fill="#11201a" stroke="#9fb3ab" stroke-width="1.2"/>
+  <path d="M250,398 L283,322" stroke="#5b6f66" stroke-width="1" stroke-dasharray="2 2" fill="none"/>
+  <text x="56" y="400" fill="#cdd8d2" font-size="10.5" font-weight="700">Admission gate (Mycelium)</text>
+  <text x="56" y="416" fill="#8a9b8f" font-size="9.5">AllowedWriteKinds per property —</text>
+  <text x="56" y="429" fill="#8a9b8f" font-size="9.5">Both · FactOnly · ObservationOnly</text>
+  <text x="56" y="442" fill="#8a9b8f" font-size="9.5">FactOnly ⇒ observations rejected (405)</text>
+
+  <!-- ============ EVENT RAILS ============ -->
+  <g filter="url(#sh)"><rect x="540" y="176" width="800" height="34" rx="17" fill="url(#railF)" stroke="#34d399" stroke-width="1.6"/></g>
+  <text x="560" y="198" fill="#6ee7b7" font-size="13.5" font-weight="700">⚡ FactsCommitted</text>
+  <text x="724" y="198" fill="#4f7d68" font-size="10.5">— fires per Submit; every subscriber below is invoked</text>
+
+  <g filter="url(#sh)"><rect x="540" y="592" width="784" height="34" rx="17" fill="url(#railO)" stroke="#22d3ee" stroke-width="1.6"/></g>
+  <text x="560" y="614" fill="#7dd3fc" font-size="13.5" font-weight="700">⚡ ObservationsCommitted</text>
+  <text x="760" y="614" fill="#3f6f7d" font-size="10.5">— fires per drained batch</text>
+
+  <!-- commit log → rails (smooth, diverging, perpendicular arrival) -->
+  <path d="M510,372 C534,372 514,193 540,193" fill="none" stroke="#34d399" stroke-width="2.4" marker-end="url(#aF)"/>
+  <path d="M510,398 C534,398 514,609 540,609" fill="none" stroke="#22d3ee" stroke-width="2.4" marker-end="url(#aO)"/>
+  <text x="516" y="172" fill="#34d399" font-size="10" font-weight="600">FactCommit</text>
+  <text x="482" y="588" fill="#22d3ee" font-size="10" font-weight="600">ObservationCommit</text>
+
+  <!-- ============ ANALYZE consumers (between rails) ============ -->
+  <g filter="url(#sh)"><rect x="556" y="250" width="226" height="120" rx="12" fill="#14301f" stroke="#4ade80" stroke-width="1.5"/></g>
+  <text x="574" y="274" fill="#86efac" font-size="13.5" font-weight="700">🌿 VosModel</text>
+  <g transform="translate(574,284)"><rect width="92" height="18" rx="9" fill="#0c2a18" stroke="#4ade80"/><text x="46" y="13" fill="#9be8b4" font-size="9.5" text-anchor="middle" font-weight="700">Facts + Obs</text></g>
+  <text x="574" y="322" fill="#c5e7cf" font-size="10.5">live current slice — the API's</text>
+  <text x="574" y="338" fill="#c5e7cf" font-size="10.5">warm in-memory graph.</text>
+  <text x="574" y="357" fill="#8fb89c" font-size="9.5">CurrentValueWriter · latest-by-observed-time</text>
+
+  <g filter="url(#sh)"><rect x="806" y="250" width="240" height="120" rx="12" fill="#13301e" stroke="#22c55e" stroke-width="1.5"/></g>
+  <text x="824" y="274" fill="#86efac" font-size="13.5" font-weight="700">🪵 Rings</text>
+  <g transform="translate(824,284)"><rect width="200" height="18" rx="9" fill="#0c2a18" stroke="#22c55e"/><text x="100" y="13" fill="#9be8b4" font-size="9" text-anchor="middle" font-weight="700">Obs always · Facts unless CurrentOnly</text></g>
+  <g transform="translate(850,340)">
+    <circle r="22" fill="none" stroke="#22c55e" stroke-width="6"/>
+    <circle r="14" fill="none" stroke="#166534" stroke-width="6"/>
+    <circle r="7" fill="none" stroke="#c79b6a" stroke-width="6"/>
+  </g>
+  <text x="884" y="326" fill="#9be8b4" font-size="10.5" font-weight="600">Canopy — hot</text>
+  <text x="884" y="343" fill="#16a34a" font-size="10.5" font-weight="600">Sapwood — sealed</text>
+  <text x="884" y="360" fill="#c79b6a" font-size="10" font-weight="600">Heartwood — cold</text>
+
+  <!-- retention note on Rings (PropertyMode) -->
+  <path d="M1040,370 L1040,448" fill="none" stroke="#4f7d68" stroke-width="1.4"/>
+  <rect x="980" y="448" width="246" height="94" rx="10" fill="#0e1a15" stroke="#2f4a3e" stroke-width="1"/>
+  <text x="996" y="468" fill="#9be8b4" font-size="10.5" font-weight="700">Retention · PropertyMode (per property)</text>
+  <text x="996" y="484" fill="#9fb3ab" font-size="9.5">CurrentOnly · RingBuffer · Sampled · FullHistory</text>
+  <text x="996" y="499" fill="#9fb3ab" font-size="9.5">CurrentOnly = current value only, no history</text>
+  <text x="996" y="515" fill="#9fb3ab" font-size="9.5">RingBuffer / Sampled bound the series;</text>
+  <text x="996" y="530" fill="#9fb3ab" font-size="9.5">FullHistory keeps everything</text>
+
+  <g filter="url(#sh)"><rect x="1070" y="250" width="250" height="120" rx="12" fill="#102a1c" stroke="#34d399" stroke-width="1.5"/></g>
+  <text x="1088" y="274" fill="#6ee7b7" font-size="13.5" font-weight="700">🍄 Cascade</text>
+  <g transform="translate(1088,284)"><rect width="214" height="18" rx="9" fill="#0c2a18" stroke="#34d399"/><text x="107" y="13" fill="#9be8b4" font-size="9" text-anchor="middle" font-weight="700">Facts ▸ Reactor · Obs ▸ Hyphae</text></g>
+  <text x="1088" y="322" fill="#bfe9d4" font-size="10.5">FactCommitReactor + Hyphae (~50ms)</text>
+  <text x="1088" y="338" fill="#bfe9d4" font-size="10.5">re-evaluate expected ranges →</text>
+  <text x="1088" y="356" fill="#bfe9d4" font-size="10.5">emit <tspan font-weight="700" fill="#d9fbe7">StatesChanged</tspan> + activity</text>
+
+  <!-- F taps (down from rail F) -->
+  <g fill="none" stroke="#34d399" stroke-width="2.2">
+    <path d="M624,210 L624,250" marker-end="url(#aF)"/>
+    <path d="M880,210 L880,250" marker-end="url(#aF)" stroke-dasharray="6 4"/>
+    <path d="M1150,210 L1150,250" marker-end="url(#aF)"/>
+  </g>
+  <!-- O taps (up from rail O) -->
+  <g fill="none" stroke="#22d3ee" stroke-width="2.2">
+    <path d="M700,592 L700,370" marker-end="url(#aO)"/>
+    <path d="M960,592 L960,370" marker-end="url(#aO)"/>
+    <path d="M1230,592 L1230,370" marker-end="url(#aO)"/>
+  </g>
+
+  <!-- ============ PUBLISH cluster (right, set apart from Analyze) ============ -->
+  <g filter="url(#sh)"><rect x="1378" y="160" width="232" height="92" rx="12" fill="#2a2410" stroke="#f59e0b" stroke-width="1.5"/></g>
+  <text x="1394" y="184" fill="#fcd34d" font-size="13.5" font-weight="700">📡 Live stream — SSE</text>
+  <g transform="translate(1394,192)"><rect width="64" height="18" rx="9" fill="#2a2008" stroke="#f59e0b"/><text x="32" y="13" fill="#fcd34d" font-size="9.5" text-anchor="middle" font-weight="700">Facts only</text></g>
+  <text x="1394" y="227" fill="#f0e3c2" font-size="10">ModelChangePublisher.MapToChange</text>
+  <text x="1394" y="243" fill="#bda86f" font-size="9.5">GET …/subscriptions/{id}/stream · resumable</text>
+
+  <g filter="url(#sh)"><rect x="1378" y="266" width="232" height="80" rx="12" fill="#2a2410" stroke="#fbbf24" stroke-width="1.5"/></g>
+  <text x="1394" y="290" fill="#fcd34d" font-size="13" font-weight="700">📸 Snapshot <tspan fill="#bda86f" font-size="10" font-weight="400">on subscribe</tspan></text>
+  <text x="1394" y="312" fill="#f0e3c2" font-size="10">POST /api/subscriptions → full objects</text>
+  <text x="1394" y="328" fill="#bda86f" font-size="9.5">+ watermark · no GET storm</text>
+
+  <g filter="url(#sh)"><rect x="1378" y="360" width="232" height="80" rx="12" fill="#241f12" stroke="#d97706" stroke-width="1.5"/></g>
+  <text x="1394" y="384" fill="#fbbf24" font-size="13" font-weight="700">⚙ System events</text>
+  <text x="1394" y="406" fill="#e9d9b4" font-size="10">ISystemEventBus — activity, health,</text>
+  <text x="1394" y="422" fill="#e9d9b4" font-size="10">daemon status → GET /api/events/stream</text>
+
+  <g filter="url(#sh)"><rect x="1634" y="160" width="126" height="280" rx="12" fill="#1a2a23" stroke="#5eead4" stroke-width="1.5"/></g>
+  <text x="1697" y="292" fill="#99f6e4" font-size="14" font-weight="700" text-anchor="middle">🖥</text>
+  <text x="1697" y="318" fill="#99f6e4" font-size="13" font-weight="700" text-anchor="middle">Clients</text>
+  <text x="1697" y="340" fill="#bfe9e0" font-size="9.5" text-anchor="middle">Trellis</text>
+  <text x="1697" y="354" fill="#bfe9e0" font-size="9.5" text-anchor="middle">(useSse)</text>
+  <text x="1697" y="374" fill="#bfe9e0" font-size="9.5" text-anchor="middle">polyglot</text>
+  <text x="1697" y="388" fill="#bfe9e0" font-size="9.5" text-anchor="middle">microservices</text>
+
+  <!-- rail F → Live stream (room to form, perpendicular into card) -->
+  <path d="M1340,193 L1378,193" fill="none" stroke="#34d399" stroke-width="2.4" marker-end="url(#aF)"/>
+
+  <!-- cascade → system events (smooth, perpendicular arrival) -->
+  <path d="M1320,330 C1348,330 1334,396 1378,396" fill="none" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#aG)"/>
+  <text x="1338" y="374" fill="#7c948b" font-size="9">StatesChanged</text>
+
+  <!-- three publish cards → Clients -->
+  <g fill="none" stroke-width="2.2">
+    <path d="M1610,206 L1634,206" stroke="#f59e0b" marker-end="url(#aS)"/>
+    <path d="M1610,306 L1634,306" stroke="#f59e0b" stroke-dasharray="6 4" marker-end="url(#aS)"/>
+    <path d="M1610,400 L1634,400" stroke="#94a3b8" marker-end="url(#aG)"/>
+  </g>
+
+  <!-- ============ Bulk Sediment load — a third rail, fed by Sediment, into Sapwood ============ -->
+  <g filter="url(#sh)"><rect x="290" y="648" width="620" height="32" rx="16" fill="url(#railB)" stroke="#60a5fa" stroke-width="1.6"/></g>
+  <text x="310" y="669" fill="#93c5fd" font-size="13" font-weight="700">🌊 Bulk Sediment load</text>
+  <text x="498" y="669" fill="#5f86b0" font-size="10.5">— POST /api/sediment · bypasses the live observation queue</text>
+  <!-- fed by the Sediment capture box (its bulk sub-path) -->
+  <path d="M252,352 C286,360 268,520 290,648" fill="none" stroke="#60a5fa" stroke-width="2.2" marker-end="url(#aT)"/>
+  <text x="262" y="512" fill="#7f9fc8" font-size="9.5">bulk load</text>
+  <!-- rail → Sapwood: SedimentLoader writes sealed buckets directly -->
+  <path d="M852,648 C852,560 852,460 852,372" fill="none" stroke="#60a5fa" stroke-width="2.2" marker-end="url(#aT)"/>
+  <text x="860" y="554" fill="#7f9fc8" font-size="9.5">Sapwood</text>
+  <!-- rail → Commit Log: one SedimentBatchDeposited provenance Fact per (entity, property) -->
+  <path d="M460,648 C460,560 460,470 460,434" fill="none" stroke="#60a5fa" stroke-width="1.6" marker-end="url(#aT)"/>
+  <text x="468" y="552" fill="#6f86a8" font-size="9">+ provenance Fact</text>
+
+  <!-- ============ HOW TO READ — one thin box ============ -->
+  <rect x="40" y="784" width="1760" height="30" rx="8" fill="#0e1a15" stroke="#24382f" stroke-width="1"/>
+  <g transform="translate(62,803)" font-size="11.5">
+    <text x="0" y="0" fill="#cbd5cd" font-weight="700">HOW TO READ</text>
+    <text x="92" y="0" fill="#7c948b">— a box is fed only by the rails that reach it.</text>
+    <line x1="318" y1="-4" x2="346" y2="-4" stroke="#34d399" stroke-width="3" marker-end="url(#aF)"/><text x="353" y="0" fill="#bfe9d4">Fact</text>
+    <line x1="398" y1="-4" x2="426" y2="-4" stroke="#22d3ee" stroke-width="3" marker-end="url(#aO)"/><text x="433" y="0" fill="#c5e9ec">Observation</text>
+    <line x1="524" y1="-4" x2="552" y2="-4" stroke="#f59e0b" stroke-width="3" stroke-dasharray="5 3" marker-end="url(#aS)"/><text x="559" y="0" fill="#f0e3c2">on-demand</text>
+    <line x1="648" y1="-4" x2="676" y2="-4" stroke="#60a5fa" stroke-width="3" marker-end="url(#aT)"/><text x="683" y="0" fill="#bfdbfe">direct to Sapwood</text>
+    <text x="822" y="0" fill="#7c948b">·  Facts also drive the live SSE stream; Observations update model + Rings only.</text>
+  </g>
+
+  <!-- ============ footer (plain, professional) ============ -->
+  <text x="48" y="838" fill="#5a6f66" font-size="11">Dual-licensed: AGPL-3.0 or commercial — see LICENSE</text>
+  <text x="920" y="838" fill="#5a6f66" font-size="11" text-anchor="middle">© 2026 ReGen Villages BV · All rights reserved.</text>
+  <text x="1792" y="838" fill="#5a6f66" font-size="11" text-anchor="end">VillageOS · Data Flow · v1.0 · 2026-06-20</text>
+</svg>

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1760 820" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f1c17"/><stop offset="1" stop-color="#16241d"/></linearGradient>
+    <filter id="sh2" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.35"/></filter>
+  </defs>
+  <rect width="1760" height="820" fill="url(#bg2)"/>
+
+  <text x="56" y="74" fill="#ecfdf5" font-size="34" font-weight="700">VillageOS</text>
+  <text x="245" y="74" fill="#5eead4" font-size="34" font-weight="300">— Why the flow is built this way</text>
+  <text x="58" y="106" fill="#9fb3ab" font-size="15">One append-only log of Facts is the source of truth; every view, history tier, cascade, and live stream is a rebuildable projection of it.</text>
+
+  <!-- three value cards -->
+  <g transform="translate(56,150)">
+    <rect width="540" height="250" rx="16" fill="#0e1a15" stroke="#24382f"/>
+    <text x="34" y="64" font-size="34">🛡️</text>
+    <text x="92" y="52" fill="#ecfdf5" font-size="20" font-weight="700">Durable by construction</text>
+    <text x="34" y="108" fill="#9fb3ab" font-size="14">Every write is an fsync'd, sequenced entry in an</text>
+    <text x="34" y="130" fill="#9fb3ab" font-size="14">append-only commit log. A restart replays the log</text>
+    <text x="34" y="152" fill="#9fb3ab" font-size="14">and reconstructs the exact in-memory model —</text>
+    <text x="34" y="174" fill="#9fb3ab" font-size="14">nothing is ephemeral, nothing is lost.</text>
+    <text x="34" y="212" fill="#5eead4" font-size="13" font-style="italic">Facts are exactly-once; increments never lose updates.</text>
+  </g>
+
+  <g transform="translate(610,150)">
+    <rect width="540" height="250" rx="16" fill="#0e1a15" stroke="#24382f"/>
+    <text x="34" y="64" font-size="34">⏱️</text>
+    <text x="92" y="52" fill="#ecfdf5" font-size="20" font-weight="700">Two speeds, one truth</text>
+    <text x="34" y="108" fill="#9fb3ab" font-size="14">Facts commit synchronously and never drop — they</text>
+    <text x="34" y="130" fill="#9fb3ab" font-size="14">are structural truth. Observations are sampled</text>
+    <text x="34" y="152" fill="#9fb3ab" font-size="14">telemetry, queued and batched for throughput.</text>
+    <text x="34" y="174" fill="#9fb3ab" font-size="14">Both share one log and a unified property history.</text>
+    <text x="34" y="212" fill="#5eead4" font-size="13" font-style="italic">High-volume telemetry never blocks the write path.</text>
+  </g>
+
+  <g transform="translate(1164,150)">
+    <rect width="540" height="250" rx="16" fill="#0e1a15" stroke="#24382f"/>
+    <text x="34" y="64" font-size="34">📡</text>
+    <text x="92" y="52" fill="#ecfdf5" font-size="20" font-weight="700">Snapshot + live, resumable</text>
+    <text x="34" y="108" fill="#9fb3ab" font-size="14">Clients subscribe once for a full snapshot of just</text>
+    <text x="34" y="130" fill="#9fb3ab" font-size="14">the objects they care about, then stream changes</text>
+    <text x="34" y="152" fill="#9fb3ab" font-size="14">over SSE. Drop the connection and resume gap-free</text>
+    <text x="34" y="174" fill="#9fb3ab" font-size="14">from any Last-Event-ID. No GET storm, no polling.</text>
+    <text x="34" y="212" fill="#5eead4" font-size="13" font-style="italic">Language-agnostic — works for the polyglot fleet.</text>
+  </g>
+
+  <!-- hero strip -->
+  <g transform="translate(56,430)">
+    <rect width="1648" height="120" rx="16" fill="#101e2a" stroke="#1e3a4a"/>
+    <text x="36" y="50" fill="#7dd3fc" font-size="22" font-weight="700">One log. Many lenses.</text>
+    <text x="36" y="84" fill="#bcd6e0" font-size="15">The Commit Log is the single source of truth. The live model, the time-series Rings, the state cascades, and the SSE feeds are all</text>
+    <text x="36" y="106" fill="#bcd6e0" font-size="15"><tspan fill="#7dd3fc" font-weight="600">projections</tspan> of it — each independently rebuildable, none authoritative. Nothing is ephemeral. Nothing is lost. Everything can be replayed.</text>
+  </g>
+
+  <!-- which-processes recap -->
+  <g transform="translate(56,580)">
+    <rect width="1080" height="200" rx="16" fill="#0e1a15" stroke="#24382f"/>
+    <text x="34" y="42" fill="#cbd5cd" font-size="16" font-weight="700">Which processes are hit? It depends on the input kind.</text>
+    <circle cx="44" cy="84" r="7" fill="#34d399"/>
+    <text x="64" y="89" fill="#bfe9d4" font-size="14"><tspan font-weight="700">A Fact</tspan> → VosModel (current value) · Rings (history, unless CurrentOnly) · Cascade via FactCommitReactor · live SSE model-change stream.</text>
+    <circle cx="44" cy="124" r="7" fill="#22d3ee"/>
+    <text x="64" y="129" fill="#c5e9ec" font-size="14"><tspan font-weight="700">An Observation</tspan> → VosModel · Canopy/Rings · Cascade via Hyphae. It does <tspan fill="#fde68a" font-weight="700">not</tspan> hit the SSE model-change stream —</text>
+    <text x="64" y="150" fill="#9fb3ab" font-size="14">telemetry isn't pushed per-sample; clients read it from the history/current-value APIs instead.</text>
+    <text x="34" y="184" fill="#6f857c" font-size="12">Both publishers (ModelChangePublisher, FactCommitReactor) subscribe to <tspan fill="#cbd5cd">FactsCommitted</tspan> only — that is the design, not an omission.</text>
+  </g>
+
+  <!-- roadmap -->
+  <g transform="translate(1164,580)">
+    <rect width="540" height="200" rx="16" fill="#1d1708" stroke="#d97706" stroke-width="1.5" stroke-dasharray="6 4"/>
+    <text x="30" y="44" fill="#fbbf24" font-size="17" font-weight="700">🚧  Remaining work</text>
+    <text x="30" y="80" fill="#f0e3c2" font-size="14" font-weight="600">Phase D — bulk Sediment loader (§6.13)</text>
+    <text x="30" y="102" fill="#cdbd92" font-size="13">Massive historical loads written straight to sealed</text>
+    <text x="30" y="121" fill="#cdbd92" font-size="13">Sapwood buckets. Deferred — streaming hybrid covers ingest.</text>
+    <text x="30" y="153" fill="#f0e3c2" font-size="14" font-weight="600">Heartwood — cold archive tier (§7)</text>
+    <text x="30" y="175" fill="#cdbd92" font-size="13">Age sealed Sapwood buckets out to cold storage.</text>
+  </g>
+
+  <text x="56" y="806" fill="#54665e" font-size="12">VillageOS · Data Flow — page 2 of 2 · see vos-data-flow.svg for the detailed flow</text>
+  <text x="1730" y="806" fill="#54665e" font-size="12" text-anchor="end">© 2026 ReGen Villages BV · AGPL-3.0 or commercial</text>
+</svg>
