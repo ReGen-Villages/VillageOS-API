@@ -111,6 +111,22 @@ test('old service types and their `is` edges are removed', () => {
   assert.deepEqual(isEdges(seed, byName(seed, 'consumes').Id), [connId]);
 });
 
+test('removing an old type leaves no dangling relationships (it was a subject too)', () => {
+  // The old type Things are themselves subjects of their own type memberships,
+  // e.g. "Handled Predicate is Predicate". Removing the type must remove that
+  // relationship too, or it dangles onto a missing Thing.
+  const seed = baseSeed();
+  seed.Things.push({ Id: 'predicate-type', Name: 'Predicate', Properties: {} });
+  seed.Relationships.push({ Id: 'rhp', Name: 'Handled Predicate is Predicate', Subject: 'hp-id', Predicate: 'is-id', Target: 'predicate-type', Properties: {} });
+
+  const { seed: out } = migrateSeed(seed);
+  const ids = new Set(out.Things.map((t) => t.Id));
+  const dangling = out.Relationships.filter(
+    (r) => !ids.has(r.Subject) || !ids.has(r.Predicate) || !ids.has(r.Target),
+  );
+  assert.deepEqual(dangling, [], 'no relationship references a removed Thing');
+});
+
 test('is idempotent — second run is a no-op', () => {
   const once = migrateSeed(baseSeed()).seed;
   const twice = migrateSeed(once);

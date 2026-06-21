@@ -153,8 +153,13 @@ function migrateSeed(input, options = {}) {
     summary.connections++;
   }
 
-  // Drop the superseded old type memberships and the now-orphan type Things.
-  seed.Relationships = seed.Relationships.filter((r) => !(r.Predicate === isPredicateId && oldTypeIdSet.has(r.Target)));
+  // Drop the now-superseded old type Things and EVERY relationship that touches
+  // them in any role — not just `is`-to-type edges. The old types are also
+  // subjects of their own type memberships (e.g. "Handled Predicate is
+  // Predicate"); leaving those behind dangles a relationship onto a removed Thing.
+  seed.Relationships = seed.Relationships.filter(
+    (r) => !oldTypeIdSet.has(r.Subject) && !oldTypeIdSet.has(r.Predicate) && !oldTypeIdSet.has(r.Target),
+  );
   seed.Things = seed.Things.filter((t) => !oldTypeIdSet.has(t.Id));
 
   // Launch props must survive only on the Service archetype (the schema) and on
