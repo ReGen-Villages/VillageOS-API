@@ -46,7 +46,7 @@ interface Props {
 }
 
 export function ActivityFeed({ events, onCollapse }: Props) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
   const snapshotRef = useRef<ActivityEvent[]>([]);
   const pausedAtLengthRef = useRef(0);
@@ -95,10 +95,14 @@ export function ActivityFeed({ events, onCollapse }: Props) {
   );
   const missedCount = paused ? Math.max(0, events.length - pausedAtLengthRef.current) : 0;
 
-  // Auto-scroll only when not paused
+  // Auto-scroll only when not paused. Scroll the list element itself rather
+  // than scrollIntoView, which also scrolls every scrollable ancestor (the
+  // outer dashboard content region) and drags the other widgets up when the
+  // feed fills.
   useEffect(() => {
     if (!paused) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const list = listRef.current;
+      if (list) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
     }
   }, [events.length, paused]);
 
@@ -232,7 +236,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
         </div>
 
         {/* Event list */}
-        <div className="flex-1 overflow-auto space-y-1 min-h-0">
+        <div ref={listRef} className="flex-1 overflow-auto space-y-1 min-h-0">
           {filteredEvents.length === 0 && <p className="text-xs text-zinc-500">No activity yet</p>}
           {filteredEvents.map((e, i) => (
             <div key={i} className="flex gap-2 text-xs py-0.5">
@@ -240,7 +244,6 @@ export function ActivityFeed({ events, onCollapse }: Props) {
               <span className={typeColors[e.Type] || 'text-zinc-400'}>{e.Description}</span>
             </div>
           ))}
-          <div ref={bottomRef} />
         </div>
       </div>
     </div>
