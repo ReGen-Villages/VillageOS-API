@@ -140,38 +140,13 @@ public class StopCommandHandlerTests
         Assert.DoesNotContain(handlerId.ToString(), output);
     }
 
-    // Daemon tests
-
     [Fact]
-    public async Task StopDaemon_NoKey_ShowsUsage()
+    public async Task StopDaemon_IsNoLongerASubcommand_ShowsUsage()
     {
-        await ExecuteHandler("daemon");
-
-        var output = _writer.ToString();
-        Assert.Contains("Usage: stop daemon", output);
-        Assert.Contains("list daemons", output);
-    }
-
-    [Fact]
-    public async Task StopDaemon_WhenExists_StopsAndShowsMessage()
-    {
-        _myceliumMock.Setup(b => b.StopDaemonAsync("is:5100")).ReturnsAsync(true);
-
         await ExecuteHandler("daemon is:5100");
 
-        _myceliumMock.Verify(b => b.StopDaemonAsync("is:5100"), Times.Once);
         var output = _writer.ToString();
-        Assert.Contains("Daemon 'is:5100' stopped", output);
-    }
-
-    [Fact]
-    public async Task StopDaemon_WhenNotFound_ShowsNotFoundMessage()
-    {
-        _myceliumMock.Setup(b => b.StopDaemonAsync("nonexistent:1234")).ReturnsAsync(false);
-
-        await ExecuteHandler("daemon nonexistent:1234");
-
-        var output = _writer.ToString();
-        Assert.Contains("not found or not running", output);
+        Assert.Contains("Usage: stop service", output);
+        Assert.DoesNotContain("stop daemon", output);
     }
 }

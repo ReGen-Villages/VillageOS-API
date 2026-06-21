@@ -44,10 +44,6 @@ namespace vos.Taproot
                         await StopServiceAsync(tok);
                         break;
 
-                    case "daemon":
-                        await StopDaemonAsync(tok);
-                        break;
-
                     default:
                         ShowUsage();
                         break;
@@ -100,31 +96,9 @@ namespace vos.Taproot
             }
         }
 
-        private async Task StopDaemonAsync(string[] tok)
-        {
-            if (tok.Length == 0)
-            {
-                _writer.WriteLine("Usage: stop daemon <daemonKey>");
-                _writer.WriteLine("  Use 'list daemons' to see available daemon keys.");
-                return;
-            }
-
-            var daemonKey = tok[0];
-
-            if (await _mycelium.StopDaemonAsync(daemonKey))
-            {
-                _writer.WriteLine($"Daemon '{daemonKey}' stopped");
-            }
-            else
-            {
-                _writer.WriteLine($"Daemon '{daemonKey}' not found or not running");
-            }
-        }
-
         private void ShowUsage()
         {
             _writer.WriteLine("Usage: stop service <handlerNameOrId> [--showguids]  - Stop a running microservice");
-            _writer.WriteLine("       stop daemon <daemonKey>                       - Stop a lazy-started daemon");
             _writer.WriteLine();
             _writer.WriteLine("Options:");
             _writer.WriteLine("  --showguids, -g  Show GUIDs in addition to names");

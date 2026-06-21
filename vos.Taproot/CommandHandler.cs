@@ -39,8 +39,7 @@ namespace vos.Taproot
             _writer.WriteLine("  list things                                 - List all things");
             _writer.WriteLine("  list relations                              - List all relationships");
             _writer.WriteLine("  list predicates                             - List all predicates");
-            _writer.WriteLine("  list services                               - List all running microservices");
-            _writer.WriteLine("  list daemons                                - List all tracked daemons");
+            _writer.WriteLine("  list services                               - List all registered services (with daemon state)");
             _writer.WriteLine();
             _writer.WriteLine("Advanced Queries:");
             _writer.WriteLine("  query property <name> <value>               - Find things with a property value");
@@ -80,7 +79,6 @@ namespace vos.Taproot
             _writer.WriteLine("Microservices:");
             _writer.WriteLine("  start service <handler>                     - Start a registered microservice");
             _writer.WriteLine("  stop service <handler>                      - Stop a running microservice");
-            _writer.WriteLine("  stop daemon <key>                           - Stop a lazy-started daemon");
             _writer.WriteLine();
             _writer.WriteLine("Configuration:");
             _writer.WriteLine("  config mode                                 - Show property mode configuration");

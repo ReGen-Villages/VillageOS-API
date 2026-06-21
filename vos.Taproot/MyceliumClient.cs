@@ -239,21 +239,6 @@ public class MyceliumClient
         return response.IsSuccessStatusCode;
     }
 
-    public virtual async Task<JsonElement> GetAllDaemonsAsync()
-    {
-        await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/daemons");
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<JsonElement>();
-    }
-
-    public virtual async Task<bool> StopDaemonAsync(string daemonKey)
-    {
-        await SetAuthHeaderAsync();
-        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/mycelium/daemons/{Uri.EscapeDataString(daemonKey)}/stop", null);
-        return response.IsSuccessStatusCode;
-    }
-
     public virtual async Task<string> GetModelJsonAsync()
     {
         await SetAuthHeaderAsync();

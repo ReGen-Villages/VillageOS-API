@@ -1,4 +1,5 @@
-// Mycelium service and daemon types — mirrors Mycelium PascalCase JSON
+// Mycelium service types — mirrors Mycelium PascalCase JSON.
+// A service carries its supervised daemon's live state inline (IsRunning/ProcessId/LastContactTime).
 
 export interface ServiceStats {
   RequestsForwarded: number;
@@ -11,8 +12,6 @@ export interface RegisteredService {
   HandlerId: string;
   ServiceName: string;
   EndpointUrl: string;
-  StartCommand: string;
-  StopEndpoint: string;
   HealthEndpoint?: string;
   HealthStatus: string;
   RegisteredAt: string;
@@ -20,17 +19,10 @@ export interface RegisteredService {
   FailureCount: number;
   LastHealthCheckUtc?: string;
   Stats: ServiceStats;
-}
-
-export interface DaemonInfo {
-  Key: string;
-  Port: string;
-  IsRunning: boolean;
-  IsExternal: boolean;
   ProcessId?: number;
+  IsExternal: boolean;
   LastContactTime?: string;
   ConsecutiveFailures: number;
-  LastFailureTime?: string;
 }
 
 export interface ActivityEvent {

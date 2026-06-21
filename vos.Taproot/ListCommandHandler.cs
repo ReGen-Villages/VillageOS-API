@@ -60,10 +60,6 @@ namespace vos.Taproot
                         await ListServicesAsync();
                         break;
 
-                    case "daemons":
-                        await ListDaemonsAsync();
-                        break;
-
                     case "agents":
                         await ListAgentsAsync();
                         break;
@@ -333,73 +329,21 @@ namespace vos.Taproot
             }
         }
 
-        private async Task ListDaemonsAsync()
-        {
-            var daemons = await _mycelium.GetAllDaemonsAsync();
-
-            if (daemons.ValueKind != JsonValueKind.Array || daemons.GetArrayLength() == 0)
-            {
-                _writer.WriteLine("No tracked daemons found.");
-                return;
-            }
-
-            _writer.WriteLine($"Daemons ({daemons.GetArrayLength()}):");
-            foreach (var daemon in daemons.EnumerateArray())
-            {
-                WriteDaemonEntry(daemon);
-            }
-        }
-
-        private void WriteDaemonEntry(JsonElement daemon)
-        {
-            var key = daemon.GetStringOrDefault("Key", "unknown");
-            var isRunning = daemon.GetBoolOrDefault("IsRunning");
-            var processId = daemon.GetNullableInt("ProcessId")?.ToString() ?? "N/A";
-            var failures = daemon.GetIntOrDefault("ConsecutiveFailures");
-            var lastFailure = daemon.GetNullableDateTime("LastFailureTime")?.ToString("g") ?? "N/A";
-
-            var status = isRunning ? "Running" : "Stopped";
-            _writer.WriteLine($"  {key} [{status}]");
-            _writer.WriteLine($"    Process ID: {processId}");
-            if (failures > 0)
-            {
-                _writer.WriteLine($"    Consecutive Failures: {failures}");
-                _writer.WriteLine($"    Last Failure: {lastFailure}");
-            }
-        }
-
         private async Task ListAgentsAsync()
         {
             var services = await _mycelium.GetAllServicesAsync();
-            var daemons = await _mycelium.GetAllDaemonsAsync();
             var nameMap = await _resolver.GetGuidToNameMapAsync();
 
-            var hasServices = services.ValueKind == JsonValueKind.Array && services.GetArrayLength() > 0;
-            var hasDaemons = daemons.ValueKind == JsonValueKind.Array && daemons.GetArrayLength() > 0;
-
-            if (!hasServices && !hasDaemons)
+            if (services.ValueKind != JsonValueKind.Array || services.GetArrayLength() == 0)
             {
-                _writer.WriteLine("No agents found (no services or daemons).");
+                _writer.WriteLine("No agents found (no registered services).");
                 return;
             }
 
-            if (hasServices)
+            _writer.WriteLine($"Registered Services ({services.GetArrayLength()}):");
+            foreach (var service in services.EnumerateArray())
             {
-                _writer.WriteLine($"Registered Services ({services.GetArrayLength()}):");
-                foreach (var service in services.EnumerateArray())
-                {
-                    WriteServiceEntry(service, nameMap);
-                }
-            }
-
-            if (hasDaemons)
-            {
-                if (hasServices) _writer.WriteLine();
-                _writer.WriteLine($"Lazy-started Daemons ({daemons.GetArrayLength()}):");
-                foreach (var daemon in daemons.EnumerateArray())
-                {
-                    WriteDaemonEntry(daemon);
-                }
+                WriteServiceEntry(service, nameMap);
             }
         }
 
@@ -437,9 +381,8 @@ namespace vos.Taproot
             _writer.WriteLine("       list relations [--showguids] - List all relationships");
             _writer.WriteLine("       list predicates              - List all predicates");
             _writer.WriteLine("       list handlers [--showguids]  - List all handlers");
-            _writer.WriteLine("       list services [--showguids]  - List all running microservices");
-            _writer.WriteLine("       list daemons                 - List all tracked daemons");
-            _writer.WriteLine("       list agents [--showguids]    - List all agents (services + daemons)");
+            _writer.WriteLine("       list services [--showguids]  - List all registered services (with daemon state)");
+            _writer.WriteLine("       list agents [--showguids]    - Alias for list services");
             _writer.WriteLine();
             _writer.WriteLine("Options:");
             _writer.WriteLine("  --showguids, -g  Show GUIDs in addition to names");
