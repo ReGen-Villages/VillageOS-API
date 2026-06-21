@@ -46,10 +46,10 @@ if (authEnabled)
 {
     builder.AddMyceliumTokenAuth(
         signingKey!,
-        issuer: cliArgs.Issuer ?? "VillageOS",
-        audience: cliArgs.Audience ?? "VosClients");
+        issuer: cliArgs.Issuer,
+        audience: cliArgs.Audience);
     Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-        cliArgs.Issuer ?? "VillageOS", cliArgs.Audience ?? "VosClients");
+        cliArgs.Issuer, cliArgs.Audience);
 }
 
 var requestCount = 0;
