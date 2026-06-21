@@ -415,16 +415,19 @@ The top-left card shows at-a-glance counts for your model:
 
 Below the counts, a **Top Predicates** list shows the most-used relationship types ranked by count.
 
-### 7.2 Registered Services
+### 7.2 Services
 
-Shows each registered service handler together with its supervised daemon's live state — there is a single source of truth, so health and running state can never disagree. Each card shows:
+Shows every service the model routes to — both **graph** connections (predicate handlers, reached when a relationship is created) and **http** connections (endpoint services, reached via `POST /api/endpoints/{subdomain}`) — in one unified list. They are the same kind of thing, distinguished only by how requests reach them, so each card carries a trigger icon (a workflow glyph for graph, a globe for http) and a route label (`predicate`, or the `/api/endpoints/{subdomain}` path).
 
-- **Health badge** — **Healthy** (green), **Unhealthy** (yellow), **Unreachable** (red), or **Unknown** (gray, health not yet probed)
-- **Running badge** — green "Running" / red "Stopped", derived from the daemon supervisor (process liveness, or health-verified liveness for external daemons)
-- **External badge** — shown when the daemon was started outside Mycelium
-- **Process ID** and **last contact time** when a daemon is running
-- **Request statistics** (total requests, failure count)
-- **Start/Stop buttons** (admin only) that launch or stop the backing daemon through Mycelium
+Every card shows request statistics (total requests, average response time, last request). Beyond that:
+
+- **Graph connections** also show their supervised daemon's live state — a single source of truth, so health and running can never disagree:
+  - **Health badge** — **Healthy** (green), **Unhealthy** (yellow), **Unreachable** (red), or **Unknown** (gray, not yet probed)
+  - **Running badge** — green "Running" / red "Stopped", derived from the daemon supervisor
+  - **External badge** — shown when the daemon was started outside Mycelium
+  - **Process ID** and **last contact time** when running; **failure count** when non-zero
+  - **Start/Stop buttons** (admin only) that launch or stop the backing daemon through Mycelium
+- **HTTP connections** additionally show an **error count** (non-2xx responses).
 
 ### 7.3 Activity Feed
 
@@ -721,8 +724,7 @@ vos.Trellis/
         │
         ├── dashboard/
         │   ├── ModelStatsCard.tsx          # Thing/relationship/predicate/property counts
-        │   ├── ServicesPanel.tsx           # Health status, start/stop, request stats
-        │   ├── EndpointServicesPanel.tsx   # Endpoint service traffic/performance metrics
+        │   ├── ServicesPanel.tsx           # Unified services: graph (predicate) + http (endpoint) connections
         │   └── ActivityFeed.tsx            # Real-time SSE event log
         │
         └── common/

@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ModelStatsCard } from '../components/dashboard/ModelStatsCard';
 import { ServicesPanel } from '../components/dashboard/ServicesPanel';
-import { EndpointServicesPanel } from '../components/dashboard/EndpointServicesPanel';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { myceliumApi } from '../api/myceliumApi';
@@ -187,8 +186,7 @@ export function DashboardPage() {
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
             <ModelStatsCard things={things} relationships={relationships} />
-            <ServicesPanel services={services} onStart={handleStartService} onStop={handleStopService} />
-            <EndpointServicesPanel endpoints={endpointServices} />
+            <ServicesPanel services={services} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} />
             <PropertyModePanel />
           </div>
           {!feedCollapsed && (
