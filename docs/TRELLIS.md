@@ -87,7 +87,7 @@ After login, the **Dashboard** is the default landing page. The sidebar on the l
 
 | Icon | Page | Purpose |
 |------|------|---------|
-| Grid | **Dashboard** | Model statistics, service health, daemon status, and live activity feed |
+| Grid | **Dashboard** | Model statistics, service health & daemon state, and live activity feed |
 | Network | **Graph** | Interactive graph visualization with search, clustering, 3D building view, and CRUD |
 | Box | **Model** | IFC-based 3D model viewer (Fragments) with type filtering and element selection |
 | Clock | **Temporal** | Time-range mutation explorer for viewing property change history |
@@ -401,7 +401,7 @@ For IFC containers (IfcBuilding, IfcStorey) that have child elements via `contai
 
 ## 7. Dashboard
 
-The Dashboard page provides real-time monitoring of the VillageOS Mycelium. It's divided into four sections:
+The Dashboard page provides real-time monitoring of the VillageOS Mycelium. Its main sections are model statistics, registered services (with their daemon state inline), endpoint services, and the activity feed:
 
 ### 7.1 Model Statistics
 
@@ -417,20 +417,16 @@ Below the counts, a **Top Predicates** list shows the most-used relationship typ
 
 ### 7.2 Registered Services
 
-Shows health status for each registered service handler. Services can be in one of four states:
+Shows each registered service handler together with its supervised daemon's live state — there is a single source of truth, so health and running state can never disagree. Each card shows:
 
-- **Healthy** (green badge) — responding normally
-- **Unhealthy** (yellow badge) — degraded performance
-- **Unreachable** (red badge) — not responding
-- **Unknown** (gray badge) — health not yet determined
+- **Health badge** — **Healthy** (green), **Unhealthy** (yellow), **Unreachable** (red), or **Unknown** (gray, health not yet probed)
+- **Running badge** — green "Running" / red "Stopped", derived from the daemon supervisor (process liveness, or health-verified liveness for external daemons)
+- **External badge** — shown when the daemon was started outside Mycelium
+- **Process ID** and **last contact time** when a daemon is running
+- **Request statistics** (total requests, failure count)
+- **Start/Stop buttons** (admin only) that launch or stop the backing daemon through Mycelium
 
-Each service has start/stop buttons and shows request statistics (total requests, failure count).
-
-### 7.3 Daemons
-
-Shows background processes managed by Mycelium. Each daemon shows its running status (green "Running" or red "Stopped"), process ID, and failure count.
-
-### 7.4 Activity Feed
+### 7.3 Activity Feed
 
 The right column shows a real-time log of all model mutations, streamed via Server-Sent Events (SSE). Events include "ThingCreated", "RelationshipCreated", "PropertyChanged", etc. The feed keeps the most recent 200 events. Each event type has a distinct color (green for created, red for deleted, amber for property changes, purple/cyan for services).
 
@@ -578,7 +574,7 @@ VillageOS is an in-memory temporal graph database built in .NET 10/C#. Users int
 
 1. **Interactive graph visualization** — the model rendered as a WebGL force-directed graph using Sigma.js v3
 2. **Full CLI parity** — every CLI operation accessible through inline forms, context menus, and detail panels
-3. **Mycelium dashboard** — real-time monitoring of daemons, services/handlers, and model activity via SSE
+3. **Mycelium dashboard** — real-time monitoring of services/handlers (with daemon state) and model activity via SSE
 
 ---
 
@@ -589,7 +585,7 @@ graph TB
     subgraph GUI["vos.Trellis (React 19)"]
         Graph["Graph View<br/>(Sigma.js v3 + graphology)"]
         Commands["Inline CRUD<br/>Panels"]
-        Dashboard["Dashboard<br/>(Services/Daemons)"]
+        Dashboard["Dashboard<br/>(Services)"]
         Graph & Commands & Dashboard --> APIClient["API Client Layer<br/>(fetch + SSE/EventSource)"]
     end
 
@@ -639,7 +635,7 @@ vos.Trellis/
     │
     ├── types/
     │   ├── vos.ts              # VosThing, VosRelationship, PropertyValue, ranges, temporal types
-    │   └── Mycelium.ts           # RegisteredService, ServiceStats, DaemonInfo, ActivityEvent, EndpointServiceInfo
+    │   └── Mycelium.ts           # RegisteredService, ServiceStats, ActivityEvent, EndpointServiceInfo
     │
     ├── api/
     │   ├── client.ts           # Singleton API client (fetch + JWT auto-refresh + API key exchange + login/logout/switchModel/changePassword + silent token refresh + AuthRequiredError)
@@ -648,7 +644,7 @@ vos.Trellis/
     │   ├── modelApi.ts         # Model export/import/clear + temporal snapshots
     │   ├── temporalApi.ts      # Property versions, mutations, recent values
     │   ├── rangeApi.ts         # Composite range summary for things (rangeApi.getSummary), individual range/state queries for relationships (relationshipRangeApi)
-    │   ├── myceliumApi.ts        # Services, daemons, shutdown, seed library (list/load/save)
+    │   ├── myceliumApi.ts        # Services (start/stop), shutdown, seed library (list/load/save)
     │   └── endpointApi.ts      # Endpoint services listing (GET /api/endpoints)
     │
     ├── hooks/
@@ -677,7 +673,7 @@ vos.Trellis/
     │
     ├── pages/
     │   ├── GraphPage.tsx        # Main graph + search + inline CRUD + detail panels
-    │   ├── DashboardPage.tsx    # Services, daemons, model stats, activity feed
+    │   ├── DashboardPage.tsx    # Services (with daemon state), endpoint services, model stats, activity feed
     │   └── TemporalPage.tsx     # Time-range mutation explorer
     │
     └── components/
@@ -726,7 +722,6 @@ vos.Trellis/
         ├── dashboard/
         │   ├── ModelStatsCard.tsx          # Thing/relationship/predicate/property counts
         │   ├── ServicesPanel.tsx           # Health status, start/stop, request stats
-        │   ├── DaemonsPanel.tsx            # Running status, PID, failures
         │   ├── EndpointServicesPanel.tsx   # Endpoint service traffic/performance metrics
         │   └── ActivityFeed.tsx            # Real-time SSE event log
         │
@@ -919,7 +914,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 
 | Route | Page | Description |
 |-------|------|-------------|
-| `/` | `DashboardPage` | Model stats, services, daemons, activity feed (default landing page) |
+| `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
@@ -996,7 +991,7 @@ Singleton `ApiClient` class with:
 | `temporalApi` | Property versions, recent values, thing/model/relationship mutations |
 | `rangeApi` | Composite range summary for things (`GET /api/things/{id}/range-summary` — returns thing ranges, states, and all relationship range data in one call) |
 | `relationshipRangeApi` | Relationship range listing + state queries (`/api/relationships/{id}/ranges`, `/api/relationships/{id}/states`) |
-| `myceliumApi` | Service/daemon listing, start/stop, shutdown, seed library management (`getLibrarySeeds`, `loadSeed`, `saveSeed`), startup progress (`GET /api/mycelium/startup-status`) |
+| `myceliumApi` | Service listing (with daemon state), start/stop, shutdown, seed library management (`getLibrarySeeds`, `loadSeed`, `saveSeed`), startup progress (`GET /api/mycelium/startup-status`) |
 
 ---
 
@@ -1100,8 +1095,8 @@ Every CLI command maps to an inline GUI action — all CRUD operations are perfo
 |---|---|
 | `range list/get` | Select node → Ranges tab in NodeDetailPanel (own + inherited ranges, active states) |
 | `state <thing>` | States section in Ranges tab |
-| `list services` / `list daemons` | Dashboard panels |
-| `start/stop service` / `stop daemon` | Start/Stop buttons on dashboard |
+| `list services` / `list agents` | Dashboard Services panel |
+| `start/stop service` | Start/Stop buttons on dashboard |
 | `shutdown` | Shutdown action + `ConfirmDialog` |
 
 ---
@@ -1114,7 +1109,6 @@ Four components on `DashboardPage`:
 |-----------|-----------|---------|
 | `ModelStatsCard` | `GET /api/things` + `GET /api/relationships` | SSE model events |
 | `ServicesPanel` | `GET /api/mycelium/services` | SSE `ServiceHealthChanged` |
-| `DaemonsPanel` | `GET /api/mycelium/daemons` | SSE `DaemonStatusChanged` |
 | `ActivityFeed` | SSE `ActivityEvent` only | Real-time (keeps last 200). Pause/resume (buffers new events while paused), category filter chips (Model/Things/Rels/Props/Services), color-coded event types, collapsible panel, resizable height (drag handle, persisted to localStorage) |
 
 ### Dashboard Top-Right Controls
@@ -1127,9 +1121,9 @@ Four components on `DashboardPage`:
 
 ### Health Status Indicators
 
-Service health badges (Healthy/Unhealthy/Unreachable/Unknown) and daemon
-running/stopped pills follow the color scheme documented in
-[Section 7.2](#72-registered-services) and [Section 7.3](#73-daemons).
+Service health badges (Healthy/Unhealthy/Unreachable/Unknown) and the
+running/stopped pill follow the color scheme documented in
+[Section 7.2](#72-registered-services).
 
 ---
 
@@ -1222,7 +1216,7 @@ Sensor ← MeasuringSensor ← (weight, temp, proximity sensors)
 6. **Search**: Type in search bar → matching nodes highlighted, non-matching dimmed. Toggle case-sensitive, exact-match, and regex
 7. **Selection**: Click node → NodeDetailPanel with properties/relationships. Click edge → EdgeDetailPanel with Properties and Ranges tabs
 8. **Real-time**: Create a thing via CLI → verify it appears in GUI graph without page refresh
-9. **Dashboard**: Start Mycelium with seed → services/daemons panels show correct status, health updates flow in real-time
+9. **Dashboard**: Start Mycelium with seed → Services panel shows correct status (health + daemon liveness together), updates flow in real-time
 10. **CLI parity**: Walk through each CLI command and verify the equivalent GUI operation produces the same result
 11. **Seed loading**: Import `warehouse.seed.json` via REST API or CLI → nodes and edges render
 12. **Inheritance**: Click a controller instance → Inheritance Chain shows Controller → SmartAppliance hierarchy

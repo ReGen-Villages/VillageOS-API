@@ -176,12 +176,10 @@ production** — it disables protection against man-in-the-middle attacks.
 | `list relations` | List all relationships |
 | `list predicates` | List all predicates |
 | `list handlers` | List all relationship services |
-| `list services` | List all running microservices |
-| `list daemons` | List all tracked daemons |
-| `list agents` | List all agents (services + daemons) |
-| `start service <handler>` | Start a registered microservice |
-| `stop service <handlerId>` | Stop a running microservice |
-| `stop daemon <key>` | Stop a lazy-started daemon |
+| `list services` | List all registered services (running state, health, and daemon PID shown inline) |
+| `list agents` | Alias for `list services` |
+| `start service <handler>` | Start a registered microservice's daemon |
+| `stop service <handlerId>` | Stop a running microservice's daemon |
 | `clear model` | Clear all things and relationships |
 | `shutdown` | Shut down Mycelium |
 | `query property <name> <value>` | Find by property |
@@ -899,28 +897,9 @@ Microservices (2):
     Health: Unknown
 ```
 
-### Listing Daemons
+### Listing Agents
 
-```bash
-> list daemons
-Daemons (2):
-  consumes:7102 [Running]
-    Process ID: 12345
-  produces:7103 [Stopped]
-    Process ID: N/A
-    Consecutive Failures: 3
-    Last Failure: 1/30/2025 10:00 AM
-```
-
-Daemons are tracked by a key in the format `<predicate>:<port>`. The daemon info shows:
-
-- **Process ID**: The system process ID if running
-- **Consecutive Failures**: Number of recent startup failures (for cooldown tracking)
-- **Last Failure**: Timestamp of the most recent failure
-
-### Listing All Agents
-
-To see both services and daemons together:
+`list agents` is an alias for `list services`. Each registered service is shown with its supervised daemon's live state inline — there is no separate "daemons" view, so health and running state can never disagree.
 
 ```bash
 > list agents
@@ -928,12 +907,6 @@ Registered Services (1):
   Metabolism [Running]
     Endpoint: https://localhost:5100
     Health: Healthy
-
-Lazy-started Daemons (2):
-  consumes:7102 [Running]
-    Process ID: 12345
-  produces:7103 [Running]
-    Process ID: 54321
 
 # With --showguids
 > list agents --showguids
@@ -976,21 +949,7 @@ Stop request sent to service 'Metabolism'
 Stop request sent to service 'Metabolism' (3fa85f64-5717-4562-b3fc-2c963f66afa6)
 ```
 
-The service will receive a cooperative shutdown request. If the service doesn't respond, use the Mycelium API for forceful termination.
-
-### Stopping a Daemon
-
-```bash
-# Stop a daemon by key (use 'list daemons' to see available keys)
-> stop daemon consumes:7102
-Daemon 'consumes:7102' stopped
-
-# If the daemon is not found or not running
-> stop daemon nonexistent:1234
-Daemon 'nonexistent:1234' not found or not running
-```
-
-Daemons are terminated immediately (killed). Use `list daemons` to see the available daemon keys.
+`stop service` stops the service's backing daemon — it kills the Mycelium-launched process, or sends a cooperative `/shutdown` to an externally-started one.
 
 ### Clearing the Model
 

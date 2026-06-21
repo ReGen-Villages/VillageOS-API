@@ -215,12 +215,6 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task GetAllDaemonsAsync_RoutesToMyceliumDaemonsEndpoint()
-    {
-        await VerifyGetEndpointHit("/api/mycelium/daemons", c => c.GetAllDaemonsAsync());
-    }
-
-    [Fact]
     public async Task GetSeedStatusAsync_RoutesToSeedStatusEndpoint()
     {
         await VerifyGetEndpointHit("/api/mycelium/seed-status", c => c.GetSeedStatusAsync());
@@ -600,19 +594,6 @@ public class MyceliumClientTests
         });
 
         (await client.StartServiceAsync(handlerId)).Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task StopDaemonAsync_PostsToDaemonStopEndpointWithEscapedKey()
-    {
-        var (client, _) = NewClient(req =>
-        {
-            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
-            req.RequestUri!.AbsoluteUri.Should().Contain("/api/mycelium/daemons/daemon-key/stop");
-            return Ok();
-        });
-
-        (await client.StopDaemonAsync("daemon-key")).Should().BeTrue();
     }
 
     // ---- HTTP method patterns: POST no body → JsonElement ----

@@ -29,6 +29,8 @@ export function ServicesPanel({ services, onStart, onStop }: Props) {
               <span className="font-medium text-sm">{svc.ServiceName}</span>
               <div className="flex items-center gap-2">
                 <Badge label={svc.HealthStatus} color={healthColor[svc.HealthStatus as HealthStatus] || 'gray'} dot />
+                <Badge label={svc.IsRunning ? 'Running' : 'Stopped'} color={svc.IsRunning ? 'green' : 'red'} dot />
+                {svc.IsExternal && <Badge label="External" color="purple" />}
                 {svc.IsRunning ? (
                   <button onClick={() => onStop(svc.HandlerId)} className="p-1 text-red-400 hover:text-red-300" title="Stop">
                     <Square size={14} />
@@ -56,6 +58,12 @@ export function ServicesPanel({ services, onStart, onStop }: Props) {
                 </span>
               </div>
             </div>
+            {(svc.ProcessId || svc.LastContactTime) && (
+              <div className="mt-1 flex gap-4 text-xs text-zinc-500">
+                {svc.ProcessId && <span>PID: {svc.ProcessId}</span>}
+                {svc.LastContactTime && <span>Last: {formatRelativeTime(svc.LastContactTime)}</span>}
+              </div>
+            )}
             {svc.FailureCount > 0 && (
               <div className="mt-1 text-xs text-amber-400">Failures: {svc.FailureCount}</div>
             )}

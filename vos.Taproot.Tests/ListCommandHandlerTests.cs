@@ -343,71 +343,13 @@ public class ListCommandHandlerTests
         Assert.DoesNotContain(handlerId.ToString(), output);
     }
 
-    // Daemon tests
-
-    [Fact]
-    public async Task ListDaemons_WithNoDaemons_ShowsNoDaemons()
-    {
-        var json = JsonSerializer.Deserialize<JsonElement>("[]");
-        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
-
-        await ExecuteHandler("daemons");
-
-        Assert.Contains("No tracked daemons found", _writer.ToString());
-    }
-
-    [Fact]
-    public async Task ListDaemons_WithDaemons_ShowsDaemons()
-    {
-        var json = JsonSerializer.Deserialize<JsonElement>(
-            "[{\"Key\":\"is:5100\",\"IsRunning\":true,\"ProcessId\":12345,\"ConsecutiveFailures\":0,\"LastFailureTime\":null}]");
-        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
-
-        await ExecuteHandler("daemons");
-
-        var output = _writer.ToString();
-        Assert.Contains("Daemons (1)", output);
-        Assert.Contains("is:5100", output);
-        Assert.Contains("Running", output);
-        Assert.Contains("12345", output);
-    }
-
-    [Fact]
-    public async Task ListDaemons_WithStoppedDaemon_ShowsStopped()
-    {
-        var json = JsonSerializer.Deserialize<JsonElement>(
-            "[{\"Key\":\"is:5100\",\"IsRunning\":false,\"ProcessId\":null,\"ConsecutiveFailures\":0,\"LastFailureTime\":null}]");
-        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
-
-        await ExecuteHandler("daemons");
-
-        var output = _writer.ToString();
-        Assert.Contains("Stopped", output);
-        Assert.Contains("N/A", output);
-    }
-
-    [Fact]
-    public async Task ListDaemons_WithFailures_ShowsFailureInfo()
-    {
-        var json = JsonSerializer.Deserialize<JsonElement>(
-            "[{\"Key\":\"is:5100\",\"IsRunning\":false,\"ProcessId\":null,\"ConsecutiveFailures\":3,\"LastFailureTime\":\"2025-01-30T10:00:00Z\"}]");
-        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
-
-        await ExecuteHandler("daemons");
-
-        var output = _writer.ToString();
-        Assert.Contains("Consecutive Failures: 3", output);
-        Assert.Contains("Last Failure:", output);
-    }
-
-    // Agents tests (combined services + daemons)
+    // Agents = alias for services (each service carries its daemon state inline)
 
     [Fact]
     public async Task ListAgents_WithNone_ShowsNoAgents()
     {
         var emptyJson = JsonSerializer.Deserialize<JsonElement>("[]");
         _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(emptyJson);
-        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(emptyJson);
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(emptyJson);
 
         await ExecuteHandler("agents");
@@ -416,69 +358,22 @@ public class ListCommandHandlerTests
     }
 
     [Fact]
-    public async Task ListAgents_WithServicesOnly_ShowsServices()
+    public async Task ListAgents_WithServices_ShowsServices()
     {
         var handlerId = Guid.NewGuid();
         var thingsJson = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"Id\":\"{handlerId}\",\"Name\":\"IsHandler\"}}]");
         var servicesJson = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
-        var emptyJson = JsonSerializer.Deserialize<JsonElement>("[]");
 
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
         _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
-        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(emptyJson);
 
         await ExecuteHandler("agents");
 
         var output = _writer.ToString();
         Assert.Contains("Registered Services (1)", output);
         Assert.Contains("IsHandler", output);
-        Assert.DoesNotContain("Lazy-started Daemons", output);
-    }
-
-    [Fact]
-    public async Task ListAgents_WithDaemonsOnly_ShowsDaemons()
-    {
-        var thingsJson = JsonSerializer.Deserialize<JsonElement>("[]");
-        var emptyJson = JsonSerializer.Deserialize<JsonElement>("[]");
-        var daemonsJson = JsonSerializer.Deserialize<JsonElement>(
-            "[{\"Key\":\"is:5100\",\"IsRunning\":true,\"ProcessId\":12345,\"ConsecutiveFailures\":0,\"LastFailureTime\":null}]");
-
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(emptyJson);
-        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(daemonsJson);
-
-        await ExecuteHandler("agents");
-
-        var output = _writer.ToString();
-        Assert.Contains("Lazy-started Daemons (1)", output);
-        Assert.Contains("is:5100", output);
-        Assert.DoesNotContain("Registered Services", output);
-    }
-
-    [Fact]
-    public async Task ListAgents_WithBoth_ShowsServicesAndDaemons()
-    {
-        var handlerId = Guid.NewGuid();
-        var thingsJson = JsonSerializer.Deserialize<JsonElement>(
-            $"[{{\"Id\":\"{handlerId}\",\"Name\":\"IsHandler\"}}]");
-        var servicesJson = JsonSerializer.Deserialize<JsonElement>(
-            $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
-        var daemonsJson = JsonSerializer.Deserialize<JsonElement>(
-            "[{\"Key\":\"owns:5200\",\"IsRunning\":true,\"ProcessId\":54321,\"ConsecutiveFailures\":0,\"LastFailureTime\":null}]");
-
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
-        _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
-        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(daemonsJson);
-
-        await ExecuteHandler("agents");
-
-        var output = _writer.ToString();
-        Assert.Contains("Registered Services (1)", output);
-        Assert.Contains("IsHandler", output);
-        Assert.Contains("Lazy-started Daemons (1)", output);
-        Assert.Contains("owns:5200", output);
     }
 
     [Fact]
@@ -489,11 +384,9 @@ public class ListCommandHandlerTests
             $"[{{\"Id\":\"{handlerId}\",\"Name\":\"IsHandler\"}}]");
         var servicesJson = JsonSerializer.Deserialize<JsonElement>(
             $"[{{\"HandlerId\":\"{handlerId}\",\"ServiceName\":\"IsHandler\",\"EndpointUrl\":\"https://localhost:5100\",\"HealthStatus\":\"Healthy\",\"IsRunning\":true}}]");
-        var emptyJson = JsonSerializer.Deserialize<JsonElement>("[]");
 
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsJson);
         _myceliumMock.Setup(b => b.GetAllServicesAsync()).ReturnsAsync(servicesJson);
-        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(emptyJson);
 
         await ExecuteHandler("agents --showguids");
 
@@ -567,19 +460,6 @@ public class ListCommandHandlerTests
         Assert.Contains("temp", output);
         Assert.Contains("serialNumber", output);
         Assert.Contains("Device", output);
-    }
-
-    [Fact]
-    public async Task ListDaemons_NonArrayResponse_ShowsError()
-    {
-        var json = JsonSerializer.Deserialize<JsonElement>("{}"); // Not an array
-        _myceliumMock.Setup(b => b.GetAllDaemonsAsync()).ReturnsAsync(json);
-
-        await ExecuteHandler("daemons");
-
-        var output = _writer.ToString();
-        // Should handle gracefully
-        Assert.DoesNotContain("Daemons (", output);
     }
 
     [Fact]

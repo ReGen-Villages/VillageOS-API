@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ModelStatsCard } from '../components/dashboard/ModelStatsCard';
 import { ServicesPanel } from '../components/dashboard/ServicesPanel';
-import { DaemonsPanel } from '../components/dashboard/DaemonsPanel';
 import { EndpointServicesPanel } from '../components/dashboard/EndpointServicesPanel';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
@@ -16,7 +15,7 @@ import { Power, PanelRightOpen, LogOut, ArrowLeftRight, FileCode2, RefreshCw } f
 import { useAuth } from '../hooks/useAuth';
 import { RegenLogo } from '../components/auth/RegenLogo';
 
-import type { RegisteredService, DaemonInfo, EndpointServiceInfo } from '../types/mycelium';
+import type { RegisteredService, EndpointServiceInfo } from '../types/mycelium';
 
 const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 
@@ -24,7 +23,6 @@ export function DashboardPage() {
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   const [services, setServices] = useState<RegisteredService[]>([]);
-  const [daemons, setDaemons] = useState<DaemonInfo[]>([]);
   const [endpointServices, setEndpointServices] = useState<EndpointServiceInfo[]>([]);
   const [httpOk, setHttpOk] = useState(false);
   const [showShutdown, setShowShutdown] = useState(false);
@@ -43,13 +41,11 @@ export function DashboardPage() {
 
   const loadMyceliumData = useCallback(async () => {
     try {
-      const [s, d, ep] = await Promise.all([
+      const [s, ep] = await Promise.all([
         myceliumApi.getServices(),
-        myceliumApi.getDaemons(),
         endpointApi.getAll(),
       ]);
       setServices(s);
-      setDaemons(d);
       setEndpointServices(ep);
       setHttpOk(true);
     } catch (err) {
@@ -62,13 +58,12 @@ export function DashboardPage() {
     loadMyceliumData();
   }, [loadMyceliumData]);
 
-  // On connection drop, mark services/daemons offline so no stale "running" state shows.
+  // On connection drop, mark services offline so no stale "running" state shows.
   useEffect(() => {
     if (!connected) {
       setServices((prev) =>
-        prev.map((s) => ({ ...s, IsRunning: false, HealthStatus: 'Unreachable' })),
+        prev.map((s) => ({ ...s, IsRunning: false, ProcessId: undefined, HealthStatus: 'Unreachable' })),
       );
-      setDaemons((prev) => prev.map((d) => ({ ...d, IsRunning: false, ProcessId: undefined })));
     }
   }, [connected]);
 
@@ -76,7 +71,7 @@ export function DashboardPage() {
   useEffect(() => {
     const unsubs = [
       on('ServiceHealthChanged', () => myceliumApi.getServices().then(setServices)),
-      on('DaemonStatusChanged', () => myceliumApi.getDaemons().then(setDaemons)),
+      on('DaemonStatusChanged', () => myceliumApi.getServices().then(setServices)),
       on('EndpointServiceRequestCompleted', () => endpointApi.getAll().then(setEndpointServices)),
       on('ModelChanged', () => loadMyceliumData()),
     ];
@@ -98,16 +93,6 @@ export function DashboardPage() {
       await myceliumApi.stopService(id);
       toast.success('Stop requested');
       setServices(await myceliumApi.getServices());
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Stop failed');
-    }
-  };
-
-  const handleStopDaemon = async (key: string) => {
-    try {
-      await myceliumApi.stopDaemon(key);
-      toast.success('Daemon stopped');
-      setDaemons(await myceliumApi.getDaemons());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Stop failed');
     }
@@ -203,7 +188,6 @@ export function DashboardPage() {
           <ModelStatsCard things={things} relationships={relationships} />
           <ServicesPanel services={services} onStart={handleStartService} onStop={handleStopService} />
           <EndpointServicesPanel endpoints={endpointServices} />
-          <DaemonsPanel daemons={daemons} onStop={handleStopDaemon} />
           <PropertyModePanel />
         </div>
         {!feedCollapsed && (

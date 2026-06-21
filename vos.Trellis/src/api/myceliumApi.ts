@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { RegisteredService, DaemonInfo } from '../types/mycelium';
+import type { RegisteredService } from '../types/mycelium';
 
 export interface StartupProgress {
   IsLoading: boolean;
@@ -26,11 +26,6 @@ export const myceliumApi = {
 
   stopService: (id: string) =>
     apiClient.post<{ message: string }>(`/api/mycelium/services/${id}/stop`),
-
-  getDaemons: () => apiClient.get<DaemonInfo[]>('/api/mycelium/daemons'),
-
-  stopDaemon: (key: string) =>
-    apiClient.post<{ message: string }>(`/api/mycelium/daemons/${encodeURIComponent(key)}/stop`),
 
   shutdown: () => apiClient.post<{ message: string }>('/api/mycelium/shutdown'),
 
