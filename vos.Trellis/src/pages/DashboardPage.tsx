@@ -119,8 +119,8 @@ export function DashboardPage() {
   };
 
   return (
-    <div className="h-full overflow-auto p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
           <RegenLogo className="w-8 h-8" />
           <h2 className="text-xl font-bold">Mycelium Dashboard</h2>
@@ -183,18 +183,20 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
-        <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
-          <ModelStatsCard things={things} relationships={relationships} />
-          <ServicesPanel services={services} onStart={handleStartService} onStop={handleStopService} />
-          <EndpointServicesPanel endpoints={endpointServices} />
-          <PropertyModePanel />
-        </div>
-        {!feedCollapsed && (
-          <div className="lg:col-span-1 lg:sticky lg:top-6">
-            <ActivityFeed events={events} onCollapse={toggleFeedCollapsed} />
+      <div className="flex-1 overflow-auto px-6 pb-6">
+        <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
+          <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
+            <ModelStatsCard things={things} relationships={relationships} />
+            <ServicesPanel services={services} onStart={handleStartService} onStop={handleStopService} />
+            <EndpointServicesPanel endpoints={endpointServices} />
+            <PropertyModePanel />
           </div>
-        )}
+          {!feedCollapsed && (
+            <div className="lg:col-span-1 lg:sticky lg:top-0">
+              <ActivityFeed events={events} onCollapse={toggleFeedCollapsed} />
+            </div>
+          )}
+        </div>
       </div>
 
       <ConfirmDialog
