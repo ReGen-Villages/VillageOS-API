@@ -12,12 +12,11 @@ const NAMESPACE = '7c9e6f50-5e15-4d2a-9b3a-5e6d12340000';
 const TYPE_ENDPOINT_SERVICE = 'EndpointService';
 const TYPE_HANDLED_PREDICATE = 'Handled Predicate';
 const PREDICATE_IS = 'is';
-const PREDICATE_HAS_HANDLER = 'hasHandler';
+const PREDICATE_HAS = 'has';
 
 const FLAG_CONNECTION = '__IsConnection';
 const FLAG_HANDLER = '__IsHandler';
 const FLAG_PROTOTYPE = '__IsPrototypeHandler';
-const FLAG_BINDS_HANDLER = '__BindsHandler';
 
 // Launch properties that move off the connection onto the handler/prototype.
 // Subdomain is deliberately excluded — it is a connection selector, not launch info.
@@ -93,7 +92,7 @@ function migrateSeed(input) {
     connectionInstances.push(inst);
   }
 
-  const hasHandlerId = ensureBindingPredicate(seed.Things);
+  const hasId = ensureHasPredicate(seed.Things);
   const prototypesByExe = new Map();
   const existingIds = new Set(seed.Things.map((t) => t.Id));
 
@@ -143,7 +142,7 @@ function migrateSeed(input) {
     summary.handlers++;
 
     addRelationship(seed, uuidv5(`is:${handlerId}`), `${handler.Name} is ${proto.Name}`, handlerId, isPredicateId, proto.Id);
-    addRelationship(seed, uuidv5(`bind:${conn.Id}`), `${conn.Name} hasHandler ${handler.Name}`, conn.Id, hasHandlerId, handlerId);
+    addRelationship(seed, uuidv5(`bind:${conn.Id}`), `${conn.Name} has ${handler.Name}`, conn.Id, hasId, handlerId);
 
     conn.Properties = conn.Properties || {};
     conn.Properties[FLAG_CONNECTION] = prop(true);
@@ -174,17 +173,13 @@ function migrateSeed(input) {
   return { seed, summary };
 }
 
-function ensureBindingPredicate(things) {
-  const existing = things.find((t) => t.Properties && t.Properties[FLAG_BINDS_HANDLER]);
-  if (existing) return existing.Id;
-  const named = things.find((t) => t.Name === PREDICATE_HAS_HANDLER);
-  if (named) {
-    named.Properties = named.Properties || {};
-    named.Properties[FLAG_BINDS_HANDLER] = prop(true);
-    return named.Id;
-  }
-  const id = uuidv5('predicate:hasHandler');
-  things.push({ Id: id, Name: PREDICATE_HAS_HANDLER, Properties: { [FLAG_BINDS_HANDLER]: prop(true) } });
+// The binding uses the generic `has` predicate; a reader identifies the handler
+// as the `has`-target flagged __IsHandler, never by the predicate name.
+function ensureHasPredicate(things) {
+  const named = things.find((t) => t.Name === PREDICATE_HAS);
+  if (named) return named.Id;
+  const id = uuidv5('predicate:has');
+  things.push({ Id: id, Name: PREDICATE_HAS, Properties: {} });
   return id;
 }
 

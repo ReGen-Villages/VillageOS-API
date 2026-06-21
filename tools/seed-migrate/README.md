@@ -21,15 +21,17 @@ That duplicated the executable across every connection sharing a binary (both
 The new model separates them:
 
 | Concept | Flag | Holds |
-|---|---|---|
+| --- | --- | --- |
 | **Connection** | `__IsConnection` | the selector: `trigger` (`graph`/`http`) and, for HTTP, `Subdomain` |
 | **Handler** | `__IsHandler` | per-instance overrides only: `ServicePort`, `ServiceArgs`, `AutoStart` |
 | **PrototypeHandler** | `__IsPrototypeHandler` | the shared definition: `ExecutablePath`, `RunMode` (and later `ContractId`, `TokenScope`) |
 
-A `Connection` binds its `Handler` through a **`hasHandler`** predicate flagged
-`__BindsHandler` (readers follow the flag, never the name). A `Handler`
-inherits the shared definition from its `PrototypeHandler` via the ordinary
-`is` predicate, so the executable is defined once.
+A `Connection` binds its `Handler` through the **generic `has`** relation; the
+meaning lives on the **target**, so a reader finds a connection's handler as the
+`has`-target flagged `__IsHandler` — it never matches a predicate name. A
+`Handler` inherits the shared definition from its `PrototypeHandler` via the
+ordinary `is` predicate, so the executable is defined once. Both links use
+generic relations (`has`, `is`); nothing introduces a dedicated predicate.
 
 ## Usage
 
@@ -53,7 +55,8 @@ If you maintain your own seed, you do **not** need to hand-edit it — run
 `migrate.js --write`. For reference, here is what it does to each service, using
 `consumes` (a Metabolism predicate) as the example:
 
-**Before**
+Before:
+
 ```jsonc
 // consumes — selector AND launch info fused together
 { "Name": "consumes", "Properties": {
@@ -63,7 +66,8 @@ If you maintain your own seed, you do **not** need to hand-edit it — run
     "onLoad":         { "value": true } } }
 ```
 
-**After**
+After:
+
 ```jsonc
 { "Name": "consumes", "Properties": {                 // now just a selector
     "__IsConnection": { "value": true },

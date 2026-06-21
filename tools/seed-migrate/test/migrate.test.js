@@ -58,7 +58,8 @@ test('two predicates on the same binary share one PrototypeHandler', () => {
   const metab = protos.find((p) => p.Name === 'Metabolism Prototype');
   assert.ok(metab, 'Metabolism prototype exists');
 
-  const bind = (subjName) => seed.Relationships.find((r) => byId(seed, r.Subject) && byId(seed, r.Subject).Name === subjName && byName(seed, 'hasHandler').Id === r.Predicate);
+  const hasId = byName(seed, 'has').Id;
+  const bind = (subjName) => seed.Relationships.find((r) => byId(seed, r.Subject) && byId(seed, r.Subject).Name === subjName && r.Predicate === hasId && flag(byId(seed, r.Target), '__IsHandler'));
   const cHandler = byId(seed, bind('consumes').Target);
   const pHandler = byId(seed, bind('produces').Target);
   const isId = byName(seed, 'is').Id;
@@ -81,10 +82,17 @@ test('handler keeps only per-instance overrides; prototype keeps the binary', ()
   assert.equal(cHandler.Properties.ExecutablePath, undefined); // inherited, not duplicated
 });
 
-test('binding predicate is flagged __BindsHandler, not the generic has', () => {
+test('connection binds its handler with the generic `has`, identified by the target flag', () => {
   const { seed } = migrateSeed(baseSeed());
-  const binder = byName(seed, 'hasHandler');
-  assert.ok(binder && flag(binder, '__BindsHandler'));
+  const hasId = byName(seed, 'has').Id;
+  const consumes = byName(seed, 'consumes');
+  const binding = seed.Relationships.find((r) => r.Subject === consumes.Id && r.Predicate === hasId);
+  assert.ok(binding, 'consumes has a `has` binding');
+  // the meaning lives on the target, not on a special predicate
+  assert.equal(flag(byId(seed, binding.Target), '__IsHandler'), true);
+  // no dedicated binding predicate was introduced
+  assert.equal(seed.Things.some((t) => t.Properties && t.Properties.__BindsHandler), false);
+  assert.equal(seed.Things.some((t) => t.Name === 'hasHandler'), false);
 });
 
 test('http vs graph trigger inferred from Subdomain; subdomain kept on connection', () => {
