@@ -13,9 +13,16 @@ public static class HandlerAuthExtensions
     public static WebApplicationBuilder AddMyceliumTokenAuth(
         this WebApplicationBuilder builder,
         string base64SigningKey,
-        string issuer = "VillageOS",
-        string audience = "VosClients")
+        string? issuer,
+        string? audience)
     {
+        // Fail fast: the broker passes issuer/audience (Bug #5390). A missing value previously fell back
+        // to a wrong default and silently 401'd every /handle call — surface it at startup instead.
+        if (string.IsNullOrEmpty(issuer))
+            throw new ArgumentException("JWT issuer is required — the broker passes it via --issuer.", nameof(issuer));
+        if (string.IsNullOrEmpty(audience))
+            throw new ArgumentException("JWT audience is required — the broker passes it via --audience.", nameof(audience));
+
         var keyBytes = Convert.FromBase64String(base64SigningKey);
         var keyString = Encoding.UTF8.GetString(keyBytes);
 

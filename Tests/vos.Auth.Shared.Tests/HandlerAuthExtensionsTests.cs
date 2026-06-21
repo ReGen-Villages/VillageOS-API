@@ -26,21 +26,19 @@ public class HandlerAuthExtensionsTests
     {
         var builder = NewBuilder();
 
-        var result = builder.AddMyceliumTokenAuth(Base64Of(RawKey));
+        var result = builder.AddMyceliumTokenAuth(Base64Of(RawKey), "VillageOS", "VillageOSClients");
 
         result.Should().BeSameAs(builder);
     }
 
     [Fact]
-    public void AddMyceliumTokenAuth_UsesDefaultIssuerAndAudience()
+    public void AddMyceliumTokenAuth_ThrowsWhenIssuerOrAudienceMissing()
     {
-        var builder = NewBuilder();
+        var missingIssuer = () => NewBuilder().AddMyceliumTokenAuth(Base64Of(RawKey), issuer: null, audience: "aud");
+        missingIssuer.Should().Throw<ArgumentException>();
 
-        builder.AddMyceliumTokenAuth(Base64Of(RawKey));
-
-        var p = ResolveBearerValidationParameters(builder);
-        p.ValidIssuer.Should().Be("VillageOS");
-        p.ValidAudience.Should().Be("VosClients");
+        var missingAudience = () => NewBuilder().AddMyceliumTokenAuth(Base64Of(RawKey), issuer: "iss", audience: "");
+        missingAudience.Should().Throw<ArgumentException>();
     }
 
     [Fact]
@@ -60,7 +58,7 @@ public class HandlerAuthExtensionsTests
     {
         var builder = NewBuilder();
 
-        builder.AddMyceliumTokenAuth(Base64Of(RawKey));
+        builder.AddMyceliumTokenAuth(Base64Of(RawKey), "VillageOS", "VillageOSClients");
 
         var p = ResolveBearerValidationParameters(builder);
         var sym = p.IssuerSigningKey.Should().BeOfType<SymmetricSecurityKey>().Subject;
@@ -72,7 +70,7 @@ public class HandlerAuthExtensionsTests
     {
         var builder = NewBuilder();
 
-        builder.AddMyceliumTokenAuth(Base64Of(RawKey));
+        builder.AddMyceliumTokenAuth(Base64Of(RawKey), "VillageOS", "VillageOSClients");
 
         using var app = builder.Build();
         var provider = app.Services.GetRequiredService<IAuthenticationSchemeProvider>();
@@ -86,7 +84,7 @@ public class HandlerAuthExtensionsTests
     {
         var builder = NewBuilder();
 
-        builder.AddMyceliumTokenAuth(Base64Of(RawKey));
+        builder.AddMyceliumTokenAuth(Base64Of(RawKey), "VillageOS", "VillageOSClients");
 
         using var app = builder.Build();
         app.Services.GetService<Microsoft.AspNetCore.Authorization.IAuthorizationService>()
@@ -98,7 +96,7 @@ public class HandlerAuthExtensionsTests
     {
         var builder = NewBuilder();
 
-        var act = () => builder.AddMyceliumTokenAuth("not!valid!base64!");
+        var act = () => builder.AddMyceliumTokenAuth("not!valid!base64!", "VillageOS", "VillageOSClients");
 
         act.Should().Throw<FormatException>();
     }
