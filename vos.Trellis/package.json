@@ -13,10 +13,12 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "node --test test/e2e/model-viewer.e2e.mjs"
   },
-  "dependencies": {    "@react-sigma/core": "^5.0.6",
+  "dependencies": {
+    "@react-sigma/core": "^5.0.6",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@thatopen/fragments": "^3.4.3",
+    "@xyflow/react": "^12.11.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "graphology": "^0.26.0",
