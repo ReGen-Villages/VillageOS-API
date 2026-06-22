@@ -1,0 +1,99 @@
+using System.Text.Json;
+
+namespace vos.ManagedMicroservice.Phloem.Model;
+
+/// <summary>Thrown when a pipeline cannot be resolved into an executable DAG (missing binding, no subdomain,
+/// unknown pipeline). Distinct from validation failures (cycles / port-type mismatches).</summary>
+public sealed class PipelineModelException : Exception
+{
+    public PipelineModelException(string message) : base(message) { }
+}
+
+/// <summary>Resolves a loaded <see cref="PipelineGraph"/> + pipelineId into a <see cref="PipelineDag"/>:
+/// nodes, their dispatch subdomain (node <c>has</c> Connection, <c>Subdomain</c> property), ports (walk the
+/// bound service's <c>is</c>-chain), and wires (predicate <c>is PipelineWire</c>, carrying fromPort/toPort).</summary>
+public static class PipelineDagBuilder
+{
+    public static PipelineDag Build(PipelineGraph graph, Guid pipelineId)
+    {
+        var pipeline = graph.Thing(pipelineId)
+            ?? throw new PipelineModelException($"Pipeline {pipelineId} not found in the loaded subgraph.");
+        if (!graph.IsOfType(pipeline, ModelNames.Pipeline))
+            throw new PipelineModelException($"Thing {pipelineId} ('{pipeline.Name}') is not a Pipeline.");
+
+        var nodeThings = graph.OutgoingTargets(pipeline, ModelNames.Has)
+            .Where(t => graph.IsOfType(t, ModelNames.PipelineNode))
+            .ToList();
+        if (nodeThings.Count == 0)
+            throw new PipelineModelException($"Pipeline '{pipeline.Name}' has no PipelineNodes.");
+
+        var nodeIds = nodeThings.Select(n => n.Id).ToHashSet();
+        var nodes = nodeThings.Select(n => BuildNode(graph, n)).ToList();
+
+        var wires = new List<DagWire>();
+        foreach (var nodeThing in nodeThings)
+            foreach (var rel in graph.OutgoingByPredicateType(nodeThing, ModelNames.PipelineWire))
+            {
+                if (!nodeIds.Contains(rel.TargetId)) continue; // ignore wires leaving the pipeline
+                wires.Add(new DagWire(
+                    nodeThing.Id,
+                    rel.PropertyString(ModelNames.FromPort) ?? string.Empty,
+                    rel.TargetId,
+                    rel.PropertyString(ModelNames.ToPort) ?? string.Empty));
+            }
+
+        return new PipelineDag
+        {
+            PipelineId = pipelineId,
+            Name = pipeline.Name,
+            Nodes = nodes,
+            Wires = wires,
+        };
+    }
+
+    private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing)
+    {
+        var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
+            .FirstOrDefault(t => graph.IsOfType(t, ModelNames.Connection))
+            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' binds no Connection (has → Connection).");
+
+        var subdomain = connection.PropertyString(ModelNames.Subdomain);
+        if (string.IsNullOrWhiteSpace(subdomain))
+            throw new PipelineModelException($"Connection '{connection.Name}' for node '{nodeThing.Name}' has no Subdomain.");
+
+        var service = graph.OutgoingTargets(connection, ModelNames.Has)
+            .FirstOrDefault(t => graph.IsOfType(t, ModelNames.Service))
+            ?? throw new PipelineModelException($"Connection '{connection.Name}' binds no Service (has → Service).");
+
+        return new DagNode
+        {
+            NodeId = nodeThing.Id,
+            Name = nodeThing.Name,
+            Subdomain = subdomain!,
+            Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
+            Ports = ResolvePorts(graph, service).ToList(),
+        };
+    }
+
+    /// <summary>Collect Port child-Things by walking the service's <c>is</c>-chain — relationships do not
+    /// inherit through <c>is</c>, so ports resolve at read time at each level of the chain.</summary>
+    private static IEnumerable<DagPort> ResolvePorts(PipelineGraph graph, GraphThing service)
+    {
+        var seen = new HashSet<Guid>();
+        var stack = new Stack<GraphThing>();
+        stack.Push(service);
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (!seen.Add(current.Id)) continue;
+            foreach (var portThing in graph.OutgoingTargets(current, ModelNames.Has).Where(t => graph.IsOfType(t, ModelNames.Port)))
+                yield return new DagPort(
+                    portThing.PropertyString(ModelNames.PortName) ?? portThing.Name,
+                    portThing.PropertyString(ModelNames.Direction) ?? ModelNames.DirectionIn,
+                    portThing.PropertyString(ModelNames.PortType) ?? string.Empty,
+                    string.Equals(portThing.PropertyString(ModelNames.Required), "true", StringComparison.OrdinalIgnoreCase));
+            foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
+                stack.Push(parent);
+        }
+    }
+}
