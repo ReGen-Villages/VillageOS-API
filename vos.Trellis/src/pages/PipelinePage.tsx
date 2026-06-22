@@ -12,7 +12,7 @@ import {
   type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Play, Save, FolderOpen } from 'lucide-react';
+import { Play, Save, FolderOpen, FilePlus, MousePointerClick } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
 import { PipelineModel, ARCHETYPE, typesCompatible, type ConnectionInfo } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
@@ -116,6 +116,15 @@ export function PipelinePage() {
     setEdges(loaded.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle })));
   }, [model, connections, setNodes, setEdges]);
 
+  const onNew = useCallback(() => {
+    setNodes([]);
+    setEdges([]);
+    setName('New Pipeline');
+    setSavedId(null);
+    setResult(null);
+    setError(null);
+  }, [setNodes, setEdges]);
+
   const onRun = useCallback(async () => {
     if (!savedId) return;
     setBusy(true);
@@ -134,9 +143,13 @@ export function PipelinePage() {
       <Palette connections={connections} onAdd={addNode} />
       <div className="flex-1 flex flex-col">
         <div className="flex items-center gap-2 p-2 border-b border-zinc-200 dark:border-zinc-700">
+          <button onClick={onNew} className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400">
+            <FilePlus size={14} /> New
+          </button>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
+            aria-label="Pipeline name"
             className="px-2 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
           />
           <button onClick={onSave} disabled={busy || nodes.length === 0} className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-50">
@@ -159,7 +172,7 @@ export function PipelinePage() {
           {savedId && <span className="text-xs text-green-600">saved</span>}
           {error && <span className="text-xs text-red-500 ml-2">{error}</span>}
         </div>
-        <div className="flex-1">
+        <div className="flex-1 relative">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -172,6 +185,24 @@ export function PipelinePage() {
             <Background />
             <Controls />
           </ReactFlow>
+          {nodes.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="text-center text-sm text-zinc-500 dark:text-zinc-400 max-w-xs">
+                {connections.length > 0 ? (
+                  <>
+                    <MousePointerClick className="mx-auto mb-2 text-zinc-400" size={28} />
+                    <p className="font-medium text-zinc-600 dark:text-zinc-300">Start a new pipeline</p>
+                    <p className="mt-1">Click a service in the <span className="font-medium">Services</span> palette on the left to drop your first node, then drag between ports to wire them.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium text-zinc-600 dark:text-zinc-300">No services available</p>
+                    <p className="mt-1">Load a model that has registered <span className="font-medium">Connections</span> (e.g. the pipeline demo seed) — they appear in the palette as nodes you can add.</p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         {result && (
           <div className="border-t border-zinc-200 dark:border-zinc-700 p-2 text-xs max-h-40 overflow-auto">
