@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Network, LayoutDashboard, Clock, Search, Boxes, Box, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Network, LayoutDashboard, Clock, Search, Boxes, Box, Workflow, ChevronLeft, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -8,6 +8,7 @@ const links = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/graph', icon: Network, label: 'Graph' },
   { to: '/model', icon: Box, label: 'Model' },
+  { to: '/pipelines', icon: Workflow, label: 'Pipelines' },
   { to: '/temporal', icon: Clock, label: 'Temporal' },
   { to: '/things', icon: Boxes, label: 'Things' },
   { to: '/properties', icon: Search, label: 'Properties' },
