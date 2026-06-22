@@ -101,3 +101,14 @@ unhandled 500 — so the orchestrator can record the node failure and halt depen
 
 > Languages other than .NET implement the same envelope directly — it is plain JSON over the existing
 > `/handle`, identical in spirit to the base contract's relationship body.
+
+## Reference nodes
+
+Two shipped services double as DAG nodes, both wiring `DagNodeService` into their existing `/handle`
+behind `IsNodeEnvelope`:
+
+- **Echo** (`EchoNode`) — the smallest node: `message` (in) → `echo` (out). Proves the envelope end to end.
+- **Tributary** (`TributaryNode`) — a real node: `endpointName` / optional `body` / optional
+  `responseTransform` (in) → `response` (out). It calls a registered endpoint through the **same**
+  `EndpointCallService` the legacy `/handle` uses, so a node gets full parity — auth, paging, and response
+  transforms all driven by the endpoint Thing. This is how a pipeline reaches an external HTTP system.

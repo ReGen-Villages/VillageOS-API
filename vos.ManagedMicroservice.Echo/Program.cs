@@ -1,6 +1,7 @@
 using vos.Auth.Shared;
 using vos.ManagedMicroservice.Echo.Configuration;
 using vos.ManagedMicroservice.Echo.Services;
+using vos.ManagedMicroservice.Shared.DagNode;
 using vos.ManagedMicroservice.Shared.Subscriptions;
 using Serilog;
 
@@ -61,6 +62,13 @@ builder.Services.AddSingleton(sp =>
         myceliumUrl,
         serviceToken));
 
+builder.Services.AddSingleton(sp =>
+    new EchoNode(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<ILogger<EchoNode>>(),
+        myceliumUrl,
+        serviceToken));
+
 var app = builder.Build();
 
 if (authEnabled)
@@ -98,25 +106,37 @@ app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
     }
 }));
 
-var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx) =>
+var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx, EchoNode node) =>
 {
     var count = Interlocked.Increment(ref requestCount);
 
-    Log.Information("Echo request #{Count} received", count);
-
     using var reader = new StreamReader(ctx.Request.Body);
     var rawJson = await reader.ReadToEndAsync();
+    var root = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(rawJson);
 
+    // Additive DAG-node path: an orchestrator invocation carries runId+nodeId. Everything else
+    // is a legacy echo request and is handled exactly as before.
+    if (DagNodeService.IsNodeEnvelope(root))
+    {
+        Log.Information("Echo node invocation #{Count}", count);
+        return Results.Ok(await node.HandleNodeAsync(root, ctx.RequestAborted));
+    }
+
+    Log.Information("Echo request #{Count} received", count);
     return Results.Ok(new
     {
         success = true,
         service = "echo",
         requestNumber = count,
         receivedBytes = rawJson.Length,
-        echo = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(rawJson)
+        echo = root
     });
 });
 if (authEnabled) handleEndpoint.RequireAuthorization();
+
+// Advertise the node's ports so the orchestrator and the Trellis palette can type-check wires.
+var manifestEndpoint = app.MapGet("/manifest", (EchoNode node) => Results.Ok(node.Ports));
+if (authEnabled) manifestEndpoint.RequireAuthorization();
 
 app.MapGet("/health", () => new
 {
