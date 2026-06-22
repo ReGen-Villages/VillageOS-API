@@ -31,7 +31,8 @@ Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev
 | vos.ManagedMicroservice.Delta | Production | Registers data sources against a single-rooted endpoint-template graph (`is`-inheritance), with schema discovery and saga compensation |
 | vos.ManagedMicroservice.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
 | vos.ManagedMicroservice.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
-| vos.ManagedMicroservice.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference |
+| vos.ManagedMicroservice.Phloem | Production | Pipeline/DAG orchestrator — runs a user-authored DAG of microservice nodes; spawned synchronously through Mycelium, dispatches each node via endpoint-forward (see [PIPELINE_ORCHESTRATOR.md](docs/PIPELINE_ORCHESTRATOR.md)) |
+| vos.ManagedMicroservice.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline DAG node |
 | vos.ManagedMicroservice.Go | Example (Go) | The same handler in Go (standard library, zero deps) |
 | vos.ManagedMicroservice.Node | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |
 | vos.ManagedMicroservice.Python | Example (Python) | The same handler in FastAPI |

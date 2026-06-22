@@ -20,9 +20,11 @@ reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
 [`MICROSERVICE_AUTHORING.md`](MICROSERVICE_AUTHORING.md).
 
-Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`. **Echo is
+Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`, `Phloem`. **Echo is
 the canonical reference implementation** — the simplest. When adding a new
-microservice, copy Echo's structure and the test patterns in §10.
+microservice, copy Echo's structure and the test patterns in §10. `Phloem` is the
+pipeline/DAG orchestrator (see [`PIPELINE_ORCHESTRATOR.md`](PIPELINE_ORCHESTRATOR.md)); a
+service becomes a pipeline *node* via the [`PIPELINE_NODE_CONTRACT.md`](PIPELINE_NODE_CONTRACT.md).
 
 Project references: `vos.Auth.Shared` (inbound JWT validation) and
 `vos.ManagedMicroservice.Shared` (Mycelium-client base, validators, contract-

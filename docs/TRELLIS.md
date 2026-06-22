@@ -427,7 +427,7 @@ Every card shows request statistics (total requests, average response time, last
   - **External badge** — shown when the daemon was started outside Mycelium
   - **Process ID** and **last contact time** when running; **failure count** when non-zero
   - **Start/Stop buttons** (admin only) that launch or stop the backing daemon through Mycelium
-- **HTTP connections** additionally show an **error count** (non-2xx responses).
+- **HTTP connections** additionally show an **error count** (non-2xx responses) and a **Delete (retract)** button that removes the connection from the model (`DELETE /api/things/{id}`) after a confirm — distinct from **Stop** (which only kills the process; the service stays registered to lazy-start again). The connection still exists in the seed, so a seed reload restores it.
 
 ### 7.3 Activity Feed
 
@@ -449,6 +449,30 @@ The top-right controls include:
 - **Log Out** (exit icon) — End the current session
 
 If either status indicator turns red, Mycelium may be down or unreachable.
+
+### 7.4 Pipelines (DAG editor)
+
+The **Pipelines** page (`/pipelines`) is a Grasshopper/Dynamo-style visual editor for building and running
+DAGs whose nodes are microservices, on `@xyflow/react` (the Sigma graph view stays for the model). A pipeline
+is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no new storage.
+
+- **Palette** — every dispatchable **Connection** in the model (an http connection with a `Subdomain` and a
+  bound Service). Click one to drop a node bound to it; its typed input/output **ports** resolve from the
+  bound service's `is`-chain (the same resolution Phloem does).
+- **Wiring** — drag from an output port to an input port. Wires are **type-checked**; incompatible types are
+  refused.
+- **New / Save / Load** — **New** clears the canvas; **Save** writes a `Pipeline` + `PipelineNode` Things and
+  `has`/`feeds` relationships (node `‑has→ Connection`, positions round-trip as x/y); **Load** picks an
+  existing pipeline from the model.
+- **Run** — spawns the **Phloem** orchestrator synchronously (`POST /api/endpoints/phloem`) and shows the
+  per-node result. Running lazy-starts Phloem and each node's service through Mycelium.
+- **Empty state** — with no nodes, the canvas points you to the palette; if the model has no dispatchable
+  Connections it says so (load a model whose seed has pipeline Connections — see
+  `tools/seed-migrate/pipeline-enable.js`).
+
+The model side (archetypes, node-binds-Connection, the `PipelineWire` predicate) and the orchestrator are
+documented in [`PIPELINE_ORCHESTRATOR.md`](PIPELINE_ORCHESTRATOR.md) and
+[`PIPELINE_NODE_CONTRACT.md`](PIPELINE_NODE_CONTRACT.md).
 
 ---
 
@@ -922,6 +946,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
 | `/things` | `ThingSearchPage` | Dedicated thing-name search with ranked results (exact → prefix → substring → ID), type badges from `is` relationships, property preview, markdown export. Pure search logic in `src/utils/thingSearch.ts`. |
 | `/properties` | `PropertySearchPage` | Dedicated property-name search across all things and relationships, grouped by property name, inherited property tree walking, temporal history panel, markdown export. |
+| `/pipelines` | `PipelinePage` | Visual DAG editor (react-flow) for pipeline/orchestration. Palette of dispatchable Connections (subdomain + typed ports), type-checked wiring, save/load as Things+relationships, and **Run** (spawns Phloem synchronously). See §7.4. |
 
 ---
 
