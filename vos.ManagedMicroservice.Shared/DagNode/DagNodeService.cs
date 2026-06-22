@@ -1,0 +1,133 @@
+using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+
+namespace vos.ManagedMicroservice.Shared.DagNode;
+
+/// <summary>
+/// Base a microservice inherits to act as a node in a pipeline DAG (Feature #5628). It maps the uniform
+/// orchestrator envelope <c>{runId,nodeId,params,inputs} → {success,outputs,error}</c> onto the
+/// subclass's <see cref="ExecuteNodeAsync"/>, resolving any graph-reference inputs first. The envelope is
+/// <b>additive</b>: a service detects a node invocation with <see cref="IsNodeEnvelope"/> and routes it
+/// here, leaving its existing graph/http <c>/handle</c> behaviour untouched. <see cref="Ports"/> backs the
+/// optional <c>/manifest</c> endpoint and the Trellis palette.
+/// </summary>
+public abstract class DagNodeService : MyceliumClientBase
+{
+    protected DagNodeService(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+    {
+    }
+
+    /// <summary>The input/output ports this node advertises — served at <c>/manifest</c> and shown in the editor.</summary>
+    public abstract IReadOnlyList<PortDescriptor> Ports { get; }
+
+    /// <summary>Map resolved inputs + params to outputs. Throw to fail the node — the failure is reported as
+    /// <c>{success:false,error}</c>, never as an unhandled 500.</summary>
+    protected abstract Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken);
+
+    /// <summary>True iff <paramref name="root"/> is a DAG-node invocation (carries both <c>runId</c> and
+    /// <c>nodeId</c>) rather than a legacy graph/http <c>/handle</c> body.</summary>
+    public static bool IsNodeEnvelope(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object
+        && root.TryGetProperty("runId", out _)
+        && root.TryGetProperty("nodeId", out _);
+
+    /// <summary>Parse the envelope, resolve reference inputs, run the node, and shape the reply. A service
+    /// wires this into its <c>/handle</c> after <see cref="IsNodeEnvelope"/> matches.</summary>
+    public async Task<NodeResponse> HandleNodeAsync(JsonElement root, CancellationToken cancellationToken = default)
+    {
+        NodeRequest request;
+        try
+        {
+            request = ParseEnvelope(root);
+        }
+        catch (Exception ex)
+        {
+            return Failure($"Malformed node envelope: {ex.Message}");
+        }
+
+        try
+        {
+            var inputs = await ResolveInputsAsync(request.Inputs, cancellationToken);
+            var context = new NodeContext(request.RunId, request.NodeId, request.Params, inputs);
+            var result = await ExecuteNodeAsync(context, cancellationToken);
+            return new NodeResponse(true, result.Outputs, null);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "DAG node {NodeId} (run {RunId}) failed", request.NodeId, request.RunId);
+            return Failure(ex.Message);
+        }
+    }
+
+    private static NodeRequest ParseEnvelope(JsonElement root)
+    {
+        var runId = root.GetProperty("runId").GetGuid();
+        var nodeId = root.GetProperty("nodeId").GetGuid();
+        var @params = root.TryGetProperty("params", out var p) ? p.Clone() : default;
+
+        var inputs = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        if (root.TryGetProperty("inputs", out var ins) && ins.ValueKind == JsonValueKind.Object)
+            foreach (var prop in ins.EnumerateObject())
+                inputs[prop.Name] = prop.Value.Clone();
+
+        return new NodeRequest(runId, nodeId, @params, inputs);
+    }
+
+    /// <summary>Replace any <c>{"ref":{"thingId","property"}}</c> input with the live graph value; pass literals through.</summary>
+    private async Task<IReadOnlyDictionary<string, JsonElement>> ResolveInputsAsync(
+        IReadOnlyDictionary<string, JsonElement> inputs, CancellationToken cancellationToken)
+    {
+        var resolved = new Dictionary<string, JsonElement>(inputs.Count, StringComparer.Ordinal);
+        foreach (var (port, value) in inputs)
+            resolved[port] = TryReadRef(value, out var thingId, out var property)
+                ? await FetchRefAsync(thingId, property, cancellationToken)
+                : value;
+        return resolved;
+    }
+
+    private static bool TryReadRef(JsonElement value, out Guid thingId, out string property)
+    {
+        thingId = Guid.Empty;
+        property = string.Empty;
+        if (value.ValueKind != JsonValueKind.Object || !value.TryGetProperty("ref", out var r) || r.ValueKind != JsonValueKind.Object)
+            return false;
+        if (!r.TryGetProperty("thingId", out var t) || !t.TryGetGuid(out thingId))
+            return false;
+        if (!r.TryGetProperty("property", out var p) || p.ValueKind != JsonValueKind.String)
+            return false;
+        property = p.GetString()!;
+        return true;
+    }
+
+    private async Task<JsonElement> FetchRefAsync(Guid thingId, string property, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{thingId}/effective-properties", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException(
+                $"Failed to resolve input ref {thingId}.{property} ({(int)response.StatusCode} {response.StatusCode})",
+                null, response.StatusCode);
+
+        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        if (root.ValueKind == JsonValueKind.Object)
+            foreach (var prop in root.EnumerateObject())
+                if (string.Equals(prop.Name, property, StringComparison.OrdinalIgnoreCase))
+                    return ExtractValue(prop.Value);
+
+        throw new KeyNotFoundException($"Property '{property}' not found on thing {thingId}");
+    }
+
+    /// <summary>effective-properties returns each property as <c>{ "Value": &lt;v&gt;, ... }</c> (case-insensitive key).</summary>
+    private static JsonElement ExtractValue(JsonElement propertyEnvelope)
+    {
+        if (propertyEnvelope.ValueKind == JsonValueKind.Object)
+            foreach (var field in propertyEnvelope.EnumerateObject())
+                if (string.Equals(field.Name, "Value", StringComparison.OrdinalIgnoreCase))
+                    return field.Value.Clone();
+        return propertyEnvelope.Clone();
+    }
+
+    private static NodeResponse Failure(string error) => new(false, NodeResult.Empty.Outputs, error);
+}

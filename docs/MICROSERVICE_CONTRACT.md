@@ -12,6 +12,10 @@ A service plays one or both roles:
 - **Subscriber** — needs live model data, so it takes a snapshot and follows an SSE stream
   instead of polling. (Metabolism does this; the snippets below show it in each language.)
 
+A handler may additionally act as a **pipeline DAG node** by recognising one extra `/handle` request
+shape (the node envelope) and replying with outputs — see the
+[Pipeline Node Contract](PIPELINE_NODE_CONTRACT.md). It is purely additive to everything below.
+
 ## Startup
 
 Mycelium launches a daemon with these flags (a service ignores ones it doesn't need):
