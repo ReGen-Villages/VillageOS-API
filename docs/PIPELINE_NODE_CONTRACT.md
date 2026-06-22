@@ -102,13 +102,14 @@ unhandled 500 — so the orchestrator can record the node failure and halt depen
 > Languages other than .NET implement the same envelope directly — it is plain JSON over the existing
 > `/handle`, identical in spirit to the base contract's relationship body.
 
-## Reference nodes
+## Reference node
 
-Two shipped services double as DAG nodes, both wiring `DagNodeService` into their existing `/handle`
-behind `IsNodeEnvelope`:
+**Echo** (`EchoNode`) wires `DagNodeService` into its existing `/handle` behind `IsNodeEnvelope`: the
+smallest node — `message` (in) → `echo` (out) — proving the envelope end to end.
 
-- **Echo** (`EchoNode`) — the smallest node: `message` (in) → `echo` (out). Proves the envelope end to end.
-- **Tributary** (`TributaryNode`) — a real node: `endpointName` / optional `body` / optional
-  `responseTransform` (in) → `response` (out). It calls a registered endpoint through the **same**
-  `EndpointCallService` the legacy `/handle` uses, so a node gets full parity — auth, paging, and response
-  transforms all driven by the endpoint Thing. This is how a pipeline reaches an external HTTP system.
+### Nodes vs. spawners
+
+Being a node is one role; **spawning** a pipeline is a different one. A service that wants a DAG *run*
+(e.g. Tributary) does not become a node — it triggers the orchestrator through Mycelium's endpoint-forward
+(`POST /api/endpoints/phloem` with `{pipelineId, params}`) and **blocks for the result**, since every
+request goes through Mycelium. That spawner wiring lives with the orchestrator, not here.

@@ -6,7 +6,6 @@ using vos.ManagedMicroservice.Tributary.Helpers;
 using vos.ManagedMicroservice.Tributary.Models;
 using vos.ManagedMicroservice.Tributary.Services;
 using vos.ManagedMicroservice.Shared.Validation;
-using vos.ManagedMicroservice.Shared.DagNode;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -81,13 +80,6 @@ try
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddSingleton<TokenExchangeCache>();
     builder.Services.AddSingleton<EndpointCallService>();
-    builder.Services.AddSingleton(sp =>
-        new TributaryNode(
-            sp.GetRequiredService<EndpointCallService>(),
-            sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<TributaryNode>>(),
-            myceliumUrl,
-            serviceToken));
 
     var app = builder.Build();
 
@@ -98,39 +90,14 @@ try
     }
 
     var handleEndpoint = app.MapPost("/handle", async (
-        HttpContext httpContext,
+        EndpointCallRequest request,
         EndpointCallService endpointCallService,
-        TributaryNode node) =>
+        HttpContext httpContext) =>
     {
-        JsonDocument doc;
-        try
-        {
-            doc = await JsonDocument.ParseAsync(httpContext.Request.Body, cancellationToken: httpContext.RequestAborted);
-        }
-        catch (JsonException)
-        {
-            return Results.BadRequest(new { error = "Request body must be valid JSON." });
-        }
-
-        using (doc)
-        {
-            var root = doc.RootElement;
-
-            // Additive DAG-node path (Feature #5628): an orchestrator invocation carries runId+nodeId.
-            // Every other body is a normal endpoint call and runs the identical EndpointCallService path.
-            if (DagNodeService.IsNodeEnvelope(root))
-                return Results.Ok(await node.HandleNodeAsync(root, httpContext.RequestAborted));
-
-            var request = root.Deserialize<EndpointCallRequest>(WebJsonOptions) ?? new EndpointCallRequest();
-            var result = await endpointCallService.ExecuteAsync(request, httpContext.RequestAborted);
-            return ToHttpResult(result);
-        }
+        var result = await endpointCallService.ExecuteAsync(request, httpContext.RequestAborted);
+        return ToHttpResult(result);
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
-
-    // Advertise the node's ports for the orchestrator and the Trellis palette.
-    var manifestEndpoint = app.MapGet("/manifest", (TributaryNode node) => Results.Ok(node.Ports));
-    if (authEnabled) manifestEndpoint.RequireAuthorization();
 
     app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Tributary" }));
 
@@ -179,8 +146,4 @@ static IResult ToHttpResult(EndpointCallResult result)
 // Exposed to WebApplicationFactory<Program> in the test project per docs/MICROSERVICES.md.
 // Top-level statements compile to a `Program` class that is internal by default — this empty
 // partial declaration just elevates it to public so the test factory can name it.
-public partial class Program
-{
-    // Match the minimal-API model-binder: case-insensitive, camelCase JSON.
-    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
-}
+public partial class Program { }
