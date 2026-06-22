@@ -56,4 +56,19 @@ describe('ServicesPanel (unified)', () => {
     render(<ServicesPanel services={[]} endpoints={[]} onStart={noop} onStop={noop} />);
     expect(screen.getByText('No services registered')).toBeInTheDocument();
   });
+
+  it('offers delete for endpoints (with a model Thing id) and fires it; graph services have none', () => {
+    const onDelete = vi.fn();
+    render(<ServicesPanel services={[graphService()]} endpoints={[httpEndpoint({ ThingId: 't9', Name: 'Phloem' })]} onStart={noop} onStop={noop} onDelete={onDelete} />);
+    // one delete control — only the endpoint row has a retractable Thing id
+    const deleteButtons = screen.getAllByTitle('Delete (retract from model)');
+    expect(deleteButtons).toHaveLength(1);
+    fireEvent.click(deleteButtons[0]);
+    expect(onDelete).toHaveBeenCalledWith('t9', 'Phloem');
+  });
+
+  it('omits delete controls when onDelete is not provided', () => {
+    render(<ServicesPanel services={[]} endpoints={[httpEndpoint()]} onStart={noop} onStop={noop} />);
+    expect(screen.queryByTitle('Delete (retract from model)')).toBeNull();
+  });
 });

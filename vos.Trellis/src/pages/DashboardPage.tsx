@@ -5,6 +5,7 @@ import { ActivityFeed } from '../components/dashboard/ActivityFeed';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { myceliumApi } from '../api/myceliumApi';
 import { endpointApi } from '../api/endpointApi';
+import { thingApi } from '../api/thingApi';
 import { useSse } from '../hooks/useSse';
 import { useActivityStore } from '../stores/activityStore';
 import { useModelStore } from '../stores/modelStore';
@@ -25,6 +26,7 @@ export function DashboardPage() {
   const [endpointServices, setEndpointServices] = useState<EndpointServiceInfo[]>([]);
   const [httpOk, setHttpOk] = useState(false);
   const [showShutdown, setShowShutdown] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ thingId: string; name: string } | null>(null);
   const [feedCollapsed, setFeedCollapsed] = useState(() => localStorage.getItem(FEED_COLLAPSED_KEY) === 'true');
   const events = useActivityStore((s) => s.events);
   const { on, connected } = useSse();
@@ -94,6 +96,19 @@ export function DashboardPage() {
       setServices(await myceliumApi.getServices());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Stop failed');
+    }
+  };
+
+  const handleDeleteService = async () => {
+    if (!deleteTarget) return;
+    const { thingId } = deleteTarget;
+    setDeleteTarget(null);
+    try {
+      await thingApi.remove(thingId);
+      toast.success('Service retracted from model');
+      await loadMyceliumData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Delete failed');
     }
   };
 
@@ -186,7 +201,7 @@ export function DashboardPage() {
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
             <ModelStatsCard things={things} relationships={relationships} />
-            <ServicesPanel services={services} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} />
+            <ServicesPanel services={services} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} />
             <PropertyModePanel />
           </div>
           {!feedCollapsed && (
@@ -205,6 +220,16 @@ export function DashboardPage() {
         danger
         onConfirm={handleShutdown}
         onCancel={() => setShowShutdown(false)}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete service"
+        message={`Retract "${deleteTarget?.name}" from the model? This removes the connection so Mycelium no longer routes to it. It stays in the seed, so a seed reload restores it. To only stop the process, use Stop instead.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={handleDeleteService}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );
