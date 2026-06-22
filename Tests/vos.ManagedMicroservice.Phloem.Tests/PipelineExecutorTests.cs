@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using vos.ManagedMicroservice.Phloem.Configuration;
 using vos.ManagedMicroservice.Phloem.Execution;
 using vos.ManagedMicroservice.Phloem.Model;
 using Xunit;
@@ -26,7 +27,7 @@ public class PipelineExecutorTests
                 _ => NodeFail("unexpected subdomain"),
             },
         };
-        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
@@ -48,7 +49,7 @@ public class PipelineExecutorTests
         {
             OnDispatch = (subdomain, _) => subdomain == "gen" ? NodeFail("generate boom") : NodeOk(("echo", "x")),
         };
-        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
@@ -63,7 +64,7 @@ public class PipelineExecutorTests
     public async Task RunAsync_UnknownPipeline_ReturnsFailureNotThrow()
     {
         var gateway = new FakeGateway(new GraphFixture().Build()); // empty graph
-        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
 
         var result = await executor.RunAsync(Guid.NewGuid(), default, CancellationToken.None);
 

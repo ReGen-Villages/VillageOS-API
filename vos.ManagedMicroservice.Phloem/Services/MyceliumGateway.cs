@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using vos.ManagedMicroservice.Phloem.Configuration;
 using vos.ManagedMicroservice.Phloem.Execution;
 using vos.ManagedMicroservice.Phloem.Model;
 using vos.ManagedMicroservice.Shared;
@@ -15,10 +16,12 @@ namespace vos.ManagedMicroservice.Phloem.Services;
 public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 {
     private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly PipelineModelOptions _model;
 
-    public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, string? serviceToken = null)
+    public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, PipelineModelOptions model, string? serviceToken = null)
         : base(httpClientFactory, logger, myceliumUrl, serviceToken)
     {
+        _model = model;
     }
 
     public Task<bool> RegisterAsync(int port) => RegisterAsync(port, "Phloem", "endpoint-service");
@@ -33,7 +36,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         {
             ids = new[] { pipelineId },
             names = new[] { ModelNames.Is, ModelNames.Has },
-            types = new[] { ModelNames.Port, ModelNames.PipelineWire },
+            types = new[] { _model.Port, _model.PipelineWire },
             traverse = new[] { new { predicate = ModelNames.Has, direction = "outgoing", depth = 8 } },
             includeIsAncestors = true,
             includeRelationships = true,
@@ -63,7 +66,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             ["startedUtc"] = DateTime.UtcNow.ToString("o"),
         }, cancellationToken);
 
-        await RelateAsync(runId, "is", await ResolveByNameAsync(ModelNames.PipelineRun, cancellationToken), cancellationToken);
+        await RelateAsync(runId, "is", await ResolveByNameAsync(_model.PipelineRun, cancellationToken), cancellationToken);
         await RelateAsync(runId, "of", pipelineId, cancellationToken);
     }
 
@@ -76,7 +79,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             ["nodeId"] = node.NodeId.ToString(),
             ["error"] = node.Error,
         }, cancellationToken);
-        await RelateAsync(nodeRunId, "is", await ResolveByNameAsync(ModelNames.NodeRun, cancellationToken), cancellationToken);
+        await RelateAsync(nodeRunId, "is", await ResolveByNameAsync(_model.NodeRun, cancellationToken), cancellationToken);
         await RelateAsync(runId, "has", nodeRunId, cancellationToken);
     }
 

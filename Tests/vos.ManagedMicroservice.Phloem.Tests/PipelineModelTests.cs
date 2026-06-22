@@ -1,4 +1,5 @@
 using FluentAssertions;
+using vos.ManagedMicroservice.Phloem.Configuration;
 using vos.ManagedMicroservice.Phloem.Execution;
 using vos.ManagedMicroservice.Phloem.Model;
 using Xunit;
@@ -9,12 +10,14 @@ namespace vos.ManagedMicroservice.Phloem.Tests;
 // validate it acyclic with type-compatible wires.
 public class PipelineModelTests
 {
+    private static readonly PipelineModelOptions Names = new();
+
     [Fact]
     public void Build_ResolvesNodesSubdomainsPortsAndWire()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
 
-        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId, Names);
 
         dag.Nodes.Should().HaveCount(2);
         var generate = dag.Node(fx.Get("Generate").Id)!;
@@ -49,7 +52,7 @@ public class PipelineModelTests
         fx.Rel(node, isP, nodeArch);
         fx.Rel(pipe, has, node); // node binds no Connection
 
-        var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id);
+        var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id, Names);
 
         act.Should().Throw<PipelineModelException>().WithMessage("*binds no Connection*");
     }
@@ -58,7 +61,7 @@ public class PipelineModelTests
     public void Validate_DemoPipeline_IsAcyclicAndOrdered()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId, Names);
 
         var result = DagValidator.Validate(dag);
 
@@ -73,7 +76,7 @@ public class PipelineModelTests
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         // add the back-edge Echo –feeds(echo→message)→ Generate to make a cycle
         fx.Rel(fx.Get("Echo"), fx.Get("feeds"), fx.Get("Generate"), ("fromPort", "echo"), ("toPort", "message"));
-        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId, Names);
 
         var result = DagValidator.Validate(dag);
 
@@ -87,7 +90,7 @@ public class PipelineModelTests
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         // a wire whose target port does not exist on Echo
         fx.Rel(fx.Get("Generate"), fx.Get("feeds"), fx.Get("Echo"), ("fromPort", "echo"), ("toPort", "nope"));
-        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId, Names);
 
         var result = DagValidator.Validate(dag);
 

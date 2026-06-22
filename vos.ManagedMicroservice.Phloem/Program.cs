@@ -55,11 +55,14 @@ try
             cliArgs.Issuer, cliArgs.Audience);
     }
 
+    // Archetype vocabulary pushed by Mycelium at launch (defaults when an arg is absent).
+    builder.Services.AddSingleton(cliArgs.Model);
     builder.Services.AddSingleton(sp =>
         new MyceliumGateway(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumGateway>>(),
             myceliumUrl,
+            sp.GetRequiredService<PipelineModelOptions>(),
             serviceToken));
     builder.Services.AddSingleton<IMyceliumGateway>(sp => sp.GetRequiredService<MyceliumGateway>());
     builder.Services.AddSingleton<PipelineExecutor>();
