@@ -1,13 +1,15 @@
 import type { RegisteredService, EndpointServiceInfo, HealthStatus } from '../../types/mycelium';
 import { Badge } from '../common/Badge';
 import { formatMs, formatRelativeTime } from '../../utils/formatters';
-import { Play, Square, Workflow, Globe } from 'lucide-react';
+import { Play, Square, Workflow, Globe, Trash2 } from 'lucide-react';
 
 interface Props {
   services: RegisteredService[];
   endpoints: EndpointServiceInfo[];
   onStart: (id: string) => void;
   onStop: (id: string) => void;
+  /** Retract a connection from the model (only offered for rows with a model Thing id). */
+  onDelete?: (thingId: string, name: string) => void;
 }
 
 const healthColor: Record<HealthStatus, 'green' | 'yellow' | 'red' | 'gray'> = {
@@ -36,6 +38,7 @@ interface ServiceRow {
   lastContactTime?: string;
   failureCount?: number;
   controlId?: string;
+  deleteThingId?: string;
 }
 
 function fromService(svc: RegisteredService): ServiceRow {
@@ -67,10 +70,11 @@ function fromEndpoint(ep: EndpointServiceInfo): ServiceRow {
     avgMs: ep.Stats.AverageResponseMs,
     lastReqUtc: ep.Stats.LastRequestUtc,
     errors: ep.Stats.ErrorCount,
+    deleteThingId: ep.ThingId,
   };
 }
 
-export function ServicesPanel({ services, endpoints, onStart, onStop }: Props) {
+export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete }: Props) {
   const rows = [...services.map(fromService), ...endpoints.map(fromEndpoint)];
 
   return (
@@ -99,6 +103,9 @@ export function ServicesPanel({ services, endpoints, onStart, onStop }: Props) {
                 {row.controlId && (row.running
                   ? <button onClick={() => onStop(row.controlId!)} className="p-1 text-red-400 hover:text-red-300" title="Stop"><Square size={14} /></button>
                   : <button onClick={() => onStart(row.controlId!)} className="p-1 text-emerald-400 hover:text-emerald-300" title="Start"><Play size={14} /></button>
+                )}
+                {row.deleteThingId && onDelete && (
+                  <button onClick={() => onDelete(row.deleteThingId!, row.name)} className="p-1 text-zinc-400 hover:text-red-400" title="Delete (retract from model)"><Trash2 size={14} /></button>
                 )}
               </div>
             </div>
