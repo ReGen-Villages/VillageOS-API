@@ -29,12 +29,19 @@ export interface LoadedPipeline {
   edges: EditorEdge[];
 }
 
+/** The result of a save: the new Pipeline id and the canvas-node-id → Thing-id map so the editor can map
+ * live NodeRun statuses (keyed by Thing id) back onto its canvas nodes for animation (#5635). */
+export interface SavedPipeline {
+  pipelineId: string;
+  nodeIdMap: Record<string, string>;
+}
+
 export async function savePipeline(
   name: string,
   nodes: EditorNode[],
   edges: EditorEdge[],
   model: PipelineModel,
-): Promise<string> {
+): Promise<SavedPipeline> {
   const isId = model.predicateIdByName('is');
   const hasId = model.predicateIdByName('has');
   const wireId = model.wirePredicateId();
@@ -66,7 +73,7 @@ export async function savePipeline(
     await relationshipApi.setProperty(rel.Id, 'toPort', 'vos.String', e.targetHandle);
   }
 
-  return pipeline.Id;
+  return { pipelineId: pipeline.Id, nodeIdMap: Object.fromEntries(nodeThingId) };
 }
 
 /** Reconstruct the editor state for an existing pipeline from the loaded model (pure read). */

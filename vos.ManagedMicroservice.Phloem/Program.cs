@@ -111,8 +111,21 @@ try
         var trigger = SpawnTrigger.Resolve(root);
         switch (trigger.Kind)
         {
+            case SpawnKind.Http when trigger.Async:
+                // Async spawn — return the run id immediately and run the DAG in the background so the editor
+                // animates over SSE rather than blocking. A detached token lets the run outlive the request.
+                var asyncRunId = Guid.NewGuid();
+                var asyncPipelineId = trigger.PipelineId;
+                var asyncParams = trigger.Params;
+                _ = Task.Run(async () =>
+                {
+                    try { await executor.RunAsync(asyncPipelineId, asyncParams, CancellationToken.None, asyncRunId); }
+                    catch (Exception ex) { Log.Error(ex, "Async pipeline run {RunId} ({PipelineId}) failed", asyncRunId, asyncPipelineId); }
+                });
+                return Results.Ok(new { success = true, accepted = true, runId = asyncRunId, pipelineId = trigger.PipelineId });
+
             case SpawnKind.Http:
-                // Synchronous spawn-and-wait — the caller (e.g. Trellis Run) blocks for the result.
+                // Synchronous spawn-and-wait — the caller (e.g. a programmatic client) blocks for the result.
                 var result = await executor.RunAsync(trigger.PipelineId, trigger.Params, httpContext.RequestAborted);
                 return Results.Ok(result);
 

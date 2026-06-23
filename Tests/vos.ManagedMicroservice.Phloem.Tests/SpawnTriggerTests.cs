@@ -21,6 +21,18 @@ public class SpawnTriggerTests
         t.Kind.Should().Be(SpawnKind.Http);
         t.PipelineId.Should().Be(Pipe);
         t.Params.GetProperty("k").GetInt32().Should().Be(1);
+        t.Async.Should().BeFalse(); // synchronous spawn-and-wait by default
+    }
+
+    [Fact]
+    public void Resolve_HttpBodyWithAsync_IsAsyncHttpSpawn()
+    {
+        // The editor's Run uses an async spawn so it gets the run id up front and animates over SSE (#5635).
+        var body = JsonSerializer.Serialize(new { pipelineId = Pipe.ToString(), @async = true });
+        var t = SpawnTrigger.Resolve(Json(body));
+
+        t.Kind.Should().Be(SpawnKind.Http);
+        t.Async.Should().BeTrue();
     }
 
     [Fact]
@@ -42,6 +54,7 @@ public class SpawnTriggerTests
         t.Kind.Should().Be(SpawnKind.Graph);
         t.PipelineId.Should().Be(Pipe);            // resolved from targetId
         t.Params.GetProperty("scenario").GetString().Should().Be("base");
+        t.Async.Should().BeTrue();                 // a graph trigger is always fire-and-forget
     }
 
     [Theory]

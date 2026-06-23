@@ -73,6 +73,53 @@ public class PipelineExecutorTests
         gateway.Dispatched.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task RunAsync_CancelRequested_HaltsRemainingNodesAndCancelsRun()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        FakeGateway gateway = null!;
+        gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (_, _) => NodeOk(("echo", "x")),
+            // Cancel becomes true once the first node has run — checked before the next level dispatches.
+            CancelRequested = _ => gateway.Dispatched.Contains("gen"),
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("cancelled");
+        result.Nodes.Single(n => n.Name == "Generate").Status.Should().Be(RunStatus.Succeeded);
+        result.Nodes.Single(n => n.Name == "Echo").Status.Should().Be(RunStatus.Cancelled);
+        gateway.Dispatched.Should().Equal("gen"); // Echo never dispatched
+        gateway.StatusUpdates.Should().Contain(RunStatus.Cancelled);
+    }
+
+    [Fact]
+    public async Task RunAsync_PersistsRunningThenTerminalForEachNode()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (subdomain, envelope) => subdomain switch
+            {
+                "gen" => NodeOk(("echo", "hi")),
+                "ech" => NodeOk(("echo", InputValue(envelope, "message"))),
+                _ => NodeFail("unexpected subdomain"),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+
+        await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        // Each node is persisted running first (live animation), then its terminal status — on one NodeRun.
+        gateway.NodeStatuses.Where(s => s.Name == "Generate").Select(s => s.Status)
+            .Should().Equal(RunStatus.Running, RunStatus.Succeeded);
+        gateway.NodeStatuses.Where(s => s.Name == "Echo").Select(s => s.Status)
+            .Should().Equal(RunStatus.Running, RunStatus.Succeeded);
+    }
+
     // --- helpers ---
 
     private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs)
@@ -93,18 +140,24 @@ public class PipelineExecutorTests
         public FakeGateway(PipelineGraph graph) => _graph = graph;
 
         public Func<string, JsonElement, NodeDispatchResult> OnDispatch { get; set; } = (_, _) => new NodeDispatchResult(200, "{\"success\":true,\"outputs\":{}}");
+        public Func<Guid, bool> CancelRequested { get; set; } = _ => false;
         public List<string> Dispatched { get; } = new();
         public List<string> StatusUpdates { get; } = new();
-        public List<NodeRunResult> NodeRuns { get; } = new();
+        public List<(string Name, string Status)> NodeStatuses { get; } = new();
 
         public Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken ct) => Task.FromResult(_graph);
         public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct) => Task.CompletedTask;
-        public Task PersistNodeRunAsync(Guid runId, NodeRunResult node, CancellationToken ct) { NodeRuns.Add(node); return Task.CompletedTask; }
+        public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct)
+        {
+            lock (NodeStatuses) NodeStatuses.Add((nodeName, status));
+            return Task.CompletedTask;
+        }
         public Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct) { StatusUpdates.Add(status); return Task.CompletedTask; }
+        public Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken ct) => Task.FromResult(CancelRequested(runId));
 
         public Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken ct)
         {
-            Dispatched.Add(subdomain);
+            lock (Dispatched) Dispatched.Add(subdomain);
             return Task.FromResult(OnDispatch(subdomain, envelope));
         }
     }

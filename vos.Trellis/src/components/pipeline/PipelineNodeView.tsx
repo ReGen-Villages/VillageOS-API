@@ -16,6 +16,7 @@ const STATUS_RING: Record<string, string> = {
   succeeded: 'ring-2 ring-green-500',
   failed: 'ring-2 ring-red-500',
   skipped: 'ring-2 ring-zinc-400 opacity-60',
+  cancelled: 'ring-2 ring-amber-500 opacity-60',
 };
 
 /** A pipeline DAG node: one Handle per typed port (inputs on the left, outputs on the right). */

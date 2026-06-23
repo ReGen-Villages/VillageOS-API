@@ -19,11 +19,17 @@ public interface IMyceliumGateway
     /// <c>is</c> a PipelineRun.</summary>
     Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken);
 
-    /// <summary>Record a node's outcome as a NodeRun Thing linked <c>has</c> from the run.</summary>
-    Task PersistNodeRunAsync(Guid runId, NodeRunResult node, CancellationToken cancellationToken);
+    /// <summary>Upsert the single NodeRun Thing for (<paramref name="runId"/>, <paramref name="nodeId"/>) and set
+    /// its status — <c>running</c> before dispatch, then the terminal status. One Thing per node (deterministic id)
+    /// so the live SSE view sees a property change rather than duplicate Things (#5635).</summary>
+    Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken);
 
-    /// <summary>Update the run's terminal status (drives the live SSE animation in #5635).</summary>
+    /// <summary>Update the run's status (drives the live SSE animation).</summary>
     Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken);
+
+    /// <summary>True if the run's <c>cancelRequested</c> flag has been set (by Trellis). Polled between
+    /// dispatches for cooperative cancellation (#5635).</summary>
+    Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken cancellationToken);
 
     /// <summary>Invoke a node by forwarding its envelope through Mycelium to the Connection's subdomain.</summary>
     Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken);
