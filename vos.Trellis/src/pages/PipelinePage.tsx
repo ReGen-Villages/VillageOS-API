@@ -33,6 +33,18 @@ const RUN_STATUS_COLOR: Record<string, string> = {
 
 let nodeSeq = 0;
 
+/** Parse a Params-bar value as JSON when it is valid JSON (lists, numbers, booleans, objects); otherwise keep
+ * it as the raw string. Lets a user type `["a","b","c"]` to drive a fan-out, or `42` for a number param. */
+export function parseParamValue(raw: string): unknown {
+  const trimmed = raw.trim();
+  if (trimmed === '') return '';
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return raw;
+  }
+}
+
 export function PipelinePage() {
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
@@ -179,7 +191,9 @@ export function PipelinePage() {
     setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
     try {
       // Async spawn — get the run id up front and let the SSE animation effect below light up nodes.
-      const params = Object.fromEntries(paramKeys.map((k) => [k, runParamValues[k] ?? '']));
+      // Param values are parsed as JSON when valid (so a list `["a","b"]` drives fan-out, `42`→number),
+      // otherwise passed through as a plain string.
+      const params = Object.fromEntries(paramKeys.map((k) => [k, parseParamValue(runParamValues[k] ?? '')]));
       const accepted = await pipelineApi.spawnAsync(savedId, params);
       setRunId(accepted.runId);
     } catch (e) {
