@@ -771,6 +771,11 @@ graph/http body the service handles exactly as before; the two never collide.
   per-run without editing the graph; the editor's **Params** form supplies the values.
 - **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`
   — so the editor can type-check wires; expose them at `GET /manifest`.
+- **Collection inputs (fan-out).** A port may be `collection: true` (#5648): when that input receives a **list**,
+  Phloem runs the node **once per item** (bounded), broadcasts the node's other inputs to every item, and
+  **gathers** each output port into a list for downstream. The node service still sees one item per call (a
+  scalar on the collection port, plus the item `index` in the envelope). The node property `onItemError`
+  chooses `fail` (any item fails → node fails) or `continue` (failed items become null holes → node `partial`).
 
 **.NET SDK base.** `DagNodeService` (`vos.ManagedMicroservice.Shared`, namespace `…Shared.DagNode`) maps the
 envelope onto business logic:
@@ -882,5 +887,5 @@ unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the
    `cancelled`. Or create an `X runs Pipeline` relationship to trigger it from the model (fire-and-forget).
 
 > **Scope.** Synchronous + async spawn with level-by-level concurrency, **live SSE run animation + cancel**,
-> run-history replay, and **run-level param routing**. Incremental rerun/caching and fan-out over collections
-> are later phases.
+> run-history replay, **run-level param routing**, and **fan-out over collections** (one collection input per
+> node). Incremental rerun/caching, and full list-type validation across the graph, are later phases.

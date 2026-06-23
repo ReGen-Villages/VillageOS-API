@@ -21,7 +21,13 @@ public static class ModelNames
     public const string FromPort = "fromPort";
     public const string ToPort = "toPort";
     public const string ParamBindings = "paramBindings";
+    public const string Collection = "collection";
+    public const string OnItemError = "onItemError";
 
     public const string DirectionIn = "in";
     public const string DirectionOut = "out";
+
+    // onItemError values: fail-fast (default) vs collect-partial.
+    public const string OnItemErrorFail = "fail";
+    public const string OnItemErrorContinue = "continue";
 }

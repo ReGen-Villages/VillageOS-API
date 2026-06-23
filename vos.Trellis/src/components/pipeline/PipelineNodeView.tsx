@@ -10,6 +10,8 @@ export interface PipelineNodeData {
   status?: string;
   /** Input-port name → run-param key (#5647). */
   paramBindings?: Record<string, string>;
+  /** Fan-out progress (#5648): terminal items / total. */
+  progress?: { done: number; total: number };
   [key: string]: unknown;
 }
 
@@ -19,6 +21,7 @@ const STATUS_RING: Record<string, string> = {
   failed: 'ring-2 ring-red-500',
   skipped: 'ring-2 ring-zinc-400 opacity-60',
   cancelled: 'ring-2 ring-amber-500 opacity-60',
+  partial: 'ring-2 ring-orange-400',
 };
 
 /** A pipeline DAG node: one Handle per typed port (inputs on the left, outputs on the right). */
@@ -36,7 +39,14 @@ export function PipelineNodeView({ data }: NodeProps) {
     >
       <div className="px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-700 text-sm font-semibold text-zinc-900 dark:text-white flex items-center justify-between gap-2">
         <span className="truncate">{d.label}</span>
-        <span className="text-[10px] font-mono text-zinc-400">{d.subdomain}</span>
+        <span className="flex items-center gap-1.5">
+          {d.progress && d.progress.total > 1 && (
+            <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 px-1 rounded bg-zinc-100 dark:bg-zinc-700">
+              {d.progress.done}/{d.progress.total}
+            </span>
+          )}
+          <span className="text-[10px] font-mono text-zinc-400">{d.subdomain}</span>
+        </span>
       </div>
       <div className="flex justify-between gap-4 py-2 text-xs">
         <div className="flex flex-col gap-2">

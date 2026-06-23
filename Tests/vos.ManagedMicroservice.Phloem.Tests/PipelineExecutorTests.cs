@@ -142,6 +142,78 @@ public class PipelineExecutorTests
         seenMessage.Should().Be("hello"); // input `message` filled from param `greeting`
     }
 
+    [Fact]
+    public async Task RunAsync_FanOut_RunsPerItem_BroadcastsScalar_GathersOutputs()
+    {
+        var (fx, pipelineId) = TestGraphs.FanOutPipeline();
+        var items = new List<string>();
+        var weights = new List<int>();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (_, envelope) =>
+            {
+                var inputs = envelope.GetProperty("inputs");
+                var item = inputs.GetProperty("item").GetString()!;
+                lock (items) { items.Add(item); weights.Add(inputs.GetProperty("weight").GetInt32()); }
+                return NodeOk(("score", item.ToUpperInvariant()));
+            },
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var runParams = JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c" }, w = 10 });
+
+        var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        items.Should().BeEquivalentTo("a", "b", "c");      // ran once per item
+        weights.Should().AllBeEquivalentTo(10);            // scalar input broadcast to every item
+        var node = result.Nodes.Single();
+        node.Status.Should().Be(RunStatus.Succeeded);
+        node.Outputs["score"].EnumerateArray().Select(e => e.GetString()).Should().Equal("A", "B", "C"); // gathered, in order
+    }
+
+    [Fact]
+    public async Task RunAsync_FanOut_FailFast_FailsNodeWhenAnyItemFails()
+    {
+        var (fx, pipelineId) = TestGraphs.FanOutPipeline("fail");
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (_, envelope) =>
+                envelope.GetProperty("inputs").GetProperty("item").GetString() == "b" ? NodeFail("boom") : NodeOk(("score", "ok")),
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var runParams = JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c" }, w = 1 });
+
+        var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Nodes.Single().Status.Should().Be(RunStatus.Failed);
+    }
+
+    [Fact]
+    public async Task RunAsync_FanOut_Continue_IsPartialWithNullHoles()
+    {
+        var (fx, pipelineId) = TestGraphs.FanOutPipeline("continue");
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (_, envelope) =>
+            {
+                var item = envelope.GetProperty("inputs").GetProperty("item").GetString()!;
+                return item == "b" ? NodeFail("boom") : NodeOk(("score", item.ToUpperInvariant()));
+            },
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var runParams = JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c" }, w = 1 });
+
+        var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
+
+        result.Success.Should().BeTrue(); // a partial fan-out does not fail the run
+        var node = result.Nodes.Single();
+        node.Status.Should().Be(RunStatus.Partial);
+        node.Outputs["score"].EnumerateArray()
+            .Select(e => e.ValueKind == JsonValueKind.Null ? null : e.GetString())
+            .Should().Equal("A", null, "C"); // failed item is a null hole, in order
+    }
+
     // --- helpers ---
 
     private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs)
@@ -169,7 +241,7 @@ public class PipelineExecutorTests
 
         public Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken ct) => Task.FromResult(_graph);
         public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct) => Task.CompletedTask;
-        public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct)
+        public Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken ct, int? index = null, int total = 0)
         {
             lock (NodeStatuses) NodeStatuses.Add((nodeName, status));
             return Task.CompletedTask;

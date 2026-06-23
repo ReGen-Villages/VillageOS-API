@@ -75,6 +75,9 @@ public static class PipelineDagBuilder
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
             Ports = ResolvePorts(graph, service, model).ToList(),
             ParamBindings = ParseParamBindings(nodeThing),
+            OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
+                ? ModelNames.OnItemErrorContinue
+                : ModelNames.OnItemErrorFail,
         };
     }
 
@@ -119,7 +122,8 @@ public static class PipelineDagBuilder
                     portThing.PropertyString(ModelNames.PortName) ?? portThing.Name,
                     portThing.PropertyString(ModelNames.Direction) ?? ModelNames.DirectionIn,
                     portThing.PropertyString(ModelNames.PortType) ?? string.Empty,
-                    string.Equals(portThing.PropertyString(ModelNames.Required), "true", StringComparison.OrdinalIgnoreCase));
+                    string.Equals(portThing.PropertyString(ModelNames.Required), "true", StringComparison.OrdinalIgnoreCase),
+                    string.Equals(portThing.PropertyString(ModelNames.Collection), "true", StringComparison.OrdinalIgnoreCase));
             foreach (var parent in graph.OutgoingTargets(current, ModelNames.Is))
                 stack.Push(parent);
         }

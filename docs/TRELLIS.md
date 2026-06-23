@@ -478,6 +478,10 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   **run param** by name (stored as the node's `paramBindings`). Bound params appear in a **Params** bar above
   the canvas where you supply values at Run time — so a source node can be parameterized per run without
   rewiring. Phloem fills bound inputs from the run's `params` (an explicit wire into the same port wins).
+- **Fan-out** — a node whose service declares a **collection input** (`collection:true` on the port) runs once
+  per item when that input receives a list. The canvas node shows a **`k/n`** progress badge as items run and an
+  aggregate ring — `partial` (orange) when `onItemError:continue` and some items failed. Each output port is
+  gathered into a list for downstream: chain another fan-out, or feed an aggregator node.
 - **Empty state** — with no nodes, the canvas points you to the palette; if the model has no dispatchable
   Connections it says so (load a model whose seed has pipeline Connections — see
   `tools/seed-migrate/pipeline-enable.js`).

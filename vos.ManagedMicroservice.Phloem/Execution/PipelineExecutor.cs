@@ -75,9 +75,11 @@ public sealed class PipelineExecutor
             foreach (var result in batch)
             {
                 results[result.NodeId] = result;
-                if (result.Status == RunStatus.Succeeded)
+                // Succeeded and partial (#5648 collect-partial) both route outputs downstream; only a hard
+                // failure halts dependents.
+                if (result.Status is RunStatus.Succeeded or RunStatus.Partial)
                     outputs[result.NodeId] = result.Outputs;
-                else
+                if (result.Status == RunStatus.Failed)
                     halted = true;
                 await PersistStatusAsync(rid, result, cancellationToken);
             }
@@ -93,9 +95,10 @@ public sealed class PipelineExecutor
             await PersistStatusAsync(rid, result, cancellationToken);
         }
 
+        // A partial node (collect-partial fan-out) does not fail the run; only a hard node failure does.
         var runStatus = cancelled ? RunStatus.Cancelled
-            : results.Values.All(r => r.Status == RunStatus.Succeeded) ? RunStatus.Succeeded
-            : RunStatus.Failed;
+            : results.Values.Any(r => r.Status == RunStatus.Failed) ? RunStatus.Failed
+            : RunStatus.Succeeded;
         await BestEffort(() => _gateway.SetRunStatusAsync(rid, runStatus, cancellationToken), "set run status");
 
         var success = runStatus == RunStatus.Succeeded;
@@ -138,19 +141,105 @@ public sealed class PipelineExecutor
         PipelineDag dag, DagNode node, Guid runId,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams, CancellationToken cancellationToken)
     {
-        // Mark the node running before dispatch so the editor animates it live (terminal status follows).
+        // Mark the node (aggregate) running before dispatch so the editor animates it live; the terminal status
+        // is written by RunAsync from the value returned here.
         await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken), "persist node running");
 
+        var inputs = AssembleInputs(dag, node, outputs, runParams);
+
+        // Fan-out (#5648): if the node has a collection input and it carries a list, run the node once per item.
+        var collection = node.CollectionInput;
+        if (collection != null && inputs.TryGetValue(collection.PortName, out var collValue) && collValue.ValueKind == JsonValueKind.Array)
+            return await RunFanOutAsync(node, runId, inputs, collection.PortName, collValue, cancellationToken);
+
+        return await DispatchAndParseAsync(node, runId, inputs, index: null, cancellationToken);
+    }
+
+    /// <summary>Assemble a node's inputs: param-bound inputs first (#5647), then wires (a wire overrides).</summary>
+    private static Dictionary<string, JsonElement> AssembleInputs(
+        PipelineDag dag, DagNode node,
+        IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams)
+    {
         var inputs = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        // Run-level params bound to inputs first (#5647); an explicit wire into the same port overrides.
         foreach (var (port, paramKey) in node.ParamBindings)
             if (TryGetParam(runParams, paramKey, out var bound))
                 inputs[port] = bound;
         foreach (var wire in dag.WiresInto(node.NodeId))
             if (outputs.TryGetValue(wire.FromNodeId, out var upstream) && upstream.TryGetValue(wire.FromPort, out var value))
                 inputs[wire.ToPort] = value;
+        return inputs;
+    }
 
-        var envelope = BuildEnvelope(runId, node, inputs);
+    /// <summary>Run the node once per item of its collection input (bounded), writing a per-item NodeRun for each,
+    /// and gather each output port into a list. <c>onItemError</c> chooses fail-fast vs collect-partial (#5648).</summary>
+    private async Task<NodeRunResult> RunFanOutAsync(
+        DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs,
+        string collectionPort, JsonElement items, CancellationToken cancellationToken)
+    {
+        var itemList = items.EnumerateArray().ToList();
+        var total = itemList.Count;
+        using var itemGate = new SemaphoreSlim(_maxConcurrency);
+        var results = await Task.WhenAll(itemList.Select((item, i) =>
+            RunItemAsync(node, runId, baseInputs, collectionPort, item, i, total, itemGate, cancellationToken)));
+
+        var failures = results.Count(r => r.Status != RunStatus.Succeeded);
+        var continueOnError = string.Equals(node.OnItemError, ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase);
+
+        if (failures > 0 && !continueOnError)
+        {
+            var firstError = results.First(r => r.Status != RunStatus.Succeeded).Error ?? "an item failed";
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, $"Fan-out failed: {firstError}");
+        }
+
+        var gathered = GatherOutputs(node, results);
+        var status = failures == 0 ? RunStatus.Succeeded
+            : failures == total ? RunStatus.Failed
+            : RunStatus.Partial;
+        return new NodeRunResult(node.NodeId, node.Name, status, gathered, failures > 0 ? $"{failures}/{total} items failed" : null);
+    }
+
+    private async Task<NodeRunResult> RunItemAsync(
+        DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs,
+        string collectionPort, JsonElement item, int index, int total, SemaphoreSlim itemGate, CancellationToken cancellationToken)
+    {
+        await itemGate.WaitAsync(cancellationToken);
+        try
+        {
+            await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken, index, total), "persist item running");
+            var inputs = new Dictionary<string, JsonElement>(baseInputs, StringComparer.Ordinal) { [collectionPort] = item };
+            var result = await DispatchAndParseAsync(node, runId, inputs, index, cancellationToken);
+            await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, result.Status, result.Error, cancellationToken, index, total), "persist item terminal");
+            return result;
+        }
+        finally
+        {
+            itemGate.Release();
+        }
+    }
+
+    /// <summary>Gather per-item results into one list per output port (item order; null for a failed item).</summary>
+    private static IReadOnlyDictionary<string, JsonElement> GatherOutputs(DagNode node, NodeRunResult[] results)
+    {
+        var portNames = new HashSet<string>(node.OutputPorts.Select(p => p.PortName), StringComparer.Ordinal);
+        foreach (var r in results)
+            foreach (var key in r.Outputs.Keys)
+                portNames.Add(key);
+
+        var gathered = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var port in portNames)
+        {
+            var values = results
+                .Select(r => r.Status == RunStatus.Succeeded && r.Outputs.TryGetValue(port, out var v) ? v : NullJson)
+                .ToArray();
+            gathered[port] = JsonSerializer.SerializeToElement(values);
+        }
+        return gathered;
+    }
+
+    private async Task<NodeRunResult> DispatchAndParseAsync(
+        DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> inputs, int? index, CancellationToken cancellationToken)
+    {
+        var envelope = BuildEnvelope(runId, node, inputs, index);
 
         NodeDispatchResult dispatch;
         try
@@ -167,6 +256,8 @@ public sealed class PipelineExecutor
 
         return ParseNodeResponse(node, dispatch.Body);
     }
+
+    private static readonly JsonElement NullJson = JsonSerializer.SerializeToElement<object?>(null);
 
     private static NodeRunResult ParseNodeResponse(DagNode node, string body)
     {
@@ -206,13 +297,15 @@ public sealed class PipelineExecutor
         return false;
     }
 
-    /// <summary>Serialize the node envelope <c>{runId,nodeId,params,inputs}</c>.</summary>
-    private static JsonElement BuildEnvelope(Guid runId, DagNode node, IReadOnlyDictionary<string, JsonElement> inputs)
+    /// <summary>Serialize the node envelope <c>{runId,nodeId,index?,params,inputs}</c>. <c>index</c> is the
+    /// fan-out item index (null for a normal single dispatch).</summary>
+    private static JsonElement BuildEnvelope(Guid runId, DagNode node, IReadOnlyDictionary<string, JsonElement> inputs, int? index = null)
     {
         var json = JsonSerializer.Serialize(new
         {
             runId,
             nodeId = node.NodeId,
+            index,
             @params = node.Params,
             inputs,
         });

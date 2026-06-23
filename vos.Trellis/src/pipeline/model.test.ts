@@ -104,6 +104,29 @@ describe('run animation source (#5635)', () => {
     expect(model.nodeRunStatuses('missing')).toEqual({});
   });
 
+  it('separates the aggregate ring status from per-item fan-out progress (#5648)', () => {
+    const things: VosThing[] = [];
+    const rels: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: props };
+      things.push(t);
+      return t;
+    };
+    const has = T('has');
+    const run = T('PipelineRun', { status: 'running' });
+    const agg = T('NodeRun Scorer', { nodeId: 'node-score', status: 'running' }); // aggregate — no index
+    const i0 = T('NodeRun Scorer #0', { nodeId: 'node-score', status: 'succeeded', index: '0', total: '3' });
+    const i1 = T('NodeRun Scorer #1', { nodeId: 'node-score', status: 'succeeded', index: '1', total: '3' });
+    const i2 = T('NodeRun Scorer #2', { nodeId: 'node-score', status: 'running', index: '2', total: '3' });
+    for (const nr of [agg, i0, i1, i2])
+      rels.push({ Id: `r${++n}`, Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nr.Id, Properties: {} });
+
+    const model = new PipelineModel(things, rels);
+    expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-score': 'running' });        // ring = aggregate only
+    expect(model.nodeRunProgress(run.Id)).toEqual({ 'node-score': { done: 2, total: 3 } }); // 2 of 3 items terminal
+  });
+
   it('lists a pipeline\'s runs newest-first, scoped to that pipeline', () => {
     const things: VosThing[] = [];
     const rels: VosRelationship[] = [];

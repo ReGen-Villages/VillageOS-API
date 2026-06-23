@@ -135,4 +135,48 @@ public static class TestGraphs
 
         return (fx, pipe.Id);
     }
+
+    /// <summary>A single Scorer node whose input port `item` is a collection (fan-out, #5648) and `weight` is a
+    /// scalar (broadcast). Both inputs are param-bound (`item`→`items`, `weight`→`w`) so a run supplies the list.
+    /// <paramref name="onItemError"/> sets the node's failure policy.</summary>
+    public static (GraphFixture Fixture, Guid PipelineId) FanOutPipeline(string onItemError = "fail")
+    {
+        var fx = new GraphFixture();
+        var isP = fx.Thing("is");
+        var has = fx.Thing("has");
+
+        var pipelineArch = fx.Thing("Pipeline");
+        var nodeArch = fx.Thing("PipelineNode");
+        var connArch = fx.Thing("Connection");
+        var svcArch = fx.Thing("Service");
+        var portArch = fx.Thing("Port");
+
+        var proto = fx.Thing("ScoreProto");
+        fx.Rel(proto, isP, svcArch);
+        var pItem = fx.Thing("p.item", ("direction", "in"), ("type", "string"), ("portName", "item"), ("collection", "true"));
+        var pWeight = fx.Thing("p.weight", ("direction", "in"), ("type", "number"), ("portName", "weight"));
+        var pScore = fx.Thing("p.score", ("direction", "out"), ("type", "string"), ("portName", "score"));
+        fx.Rel(pItem, isP, portArch);
+        fx.Rel(pWeight, isP, portArch);
+        fx.Rel(pScore, isP, portArch);
+        fx.Rel(proto, has, pItem);
+        fx.Rel(proto, has, pWeight);
+        fx.Rel(proto, has, pScore);
+
+        var svc = fx.Thing("scoreSvc");
+        fx.Rel(svc, isP, proto);
+        var conn = fx.Thing("scoreConn", ("Subdomain", "score"));
+        fx.Rel(conn, isP, connArch);
+        fx.Rel(conn, has, svc);
+
+        var node = fx.Thing("Scorer", ("onItemError", onItemError), ("paramBindings", "{\"item\":\"items\",\"weight\":\"w\"}"));
+        fx.Rel(node, isP, nodeArch);
+        fx.Rel(node, has, conn);
+
+        var pipe = fx.Thing("FanDemo");
+        fx.Rel(pipe, isP, pipelineArch);
+        fx.Rel(pipe, has, node);
+
+        return (fx, pipe.Id);
+    }
 }
