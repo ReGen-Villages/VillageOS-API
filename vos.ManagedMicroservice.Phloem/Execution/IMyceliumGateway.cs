@@ -19,10 +19,11 @@ public interface IMyceliumGateway
     /// <c>is</c> a PipelineRun.</summary>
     Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken);
 
-    /// <summary>Upsert the single NodeRun Thing for (<paramref name="runId"/>, <paramref name="nodeId"/>) and set
-    /// its status — <c>running</c> before dispatch, then the terminal status. One Thing per node (deterministic id)
-    /// so the live SSE view sees a property change rather than duplicate Things (#5635).</summary>
-    Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken);
+    /// <summary>Upsert a NodeRun Thing and set its status — <c>running</c> before dispatch, then the terminal
+    /// status — on one Thing per key (deterministic id) so the SSE view sees a property change, not duplicate
+    /// Things (#5635). With <paramref name="index"/> null this is the node's <b>aggregate</b> NodeRun (drives the
+    /// ring); with an index it's a <b>per-item</b> NodeRun of a fan-out (#5648), carrying <c>index</c>/<c>total</c>.</summary>
+    Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0);
 
     /// <summary>Update the run's status (drives the live SSE animation).</summary>
     Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken);

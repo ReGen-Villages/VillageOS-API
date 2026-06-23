@@ -71,18 +71,24 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         await RelateAsync(runId, "of", pipelineId, cancellationToken);
     }
 
-    public async Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken)
+    public async Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0)
     {
-        var nodeRunId = DeterministicGuid(runId, nodeId);
+        var nodeRunId = index is int i ? DeterministicGuid(runId, nodeId, i) : DeterministicGuid(runId, nodeId);
         if (_createdNodeRuns.TryAdd(nodeRunId, 0))
         {
-            // First status for this node — create the NodeRun Thing and wire it into the run.
-            await CreateThingWithIdAsync(nodeRunId, $"NodeRun {nodeName}", new Dictionary<string, object?>
+            // First status for this NodeRun — create the Thing and wire it into the run.
+            var properties = new Dictionary<string, object?>
             {
                 ["status"] = status,
                 ["nodeId"] = nodeId.ToString(),
                 ["error"] = error,
-            }, cancellationToken);
+            };
+            if (index is int idx)
+            {
+                properties["index"] = idx.ToString();
+                properties["total"] = total.ToString();
+            }
+            await CreateThingWithIdAsync(nodeRunId, index is int x ? $"NodeRun {nodeName} #{x}" : $"NodeRun {nodeName}", properties, cancellationToken);
             await RelateAsync(nodeRunId, "is", await ResolveByNameAsync(_model.NodeRun, cancellationToken), cancellationToken);
             await RelateAsync(runId, "has", nodeRunId, cancellationToken);
             return;
@@ -147,6 +153,16 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         Span<byte> buffer = stackalloc byte[32];
         runId.TryWriteBytes(buffer[..16]);
         nodeId.TryWriteBytes(buffer[16..]);
+        return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
+    }
+
+    /// <summary>Per-item NodeRun id for a fan-out — stable per (run, node, item index) (#5648).</summary>
+    private static Guid DeterministicGuid(Guid runId, Guid nodeId, int index)
+    {
+        Span<byte> buffer = stackalloc byte[36];
+        runId.TryWriteBytes(buffer[..16]);
+        nodeId.TryWriteBytes(buffer[16..32]);
+        BitConverter.TryWriteBytes(buffer[32..], index);
         return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
     }
 

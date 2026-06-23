@@ -28,6 +28,7 @@ const RUN_STATUS_COLOR: Record<string, string> = {
   succeeded: 'text-green-600',
   failed: 'text-red-500',
   cancelled: 'text-amber-600',
+  partial: 'text-orange-500',
 };
 
 let nodeSeq = 0;
@@ -74,7 +75,7 @@ export function PipelinePage() {
   const runs = useMemo(() => (savedId ? model.runsOf(savedId) : []), [savedId, model]);
 
   const clearStatuses = useCallback(() => {
-    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined } })));
+    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
   }, [setNodes]);
 
   // Replay a past run: point runId at it and the animation effect paints its (terminal) node statuses.
@@ -136,7 +137,7 @@ export function PipelinePage() {
       setSavedId(saved.pipelineId);
       setThingIdByCanvasId(saved.nodeIdMap);
       setRunId(null);
-      setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined } })));
+      setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed.');
     } finally {
@@ -175,7 +176,7 @@ export function PipelinePage() {
   const onRun = useCallback(async () => {
     if (!savedId) return;
     setError(null);
-    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined } })));
+    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
     try {
       // Async spawn — get the run id up front and let the SSE animation effect below light up nodes.
       const params = Object.fromEntries(paramKeys.map((k) => [k, runParamValues[k] ?? '']));
@@ -214,11 +215,15 @@ export function PipelinePage() {
   useEffect(() => {
     if (!runId) return;
     const statuses = model.nodeRunStatuses(runId);
-    if (Object.keys(statuses).length === 0) return;
+    const progress = model.nodeRunProgress(runId);
+    if (Object.keys(statuses).length === 0 && Object.keys(progress).length === 0) return;
     setNodes((ns) => ns.map((n) => {
       const thingId = thingIdByCanvasId[n.id] ?? n.id;
       const status = statuses[thingId];
-      return status !== undefined ? { ...n, data: { ...n.data, status } } : n;
+      const prog = progress[thingId];
+      if (status === undefined && prog === undefined) return n;
+      const d = n.data as unknown as PipelineNodeData;
+      return { ...n, data: { ...n.data, status: status ?? d.status, progress: prog } };
     }));
   }, [runId, model, thingIdByCanvasId, setNodes]);
 

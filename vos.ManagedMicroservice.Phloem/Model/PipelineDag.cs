@@ -2,8 +2,9 @@ using System.Text.Json;
 
 namespace vos.ManagedMicroservice.Phloem.Model;
 
-/// <summary>A resolved port on a node (from the bound service's <c>is</c>-chain).</summary>
-public sealed record DagPort(string PortName, string Direction, string Type, bool Required)
+/// <summary>A resolved port on a node (from the bound service's <c>is</c>-chain). <paramref name="Collection"/>
+/// marks an input the node consumes as a list — the node fans out over it (#5648).</summary>
+public sealed record DagPort(string PortName, string Direction, string Type, bool Required, bool Collection = false)
 {
     public bool IsInput => string.Equals(Direction, ModelNames.DirectionIn, StringComparison.OrdinalIgnoreCase);
     public bool IsOutput => string.Equals(Direction, ModelNames.DirectionOut, StringComparison.OrdinalIgnoreCase);
@@ -24,8 +25,15 @@ public sealed class DagNode
     public IReadOnlyDictionary<string, string> ParamBindings { get; init; } =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Per-item failure policy when fanning out (#5648): <c>fail</c> (fail-fast, default) or
+    /// <c>continue</c> (collect-partial — failed items become null holes, node is <c>partial</c>).</summary>
+    public string OnItemError { get; init; } = ModelNames.OnItemErrorFail;
+
     public IEnumerable<DagPort> InputPorts => Ports.Where(p => p.IsInput);
     public IEnumerable<DagPort> OutputPorts => Ports.Where(p => p.IsOutput);
+
+    /// <summary>The single collection input this node fans out over, if any (v1 supports exactly one).</summary>
+    public DagPort? CollectionInput => Ports.FirstOrDefault(p => p.IsInput && p.Collection);
 
     public DagPort? Port(string portName) =>
         Ports.FirstOrDefault(p => string.Equals(p.PortName, portName, StringComparison.OrdinalIgnoreCase));

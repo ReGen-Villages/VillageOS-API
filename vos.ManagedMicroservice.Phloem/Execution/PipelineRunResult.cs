@@ -10,6 +10,7 @@ public static class RunStatus
     public const string Failed = "failed";
     public const string Skipped = "skipped";
     public const string Cancelled = "cancelled";
+    public const string Partial = "partial";
 }
 
 /// <summary>The outcome of a single node in a run.</summary>
