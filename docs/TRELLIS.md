@@ -474,6 +474,10 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
 - **History** — for a loaded pipeline, the **History** dropdown lists its past runs (status + start time,
   newest first); picking one **replays** that run's per-node statuses onto the canvas via the same animation
   path. Runs are read straight from the model (`PipelineRun -of-> Pipeline`), no extra storage.
+- **Param binding** — click a node to open its inspector; each **unwired input port** can be bound to a
+  **run param** by name (stored as the node's `paramBindings`). Bound params appear in a **Params** bar above
+  the canvas where you supply values at Run time — so a source node can be parameterized per run without
+  rewiring. Phloem fills bound inputs from the run's `params` (an explicit wire into the same port wins).
 - **Empty state** — with no nodes, the canvas points you to the palette; if the model has no dispatchable
   Connections it says so (load a model whose seed has pipeline Connections — see
   `tools/seed-migrate/pipeline-enable.js`).

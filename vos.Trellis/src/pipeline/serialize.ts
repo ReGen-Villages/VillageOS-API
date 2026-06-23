@@ -13,6 +13,8 @@ export interface EditorNode {
   x: number;
   y: number;
   ports: PortInfo[];
+  /** Input-port name → run-param key (#5647). Persisted as a JSON `paramBindings` property on the node. */
+  paramBindings?: Record<string, string>;
 }
 
 export interface EditorEdge {
@@ -58,6 +60,8 @@ export async function savePipeline(
     const thing = await thingApi.create(n.label);
     await thingApi.setProperty(thing.Id, 'x', 'vos.Double', n.x);
     await thingApi.setProperty(thing.Id, 'y', 'vos.Double', n.y);
+    if (n.paramBindings && Object.keys(n.paramBindings).length > 0)
+      await thingApi.setProperty(thing.Id, 'paramBindings', 'vos.String', JSON.stringify(n.paramBindings));
     await relationshipApi.create(thing.Id, isId, nodeArch);
     await relationshipApi.create(thing.Id, hasId, n.connectionId);
     await relationshipApi.create(pipeline.Id, hasId, thing.Id);
@@ -74,6 +78,20 @@ export async function savePipeline(
   }
 
   return { pipelineId: pipeline.Id, nodeIdMap: Object.fromEntries(nodeThingId) };
+}
+
+/** Parse a node's persisted `paramBindings` JSON property (input-port → run-param key); tolerant of junk. */
+function parseParamBindings(raw: unknown): Record<string, string> | undefined {
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return undefined;
+    const out: Record<string, string> = {};
+    for (const [port, key] of Object.entries(parsed)) if (typeof key === 'string' && key) out[port] = key;
+    return Object.keys(out).length > 0 ? out : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Reconstruct the editor state for an existing pipeline from the loaded model (pure read). */
@@ -94,6 +112,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       x: Number(t.Properties.x ?? i * 280),
       y: Number(t.Properties.y ?? 80),
       ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [],
+      paramBindings: parseParamBindings(t.Properties.paramBindings),
     };
   });
 

@@ -8,6 +8,8 @@ export interface PipelineNodeData {
   subdomain: string;
   ports: PortInfo[];
   status?: string;
+  /** Input-port name → run-param key (#5647). */
+  paramBindings?: Record<string, string>;
   [key: string]: unknown;
 }
 

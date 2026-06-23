@@ -765,6 +765,10 @@ graph/http body the service handles exactly as before; the two never collide.
 - **Reference inputs.** Large values aren't shipped in-band: an input may be `{ "ref": { "thingId",
   "property" } }`, which the node resolves via `GET /api/things/{id}/effective-properties` before running.
   Return the same shape to hand a large value downstream.
+- **Param-bound inputs.** An input port can be filled from the **run's params** instead of a wire (#5647): a
+  node's `paramBindings` property maps `inputPort → paramKey`, and Phloem fills that input from the spawn's
+  `params` before dispatch (an explicit wire into the same port wins). Lets a source node be parameterized
+  per-run without editing the graph; the editor's **Params** form supplies the values.
 - **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`
   — so the editor can type-check wires; expose them at `GET /manifest`.
 
@@ -877,5 +881,6 @@ unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the
    (running → succeeded / failed / skipped); **Cancel** stops an in-flight run, marking pending nodes
    `cancelled`. Or create an `X runs Pipeline` relationship to trigger it from the model (fire-and-forget).
 
-> **v1 scope.** Synchronous + async spawn with level-by-level concurrency and **live SSE run animation +
-> cancel**. Run-level param routing, incremental rerun/caching, and fan-out over collections are later phases.
+> **Scope.** Synchronous + async spawn with level-by-level concurrency, **live SSE run animation + cancel**,
+> run-history replay, and **run-level param routing**. Incremental rerun/caching and fan-out over collections
+> are later phases.

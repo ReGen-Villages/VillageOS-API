@@ -149,4 +149,29 @@ describe('loadPipeline', () => {
     const { model } = demoModel();
     expect(loadPipeline('does-not-exist', model)).toBeNull();
   });
+
+  it('parses a node\'s paramBindings property (#5647)', () => {
+    const things: VosThing[] = [];
+    const rels: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: props };
+      things.push(t);
+      return t;
+    };
+    const rel = (s: string, p: string, t: string) =>
+      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+    const is = T('is'), has = T('has'), pipeArch = T('Pipeline'), nodeArch = T('PipelineNode'), connArch = T('Connection');
+    const conn = T('conn', { Subdomain: 'x' });
+    rel(conn.Id, is.Id, connArch.Id);
+    const node = T('N', { paramBindings: '{"message":"greeting"}' });
+    rel(node.Id, is.Id, nodeArch.Id);
+    rel(node.Id, has.Id, conn.Id);
+    const pipe = T('P');
+    rel(pipe.Id, is.Id, pipeArch.Id);
+    rel(pipe.Id, has.Id, node.Id);
+
+    const loaded = loadPipeline(pipe.Id, new PipelineModel(things, rels))!;
+    expect(loaded.nodes[0].paramBindings).toEqual({ message: 'greeting' });
+  });
 });

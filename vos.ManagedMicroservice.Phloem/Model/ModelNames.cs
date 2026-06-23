@@ -20,6 +20,7 @@ public static class ModelNames
     public const string Required = "required";
     public const string FromPort = "fromPort";
     public const string ToPort = "toPort";
+    public const string ParamBindings = "paramBindings";
 
     public const string DirectionIn = "in";
     public const string DirectionOut = "out";

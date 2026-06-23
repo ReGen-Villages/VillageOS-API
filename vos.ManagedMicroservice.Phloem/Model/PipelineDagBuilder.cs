@@ -74,8 +74,34 @@ public static class PipelineDagBuilder
             Subdomain = subdomain!,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
             Ports = ResolvePorts(graph, service, model).ToList(),
+            ParamBindings = ParseParamBindings(nodeThing),
         };
     }
+
+    /// <summary>Parse the node's <c>paramBindings</c> property — a JSON object mapping input-port name → the
+    /// run-param key that fills it (#5647). Malformed/absent → no bindings (never fails a build).</summary>
+    private static IReadOnlyDictionary<string, string> ParseParamBindings(GraphThing nodeThing)
+    {
+        var raw = nodeThing.PropertyString(ModelNames.ParamBindings);
+        if (string.IsNullOrWhiteSpace(raw)) return EmptyBindings;
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return EmptyBindings;
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in doc.RootElement.EnumerateObject())
+                if (p.Value.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(p.Value.GetString()))
+                    map[p.Name] = p.Value.GetString()!;
+            return map;
+        }
+        catch (JsonException)
+        {
+            return EmptyBindings;
+        }
+    }
+
+    private static readonly IReadOnlyDictionary<string, string> EmptyBindings =
+        new Dictionary<string, string>();
 
     /// <summary>Collect Port child-Things by walking the service's <c>is</c>-chain — relationships do not
     /// inherit through <c>is</c>, so ports resolve at read time at each level of the chain.</summary>
