@@ -79,6 +79,32 @@ describe('typesCompatible', () => {
   });
 });
 
+describe('run animation source (#5635)', () => {
+  it('reads overall run status and per-node status from the live model', () => {
+    const things: VosThing[] = [];
+    const rels: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: props };
+      things.push(t);
+      return t;
+    };
+    const has = T('has');
+    // Phloem records: run -has-> NodeRun, each NodeRun carrying nodeId + status.
+    const run = T('PipelineRun abc', { status: 'running' });
+    const nr1 = T('NodeRun Generate', { nodeId: 'node-gen', status: 'succeeded' });
+    const nr2 = T('NodeRun Echo', { nodeId: 'node-ech', status: 'running' });
+    rels.push({ Id: 'rr1', Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nr1.Id, Properties: {} });
+    rels.push({ Id: 'rr2', Name: '', SubjectId: run.Id, PredicateId: has.Id, TargetId: nr2.Id, Properties: {} });
+
+    const model = new PipelineModel(things, rels);
+    expect(model.runStatus(run.Id)).toBe('running');
+    expect(model.nodeRunStatuses(run.Id)).toEqual({ 'node-gen': 'succeeded', 'node-ech': 'running' });
+    expect(model.runStatus('missing')).toBeUndefined();
+    expect(model.nodeRunStatuses('missing')).toEqual({});
+  });
+});
+
 describe('loadPipeline', () => {
   it('reconstructs nodes, connections, and the wire from the model', () => {
     const { model, pipelineId } = demoModel();

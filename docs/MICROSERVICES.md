@@ -817,6 +817,14 @@ POST /api/endpoints/phloem   { "pipelineId": "<guid>", "params": { } }
 // → { "runId", "pipelineId", "success", "nodes": [ { "nodeId","name","status","outputs","error" } ], "error" }
 ```
 
+**Spawn — http (asynchronous).** The Trellis editor spawns with `"async": true` so it gets the run id
+**immediately** and animates the run over SSE instead of blocking:
+
+```jsonc
+POST /api/endpoints/phloem   { "pipelineId": "<guid>", "params": { }, "async": true }
+// → { "success": true, "accepted": true, "runId": "<guid>", "pipelineId": "<guid>" }
+```
+
 **Spawn — graph (`X runs Pipeline`, fire-and-forget).** A pipeline can also be spawned **from the model**,
 like `consumes`/`produces` drive Metabolism: the seed declares a `runs` predicate that is a **graph
 Connection** bound to the Phloem Service. Creating a `<X> runs <Pipeline>` relationship makes Mycelium
@@ -848,8 +856,11 @@ sequenceDiagram
 DAG (node→Connection subdomain, ports via the `is`-chain, wires by `PipelineWire`); (3) validate up front —
 Kahn topological sort (acyclic, distinct from Hyphae's runtime oscillation) + port-type compatibility;
 (4) execute in dependency order (independent nodes concurrently, bounded), dispatching each via
-endpoint-forward and routing outputs→inputs; a node failure halts dependents; (5) persist
-`PipelineRun`/`NodeRun` best-effort.
+endpoint-forward and routing outputs→inputs; a node failure halts dependents; (5) **persist the run live**,
+best-effort — each node is written `running` before dispatch and its terminal status after, on **one
+`NodeRun` Thing per node** (deterministic id, so the SSE view sees a property change, not duplicate Things) —
+and between dispatches Phloem polls the run's `cancelRequested` flag for **cooperative cancellation**
+(already-running nodes finish; pending ones are marked `cancelled`).
 
 *Internals:* `IMyceliumGateway` is the seam between orchestration and HTTP (so `PipelineExecutor` is
 unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the `PipelineDag`,
@@ -862,8 +873,9 @@ unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the
    broker (clear `vos-data`).
 2. **Author:** Trellis → **Pipelines** (`TRELLIS.md` §7.4) — drag services from the palette, wire output→input
    ports (type-checked), **Save**.
-3. **Run:** click **Run** (synchronous http spawn) and read the per-node result; or create an
-   `X runs Pipeline` relationship to trigger it from the model (fire-and-forget).
+3. **Run:** click **Run** — the editor uses the async spawn and **animates each node live over SSE**
+   (running → succeeded / failed / skipped); **Cancel** stops an in-flight run, marking pending nodes
+   `cancelled`. Or create an `X runs Pipeline` relationship to trigger it from the model (fire-and-forget).
 
-> **v1 scope.** Synchronous spawn-and-wait with level-by-level concurrency. Live SSE run animation + cancel,
-> run-level param routing, incremental rerun/caching, and fan-out over collections are later phases.
+> **v1 scope.** Synchronous + async spawn with level-by-level concurrency and **live SSE run animation +
+> cancel**. Run-level param routing, incremental rerun/caching, and fan-out over collections are later phases.

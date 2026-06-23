@@ -464,8 +464,13 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
 - **New / Save / Load** — **New** clears the canvas; **Save** writes a `Pipeline` + `PipelineNode` Things and
   `has`/`feeds` relationships (node `‑has→ Connection`, positions round-trip as x/y); **Load** picks an
   existing pipeline from the model.
-- **Run** — spawns the **Phloem** orchestrator synchronously (`POST /api/endpoints/phloem`) and shows the
-  per-node result. Running lazy-starts Phloem and each node's service through Mycelium.
+- **Run** — spawns the **Phloem** orchestrator (`POST /api/endpoints/phloem`, async) and **animates the run
+  live**: each node lights up `running` (pulsing blue) → `succeeded` (green) / `failed` (red), nodes downstream
+  of a failure show `skipped`, and the panel tracks the overall run. The animation is driven by the model SSE
+  stream — Phloem writes each node's status as it goes, the editor paints it — not a separate channel. Running
+  lazy-starts Phloem and each node's service through Mycelium.
+- **Cancel** — while a run is in flight the Run button becomes **Cancel**; clicking it requests cooperative
+  cancellation (already-running nodes finish, pending nodes are marked `cancelled`, amber).
 - **Empty state** — with no nodes, the canvas points you to the palette; if the model has no dispatchable
   Connections it says so (load a model whose seed has pipeline Connections — see
   `tools/seed-migrate/pipeline-enable.js`).
@@ -945,7 +950,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
 | `/things` | `ThingSearchPage` | Dedicated thing-name search with ranked results (exact → prefix → substring → ID), type badges from `is` relationships, property preview, markdown export. Pure search logic in `src/utils/thingSearch.ts`. |
 | `/properties` | `PropertySearchPage` | Dedicated property-name search across all things and relationships, grouped by property name, inherited property tree walking, temporal history panel, markdown export. |
-| `/pipelines` | `PipelinePage` | Visual DAG editor (react-flow) for pipeline/orchestration. Palette of dispatchable Connections (subdomain + typed ports), type-checked wiring, save/load as Things+relationships, and **Run** (spawns Phloem synchronously). See §7.4. |
+| `/pipelines` | `PipelinePage` | Visual DAG editor (react-flow) for pipeline/orchestration. Palette of dispatchable Connections (subdomain + typed ports), type-checked wiring, save/load as Things+relationships, and **Run** (async spawn with live SSE node animation + **Cancel**). See §7.4. |
 
 ---
 

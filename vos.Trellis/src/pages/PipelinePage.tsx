@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -12,15 +12,23 @@ import {
   type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Play, Save, FolderOpen, FilePlus, MousePointerClick } from 'lucide-react';
+import clsx from 'clsx';
+import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
 import { PipelineModel, ARCHETYPE, typesCompatible, type ConnectionInfo } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
-import { pipelineApi, type PipelineRunResult } from '../api/pipelineApi';
+import { pipelineApi } from '../api/pipelineApi';
 import { PipelineNodeView, type PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import { Palette } from '../components/pipeline/Palette';
 
 const nodeTypes: NodeTypes = { pipelineNode: PipelineNodeView };
+
+const RUN_STATUS_COLOR: Record<string, string> = {
+  running: 'text-blue-600',
+  succeeded: 'text-green-600',
+  failed: 'text-red-500',
+  cancelled: 'text-amber-600',
+};
 
 let nodeSeq = 0;
 
@@ -40,7 +48,13 @@ export function PipelinePage() {
   const [savedId, setSavedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<PipelineRunResult | null>(null);
+  // Live run: the active run id + the canvas-node-id → Thing-id map so NodeRun statuses (keyed by Thing id)
+  // land on the right canvas node as they stream in over SSE.
+  const [runId, setRunId] = useState<string | null>(null);
+  const [thingIdByCanvasId, setThingIdByCanvasId] = useState<Record<string, string>>({});
+
+  const liveRunStatus = runId ? model.runStatus(runId) : undefined;
+  const runActive = !!runId && (liveRunStatus === undefined || liveRunStatus === 'running');
 
   const addNode = useCallback((c: ConnectionInfo) => {
     const data: PipelineNodeData = { label: c.name, connectionId: c.connectionId, subdomain: c.subdomain, ports: c.ports };
@@ -91,8 +105,11 @@ export function PipelinePage() {
     setBusy(true);
     setError(null);
     try {
-      const id = await savePipeline(name, toEditorNodes(), toEditorEdges(), model);
-      setSavedId(id);
+      const saved = await savePipeline(name, toEditorNodes(), toEditorEdges(), model);
+      setSavedId(saved.pipelineId);
+      setThingIdByCanvasId(saved.nodeIdMap);
+      setRunId(null);
+      setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined } })));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed.');
     } finally {
@@ -106,7 +123,9 @@ export function PipelinePage() {
     if (!loaded) return;
     setName(loaded.name);
     setSavedId(pipelineId);
-    setResult(null);
+    setRunId(null);
+    // Loaded canvas node ids ARE the Thing ids, so the canvas→Thing map is the identity.
+    setThingIdByCanvasId(Object.fromEntries(loaded.nodes.map((n) => [n.id, n.id])));
     setNodes(loaded.nodes.map((n) => ({
       id: n.id,
       type: 'pipelineNode',
@@ -121,22 +140,46 @@ export function PipelinePage() {
     setEdges([]);
     setName('New Pipeline');
     setSavedId(null);
-    setResult(null);
+    setRunId(null);
+    setThingIdByCanvasId({});
     setError(null);
   }, [setNodes, setEdges]);
 
   const onRun = useCallback(async () => {
     if (!savedId) return;
-    setBusy(true);
     setError(null);
+    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined } })));
     try {
-      setResult(await pipelineApi.spawn(savedId));
+      // Async spawn — get the run id up front and let the SSE animation effect below light up nodes.
+      const accepted = await pipelineApi.spawnAsync(savedId);
+      setRunId(accepted.runId);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Run failed.');
-    } finally {
-      setBusy(false);
     }
-  }, [savedId]);
+  }, [savedId, setNodes]);
+
+  const onCancel = useCallback(async () => {
+    if (!runId) return;
+    try {
+      await pipelineApi.cancel(runId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Cancel failed.');
+    }
+  }, [runId]);
+
+  // Drive the live animation: as Phloem writes NodeRun statuses, the model store updates over SSE → this
+  // recomputes and paints each node's status ring (PipelineNodeView). Canvas ids map to Thing ids via the
+  // save/load map so each NodeRun (keyed by Thing id) finds its node.
+  useEffect(() => {
+    if (!runId) return;
+    const statuses = model.nodeRunStatuses(runId);
+    if (Object.keys(statuses).length === 0) return;
+    setNodes((ns) => ns.map((n) => {
+      const thingId = thingIdByCanvasId[n.id] ?? n.id;
+      const status = statuses[thingId];
+      return status !== undefined ? { ...n, data: { ...n.data, status } } : n;
+    }));
+  }, [runId, model, thingIdByCanvasId, setNodes]);
 
   return (
     <div className="flex h-full">
@@ -155,9 +198,15 @@ export function PipelinePage() {
           <button onClick={onSave} disabled={busy || nodes.length === 0} className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-50">
             <Save size={14} /> Save
           </button>
-          <button onClick={onRun} disabled={busy || !savedId} className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-50">
-            <Play size={14} /> Run
-          </button>
+          {runActive ? (
+            <button onClick={onCancel} className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-amber-600 text-white">
+              <Ban size={14} /> Cancel
+            </button>
+          ) : (
+            <button onClick={onRun} disabled={busy || !savedId} className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-50">
+              <Play size={14} /> Run
+            </button>
+          )}
           <div className="flex items-center gap-1 ml-2">
             <FolderOpen size={14} className="text-zinc-400" />
             <select
@@ -204,16 +253,19 @@ export function PipelinePage() {
             </div>
           )}
         </div>
-        {result && (
+        {runId && (
           <div className="border-t border-zinc-200 dark:border-zinc-700 p-2 text-xs max-h-40 overflow-auto">
-            <div className={result.success ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
-              Run {result.success ? 'succeeded' : 'failed'}{result.error ? `: ${result.error}` : ''}
+            <div className={clsx('font-semibold', RUN_STATUS_COLOR[liveRunStatus ?? 'running'] ?? 'text-blue-600')}>
+              Run {liveRunStatus ?? 'starting'}{runActive ? '…' : ''}
             </div>
-            {result.nodes.map((n) => (
-              <div key={n.nodeId} className="font-mono">
-                {n.name}: {n.status}{n.error ? ` — ${n.error}` : ''}
-              </div>
-            ))}
+            {nodes.map((n) => {
+              const d = n.data as unknown as PipelineNodeData;
+              return (
+                <div key={n.id} className="font-mono">
+                  {d.label}: {d.status ?? 'pending'}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

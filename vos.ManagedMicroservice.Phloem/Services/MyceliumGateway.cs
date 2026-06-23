@@ -16,6 +16,7 @@ namespace vos.ManagedMicroservice.Phloem.Services;
 public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 {
     private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<Guid, byte> _createdNodeRuns = new();
     private readonly PipelineModelOptions _model;
 
     public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, PipelineModelOptions model, string? serviceToken = null)
@@ -70,25 +71,46 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         await RelateAsync(runId, "of", pipelineId, cancellationToken);
     }
 
-    public async Task PersistNodeRunAsync(Guid runId, NodeRunResult node, CancellationToken cancellationToken)
+    public async Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken)
     {
-        var nodeRunId = Guid.NewGuid();
-        await CreateThingWithIdAsync(nodeRunId, $"NodeRun {node.Name}", new Dictionary<string, object?>
+        var nodeRunId = DeterministicGuid(runId, nodeId);
+        if (_createdNodeRuns.TryAdd(nodeRunId, 0))
         {
-            ["status"] = node.Status,
-            ["nodeId"] = node.NodeId.ToString(),
-            ["error"] = node.Error,
-        }, cancellationToken);
-        await RelateAsync(nodeRunId, "is", await ResolveByNameAsync(_model.NodeRun, cancellationToken), cancellationToken);
-        await RelateAsync(runId, "has", nodeRunId, cancellationToken);
+            // First status for this node — create the NodeRun Thing and wire it into the run.
+            await CreateThingWithIdAsync(nodeRunId, $"NodeRun {nodeName}", new Dictionary<string, object?>
+            {
+                ["status"] = status,
+                ["nodeId"] = nodeId.ToString(),
+                ["error"] = error,
+            }, cancellationToken);
+            await RelateAsync(nodeRunId, "is", await ResolveByNameAsync(_model.NodeRun, cancellationToken), cancellationToken);
+            await RelateAsync(runId, "has", nodeRunId, cancellationToken);
+            return;
+        }
+
+        // Subsequent transition (running -> terminal) on the same Thing — a property change the SSE view sees.
+        await SetPropertyAsync(nodeRunId, "status", status, cancellationToken);
+        if (error != null) await SetPropertyAsync(nodeRunId, "error", error, cancellationToken);
     }
 
-    public async Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken)
+    public Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken) =>
+        SetPropertyAsync(runId, "status", status, cancellationToken);
+
+    public async Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken cancellationToken)
     {
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
-        var response = await client.PutAsync($"{MyceliumUrl}/api/things/{runId}/properties",
-            JsonContent.Create(new { name = "status", type = "vos.String", value = status }), cancellationToken);
-        response.EnsureSuccessStatusCode();
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{runId}", cancellationToken);
+        if (!response.IsSuccessStatusCode) return false;
+
+        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        if (root.TryGetProperty("properties", out var props) && props.ValueKind == JsonValueKind.Object
+            && props.TryGetProperty("cancelRequested", out var cr))
+        {
+            var v = Unwrap(cr);
+            return v.ValueKind == JsonValueKind.True
+                || (v.ValueKind == JsonValueKind.String && string.Equals(v.GetString(), "true", StringComparison.OrdinalIgnoreCase));
+        }
+        return false;
     }
 
     public async Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken cancellationToken)
@@ -108,6 +130,34 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         var response = await client.PostAsync($"{MyceliumUrl}/api/things",
             JsonContent.Create(new { id, name, properties }), cancellationToken);
         response.EnsureSuccessStatusCode();
+    }
+
+    private async Task SetPropertyAsync(Guid thingId, string name, string value, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
+        var response = await client.PutAsync($"{MyceliumUrl}/api/things/{thingId}/properties",
+            JsonContent.Create(new { name, type = "vos.String", value }), cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>A stable id per (run, node) so a node's NodeRun is one Thing across its running→terminal
+    /// transitions — required for the SSE animation to see property changes, not duplicate creates.</summary>
+    private static Guid DeterministicGuid(Guid runId, Guid nodeId)
+    {
+        Span<byte> buffer = stackalloc byte[32];
+        runId.TryWriteBytes(buffer[..16]);
+        nodeId.TryWriteBytes(buffer[16..]);
+        return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
+    }
+
+    /// <summary>A property value arrives wrapped as <c>{ value|Value, type }</c>; return the bare value.</summary>
+    private static JsonElement Unwrap(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+            foreach (var field in value.EnumerateObject())
+                if (field.NameEquals("value") || field.NameEquals("Value"))
+                    return field.Value;
+        return value;
     }
 
     private async Task RelateAsync(Guid subjectId, string predicateName, Guid targetId, CancellationToken cancellationToken)

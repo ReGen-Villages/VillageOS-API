@@ -23,7 +23,10 @@ public enum SpawnKind
 /// </list>
 /// Detected by shape — <c>pipelineId</c> ⇒ http, else <c>targetId</c> ⇒ graph.
 /// </summary>
-public sealed record SpawnTrigger(SpawnKind Kind, Guid PipelineId, JsonElement Params, string? Error)
+/// <param name="Async">For an http spawn, <c>{"async":true}</c> asks Phloem to return the run id immediately
+/// and run the DAG in the background (the editor animates over SSE) instead of blocking for the result. A graph
+/// trigger is always fire-and-forget.</param>
+public sealed record SpawnTrigger(SpawnKind Kind, Guid PipelineId, JsonElement Params, bool Async, string? Error)
 {
     public static SpawnTrigger Resolve(JsonElement root)
     {
@@ -32,19 +35,22 @@ public sealed record SpawnTrigger(SpawnKind Kind, Guid PipelineId, JsonElement P
 
         if (root.TryGetProperty("pipelineId", out var pid))
             return pid.ValueKind == JsonValueKind.String && Guid.TryParse(pid.GetString(), out var httpId)
-                ? new SpawnTrigger(SpawnKind.Http, httpId, CloneProp(root, "params"), null)
+                ? new SpawnTrigger(SpawnKind.Http, httpId, CloneProp(root, "params"), IsAsync(root), null)
                 : Invalid("'pipelineId' must be a guid.");
 
         if (root.TryGetProperty("targetId", out var tid))
             return tid.ValueKind == JsonValueKind.String && Guid.TryParse(tid.GetString(), out var graphId)
-                ? new SpawnTrigger(SpawnKind.Graph, graphId, CloneProp(root, "properties"), null)
+                ? new SpawnTrigger(SpawnKind.Graph, graphId, CloneProp(root, "properties"), true, null)
                 : Invalid("'targetId' must be a guid.");
 
         return Invalid("Request must include 'pipelineId' (http spawn) or 'targetId' (graph trigger).");
     }
 
+    private static bool IsAsync(JsonElement root) =>
+        root.TryGetProperty("async", out var a) && a.ValueKind == JsonValueKind.True;
+
     private static JsonElement CloneProp(JsonElement root, string name) =>
         root.TryGetProperty(name, out var v) ? v.Clone() : default;
 
-    private static SpawnTrigger Invalid(string error) => new(SpawnKind.Invalid, Guid.Empty, default, error);
+    private static SpawnTrigger Invalid(string error) => new(SpawnKind.Invalid, Guid.Empty, default, false, error);
 }
