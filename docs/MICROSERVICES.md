@@ -26,6 +26,14 @@ microservice, copy Echo's structure and the test patterns in §10. `Phloem` is t
 pipeline/DAG orchestrator and a service becomes a pipeline *node* via an additive `/handle`
 envelope — both documented in §16 (Pipelines / DAG orchestration).
 
+**Two kinds of predicates — the extension point.** `is` is the *only* predicate built into
+Mycelium; **every other predicate that does work is a _Handled Predicate_** dispatched to a
+microservice. That is the platform's extension point: a new capability — simulation, integration,
+computation — ships as a microservice bound to a predicate, with no change to Mycelium (Metabolism
+backs `consumes`/`produces` today; a pipeline node and the `runs` spawn-trigger are the same
+pattern). The dispatch machinery is load-bearing even with a single handler — don't flatten it, and
+don't add a second built-in predicate alongside `is`.
+
 Project references: `vos.Auth.Shared` (inbound JWT validation) and
 `vos.ManagedMicroservice.Shared` (Mycelium-client base, validators, contract-
 validation foundation + middleware — see §9). A microservice does **not**
@@ -127,7 +135,7 @@ await foreach (var change in sub.StreamAsync(result.SubscriptionId, result.Water
 The stream tracks the last delivered `Sequence` and re-sends it as `Last-Event-ID`
 on every reconnect, so delivery is gap-free and exactly-once across drops. Call
 `UnsubscribeAsync(subscriptionId)` on shutdown. The wire contract and the resume
-semantics are documented in the platform repo: `docs/SNAPSHOT_SUBSCRIPTIONS.md`.
+semantics are documented in [`MICROSERVICE_CONTRACT.md`](MICROSERVICE_CONTRACT.md) § Subscriptions.
 
 Membership is mutable — no reconnect needed to change what you watch:
 
