@@ -108,14 +108,30 @@ try
             return Results.BadRequest(new { error = "Request body must be valid JSON." });
         }
 
-        if (!root.TryGetProperty("pipelineId", out var pidEl) || pidEl.ValueKind != JsonValueKind.String
-            || !Guid.TryParse(pidEl.GetString(), out var pipelineId))
-            return Results.BadRequest(new { error = "Request must include a 'pipelineId' (guid)." });
+        var trigger = SpawnTrigger.Resolve(root);
+        switch (trigger.Kind)
+        {
+            case SpawnKind.Http:
+                // Synchronous spawn-and-wait — the caller (e.g. Trellis Run) blocks for the result.
+                var result = await executor.RunAsync(trigger.PipelineId, trigger.Params, httpContext.RequestAborted);
+                return Results.Ok(result);
 
-        var runParams = root.TryGetProperty("params", out var p) ? p.Clone() : default;
+            case SpawnKind.Graph:
+                // A `X runs Pipeline` relationship trigger fires during a relationship-create and Mycelium
+                // only waits ~15s — so ACK immediately and run the DAG in the background. The result lands on
+                // the PipelineRun (animated over SSE in #5635). A detached token lets it outlive the request.
+                var pipelineId = trigger.PipelineId;
+                var runParams = trigger.Params;
+                _ = Task.Run(async () =>
+                {
+                    try { await executor.RunAsync(pipelineId, runParams, CancellationToken.None); }
+                    catch (Exception ex) { Log.Error(ex, "Graph-triggered pipeline run {PipelineId} failed", pipelineId); }
+                });
+                return Results.Ok(new { success = true, accepted = true, pipelineId = trigger.PipelineId });
 
-        var result = await executor.RunAsync(pipelineId, runParams, httpContext.RequestAborted);
-        return Results.Ok(result);
+            default:
+                return Results.BadRequest(new { error = trigger.Error });
+        }
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 

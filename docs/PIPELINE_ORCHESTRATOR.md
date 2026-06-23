@@ -26,6 +26,21 @@ Phloem runs the whole DAG and returns:
 }
 ```
 
+### Graph trigger — `X runs Pipeline`
+
+A pipeline can also be spawned **from the model**, like `consumes`/`produces` drive Metabolism: the seed
+declares a `runs` predicate that is a **graph Connection** bound to the Phloem Service (see
+`tools/seed-migrate/pipeline-enable.js`). When a `<X> runs <Pipeline>` relationship is created, Mycelium
+forwards the relationship envelope — `{relationshipId, subjectId, targetId, properties}` — to the same
+`/handle`. Phloem reaches it through `SpawnTrigger.Resolve`: `pipelineId` present ⇒ http spawn; otherwise
+`targetId` is the Pipeline and `properties` are the run params. So **any service can spawn a DAG** by
+creating that relationship.
+
+Unlike the http spawn (synchronous), a graph trigger is **fire-and-forget**: it fires during a
+relationship-create and Mycelium only waits ~15s, so Phloem **ACKs immediately** (`{success:true,
+accepted:true}`) and runs the DAG in the background; the result lands on the `PipelineRun` (animated over
+SSE — a later phase). On Phloem restart, an in-flight background run is dropped (acceptable for v1).
+
 ## What a run does
 
 1. **Load** the pipeline's structural closure from Mycelium in one subscription snapshot — Pipeline, nodes,
