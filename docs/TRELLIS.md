@@ -471,6 +471,9 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   lazy-starts Phloem and each node's service through Mycelium.
 - **Cancel** — while a run is in flight the Run button becomes **Cancel**; clicking it requests cooperative
   cancellation (already-running nodes finish, pending nodes are marked `cancelled`, amber).
+- **History** — for a loaded pipeline, the **History** dropdown lists its past runs (status + start time,
+  newest first); picking one **replays** that run's per-node statuses onto the canvas via the same animation
+  path. Runs are read straight from the model (`PipelineRun -of-> Pipeline`), no extra storage.
 - **Empty state** — with no nodes, the canvas points you to the palette; if the model has no dispatchable
   Connections it says so (load a model whose seed has pipeline Connections — see
   `tools/seed-migrate/pipeline-enable.js`).
