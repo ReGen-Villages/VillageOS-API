@@ -19,6 +19,11 @@ public sealed class DagNode
         new Dictionary<string, JsonElement>(StringComparer.Ordinal);
     public IReadOnlyList<DagPort> Ports { get; init; } = Array.Empty<DagPort>();
 
+    /// <summary>Input-port → run-param-key bindings (#5647): at dispatch each bound input is filled from the
+    /// run's params (an explicit wire into the same port takes precedence).</summary>
+    public IReadOnlyDictionary<string, string> ParamBindings { get; init; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
     public IEnumerable<DagPort> InputPorts => Ports.Where(p => p.IsInput);
     public IEnumerable<DagPort> OutputPorts => Ports.Where(p => p.IsOutput);
 

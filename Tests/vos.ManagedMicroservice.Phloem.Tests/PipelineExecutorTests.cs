@@ -120,6 +120,28 @@ public class PipelineExecutorTests
             .Should().Equal(RunStatus.Running, RunStatus.Succeeded);
     }
 
+    [Fact]
+    public async Task RunAsync_BindsRunParamToBoundNodeInput()
+    {
+        var (fx, pipelineId) = TestGraphs.ParamBoundPipeline();
+        string? seenMessage = null;
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (_, envelope) =>
+            {
+                seenMessage = envelope.GetProperty("inputs").TryGetProperty("message", out var m) ? m.GetString() : null;
+                return NodeOk(("echo", seenMessage ?? ""));
+            },
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+
+        var runParams = JsonSerializer.SerializeToElement(new { greeting = "hello" });
+        var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        seenMessage.Should().Be("hello"); // input `message` filled from param `greeting`
+    }
+
     // --- helpers ---
 
     private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs)

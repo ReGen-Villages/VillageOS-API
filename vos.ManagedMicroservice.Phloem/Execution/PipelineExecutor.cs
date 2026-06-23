@@ -70,7 +70,7 @@ public sealed class PipelineExecutor
             var ready = pending.Where(n => dag.WiresInto(n.NodeId).All(w => results.ContainsKey(w.FromNodeId))).ToList();
             if (ready.Count == 0) break; // validated DAG => only reachable when an upstream failed
 
-            var batch = await Task.WhenAll(ready.Select(node => RunNodeGuardedAsync(gate, dag, node, rid, outputs, cancellationToken)));
+            var batch = await Task.WhenAll(ready.Select(node => RunNodeGuardedAsync(gate, dag, node, rid, outputs, runParams, cancellationToken)));
 
             foreach (var result in batch)
             {
@@ -121,12 +121,12 @@ public sealed class PipelineExecutor
 
     private async Task<NodeRunResult> RunNodeGuardedAsync(
         SemaphoreSlim gate, PipelineDag dag, DagNode node, Guid runId,
-        IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, CancellationToken cancellationToken)
+        IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams, CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken);
         try
         {
-            return await RunNodeAsync(dag, node, runId, outputs, cancellationToken);
+            return await RunNodeAsync(dag, node, runId, outputs, runParams, cancellationToken);
         }
         finally
         {
@@ -136,12 +136,16 @@ public sealed class PipelineExecutor
 
     private async Task<NodeRunResult> RunNodeAsync(
         PipelineDag dag, DagNode node, Guid runId,
-        IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, CancellationToken cancellationToken)
+        IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams, CancellationToken cancellationToken)
     {
         // Mark the node running before dispatch so the editor animates it live (terminal status follows).
         await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken), "persist node running");
 
         var inputs = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        // Run-level params bound to inputs first (#5647); an explicit wire into the same port overrides.
+        foreach (var (port, paramKey) in node.ParamBindings)
+            if (TryGetParam(runParams, paramKey, out var bound))
+                inputs[port] = bound;
         foreach (var wire in dag.WiresInto(node.NodeId))
             if (outputs.TryGetValue(wire.FromNodeId, out var upstream) && upstream.TryGetValue(wire.FromPort, out var value))
                 inputs[wire.ToPort] = value;
@@ -192,6 +196,15 @@ public sealed class PipelineExecutor
 
     private static NodeRunResult Failure(DagNode node, string error) =>
         new(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, error);
+
+    /// <summary>Look up a run-param by key — the spawn's <c>params</c> object (#5647).</summary>
+    private static bool TryGetParam(JsonElement runParams, string key, out JsonElement value)
+    {
+        if (runParams.ValueKind == JsonValueKind.Object && runParams.TryGetProperty(key, out value))
+            return true;
+        value = default;
+        return false;
+    }
 
     /// <summary>Serialize the node envelope <c>{runId,nodeId,params,inputs}</c>.</summary>
     private static JsonElement BuildEnvelope(Guid runId, DagNode node, IReadOnlyDictionary<string, JsonElement> inputs)

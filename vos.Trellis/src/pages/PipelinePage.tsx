@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import clsx from 'clsx';
-import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History } from 'lucide-react';
+import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
 import { PipelineModel, ARCHETYPE, typesCompatible, type ConnectionInfo } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
@@ -52,6 +52,21 @@ export function PipelinePage() {
   // land on the right canvas node as they stream in over SSE.
   const [runId, setRunId] = useState<string | null>(null);
   const [thingIdByCanvasId, setThingIdByCanvasId] = useState<Record<string, string>>({});
+  // Param routing (#5647): the selected node (binding editor) + the values supplied for each bound run param.
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [runParamValues, setRunParamValues] = useState<Record<string, string>>({});
+
+  // The distinct run-param keys any node binds an input to — drives the Params form.
+  const paramKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const n of nodes) {
+      const b = (n.data as unknown as PipelineNodeData).paramBindings;
+      if (b) for (const k of Object.values(b)) keys.add(k);
+    }
+    return [...keys].sort();
+  }, [nodes]);
+
+  const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : undefined;
 
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
   const runActive = !!runId && (liveRunStatus === undefined || liveRunStatus === 'running');
@@ -101,7 +116,7 @@ export function PipelinePage() {
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, connectionId: d.connectionId, label: d.label, x: n.position.x, y: n.position.y, ports: d.ports };
+      return { id: n.id, connectionId: d.connectionId, label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, paramBindings: d.paramBindings };
     });
 
   const toEditorEdges = (): EditorEdge[] =>
@@ -142,7 +157,7 @@ export function PipelinePage() {
       id: n.id,
       type: 'pipelineNode',
       position: { x: n.x, y: n.y },
-      data: { label: n.label, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports } as unknown as Record<string, unknown>,
+      data: { label: n.label, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, paramBindings: n.paramBindings } as unknown as Record<string, unknown>,
     })));
     setEdges(loaded.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle })));
   }, [model, connections, setNodes, setEdges]);
@@ -163,12 +178,26 @@ export function PipelinePage() {
     setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined } })));
     try {
       // Async spawn — get the run id up front and let the SSE animation effect below light up nodes.
-      const accepted = await pipelineApi.spawnAsync(savedId);
+      const params = Object.fromEntries(paramKeys.map((k) => [k, runParamValues[k] ?? '']));
+      const accepted = await pipelineApi.spawnAsync(savedId, params);
       setRunId(accepted.runId);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Run failed.');
     }
-  }, [savedId, setNodes]);
+  }, [savedId, setNodes, paramKeys, runParamValues]);
+
+  // Bind (or clear) an input port of a node to a run-param key.
+  const setBinding = useCallback((nodeId: string, port: string, paramKey: string) => {
+    setNodes((ns) => ns.map((n) => {
+      if (n.id !== nodeId) return n;
+      const d = n.data as unknown as PipelineNodeData;
+      const next = { ...(d.paramBindings ?? {}) };
+      if (paramKey.trim()) next[port] = paramKey.trim();
+      else delete next[port];
+      return { ...n, data: { ...n.data, paramBindings: next } };
+    }));
+    setSavedId(null);
+  }, [setNodes]);
 
   const onCancel = useCallback(async () => {
     if (!runId) return;
@@ -251,6 +280,21 @@ export function PipelinePage() {
           {savedId && <span className="text-xs text-green-600">saved</span>}
           {error && <span className="text-xs text-red-500 ml-2">{error}</span>}
         </div>
+        {paramKeys.length > 0 && (
+          <div className="flex items-center gap-3 px-2 py-1 border-b border-zinc-200 dark:border-zinc-700 text-xs">
+            <span className="text-zinc-500 flex items-center gap-1"><SlidersHorizontal size={12} /> Params</span>
+            {paramKeys.map((k) => (
+              <label key={k} className="flex items-center gap-1">
+                <span className="font-mono text-zinc-600 dark:text-zinc-300">{k}</span>
+                <input
+                  value={runParamValues[k] ?? ''}
+                  onChange={(e) => setRunParamValues((v) => ({ ...v, [k]: e.target.value }))}
+                  className="w-28 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
+                />
+              </label>
+            ))}
+          </div>
+        )}
         <div className="flex-1 relative">
           <ReactFlow
             nodes={nodes}
@@ -258,12 +302,50 @@ export function PipelinePage() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+            onPaneClick={() => setSelectedNodeId(null)}
             nodeTypes={nodeTypes}
             fitView
           >
             <Background />
             <Controls />
           </ReactFlow>
+          {selectedNode && (() => {
+            const d = selectedNode.data as unknown as PipelineNodeData;
+            const inputs = d.ports.filter((p) => p.direction === 'in');
+            const wired = new Set(edges.filter((e) => e.target === selectedNode.id).map((e) => e.targetHandle));
+            const bindings = d.paramBindings ?? {};
+            return (
+              <div className="absolute top-2 right-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
+                <div className="font-semibold mb-1.5 flex items-center justify-between gap-2">
+                  <span className="truncate">{d.label}</span>
+                  <button onClick={() => setSelectedNodeId(null)} aria-label="Close inspector" className="text-zinc-400 hover:text-zinc-600">×</button>
+                </div>
+                {inputs.length === 0 ? (
+                  <div className="text-zinc-400">No input ports.</div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <div className="text-zinc-400">Bind an input to a run param:</div>
+                    {inputs.map((p) => (
+                      <label key={p.portName} className="flex items-center gap-1">
+                        <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{p.portName}</span>
+                        {wired.has(p.portName) ? (
+                          <span className="flex-1 italic text-zinc-400">wired</span>
+                        ) : (
+                          <input
+                            placeholder="from param…"
+                            value={bindings[p.portName] ?? ''}
+                            onChange={(e) => setBinding(selectedNode.id, p.portName, e.target.value)}
+                            className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
+                          />
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {nodes.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center text-sm text-zinc-500 dark:text-zinc-400 max-w-xs">

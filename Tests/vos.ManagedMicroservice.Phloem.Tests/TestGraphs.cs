@@ -95,4 +95,44 @@ public static class TestGraphs
 
         return (fx, pipe.Id);
     }
+
+    /// <summary>A single Echo node whose input port `message` is bound to the run param `greeting`
+    /// (no wires) — exercises run-level param routing (#5647).</summary>
+    public static (GraphFixture Fixture, Guid PipelineId) ParamBoundPipeline()
+    {
+        var fx = new GraphFixture();
+        var isP = fx.Thing("is");
+        var has = fx.Thing("has");
+
+        var pipelineArch = fx.Thing("Pipeline");
+        var nodeArch = fx.Thing("PipelineNode");
+        var connArch = fx.Thing("Connection");
+        var svcArch = fx.Thing("Service");
+        var portArch = fx.Thing("Port");
+
+        var proto = fx.Thing("EchoProto");
+        fx.Rel(proto, isP, svcArch);
+        var portIn = fx.Thing("p.in", ("direction", "in"), ("type", "string"), ("portName", "message"), ("required", "true"));
+        var portOut = fx.Thing("p.out", ("direction", "out"), ("type", "string"), ("portName", "echo"));
+        fx.Rel(portIn, isP, portArch);
+        fx.Rel(portOut, isP, portArch);
+        fx.Rel(proto, has, portIn);
+        fx.Rel(proto, has, portOut);
+
+        var echSvc = fx.Thing("echSvc");
+        fx.Rel(echSvc, isP, proto);
+        var echConn = fx.Thing("echConn", ("Subdomain", "ech"));
+        fx.Rel(echConn, isP, connArch);
+        fx.Rel(echConn, has, echSvc);
+
+        var ech = fx.Thing("Echo", ("paramBindings", "{\"message\":\"greeting\"}"));
+        fx.Rel(ech, isP, nodeArch);
+        fx.Rel(ech, has, echConn);
+
+        var pipe = fx.Thing("ParamDemo");
+        fx.Rel(pipe, isP, pipelineArch);
+        fx.Rel(pipe, has, ech);
+
+        return (fx, pipe.Id);
+    }
 }
