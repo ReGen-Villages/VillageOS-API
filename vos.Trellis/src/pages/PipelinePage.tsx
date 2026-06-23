@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import clsx from 'clsx';
-import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban } from 'lucide-react';
+import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
 import { PipelineModel, ARCHETYPE, typesCompatible, type ConnectionInfo } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
@@ -55,6 +55,18 @@ export function PipelinePage() {
 
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
   const runActive = !!runId && (liveRunStatus === undefined || liveRunStatus === 'running');
+  // Past + in-flight runs of the loaded pipeline — the history panel (#5646).
+  const runs = useMemo(() => (savedId ? model.runsOf(savedId) : []), [savedId, model]);
+
+  const clearStatuses = useCallback(() => {
+    setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined } })));
+  }, [setNodes]);
+
+  // Replay a past run: point runId at it and the animation effect paints its (terminal) node statuses.
+  const onSelectRun = useCallback((id: string) => {
+    clearStatuses();
+    setRunId(id || null);
+  }, [clearStatuses]);
 
   const addNode = useCallback((c: ConnectionInfo) => {
     const data: PipelineNodeData = { label: c.name, connectionId: c.connectionId, subdomain: c.subdomain, ports: c.ports };
@@ -218,6 +230,24 @@ export function PipelinePage() {
               {pipelines.map((p) => <option key={p.Id} value={p.Id}>{p.Name}</option>)}
             </select>
           </div>
+          {savedId && runs.length > 0 && (
+            <div className="flex items-center gap-1 ml-2">
+              <History size={14} className="text-zinc-400" />
+              <select
+                onChange={(e) => onSelectRun(e.target.value)}
+                value={runId && runs.some((r) => r.runId === runId) ? runId : ''}
+                aria-label="Run history"
+                className="px-2 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
+              >
+                <option value="">History…</option>
+                {runs.map((r) => (
+                  <option key={r.runId} value={r.runId}>
+                    {r.status || 'run'}{r.startedUtc ? ` · ${r.startedUtc.slice(11, 19)}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {savedId && <span className="text-xs text-green-600">saved</span>}
           {error && <span className="text-xs text-red-500 ml-2">{error}</span>}
         </div>

@@ -103,6 +103,36 @@ describe('run animation source (#5635)', () => {
     expect(model.runStatus('missing')).toBeUndefined();
     expect(model.nodeRunStatuses('missing')).toEqual({});
   });
+
+  it('lists a pipeline\'s runs newest-first, scoped to that pipeline', () => {
+    const things: VosThing[] = [];
+    const rels: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: props };
+      things.push(t);
+      return t;
+    };
+    const is = T('is'), of = T('of'), runArch = T('PipelineRun');
+    const pipeA = T('Pipeline A'), pipeB = T('Pipeline B');
+    const rel = (s: string, p: string, t: string) =>
+      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
+
+    // Two runs of A (different times) + one run of B — B must not leak into A's history.
+    const a1 = T('PipelineRun a1', { status: 'succeeded', startedUtc: '2026-06-23T10:00:00Z' });
+    const a2 = T('PipelineRun a2', { status: 'failed', startedUtc: '2026-06-23T12:00:00Z' });
+    const b1 = T('PipelineRun b1', { status: 'succeeded', startedUtc: '2026-06-23T11:00:00Z' });
+    for (const r of [a1, a2, b1]) rel(r.Id, is.Id, runArch.Id);
+    rel(a1.Id, of.Id, pipeA.Id);
+    rel(a2.Id, of.Id, pipeA.Id);
+    rel(b1.Id, of.Id, pipeB.Id);
+
+    const model = new PipelineModel(things, rels);
+    const runs = model.runsOf(pipeA.Id);
+    expect(runs.map((r) => r.runId)).toEqual([a2.Id, a1.Id]); // newest first, B excluded
+    expect(runs[0]).toMatchObject({ status: 'failed', startedUtc: '2026-06-23T12:00:00Z' });
+    expect(model.runsOf('missing')).toEqual([]);
+  });
 });
 
 describe('loadPipeline', () => {
