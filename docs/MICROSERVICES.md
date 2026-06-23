@@ -23,8 +23,8 @@ handlers in Go, Node/TypeScript, Python, and Rust, see
 Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`, `Phloem`. **Echo is
 the canonical reference implementation** — the simplest. When adding a new
 microservice, copy Echo's structure and the test patterns in §10. `Phloem` is the
-pipeline/DAG orchestrator (see [`PIPELINE_ORCHESTRATOR.md`](PIPELINE_ORCHESTRATOR.md)); a
-service becomes a pipeline *node* via the [`PIPELINE_NODE_CONTRACT.md`](PIPELINE_NODE_CONTRACT.md).
+pipeline/DAG orchestrator and a service becomes a pipeline *node* via an additive `/handle`
+envelope — both documented in §16 (Pipelines / DAG orchestration).
 
 Project references: `vos.Auth.Shared` (inbound JWT validation) and
 `vos.ManagedMicroservice.Shared` (Mycelium-client base, validators, contract-
@@ -693,3 +693,169 @@ accepts; the wrong kind returns **405**, an unknown thing/property **404**.
 [`MICROSERVICE_CONTRACT.md`](MICROSERVICE_CONTRACT.md) § "Writing data back". The schemas live in
 `vos.ManagedMicroservice.Shared/Contracts/Schemas/{fact-write,observation-write,observation-batch,sediment-deposit}-request.schema.json`
 (§9.3). Tests: `MyceliumClientWriteKindsTests` (Shared) and `WriteKindsDemoTests` (Echo).
+
+---
+
+## 16. Pipelines / DAG orchestration
+
+A **pipeline** is a Directed Acyclic Graph whose **nodes are microservices** and whose **edges are typed
+data-flow wires** (Feature #5628). You build one visually in **Trellis → Pipelines** (see
+[`TRELLIS.md`](TRELLIS.md) §7.4), and the **Phloem** orchestrator microservice executes it — resolving
+dependencies, invoking each node through the same `/handle` dispatch every handler already uses, and routing
+each node's outputs to its downstream inputs.
+
+It is *lean-on-model*: a pipeline is just **Things + relationships**, so the platform stays generic. Three
+pieces hold all the specificity — the model archetypes (seed), the Phloem orchestrator, and the Trellis
+editor.
+
+### 16.1 The model
+
+```mermaid
+graph LR
+  PIPE[Pipeline] -->|has| N1[node: Generate]
+  PIPE -->|has| N2[node: Echo]
+  N1 -->|"feeds {fromPort,toPort}"| N2
+  N1 -->|has| C1["Connection<br/>(Subdomain)"]
+  C1 -->|has| S1[Service]
+  S1 -->|is| PROTO[prototype]
+  PROTO -->|has| PORT["Port<br/>(direction/type/required)"]
+```
+
+- A **PipelineNode** binds a **Connection** (`node ‑has→ Connection ‑has→ Service`); the Connection's
+  `Subdomain` is the dispatch address Phloem forwards to.
+- **Ports** are first-class `Port` Things on the service **prototype**, resolved by walking the bound
+  service's `is`-chain (relationships do **not** inherit through `is`, so ports resolve at read time).
+- A **wire** is a relationship whose predicate **`is PipelineWire`** — identified by archetype, never by the
+  name `"feeds"` — carrying `fromPort`/`toPort`.
+- Make any seed DAG-ready with `tools/seed-migrate/pipeline-enable.js` (adds the archetypes, the Phloem
+  Connection, example Echo node services with typed Ports, and a demo Pipeline; see
+  [`MIGRATING_SEEDS.md`](MIGRATING_SEEDS.md)).
+
+### 16.2 Making a microservice a node — the envelope
+
+A node is just a service that, in addition to its normal graph/http handling, recognises one extra `/handle`
+request shape — the **node envelope** — and answers with **outputs**. It is **additive** over the
+[Microservice Contract](MICROSERVICE_CONTRACT.md): same `POST /handle`, same JWT, same registration.
+
+```jsonc
+// orchestrator → node                          // node → orchestrator
+POST /handle                                     {
+{                                                  "success": true,
+  "runId":  "<guid>",                              "outputs": { "echo": "hello" },  // by OUTPUT-port name
+  "nodeId": "<guid>",                              "error": null
+  "params": { /* static node params */ },        }
+  "inputs": {                  // by INPUT-port name
+    "message": "hello",                           // in-band literal, or…
+    "geometry": { "ref": { "thingId": "<guid>", "property": "mesh" } }  // …a graph reference
+  }
+}
+```
+
+A request is a node invocation **iff it carries both `runId` and `nodeId`** — anything else is a legacy
+graph/http body the service handles exactly as before; the two never collide.
+
+- **Reference inputs.** Large values aren't shipped in-band: an input may be `{ "ref": { "thingId",
+  "property" } }`, which the node resolves via `GET /api/things/{id}/effective-properties` before running.
+  Return the same shape to hand a large value downstream.
+- **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`
+  — so the editor can type-check wires; expose them at `GET /manifest`.
+
+**.NET SDK base.** `DagNodeService` (`vos.ManagedMicroservice.Shared`, namespace `…Shared.DagNode`) maps the
+envelope onto business logic:
+
+```csharp
+public sealed class MyNode : DagNodeService
+{
+    public override IReadOnlyList<PortDescriptor> Ports { get; } = new[]
+    {
+        PortDescriptor.Input("message", "string", required: true),
+        PortDescriptor.Output("echo", "string"),
+    };
+
+    protected override Task<NodeResult> ExecuteNodeAsync(NodeContext ctx, CancellationToken ct)
+    {
+        var message = ctx.Input("message")?.GetString() ?? throw new InvalidOperationException("message required");
+        return Task.FromResult(NodeResult.Ok(("echo", message)));
+    }
+}
+
+// wire into the host's existing /handle:
+app.MapPost("/handle", async (HttpContext http, MyNode node) =>
+{
+    using var doc = await JsonDocument.ParseAsync(http.Request.Body);
+    return DagNodeService.IsNodeEnvelope(doc.RootElement)
+        ? Results.Ok(await node.HandleNodeAsync(doc.RootElement, http.RequestAborted))
+        : Results.Ok(/* … the service's existing handling … */);
+});
+```
+
+`HandleNodeAsync` parses the envelope, resolves `ref` inputs, runs `ExecuteNodeAsync`, and shapes
+`{success,outputs,error}`. A throw becomes `{success:false,error:"…"}` — never an unhandled 500 — so the
+orchestrator records the failure and halts dependents cleanly. **Echo** (`EchoNode`) is the reference node
+(`message` → `echo`). Non-.NET services implement the same JSON envelope directly.
+
+> **Node vs. spawner.** Being a node is one role; **spawning** a pipeline is a different one. A service that
+> *runs* a DAG (e.g. Tributary, or Metabolism's `consumes`/`produces`) is a **spawner** — see §16.3 — not a
+> node.
+
+### 16.3 The orchestrator (Phloem)
+
+Phloem is a managed microservice like any other; everything it does goes **through Mycelium**.
+
+**Spawn — http (synchronous).** A caller spawns through endpoint-forward and **blocks for the result**:
+
+```jsonc
+POST /api/endpoints/phloem   { "pipelineId": "<guid>", "params": { } }
+// → { "runId", "pipelineId", "success", "nodes": [ { "nodeId","name","status","outputs","error" } ], "error" }
+```
+
+**Spawn — graph (`X runs Pipeline`, fire-and-forget).** A pipeline can also be spawned **from the model**,
+like `consumes`/`produces` drive Metabolism: the seed declares a `runs` predicate that is a **graph
+Connection** bound to the Phloem Service. Creating a `<X> runs <Pipeline>` relationship makes Mycelium
+forward the relationship envelope (`{relationshipId, subjectId, targetId, properties}`) to the same
+`/handle`; `SpawnTrigger.Resolve` keys off shape (`pipelineId` ⇒ http; else `targetId` is the Pipeline,
+`properties` are the params). So **any service can spawn a DAG** by creating that relationship. Because a
+graph trigger fires during a relationship-create (Mycelium waits ~15s), it is **fire-and-forget**: Phloem
+ACKs immediately and runs the DAG in the background, persisting the result to the `PipelineRun`.
+
+```mermaid
+sequenceDiagram
+  participant Caller
+  participant Mycelium
+  participant Phloem
+  participant Node as Node service
+  Caller->>Mycelium: POST /api/endpoints/phloem {pipelineId}
+  Mycelium->>Phloem: lazy-start + forward
+  Phloem->>Mycelium: load subgraph (subscription snapshot)
+  Phloem->>Phloem: build DAG + validate (Kahn + port types)
+  loop each ready node (dependency order)
+    Phloem->>Mycelium: POST /api/endpoints/<node-subdomain> {runId,nodeId,params,inputs}
+    Mycelium->>Node: lazy-start + forward
+    Node-->>Phloem: {success, outputs}
+  end
+  Phloem-->>Caller: {runId, success, nodes[...]}
+```
+
+**What a run does:** (1) load the pipeline's structural closure in one subscription snapshot; (2) build the
+DAG (node→Connection subdomain, ports via the `is`-chain, wires by `PipelineWire`); (3) validate up front —
+Kahn topological sort (acyclic, distinct from Hyphae's runtime oscillation) + port-type compatibility;
+(4) execute in dependency order (independent nodes concurrently, bounded), dispatching each via
+endpoint-forward and routing outputs→inputs; a node failure halts dependents; (5) persist
+`PipelineRun`/`NodeRun` best-effort.
+
+*Internals:* `IMyceliumGateway` is the seam between orchestration and HTTP (so `PipelineExecutor` is
+unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the `PipelineDag`,
+`DagValidator` checks it, `MyceliumGateway` is the HTTP implementation. The archetype vocabulary
+(Connection/Service/Pipeline/…) comes from Mycelium's `ServiceModel` config, pushed to Phloem at launch.
+
+### 16.4 Creating & running a pipeline
+
+1. **Enable a seed:** `node tools/seed-migrate/pipeline-enable.js <seed.json> --write`, then reload the
+   broker (clear `vos-data`).
+2. **Author:** Trellis → **Pipelines** (`TRELLIS.md` §7.4) — drag services from the palette, wire output→input
+   ports (type-checked), **Save**.
+3. **Run:** click **Run** (synchronous http spawn) and read the per-node result; or create an
+   `X runs Pipeline` relationship to trigger it from the model (fire-and-forget).
+
+> **v1 scope.** Synchronous spawn-and-wait with level-by-level concurrency. Live SSE run animation + cancel,
+> run-level param routing, incremental rerun/caching, and fan-out over collections are later phases.

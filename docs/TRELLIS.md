@@ -471,8 +471,7 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   `tools/seed-migrate/pipeline-enable.js`).
 
 The model side (archetypes, node-binds-Connection, the `PipelineWire` predicate) and the orchestrator are
-documented in [`PIPELINE_ORCHESTRATOR.md`](PIPELINE_ORCHESTRATOR.md) and
-[`PIPELINE_NODE_CONTRACT.md`](PIPELINE_NODE_CONTRACT.md).
+documented in [`MICROSERVICES.md` §16 (Pipelines / DAG orchestration)](MICROSERVICES.md).
 
 ---
 
