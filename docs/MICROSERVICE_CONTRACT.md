@@ -14,7 +14,7 @@ A service plays one or both roles:
 
 A handler may additionally act as a **pipeline DAG node** by recognising one extra `/handle` request
 shape (the node envelope) and replying with outputs — see the
-[Pipeline Node Contract](PIPELINE_NODE_CONTRACT.md). It is purely additive to everything below.
+[MICROSERVICES.md §16.2 (node contract)](MICROSERVICES.md). It is purely additive to everything below.
 
 ## Startup
 
