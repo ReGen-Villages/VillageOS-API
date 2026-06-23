@@ -32,7 +32,7 @@ microservice. That is the platform's extension point: a new capability — simul
 computation — ships as a microservice bound to a predicate, with no change to Mycelium (Metabolism
 backs `consumes`/`produces` today; a pipeline node and the `runs` spawn-trigger are the same
 pattern). The dispatch machinery is load-bearing even with a single handler — don't flatten it, and
-don't add a second built-in predicate alongside `is`.
+don't add a second built-in predicate alongside `is`. The full relationship-service handler model, the Mycelium API handlers use, and worked examples are in [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md).
 
 Project references: `vos.Auth.Shared` (inbound JWT validation) and
 `vos.ManagedMicroservice.Shared` (Mycelium-client base, validators, contract-
