@@ -31,6 +31,27 @@ variables:
   wikiRepoId: 'de73fcdb-2959-4209-a858-f3d697e8c632'
 
 steps:
+# Fail fast if proprietary engine code ever reappears in the public repo (it must not — the
+# engine lives only in the private VillageOS repo). Runs before build AND before the GitHub
+# mirror step (which is gated on succeeded()), so a violation can never be published.
+- bash: |
+    set -uo pipefail
+    echo "Guard: verifying no proprietary engine code in the public repo..."
+    fail=0
+    for p in vos.Core vos.Application vos.Infrastructure vos.Mycelium vos.Persistence; do
+      if [ -d "$p" ]; then echo "##[error]Forbidden engine project directory present: $p"; fail=1; fi
+    done
+    if grep -rIlE "vos\.(Core|Application|Infrastructure|Mycelium|Persistence)\.csproj" --include="*.csproj" . ; then
+      echo "##[error]A .csproj references a proprietary engine project (paths above)"; fail=1; fi
+    if grep -rIlE "using[[:space:]]+vos\.(Core|Application|Infrastructure|Mycelium|Persistence)" --include="*.cs" . ; then
+      echo "##[error]Source imports a proprietary engine namespace (files above)"; fail=1; fi
+    if [ "$fail" -ne 0 ]; then
+      echo "##[error]Proprietary engine code must never exist in the public VillageOS-API repo. See the engine-exposure remediation."
+      exit 1
+    fi
+    echo "Guard passed: no proprietary engine footprint."
+  displayName: 'Guard: no proprietary engine in public repo'
+
 - task: UseDotNet@2
   displayName: 'Install .NET SDK'
   inputs:
