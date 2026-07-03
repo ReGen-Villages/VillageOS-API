@@ -36,6 +36,8 @@ Normally you don't run it by hand — Mycelium launches it as a daemon with thes
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | POST | `/handle` | JWT* | Process a relationship payload from Mycelium |
+| POST | `/demo/write-kinds` | JWT* | Demo: write typed-Fact kinds back to Mycelium |
+| POST | `/demo/subscribe` | JWT* | Demo: open a snapshot + live SSE subscription |
 | GET | `/health` | — | Liveness probe |
 | GET | `/stats` | — | Service metadata |
 | POST | `/shutdown` | JWT* | Graceful shutdown |

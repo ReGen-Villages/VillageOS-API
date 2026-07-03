@@ -2,7 +2,7 @@
 
 A complete, runnable VillageOS handler written in **TypeScript on Node.js using only built-in modules** (`node:http`, `node:crypto`, global `fetch`) — no runtime dependencies. It implements the full managed-microservice contract documented in [docs/MICROSERVICE_AUTHORING.md](../docs/MICROSERVICE_AUTHORING.md).
 
-It's the Node analogue of the canonical C# [`vos.ManagedMicroservice.Echo`](../vos.ManagedMicroservice.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace `handleRelationship` logic in `src/index.ts` with your own.
+It's the Node analogue of the canonical C# [`vos.ManagedMicroservice.Echo`](../vos.ManagedMicroservice.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace the `/handle` block in `src/index.ts` with your own logic.
 
 > `is` is **not** an external predicate — Mycelium handles it in-process. Register your service for a custom predicate (or `consumes`/`produces`). See the authoring doc.
 
