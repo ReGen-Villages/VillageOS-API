@@ -14,9 +14,8 @@ dashboard, creating data. **[Part 2 — Technical Specification](#part-2--techni
 is reference material for someone writing GUI code: architecture, component
 structure, state management, and the API and SSE (Server-Sent Events) layer.
 
-> **Screenshots**: To re-capture screenshots, run
-> `node docs/capture-screenshots.mjs` while the Mycelium and GUI dev server
-> are running. See the script for details.
+> **Screenshots**: Re-capture screenshots with the Mycelium and GUI dev server
+> running.
 
 ---
 
@@ -483,8 +482,8 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   aggregate ring — `partial` (orange) when `onItemError:continue` and some items failed. Each output port is
   gathered into a list for downstream: chain another fan-out, or feed an aggregator node.
 - **Empty state** — with no nodes, the canvas points you to the palette; if the model has no dispatchable
-  Connections it says so (load a model whose seed has pipeline Connections — see
-  `tools/seed-migrate/pipeline-enable.js`).
+  Connections it says so (load a model whose seed has pipeline Connections — use the `seed-migrate` tool
+  in the private VillageOS repo to add them).
 
 The model side (archetypes, node-binds-Connection, the `PipelineWire` predicate) and the orchestrator are
 documented in [`MICROSERVICES.md` §16 (Pipelines / DAG orchestration)](MICROSERVICES.md).
@@ -716,7 +715,11 @@ vos.Trellis/
     ├── pages/
     │   ├── GraphPage.tsx        # Main graph + search + inline CRUD + detail panels
     │   ├── DashboardPage.tsx    # Services (with daemon state), endpoint services, model stats, activity feed
-    │   └── TemporalPage.tsx     # Time-range mutation explorer
+    │   ├── TemporalPage.tsx     # Time-range mutation explorer
+    │   ├── ModelPage.tsx        # Fragments-based 3D model viewer
+    │   ├── PipelinePage.tsx     # Pipeline / DAG editor (Phloem orchestration)
+    │   ├── ThingSearchPage.tsx  # Thing search
+    │   └── PropertySearchPage.tsx # Property search
     │
     └── components/
         ├── layout/

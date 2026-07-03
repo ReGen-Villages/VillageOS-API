@@ -92,7 +92,7 @@ mentions every flag. The reference is
 
 Service-specific flags extend the standard shape. Metabolism's
 `--mode=consumes|produces` lives in
-`Metabolism/Configuration/MetabolismCliArgs.cs` and fails parsing for any
+`Metabolism/Configuration/CliArgs.cs` and fails parsing for any
 other value.
 
 ## 5. MyceliumClient subclassing
@@ -144,9 +144,9 @@ Membership is mutable — no reconnect needed to change what you watch:
 var all = await sub.SubscribeAsync(new SubscriptionSelector { All = true });
 
 // Widen / narrow a live subscription as needs change:
-var added = await sub.AddObjectsAsync(sub.Id, new SubscriptionSelector { Ids = new() { relId } });
+var added = await sub.AddObjectsAsync(all.SubscriptionId, new SubscriptionSelector { Ids = new() { relId } });
 ApplySnapshot(added.Snapshot); // incremental snapshot hydrates the newly-added objects
-await sub.RemoveObjectsAsync(sub.Id, new[] { relId });
+await sub.RemoveObjectsAsync(all.SubscriptionId, new[] { relId });
 ```
 
 The subclass's job is to provide a service-specific `RegisterAsync(port)`
@@ -307,7 +307,6 @@ embedded as resources in the shared assembly. The validator runtime lives in
 | `mycelium-register-request` | every microservice → Mycelium `POST /api/mycelium/register` | `MyceliumClientBase.RegisterAsync` | 1 (schema) / 3 (wired) |
 | `token-response` | Mycelium `POST /api/auth/token` → every microservice | `MyceliumClientBase.GetTokenAsync` | 1 / 3 |
 | `handle-request-metabolism` | Mycelium → Metabolism `POST /handle` | `vos.ManagedMicroservice.Metabolism.Models.HandleRequest` | 1 / 2 |
-| `relationship-property-changed-event` | Mycelium SSE change stream → Metabolism (via shared `SubscriptionClient`) | `vos.ManagedMicroservice.Metabolism.Services.MetabolismSubscriptionService` | 1 / 4 |
 | `apply-quantity-request` | Metabolism → Mycelium `POST /api/things/{id}/properties/{path}/{decrements\|increments}` | `vos.ManagedMicroservice.Metabolism.Services.MyceliumClient.ApplyQuantityAsync` | 4 |
 | `relationship-property-increment-request` | Metabolism → Mycelium `POST /api/relationships/{id}/properties/{path}/increments` | `vos.ManagedMicroservice.Metabolism.Services.MyceliumClient.IncrementRelationshipPropertyAsync` | 4 |
 
@@ -371,10 +370,7 @@ NJsonSchema's internal `ValidationErrorKind` enum:
 5. Tag the C# DTO with `[ContractSchema("<$id>")]` and add
    `.RequireContract<TRequest>()` to the route that accepts it.
 
-Schemas are authored against Draft 2020-12 by default. The
-`relationship-property-changed-event` schema uses Draft 7 because
-NJsonSchema's runtime validator does not implement Draft 2020-12
-`prefixItems`; switch back to Draft 2020-12 if NJsonSchema gains support.
+Schemas are authored against Draft 2020-12.
 
 ### 9.4 Inbound middleware (Phase 2)
 
@@ -399,12 +395,11 @@ follow-up tracked separately.
 
 ### 9.6 Metabolism hot-path validation (Phase 4)
 
-`ApplyQuantityAsync`, `IncrementRelationshipPropertyAsync`, and the
-`RelationshipPropertyChanged` events arriving over the SSE subscription all
-validate on every tick. `ValidateOutbound` is promoted to `protected` so
-service-specific subclasses can call it. The validation path is exercised
-without a live stream by feeding events through `MetabolismSubscriptionService`
-in tests. Same Throw/Log policy as §9.5.
+`ApplyQuantityAsync` and `IncrementRelationshipPropertyAsync` validate their
+outbound bodies on every tick. `ValidateOutbound` is promoted to `protected` so
+service-specific subclasses can call it. Same Throw/Log policy as §9.5. Inbound
+`RelationshipPropertyChanged` events arriving over the SSE subscription are not
+schema-validated — `MetabolismSubscriptionService` applies them directly.
 
 ### 9.7 Tests + coverage
 
@@ -735,9 +730,8 @@ graph LR
   service's `is`-chain (relationships do **not** inherit through `is`, so ports resolve at read time).
 - A **wire** is a relationship whose predicate **`is PipelineWire`** — identified by archetype, never by the
   name `"feeds"` — carrying `fromPort`/`toPort`.
-- Make any seed DAG-ready with `tools/seed-migrate/pipeline-enable.js` (adds the archetypes, the Phloem
-  Connection, example Echo node services with typed Ports, and a demo Pipeline; see
-  [`MIGRATING_SEEDS.md`](MIGRATING_SEEDS.md)).
+- Make any seed DAG-ready with the `seed-migrate` tool in the private VillageOS repo (`tools/seed-migrate/pipeline-enable.js`),
+  which adds the archetypes, the Phloem Connection, example Echo node services with typed Ports, and a demo Pipeline.
 
 ### 16.2 Making a microservice a node — the envelope
 
@@ -878,7 +872,8 @@ unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the
 
 ### 16.4 Creating & running a pipeline
 
-1. **Enable a seed:** `node tools/seed-migrate/pipeline-enable.js <seed.json> --write`, then reload the
+1. **Enable a seed:** run the `seed-migrate` tool from the private VillageOS repo
+   (`node tools/seed-migrate/pipeline-enable.js <seed.json> --write`), then reload the
    broker (clear `vos-data`).
 2. **Author:** Trellis → **Pipelines** (`TRELLIS.md` §7.4) — drag services from the palette, wire output→input
    ports (type-checked), **Save**.

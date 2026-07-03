@@ -45,6 +45,7 @@ then force-pushes the result to the GitHub wiki.
 One-time prerequisites:
 
 - **GitHub** — enable *Wikis* in repo Settings → Features (creates `.wiki.git`).
-- **Azure DevOps** — the build service identity needs *Read* on the project wiki
-  repo (the step clones it with `System.AccessToken`).
+- **`AZURE_DEVOPS_PAT`** — a secret pipeline variable holding a PAT with *Code: Read*
+  on the project wiki repo. `System.AccessToken` cannot be used here (it is scoped to
+  checked-out repos only, so cloning the wiki with it fails TF401019).
 - **`GITHUB_PAT`** — the same secret pipeline variable used by the repo mirror.

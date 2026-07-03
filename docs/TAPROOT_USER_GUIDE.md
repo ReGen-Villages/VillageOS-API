@@ -66,7 +66,7 @@ dotnet run
 **Expected output:**
 
 ```text
-VillageOS Console - Connected to Mycelium at https://localhost:7243
+VillageOS CLI - Connected to Mycelium at https://localhost:7243
 Type 'help' to see available commands.
 Successfully authenticated with Mycelium.
 
@@ -325,19 +325,16 @@ Created Thing: Meadow (aabbccdd-1122-3344-5566-778899aabbcc)
 ### Getting Thing Details
 
 ```bash
-# Using name
+# Using name — prints the thing as indented JSON
 > get thing Forest
-Name: Forest
-Properties:
-  biomeType: Temperate (string)
-  carbonLevel: 30 (int)
-
-# With --showguids to see the ID
-> get thing Forest --showguids
-Name: Forest (3fa85f64-5717-4562-b3fc-2c963f66afa6)
-Properties:
-  biomeType: Temperate (string)
-  carbonLevel: 30 (int)
+{
+  "Id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "Name": "Forest",
+  "Properties": {
+    "biomeType": "Temperate",
+    "carbonLevel": 30
+  }
+}
 
 # Using GUID also works
 > get thing 3fa85f64-5717-4562-b3fc-2c963f66afa6
@@ -348,14 +345,14 @@ Properties:
 ```bash
 # Using name
 > set Forest carbonLevel 35
-Set carbonLevel = 35 on thing 'Forest'
+Set carbonLevel = 35 on Forest
 
 # Using GUID
 > set 3fa85f64-5717-4562-b3fc-2c963f66afa6 carbonLevel 40
 
 # With --showguids
 > set Forest carbonLevel 45 --showguids
-Set carbonLevel = 45 on thing 'Forest' (3fa85f64-5717-4562-b3fc-2c963f66afa6)
+Set carbonLevel = 45 on Forest (3fa85f64-5717-4562-b3fc-2c963f66afa6)
 ```
 
 ### Finding Things
@@ -400,15 +397,15 @@ Things (3):
 ```bash
 # Using name
 > delete thing Forest
-Deleted thing 'Forest'
+Deleted thing Forest
 
 # Using GUID
 > delete thing 3fa85f64-5717-4562-b3fc-2c963f66afa6
-Deleted thing 'Forest'
+Deleted thing Forest
 
 # With --showguids
 > delete thing Forest --showguids
-Deleted thing 'Forest' (3fa85f64-5717-4562-b3fc-2c963f66afa6)
+Deleted thing Forest (3fa85f64-5717-4562-b3fc-2c963f66afa6)
 ```
 
 ### Deleting Properties
@@ -454,11 +451,11 @@ Created thing: part_of (id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d)
 ```bash
 # Using names (convenient)
 > create relation Forest part_of Watershed
-Created relationship: Forest --[part_of]--> Watershed
+Created Relationship: Forest --[part_of]--> Watershed
 
 # Using GUIDs (also works)
 > create relation 3fa85f64-5717-4562-b3fc-2c963f66afa6 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d 7c9e6679-7425-40de-944b-e07fc1f90ae7
-Created relationship: Forest --[part_of]--> Watershed
+Created Relationship: Forest --[part_of]--> Watershed
 ```
 
 ### Listing Relationships
@@ -502,26 +499,23 @@ Relationships for thing 'Forest' (3fa85f64-5717-4562-b3fc-2c963f66afa6):
 ### Listing Predicates
 
 ```bash
-# Default output (names only)
+# list predicates reports usage counts; it does not take --showguids
 > list predicates
 Predicates (3):
-  part_of (2 relationship(s))
-  adjacent_to (1 relationship(s))
-  contains (1 relationship(s))
-
-# With --showguids
-> list predicates --showguids
-Predicates (3):
-  part_of [9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d] (2 relationship(s))
-  adjacent_to [abc123ef-5678-4321-abcd-ef1234567890] (1 relationship(s))
-  contains [def456ab-9012-3456-cdef-789012345678] (1 relationship(s))
+  part_of (used in 2 relationship(s))
+  adjacent_to (used in 1 relationship(s))
+  contains (used in 1 relationship(s))
 ```
 
 ### Deleting Relationships
 
 ```bash
 > delete relationship <relationship-id>
-Deleted relationship: <relationship-id>
+Deleted relationship
+
+# With --showguids the deleted ID is printed
+> delete relationship <relationship-id> --showguids
+Deleted <relationship-id>
 ```
 
 ## Querying the Model
@@ -985,7 +979,7 @@ This gracefully shuts down the Mycelium and all registered services. The CLI wil
 
 # Export to file
 > serialize mymodel.json
-Model serialized to mymodel.json
+Model saved to mymodel.json
 
 # Export without extension (automatically adds .json)
 > serialize backup
@@ -993,7 +987,7 @@ Model saved to backup.json
 
 # Using seed alias
 > seed mymodel.json
-Model serialized to mymodel.json
+Model saved to mymodel.json
 ```
 
 ### Importing a Model
@@ -1056,15 +1050,15 @@ Exported models include full inheritance metadata:
 ```bash
 # Show current directory
 > pwd
-/Users/name/projects/villageos
+Current directory: /Users/name/projects/villageos
 
 # Change directory
 > cd /tmp
-Changed directory to /tmp
+Changed directory to: /tmp
 
 # Now serialize will save here
 > serialize backup.json
-Model serialized to /tmp/backup.json
+Model saved to /tmp/backup.json
 ```
 
 ## Testing
