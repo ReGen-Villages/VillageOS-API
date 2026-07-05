@@ -155,7 +155,7 @@ goes live — gap-free and exactly-once. Initial connect resumes from the snapsh
 
 A separate stream for non-object events: `ActivityEvent`, `ModelChanged`, `ModelCleared`,
 `ServiceHealthChanged`, `DaemonStatusChanged`, `EndpointServiceRequestCompleted`,
-`StatesChanged`. Fire-and-forget (no resume); refetch on reconnect.
+`ServiceRequestCompleted`, `StatesChanged`. Fire-and-forget (no resume); refetch on reconnect.
 
 > Field casing: snapshot JSON is camelCase; SSE `data` payloads are PascalCase. Parse
 > case-insensitively (all reference clients do).
