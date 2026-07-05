@@ -603,7 +603,7 @@ Get the change history of a property within a time range:
 # Full history using thing name
 > temporal history Forest carbonLevel
 {
-  "ThingId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "ObjectId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "PropertyName": "carbonLevel",
   "StartTime": "2025-02-06T12:00:00Z",
   "EndTime": "2026-02-06T12:00:00Z",
@@ -630,8 +630,8 @@ Get a log of all property value changes (mutations) across the model, for a spec
   "EndTime": null,
   "ThingMutations": {
     "3fa85f64-5717-4562-b3fc-2c963f66afa6": {
-      "ThingId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "ThingName": "Forest",
+      "ObjectId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "ObjectName": "Forest",
       "Mutations": [
         {"Timestamp": "2026-01-15T10:00:00Z", "PropertyName": "carbonLevel", "OldValue": 25, "NewValue": 30}
       ]
@@ -757,8 +757,8 @@ Invalid criteria: Parse error at position 5: Unexpected character '>'
 ```bash
 > range list Sensor
 {
-  "ThingId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "ThingName": "Sensor",
+  "ObjectId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "ObjectName": "Sensor",
   "OwnRanges": [
     {"Name": "overheating", "Criteria": "temp > 100"},
     {"Name": "nominal", "Criteria": "temp >= 20 AND temp <= 80"}
@@ -792,8 +792,8 @@ Evaluate all ranges and see which are currently active:
 ```bash
 > state Sensor
 {
-  "ThingId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "ThingName": "Sensor",
+  "ObjectId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "ObjectName": "Sensor",
   "CurrentStates": ["overheating"],
   "RangeEvaluations": [
     {"RangeName": "overheating", "IsActive": true, "Criteria": "temp > 100"},

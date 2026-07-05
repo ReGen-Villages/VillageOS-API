@@ -74,7 +74,7 @@ public class TemporalCommandHandlerTests
     public async Task Temporal_History_CallsApiWithCorrectParameters()
     {
         var thingId = Guid.NewGuid();
-        var mockResponse = JsonDocument.Parse($"{{\"ThingId\":\"{thingId}\",\"PropertyName\":\"status\",\"Versions\":[]}}");
+        var mockResponse = JsonDocument.Parse($"{{\"ObjectId\":\"{thingId}\",\"PropertyName\":\"status\",\"Versions\":[]}}");
         _myceliumMock.Setup(b => b.GetPropertyVersionsAsync(thingId, "status", null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
@@ -216,7 +216,7 @@ public class TemporalCommandHandlerTests
     public async Task Mutations_WithThingArg_CallsGetThingMutationsAsync()
     {
         var thingId = Guid.NewGuid();
-        var mockResponse = JsonDocument.Parse($"{{\"ThingId\":\"{thingId}\",\"Mutations\":[]}}");
+        var mockResponse = JsonDocument.Parse($"{{\"ObjectId\":\"{thingId}\",\"Mutations\":[]}}");
         _myceliumMock.Setup(b => b.GetThingMutationsAsync(thingId, null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
@@ -229,7 +229,7 @@ public class TemporalCommandHandlerTests
     public async Task Mutations_ThingWithTimeRange_PassesTimeRange()
     {
         var thingId = Guid.NewGuid();
-        var mockResponse = JsonDocument.Parse($"{{\"ThingId\":\"{thingId}\",\"Mutations\":[]}}");
+        var mockResponse = JsonDocument.Parse($"{{\"ObjectId\":\"{thingId}\",\"Mutations\":[]}}");
         _myceliumMock.Setup(b => b.GetThingMutationsAsync(thingId, It.IsAny<DateTime?>(), It.IsAny<DateTime?>()))
             .ReturnsAsync(mockResponse.RootElement);
 
@@ -312,7 +312,7 @@ public class TemporalCommandHandlerTests
     {
         // When mutation type is not recognized but is a valid GUID, try as thing
         var thingId = Guid.NewGuid();
-        var mockResponse = JsonDocument.Parse($"{{\"ThingId\":\"{thingId}\",\"Mutations\":[]}}");
+        var mockResponse = JsonDocument.Parse($"{{\"ObjectId\":\"{thingId}\",\"Mutations\":[]}}");
         _myceliumMock.Setup(b => b.GetThingMutationsAsync(thingId, null, null))
             .ReturnsAsync(mockResponse.RootElement);
 
