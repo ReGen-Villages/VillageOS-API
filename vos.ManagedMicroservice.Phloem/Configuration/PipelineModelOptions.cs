@@ -2,7 +2,7 @@ namespace vos.ManagedMicroservice.Phloem.Configuration;
 
 /// <summary>
 /// The archetype Thing names the orchestrator resolves by transitive <c>is</c>. Mirrors Mycelium's
-/// <c>ServiceModelOptions</c> (Connection / Service) and extends it with the pipeline vocabulary, so a
+/// <c>ServiceModelOptions</c> (PlatformServiceConnection / Service) and extends it with the pipeline vocabulary, so a
 /// deployment can rename the model via config alone — no literals in code. Mycelium is the single source:
 /// it pushes these to Phloem as launch args when it starts the daemon (see CliArgs); the defaults here
 /// only apply when an arg is absent.
@@ -13,7 +13,7 @@ namespace vos.ManagedMicroservice.Phloem.Configuration;
 /// </summary>
 public sealed class PipelineModelOptions
 {
-    public string Connection { get; init; } = "Connection";
+    public string Connection { get; init; } = "PlatformServiceConnection";
     public string Service { get; init; } = "Service";
     public string Pipeline { get; init; } = "Pipeline";
     public string PipelineNode { get; init; } = "PipelineNode";

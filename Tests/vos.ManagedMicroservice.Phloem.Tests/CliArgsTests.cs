@@ -13,7 +13,7 @@ public class CliArgsTests
     {
         var args = CliArgs.Parse(new[] { "--port=7410", "--myceliumUrl=http://localhost:7243" })!;
 
-        args.Model.Connection.Should().Be("Connection");
+        args.Model.Connection.Should().Be("PlatformServiceConnection");
         args.Model.Service.Should().Be("Service");
         args.Model.Pipeline.Should().Be("Pipeline");
         args.Model.PipelineWire.Should().Be("PipelineWire");

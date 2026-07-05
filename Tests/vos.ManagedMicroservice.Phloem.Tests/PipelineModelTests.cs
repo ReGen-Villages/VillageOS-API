@@ -50,11 +50,11 @@ public class PipelineModelTests
         fx.Rel(pipe, isP, pipelineArch);
         var node = fx.Thing("Lonely");
         fx.Rel(node, isP, nodeArch);
-        fx.Rel(pipe, has, node); // node binds no Connection
+        fx.Rel(pipe, has, node); // node binds no PlatformServiceConnection
 
         var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id, Names);
 
-        act.Should().Throw<PipelineModelException>().WithMessage("*binds no Connection*");
+        act.Should().Throw<PipelineModelException>().WithMessage("*binds no PlatformServiceConnection*");
     }
 
     [Fact]
