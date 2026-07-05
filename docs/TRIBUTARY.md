@@ -17,7 +17,19 @@ endpoint service and points back here.
 
 Endpoints are not free-form. Delta provisions a **single-rooted template hierarchy**
 into Mycelium at boot and validates every registration against it (see the *Delta*
-service docs and `MICROSERVICES.md`). The shape:
+service docs and `MICROSERVICES.md`). A registration `is` a template, which `is` the
+root — admissible properties are the union of keys along that chain, and a value
+resolves to the closest ancestor that declares it:
+
+```mermaid
+flowchart TB
+    Endpoint["<b>Endpoint</b> (root)<br/>authKind, pagingKind = none"]
+    Esri["<b>EsriEndpoint</b> (source type)<br/>authKind=tokenExchange · pagingKind=offset<br/>ArcGIS field names fixed as canonical-defaults"]
+    Reg["<b>a registration</b><br/>supplies the required-structural blanks:<br/>url, tokenUrl, tokenRequest"]
+    Reg -->|is| Esri -->|is| Endpoint
+```
+
+The shape:
 
 - Templates are Things; inheritance is expressed model-natively as `is` relationships
   (`EsriEndpoint is Endpoint`), never a scalar field.
