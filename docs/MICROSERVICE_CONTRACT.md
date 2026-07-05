@@ -82,7 +82,7 @@ and incident relationship ids. `watermark` is the commit sequence the snapshot w
 ### Selecting a slice (the startup-template replacement)
 
 The selector is how a handler says *which* objects it wants — it replaced the retired `ServiceArgs`
-ID template (#5559). Instead of Mycelium injecting object IDs into your launch command, you ask for
+ID template. Instead of Mycelium injecting object IDs into your launch command, you ask for
 the slice **by shape** and get exactly that closure. Recipes:
 
 | Need | Selector body |

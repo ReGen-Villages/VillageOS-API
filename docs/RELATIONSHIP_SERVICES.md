@@ -13,7 +13,7 @@ The **active** relationship services currently in the seed are:
 | `consumes` | `vos.ManagedMicroservice.Metabolism --mode=consumes` | Continuous resource decrement simulation |
 | `produces` | `vos.ManagedMicroservice.Metabolism --mode=produces` | Continuous resource increment simulation |
 
-> **Built-in: `is`.** Type inheritance (property + range copying) is handled in-process by Mycelium, not by a microservice. See [Built-in `is` inheritance](#built-in-is-inheritance) below. Previously this was a microservice (`vos.ManagedMicroservice.IsHandler`); the round-trip added latency and complexity for what is purely an in-memory graph operation, so it was inlined.
+> **Built-in: `is`.** Type inheritance (property + range **resolution**) is handled in-process by Mycelium, not by a microservice. See [Built-in `is` inheritance](#built-in-is-inheritance) below. Previously this was a microservice (`vos.ManagedMicroservice.IsHandler`); the round-trip added latency and complexity for what is purely an in-memory graph operation, so it was inlined.
 
 Additionally, VillageOS has **passive (structural) predicates** that have no handler daemon:
 
@@ -78,7 +78,7 @@ flowchart TB
 
     Client([Client / GUI]) -->|"POST /api/relationships"| API
     Client -->|"POST /api/endpoints/{subdomain}"| API
-    API -->|"is predicate: in-process"| VRS["is-inheritance + range engine"]
+    API -->|"is predicate: in-process"| VRS["is-resolution + range engine"]
     API -->|"other predicates"| DSB
     API -->|"endpoint request"| ESF
     DSB -->|"lazy-start + POST /handle"| DLM
@@ -139,15 +139,23 @@ and was removed once subscriptions superseded it.)
 
 ## Built-in `is` inheritance
 
-The `is` predicate implements VillageOS's type system. When a thing is linked to a type via an `is` relationship, Mycelium copies properties and ranges from the type to the instance **in-process** — no daemon, no HTTP round-trip.
+The `is` predicate is VillageOS's type system. Linking a thing to a type with an `is` relationship copies **nothing**: inheritance is **resolved on read** by walking the `is` chain in-process. No daemon, no HTTP round-trip, and nothing duplicated in memory or on disk.
 
-### Built-in Behaviors
+### How it resolves
 
-- **Property Inheritance**: Mycelium intercepts `is` relationships and copies the type's properties onto the instance. The source's own properties + its own transitive inheritance chain land on the subject as a new inherited property set.
-- **Range Propagation**: the range engine clones every range on the type-thing onto the instance as inherited.
-- **Range Re-evaluation**: After propagation, the range engine re-evaluates all ranges on the instance so any pre-existing range that now sees an inherited property value recomputes its state.
-- **Type Classification**: The GUI uses `is` relationships to determine node types and derive display colors via `hashStringToIndex()`.
-- **Transitive Type Checking**: type-membership tests walk the full inheritance chain.
+- **Inherited properties are live defaults.** An inherited property the instance hasn't set resolves, on read, to the type's *current* value. Change a value on the type and every instance that hasn't set its own sees the new value immediately — there is nothing to re-copy.
+- **The first write makes a per-instance override.** When an instance sets a value for an inherited property, VillageOS records a per-instance copy (an *override*) on that instance and leaves the type untouched. Reads then return the override; the type's default still flows to every other instance. This is **write isolation** — one instance can never change the value another instance sees.
+- **Ranges resolve the same way.** A type's ranges apply to its instances by walking the `is` chain at evaluation time; they are not stored on the instance. When an inherited value changes, the affected ranges re-evaluate.
+- **Transitive.** Resolution follows the whole chain (`Dog is Mammal is Animal`), and type-membership tests walk it too.
+- **Classification.** The GUI uses `is` relationships to determine node types and colors.
+
+### Naming rules (checked on write)
+
+A name resolves to one property, so three rules keep resolution unambiguous. A live API write that would break one is rejected:
+
+- A thing may not **own** a property whose name it already **inherits** — set a value instead, which creates an override.
+- Establishing `is` may not pull in an inherited property whose name the thing already owns.
+- A property name may not equal the name of a type it inherits from (that would make a qualified `Type.property` path ambiguous).
 
 ### Example
 
@@ -155,27 +163,22 @@ The `is` predicate implements VillageOS's type system. When a thing is linked to
 Patient-123 --[is]--> MalePatient-Type
 ```
 
-When this relationship is created:
+- `Patient-123` immediately resolves `MalePatient-Type`'s property values and ranges — no copy is made.
+- Setting a value on `Patient-123` for one of those properties stores an override on `Patient-123`; `MalePatient-Type` is unchanged, and its default still reaches every other patient.
+- `Patient-123`'s ranges evaluate against its resolved values and re-evaluate when those values change.
+- `Patient-123` is classified as `MalePatient-Type` in the GUI.
 
-1. Properties from `MalePatient-Type` are inherited by `Patient-123` (in-process).
-2. Ranges defined on `MalePatient-Type` are copied to `Patient-123`.
-3. `Patient-123`'s ranges are re-evaluated against the new inherited values.
-4. `Patient-123` is classified as type `MalePatient-Type` in the GUI.
-
-### Predicate Configuration
+### Predicate configuration
 
 ```json
-{
-  "Name": "is",
-  "Properties": {}
-}
+{ "Name": "is", "Properties": {} }
 ```
 
-No `ExecutablePath` or `ServicePort` — the `is` predicate is a plain thing; Mycelium recognizes its name and runs the inheritance in-process.
+No `ExecutablePath` or `ServicePort` — `is` is a plain thing; Mycelium recognizes its name and resolves inheritance in-process.
 
-### Deserialization
+### Seed load
 
-During seed load (`invokeHandler=false`), property inheritance is **not** re-run, because the serialized inherited-properties snapshot already carries it. Range propagation/re-evaluation still runs via the range engine.
+A seed stores only **overrides** in each thing's inherited-property set; unset defaults resolve through the `is` chain at read time. Loading a seed therefore wires the `is` relationships and applies any overrides — it does not copy defaults onto instances, and ranges likewise resolve from the chain.
 
 ---
 
@@ -295,6 +298,8 @@ When this relationship is registered:
 ---
 
 ## Usage Example: Laboratory Workflow Simulation
+
+> **Note on predicate config.** The walkthrough below puts `ExecutablePath`/`ServicePort` directly on the predicate to keep the focus on relationship mechanics. Current seeds instead give the predicate only `trigger` and put the launch config on a bound **Service** — see [PlatformServiceConnection + Service Configuration](#platformserviceconnection--service-configuration) for the shape to use in real seeds.
 
 ### Setup
 
@@ -660,7 +665,7 @@ dotnet run --project vos.ManagedMicroservice.Metabolism -- \
 | Daemon enters cooldown | 3+ consecutive startup failures | Wait 5 minutes or restart Mycelium; check handler logs |
 | Simulations not ticking | `startUtc` is in the future | Check the relationship's `startUtc` property |
 | Simulation stuck in "delayed" | `startDelaySeconds` is set | Wait for the delay to elapse, or set `startDelaySeconds` to 0 |
-| Properties not inherited | In-process `is` evaluation failed | Check both subject and target things exist; check the Mycelium log for `is`-inheritance / range-propagation errors |
+| Inherited property not resolving | The `is` relationship isn't wired | Check both subject and target things exist and the `is` relationship was created; check the Mycelium log for range-evaluation errors |
 | Status events missing | daemon status events not firing | Ensure the client is connected to `GET /api/events/stream` (system-events SSE) and the system-events SSE stream is wired up |
 | Daemon hangs on startup | `Console.WriteLine` fills stdout pipe buffer | Mycelium does **not** redirect stdout (`RedirectStandardOutput = false`), so handler console output goes directly to Mycelium's own console (or nowhere if Mycelium has no visible console). This means `Console.WriteLine` won't cause pipe-buffer hangs, but the output may be lost. **Use file-based logging only (Serilog `WriteTo.File`) for reliable diagnostics** |
 
