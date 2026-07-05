@@ -12,7 +12,7 @@ const KNOWN_EVENTS = [
   'ModelChanged', 'ModelCleared',
   'ThingCreated', 'ThingDeleted', 'RelationshipCreated', 'RelationshipDeleted',
   'PropertyChanged', 'PropertyDeleted', 'RelationshipPropertyChanged',
-  'ServiceHealthChanged', 'DaemonStatusChanged', 'EndpointServiceRequestCompleted',
+  'ServiceHealthChanged', 'DaemonStatusChanged', 'EndpointServiceRequestCompleted', 'ServiceRequestCompleted',
   'StatesChanged', 'RelationshipStatesChanged', 'ActivityEvent',
 ];
 

@@ -1066,6 +1066,8 @@ system stream.
 | `ModelCleared` | — | `DELETE /api/model` |
 | `ServiceHealthChanged` | `handlerId, status, failureCount` | LivenessMonitor health checks |
 | `DaemonStatusChanged` | `key, isRunning, processId` | Daemon start/stop |
+| `EndpointServiceRequestCompleted` | `subdomain, statusCode, elapsedMs` | HTTP endpoint request forwarded |
+| `ServiceRequestCompleted` | `handlerId, success, elapsedMs` | Graph/predicate service request completed |
 | `ActivityEvent` | `{ Type, Timestamp, Description, Details }` | All mutations |
 
 ### React Hook (`useSse.ts`)
@@ -1089,7 +1091,7 @@ system stream.
     - `PropertyChanged` → updates `detailThing` in-place via `applyThingPropertyUpdate()`. Only rebuilds the things array when `isGraphAffectingProperty()` returns true (currently only `geometry`). Triggers a visual flash on the node only (500ms duration)
     - `RelationshipPropertyChanged` → updates `detailRelationship` in-place via `applyRelationshipPropertyUpdate()`. Only rebuilds the relationships array when `isVisibleRelationship()` returns true (relationship touches the selected node). Triggers a visual flash on the specific edge (500ms duration)
   - **Counter bump**: StatesChanged → increments `statesVersion` (triggers Ranges tab re-fetch)
-- **DashboardPage**: Subscribes to ServiceHealthChanged, DaemonStatusChanged → refreshes panels
+- **DashboardPage**: Subscribes to ServiceHealthChanged, DaemonStatusChanged, ServiceRequestCompleted → refetches `/api/mycelium/services`; EndpointServiceRequestCompleted → refetches `/api/endpoints` (this is what keeps each service row's "Last Req" current)
 - **AppLayout**: Subscribes to ActivityEvent → pushes to `activityStore`
 
 Detail panels use dedicated `detailThing` / `detailRelationship` state (React state in GraphPage, not in Zustand) decoupled from the main `things[]` / `relationships[]` arrays. This prevents O(n) re-renders when only the detail panel content changes.
@@ -1153,7 +1155,7 @@ Four components on `DashboardPage`:
 | Component | Data Source | Updates |
 |-----------|-----------|---------|
 | `ModelStatsCard` | `GET /api/things` + `GET /api/relationships` | SSE model events |
-| `ServicesPanel` | `GET /api/mycelium/services` | SSE `ServiceHealthChanged` |
+| `ServicesPanel` | `GET /api/mycelium/services` + `GET /api/endpoints` | SSE `ServiceHealthChanged`, `DaemonStatusChanged`, `ServiceRequestCompleted`, `EndpointServiceRequestCompleted` |
 | `ActivityFeed` | SSE `ActivityEvent` only | Real-time (keeps last 200). Pause/resume (buffers new events while paused), category filter chips (Model/Things/Rels/Props/Services), color-coded event types, collapsible panel, resizable height (drag handle, persisted to localStorage) |
 
 ### Dashboard Top-Right Controls

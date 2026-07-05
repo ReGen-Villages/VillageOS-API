@@ -73,6 +73,7 @@ export function DashboardPage() {
     const unsubs = [
       on('ServiceHealthChanged', () => myceliumApi.getServices().then(setServices)),
       on('DaemonStatusChanged', () => myceliumApi.getServices().then(setServices)),
+      on('ServiceRequestCompleted', () => myceliumApi.getServices().then(setServices)),
       on('EndpointServiceRequestCompleted', () => endpointApi.getAll().then(setEndpointServices)),
       on('ModelChanged', () => loadMyceliumData()),
     ];
