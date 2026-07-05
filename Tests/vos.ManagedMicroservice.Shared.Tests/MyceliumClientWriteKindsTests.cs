@@ -140,7 +140,7 @@ public class MyceliumClientWriteKindsTests
         captured!.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/sediment");
         var arr = Body(captured);
         arr.GetArrayLength().Should().Be(2);
-        arr[0].GetProperty("thingId").GetGuid().Should().Be(Thing);
+        arr[0].GetProperty("objectId").GetGuid().Should().Be(Thing);
         arr[0].GetProperty("property").GetString().Should().Be("flow");
         arr[0].TryGetProperty("observedAt", out _).Should().BeTrue(); // sediment always carries observed-time
     }

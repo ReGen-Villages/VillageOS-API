@@ -17,7 +17,7 @@ beforeEach(() => {
 
 describe('temporalApi.getPropertyVersions', () => {
   it('builds URL with time params', async () => {
-    mockGet.mockResolvedValue({ ThingId: 't1', PropertyName: 'temp', Versions: [] });
+    mockGet.mockResolvedValue({ ObjectId: 't1', PropertyName: 'temp', Versions: [] });
     await temporalApi.getPropertyVersions('t1', 'temp', '2024-01-01', '2024-12-31');
     expect(mockGet).toHaveBeenCalledWith(
       '/api/things/t1/properties/temp/versions?startTime=2024-01-01&endTime=2024-12-31',
@@ -25,7 +25,7 @@ describe('temporalApi.getPropertyVersions', () => {
   });
 
   it('omits empty time params', async () => {
-    mockGet.mockResolvedValue({ ThingId: 't1', PropertyName: 'temp', Versions: [] });
+    mockGet.mockResolvedValue({ ObjectId: 't1', PropertyName: 'temp', Versions: [] });
     await temporalApi.getPropertyVersions('t1', 'temp');
     expect(mockGet).toHaveBeenCalledWith('/api/things/t1/properties/temp/versions');
   });
@@ -41,7 +41,7 @@ describe('temporalApi.getModelMutations', () => {
 
 describe('temporalApi.getThingMutations', () => {
   it('fetches thing mutations with time range', async () => {
-    mockGet.mockResolvedValue({ ThingId: 't1', Mutations: [] });
+    mockGet.mockResolvedValue({ ObjectId: 't1', Mutations: [] });
     await temporalApi.getThingMutations('t1', '2024-01-01', '2024-12-31');
     expect(mockGet).toHaveBeenCalledWith(
       '/api/things/t1/mutations?startTime=2024-01-01&endTime=2024-12-31',
@@ -49,7 +49,7 @@ describe('temporalApi.getThingMutations', () => {
   });
 
   it('fetches thing mutations without time range', async () => {
-    mockGet.mockResolvedValue({ ThingId: 't1', Mutations: [] });
+    mockGet.mockResolvedValue({ ObjectId: 't1', Mutations: [] });
     await temporalApi.getThingMutations('t1');
     expect(mockGet).toHaveBeenCalledWith('/api/things/t1/mutations');
   });

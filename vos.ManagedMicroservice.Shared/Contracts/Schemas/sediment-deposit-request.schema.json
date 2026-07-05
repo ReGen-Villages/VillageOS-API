@@ -8,9 +8,9 @@
   "items": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["thingId", "property", "value", "observedAt"],
+    "required": ["objectId", "property", "value", "observedAt"],
     "properties": {
-      "thingId": { "type": "string", "description": "Id of the (already-existing) entity Thing the reading belongs to." },
+      "objectId": { "type": "string", "description": "Id of the (already-existing) entity (thing or relationship) the reading belongs to." },
       "property": { "type": "string", "description": "Name of the property on the entity." },
       "value": { "description": "The historical value: any JSON scalar (string, number, boolean) or null." },
       "observedAt": { "type": "string", "description": "Observed-time as an ISO-8601 string. Required — sediment is historical, not live." }

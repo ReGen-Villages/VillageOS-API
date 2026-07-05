@@ -43,7 +43,7 @@ export interface EndpointServiceStats {
 }
 
 export interface EndpointServiceInfo {
-  ThingId: string;
+  ObjectId: string;
   Name: string;
   Subdomain: string;
   ServicePort: string;

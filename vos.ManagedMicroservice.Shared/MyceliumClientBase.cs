@@ -255,7 +255,7 @@ public abstract class MyceliumClientBase
 
         var json = JsonSerializer.Serialize(readings.Select(r => new
         {
-            thingId = r.ThingId,
+            objectId = r.ObjectId,
             property = r.Property,
             value = r.Value,
             observedAt = r.ObservedAt

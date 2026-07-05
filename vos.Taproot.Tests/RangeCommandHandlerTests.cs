@@ -152,7 +152,7 @@ public class RangeCommandHandlerTests
     public async Task List_CallsGetRangesAsync()
     {
         var thingId = Guid.NewGuid();
-        var mockResponse = JsonDocument.Parse($"{{\"ThingId\":\"{thingId}\",\"OwnRanges\":[]}}");
+        var mockResponse = JsonDocument.Parse($"{{\"ObjectId\":\"{thingId}\",\"OwnRanges\":[]}}");
         _myceliumMock.Setup(b => b.GetRangesAsync(thingId))
             .ReturnsAsync(mockResponse.RootElement);
 

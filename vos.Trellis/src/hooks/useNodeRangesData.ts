@@ -45,14 +45,14 @@ export function useNodeRangesData(
         if (cancelled) return;
 
         setRangesData({
-          ThingId: summary.ThingId,
-          ThingName: summary.ThingName,
+          ThingId: summary.ObjectId,
+          ThingName: summary.ObjectName,
           OwnRanges: summary.OwnRanges,
           InheritedRanges: summary.InheritedRanges,
         });
         setStatesData({
-          ThingId: summary.ThingId,
-          ThingName: summary.ThingName,
+          ThingId: summary.ObjectId,
+          ThingName: summary.ObjectName,
           CurrentStates: summary.CurrentStates,
           RangeEvaluations: summary.RangeEvaluations,
           OutOfBoundsCount: summary.OutOfBoundsCount,

@@ -51,7 +51,7 @@ export interface PropertyVersion {
 }
 
 export interface PropertyVersionsResponse {
-  ThingId: string;
+  ObjectId: string;
   PropertyName: string;
   StartTime: string;
   EndTime: string;
@@ -66,8 +66,8 @@ export interface MutationDto {
 }
 
 export interface ThingMutations {
-  ThingId: string;
-  ThingName: string;
+  ObjectId: string;
+  ObjectName: string;
   StartTime: string;
   EndTime: string;
   Mutations: MutationDto[];
@@ -176,8 +176,8 @@ export interface RelationshipRangeSummary {
 }
 
 export interface ThingRangeSummary {
-  ThingId: string;
-  ThingName: string;
+  ObjectId: string;
+  ObjectName: string;
   OwnRanges: RangeDto[];
   InheritedRanges: InheritedRangeSetDto[];
   CurrentStates: string[];

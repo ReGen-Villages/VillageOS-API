@@ -70,7 +70,7 @@ function fromEndpoint(ep: EndpointServiceInfo): ServiceRow {
     avgMs: ep.Stats.AverageResponseMs,
     lastReqUtc: ep.Stats.LastRequestUtc,
     errors: ep.Stats.ErrorCount,
-    deleteThingId: ep.ThingId,
+    deleteThingId: ep.ObjectId,
   };
 }
 
