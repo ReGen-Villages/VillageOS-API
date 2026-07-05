@@ -17,8 +17,8 @@ vi.mock('../api/rangeApi', () => ({
 
 function emptySummary(thingId = 't1'): ThingRangeSummary {
   return {
-    ThingId: thingId,
-    ThingName: 'T',
+    ObjectId: thingId,
+    ObjectName: 'T',
     OwnRanges: [],
     InheritedRanges: [],
     CurrentStates: [],

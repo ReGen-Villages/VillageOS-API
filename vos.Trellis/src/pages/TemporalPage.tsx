@@ -113,8 +113,8 @@ function MutationsPanel() {
           </div>
           <div className="space-y-3">
             {Object.values(mutations.ThingMutations).map((tm) => (
-              <div key={tm.ThingId} className="border-l-2 border-blue-500 pl-3">
-                <h4 className="text-sm font-medium">{tm.ThingName}</h4>
+              <div key={tm.ObjectId} className="border-l-2 border-blue-500 pl-3">
+                <h4 className="text-sm font-medium">{tm.ObjectName}</h4>
                 <div className="space-y-1 mt-1">
                   {tm.Mutations.map((m, i) => (
                     <div key={i} className="text-xs text-zinc-400">
@@ -208,7 +208,7 @@ function ThingMutationsPanel() {
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex justify-between text-sm mb-3">
             <span className="text-zinc-500">
-              <strong className="text-zinc-200">{mutations.ThingName}</strong> — {mutations.Mutations.length} mutation{mutations.Mutations.length !== 1 ? 's' : ''}
+              <strong className="text-zinc-200">{mutations.ObjectName}</strong> — {mutations.Mutations.length} mutation{mutations.Mutations.length !== 1 ? 's' : ''}
             </span>
             <span className="text-zinc-500 text-xs">
               {formatDateTime(mutations.StartTime)} — {formatDateTime(mutations.EndTime)}

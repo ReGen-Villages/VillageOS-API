@@ -14,7 +14,7 @@ function graphService(over: Partial<RegisteredService> = {}): RegisteredService 
 
 function httpEndpoint(over: Partial<EndpointServiceInfo> = {}): EndpointServiceInfo {
   return {
-    ThingId: 't1', Name: 'Echo', Subdomain: 'echo', ServicePort: '7110',
+    ObjectId: 't1', Name: 'Echo', Subdomain: 'echo', ServicePort: '7110',
     Stats: { RequestCount: 3, TotalResponseMs: 30, AverageResponseMs: 10, ErrorCount: 2 }, ...over,
   };
 }
@@ -59,7 +59,7 @@ describe('ServicesPanel (unified)', () => {
 
   it('offers delete for endpoints (with a model Thing id) and fires it; graph services have none', () => {
     const onDelete = vi.fn();
-    render(<ServicesPanel services={[graphService()]} endpoints={[httpEndpoint({ ThingId: 't9', Name: 'Phloem' })]} onStart={noop} onStop={noop} onDelete={onDelete} />);
+    render(<ServicesPanel services={[graphService()]} endpoints={[httpEndpoint({ ObjectId: 't9', Name: 'Phloem' })]} onStart={noop} onStop={noop} onDelete={onDelete} />);
     // one delete control — only the endpoint row has a retractable Thing id
     const deleteButtons = screen.getAllByTitle('Delete (retract from model)');
     expect(deleteButtons).toHaveLength(1);

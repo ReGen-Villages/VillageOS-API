@@ -21,7 +21,7 @@ beforeEach(() => {
 
 describe('rangeApi.getSummary', () => {
   it('gets from correct URL', async () => {
-    mockGet.mockResolvedValue({ ThingId: 't1', ThingName: 'X', OwnRanges: [], InheritedRanges: [], CurrentStates: [], RangeEvaluations: [], OutOfBoundsCount: 0, Relationships: [] });
+    mockGet.mockResolvedValue({ ObjectId: 't1', ObjectName: 'X', OwnRanges: [], InheritedRanges: [], CurrentStates: [], RangeEvaluations: [], OutOfBoundsCount: 0, Relationships: [] });
     await rangeApi.getSummary('thing-1');
     expect(mockGet).toHaveBeenCalledWith('/api/things/thing-1/range-summary');
   });
