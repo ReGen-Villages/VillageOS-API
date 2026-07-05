@@ -76,8 +76,20 @@ The `properties` field contains the relationship's own properties, sent inline s
 
 Each `/handle` request creates one simulation loop in the `Metabolism` engine:
 
-```text
-delayed → waiting → active → completed (or cancelled)
+```mermaid
+stateDiagram-v2
+    [*] --> delayed
+    delayed --> waiting: delay elapsed
+    waiting --> active: startUtc reached
+    active --> active: tick every frequencySeconds
+    active --> completed: endUtc reached
+    active --> cancelled: re-registered / stopped
+    completed --> [*]
+    cancelled --> [*]
+    note right of delayed
+      delayed is skipped when startDelaySeconds = 0;
+      waiting is skipped when startUtc is not in the future.
+    end note
 ```
 
 **delayed**: If `startDelaySeconds > 0`, the loop sleeps for that duration first. Used to stagger different stages of a process (e.g., reagent consumption starts 10 seconds after the process begins).
