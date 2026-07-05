@@ -151,7 +151,9 @@ steps:
     git -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
       commit -m "ci: rewrite wiki links for GitHub mirror" --allow-empty || true
 
-    git push github "HEAD:$(Build.SourceBranchName)" --force
+    # Fully-qualified ref so the first push to a freshly (re)created empty repo works —
+    # a short ref (HEAD:develop) only resolves when the branch already exists on the remote.
+    git push github "HEAD:refs/heads/$(Build.SourceBranchName)" --force
   displayName: 'Mirror to GitHub'
   condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
   env:
@@ -212,7 +214,7 @@ steps:
     git -C "$DEST" add -A
     git -C "$DEST" -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
       commit -m "ci: sync wiki from Azure DevOps" || { echo "No wiki changes."; exit 0; }
-    git -C "$DEST" push origin HEAD:master --force
+    git -C "$DEST" push origin HEAD:refs/heads/master --force
   displayName: 'Mirror Wiki to GitHub'
   condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
   env:

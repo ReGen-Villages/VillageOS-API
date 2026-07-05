@@ -44,7 +44,7 @@ EventSource and other browser/streaming clients that can't set headers pass the 
 | Method | Path | Body / result |
 |--------|------|---------------|
 | `POST` | `/handle` | Mycelium posts a relationship (`relationshipId`, `subjectId`, `targetId`, `properties`); reply `{ "success": true }` |
-| `GET` | `/health` | `200` `{ "status": "healthy" }` |
+| `GET` | `/health` | `200` `{ "status": "Healthy" }` |
 | `POST` | `/shutdown` | Begin graceful shutdown (stop work, deregister) |
 
 ## Registration

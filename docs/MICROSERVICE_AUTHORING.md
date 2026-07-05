@@ -87,7 +87,6 @@ A 2xx means you're registered.
   "targetId": "<uuid>",
   "subjectName": "BuildingA",
   "targetName": "LandParcel1",
-  "modelId": "<uuid>",
   "properties": { "...": "predicate-specific" }
 }
 ```
