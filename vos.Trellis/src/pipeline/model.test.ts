@@ -17,7 +17,7 @@ function demoModel(): { model: PipelineModel; pipelineId: string } {
     rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
   const is = T('is'), has = T('has'), feeds = T('feeds');
-  const pipelineA = T('Pipeline'), nodeA = T('PipelineNode'), connA = T('Connection'),
+  const pipelineA = T('Pipeline'), nodeA = T('PipelineNode'), connA = T('PlatformServiceConnection'),
     svcA = T('Service'), portA = T('Port'), wireA = T('PipelineWire');
   R(feeds.Id, is.Id, wireA.Id);
 
@@ -184,7 +184,7 @@ describe('loadPipeline', () => {
     };
     const rel = (s: string, p: string, t: string) =>
       rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
-    const is = T('is'), has = T('has'), pipeArch = T('Pipeline'), nodeArch = T('PipelineNode'), connArch = T('Connection');
+    const is = T('is'), has = T('has'), pipeArch = T('Pipeline'), nodeArch = T('PipelineNode'), connArch = T('PlatformServiceConnection');
     const conn = T('conn', { Subdomain: 'x' });
     rel(conn.Id, is.Id, connArch.Id);
     const node = T('N', { paramBindings: '{"message":"greeting"}' });

@@ -24,12 +24,12 @@ Additionally, VillageOS has **passive (structural) predicates** that have no han
 
 Passive predicates are created as regular predicate things without `ExecutablePath` or `ServicePort` properties. They participate in graph queries and GUI rendering but do not trigger any microservice behavior.
 
-### Connection / Service model
+### PlatformServiceConnection / Service model
 
-A dispatched predicate is a **Connection** that **has** a **Service**; the Service carries the launch config. Both are ordinary model Things related by the generic `is`/`has` predicates — Mycelium reads them via `ServiceConnectionResolver` and never hardcodes type names (the archetype names come from config: `PrototypeConnectionThingName` / `PrototypeServiceThingName`).
+A dispatched predicate is a **PlatformServiceConnection** that **has** a **Service**; the Service carries the launch config. Both are ordinary model Things related by the generic `is`/`has` predicates — Mycelium reads them via `ServiceConnectionResolver` and never hardcodes type names (the archetype names come from config: `PrototypeConnectionThingName` / `PrototypeServiceThingName`).
 
 ```text
-Connection {trigger}                        ← archetype: a routed connection (graph or http)
+PlatformServiceConnection {trigger}                        ← archetype: a routed connection (graph or http)
   ← is ─ consumes {trigger: graph} ─has→ consumes service ─is→ Metabolism prototype
   ← is ─ produces {trigger: graph} ─has→ produces service ─is→ Metabolism prototype
 
@@ -38,18 +38,18 @@ Service {ExecutablePath, ServicePort, ServiceArgs, AutoStart, RunMode, TokenScop
             ← is ─ consumes service {ServicePort, ServiceArgs, AutoStart}   ← per-instance overrides
             ← is ─ produces service {ServicePort, ServiceArgs, AutoStart}
 
-is                                          ← built-in; in-process, not a Connection
-has, feeds, powers, ...                     ← passive predicates (not Connections)
+is                                          ← built-in; in-process, not a PlatformServiceConnection
+has, feeds, powers, ...                     ← passive predicates (not PlatformServiceConnections)
 ```
 
-- **Connection** (archetype): a Thing that routes to a service. `trigger` is `graph` (a predicate, fired when a relationship is created) or `http` (a subdomain, reached via `POST /api/endpoints/{subdomain}`). A dispatched predicate like `consumes` `is Connection`.
+- **PlatformServiceConnection** (archetype): a Thing that routes to a service. `trigger` is `graph` (a predicate, fired when a relationship is created) or `http` (a subdomain, reached via `POST /api/endpoints/{subdomain}`). A dispatched predicate like `consumes` `is PlatformServiceConnection`.
 - **Service** (archetype): the microservice process. Carries `ExecutablePath`, `ServicePort`, `ServiceArgs`, `AutoStart` (was `onLoad`), `RunMode`, and `TokenScope`.
 - **Shared prototype** (e.g. `Metabolism prototype`): a Service holding one binary's shared values (`ExecutablePath`, `RunMode`, `TokenScope`); concrete services `is` it and override only per-instance values (`ServicePort`, `ServiceArgs`, `AutoStart`). So `consumes` and `produces` share one binary definition but bind two distinct services.
-- **Connection `has` Service**: the generic `has` relation; the service is identified as the related Thing that is (transitively) a `Service`, never by predicate name.
-- **Built-in `is`**: in-process (`VosRelationshipService` + `RangeEvaluationRegistry`); not a Connection.
-- **Passive predicates** (`contains`, `aggregates`, `has`, …): not Connections; no service.
+- **PlatformServiceConnection `has` Service**: the generic `has` relation; the service is identified as the related Thing that is (transitively) a `Service`, never by predicate name.
+- **Built-in `is`**: in-process (`VosRelationshipService` + `RangeEvaluationRegistry`); not a PlatformServiceConnection.
+- **Passive predicates** (`contains`, `aggregates`, `has`, …): not PlatformServiceConnections; no service.
 
-`SeedLoader.AutoRegisterConnections` discovers connections by transitive `is`-membership of the `Connection` archetype (via `ServiceConnectionResolver`) and registers graph connections whose bound Service has `AutoStart: true` for auto-invocation at seed load. At runtime, `VosServiceBroker.HandleAsync` resolves the bound Service to build the daemon config (including `TokenScope`).
+`SeedLoader.AutoRegisterConnections` discovers connections by transitive `is`-membership of the `PlatformServiceConnection` archetype (via `ServiceConnectionResolver`) and registers graph connections whose bound Service has `AutoStart: true` for auto-invocation at seed load. At runtime, `VosServiceBroker.HandleAsync` resolves the bound Service to build the daemon config (including `TokenScope`).
 
 ---
 
@@ -95,7 +95,7 @@ flowchart TB
 
 ### How Relationship Services Work
 
-1. **Connection + Service definition**: A dispatched predicate `is Connection` (`trigger: graph`) and `has` a Service Thing carrying the handler configuration properties (typically inherited from a shared prototype):
+1. **PlatformServiceConnection + Service definition**: A dispatched predicate `is PlatformServiceConnection` (`trigger: graph`) and `has` a Service Thing carrying the handler configuration properties (typically inherited from a shared prototype):
    - `ExecutablePath` -- path to the handler executable (`.dll` files are run via `dotnet`)
    - `ServicePort` -- port for the daemon to listen on
    - `ServiceArgs` -- extra CLI arguments (e.g., `--mode=consumes`) passed verbatim to the daemon.
@@ -210,9 +210,9 @@ Both `consumes` and `produces` are handled by a single `Metabolism` binary, diff
 
 > **Typed envelopes in seed files**: When defining metabolism properties in seed JSON, numeric properties (`quantity`, `frequencySeconds`, `startDelaySeconds`, `reorder_point`) **must** use typed envelopes: `{"typeInfo": "vos.Decimal", "value": 5.0}`. Plain numeric values are stored as `vos.Integer`, which truncates decimal increments to 0.
 
-### Connection + Service Configuration
+### PlatformServiceConnection + Service Configuration
 
-Each dispatched predicate is a graph `Connection` that `has` a `Service`; the Service `is` a shared
+Each dispatched predicate is a graph `PlatformServiceConnection` that `has` a `Service`; the Service `is` a shared
 prototype carrying the binary. The predicate Things hold only `trigger`:
 
 ```json
@@ -240,7 +240,7 @@ Each concrete service holds only per-instance overrides:
 { "Name": "produces service", "Properties": { "ServicePort": 7103, "ServiceArgs": "--mode=produces", "AutoStart": true } }
 ```
 
-Relationships wire them (per predicate): `consumes is Connection`, `consumes has "consumes service"`,
+Relationships wire them (per predicate): `consumes is PlatformServiceConnection`, `consumes has "consumes service"`,
 `"consumes service" is "Metabolism prototype"`, `"Metabolism prototype" is Service`. `tools/seed-migrate`
 produces exactly this shape from the old format.
 
@@ -470,7 +470,7 @@ Relationship behaviors are a **platform extension point**, not a fixed set. This
 
 The platform side of adding a relationship service is purely declarative — you register the behavior with the graph, and Mycelium does the rest:
 
-1. **Declare the connection + service.** Create a predicate that `is Connection` (`trigger: graph`) and `has` a Service Thing carrying the handler configuration (`ExecutablePath`, `ServicePort`, optional `ServiceArgs`, `TokenScope`, `AutoStart`) — typically inherited from a shared prototype. See [How Relationship Services Work](#how-relationship-services-work) for each property's meaning. This is the entire contract the platform needs in order to find and launch the handler.
+1. **Declare the connection + service.** Create a predicate that `is PlatformServiceConnection` (`trigger: graph`) and `has` a Service Thing carrying the handler configuration (`ExecutablePath`, `ServicePort`, optional `ServiceArgs`, `TokenScope`, `AutoStart`) — typically inherited from a shared prototype. See [How Relationship Services Work](#how-relationship-services-work) for each property's meaning. This is the entire contract the platform needs in order to find and launch the handler.
 2. **Discovery.** At seed load, `AutoRegisterConnections` finds connections (via `ServiceConnectionResolver`) and registers them with the `ServiceBroker`; those whose Service has `AutoStart: true` are invoked for existing relationships immediately.
 3. **Dispatch.** When a relationship using the predicate is created, `VillageOSServiceBroker` delegates to the shared `DaemonLifecycleManager`, which lazily launches the daemon (if needed), waits for health, and POSTs the relationship to the handler's `/handle` endpoint (see [Daemon Lifecycle](#daemon-lifecycle)).
 

@@ -52,7 +52,7 @@ public static class TestGraphs
 
         var pipelineArch = fx.Thing("Pipeline");
         var nodeArch = fx.Thing("PipelineNode");
-        var connArch = fx.Thing("Connection");
+        var connArch = fx.Thing("PlatformServiceConnection");
         var svcArch = fx.Thing("Service");
         var portArch = fx.Thing("Port");
         var wireArch = fx.Thing("PipelineWire");
@@ -106,7 +106,7 @@ public static class TestGraphs
 
         var pipelineArch = fx.Thing("Pipeline");
         var nodeArch = fx.Thing("PipelineNode");
-        var connArch = fx.Thing("Connection");
+        var connArch = fx.Thing("PlatformServiceConnection");
         var svcArch = fx.Thing("Service");
         var portArch = fx.Thing("Port");
 
@@ -147,7 +147,7 @@ public static class TestGraphs
 
         var pipelineArch = fx.Thing("Pipeline");
         var nodeArch = fx.Thing("PipelineNode");
-        var connArch = fx.Thing("Connection");
+        var connArch = fx.Thing("PlatformServiceConnection");
         var svcArch = fx.Thing("Service");
         var portArch = fx.Thing("Port");
 
