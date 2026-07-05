@@ -20,7 +20,7 @@ When a relationship like `Chemistry-Test --[consumes]--> Reagent-Pool` is create
 
 > `ServiceArgs` is plain CLI text passed verbatim to the daemon at launch. (A handler that
 > needs startup context subscribes for it over SSE — see `MICROSERVICE_CONTRACT.md` — rather
-> than receiving injected IDs; an earlier `{{...}}` template mechanism was retired in #5559.)
+> than receiving injected IDs; an earlier `{{...}}` template mechanism was retired.)
 
 This means there are two running processes (on ports 7102 and 7103), but built from the same source.
 

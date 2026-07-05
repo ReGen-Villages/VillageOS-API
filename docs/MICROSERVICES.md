@@ -702,7 +702,7 @@ accepts; the wrong kind returns **405**, an unknown thing/property **404**.
 ## 16. Pipelines / DAG orchestration
 
 A **pipeline** is a Directed Acyclic Graph whose **nodes are microservices** and whose **edges are typed
-data-flow wires** (Feature #5628). You build one visually in **Trellis → Pipelines** (see
+data-flow wires**. You build one visually in **Trellis → Pipelines** (see
 [`TRELLIS.md`](TRELLIS.md) §7.4), and the **Phloem** orchestrator microservice executes it — resolving
 dependencies, invoking each node through the same `/handle` dispatch every handler already uses, and routing
 each node's outputs to its downstream inputs.
@@ -759,13 +759,13 @@ graph/http body the service handles exactly as before; the two never collide.
 - **Reference inputs.** Large values aren't shipped in-band: an input may be `{ "ref": { "thingId",
   "property" } }`, which the node resolves via `GET /api/things/{id}/effective-properties` before running.
   Return the same shape to hand a large value downstream.
-- **Param-bound inputs.** An input port can be filled from the **run's params** instead of a wire (#5647): a
+- **Param-bound inputs.** An input port can be filled from the **run's params** instead of a wire: a
   node's `paramBindings` property maps `inputPort → paramKey`, and Phloem fills that input from the spawn's
   `params` before dispatch (an explicit wire into the same port wins). Lets a source node be parameterized
   per-run without editing the graph; the editor's **Params** form supplies the values.
 - **Ports & `/manifest`.** A node advertises typed ports — `{ portName, direction: in|out, type, required }`
   — so the editor can type-check wires; expose them at `GET /manifest`.
-- **Collection inputs (fan-out).** A port may be `collection: true` (#5648): when that input receives a **list**,
+- **Collection inputs (fan-out).** A port may be `collection: true`: when that input receives a **list**,
   Phloem runs the node **once per item** (bounded), broadcasts the node's other inputs to every item, and
   **gathers** each output port into a list for downstream. The node service still sees one item per call (a
   scalar on the collection port, plus the item `index` in the envelope). The node property `onItemError`
