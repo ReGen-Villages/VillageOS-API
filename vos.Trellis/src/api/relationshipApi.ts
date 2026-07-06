@@ -8,6 +8,11 @@ export const relationshipApi = {
     return rels.map(unwrapRelationship);
   },
 
+  get: async (id: string) => {
+    const rel = await apiClient.get<VosRelationship>(`/api/relationships/${id}`);
+    return unwrapRelationship(rel);
+  },
+
   create: async (subjectId: string, predicateId: string, targetId: string) => {
     const rel = await apiClient.post<VosRelationship>('/api/relationships', {
       SubjectId: subjectId,

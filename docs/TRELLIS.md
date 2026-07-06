@@ -1054,10 +1054,10 @@ system stream.
 
 | Event | Payload | Triggered By |
 |-------|---------|-------------|
-| `ThingCreated` | `VosThing` | `POST /api/things` |
-| `ThingDeleted` | `thingId` | `DELETE /api/things/{id}` |
-| `RelationshipCreated` | `VosRelationship` | `POST /api/relationships` |
-| `RelationshipDeleted` | `relId` | `DELETE /api/relationships/{id}` |
+| `ThingCreated` | `{ EntityId }` (id only — client hydrates via `GET /api/things/{id}`) | `POST /api/things` |
+| `ThingDeleted` | `{ EntityId }` | `DELETE /api/things/{id}` |
+| `RelationshipCreated` | `{ EntityId }` (id only — client hydrates via `GET /api/relationships/{id}`) | `POST /api/relationships` |
+| `RelationshipDeleted` | `{ EntityId }` | `DELETE /api/relationships/{id}` |
 | `PropertyChanged` | `thingId, name, value` | `POST /api/things/{id}/properties` |
 | `RelationshipPropertyChanged` | `relId, name, value` | `PUT /api/relationships/{id}/properties` |
 | `StatesChanged` | `thingId` | Range/state evaluation changes |
@@ -1083,13 +1083,16 @@ system stream.
 
 ### Integration
 
-- **GraphPage**: Subscribes to structural and property events with a mixed strategy:
-  - **Full reload** (`loadData()`): ThingCreated, ThingDeleted, RelationshipCreated, RelationshipDeleted, ModelChanged
-  - **Clear**: ModelCleared → empties things and relationships arrays
-  - **Incremental O(1) updates** (no reload):
-    - `PropertyChanged` → updates `detailThing` in-place via `applyThingPropertyUpdate()`. Only rebuilds the things array when `isGraphAffectingProperty()` returns true (currently only `geometry`). Triggers a visual flash on the node only (500ms duration)
-    - `RelationshipPropertyChanged` → updates `detailRelationship` in-place via `applyRelationshipPropertyUpdate()`. Only rebuilds the relationships array when `isVisibleRelationship()` returns true (relationship touches the selected node). Triggers a visual flash on the specific edge (500ms duration)
-  - **Counter bump**: StatesChanged → increments `statesVersion` (triggers Ranges tab re-fetch)
+- **useModelData** (app-shell hook): Subscribes to structural and property events and keeps the `modelStore` current with an incremental strategy — no event triggers a full-model refetch:
+  - **Delete → local removal** (zero network): ThingDeleted / RelationshipDeleted read the event's `EntityId` and drop that element from the store via `removeThing` / `removeRelationship`. Unknown ids are a no-op.
+  - **Create → single-object hydrate**: ThingCreated / RelationshipCreated carry only an id (the broker deliberately does not stream a new object's properties), so the handler fetches just that one object (`GET /api/things/{id}` or `/api/relationships/{id}`) and `upsert`s it. Upsert is idempotent, so duplicate events don't double-add; a failed hydrate (create raced with a delete) is ignored and reconciled by the next `ModelChanged`/reload.
+  - **Full reload** (`reloadModelData()`): only on mount and `ModelChanged`.
+  - **Clear**: ModelCleared → empties things and relationships arrays.
+  - **Incremental O(1) property updates** (no reload):
+    - `PropertyChanged` → only rebuilds the things array when `isGraphAffectingProperty()` returns true (currently only `geometry`). Triggers a visual flash on the node only (500ms duration).
+    - `RelationshipPropertyChanged` → only rebuilds the relationships array when `isVisibleRelationship()` returns true (relationship touches the selected node). Triggers a visual flash on the specific edge (500ms duration).
+  - **Counter bump**: StatesChanged → increments `statesVersion` (triggers Ranges tab re-fetch).
+- **GraphDataLoader** (renderer sync): mirrors the `modelStore` into the Sigma graph. The first load (empty graph) does a full `loadGraph()` and fits the camera; every later change — including creates and deletes — is applied by `reconcileGraph()`, which adds/drops/patches nodes and edges in place, skips existing nodes' `x`/`y` so the running force layout is undisturbed, and never resets the camera. Net effect: created and deleted Things and Relationships appear on the graph immediately, without a rebuild or camera jump.
 - **DashboardPage**: Subscribes to ServiceHealthChanged, DaemonStatusChanged, ServiceRequestCompleted → refetches `/api/mycelium/services`; EndpointServiceRequestCompleted → refetches `/api/endpoints` (this is what keeps each service row's "Last Req" current)
 - **AppLayout**: Subscribes to ActivityEvent → pushes to `activityStore`
 

@@ -22,6 +22,29 @@ export async function reloadModelData(): Promise<void> {
   }
 }
 
+/** The entity id carried by a structural change event (ThingCreated, etc.). */
+function entityId(data: unknown): string | undefined {
+  return (data as { EntityId?: string } | undefined)?.EntityId;
+}
+
+// Structural create events carry only an id — the object's properties are
+// deliberately not streamed — so we hydrate the single new object and upsert it
+// rather than refetching the whole model. A failed fetch (e.g. the create raced
+// with a delete) is ignored: a later ModelChanged/reload reconciles the store.
+async function hydrateThing(id: string | undefined): Promise<void> {
+  if (!id) return;
+  try {
+    useModelStore.getState().upsertThing(await thingApi.get(id));
+  } catch { /* transient or already deleted — leave the store as-is */ }
+}
+
+async function hydrateRelationship(id: string | undefined): Promise<void> {
+  if (!id) return;
+  try {
+    useModelStore.getState().upsertRelationship(await relationshipApi.get(id));
+  } catch { /* transient or already deleted — leave the store as-is */ }
+}
+
 /**
  * App-shell hook: owns model-data lifecycle so every authenticated page sees a
  * populated useModelStore from mount. Mount once in AuthenticatedApp.
@@ -34,10 +57,10 @@ export function useModelData(): void {
 
   useEffect(() => {
     const unsubs = [
-      on('ThingCreated', () => reloadModelData()),
-      on('ThingDeleted', () => reloadModelData()),
-      on('RelationshipCreated', () => reloadModelData()),
-      on('RelationshipDeleted', () => reloadModelData()),
+      on('ThingCreated', (data) => hydrateThing(entityId(data))),
+      on('ThingDeleted', (data) => useModelStore.getState().removeThing(entityId(data) ?? '')),
+      on('RelationshipCreated', (data) => hydrateRelationship(entityId(data))),
+      on('RelationshipDeleted', (data) => useModelStore.getState().removeRelationship(entityId(data) ?? '')),
       on('PropertyChanged', (...args: unknown[]) => {
         const thingId = args[0] as string;
         const propertyPath = args[1] as string | undefined;
