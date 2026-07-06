@@ -1,0 +1,286 @@
+"""Behavioural specification for the generic simulator: action serialization, the BalanceLedger's
+one-writer-per-balance guarantee, resumable checkpoints, and a dry replay against a fake Mycelium
+that fails loud on any oversell. Domain-agnostic — the timelines here are abstract Things and bins.
+"""
+import io
+import json
+import os
+import tempfile
+import threading
+import unittest
+import urllib.request
+
+import mycelium as M
+import simulator as S
+
+
+def _unwrap(value):
+    return value["value"] if isinstance(value, dict) else value
+
+
+class FakeMycelium:
+    """Records every call and maintains per-thing balances, raising a 400 (as Mycelium's Adjust does)
+    if a decrement would go negative — so a passing replay proves the ledger never oversold."""
+
+    def __init__(self):
+        self.things, self.rels, self.facts, self.balances, self.order = {}, [], [], {}, []
+        self.observations, self.deleted = [], []
+        self._lock = threading.Lock()
+
+    def create_typed_thing(self, name, properties=None, thing_id=None):
+        with self._lock:
+            if thing_id in self.things:
+                raise RuntimeError("POST /api/things -> 409 duplicate id")
+            properties = properties or {}
+            self.things[thing_id] = properties
+            if "contained_units" in properties:
+                self.balances[thing_id] = _unwrap(properties["contained_units"])
+            self.order.append(("thing", thing_id))
+
+    def create_relationship(self, subject_id, predicate_id, target_id):
+        with self._lock:
+            self.rels.append((subject_id, predicate_id, target_id))
+            self.order.append(("rel", subject_id, target_id))
+
+    def set_fact(self, thing_id, prop, value):
+        with self._lock:
+            self.facts.append((thing_id, prop, value))
+
+    def set_observation(self, thing_id, prop, value, observed_at=None):
+        with self._lock:
+            self.observations.append((thing_id, prop, value, observed_at))
+
+    def increment(self, thing_id, prop, amount):
+        with self._lock:
+            self.balances[thing_id] = self.balances.get(thing_id, 0) + amount
+
+    def decrement(self, thing_id, prop, amount):
+        with self._lock:
+            have = self.balances.get(thing_id, 0)
+            if amount > have:
+                raise RuntimeError(f"POST decrements -> 400 available={have} requested={amount}")
+            self.balances[thing_id] = have - amount
+
+    def delete_thing(self, thing_id):
+        with self._lock:
+            self.deleted.append(thing_id)
+            self.things.pop(thing_id, None)
+
+    def load_model(self, document):
+        with self._lock:
+            for t in document["Things"]:
+                properties = t.get("Properties", {})
+                self.things[t["Id"]] = properties
+                if "contained_units" in properties:
+                    self.balances[t["Id"]] = _unwrap(properties["contained_units"])
+            for r in document["Relationships"]:
+                self.rels.append((r["Subject"], r["Predicate"], r["Target"]))
+
+
+def _timeline():
+    """A tiny generic timeline: a stocked bin, then paced widgets that draw it down past empty."""
+    acts = [
+        S.Action(0, 0, "setup", "create_thing",
+                 {"name": "BIN", "thing_id": "bin", "properties": {"contained_units": 10}}, "BIN"),
+        S.Action(0, 1, "setup", "ledger_set", {"thing_id": "bin", "amount": 10}, "BIN"),
+    ]
+    seq = 2
+    for i in range(6):                              # 6 widgets x 2 units = 12 requested > 10 available
+        acts.append(S.Action(float(i), seq, "worker", "create_thing",
+                    {"name": f"W{i}", "thing_id": f"w{i}", "properties": {"n": i}}, f"W{i}"))
+        seq += 1
+        acts.append(S.Action(float(i), seq, "worker", "create_rel",
+                    {"subject_id": f"w{i}", "predicate_id": "has", "target_id": "bin"}, f"W{i}|has|bin"))
+        seq += 1
+        acts.append(S.Action(float(i), seq, "worker", "decrement",
+                    {"thing_id": "bin", "prop": "contained_units", "amount": 2}, f"draw{i}"))
+        seq += 1
+    return acts
+
+
+def _fast(**kw):
+    kw.setdefault("speed", 1e9)
+    kw.setdefault("run_id", "test")
+    return kw
+
+
+class AuthMintsFromApiKeyViaHeader(unittest.TestCase):
+    """The mint contract is POST /api/auth/token with the key in the X-API-Key header (optional
+    ?modelId=), returning {token}. Guards the fix from the earlier wrong {"apiKey": ...} body form."""
+
+    def _capture(self, response_json):
+        captured = {}
+
+        class _Resp(io.BytesIO):
+            def __enter__(self_):
+                return self_
+
+            def __exit__(self_, *a):
+                return False
+
+        def fake_urlopen(req, timeout=None):
+            captured["method"] = req.get_method()
+            captured["url"] = req.full_url
+            captured["headers"] = {k.lower(): v for k, v in req.header_items()}
+            captured["body"] = req.data
+            return _Resp(json.dumps(response_json).encode())
+
+        return captured, fake_urlopen
+
+    def test_ready_token_is_used_verbatim_without_a_mint(self):
+        client = M.MyceliumClient("http://h", token="ready-jwt")
+        self.assertEqual(client.token(), "ready-jwt")
+
+    def test_api_key_is_exchanged_via_x_api_key_header(self):
+        captured, fake = self._capture({"token": "minted-jwt"})
+        original = urllib.request.urlopen
+        urllib.request.urlopen = fake
+        try:
+            client = M.MyceliumClient("http://h", api_key="KEY-123", model_id="m-1")
+            self.assertEqual(client.token(), "minted-jwt")
+        finally:
+            urllib.request.urlopen = original
+        self.assertEqual(captured["method"], "POST")
+        self.assertIn("/api/auth/token", captured["url"])
+        self.assertIn("modelid=m-1", captured["url"].lower())
+        self.assertEqual(captured["headers"].get("x-api-key"), "KEY-123")
+        self.assertIsNone(captured["body"])              # key rides the header, not a JSON body
+
+    def test_no_credentials_raises(self):
+        with self.assertRaises(RuntimeError):
+            M.MyceliumClient("http://h").token()
+
+
+class ActionSerialization(unittest.TestCase):
+    def test_roundtrips_through_jsonl(self):
+        acts = _timeline()
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as fh:
+            path = fh.name
+        try:
+            S.write_timeline(path, acts)
+            back = S.load_timeline(path)
+            self.assertEqual([a.to_dict() for a in acts], [a.to_dict() for a in back])
+        finally:
+            os.unlink(path)
+
+    def test_setup_is_tagged_by_actor(self):
+        acts = _timeline()
+        self.assertTrue(all(a.is_setup for a in acts if a.actor == "setup"))
+        self.assertFalse(any(a.is_setup for a in acts if a.actor == "worker"))
+
+
+class BalanceLedgerNeverOversells(unittest.TestCase):
+    def test_concurrent_consumers_short_and_never_go_negative(self):
+        client = FakeMycelium()
+        client.balances["bin"] = 100
+        ledger = S.BalanceLedger(client)
+        ledger.set("bin", 100)
+        taken, lock = [], threading.Lock()
+
+        def consume():
+            got = ledger.consume("bin", "contained_units", 3)   # 50 x 3 = 150 requested
+            with lock:
+                taken.append(got)
+
+        threads = [threading.Thread(target=consume) for _ in range(50)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(sum(taken), 100)
+        self.assertEqual(client.balances["bin"], 0)
+        self.assertEqual(ledger.balance("bin"), 0)
+
+
+class CheckpointResumes(unittest.TestCase):
+    def test_records_and_reloads(self):
+        with tempfile.NamedTemporaryFile(suffix=".ckpt", delete=False) as fh:
+            path = fh.name
+        try:
+            cp = S.Checkpoint(path)
+            self.assertEqual(cp.applied, -1)
+            cp.record(4, 40.0)
+            cp.record(8, 80.0)
+            self.assertEqual(S.Checkpoint(path).applied, 8)
+            self.assertEqual(S.Checkpoint(path).offset, 80.0)
+        finally:
+            os.unlink(path)
+
+    def test_a_resumed_run_skips_the_committed_prefix(self):
+        with tempfile.NamedTemporaryFile(suffix=".ckpt", delete=False) as fh:
+            path = fh.name
+        try:
+            acts = _timeline()
+            first = FakeMycelium()
+            S.Simulator(first, **_fast(checkpoint=path)).run(acts)
+            self.assertGreater(len(first.things), 0)
+            second = FakeMycelium()
+            S.Simulator(second, **_fast(checkpoint=path)).run(acts)
+            self.assertEqual(len(second.things), 0)     # everything already committed
+        finally:
+            os.unlink(path)
+
+
+class ReplayAgainstFakeMycelium(unittest.TestCase):
+    def setUp(self):
+        self.client = FakeMycelium()
+        S.Simulator(self.client, **_fast()).run(_timeline())
+
+    def test_no_decrement_ever_oversold(self):
+        for balance in self.client.balances.values():
+            self.assertGreaterEqual(balance, 0)
+        self.assertEqual(self.client.balances["bin"], 0)    # 10 stocked, 12 requested → floored at 0
+
+    def test_relationship_subjects_are_created_before_referenced(self):
+        first_created = {}
+        for position, entry in enumerate(self.client.order):
+            if entry[0] == "thing":
+                first_created.setdefault(entry[1], position)
+        for position, entry in enumerate(self.client.order):
+            if entry[0] == "rel" and entry[1] in first_created:
+                self.assertLess(first_created[entry[1]], position)
+
+    def test_seed_first_bulk_loads_setup(self):
+        client = FakeMycelium()
+        S.Simulator(client, **_fast(seed_first=True)).run(_timeline())
+        self.assertIn("bin", client.things)                 # standing world loaded via load_model
+        for balance in client.balances.values():
+            self.assertGreaterEqual(balance, 0)
+
+
+class EveryOpIsApplied(unittest.TestCase):
+    """Exercise the full op vocabulary against the fake, including the ones the reference domain does
+    not emit (set_observation, delete_thing), so the executor's branches stay covered."""
+
+    def test_observation_and_delete_ops_reach_the_client(self):
+        client = FakeMycelium()
+        actions = [
+            S.Action(0, 0, "setup", "create_thing",
+                     {"name": "sensor", "thing_id": "s1", "properties": {"temp": 4}}, "sensor"),
+            S.Action(1, 1, "telemetry", "set_observation",
+                     {"thing_id": "s1", "prop": "temp", "value": 5, "observed_at": "2026-01-01T00:00:00Z"}, "t"),
+            S.Action(2, 2, "cleanup", "delete_thing", {"thing_id": "s1"}, "gone"),
+        ]
+        S.Simulator(client, **_fast()).run(actions)
+        self.assertEqual(client.observations, [("s1", "temp", 5, "2026-01-01T00:00:00Z")])
+        self.assertEqual(client.deleted, ["s1"])
+        self.assertNotIn("s1", client.things)
+
+    def test_unknown_op_raises(self):
+        with self.assertRaises(ValueError):
+            S.Simulator(FakeMycelium(), **_fast()).run([S.Action(0, 0, "x", "frobnicate", {}, "k")])
+
+
+class CliPlaysATimelineFile(unittest.TestCase):
+    def test_dry_run_over_a_jsonl_timeline_makes_no_calls(self):
+        with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as fh:
+            path = fh.name
+        try:
+            S.write_timeline(path, _timeline())
+            self.assertEqual(S.main(["--timeline", path, "--dry-run", "--speed", "1e9"]), 0)
+        finally:
+            os.unlink(path)
+
+
+if __name__ == "__main__":
+    unittest.main()
