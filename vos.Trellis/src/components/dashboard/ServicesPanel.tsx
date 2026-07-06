@@ -35,6 +35,7 @@ interface ServiceRow {
   running?: boolean;
   isExternal?: boolean;
   processId?: number;
+  lastContactTime?: string;
   failureCount?: number;
   controlId?: string;
   deleteThingId?: string;
@@ -53,6 +54,7 @@ function fromService(svc: RegisteredService): ServiceRow {
     running: svc.IsRunning,
     isExternal: svc.IsExternal,
     processId: svc.ProcessId,
+    lastContactTime: svc.LastContactTime,
     failureCount: svc.FailureCount,
     controlId: svc.HandlerId,
   };
@@ -70,6 +72,23 @@ function fromEndpoint(ep: EndpointServiceInfo): ServiceRow {
     errors: ep.Stats.ErrorCount,
     deleteThingId: ep.ObjectId,
   };
+}
+
+// Base cells: Requests, Avg Time, Last Req. Errors (endpoints), Last Contact and
+// PID (graph services) are added conditionally. Literal class strings so Tailwind
+// keeps them in the build.
+function statGridCols(row: ServiceRow): string {
+  const cols =
+    3 +
+    (row.errors !== undefined ? 1 : 0) +
+    (row.lastContactTime ? 1 : 0) +
+    (row.processId ? 1 : 0);
+  switch (cols) {
+    case 6: return 'grid-cols-6';
+    case 5: return 'grid-cols-5';
+    case 4: return 'grid-cols-4';
+    default: return 'grid-cols-3';
+  }
 }
 
 export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete }: Props) {
@@ -107,11 +126,7 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete }
                 )}
               </div>
             </div>
-            <div className={`grid ${
-              (row.errors !== undefined && row.processId) ? 'grid-cols-5'
-                : (row.errors !== undefined || row.processId) ? 'grid-cols-4'
-                : 'grid-cols-3'
-            } gap-2 text-xs text-zinc-500`}>
+            <div className={`grid ${statGridCols(row)} gap-2 text-xs text-zinc-500`}>
               <div>
                 <span className="block text-zinc-400">Requests</span>
                 <span className="font-mono text-zinc-300">{row.requests}</span>
@@ -130,6 +145,12 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete }
                 <span className="block text-zinc-400">Last Req</span>
                 <span className="text-zinc-300">{row.lastReqUtc ? formatRelativeTime(row.lastReqUtc) : '—'}</span>
               </div>
+              {row.lastContactTime && (
+                <div>
+                  <span className="block text-zinc-400">Last Contact</span>
+                  <span className="text-zinc-300">{formatRelativeTime(row.lastContactTime)}</span>
+                </div>
+              )}
               {row.processId && (
                 <div>
                   <span className="block text-zinc-400">PID</span>
