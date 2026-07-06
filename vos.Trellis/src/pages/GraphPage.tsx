@@ -196,8 +196,11 @@ export function GraphPage() {
         creatingThing={creatingThing} onCreateThing={handleCreateThing}
       />
 
-      {/* Top-right: model name + theme toggle + switch / logout */}
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
+      {/* Top-right: model name + theme toggle + switch / logout.
+          z-20 keeps this control surface above the filter cluster (z-10) so a
+          tall predicate list can never render over the seed name / switch /
+          logout controls (Bug: filter panel obscured the control surface). */}
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
         {modelName && <span className="text-xs text-zinc-400 mr-1">{modelName}</span>}
         <ThemeToggleButton />
         <button
@@ -224,8 +227,13 @@ export function GraphPage() {
           Bug #5388: container shares its bounded height between the two
           panels. Each panel scrolls its own list (flex-1 min-h-0) instead
           of capping at a fixed 40vh, so neither panel can push the other's
-          header out of the viewport. */}
-      <div className="absolute bottom-3 right-3 z-10 w-72 max-w-[80vw] flex flex-col gap-2 max-h-[calc(100vh-1.5rem)]">
+          header out of the viewport.
+
+          The max-h reserves the top band (~4rem) for the top-right control
+          surface so a tall predicate list can't grow up over the seed name /
+          switch / logout controls. Paired with z-20 on that control surface
+          as a belt-and-suspenders guard. */}
+      <div className="absolute bottom-3 right-3 z-10 w-72 max-w-[80vw] flex flex-col gap-2 max-h-[calc(100vh-4rem)]">
         <PredicateFilterPanel />
         <TypeFilterPanel />
       </div>
