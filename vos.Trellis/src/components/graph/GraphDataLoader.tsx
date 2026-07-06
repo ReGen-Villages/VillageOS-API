@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useLoadGraph, useSigma } from '@react-sigma/core';
 import type { VosThing, VosRelationship } from '../../types/vos';
 import { buildGraph } from '../../utils/graphologyMapper';
+import { reconcileGraph } from '../../utils/graphReconcile';
 import { extractAllGuiSettings } from '../../utils/guiSettings';
 import { useUiStore } from '../../stores/uiStore';
 
@@ -11,15 +12,14 @@ interface Props {
 }
 
 /**
- * Loads a graphology Graph into Sigma when source data changes.
- * Property-only changes update node attributes in-place rather than calling
- * loadGraph(), to avoid destroying the layout or resetting the camera.
+ * Syncs the Sigma graph with the model store on every data change.
+ * The first load (empty graph) does a full loadGraph() and fits the camera;
+ * every later change — including creates and deletes — is reconciled in place,
+ * which preserves settled node positions and never resets the camera.
  */
 export function GraphDataLoader({ things, relationships }: Props) {
   const sigma = useSigma();
   const loadGraph = useLoadGraph();
-  const prevThingIdsRef = useRef<Set<string>>(new Set());
-  const prevRelIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const { flash, layout, predicateColors: predColors } = extractAllGuiSettings(things, relationships);
@@ -28,48 +28,21 @@ export function GraphDataLoader({ things, relationships }: Props) {
     useUiStore.getState().setPredicateColors(predColors);
 
     // classColorOverrides is empty today (future GUI_Settings panel populates it).
-    const graph = buildGraph(things, relationships, predColors, {}, layout);
+    const nextGraph = buildGraph(things, relationships, predColors, {}, layout);
+    const liveGraph = sigma.getGraph();
 
-    const newThingIds = new Set(things.map((t) => t.Id));
-    const newRelIds = new Set(relationships.map((r) => r.Id));
-    const prevThingIds = prevThingIdsRef.current;
-    const prevRelIds = prevRelIdsRef.current;
-
-    const countChanged =
-      newThingIds.size !== prevThingIds.size ||
-      newRelIds.size !== prevRelIds.size;
-
-    const isStructural =
-      prevThingIds.size === 0 ||
-      countChanged ||
-      [...newThingIds].some((id) => !prevThingIds.has(id)) ||
-      [...prevThingIds].some((id) => !newThingIds.has(id)) ||
-      [...newRelIds].some((id) => !prevRelIds.has(id)) ||
-      [...prevRelIds].some((id) => !newRelIds.has(id));
-
-    prevThingIdsRef.current = newThingIds;
-    prevRelIdsRef.current = newRelIds;
-
-    if (isStructural) {
-      loadGraph(graph);
-
-      if (countChanged) {
+    // An empty live graph means first mount or a post-clear repopulate: do a full
+    // load and fit. Otherwise reconcile incrementally so the running layout and
+    // camera are left undisturbed.
+    if (liveGraph.order === 0) {
+      loadGraph(nextGraph);
+      if (nextGraph.order > 0) {
         requestAnimationFrame(() => {
           sigma.getCamera().animatedReset({ duration: 300 });
         });
       }
     } else {
-      // Skip positional attrs (x, y) to avoid disrupting the layout.
-      const currentGraph = sigma.getGraph();
-      graph.forEachNode((nodeId, attrs) => {
-        if (currentGraph.hasNode(nodeId)) {
-          for (const [key, value] of Object.entries(attrs)) {
-            if (key !== 'x' && key !== 'y') {
-              currentGraph.setNodeAttribute(nodeId, key, value);
-            }
-          }
-        }
-      });
+      reconcileGraph(liveGraph, nextGraph);
     }
   }, [things, relationships, loadGraph, sigma]);
 

@@ -29,6 +29,15 @@ describe('relationshipApi.getAll', () => {
   });
 });
 
+describe('relationshipApi.get', () => {
+  it('gets a single relationship from the id URL', async () => {
+    mockGet.mockResolvedValue({ Id: 'rel-123', Name: 'is', SubjectId: 's1', PredicateId: 'p1', TargetId: 't1', Properties: {} });
+    const rel = await relationshipApi.get('rel-123');
+    expect(mockGet).toHaveBeenCalledWith('/api/relationships/rel-123');
+    expect(rel.Id).toBe('rel-123');
+  });
+});
+
 describe('relationshipApi.create', () => {
   it('posts with subject, predicate, and target IDs', async () => {
     mockPost.mockResolvedValue({ Id: 'r1', Name: 'test', SubjectId: 's1', PredicateId: 'p1', TargetId: 't1', Properties: {} });
