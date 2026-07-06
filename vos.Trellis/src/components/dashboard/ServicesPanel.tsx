@@ -35,7 +35,6 @@ interface ServiceRow {
   running?: boolean;
   isExternal?: boolean;
   processId?: number;
-  lastContactTime?: string;
   failureCount?: number;
   controlId?: string;
   deleteThingId?: string;
@@ -54,7 +53,6 @@ function fromService(svc: RegisteredService): ServiceRow {
     running: svc.IsRunning,
     isExternal: svc.IsExternal,
     processId: svc.ProcessId,
-    lastContactTime: svc.LastContactTime,
     failureCount: svc.FailureCount,
     controlId: svc.HandlerId,
   };
@@ -109,7 +107,11 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete }
                 )}
               </div>
             </div>
-            <div className={`grid ${row.errors !== undefined ? 'grid-cols-4' : 'grid-cols-3'} gap-2 text-xs text-zinc-500`}>
+            <div className={`grid ${
+              (row.errors !== undefined && row.processId) ? 'grid-cols-5'
+                : (row.errors !== undefined || row.processId) ? 'grid-cols-4'
+                : 'grid-cols-3'
+            } gap-2 text-xs text-zinc-500`}>
               <div>
                 <span className="block text-zinc-400">Requests</span>
                 <span className="font-mono text-zinc-300">{row.requests}</span>
@@ -128,13 +130,13 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete }
                 <span className="block text-zinc-400">Last Req</span>
                 <span className="text-zinc-300">{row.lastReqUtc ? formatRelativeTime(row.lastReqUtc) : '—'}</span>
               </div>
+              {row.processId && (
+                <div>
+                  <span className="block text-zinc-400">PID</span>
+                  <span className="font-mono text-zinc-300">{row.processId}</span>
+                </div>
+              )}
             </div>
-            {(row.processId || row.lastContactTime) && (
-              <div className="mt-1 flex gap-4 text-xs text-zinc-500">
-                {row.processId && <span>PID: {row.processId}</span>}
-                {row.lastContactTime && <span>Last: {formatRelativeTime(row.lastContactTime)}</span>}
-              </div>
-            )}
             {row.failureCount !== undefined && row.failureCount > 0 && (
               <div className="mt-1 text-xs text-amber-400">Failures: {row.failureCount}</div>
             )}
