@@ -229,7 +229,7 @@ export function extractAllGuiSettings(
 
   const layout: LayoutSettings = p ? readLayoutSettings(p) : { ...LAYOUT_DEFAULTS };
 
-  let predicateColors: Record<string, string> = {};
+  const predicateColors: Record<string, string> = {};
   if (p) {
     const raw = p['PredicateColors'];
     if (typeof raw === 'string' && raw) {

@@ -260,7 +260,7 @@ function EditableRow({
     } finally {
       setSaving(false);
     }
-  }, [saving, dirty, draft, formatted, value, entityType, entityId, name, onSaved]);
+  }, [saving, dirty, draft, formatted, entityType, entityId, name, onSaved]);
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
