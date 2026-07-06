@@ -7,7 +7,7 @@ import { useUiStore } from './stores/uiStore'
 
 // Exposed for the screenshot-capture script and dev tools.
 if (import.meta.env.DEV) {
-  (window as any).__vosStore = useUiStore;
+  (window as Window & { __vosStore?: typeof useUiStore }).__vosStore = useUiStore;
 }
 
 createRoot(document.getElementById('root')!).render(

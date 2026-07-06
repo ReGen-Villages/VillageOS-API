@@ -189,7 +189,6 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
         `Tile streaming may have stalled. Page errors: ${pageErrors.join('\n')}`,
     );
 
-    // eslint-disable-next-line no-console
     console.log(
       `ok — pre-orbit: ${rendered.nonBackgroundSamples}/${rendered.totalSamples} rendered samples, ` +
         `post-orbit: ${afterOrbit.nonBackgroundSamples}/${rendered.totalSamples}, renderer: ${rendered.renderer}`,
@@ -235,10 +234,8 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
       // The metadata panel is rendered outside the canvas. Allow up to 3s for
       // the raycast + mapping lookup + /api/things fetch.
       await page.waitForSelector('[data-testid=fragments-metadata-panel]', { timeout: 3000 });
-      // eslint-disable-next-line no-console
       console.log('ok — pick resolved to a VosThing; metadata panel mounted');
     } else {
-      // eslint-disable-next-line no-console
       console.warn('skip — could not find a rendered pixel to click; pick coverage not asserted');
     }
   } finally {

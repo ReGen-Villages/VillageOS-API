@@ -172,7 +172,6 @@ export function NodeReducer({ searchQuery, searchOptions }: Props) {
       }),
       edgeReducer,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, labelMatcher, activePredicateIds, hiddenPredicateIds, clusterMap, selectedNodeId, setSettings, sigma]);
 
   return null;
