@@ -136,6 +136,32 @@ class MyceliumClient:
         """Bulk-load a {Things, Relationships} document in one shot (POST /api/model)."""
         return self._json("POST", "/api/model", document)
 
+    def apply_fragment(self, things, relationships, name="simulator fragment"):
+        """Upsert a partial-model fragment ``{Name, Things, Relationships}`` in one shot via
+        ``POST /api/model/fragment``.
+
+        This is how the simulator honours lazy inheritance (I1: a Thing may not *own* a property name
+        it inherits) **server-side**: the endpoint creates each Thing bare, establishes its ``is``
+        edges, and materializes any inherited value as an override itself — so the client no longer
+        choreographs bare-create-then-override. It is an upsert and idempotent: re-posting the same
+        fragment neither duplicates Things/Relationships nor errors. ``things`` are dicts already in
+        ThingDto shape (``Id``, ``Name``, typed ``Properties``); ``relationships`` are dicts in RelDto
+        shape (``Name``, ``Subject``, ``Predicate``, ``Target``, optional ``Id``)."""
+        return self._json("POST", "/api/model/fragment",
+                          {"Name": name, "Things": things, "Relationships": relationships})
+
+    # -- fragment builders ------------------------------------------------
+    @staticmethod
+    def fragment_thing(thing_id, name, properties=None):
+        """Build a ThingDto: id, name, and plain scalars wrapped in typed envelopes."""
+        return {"Id": thing_id, "Name": name, "Properties": typed_properties(properties)}
+
+    @staticmethod
+    def fragment_rel(subject_id, predicate_id, target_id, name=None):
+        """Build a RelDto for a fragment's Relationships list."""
+        return {"Name": name or "rel", "Subject": subject_id,
+                "Predicate": predicate_id, "Target": target_id}
+
     # -- subscriptions ----------------------------------------------------
     def subscribe(self, selector: dict):
         return self._json("POST", "/api/subscriptions", selector)

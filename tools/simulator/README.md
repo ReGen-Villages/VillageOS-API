@@ -57,8 +57,9 @@ python3 simulator.py --url http://localhost:5000 --token "$JWT" --timeline run.j
 
 | op | args | effect |
 | --- | --- | --- |
-| `create_thing` | `name, thing_id, properties` | `POST /api/things` (idempotent by client `Id`) |
-| `create_rel` | `subject_id, predicate_id, target_id` | `POST /api/relationships` |
+| `apply_fragment` | `things, relationships, name?` | `POST /api/model/fragment` — an upsert/idempotent partial-model batch; the **main path** for creates (see *Lazy inheritance* below) |
+| `create_thing` | `name, thing_id, properties` | `POST /api/things` — **fallback**; the coalescing pass folds creates into `apply_fragment` (see below) |
+| `create_rel` | `subject_id, predicate_id, target_id`, `predicate?` | `POST /api/relationships` — **fallback**; a creation-time edge is folded into its subject's fragment, a later lifecycle edge stays granular |
 | `set_fact` | `thing_id, prop, value` | `POST …/facts` (durable, editor/admin) |
 | `set_observation` | `thing_id, prop, value, observed_at?` | `POST …/observations` (sampled; the one caller-supplied time) |
 | `increment` / `decrement` | `thing_id, prop, amount` | quantity adjust, routed through the `BalanceLedger` |
@@ -79,10 +80,27 @@ python3 simulator.py --url http://localhost:5000 --token "$JWT" --timeline run.j
   `?access_token=` (resume `&lastEventId=`) — `client.stream_url(...)` builds it, the way Trellis does.
 - **Doesn't fake the clock.** `--speed` changes only *when* each POST is issued, never the stored
   timestamps. The only caller-supplied time is an Observation's optional `observed_at`.
+- **Respects lazy inheritance (I1), resolved server-side.** Under lazy inheritance a Thing may not
+  *own* a property name it *inherits*. Timelines emit the natural domain shape — `create_thing(props)`
+  then `create_rel(is)` — which, sent granularly, would post the instance's own properties *before*
+  the `is` edge and make the edge fail with I1 on a live Mycelium. The simulator no longer choreographs
+  a client-side workaround (bare-create then override). Instead a deterministic **coalescing pass**
+  folds each `create_thing` and its *creation-time* edges (a `create_rel` at the **same offset** whose
+  subject **is** the new Thing) into a single `apply_fragment`, and `POST /api/model/fragment` upserts
+  the batch: the **server** creates the Thing bare, establishes the `is` edge, materializes any
+  inherited value as an **override**, and emits the granular SSE/Facts. The endpoint is
+  upsert/idempotent, so a re-post never duplicates and needs no duplicate-guard. Properties travel as
+  typed envelopes, so decimals/measures don't truncate. The whole **setup** (standing world) collapses
+  into one bulk fragment (`ledger_set` actions still precede it); `--seed-first` instead bulk-loads the
+  granular setup via `POST /api/model`. A later-offset `is` edge on an already-existing Thing is a
+  lifecycle edge and stays a granular `create_rel`. Coalescing is a pure function of the sorted
+  timeline, so checkpoint indices and pacing are unchanged — a paced fragment sits at its
+  `create_thing`'s offset and fires at that instance's moment. This lives in the generic engine, so
+  every domain timeline gets it for free.
 
 ## Token
 
 Structural writes (`/things`, `/relationships`, `/facts`, `/increments`) need `ModifyData` /
-`WritePropertyFact`; a service-role token is refused (403). Pass an editor/admin JWT via `--token`, or
+`WritePropertyFact`, both of which admit editor, admin, and service roles. Pass an editor/admin JWT via `--token`, or
 an API key via `--api-key` to mint one: the client calls `POST /api/auth/token` with the key in the
 **`X-API-Key`** header (add `--model-id` for a multi-model host → `?modelId=`), which returns `{token}`.
