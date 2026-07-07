@@ -9,7 +9,7 @@
  *
  * Newer models ingested via vos.Tools.IfcIngest do NOT carry inline
  * geometry — their geometry lives in the .frag artifact rendered by
- * FragmentsViewer. This parser remains only for the Graph page's
+ * BimFragmentsViewer. This parser remains only for the Graph page's
  * BuildingDetail3D tab, which displays a single element's inline mesh
  * when one is present.
  *

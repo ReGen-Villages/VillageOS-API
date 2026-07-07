@@ -2,19 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { ModelPage } from './ModelPage';
 
-// FragmentsViewer pulls in @react-three/fiber + @thatopen/fragments which need
+// BimFragmentsViewer pulls in @react-three/fiber + @thatopen/fragments which need
 // WebGL and a worker. jsdom has neither, so we stub the whole component and
 // expose the onPick callback so tests can simulate a pick.
 let capturedOnPick: ((id: string | null) => void) | null = null;
 let capturedHiddenIfcGuids: readonly string[] = [];
-vi.mock('../components/model/FragmentsViewer', () => ({
-  FragmentsViewer: ({
-    fragmentsBytes,
+vi.mock('../components/model/BimFragmentsViewer', () => ({
+  BimFragmentsViewer: ({
+    bimFragmentsBytes,
     mapping,
     onPick,
     hiddenIfcGuids = [],
   }: {
-    fragmentsBytes: ArrayBuffer;
+    bimFragmentsBytes: ArrayBuffer;
     mapping: Record<string, string>;
     onPick: (id: string | null) => void;
     hiddenIfcGuids?: readonly string[];
@@ -24,7 +24,7 @@ vi.mock('../components/model/FragmentsViewer', () => ({
     return (
       <div
         data-testid="fragments-viewer-stub"
-        data-bytesize={fragmentsBytes.byteLength}
+        data-bytesize={bimFragmentsBytes.byteLength}
         data-mapping-size={Object.keys(mapping).length}
         data-hidden-count={hiddenIfcGuids.length}
       />
@@ -119,7 +119,7 @@ describe('ModelPage', () => {
     });
   });
 
-  it('mounts FragmentsViewer with bytes + mapping derived from the model store', async () => {
+  it('mounts BimFragmentsViewer with bytes + mapping derived from the model store', async () => {
     const bytes = new Uint8Array([0xDE, 0xAD, 0xBE, 0xEF]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
     seedThings([
