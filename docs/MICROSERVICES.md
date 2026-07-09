@@ -21,9 +21,10 @@ handlers in Go, Node/TypeScript, Python, and Rust, see
 [`MICROSERVICE_AUTHORING.md`](MICROSERVICE_AUTHORING.md).
 
 Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`, `Phloem`,
-`WaterReserve`. `WaterReserve` is the first site-analysis node (#5805): it computes
-emergency water reserve, days-of-supply, and % annual consumption from population +
-per-capita rate + stored volume, feeding the 14-day resilience range. **Echo is
+`WaterReserve`, `EnergyBalance`. `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
+site-analysis nodes: `WaterReserve` computes emergency reserve / days-of-supply / %
+consumption (feeding the 14-day resilience range); `EnergyBalance` computes solar + other
+generation vs consumption → % of consumption and net-positive. **Echo is
 the canonical reference implementation** — the simplest. When adding a new
 microservice, copy Echo's structure and the test patterns in §10. `Phloem` is the
 pipeline/DAG orchestrator and a service becomes a pipeline *node* via an additive `/handle`
