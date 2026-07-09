@@ -172,6 +172,41 @@ public class PipelineExecutorTests
     }
 
     [Fact]
+    public async Task RunAsync_EnergyAnalysis_RoutesRunParamsIntoEnergyBalanceAndSurfacesNetPositive()
+    {
+        var (fx, pipelineId) = TestGraphs.SiteAnalysisEnergyPipeline();
+        JsonElement seenInputs = default;
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (subdomain, envelope) =>
+            {
+                subdomain.Should().Be("energy-balance");
+                seenInputs = envelope.GetProperty("inputs").Clone();
+                return NodeOk(("pctOfConsumption", "112"), ("netPositive", "true"));
+            },
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+
+        var runParams = JsonSerializer.SerializeToElement(new
+        {
+            solarPvAreaM2 = 29611.0,
+            solarResourceKwhPerM2PerYear = 2279.5,
+            pvEfficiency = 0.20,
+            otherGenerationMwhPerYear = 7400.0,
+            annualConsumptionMwhPerYear = 18743.0,
+        });
+
+        var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Dispatched.Should().Equal("energy-balance");
+        // all five run params routed into the node's input ports
+        seenInputs.GetProperty("solarPvAreaM2").GetDouble().Should().Be(29611.0);
+        seenInputs.GetProperty("annualConsumptionMwhPerYear").GetDouble().Should().Be(18743.0);
+        result.Nodes.Single(n => n.Name == "EnergyBalance").Outputs["netPositive"].GetString().Should().Be("true");
+    }
+
+    [Fact]
     public async Task RunAsync_FanOut_RunsPerItem_BroadcastsScalar_GathersOutputs()
     {
         var (fx, pipelineId) = TestGraphs.FanOutPipeline();
