@@ -10,14 +10,14 @@ import { ResizablePanel } from '../components/panels/ResizablePanel';
 import { TypeFilterPanel } from '../components/panels/TypeFilterPanel';
 import { toast } from '../components/common/Toast';
 import type { VosThing } from '../types/vos';
-import type { FragmentsMapping } from '../components/model/FragmentsViewer';
+import type { BimFragmentsMapping } from '../components/model/BimFragmentsViewer';
 import { applyTypeFilter } from '../utils/typeFilter';
 
-const FragmentsViewer = lazy(() =>
-  import('../components/model/FragmentsViewer').then((m) => ({ default: m.FragmentsViewer })),
+const BimFragmentsViewer = lazy(() =>
+  import('../components/model/BimFragmentsViewer').then((m) => ({ default: m.BimFragmentsViewer })),
 );
 
-type FragmentsState =
+type BimFragmentsState =
   | { status: 'loading' }
   | { status: 'empty' }
   | { status: 'error'; message: string }
@@ -26,8 +26,8 @@ type FragmentsState =
 // Build the IFC-GlobalId → VosThing-Id map by scanning the Mycelium's authoritative
 // thing list rather than the pre-baked .mapping.json sidecar (which drifts whenever
 // the seed is regenerated — Bug #5298 follow-up).
-function buildMappingFromThings(things: VosThing[]): FragmentsMapping {
-  const map: FragmentsMapping = {};
+function buildMappingFromThings(things: VosThing[]): BimFragmentsMapping {
+  const map: BimFragmentsMapping = {};
   for (const t of things) {
     const ifcId = t.Properties?.ifcGlobalId;
     if (typeof ifcId === 'string' && ifcId.length > 0) map[ifcId] = t.Id;
@@ -39,7 +39,7 @@ export function ModelPage() {
   const { modelId } = useAuth();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
-  const [fragments, setFragments] = useState<FragmentsState>({ status: 'loading' });
+  const [bimFragments, setBimFragments] = useState<BimFragmentsState>({ status: 'loading' });
   const [detailThing, setDetailThing] = useState<VosThing | null>(null);
 
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
@@ -71,17 +71,17 @@ export function ModelPage() {
   // app-shell-level useModelData hook (Feature #5329).
   useEffect(() => {
     let cancelled = false;
-    setFragments({ status: 'loading' });
+    setBimFragments({ status: 'loading' });
     selectNode(null);
 
-    apiClient.getBytes('/api/model/fragments')
+    apiClient.getBytes('/api/model/bim/fragments')
       .then((bytes) => {
         if (cancelled) return;
-        setFragments(bytes === null ? { status: 'empty' } : { status: 'ready', bytes });
+        setBimFragments(bytes === null ? { status: 'empty' } : { status: 'ready', bytes });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setFragments({
+        setBimFragments({
           status: 'error',
           message: err instanceof Error ? err.message : 'Failed to load model',
         });
@@ -135,12 +135,12 @@ export function ModelPage() {
         </p>
       </header>
 
-      {fragments.status === 'ready' ? (
+      {bimFragments.status === 'ready' ? (
         <div className="flex-1 flex min-h-0 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 relative">
           <div className="flex-1 min-w-0 relative">
             <Suspense fallback={<LoadingPlaceholder />}>
-              <FragmentsViewer
-                fragmentsBytes={fragments.bytes}
+              <BimFragmentsViewer
+                bimFragmentsBytes={bimFragments.bytes}
                 mapping={mapping}
                 onPick={handlePick}
                 hiddenIfcGuids={hiddenIfcGuids}
@@ -167,10 +167,10 @@ export function ModelPage() {
             </ResizablePanel>
           )}
         </div>
-      ) : fragments.status === 'loading' ? (
+      ) : bimFragments.status === 'loading' ? (
         <LoadingPlaceholder />
-      ) : fragments.status === 'error' ? (
-        <ErrorPlaceholder message={fragments.message} />
+      ) : bimFragments.status === 'error' ? (
+        <ErrorPlaceholder message={bimFragments.message} />
       ) : (
         <EmptyPlaceholder />
       )}

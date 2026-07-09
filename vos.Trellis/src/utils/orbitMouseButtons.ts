@@ -10,7 +10,7 @@ import { MOUSE } from 'three';
  * users pan with a single-finger drag (the only gesture they have available
  * without an external mouse) — right-click is awkward on macOS trackpads.
  *
- * Pure function; the FragmentsViewer wires window keydown/keyup state into
+ * Pure function; the BimFragmentsViewer wires window keydown/keyup state into
  * the React render so OrbitControls re-receives this prop while a modifier
  * is held.
  */

@@ -3,13 +3,13 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
-import { FragmentsModels, type FragmentsModel } from '@thatopen/fragments';
+import { FragmentsModels as BimFragmentsModels, type FragmentsModel as BimFragmentsModel } from '@thatopen/fragments';
 import { LoadingOverlay } from './LoadingOverlay';
 import { ViewerToolbar, type CameraMode } from './ViewerToolbar';
 import { orbitMouseButtonsFor } from '../../utils/orbitMouseButtons';
 
 /** Map of IFC GlobalId → VosThing GUID, served by Mycelium at /api/model/mapping. */
-export type FragmentsMapping = Record<string, string>;
+export type BimFragmentsMapping = Record<string, string>;
 
 interface ModelBounds {
   center: THREE.Vector3;
@@ -23,16 +23,16 @@ type LoadState =
   | { kind: 'loading'; stage: string; progress: number }
   | { kind: 'ready'; bounds: ModelBounds };
 
-interface FragmentsViewerProps {
-  fragmentsBytes: ArrayBuffer;
-  mapping: FragmentsMapping;
+interface BimFragmentsViewerProps {
+  bimFragmentsBytes: ArrayBuffer;
+  mapping: BimFragmentsMapping;
   /** Fires with the VosThing GUID of the clicked element, or null when the click missed geometry. */
   onPick: (vosGuid: string | null) => void;
   /** IFC GlobalIds whose Fragments instances should be hidden. Empty → everything visible. */
   hiddenIfcGuids?: readonly string[];
 }
 
-export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuids = [] }: FragmentsViewerProps) {
+export function BimFragmentsViewer({ bimFragmentsBytes, mapping, onPick, hiddenIfcGuids = [] }: BimFragmentsViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl | null>(null);
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading', stage: 'fetching worker', progress: 0 });
   const [cameraMode, setCameraMode] = useState<CameraMode>('3d');
@@ -92,7 +92,7 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuid
         <ambientLight intensity={0.6} />
         <directionalLight position={[30, 50, 20]} intensity={0.8} castShadow />
 
-        {/* Bug #5298: swapping between two drei cameras broke FragmentsModel.raycast
+        {/* Bug #5298: swapping between two drei cameras broke BimFragmentsModel.raycast
             (returned null for every click). Use the single built-in camera; plan mode
             is faked by lifting it overhead and narrowing FOV instead of an ortho camera. */}
         <OrbitControls
@@ -105,8 +105,8 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuid
           mouseButtons={mouseButtons}
         />
 
-        <FragmentsScene
-          bytes={fragmentsBytes}
+        <BimFragmentsScene
+          bytes={bimFragmentsBytes}
           orbitRef={orbitRef}
           mapping={mapping}
           onPick={onPick}
@@ -136,10 +136,10 @@ export function FragmentsViewer({ fragmentsBytes, mapping, onPick, hiddenIfcGuid
   );
 }
 
-interface FragmentsSceneProps {
+interface BimFragmentsSceneProps {
   bytes: ArrayBuffer;
   orbitRef: React.MutableRefObject<OrbitControlsImpl | null>;
-  mapping: FragmentsMapping;
+  mapping: BimFragmentsMapping;
   onPick: (vosGuid: string | null) => void;
   onProgress: (stage: string, progress: number) => void;
   onReady: (bounds: ModelBounds) => void;
@@ -157,7 +157,7 @@ const HIGHLIGHT_MATERIAL = {
   transparent: false,
 };
 
-function FragmentsScene({
+function BimFragmentsScene({
   bytes,
   orbitRef,
   mapping,
@@ -167,10 +167,10 @@ function FragmentsScene({
   cameraMode,
   clipPlanesRef,
   hiddenIfcGuids,
-}: FragmentsSceneProps) {
+}: BimFragmentsSceneProps) {
   const { camera, gl, invalidate } = useThree();
-  const [model, setModel] = useState<FragmentsModel | null>(null);
-  const fragmentsRef = useRef<FragmentsModels | null>(null);
+  const [model, setModel] = useState<BimFragmentsModel | null>(null);
+  const bimFragmentsRef = useRef<BimFragmentsModels | null>(null);
   const boundsRef = useRef<ModelBounds | null>(null);
   const lastUpdateRef = useRef<number>(0);
   const highlightedRef = useRef<number | null>(null);
@@ -189,13 +189,13 @@ function FragmentsScene({
 
     (async () => {
       onProgress('fetching worker', 0.05);
-      const workerURL = await FragmentsModels.getWorker();
+      const workerURL = await BimFragmentsModels.getWorker();
       if (cancelled) return;
 
-      const fragments = new FragmentsModels(workerURL);
-      fragmentsRef.current = fragments;
+      const bimFragments = new BimFragmentsModels(workerURL);
+      bimFragmentsRef.current = bimFragments;
 
-      const loaded = await fragments.load(bytes, {
+      const loaded = await bimFragments.load(bytes, {
         modelId: 'village-os-model',
         camera: camera as THREE.PerspectiveCamera,
         onProgress: ({ stage, progress }) => {
@@ -204,7 +204,7 @@ function FragmentsScene({
         },
       });
       if (cancelled) {
-        await fragments.dispose();
+        await bimFragments.dispose();
         return;
       }
       loaded.getClippingPlanesEvent = () => clipPlanesRef.current;
@@ -212,7 +212,7 @@ function FragmentsScene({
       const bounds = await computeBounds(loaded);
       boundsRef.current = bounds;
       await fitCameraToBounds(cameraMode, camera, bounds, orbitRef.current);
-      await fragments.update(true);
+      await bimFragments.update(true);
       invalidate();
       setModel(loaded);
       onReady(bounds);
@@ -222,9 +222,9 @@ function FragmentsScene({
 
     return () => {
       cancelled = true;
-      const fragments = fragmentsRef.current;
-      fragmentsRef.current = null;
-      if (fragments) void fragments.dispose();
+      const bimFragments = bimFragmentsRef.current;
+      bimFragmentsRef.current = null;
+      if (bimFragments) void bimFragments.dispose();
     };
     // Load once per bytes instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,12 +237,12 @@ function FragmentsScene({
   }, [cameraMode, camera, model, orbitRef, invalidate]);
 
   useFrame(({ clock }) => {
-    const fragments = fragmentsRef.current;
-    if (!fragments || !model) return;
+    const bimFragments = bimFragmentsRef.current;
+    if (!bimFragments || !model) return;
     const now = clock.elapsedTime;
     if (now - lastUpdateRef.current < 1 / 6) return;
     lastUpdateRef.current = now;
-    void fragments.update();
+    void bimFragments.update();
   });
 
   // resetVisible() first so a removed entry comes back into view (cheaper than
@@ -259,8 +259,8 @@ function FragmentsScene({
         if (cancelled) { invalidate(); return; }
         if (localIds.length > 0) await model.setVisible(localIds, false);
       }
-      const fragments = fragmentsRef.current;
-      if (fragments && !cancelled) await fragments.update(true);
+      const bimFragments = bimFragmentsRef.current;
+      if (bimFragments && !cancelled) await bimFragments.update(true);
       invalidate();
     })().catch((err) => console.error('Failed to apply type-filter visibility', err));
     return () => { cancelled = true; };
@@ -352,7 +352,7 @@ function FragmentsScene({
 
 // ── Camera framing + bounds ─────────────────────────────────────────────────
 
-async function computeBounds(model: FragmentsModel): Promise<ModelBounds> {
+async function computeBounds(model: BimFragmentsModel): Promise<ModelBounds> {
   const boxes = await model.getBoxes();
   const total = boxes.reduce((acc, b) => acc.union(b), new THREE.Box3().makeEmpty());
   const center = new THREE.Vector3();
@@ -410,4 +410,3 @@ async function fitCameraToBounds(
     controls.update();
   }
 }
-

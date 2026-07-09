@@ -24,7 +24,7 @@ class FakeMycelium:
 
     def __init__(self):
         self.things, self.rels, self.facts, self.balances, self.order = {}, [], [], {}, []
-        self.observations, self.deleted = [], []
+        self.observations, self.deleted, self.fragments = [], [], []
         self._lock = threading.Lock()
 
     def create_typed_thing(self, name, properties=None, thing_id=None):
@@ -45,6 +45,22 @@ class FakeMycelium:
     def set_fact(self, thing_id, prop, value):
         with self._lock:
             self.facts.append((thing_id, prop, value))
+
+    def apply_fragment(self, things, relationships, name="simulator fragment"):
+        """Record the fragment and apply it the way the server would from the client's view: upsert
+        each Thing (storing its typed Properties, seeding a contained_units balance as
+        create_typed_thing does) and each Relationship. Upsert/idempotent — a re-post is a no-op."""
+        with self._lock:
+            self.fragments.append({"name": name, "things": things, "relationships": relationships})
+            for t in things:
+                properties = t.get("Properties", {})
+                self.things[t["Id"]] = properties
+                if "contained_units" in properties:
+                    self.balances[t["Id"]] = _unwrap(properties["contained_units"])
+                self.order.append(("thing", t["Id"]))
+            for r in relationships:
+                self.rels.append((r["Subject"], r["Predicate"], r["Target"]))
+                self.order.append(("rel", r["Subject"], r["Target"]))
 
     def set_observation(self, thing_id, prop, value, observed_at=None):
         with self._lock:
@@ -269,6 +285,64 @@ class EveryOpIsApplied(unittest.TestCase):
     def test_unknown_op_raises(self):
         with self.assertRaises(ValueError):
             S.Simulator(FakeMycelium(), **_fast()).run([S.Action(0, 0, "x", "frobnicate", {}, "k")])
+
+
+class FragmentCarriesInheritorWithItsIsEdge(unittest.TestCase):
+    """Lazy inheritance (I1: a Thing may not *own* a property name it *inherits*) is now resolved
+    SERVER-SIDE. The simulator no longer choreographs bare-create-then-override; it coalesces each
+    ``create_thing`` and its creation-time ``create_rel`` edges (same offset, subject == the thing)
+    into ONE ``apply_fragment`` (``POST /api/model/fragment``), so the Thing and its ``is`` edge travel
+    together and the server creates the Thing bare, establishes the edge, and materializes any
+    inherited value as an override. Setup collapses into a single standing-world fragment."""
+
+    def _run(self, actions):
+        client = FakeMycelium()
+        S.Simulator(client, **_fast()).run(actions)
+        return client
+
+    def _instance(self, props):
+        return [
+            S.Action(0, 0, "setup", "create_thing", {"name": "A", "thing_id": "A"}, "A"),   # archetype
+            S.Action(1, 1, "worker", "create_thing", {"name": "X", "thing_id": "X", "properties": props}, "X"),
+            S.Action(1, 2, "worker", "create_rel",
+                     {"subject_id": "X", "predicate_id": "GUID-is", "predicate": "is", "target_id": "A"}, "X|is|A"),
+        ]
+
+    def _fragment_with(self, client, thing_id):
+        return next(f for f in client.fragments if any(t["Id"] == thing_id for t in f["things"]))
+
+    def test_thing_and_its_is_edge_travel_in_one_fragment(self):
+        client = self._run(self._instance({"code": "x"}))
+        frag = self._fragment_with(client, "X")                          # the paced instance's fragment
+        self.assertIn("X", {t["Id"] for t in frag["things"]})
+        edges = [(r["Subject"], r["Predicate"], r["Target"]) for r in frag["relationships"]]
+        self.assertIn(("X", "GUID-is", "A"), edges)                      # is-edge rides with the Thing
+        x = next(t for t in frag["things"] if t["Id"] == "X")
+        self.assertEqual(_unwrap(x["Properties"]["code"]), "x")          # X's own property carried too
+
+    def test_decimal_property_is_carried_as_a_typed_envelope(self):
+        client = self._run(self._instance({"weight": {"typeInfo": "vos.Decimal", "value": 2.5}}))
+        x = next(t for t in self._fragment_with(client, "X")["things"] if t["Id"] == "X")
+        self.assertEqual(x["Properties"]["weight"], {"typeInfo": "vos.Decimal", "value": 2.5})
+
+    def test_a_later_offset_is_edge_stays_granular(self):
+        # An `is` edge at a LATER offset than the Thing is a lifecycle edge on an already-existing
+        # Thing; it is not a creation-time edge, so it stays a granular create_rel, not folded in.
+        client = self._run([
+            S.Action(0, 0, "setup", "create_thing", {"name": "A", "thing_id": "A"}, "A"),
+            S.Action(1, 1, "worker", "create_thing",
+                     {"name": "Y", "thing_id": "Y", "properties": {"code": "y"}}, "Y"),
+            S.Action(5, 2, "worker", "create_rel",
+                     {"subject_id": "Y", "predicate_id": "GUID-is", "predicate": "is", "target_id": "A"}, "Y|is|A"),
+        ])
+        self.assertEqual(self._fragment_with(client, "Y")["relationships"], [])   # edge not folded in
+        self.assertIn(("Y", "GUID-is", "A"), client.rels)                # applied granularly instead
+
+    def test_setup_is_emitted_as_a_single_bulk_fragment(self):
+        client = self._run(self._instance({"code": "x"}))
+        setup_frags = [f for f in client.fragments if any(t["Id"] == "A" for t in f["things"])]
+        self.assertEqual(len(setup_frags), 1)                            # one standing-world upsert
+        self.assertEqual({t["Id"] for t in setup_frags[0]["things"]}, {"A"})
 
 
 class CliPlaysATimelineFile(unittest.TestCase):

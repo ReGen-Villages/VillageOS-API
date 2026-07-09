@@ -284,6 +284,29 @@ property, or an observation to a `FactOnly` one. An unknown thing/property is **
 which performs one of each kind against a Thing whose `status` accepts Facts and `temperature`/`flow`
 accept Observations.
 
+## Writing structure back: the fragment upsert
+
+The writes above set property **values**. To create or update **structure** — Things, their
+relationships (including the `is` type edge), and their initial values — in one call, POST a
+**fragment**: a partial-model `{ "Things", "Relationships" }` batch.
+
+| Route | Body | Success |
+|---|---|---|
+| `POST /api/model/fragment` | `{ "Name", "Things": [ {Id, Name, Properties} ], "Relationships": [ {Name, Subject, Predicate, Target} ] }` | `200 { thingsCreated, thingsUpdated, relationshipsCreated, things }` |
+
+- **Upsert, idempotent.** Existing Things/edges are left in place (values re-applied); re-posting the
+  same fragment neither duplicates nor errors. `ModifyData` (editor/admin/**service**).
+- **Server resolves lazy inheritance (I1).** A Thing that carries a value for a name it will *inherit*
+  is created **bare**, gains its `is` edge, then has the value written as an **override** — so you send
+  the natural `{Thing-with-own-Properties} + {Thing is Archetype}` shape and never trip I1 yourself.
+  Batches order writes so an `is`-target's own properties land before the subject that inherits them.
+- **Emits the same Facts/SSE** as the per-write endpoints (it goes through the same fact pipeline), so
+  every created Thing/edge/value animates and survives replay. Property values carry a typed envelope
+  (`{ "typeInfo": "vos.Decimal", "value": 2.5 }`) so decimals/measures don't truncate.
+
+Contrast `POST /api/model`, which **replaces** the whole model (admin-only, bulk load); the fragment
+endpoint merges incrementally into the live model.
+
 ### Reference: write the three kinds, per language
 
 #### C# (.NET) — `MyceliumClientBase` helpers

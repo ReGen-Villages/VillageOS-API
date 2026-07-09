@@ -42,8 +42,8 @@ from mycelium import MyceliumClient, typed_properties        # noqa: E402
 
 @dataclass
 class Action:
-    """One paced intent. ``op`` ∈ {create_thing, create_rel, set_fact, set_observation, increment,
-    decrement, ledger_set, delete_thing}; ``args`` is op-specific; ``key`` is a human-readable natural
+    """One paced intent. ``op`` ∈ {apply_fragment, create_thing, create_rel, set_fact, set_observation,
+    increment, decrement, ledger_set, delete_thing}; ``args`` is op-specific; ``key`` is a human-readable natural
     key carried for logging and for reading a serialized timeline (the checkpoint keys on the action's
     index, not this); ``seq`` breaks ties so equal-offset actions keep emission order — a Thing is
     always created before the relationship that references it."""
@@ -67,6 +67,18 @@ class Action:
     @classmethod
     def from_dict(cls, d):
         return cls(d["offset"], d["seq"], d["actor"], d["op"], d.get("args", {}), d.get("key", ""))
+
+
+def _fragment_thing(args):
+    """A create_thing action's args → a ThingDto (Id, Name, typed Properties) for a fragment."""
+    return {"Id": args["thing_id"], "Name": args["name"],
+            "Properties": typed_properties(args.get("properties"))}
+
+
+def _fragment_rel(args):
+    """A create_rel action's args → a RelDto (Name, Subject, Predicate, Target) for a fragment."""
+    return {"Name": args.get("predicate") or "rel", "Subject": args["subject_id"],
+            "Predicate": args["predicate_id"], "Target": args["target_id"]}
 
 
 def load_timeline(path):
@@ -171,7 +183,13 @@ class Simulator:
         op, a = action.op, action.args
         if op == "ledger_set":
             self.ledger.set(a["thing_id"], a["amount"])
+        elif op == "apply_fragment":
+            # The main path: a partial-model upsert that resolves lazy inheritance (I1) server-side.
+            # Idempotent, so it is not wrapped in _guard_duplicate (re-posting is a no-op, not a 409).
+            self.client.apply_fragment(a["things"], a["relationships"], a.get("name", "simulator fragment"))
         elif op == "create_thing":
+            # Fallback granular path (the main path coalesces creates into apply_fragment). Its own
+            # properties go in the create; an `is` subject's collision is now the server's problem.
             self._guard_duplicate(lambda: self.client.create_typed_thing(
                 a["name"], a.get("properties"), thing_id=a["thing_id"]))
         elif op == "create_rel":
@@ -237,9 +255,65 @@ class Simulator:
                              "Target": a["target_id"]})
         return {"Name": "simulator standing world", "Things": things, "Relationships": rels}
 
+    # ── coalescing: fold creates (+ their creation-time edges) into fragments ────
+    def _coalesce(self, actions):
+        """Pure function of the already-sorted input: fold ``create_thing`` (and its creation-time
+        ``create_rel`` edges) into ``apply_fragment`` upserts, so each Thing and its ``is`` edges reach
+        the server in one partial-model batch and the server resolves lazy inheritance (I1) itself.
+
+        Determinism is the contract: the same sorted timeline always yields the same coalesced list, so
+        ``run``'s checkpoint indices (``len(setup) + local``) are stable across runs. Overall
+        ``(offset, seq)`` order is preserved, so pacing is unchanged — a paced fragment sits at its
+        ``create_thing``'s offset and fires at that instance's moment.
+
+        Setup is coalesced into ONE standing-world fragment *unless* ``--seed-first`` (which bulk-loads
+        the granular setup via ``POST /api/model`` and needs create_thing/create_rel left intact)."""
+        setup = [x for x in actions if x.is_setup]
+        paced = [x for x in actions if not x.is_setup]
+
+        # ── SETUP → a single standing-world fragment (ledger_set actions stay, and precede it). ──
+        if self.seed_first:
+            setup_out = list(setup)                    # leave granular for the seed-document bulk load
+        else:
+            setup_out = [x for x in setup if x.op == "ledger_set"]
+            things = [_fragment_thing(x.args) for x in setup if x.op == "create_thing"]
+            rels = [_fragment_rel(x.args) for x in setup if x.op == "create_rel"]
+            if things or rels:
+                seq = max((x.seq for x in setup), default=0) + 1
+                setup_out.append(Action(0.0, seq, "setup", "apply_fragment",
+                                        {"things": things, "relationships": rels,
+                                         "name": "simulator standing world"}, "setup fragment"))
+
+        # ── PACED → each create_thing folds its same-offset creation-time edges into one fragment. ──
+        # A create_rel is a creation-time edge of C iff it shares C's offset and its subject is C.
+        # Such edges travel with C; a later-offset edge on an already-existing Thing stays granular.
+        edges = collections.defaultdict(list)          # (offset, subject_id) → [paced index]
+        for i, x in enumerate(paced):
+            if x.op == "create_rel":
+                edges[(x.offset, x.args.get("subject_id"))].append(i)
+        consumed = set()
+        paced_out = []
+        for i, x in enumerate(paced):
+            if x.op == "create_thing":
+                rels = []
+                for j in edges.get((x.offset, x.args["thing_id"]), []):
+                    rels.append(_fragment_rel(paced[j].args))
+                    consumed.add(j)
+                paced_out.append(Action(x.offset, x.seq, x.actor, "apply_fragment",
+                                        {"things": [_fragment_thing(x.args)], "relationships": rels,
+                                         "name": x.args.get("name") or "fragment"}, x.key))
+            elif x.op == "create_rel" and i in consumed:
+                continue                               # folded into its subject's fragment
+            else:
+                paced_out.append(x)
+        return setup_out + paced_out
+
     # ── the pacer ────────────────────────────────────────────────────────
     def run(self, actions):
         actions = sorted(actions, key=lambda a: (a.offset, a.seq))
+        # Coalesce BEFORE splitting/indexing: a pure function of the sorted input, so checkpoint
+        # indices stay stable across runs (see _coalesce).
+        actions = self._coalesce(actions)
         setup = [x for x in actions if x.is_setup]
         paced = [x for x in actions if not x.is_setup]
 
