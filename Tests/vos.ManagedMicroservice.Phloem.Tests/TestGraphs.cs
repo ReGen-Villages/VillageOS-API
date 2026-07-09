@@ -185,6 +185,58 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
+    // The Energy site-analysis pipeline (#5806): an EnergyBalance node whose five inputs are param-bound,
+    // so a run supplies them. Same shape as SiteAnalysisWaterPipeline — every analysis domain composes
+    // the same way.
+    public static (GraphFixture Fixture, Guid PipelineId) SiteAnalysisEnergyPipeline()
+    {
+        var fx = new GraphFixture();
+        var isP = fx.Thing("is");
+        var has = fx.Thing("has");
+
+        var pipelineArch = fx.Thing("Pipeline");
+        var nodeArch = fx.Thing("PipelineNode");
+        var connArch = fx.Thing("PlatformServiceConnection");
+        var svcArch = fx.Thing("Service");
+        var portArch = fx.Thing("Port");
+
+        var proto = fx.Thing("EnergyBalanceProto");
+        fx.Rel(proto, isP, svcArch);
+
+        void Port(string name, string direction, bool required = false)
+        {
+            var props = required
+                ? new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name), ("required", "true") }
+                : new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name) };
+            var p = fx.Thing($"p.{name}", props);
+            fx.Rel(p, isP, portArch);
+            fx.Rel(proto, has, p);
+        }
+        Port("solarPvAreaM2", "in", required: true);
+        Port("solarResourceKwhPerM2PerYear", "in", required: true);
+        Port("pvEfficiency", "in", required: true);
+        Port("otherGenerationMwhPerYear", "in", required: true);
+        Port("annualConsumptionMwhPerYear", "in", required: true);
+        Port("pctOfConsumption", "out");
+
+        var svc = fx.Thing("energySvc");
+        fx.Rel(svc, isP, proto);
+        var conn = fx.Thing("energyConn", ("Subdomain", "energy-balance"));
+        fx.Rel(conn, isP, connArch);
+        fx.Rel(conn, has, svc);
+
+        var node = fx.Thing("EnergyBalance",
+            ("paramBindings", "{\"solarPvAreaM2\":\"solarPvAreaM2\",\"solarResourceKwhPerM2PerYear\":\"solarResourceKwhPerM2PerYear\",\"pvEfficiency\":\"pvEfficiency\",\"otherGenerationMwhPerYear\":\"otherGenerationMwhPerYear\",\"annualConsumptionMwhPerYear\":\"annualConsumptionMwhPerYear\"}"));
+        fx.Rel(node, isP, nodeArch);
+        fx.Rel(node, has, conn);
+
+        var pipe = fx.Thing("EnergyAnalysis");
+        fx.Rel(pipe, isP, pipelineArch);
+        fx.Rel(pipe, has, node);
+
+        return (fx, pipe.Id);
+    }
+
     /// <summary>A single Scorer node whose input port `item` is a collection (fan-out, #5648) and `weight` is a
     /// scalar (broadcast). Both inputs are param-bound (`item`→`items`, `weight`→`w`) so a run supplies the list.
     /// <paramref name="onItemError"/> sets the node's failure policy.</summary>
