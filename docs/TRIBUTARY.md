@@ -160,6 +160,26 @@ or computing over time, it is Metabolism. That is why Tributary is stateless and
 idempotent per call, and why the JSONata step is constrained to reshaping — derived
 calculation deliberately lives on the other side of the boundary.
 
+## Example: precipitation onto a Site (#5805)
+
+Plane A of the site-analysis Water slice. A weather endpoint (e.g. Open-Meteo) is registered
+with a `responseTransform` that reshapes the hourly response into a reading on the Site Thing —
+no Tributary code changes, just config:
+
+```jsonc
+// endpoint registration (descends from the root Endpoint template)
+{ "name": "JosudanPrecipitation",
+  "properties": {
+    "url": "https://api.open-meteo.com/v1/forecast?latitude=-25.75&longitude=28.19&hourly=precipitation",
+    "responseTransform":
+      "{\"name\": \"JosudanSite\", \"properties\": {\"precipitation\": hourly.precipitation[0]}, \"observedAt\": hourly.time[0]}"
+  } }
+```
+
+Tributary fetches it and ingests `precipitation` (mm) as an observation on `JosudanSite` at the
+observed time (see `PrecipitationEndpointTests`). That rainfall series feeds the catchment/reserve
+the `WaterReserve` node computes over — real discovered data instead of a run param.
+
 ## Pointers
 
 - `MICROSERVICES.md` section 14 — how Mycelium hosts Tributary as an endpoint service
