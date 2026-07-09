@@ -180,6 +180,14 @@ Tributary fetches it and ingests `precipitation` (mm) as an observation on `Josu
 observed time (see `PrecipitationEndpointTests`). That rainfall series feeds the catchment/reserve
 the `WaterReserve` node computes over — real discovered data instead of a run param.
 
+The **Energy** slice (#5806) discovers the same way — a solar-resource endpoint reshaping
+`hourly.shortwave_radiation` onto the Site (see `SolarResourceEndpointTests`). Its two solar inputs
+come from different sources that meet at the `EnergyBalance` node: the **solar resource** (annualized to
+GTI) is *discovered* here, while the **PV area** is *rolled up* reactively over the classified
+`SolarArray` `is`-edges — an `AggregateBounds` `Sum` over the ingester's classification (#5796) and roll-up
+(#5797). Discovery (fetch a resource) and the ingester's structural knowledge (aggregate the assets) both
+feed the same compute node.
+
 ## Pointers
 
 - `MICROSERVICES.md` section 14 — how Mycelium hosts Tributary as an endpoint service
