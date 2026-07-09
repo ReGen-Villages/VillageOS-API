@@ -136,6 +136,56 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
+    /// <summary>The Water-reserve site-analysis pipeline (#5805): a single WaterReserve node whose three
+    /// inputs (population, perCapitaConsumptionM3, storageCapacityM3) are param-bound, so a run supplies
+    /// them. Proves the analysis node composes into a runnable pipeline.</summary>
+    public static (GraphFixture Fixture, Guid PipelineId) SiteAnalysisWaterPipeline()
+    {
+        var fx = new GraphFixture();
+        var isP = fx.Thing("is");
+        var has = fx.Thing("has");
+
+        var pipelineArch = fx.Thing("Pipeline");
+        var nodeArch = fx.Thing("PipelineNode");
+        var connArch = fx.Thing("PlatformServiceConnection");
+        var svcArch = fx.Thing("Service");
+        var portArch = fx.Thing("Port");
+
+        var proto = fx.Thing("WaterReserveProto");
+        fx.Rel(proto, isP, svcArch);
+
+        void Port(string name, string direction, bool required = false)
+        {
+            var props = required
+                ? new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name), ("required", "true") }
+                : new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name) };
+            var p = fx.Thing($"p.{name}", props);
+            fx.Rel(p, isP, portArch);
+            fx.Rel(proto, has, p);
+        }
+        Port("population", "in", required: true);
+        Port("perCapitaConsumptionM3", "in", required: true);
+        Port("storageCapacityM3", "in", required: true);
+        Port("daysOfSupply", "out");
+
+        var svc = fx.Thing("waterSvc");
+        fx.Rel(svc, isP, proto);
+        var conn = fx.Thing("waterConn", ("Subdomain", "water-reserve"));
+        fx.Rel(conn, isP, connArch);
+        fx.Rel(conn, has, svc);
+
+        var node = fx.Thing("WaterReserve",
+            ("paramBindings", "{\"population\":\"population\",\"perCapitaConsumptionM3\":\"perCapitaConsumptionM3\",\"storageCapacityM3\":\"storageCapacityM3\"}"));
+        fx.Rel(node, isP, nodeArch);
+        fx.Rel(node, has, conn);
+
+        var pipe = fx.Thing("SiteAnalysis");
+        fx.Rel(pipe, isP, pipelineArch);
+        fx.Rel(pipe, has, node);
+
+        return (fx, pipe.Id);
+    }
+
     /// <summary>A single Scorer node whose input port `item` is a collection (fan-out, #5648) and `weight` is a
     /// scalar (broadcast). Both inputs are param-bound (`item`→`items`, `weight`→`w`) so a run supplies the list.
     /// <paramref name="onItemError"/> sets the node's failure policy.</summary>
