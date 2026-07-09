@@ -136,9 +136,8 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    /// <summary>The Water-reserve site-analysis pipeline (#5805): a single WaterReserve node whose three
-    /// inputs (population, perCapitaConsumptionM3, storageCapacityM3) are param-bound, so a run supplies
-    /// them. Proves the analysis node composes into a runnable pipeline.</summary>
+    // The Water-reserve site-analysis pipeline (#5805): a single WaterReserve node whose three inputs
+    // (population, perCapitaConsumptionM3, storageCapacityM3) are param-bound, so a run supplies them.
     public static (GraphFixture Fixture, Guid PipelineId) SiteAnalysisWaterPipeline()
     {
         var fx = new GraphFixture();

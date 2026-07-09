@@ -8,7 +8,7 @@ public record CliArgs(
     string? Issuer = null,
     string? Audience = null)
 {
-    /// <summary>Returns null if required args are missing or invalid.</summary>
+    // Returns null if required args are missing or invalid.
     public static CliArgs? Parse(string[] args)
     {
         var portArg = args.FirstOrDefault(a => a.StartsWith("--port="));
