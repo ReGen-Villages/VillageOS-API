@@ -143,6 +143,35 @@ public class PipelineExecutorTests
     }
 
     [Fact]
+    public async Task RunAsync_SiteAnalysis_RoutesRunParamsIntoWaterReserveAndSurfacesDaysOfSupply()
+    {
+        var (fx, pipelineId) = TestGraphs.SiteAnalysisWaterPipeline();
+        JsonElement seenInputs = default;
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (subdomain, envelope) =>
+            {
+                subdomain.Should().Be("water-reserve");
+                seenInputs = envelope.GetProperty("inputs").Clone();
+                return NodeOk(("daysOfSupply", "14"));
+            },
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+
+        // 730 residents x 50 m3/yr = 36,500/yr; 1,400 m3 stored = 14 days of supply.
+        var runParams = JsonSerializer.SerializeToElement(new { population = 730.0, perCapitaConsumptionM3 = 50.0, storageCapacityM3 = 1400.0 });
+
+        var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        gateway.Dispatched.Should().Equal("water-reserve");
+        // all three run params routed into the node's three input ports
+        seenInputs.GetProperty("population").GetDouble().Should().Be(730.0);
+        seenInputs.GetProperty("storageCapacityM3").GetDouble().Should().Be(1400.0);
+        result.Nodes.Single(n => n.Name == "WaterReserve").Outputs["daysOfSupply"].GetString().Should().Be("14");
+    }
+
+    [Fact]
     public async Task RunAsync_FanOut_RunsPerItem_BroadcastsScalar_GathersOutputs()
     {
         var (fx, pipelineId) = TestGraphs.FanOutPipeline();
