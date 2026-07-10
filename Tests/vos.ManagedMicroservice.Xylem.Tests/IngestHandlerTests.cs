@@ -113,7 +113,7 @@ public class IngestHandlerTests : IDisposable
     [Fact]
     public async Task Upload_empty_stream_fails_without_running()
     {
-        var result = await Handler.IngestUploadAsync(new MemoryStream(), 0, "Demo", IngestMode.Merge, 1024, default);
+        var result = await Handler.IngestUploadAsync(new MemoryStream(), "Demo", IngestMode.Merge, 1024, default);
         result.Success.Should().BeFalse();
         _runner.Calls.Should().Be(0);
     }
@@ -121,7 +121,7 @@ public class IngestHandlerTests : IDisposable
     [Fact]
     public async Task Upload_over_the_size_cap_fails_without_running()
     {
-        var result = await Handler.IngestUploadAsync(Ifc(), length: 10_000, "Demo", IngestMode.Merge, maxBytes: 1000, default);
+        var result = await Handler.IngestUploadAsync(Ifc(10_000), "Demo", IngestMode.Merge, maxBytes: 1000, default);
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("limit");
         _runner.Calls.Should().Be(0);
@@ -130,7 +130,7 @@ public class IngestHandlerTests : IDisposable
     [Fact]
     public async Task Upload_valid_spools_to_a_real_file_and_runs()
     {
-        var result = await Handler.IngestUploadAsync(Ifc(64), length: 64, "Demo", IngestMode.Merge, maxBytes: 1024, default);
+        var result = await Handler.IngestUploadAsync(Ifc(64), "Demo", IngestMode.Merge, maxBytes: 1024, default);
 
         result.Success.Should().BeTrue();
         _runner.Calls.Should().Be(1);
