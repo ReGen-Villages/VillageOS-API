@@ -275,6 +275,27 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    // Upload an IFC file to the Xylem ingestion service, which parses it and applies the graph to the
+    // model (mode: "merge" | "new-model"). Authenticated with a Mycelium token; returns the service's
+    // result JSON ({ success, thingsCreated, thingsUpdated, relationshipsCreated, error }) for both
+    // success and validation-failure responses so the caller can report either.
+    public virtual async Task<JsonElement> IngestIfcAsync(string ingestUrl, string filePath, string modelName, string mode)
+    {
+        var token = await GetTokenAsync();
+        using var form = new MultipartFormDataContent();
+        await using var file = File.OpenRead(filePath);
+        var fileContent = new StreamContent(file);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        form.Add(fileContent, "file", Path.GetFileName(filePath));
+        form.Add(new StringContent(modelName), "name");
+        form.Add(new StringContent(mode), "mode");
+
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{ingestUrl.TrimEnd('/')}/ingest") { Content = form };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var response = await _httpClient.SendAsync(request);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<JsonElement> GetSeedStatusAsync()
     {
         await SetAuthHeaderAsync();

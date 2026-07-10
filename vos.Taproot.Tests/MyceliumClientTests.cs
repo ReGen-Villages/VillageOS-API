@@ -670,6 +670,39 @@ public class MyceliumClientTests
         result.GetProperty("thingsCreated").GetInt32().Should().Be(1);
     }
 
+    // ---- IFC ingestion via the Xylem service (US #5843) ----
+
+    [Fact]
+    public async Task IngestIfcAsync_PostsMultipartToTheIngestServiceWithBearer()
+    {
+        var tmp = Path.GetTempFileName();
+        await File.WriteAllTextAsync(tmp, "ISO-10303-21;\nENDSEC;\n");
+        try
+        {
+            HttpRequestMessage? captured = null;
+            var (client, _) = NewClient(req =>
+            {
+                if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+                captured = req;
+                return JsonResponse("{\"success\":true,\"thingsCreated\":5,\"thingsUpdated\":0,\"relationshipsCreated\":3}");
+            });
+
+            var result = await client.IngestIfcAsync("http://localhost:6100", tmp, "Demo", "merge");
+
+            captured!.Method.Should().Be(HttpMethod.Post);
+            captured.RequestUri!.AbsoluteUri.Should().Be("http://localhost:6100/ingest");
+            captured.Headers.Authorization!.Scheme.Should().Be("Bearer");
+            captured.Headers.Authorization.Parameter.Should().Be(ServiceToken);
+            captured.Content.Should().BeAssignableTo<MultipartFormDataContent>();
+            result.GetProperty("thingsCreated").GetInt32().Should().Be(5);
+            result.GetProperty("relationshipsCreated").GetInt32().Should().Be(3);
+        }
+        finally
+        {
+            File.Delete(tmp);
+        }
+    }
+
     // ---- HTTP method patterns: PUT with body → JsonElement ----
 
     [Fact]

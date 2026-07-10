@@ -201,6 +201,7 @@ production** — it disables protection against man-in-the-middle attacks.
 | `deserialize <file>` | Import model from JSON |
 | `plant <file>` | Alias for deserialize |
 | `apply <file.json>` | Upsert a fragment (Things + Relationships) into the live model |
+| `ingest <file.ifc> [--new]` | Upload an IFC to the Xylem service to build or merge the model |
 | `pwd` | Show current directory |
 | `cd <path>` | Change directory |
 
@@ -1039,6 +1040,20 @@ Key differences from a whole-model import:
 - **Idempotent** — re-applying the same fragment neither duplicates nor errors; existing Things/edges are updated in place, keyed by `Id`.
 - **Inheritance-safe** — the server resolves lazy inheritance (a value for an inherited name becomes an override), so you send the natural `{Thing-with-Properties} + {Thing is Archetype}` shape.
 - **Incremental** — it merges into the live model rather than replacing it. This is the same write the IFC ingester uses, so hand edits and ingestion share one path.
+
+### Ingesting an IFC
+
+Where `apply` takes a ready-made fragment, `ingest` takes a raw **IFC (BIM) file** and lets the platform build the model for you — no local ingest toolchain required:
+
+```bash
+> ingest building.ifc --url=http://localhost:6100 --name=Village
+Ingested building.ifc: 1240 thing(s) created, 0 updated, 3180 relationship(s) created.
+```
+
+The file is uploaded to the **Xylem** ingestion service, which parses it, classifies the elements, and applies the graph to the model.
+
+- **`--new`** replaces the model with a fresh one built from the IFC; the default **merges** (idempotent upsert by stable id, so re-ingesting the same file updates in place).
+- **`--name=<model>`** names the model (defaults to the file name); **`--url=<xylem-url>`** points at the ingestion service (or set `VOS_INGEST_URL`).
 
 ### Model JSON Format
 
