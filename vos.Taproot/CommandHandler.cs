@@ -26,6 +26,7 @@ namespace vos.Taproot
             _writer.WriteLine("  create property <thing> <name> <type> <val> - Add a property to a thing");
             _writer.WriteLine("  create rel-property <relId> <name> <type> <val> - Add a property to a relationship");
             _writer.WriteLine("  create relation <subj> <pred> <target>      - Add a relationship");
+            _writer.WriteLine("  retype <thing> <new-archetype>              - Repoint a Thing's is-edge to a different archetype");
             _writer.WriteLine("  delete thing <thing>                        - Delete a thing");
             _writer.WriteLine("  delete relationship <id>                    - Delete a relationship by ID");
             _writer.WriteLine("  delete property <thing> <name>              - Delete a property from a thing");
@@ -167,6 +168,7 @@ namespace vos.Taproot
             ["serialize"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _mycelium).ExecuteAsync(),
             ["seed"] = async (_, a) => await new FileSystemCommandHandler("serialize", a, _writer, _mycelium).ExecuteAsync(),
             ["create"] = async (_, a) => await new CreateCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["retype"] = async (_, a) => await new RetypeCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["delete"] = async (_, a) => await new DeleteCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["find"] = async (_, a) => await new FindCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["get"] = async (_, a) => await new GetCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
