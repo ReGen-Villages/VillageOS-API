@@ -154,3 +154,6 @@ CLAUDE.md
 **/.venv/
 **/__pycache__/
 *.pyc
+
+# Simulator run artifacts (crash-resume checkpoints written via --checkpoint)
+tools/simulator/*.ckpt
