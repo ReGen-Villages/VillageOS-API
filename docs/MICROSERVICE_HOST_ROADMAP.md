@@ -16,7 +16,7 @@ the entry here.
 
 > **Status:** `PROPOSED`. Needs a Feature work item before any code lands.
 
-Every microservice in `VillageOS-API` today (`vos.ManagedMicroservice.Echo`,
+Every microservice in `VillageOS-API` today (`vos.ManagedMicroservice.CSharp.Echo`,
 `.Tributary`, `.Delta`, `.Metabolism`) re-implements ~80 lines of host
 bootstrap, *and* none of them implement an idempotent delivery contract on the
 receive side. That is a real source of silent bugs:
@@ -271,7 +271,7 @@ shape on everyone. Recorded so future readers know it was considered.
 ```mermaid
 flowchart LR
   caller["Caller<br/>(today: Mycelium)<br/>stamps X-Delivery-Id"]
-  subgraph svc["e.g. vos.ManagedMicroservice.Echo"]
+  subgraph svc["e.g. vos.ManagedMicroservice.CSharp.Echo"]
     mw["UseDeliveryReceive<br/>(X-Delivery-Id dedup)"]
     h["/handle business logic"]
     ack["Ack.Ok / .Duplicate / .TooBusy / ..."]

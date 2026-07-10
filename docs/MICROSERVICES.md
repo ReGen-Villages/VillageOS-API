@@ -51,7 +51,7 @@ cd ../VillageOS/vos.Mycelium
 dotnet run                                  # binds https://localhost:7243
 
 # 2. Start a microservice
-cd vos.ManagedMicroservice.Echo
+cd vos.ManagedMicroservice.CSharp.Echo
 dotnet run -- --port=7245 --myceliumUrl=https://localhost:7243
 
 # 3. Verify health
@@ -92,7 +92,7 @@ A C# `record` with the standard six fields:
 
 `Parse(string[])` returns `null` on missing/invalid input. `UsageMessage`
 mentions every flag. The reference is
-`vos.ManagedMicroservice.Echo/Configuration/CliArgs.cs`.
+`vos.ManagedMicroservice.CSharp.Echo/Configuration/CliArgs.cs`.
 
 Service-specific flags extend the standard shape. Metabolism's
 `--mode=consumes|produces` lives in
@@ -447,7 +447,7 @@ Tests/vos.ManagedMicroservice.<Name>.Tests/
 
 Tests are named `<Method>_<Scenario>_<Expected>_PerTemplate` so the template
 aspect is visible at a glance. Required tests (see
-`Tests/vos.ManagedMicroservice.Echo.Tests/CliArgsTests.cs`):
+`Tests/vos.ManagedMicroservice.CSharp.Echo.Tests/CliArgsTests.cs`):
 
 | Test name | What it pins |
 |---|---|
@@ -480,7 +480,7 @@ private static (MyceliumClient client, MockHttpMessageHandler handler) NewClient
 ```
 
 Required tests (see
-`Tests/vos.ManagedMicroservice.Echo.Tests/MyceliumClientTests.cs`):
+`Tests/vos.ManagedMicroservice.CSharp.Echo.Tests/MyceliumClientTests.cs`):
 
 | Test name | What it pins |
 |---|---|
@@ -523,11 +523,11 @@ Per-microservice acceptance: **≥95 % line on `CliArgs` + `MyceliumClient` + an
 
 ## 11. Adding a new microservice
 
-1. Copy `vos.ManagedMicroservice.Echo/` to `vos.ManagedMicroservice.<Name>/`.
+1. Copy `vos.ManagedMicroservice.CSharp.Echo/` to `vos.ManagedMicroservice.<Name>/`.
    Rename the namespace, project file, and `MyceliumClient`'s `serviceName` /
    `startCommand`.
 2. Add the new project to `VillageOS-API.sln`.
-3. Copy `Tests/vos.ManagedMicroservice.Echo.Tests/` to
+3. Copy `Tests/vos.ManagedMicroservice.CSharp.Echo.Tests/` to
    `Tests/vos.ManagedMicroservice.<Name>.Tests/`. Update the project reference
    - namespace; the test patterns transfer 1:1.
 4. Add the test project to `VillageOS-API.sln`.

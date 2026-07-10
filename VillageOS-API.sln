@@ -15,7 +15,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Taproot.Tests", "vos.Ta
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Taproot", "vos.Taproot\vos.Taproot.csproj", "{A965EFA3-B25D-4C60-B0CA-B1CEEF39D1D0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Echo", "vos.ManagedMicroservice.Echo\vos.ManagedMicroservice.Echo.csproj", "{E2D2EFDE-4310-42FD-9F53-F2497958FDB2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.CSharp.Echo", "vos.ManagedMicroservice.CSharp.Echo\vos.ManagedMicroservice.CSharp.Echo.csproj", "{E2D2EFDE-4310-42FD-9F53-F2497958FDB2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Tributary", "vos.ManagedMicroservice.Tributary\vos.ManagedMicroservice.Tributary.csproj", "{0E12CE73-0C74-45ED-B992-0DAA73C20F9B}"
 EndProject
@@ -33,7 +33,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Auth.Shared.Tests", "Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Shared.Tests", "Tests\vos.ManagedMicroservice.Shared.Tests\vos.ManagedMicroservice.Shared.Tests.csproj", "{806216F3-A0EA-4A1D-8D46-21CB73979E1B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Echo.Tests", "Tests\vos.ManagedMicroservice.Echo.Tests\vos.ManagedMicroservice.Echo.Tests.csproj", "{DA70415D-E939-412B-9991-3AB3528BE5CF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.CSharp.Echo.Tests", "Tests\vos.ManagedMicroservice.CSharp.Echo.Tests\vos.ManagedMicroservice.CSharp.Echo.Tests.csproj", "{DA70415D-E939-412B-9991-3AB3528BE5CF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Shared.Contracts.Tests", "Tests\vos.ManagedMicroservice.Shared.Contracts.Tests\vos.ManagedMicroservice.Shared.Contracts.Tests.csproj", "{32A5DBCC-F9D2-42F8-8771-2A4E21EB79F0}"
 EndProject

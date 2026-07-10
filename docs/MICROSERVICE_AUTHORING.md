@@ -6,11 +6,11 @@ This document is the language-agnostic contract. Working reference implementatio
 
 | Language | Project | Style | Verified |
 |----------|---------|-------|----------|
-| C# / .NET | [`vos.ManagedMicroservice.Echo`](../vos.ManagedMicroservice.Echo) | ASP.NET minimal API (canonical) | ✓ build + tests |
-| Go | [`vos.ManagedMicroservice.Go`](../vos.ManagedMicroservice.Go) | standard library, zero deps | ✓ build + tests |
-| Node / TypeScript | [`vos.ManagedMicroservice.Node`](../vos.ManagedMicroservice.Node) | built-ins, zero runtime deps | ✓ typecheck + tests |
-| Python | [`vos.ManagedMicroservice.Python`](../vos.ManagedMicroservice.Python) | FastAPI | ✓ pytest |
-| Rust | [`vos.ManagedMicroservice.Rust`](../vos.ManagedMicroservice.Rust) | Axum | ✓ build + tests + clippy |
+| C# / .NET | [`vos.ManagedMicroservice.CSharp.Echo`](../vos.ManagedMicroservice.CSharp.Echo) | ASP.NET minimal API (canonical) | ✓ build + tests |
+| Go | [`vos.ManagedMicroservice.Go.Echo`](../vos.ManagedMicroservice.Go.Echo) | standard library, zero deps | ✓ build + tests |
+| Node / TypeScript | [`vos.ManagedMicroservice.Node.Echo`](../vos.ManagedMicroservice.Node.Echo) | built-ins, zero runtime deps | ✓ typecheck + tests |
+| Python | [`vos.ManagedMicroservice.Python.Echo`](../vos.ManagedMicroservice.Python.Echo) | FastAPI | ✓ pytest |
+| Rust | [`vos.ManagedMicroservice.Rust.Echo`](../vos.ManagedMicroservice.Rust.Echo) | Axum | ✓ build + tests + clippy |
 
 Each reference is an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Swap that for your predicate logic.
 
