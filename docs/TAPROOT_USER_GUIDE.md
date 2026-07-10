@@ -166,6 +166,7 @@ production** — it disables protection against man-in-the-middle attacks.
 | `create property <thing> <name> <type> <value>` | Add property |
 | `create relation <subj> <pred> <target>` | Create relationship |
 | `retype <thing> <new-archetype>` | Repoint a Thing's `is`-edge to a different archetype |
+| `rename <thing> <new-name>` | Rename a Thing in place, keeping its Id and all edges (the new name may contain spaces) |
 | `delete thing <thing>` | Delete a thing |
 | `delete relationship <id>` | Delete a relationship |
 | `delete property <thing> <name>` | Delete a property |

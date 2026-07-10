@@ -136,6 +136,19 @@ public class MyceliumClient
         return response.IsSuccessStatusCode;
     }
 
+    // Rename a Thing in place — keeps its Id and all edges (unlike delete+recreate). The broker
+    // persists a NameSet Fact, so the rename streams over SSE and is temporally reconstructable.
+    public virtual async Task<bool> RenameThingAsync(Guid id, string newName)
+    {
+        await SetAuthHeaderAsync();
+        var content = new StringContent(
+            JsonSerializer.Serialize(new { Name = newName }),
+            Encoding.UTF8,
+            "application/json");
+        var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/things/{id}/name", content);
+        return response.IsSuccessStatusCode;
+    }
+
     public virtual async Task<JsonElement> SetPropertyAsync(Guid thingId, string name, string type, object? value)
     {
         await SetAuthHeaderAsync();

@@ -3,6 +3,7 @@ import { X, Copy, Pencil, ChevronDown, ChevronRight, RefreshCw } from 'lucide-re
 import { EditablePropertyList } from './EditablePropertyList';
 import { RelationshipList } from './RelationshipList';
 import { RetypeRow } from './RetypeRow';
+import { EditableThingName } from './EditableThingName';
 import { RangesTabContent } from './RangesTabContent';
 import { DeleteThingButton } from './DeleteThingButton';
 import type { VosThing, VosRelationship, InheritedPropertySet, EffectiveProperty } from '../../types/vos';
@@ -25,10 +26,11 @@ interface Props {
   onDeleteProperty: (thingId: string, propertyName: string) => void;
   onDeleteThing?: (thingId: string, name: string) => void;
   onPropertySet?: () => void;
+  onRenamed?: (newName: string) => void;
   statesVersion?: number;
 }
 
-export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSelectNode, onDeleteProperty, onDeleteThing, onPropertySet, statesVersion }: Props) {
+export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSelectNode, onDeleteProperty, onDeleteThing, onPropertySet, onRenamed, statesVersion }: Props) {
   const [tab, setTab] = useState<'properties' | 'relationships' | 'ranges' | '3d'>('ranges');
   const [effectiveProps, setEffectiveProps] = useState<Record<string, EffectiveProperty> | null>(null);
   const [expandedValue, setExpandedValue] = useState<{ name: string; value: string } | null>(null);
@@ -113,7 +115,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
         <div className="min-w-0">
-          <h3 className="font-semibold text-sm truncate">{thing.Name}</h3>
+          <EditableThingName thingId={thing.Id} name={thing.Name} onRenamed={onRenamed} />
           <button onClick={copyId} className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
             <Copy size={10} /> {formatGuid(thing.Id)}
           </button>

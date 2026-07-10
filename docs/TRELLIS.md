@@ -215,6 +215,8 @@ When clustering is active, additional controls appear to the right: the active p
 
 Click any node in the graph. A **detail panel** slides in from the right showing everything about that thing.
 
+**Rename in place** — the thing's name in the panel header has a **pencil icon**; click it to edit the name inline. Press **Enter** (or click away) to save, **Escape** to cancel; a blank or unchanged name is a no-op. The rename keeps the thing's Id and all of its edges — unlike delete-and-recreate — and the new name may contain spaces. The change is persisted by the broker as a `NameSet` Fact, so it streams over SSE and stays temporally reconstructable.
+
 The detail panel has three tabs (four for things with geometry):
 
 **Properties** — Shows the thing's own properties (name, value, type). Click the **pencil icon** to toggle inline editing mode: each property value becomes an editable input field with a delete button (trash icon). Edit a value and press **Enter** or click away to save; press **Escape** to cancel. A blue border indicates unsaved changes. The property type is automatically preserved (a number stays a number, a boolean stays a boolean). In edit mode, an **Add Property** row appears at the bottom with name, type dropdown, and value inputs — press Enter or click "+" to add a new property. Below the own properties, inherited properties are displayed with a clickable "← SourceName" link showing which type they come from. For example, clicking a "Serpentine-Home-4" node might show properties like `energy_rating: A+` inherited from the "Home" type. Clicking the source link navigates you to that type node. In edit mode, inherited property values are also editable (but cannot be deleted) — editing an inherited property creates an own property override that shadows the inherited value.
@@ -762,6 +764,7 @@ vos.Trellis/
         ├── panels/
         │   ├── ResizablePanel.tsx        # Draggable-width overlay panel
         │   ├── NodeDetailPanel.tsx       # Own properties, inherited properties (flat + tree), relationships, ranges, 3D tab
+        │   ├── EditableThingName.tsx     # Inline rename in the panel header (pencil → edit, Enter/blur saves, Escape cancels) via thingApi.rename
         │   ├── EdgeDetailPanel.tsx       # Subject-Predicate-Target, properties, ranges (tabbed: Properties | Ranges)
         │   ├── EditablePropertyList.tsx  # Inline property editing with dirty state, save on Enter/blur, type inference, AddPropertyRow for new properties
         │   ├── RelationshipList.tsx      # Expandable relationship list with multi-expand, inline property editing, and AddRelationshipRow
