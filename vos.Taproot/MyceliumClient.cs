@@ -263,6 +263,18 @@ public class MyceliumClient
         response.EnsureSuccessStatusCode();
     }
 
+    // Upsert a fragment (a partial-model {Name, Things, Relationships} batch) into the live model.
+    // Idempotent: re-applying the same fragment neither duplicates nor errors; the server resolves
+    // lazy inheritance. Contrast SetModelAsync, which replaces the whole model.
+    public virtual async Task<JsonElement> ApplyFragmentAsync(string fragmentJson)
+    {
+        await SetAuthHeaderAsync();
+        var content = new StringContent(fragmentJson, Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model/fragment", content);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<JsonElement> GetSeedStatusAsync()
     {
         await SetAuthHeaderAsync();

@@ -73,6 +73,7 @@ namespace vos.Taproot
             _writer.WriteLine("  plant <file> [mode] [options]               - Load seed and set property modes");
             _writer.WriteLine("    Modes: CurrentOnly, RingBuffer, Sampled, FullHistory");
             _writer.WriteLine("    Options: --ringbuffer=N, --samplerate=N");
+            _writer.WriteLine("  apply <file.json>                           - Upsert a fragment (Things + Relationships) into the live model");
             _writer.WriteLine("  pwd                                         - Show current directory");
             _writer.WriteLine("  cd <path>                                   - Change current directory");
             _writer.WriteLine();
@@ -160,6 +161,7 @@ namespace vos.Taproot
             ["pwd"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _mycelium).ExecuteAsync(),
             ["deserialize"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _mycelium).ExecuteAsync(),
             ["plant"] = async (_, a) => await new PlantCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["apply"] = async (_, a) => await new ApplyCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["serialize"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _mycelium).ExecuteAsync(),
             ["seed"] = async (_, a) => await new FileSystemCommandHandler("serialize", a, _writer, _mycelium).ExecuteAsync(),
             ["create"] = async (_, a) => await new CreateCommandHandler(a, _writer, _mycelium).ExecuteAsync(),

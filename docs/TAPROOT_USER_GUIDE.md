@@ -200,6 +200,7 @@ production** — it disables protection against man-in-the-middle attacks.
 | `seed [file]` | Alias for serialize |
 | `deserialize <file>` | Import model from JSON |
 | `plant <file>` | Alias for deserialize |
+| `apply <file.json>` | Upsert a fragment (Things + Relationships) into the live model |
 | `pwd` | Show current directory |
 | `cd <path>` | Change directory |
 
@@ -1009,6 +1010,35 @@ Model loaded from seed.json
 ```
 
 **Note:** The `serialize`, `seed`, `deserialize`, and `plant` commands automatically append `.json` to the file path if no extension is provided. Files with other extensions (e.g., `.txt`) are used as-is.
+
+### Applying a Fragment
+
+Where `deserialize`/`plant` load a **whole model**, `apply` merges a **fragment** — a partial-model batch of Things and Relationships — into the model that is already live:
+
+```bash
+> apply changes.json
+Fragment applied from changes.json: 3 thing(s) created, 1 updated, 2 relationship(s) created.
+```
+
+The file is a `{ "Name", "Things": [ … ], "Relationships": [ … ] }` batch:
+
+```json
+{
+  "Name": "add a room",
+  "Things": [
+    { "Id": "…", "Name": "Room 3", "Properties": { "area": { "typeInfo": "vos.Decimal", "value": 24.5 } } }
+  ],
+  "Relationships": [
+    { "Name": "contains", "Subject": "<storey-id>", "Predicate": "<contains-id>", "Target": "…" }
+  ]
+}
+```
+
+Key differences from a whole-model import:
+
+- **Idempotent** — re-applying the same fragment neither duplicates nor errors; existing Things/edges are updated in place, keyed by `Id`.
+- **Inheritance-safe** — the server resolves lazy inheritance (a value for an inherited name becomes an override), so you send the natural `{Thing-with-Properties} + {Thing is Archetype}` shape.
+- **Incremental** — it merges into the live model rather than replacing it. This is the same write the IFC ingester uses, so hand edits and ingestion share one path.
 
 ### Model JSON Format
 

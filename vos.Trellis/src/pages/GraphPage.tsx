@@ -11,6 +11,7 @@ import { PredicateFilterPanel } from '../components/panels/PredicateFilterPanel'
 import { useUiStore } from '../stores/uiStore';
 import { useModelStore } from '../stores/modelStore';
 import { thingApi } from '../api/thingApi';
+import { modelApi } from '../api/modelApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { reloadModelData } from '../hooks/useModelData';
 import { useGraphData } from '../hooks/useGraphData';
@@ -18,7 +19,7 @@ import { toast } from '../components/common/Toast';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import type { VosThing, VosRelationship } from '../types/vos';
 import { useAuth } from '../hooks/useAuth';
-import { LogOut, ArrowLeftRight } from 'lucide-react';
+import { LogOut, ArrowLeftRight, Upload } from 'lucide-react';
 import { ThemeToggleButton } from '../components/common/ThemeToggleButton';
 import { applyTypeFilter } from '../utils/typeFilter';
 
@@ -176,6 +177,22 @@ export function GraphPage() {
     }
   };
 
+  // Import a fragment file ({ Name, Things, Relationships }) and upsert it into the live model.
+  // Idempotent; created Things/edges animate in over SSE, so we only need to trigger a reload.
+  const fragmentInputRef = useRef<HTMLInputElement>(null);
+  const handleImportFragment = async (file: File) => {
+    try {
+      const result = await modelApi.applyFragment(await file.text());
+      toast.success(
+        `Fragment applied: ${result.thingsCreated} created, ${result.thingsUpdated} updated, ` +
+        `${result.relationshipsCreated} relationship(s).`,
+      );
+      reloadModelData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to apply fragment');
+    }
+  };
+
   const {
     filteredThings, filteredRelationships, matchCount, searchOptions,
   } = useGraphData({
@@ -203,6 +220,24 @@ export function GraphPage() {
       <div className="absolute top-3 right-3 z-20 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
         {modelName && <span className="text-xs text-zinc-400 mr-1">{modelName}</span>}
         <ThemeToggleButton />
+        <input
+          ref={fragmentInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleImportFragment(file);
+            e.target.value = '';
+          }}
+        />
+        <button
+          onClick={() => fragmentInputRef.current?.click()}
+          title="Import fragment"
+          className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+        >
+          <Upload size={14} />
+        </button>
         <button
           onClick={switchModel}
           title="Switch model"

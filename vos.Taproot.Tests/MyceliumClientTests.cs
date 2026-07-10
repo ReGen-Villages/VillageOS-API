@@ -646,6 +646,30 @@ public class MyceliumClientTests
         result.Should().Be("response-payload");
     }
 
+    // ---- Fragment upsert (US #5814) ----
+
+    [Fact]
+    public async Task ApplyFragmentAsync_PostsFragmentToModelFragmentEndpointAndReturnsCounts()
+    {
+        var fragmentJson =
+            "{\"Name\":\"demo\",\"Things\":[{\"Id\":\"00000000-0000-0000-0000-000000000001\",\"Name\":\"a\"}],\"Relationships\":[]}";
+        JsonElement? capturedBody = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            req.Method.Should().Be(HttpMethod.Post);
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/model/fragment");
+            capturedBody = ReadJsonBody(req);
+            return JsonResponse("{\"thingsCreated\":1,\"thingsUpdated\":0,\"relationshipsCreated\":0}");
+        });
+
+        var result = await client.ApplyFragmentAsync(fragmentJson);
+
+        capturedBody!.Value.GetProperty("Name").GetString().Should().Be("demo");
+        capturedBody.Value.GetProperty("Things").GetArrayLength().Should().Be(1);
+        result.GetProperty("thingsCreated").GetInt32().Should().Be(1);
+    }
+
     // ---- HTTP method patterns: PUT with body → JsonElement ----
 
     [Fact]
