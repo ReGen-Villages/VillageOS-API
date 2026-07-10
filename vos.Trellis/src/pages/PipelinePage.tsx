@@ -13,10 +13,11 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import clsx from 'clsx';
-import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal } from 'lucide-react';
+import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
 import { PipelineModel, ARCHETYPE, typesCompatible, type ConnectionInfo } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
+import { validatePipeline } from '../pipeline/validate';
 import { pipelineApi } from '../api/pipelineApi';
 import { PipelineNodeView, type PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import { Palette } from '../components/pipeline/Palette';
@@ -59,6 +60,9 @@ export function PipelinePage() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [name, setName] = useState('New Pipeline');
   const [savedId, setSavedId] = useState<string | null>(null);
+  // The persistent id of the pipeline being edited — kept across edits (which clear savedId to mark the
+  // canvas dirty) so a save UPDATES the loaded pipeline in place instead of forking a duplicate (#5826).
+  const [editingPipelineId, setEditingPipelineId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Live run: the active run id + the canvas-node-id → Thing-id map so NodeRun statuses (keyed by Thing id)
@@ -78,6 +82,22 @@ export function PipelinePage() {
     }
     return [...keys].sort();
   }, [nodes]);
+
+  // Pre-run validation (#5829): why the DAG will not run — required inputs neither wired nor param-bound,
+  // and dangling wires. Surfaced in the toolbar and gates Run so a broken pipeline fails loud, not silent.
+  const validationIssues = useMemo(() => {
+    const valNodes = nodes.map((n) => {
+      const d = n.data as unknown as PipelineNodeData;
+      return { id: n.id, label: d.label, ports: d.ports, paramBindings: d.paramBindings };
+    });
+    const valEdges = edges.map((e) => ({
+      source: e.source,
+      sourceHandle: e.sourceHandle ?? '',
+      target: e.target,
+      targetHandle: e.targetHandle ?? '',
+    }));
+    return validatePipeline(valNodes, valEdges);
+  }, [nodes, edges]);
 
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : undefined;
 
@@ -145,7 +165,8 @@ export function PipelinePage() {
     setBusy(true);
     setError(null);
     try {
-      const saved = await savePipeline(name, toEditorNodes(), toEditorEdges(), model);
+      const saved = await savePipeline(name, toEditorNodes(), toEditorEdges(), model, editingPipelineId ?? undefined);
+      setEditingPipelineId(saved.pipelineId);
       setSavedId(saved.pipelineId);
       setThingIdByCanvasId(saved.nodeIdMap);
       setRunId(null);
@@ -156,13 +177,14 @@ export function PipelinePage() {
       setBusy(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, nodes, edges, model]);
+  }, [name, nodes, edges, model, editingPipelineId]);
 
   const onLoad = useCallback((pipelineId: string) => {
     const loaded = loadPipeline(pipelineId, model);
     if (!loaded) return;
     setName(loaded.name);
     setSavedId(pipelineId);
+    setEditingPipelineId(pipelineId);
     setRunId(null);
     // Loaded canvas node ids ARE the Thing ids, so the canvas→Thing map is the identity.
     setThingIdByCanvasId(Object.fromEntries(loaded.nodes.map((n) => [n.id, n.id])));
@@ -180,6 +202,7 @@ export function PipelinePage() {
     setEdges([]);
     setName('New Pipeline');
     setSavedId(null);
+    setEditingPipelineId(null);
     setRunId(null);
     setThingIdByCanvasId({});
     setError(null);
@@ -263,9 +286,22 @@ export function PipelinePage() {
               <Ban size={14} /> Cancel
             </button>
           ) : (
-            <button onClick={onRun} disabled={busy || !savedId} className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-50">
+            <button
+              onClick={onRun}
+              disabled={busy || !savedId || validationIssues.length > 0}
+              title={validationIssues.length > 0 ? validationIssues.map((i) => i.message).join('\n') : undefined}
+              className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-50"
+            >
               <Play size={14} /> Run
             </button>
+          )}
+          {validationIssues.length > 0 && (
+            <span
+              className="flex items-center gap-1 text-xs text-amber-600"
+              title={validationIssues.map((i) => i.message).join('\n')}
+            >
+              <AlertTriangle size={12} /> {validationIssues.length} issue{validationIssues.length === 1 ? '' : 's'}
+            </span>
           )}
           <div className="flex items-center gap-1 ml-2">
             <FolderOpen size={14} className="text-zinc-400" />
