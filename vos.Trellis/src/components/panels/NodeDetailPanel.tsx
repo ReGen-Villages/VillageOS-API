@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { X, Copy, Pencil, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { EditablePropertyList } from './EditablePropertyList';
 import { RelationshipList } from './RelationshipList';
+import { RetypeRow } from './RetypeRow';
 import { RangesTabContent } from './RangesTabContent';
 import { DeleteThingButton } from './DeleteThingButton';
 import type { VosThing, VosRelationship, InheritedPropertySet, EffectiveProperty } from '../../types/vos';
@@ -240,6 +241,9 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
             />
             <RelationshipList relationships={outgoing} direction="outgoing" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relEditMode} onPropertySaved={onPropertySet} fixedThingId={thing.Id} allRelationships={relationships} onRelationshipCreated={onPropertySet} />
             <RelationshipList relationships={incoming} direction="incoming" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relEditMode} onPropertySaved={onPropertySet} fixedThingId={thing.Id} allRelationships={relationships} onRelationshipCreated={onPropertySet} />
+            {relEditMode && (
+              <RetypeRow thingId={thing.Id} things={[...allThings.values()]} relationships={relationships} onDone={onPropertySet} />
+            )}
           </div>
         )}
 
