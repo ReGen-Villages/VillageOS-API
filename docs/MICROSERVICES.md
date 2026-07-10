@@ -21,10 +21,14 @@ handlers in Go, Node/TypeScript, Python, and Rust, see
 [`MICROSERVICE_AUTHORING.md`](MICROSERVICE_AUTHORING.md).
 
 Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`, `Phloem`,
-`WaterReserve`, `EnergyBalance`. `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
+`WaterReserve`, `EnergyBalance`, `ModelBridge`. `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
 site-analysis nodes: `WaterReserve` computes emergency reserve / days-of-supply / %
 consumption (feeding the 14-day resilience range); `EnergyBalance` computes solar + other
-generation vs consumption → % of consumption and net-positive. **Echo is
+generation vs consumption → % of consumption and net-positive. `ModelBridge` (#5866) is a generic
+**model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET
+effective-properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
+It lets a compute node read a roll-up / anchor param and write its result back over ordinary node→node
+wires — the source/target Thing id is baked into the node params (`thingId`, `property`). **Echo is
 the canonical reference implementation** — the simplest. When adding a new
 microservice, copy Echo's structure and the test patterns in §10. `Phloem` is the
 pipeline/DAG orchestrator and a service becomes a pipeline *node* via an additive `/handle`
