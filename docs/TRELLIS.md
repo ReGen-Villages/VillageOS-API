@@ -461,7 +461,14 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   refused.
 - **New / Save / Load** — **New** clears the canvas; **Save** writes a `Pipeline` + `PipelineNode` Things and
   `has`/`feeds` relationships (node `‑has→ Connection`, positions round-trip as x/y); **Load** picks an
-  existing pipeline from the model.
+  existing pipeline from the model. **Editing is in place**: saving a loaded pipeline **updates it** rather
+  than forking a duplicate — the Thing graph (pipeline + nodes + `is`/`has` edges) rides one idempotent
+  fragment upsert (existing nodes keep their Ids), and nodes or wires removed on the canvas are retracted on
+  save. Wire `fromPort`/`toPort` are written per-edge (the fragment endpoint does not carry relationship
+  properties). A node can also be deleted from its detail panel.
+- **Validation** — before Run, the toolbar flags why a pipeline will not run — a **required input** that is
+  neither wired nor param-bound, or a **dangling wire** — and **Run is disabled** until the issues are
+  resolved, so a broken DAG fails loud rather than silently at dispatch.
 - **Run** — spawns the **Phloem** orchestrator (`POST /api/endpoints/phloem`, async) and **animates the run
   live**: each node lights up `running` (pulsing blue) → `succeeded` (green) / `failed` (red), nodes downstream
   of a failure show `skipped`, and the panel tracks the overall run. The animation is driven by the model SSE
