@@ -9,6 +9,7 @@ import { NodeDetailPanel } from '../components/panels/NodeDetailPanel';
 import { ResizablePanel } from '../components/panels/ResizablePanel';
 import { TypeFilterPanel } from '../components/panels/TypeFilterPanel';
 import { toast } from '../components/common/Toast';
+import { IfcUploadDropzone } from '../components/model/IfcUploadDropzone';
 import type { VosThing } from '../types/vos';
 import type { BimFragmentsMapping } from '../components/model/BimFragmentsViewer';
 import { applyTypeFilter } from '../utils/typeFilter';
@@ -200,13 +201,12 @@ function EmptyPlaceholder() {
       className="flex-1 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex flex-col items-center justify-center text-center p-8"
     >
       <p className="text-lg font-medium text-zinc-700 dark:text-zinc-300">
-        No Fragments artifact loaded for this model.
+        No model loaded yet.
       </p>
       <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-2 max-w-md">
-        Ingest an IFC file via <code className="font-mono">vos.Tools.IfcIngest</code> to
-        produce the <code className="font-mono">.frag</code> and mapping sidecar served
-        to this page.
+        Ingest an IFC (BIM) file to build the model — it is parsed and applied for you.
       </p>
+      <IfcUploadDropzone />
     </div>
   );
 }

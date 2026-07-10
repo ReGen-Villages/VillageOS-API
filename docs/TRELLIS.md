@@ -141,7 +141,7 @@ After loading, click **Graph** in the sidebar to see your model rendered as an i
 | Seed File | Best For |
 |-----------|----------|
 | `village.seed.json` | Full-featured demo: type hierarchies with multi-level inheritance, multi-domain relationships (energy, water, biodiversity, transport), IFC geometry for single-building 3D views |
-| IFC-imported seeds | Import IFC (BIM) files via `vos.Tools.IfcIngest`. See the IFC import documentation in the [VillageOS API wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki). |
+| IFC-imported seeds | Ingest IFC (BIM) files in-app — drop or pick an `.ifc` on the **Model** page (posts to the Xylem service, `VITE_INGEST_URL`) — or from the CLI with `vos.Taproot` (`ingest <file.ifc>`). See the IFC import documentation in the [VillageOS API wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki). |
 
 The **village seed** is recommended for this guide because it demonstrates all features including per-building 3D views.
 
@@ -1030,6 +1030,7 @@ Singleton `ApiClient` class with:
 - Silent token refresh — background `setTimeout` at 80% of token lifetime calls `POST /api/auth/refresh` to get a new JWT with the same identity and model scope; on failure triggers `onAuthRequired` callback
 - Auto-fetches JWT Bearer token via API key exchange (4-min client refresh / 5-min server expiry) or login (25-min client refresh / 30-min server expiry)
 - Base URL from `VITE_BROKER_URL` env var (defaults to `''` — same origin via Vite proxy)
+- IFC ingestion service URL from `VITE_INGEST_URL` env var — the **Xylem** endpoint the Model-page upload posts to (`ingestApi`, `POST <VITE_INGEST_URL>/ingest`, authenticated with the current JWT). Unset ⇒ the in-app upload is hidden and the page points at the CLI instead.
 
 ### API Modules
 
