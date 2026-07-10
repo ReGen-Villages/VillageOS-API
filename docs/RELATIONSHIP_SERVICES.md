@@ -619,7 +619,7 @@ dotnet run --project vos.ManagedMicroservice.Metabolism -- \
 #### Example: Start Echo Endpoint Service
 
 ```bash
-dotnet run --project vos.ManagedMicroservice.Echo -- \
+dotnet run --project vos.ManagedMicroservice.CSharp.Echo -- \
   --port=7200 \
   --myceliumUrl=https://localhost:7243 \
   --token=$TOKEN \

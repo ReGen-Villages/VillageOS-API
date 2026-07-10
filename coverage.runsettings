@@ -7,7 +7,7 @@
           <Format>cobertura</Format>
           <!-- Source-file exclusions. coverlet's XPlat data collector expects a single
                comma-separated string here, NOT nested <File> elements. -->
-          <ExcludeByFile>**/vos.ManagedMicroservice.Echo/Program.cs,**/vos.ManagedMicroservice.Delta/Program.cs,**/vos.ManagedMicroservice.Tributary/Program.cs,**/vos.ManagedMicroservice.Metabolism/Program.cs,**/Tests/vos.Tests.Shared/**/*.cs</ExcludeByFile>
+          <ExcludeByFile>**/vos.ManagedMicroservice.CSharp.Echo/Program.cs,**/vos.ManagedMicroservice.Delta/Program.cs,**/vos.ManagedMicroservice.Tributary/Program.cs,**/vos.ManagedMicroservice.Metabolism/Program.cs,**/Tests/vos.Tests.Shared/**/*.cs</ExcludeByFile>
           <ExcludeByAttribute>
             <!-- Auto-generated / compiler synthesised code. -->
             <Attribute>System.CodeDom.Compiler.GeneratedCodeAttribute</Attribute>

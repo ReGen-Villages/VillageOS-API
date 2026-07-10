@@ -32,11 +32,11 @@ Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev
 | vos.ManagedMicroservice.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
 | vos.ManagedMicroservice.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
 | vos.ManagedMicroservice.Phloem | Production | Pipeline/DAG orchestrator — runs a user-authored DAG of microservice nodes; spawned synchronously through Mycelium, dispatches each node via endpoint-forward (see [MICROSERVICES.md §16](docs/MICROSERVICES.md)) |
-| vos.ManagedMicroservice.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline DAG node |
-| vos.ManagedMicroservice.Go | Example (Go) | The same handler in Go (standard library, zero deps) |
-| vos.ManagedMicroservice.Node | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |
-| vos.ManagedMicroservice.Python | Example (Python) | The same handler in FastAPI |
-| vos.ManagedMicroservice.Rust | Example (Rust) | The same handler in Axum |
+| vos.ManagedMicroservice.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline DAG node |
+| vos.ManagedMicroservice.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
+| vos.ManagedMicroservice.Node.Echo | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |
+| vos.ManagedMicroservice.Python.Echo | Example (Python) | The same handler in FastAPI |
+| vos.ManagedMicroservice.Rust.Echo | Example (Rust) | The same handler in Axum |
 
 Writing your own handler in any language? See **[docs/MICROSERVICE_AUTHORING.md](docs/MICROSERVICE_AUTHORING.md)** — the language-agnostic contract (HTTP + one HS256 JWT) that every example above implements.
 
