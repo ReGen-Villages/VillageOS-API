@@ -157,3 +157,7 @@ CLAUDE.md
 
 # Simulator run artifacts (crash-resume checkpoints written via --checkpoint)
 tools/simulator/*.ckpt
+
+# Rust build output (cargo). Each Rust microservice also ignores its own target/,
+# but this covers any orphaned target/ (e.g. left behind by a directory rename).
+**/target/
