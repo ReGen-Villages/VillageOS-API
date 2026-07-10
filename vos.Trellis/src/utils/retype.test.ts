@@ -33,4 +33,12 @@ describe('retypeThing', () => {
     expect(relationshipApi.remove).not.toHaveBeenCalled();
     expect(relationshipApi.create).toHaveBeenCalledWith('t', 'is', 'B');
   });
+
+  it('with a from-archetype, replaces only that type edge and preserves the others (multiple inheritance)', async () => {
+    const rels = [rel('rA', 't', 'is', 'A'), rel('rB', 't', 'is', 'B')];
+    await retypeThing('t', 'C', 'is', rels, 'A');
+    expect(relationshipApi.remove).toHaveBeenCalledWith('rA');
+    expect(relationshipApi.remove).toHaveBeenCalledTimes(1); // rB (type B) survives
+    expect(relationshipApi.create).toHaveBeenCalledWith('t', 'is', 'C');
+  });
 });

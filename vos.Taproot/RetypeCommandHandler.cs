@@ -2,10 +2,11 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-// `retype <thing> <new-archetype>` repoints a Thing's `is`-edge to a different archetype in one action:
-// remove its current is-edge(s) and add is -> new-archetype. The human-in-the-loop reclassification
-// (e.g. a mis-classified proxy becomes a SolarArray, which changes what roll-ups/analysis pick it up),
-// using existing relationship APIs — no broker change.
+// Repoint a Thing's type to a different archetype. Multiple inheritance is a first-class feature, so this
+// changes only ONE type edge, never collapses the rest:
+//   retype <thing> <new>         — swap when the Thing has 0 or 1 type; refuses (asks for <old>) if it has many
+//   retype <thing> <old> <new>   — replace only the <old> type edge, leaving the Thing's other is-edges intact
+// Uses existing relationship APIs — no broker change.
 public class RetypeCommandHandler
 {
     private readonly TextWriter _writer;
@@ -30,32 +31,46 @@ public class RetypeCommandHandler
         {
             var thing = await _resolver.ResolveThingAsync(tok[0]);
             if (!thing.IsSuccess) { _writer.WriteLine($"Error: {thing.ErrorMessage}"); return; }
-            var archetype = await _resolver.ResolveThingAsync(tok[1]);
-            if (!archetype.IsSuccess) { _writer.WriteLine($"Error: {archetype.ErrorMessage}"); return; }
             var isPred = await _resolver.ResolveThingAsync("is");
             if (!isPred.IsSuccess) { _writer.WriteLine("Error: no 'is' predicate found in the model."); return; }
+            var newType = await _resolver.ResolveThingAsync(tok[^1]);
+            if (!newType.IsSuccess) { _writer.WriteLine($"Error: {newType.ErrorMessage}"); return; }
 
-            var (thingId, newTypeId, isId) = (thing.Id, archetype.Id, isPred.Id);
+            var (thingId, isId, newTypeId) = (thing.Id, isPred.Id, newType.Id);
 
-            // Remove the Thing's current type edges, then add the new one — leaving exactly one is-edge.
-            var removed = 0;
+            // The Thing's current type edges: (relationshipId, targetArchetypeId).
+            var typeEdges = new List<(Guid RelId, Guid Target)>();
             var rels = await _mycelium.GetAllRelationshipsAsync();
             if (rels.ValueKind == JsonValueKind.Array)
-            {
                 foreach (var rel in rels.EnumerateArray())
-                {
-                    if (!Guid.TryParse(rel.GetStringOrDefault("SubjectId"), out var subj) || subj != thingId) continue;
-                    if (!Guid.TryParse(rel.GetStringOrDefault("PredicateId"), out var pred) || pred != isId) continue;
-                    if (Guid.TryParse(rel.GetStringOrDefault("Id"), out var relId))
-                    {
-                        await _mycelium.DeleteRelationshipAsync(relId);
-                        removed++;
-                    }
-                }
+                    if (Guid.TryParse(rel.GetStringOrDefault("SubjectId"), out var s) && s == thingId
+                        && Guid.TryParse(rel.GetStringOrDefault("PredicateId"), out var p) && p == isId
+                        && Guid.TryParse(rel.GetStringOrDefault("Id"), out var rid)
+                        && Guid.TryParse(rel.GetStringOrDefault("TargetId"), out var tid))
+                        typeEdges.Add((rid, tid));
+
+            List<(Guid RelId, Guid Target)> toRemove;
+            if (tok.Length >= 3)
+            {
+                // retype <thing> <old> <new>: replace only the named type, keep the others.
+                var oldType = await _resolver.ResolveThingAsync(tok[1]);
+                if (!oldType.IsSuccess) { _writer.WriteLine($"Error: {oldType.ErrorMessage}"); return; }
+                toRemove = typeEdges.Where(e => e.Target == oldType.Id).ToList();
+            }
+            else if (typeEdges.Count > 1)
+            {
+                _writer.WriteLine($"Error: '{tok[0]}' has multiple types ({typeEdges.Count}); specify which to change: retype <thing> <old> <new>.");
+                return;
+            }
+            else
+            {
+                // 0 or 1 existing type — swap the single one (or just add if untyped).
+                toRemove = typeEdges;
             }
 
+            foreach (var e in toRemove) await _mycelium.DeleteRelationshipAsync(e.RelId);
             await _mycelium.CreateRelationshipAsync(thingId, isId, newTypeId);
-            _writer.WriteLine($"Retyped {tok[0]} as {tok[1]} (removed {removed} previous type edge(s)).");
+            _writer.WriteLine($"Retyped {tok[0]} as {tok[^1]} (replaced {toRemove.Count} type edge(s)).");
         }
         catch (Exception ex)
         {
@@ -66,6 +81,7 @@ public class RetypeCommandHandler
     private void ShowUsage()
     {
         _writer.WriteLine("Usage: retype <thing> <new-archetype>");
-        _writer.WriteLine("  Repoints the Thing's is-edge to a different archetype (removes the old is-edge, adds the new).");
+        _writer.WriteLine("       retype <thing> <old-archetype> <new-archetype>   (when the Thing has multiple types)");
+        _writer.WriteLine("  Changes one is-edge to a different archetype; a Thing's other types are left intact.");
     }
 }
