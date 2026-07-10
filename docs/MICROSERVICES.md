@@ -762,7 +762,10 @@ graph/http body the service handles exactly as before; the two never collide.
 
 - **Reference inputs.** Large values aren't shipped in-band: an input may be `{ "ref": { "thingId",
   "property" } }`, which the node resolves via `GET /api/things/{id}/effective-properties` before running.
-  Return the same shape to hand a large value downstream.
+  Return the same shape to hand a large value downstream. The referenced property may be a **roll-up
+  property** — a value computed live from an aggregate reduction over related Things (e.g. total PV area
+  summed over every element that `is SolarArray`). It resolves as an ordinary effective property, so a
+  compute node reads a model-wide roll-up with no special handling.
 - **Param-bound inputs.** An input port can be filled from the **run's params** instead of a wire: a
   node's `paramBindings` property maps `inputPort → paramKey`, and Phloem fills that input from the spawn's
   `params` before dispatch (an explicit wire into the same port wins). Lets a source node be parameterized
