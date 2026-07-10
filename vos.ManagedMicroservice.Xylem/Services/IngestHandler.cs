@@ -13,19 +13,18 @@ public class IngestHandler
         _preparer = preparer;
     }
 
-    /// <summary>Ingest an uploaded stream: check size, spool to a temp file, run, always clean up. Keeps
-    /// the endpoint a thin form-read so the whole upload path is unit-tested without a web host.</summary>
+    /// <summary>Ingest an uploaded stream: stream it to a temp file enforcing the size cap as it copies,
+    /// run, always clean up. Streaming (not a length check) keeps a very large IFC out of memory (#5845)
+    /// and keeps the endpoint a thin form-read so the whole upload path is unit-tested without a web host.</summary>
     public async Task<IngestResult> IngestUploadAsync(
-        Stream ifc, long length, string modelName, IngestMode mode, long maxBytes, CancellationToken ct)
+        Stream ifc, string modelName, IngestMode mode, long maxBytes, CancellationToken ct)
     {
-        if (length <= 0) return IngestResult.Failed("No IFC content uploaded.");
-        if (length > maxBytes) return IngestResult.Failed($"File exceeds the {maxBytes / (1024 * 1024)} MB upload limit.");
-
         var temp = Path.Combine(Path.GetTempPath(), $"xylem_{Guid.NewGuid():N}.ifc");
         try
         {
-            await using (var fs = File.Create(temp))
-                await ifc.CopyToAsync(fs, ct);
+            var written = await UploadSpooler.SpoolAsync(ifc, temp, maxBytes, ct);
+            if (written == 0) return IngestResult.Failed("No IFC content uploaded.");
+            if (written < 0) return IngestResult.Failed($"File exceeds the {maxBytes / (1024 * 1024)} MB upload limit.");
             return await IngestAsync(modelName, mode, temp, ct);
         }
         finally
