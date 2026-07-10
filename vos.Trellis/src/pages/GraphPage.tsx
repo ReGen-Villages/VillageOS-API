@@ -303,6 +303,7 @@ export function GraphPage() {
             onClose={() => selectNode(null)}
             onSelectNode={selectNode}
             onDeleteProperty={handleDeleteProperty}
+            onDeleteThing={(id, name) => setDeleteConfirm({ type: 'thing', id, name })}
             onPropertySet={reloadModelData}
             statesVersion={statesVersion}
           />
