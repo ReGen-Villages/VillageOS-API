@@ -89,8 +89,12 @@ python3 simulator.py --url http://localhost:5000 --token "$JWT" --timeline run.j
   subject **is** the new Thing) into a single `apply_fragment`, and `POST /api/model/fragment` upserts
   the batch: the **server** creates the Thing bare, establishes the `is` edge, materializes any
   inherited value as an **override**, and emits the granular SSE/Facts. The endpoint is
-  upsert/idempotent, so a re-post never duplicates and needs no duplicate-guard. Properties travel as
-  typed envelopes, so decimals/measures don't truncate. The whole **setup** (standing world) collapses
+  upsert/idempotent, so a re-post never duplicates and needs no duplicate-guard. The upsert is
+  **additive-only** — it creates and updates but never deletes/retracts or renames, so a fragment can
+  only grow or update the model; retiring a Thing stays a granular `delete_thing`. Validation is
+  **up front** (references + typed envelopes), so a malformed fragment fails `400` with zero mutation;
+  application is not yet transactional, but because it is idempotent a partially-applied batch self-heals
+  on the next post. Properties travel as typed envelopes, so decimals/measures don't truncate. The whole **setup** (standing world) collapses
   into one bulk fragment (`ledger_set` actions still precede it); `--seed-first` instead bulk-loads the
   granular setup via `POST /api/model`. A later-offset `is` edge on an already-existing Thing is a
   lifecycle edge and stays a granular `create_rel`. Coalescing is a pure function of the sorted

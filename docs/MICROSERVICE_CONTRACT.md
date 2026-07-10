@@ -296,6 +296,15 @@ relationships (including the `is` type edge), and their initial values — in on
 
 - **Upsert, idempotent.** Existing Things/edges are left in place (values re-applied); re-posting the
   same fragment neither duplicates nor errors. `ModifyData` (editor/admin/**service**).
+- **Additive-only.** A fragment only *creates or updates*. It never deletes or retracts Things, edges,
+  or properties, and never renames an existing Thing (identity is by `Id`; the `Name` sent for a known
+  `Id` is ignored). Anything in the model but absent from the fragment is left untouched — removing
+  structure is a separate, explicit operation.
+- **Validate-first, not yet transactional.** Relationship references and typed envelopes are validated
+  up front, so a malformed fragment fails `400` with **zero** mutation. Application itself is not yet
+  transactional: if a write fails partway through the batch, already-applied changes are **not** rolled
+  back (partial application). Because re-posting is idempotent, a retry self-heals. Full transactional
+  rollback is a tracked follow-up.
 - **Server resolves lazy inheritance (I1).** A Thing that carries a value for a name it will *inherit*
   is created **bare**, gains its `is` edge, then has the value written as an **override** — so you send
   the natural `{Thing-with-own-Properties} + {Thing is Archetype}` shape and never trip I1 yourself.
