@@ -1,6 +1,7 @@
 using vos.Auth.Shared;
 using vos.ManagedMicroservice.ModelBridge.Configuration;
 using vos.ManagedMicroservice.ModelBridge.Services;
+using vos.ManagedMicroservice.Shared;
 using vos.ManagedMicroservice.Shared.DagNode;
 using Serilog;
 
@@ -60,6 +61,7 @@ try
     {
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseMyceliumRequestToken();
     }
 
     app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>

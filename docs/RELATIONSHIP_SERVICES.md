@@ -694,9 +694,9 @@ Mycelium tracks daemon state internally via its daemon state tracking. Key field
 
 ## Security
 
-1. **Bidirectional Auth**: Handler → Mycelium uses a short-lived JWT (pre-minted `--token` or fetched via `POST /api/auth/token`); Mycelium → handler uses Mycelium-signed request tokens validated via `vos.Auth.Shared`
+1. **Bidirectional Auth**: Handler → Mycelium uses a short-lived JWT (pre-minted `--token` or fetched via `POST /api/auth/token`); Mycelium → handler signs each `/handle` call with a short-lived, model-scoped service JWT carrying the request's `vos:model_id`, validated via `vos.Auth.Shared`
 2. **Short-lived JWTs**: Handlers authenticate with 5-minute JWTs, cached for 4 minutes and refreshed automatically
-3. **Mycelium Request Tokens**: Mycelium signs outbound `/handle`, `/health`, `/shutdown` requests with 1-minute `mycelium_request` JWTs; handlers validate via `ServiceTokenValidator`
+3. **Per-request model scope**: Mycelium signs each `/handle` call with a 5-minute service JWT carrying the requesting user's `vos:model_id`. The handler reuses this inbound token for its callbacks into Mycelium (via the shared `UseMyceliumRequestToken` middleware), so a daemon shared by several models acts on the model of the current request — never the model that first launched it. The `--token` startup JWT is used only for the daemon's own registration/deregistration.
 4. **Localhost Only**: Handlers bind to `http://localhost:{port}` (not exposed externally)
 5. **Mycelium Control**: Only Mycelium can launch and stop handler daemons
 6. **No Direct Access**: GUI and external users cannot call handler endpoints directly

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using vos.Auth.Shared;
+using vos.ManagedMicroservice.Shared;
 using vos.ManagedMicroservice.Phloem.Configuration;
 using vos.ManagedMicroservice.Phloem.Execution;
 using vos.ManagedMicroservice.Phloem.Services;
@@ -73,6 +74,7 @@ try
     {
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseMyceliumRequestToken();
     }
 
     app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>

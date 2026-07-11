@@ -32,9 +32,11 @@ Plain service-specific flags (e.g. `--mode=consumes`) are passed through verbati
 
 ## Auth
 
-One HS256 JWT. The service token (`--token`) carries `vos:token_type=service` + a scope. Send it
-as `Authorization: Bearer <jwt>` on every Mycelium call. Inbound `/handle` calls are signed by
-Mycelium; validate them against `--signingKey` with the given issuer/audience.
+One HS256 JWT. The service token (`--token`) carries `vos:token_type=service` + a scope; use it for
+the daemon's own registration/deregistration. Inbound `/handle` calls are signed by Mycelium with a
+short-lived service token carrying the request's `vos:model_id`; validate them against `--signingKey`
+with the given issuer/audience, and reuse the inbound token for any callback so a shared daemon acts
+on the request's model.
 
 EventSource and other browser/streaming clients that can't set headers pass the JWT as
 `?access_token=<jwt>` on the SSE stream URLs instead.
