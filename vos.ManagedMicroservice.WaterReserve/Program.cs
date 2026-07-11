@@ -91,13 +91,13 @@ try
         var root = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(await reader.ReadToEndAsync());
 
         // A node envelope runs the DAG-node path; otherwise it's a graph relationship whose subject is the site
-        // anchor — read its inputs, compute, and write the outputs back (the reactive/model-driven path, #5839).
+        // study — read its inputs, compute, and write the outputs back (the reactive/model-driven path, #5839).
         if (DagNodeService.IsNodeEnvelope(root))
             return Results.Ok(await node.HandleNodeAsync(root, ctx.RequestAborted));
 
-        if (TrySubjectId(root, out var anchorId))
+        if (TrySubjectId(root, out var studyId))
         {
-            var outputs = await reactive.RecomputeAsync(anchorId, ctx.RequestAborted);
+            var outputs = await reactive.RecomputeAsync(studyId, ctx.RequestAborted);
             return Results.Ok(new { success = true, outputs });
         }
         return Results.BadRequest(new { error = "WaterReserve expects a node envelope (runId, nodeId) or a graph relationship (subjectId)." });

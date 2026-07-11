@@ -6,9 +6,9 @@ namespace vos.ManagedMicroservice.WaterReserve.Services;
 
 /// <summary>
 /// The reactive (model-driven) form of the water analysis (User Story #5839). It reacts to a graph relationship whose
-/// subject is the site anchor: reads its inputs straight off the anchor's effective properties, computes with
-/// <see cref="WaterReserveCalculator"/>, and writes its outputs back onto the anchor as Facts — so the anchor's
-/// <c>WaterResilient</c> range re-evaluates. No pipeline, no wires: the compute is a value on the anchor.
+/// subject is the SiteStudy: reads its inputs straight off the study's effective properties, computes with
+/// <see cref="WaterReserveCalculator"/>, and writes its outputs back onto the study as Facts — so the study's
+/// <c>WaterResilient</c> range re-evaluates. No pipeline, no wires: the compute is a value on the study.
 /// </summary>
 public sealed class WaterReserveReactiveHandler : MyceliumClientBase
 {
@@ -19,22 +19,22 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
     {
     }
 
-    // Input port names, read off the anchor by name.
+    // Input port names, read off the study by name.
     private static readonly string[] Inputs = { "population", "perCapitaConsumptionM3", "storageCapacityM3" };
 
-    /// <summary>Read the anchor's inputs, compute, and write the outputs back onto it. Returns the outputs.</summary>
-    public async Task<WaterReserveOutputs> RecomputeAsync(Guid anchorId, CancellationToken cancellationToken = default)
+    /// <summary>Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.</summary>
+    public async Task<WaterReserveOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
 
-        var props = await FetchEffectivePropertiesAsync(client, anchorId, cancellationToken);
+        var props = await FetchEffectivePropertiesAsync(client, studyId, cancellationToken);
         var result = WaterReserveCalculator.Compute(new WaterReserveInputs(
             Number(props, Inputs[0]), Number(props, Inputs[1]), Number(props, Inputs[2])));
 
-        await WriteAsync(client, anchorId, "daysOfSupply", result.DaysOfSupply, cancellationToken);
-        await WriteAsync(client, anchorId, "emergencyReserveM3", result.EmergencyReserveM3, cancellationToken);
-        await WriteAsync(client, anchorId, "annualConsumptionM3", result.AnnualConsumptionM3, cancellationToken);
-        await WriteAsync(client, anchorId, "pctAnnualConsumption", result.PctAnnualConsumption, cancellationToken);
+        await WriteAsync(client, studyId, "daysOfSupply", result.DaysOfSupply, cancellationToken);
+        await WriteAsync(client, studyId, "emergencyReserveM3", result.EmergencyReserveM3, cancellationToken);
+        await WriteAsync(client, studyId, "annualConsumptionM3", result.AnnualConsumptionM3, cancellationToken);
+        await WriteAsync(client, studyId, "pctAnnualConsumption", result.PctAnnualConsumption, cancellationToken);
         return result;
     }
 
@@ -42,7 +42,7 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
     {
         var response = await client.GetAsync($"{MyceliumUrl}/api/things/{thingId}/effective-properties", cancellationToken);
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"WaterReserve could not read the anchor {thingId} ({(int)response.StatusCode} {response.StatusCode})");
+            throw new HttpRequestException($"WaterReserve could not read the study {thingId} ({(int)response.StatusCode} {response.StatusCode})");
         return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
     }
 
@@ -60,7 +60,7 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
             foreach (var p in props.EnumerateObject())
                 if (string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
                     return ExtractDouble(p.Value);
-        throw new KeyNotFoundException($"WaterReserve input '{name}' is not on the anchor.");
+        throw new KeyNotFoundException($"WaterReserve input '{name}' is not on the study.");
     }
 
     // effective-properties returns each property as { "Value": <v>, ... } (case-insensitive key).

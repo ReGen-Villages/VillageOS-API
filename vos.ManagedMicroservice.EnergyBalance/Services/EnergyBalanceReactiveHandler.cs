@@ -6,10 +6,10 @@ namespace vos.ManagedMicroservice.EnergyBalance.Services;
 
 /// <summary>
 /// The reactive (model-driven) form of the energy analysis (User Story #5839). Instead of running as a DAG node with
-/// wired ports, it reacts to a graph relationship whose subject is the site anchor: it reads its inputs straight off
-/// the anchor's effective properties, computes with <see cref="EnergyBalanceCalculator"/>, and writes its outputs back
-/// onto the anchor as Facts — so the anchor's judge ranges (e.g. <c>EnergyNetPositive</c>) re-evaluate. No pipeline, no
-/// wires: the compute is a value on the anchor, like a roll-up or a range.
+/// wired ports, it reacts to a graph relationship whose subject is the SiteStudy: it reads its inputs straight off
+/// the study's effective properties, computes with <see cref="EnergyBalanceCalculator"/>, and writes its outputs back
+/// onto the study as Facts — so the study's judge ranges (e.g. <c>EnergyNetPositive</c>) re-evaluate. No pipeline, no
+/// wires: the compute is a value on the study, like a roll-up or a range.
 /// </summary>
 public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
 {
@@ -20,27 +20,27 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
     {
     }
 
-    // Input/output port names, read from / written to the anchor by name.
+    // Input/output port names, read from / written to the study by name.
     private static readonly string[] Inputs =
     {
         "solarPvAreaM2", "solarResourceKwhPerM2PerYear", "pvEfficiency",
         "otherGenerationMwhPerYear", "annualConsumptionMwhPerYear",
     };
 
-    /// <summary>Read the anchor's inputs, compute, and write the outputs back onto it. Returns the outputs.</summary>
-    public async Task<EnergyBalanceOutputs> RecomputeAsync(Guid anchorId, CancellationToken cancellationToken = default)
+    /// <summary>Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.</summary>
+    public async Task<EnergyBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
 
-        var props = await FetchEffectivePropertiesAsync(client, anchorId, cancellationToken);
+        var props = await FetchEffectivePropertiesAsync(client, studyId, cancellationToken);
         var result = EnergyBalanceCalculator.Compute(new EnergyBalanceInputs(
             Number(props, Inputs[0]), Number(props, Inputs[1]), Number(props, Inputs[2]),
             Number(props, Inputs[3]), Number(props, Inputs[4])));
 
-        await WriteAsync(client, anchorId, "pctOfConsumption", result.PctOfConsumption, cancellationToken);
-        await WriteAsync(client, anchorId, "netPositive", result.NetPositive, cancellationToken);
-        await WriteAsync(client, anchorId, "solarGenerationMwhPerYear", result.SolarGenerationMwhPerYear, cancellationToken);
-        await WriteAsync(client, anchorId, "totalGenerationMwhPerYear", result.TotalGenerationMwhPerYear, cancellationToken);
+        await WriteAsync(client, studyId, "pctOfConsumption", result.PctOfConsumption, cancellationToken);
+        await WriteAsync(client, studyId, "netPositive", result.NetPositive, cancellationToken);
+        await WriteAsync(client, studyId, "solarGenerationMwhPerYear", result.SolarGenerationMwhPerYear, cancellationToken);
+        await WriteAsync(client, studyId, "totalGenerationMwhPerYear", result.TotalGenerationMwhPerYear, cancellationToken);
         return result;
     }
 
@@ -48,7 +48,7 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
     {
         var response = await client.GetAsync($"{MyceliumUrl}/api/things/{thingId}/effective-properties", cancellationToken);
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"EnergyBalance could not read the anchor {thingId} ({(int)response.StatusCode} {response.StatusCode})");
+            throw new HttpRequestException($"EnergyBalance could not read the study {thingId} ({(int)response.StatusCode} {response.StatusCode})");
         return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
     }
 
@@ -66,7 +66,7 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
             foreach (var p in props.EnumerateObject())
                 if (string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
                     return ExtractDouble(p.Value);
-        throw new KeyNotFoundException($"EnergyBalance input '{name}' is not on the anchor.");
+        throw new KeyNotFoundException($"EnergyBalance input '{name}' is not on the study.");
     }
 
     // effective-properties returns each property as { "Value": <v>, ... } (case-insensitive key).
