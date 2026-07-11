@@ -3,6 +3,7 @@ using vos.ManagedMicroservice.Delta.Configuration;
 using vos.ManagedMicroservice.Delta.Helpers;
 using vos.ManagedMicroservice.Delta.Models;
 using vos.ManagedMicroservice.Delta.Services;
+using vos.ManagedMicroservice.Shared;
 using vos.ManagedMicroservice.Shared.Validation;
 using Serilog;
 
@@ -79,6 +80,7 @@ try
     {
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseMyceliumRequestToken();
     }
 
     // Find-or-create every template thing at startup so registrations never create templates lazily.

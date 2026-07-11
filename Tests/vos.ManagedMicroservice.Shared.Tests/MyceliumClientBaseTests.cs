@@ -3,6 +3,9 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Tests.Shared;
 using Xunit;
@@ -85,6 +88,33 @@ public class MyceliumClientBaseTests
         var token = await client.GetTokenAsync();
 
         token.Should().BeNull();
+    }
+
+    // Regression (#5894 / #5895): a daemon shared by several models must call back on the model
+    // of the current /handle request. The inbound bearer overrides the launch-time startup token.
+    [Fact]
+    public async Task GetTokenAsync_PrefersInboundRequestToken_OverStartupToken()
+    {
+        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK), serviceToken: TestToken);
+
+        string? tokenInsideRequest = null;
+        var pipeline = RequestTokenPipeline(async () => tokenInsideRequest = await client.GetTokenAsync());
+
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Headers.Authorization = "Bearer inbound-model-token";
+        await pipeline(ctx);
+
+        tokenInsideRequest.Should().Be("inbound-model-token");
+        (await client.GetTokenAsync()).Should().Be(TestToken,
+            "outside a /handle request the startup token still applies");
+    }
+
+    private static RequestDelegate RequestTokenPipeline(Func<Task> terminal)
+    {
+        var app = new ApplicationBuilder(new ServiceCollection().BuildServiceProvider());
+        app.UseMyceliumRequestToken();
+        app.Run(_ => terminal());
+        return app.Build();
     }
 
     // ---- CreateAuthenticatedClientAsync ----

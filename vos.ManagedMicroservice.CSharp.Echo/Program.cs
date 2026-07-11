@@ -1,6 +1,7 @@
 using vos.Auth.Shared;
 using vos.ManagedMicroservice.CSharp.Echo.Configuration;
 using vos.ManagedMicroservice.CSharp.Echo.Services;
+using vos.ManagedMicroservice.Shared;
 using vos.ManagedMicroservice.Shared.DagNode;
 using vos.ManagedMicroservice.Shared.Subscriptions;
 using Serilog;
@@ -75,6 +76,7 @@ if (authEnabled)
 {
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseMyceliumRequestToken();
 }
 
 app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>

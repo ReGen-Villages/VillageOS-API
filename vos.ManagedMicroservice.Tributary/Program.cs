@@ -5,6 +5,7 @@ using vos.ManagedMicroservice.Tributary.Configuration;
 using vos.ManagedMicroservice.Tributary.Helpers;
 using vos.ManagedMicroservice.Tributary.Models;
 using vos.ManagedMicroservice.Tributary.Services;
+using vos.ManagedMicroservice.Shared;
 using vos.ManagedMicroservice.Shared.Validation;
 using Serilog;
 
@@ -87,6 +88,7 @@ try
     {
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseMyceliumRequestToken();
     }
 
     var handleEndpoint = app.MapPost("/handle", async (

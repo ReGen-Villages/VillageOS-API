@@ -58,6 +58,9 @@ public abstract class MyceliumClientBase
 
     public async Task<string?> GetTokenAsync()
     {
+        if (!string.IsNullOrEmpty(MyceliumRequestToken.Current))
+            return MyceliumRequestToken.Current;
+
         if (!string.IsNullOrEmpty(_serviceToken))
             return _serviceToken;
 

@@ -111,7 +111,9 @@ When `--signingKey` is supplied, validate the Bearer JWT on `/handle` and `/shut
 2. **Algorithm** = HS256.
 3. **Claims** — validate `iss == --issuer`, `aud == --audience`, and `exp`/`nbf`, allowing **30 seconds** clock skew.
 
-Mycelium signs `/handle` calls with a 1-minute token carrying `iss`/`aud` and `vos:token_type = "mycelium_request"`; the platform validates this same HS256 JWT before dispatch, so your handler should apply the identical checks. Reject with 401 on any failure.
+Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT carrying `iss`/`aud` and the request's `vos:model_id`; the platform validates this same HS256 JWT before dispatch, so your handler should apply the identical checks. Reject with 401 on any failure.
+
+**Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the `--token` startup JWT — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` get this for free: add `app.UseMyceliumRequestToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the current request's bearer.
 
 ## Deregistration & health
 
@@ -125,5 +127,6 @@ Mycelium signs `/handle` calls with a 1-minute token carrying `iss`/`aud` and `v
 - [ ] Get a token (`--token` or `/api/auth/token`) and `POST /api/mycelium/register`
 - [ ] Serve `/handle`, `/health`, `/stats`, `/shutdown`
 - [ ] Validate the inbound HS256 JWT when `--signingKey` is set (iss/aud/exp, 30s skew)
+- [ ] Add `app.UseMyceliumRequestToken()` so `/handle` callbacks use the request's model token
 - [ ] Deregister on shutdown
 - [ ] Add tests for arg parsing + JWT validation (see any reference example)

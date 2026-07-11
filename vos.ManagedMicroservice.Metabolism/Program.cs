@@ -2,6 +2,7 @@ using vos.Auth.Shared;
 using vos.ManagedMicroservice.Metabolism.Configuration;
 using vos.ManagedMicroservice.Metabolism.Endpoints;
 using vos.ManagedMicroservice.Metabolism.Services;
+using vos.ManagedMicroservice.Shared;
 using vos.ManagedMicroservice.Shared.Middleware;
 using vos.ManagedMicroservice.Shared.Subscriptions;
 using Serilog;
@@ -93,6 +94,7 @@ try
     {
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseMyceliumRequestToken();
     }
 
     app.UseRequestContractValidation();
