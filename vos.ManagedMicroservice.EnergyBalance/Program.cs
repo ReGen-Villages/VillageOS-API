@@ -54,6 +54,10 @@ try
         new EnergyBalanceNode(sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<EnergyBalanceNode>>(), myceliumUrl, serviceToken));
 
+    builder.Services.AddSingleton(sp =>
+        new EnergyBalanceReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<EnergyBalanceReactiveHandler>>(), myceliumUrl, serviceToken));
+
     var app = builder.Build();
 
     if (authEnabled)
@@ -81,15 +85,34 @@ try
         catch (Exception ex) { Log.Error(ex, "Error during EnergyBalance shutdown deregistration"); }
     }));
 
-    var handle = app.MapPost("/handle", async (HttpContext ctx, EnergyBalanceNode node) =>
+    var handle = app.MapPost("/handle", async (HttpContext ctx, EnergyBalanceNode node, EnergyBalanceReactiveHandler reactive) =>
     {
         using var reader = new StreamReader(ctx.Request.Body);
         var root = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(await reader.ReadToEndAsync());
+
+        // A node envelope runs the DAG-node path; otherwise it's a graph relationship whose subject is the site
+        // anchor — read its inputs, compute, and write the outputs back (the reactive/model-driven path, #5839).
         if (DagNodeService.IsNodeEnvelope(root))
             return Results.Ok(await node.HandleNodeAsync(root, ctx.RequestAborted));
-        return Results.BadRequest(new { error = "EnergyBalance is a DAG node; expected a node envelope (runId, nodeId)." });
+
+        if (TrySubjectId(root, out var anchorId))
+        {
+            var outputs = await reactive.RecomputeAsync(anchorId, ctx.RequestAborted);
+            return Results.Ok(new { success = true, outputs });
+        }
+        return Results.BadRequest(new { error = "EnergyBalance expects a node envelope (runId, nodeId) or a graph relationship (subjectId)." });
     });
     if (authEnabled) handle.RequireAuthorization();
+
+    static bool TrySubjectId(System.Text.Json.JsonElement root, out Guid id)
+    {
+        id = Guid.Empty;
+        if (root.ValueKind != System.Text.Json.JsonValueKind.Object) return false;
+        foreach (var p in root.EnumerateObject())
+            if (string.Equals(p.Name, "subjectId", StringComparison.OrdinalIgnoreCase) && p.Value.TryGetGuid(out id))
+                return true;
+        return false;
+    }
 
     var manifest = app.MapGet("/manifest", (EnergyBalanceNode node) => Results.Ok(node.Ports));
     if (authEnabled) manifest.RequireAuthorization();

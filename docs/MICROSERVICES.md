@@ -24,7 +24,10 @@ Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`, `Phloem`,
 `WaterReserve`, `EnergyBalance`, `ModelBridge`. `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
 site-analysis nodes: `WaterReserve` computes emergency reserve / days-of-supply / %
 consumption (feeding the 14-day resilience range); `EnergyBalance` computes solar + other
-generation vs consumption → % of consumption and net-positive. `ModelBridge` (#5866) is a generic
+generation vs consumption → % of consumption and net-positive. Besides the DAG-node path (wired ports),
+`EnergyBalance` also runs **reactively** (#5839) — a graph `/handle` whose subject is the site anchor makes
+it read its inputs off the anchor's effective properties, compute, and write its outputs back as Facts, so the
+anchor's judge ranges re-evaluate (no pipeline); `WaterReserve` follows the same pattern. `ModelBridge` (#5866) is a generic
 **model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET
 effective-properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
 It lets a compute node read a roll-up / anchor param and write its result back over ordinary node→node
