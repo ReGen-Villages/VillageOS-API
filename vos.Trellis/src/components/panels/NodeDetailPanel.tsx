@@ -6,7 +6,7 @@ import { RetypeRow } from './RetypeRow';
 import { EditableThingName } from './EditableThingName';
 import { RangesTabContent } from './RangesTabContent';
 import { DeleteThingButton } from './DeleteThingButton';
-import type { VosThing, VosRelationship, InheritedPropertySet, EffectiveProperty } from '../../types/vos';
+import type { VosThing, VosRelationship, EffectiveProperty } from '../../types/vos';
 import { formatGuid } from '../../utils/formatters';
 import { thingApi } from '../../api/thingApi';
 import { useNodeRangesData } from '../../hooks/useNodeRangesData';
@@ -199,23 +199,6 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               entityId={thing.Id}
               onSaved={handlePropertySaved}
             />}
-
-            {thing.InheritedProperties && Object.keys(thing.InheritedProperties).length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-zinc-500 mb-1">Inheritance Chain</h4>
-                {Object.entries(thing.InheritedProperties).map(([sourceId, ips]) => (
-                  <InheritedPropertySetView
-                    key={sourceId}
-                    ips={ips}
-                    onSelectNode={onSelectNode}
-                    onExpandValue={handleExpandValue}
-                    editMode={editMode}
-                    entityId={thing.Id}
-                    onSaved={handlePropertySaved}
-                  />
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -377,6 +360,9 @@ function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, o
   onSaved?: () => void;
 }) {
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
+  // Every property resolved through an "is" chain is inherited, whether or not this thing overrode it.
+  // The backend tags each effective property with its provenance; own properties are excluded here and
+  // shown in the Own section above.
   const inherited = Object.entries(effectiveProps).filter(([, ep]) => ep.IsInherited);
   if (inherited.length === 0) return null;
 
@@ -398,6 +384,7 @@ function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, o
 
   return (
     <div className="space-y-2">
+      <h4 className="text-xs font-semibold text-zinc-500 mb-1">Inherited ({inherited.length})</h4>
       {[...bySource.entries()].map(([sourceId, { name: sourceName, props }]) => (
         <CollapsiblePropertyGroup
           key={sourceId}
@@ -480,41 +467,6 @@ function LogicalChildrenSection({ thingId, relationships, allThings, hasGeometry
         >
           <span className="text-purple-400">{child.Name || formatGuid(child.Id)}</span>
         </button>
-      ))}
-    </div>
-  );
-}
-
-// ── Inheritance chain from thing.InheritedProperties ─────────────────────
-
-function InheritedPropertySetView({ ips, onSelectNode, onExpandValue, editMode, entityId, onSaved, depth = 0 }: {
-  ips: InheritedPropertySet;
-  onSelectNode: (id: string) => void;
-  onExpandValue: (name: string, value: string) => void;
-  editMode: boolean;
-  entityId: string;
-  onSaved?: () => void;
-  depth?: number;
-}) {
-  const [collapsed, setCollapsed] = useState(false);
-  const inheritedProps = ips.Properties ? Object.entries(ips.Properties) : [];
-
-  return (
-    <div className={`${depth > 0 ? 'ml-3' : ''} border-l-2 border-zinc-700/50 pl-2`}>
-      <CollapsiblePropertyGroup
-        label={ips.SourceName}
-        count={inheritedProps.length}
-        onNavigate={() => onSelectNode(ips.SourceId)}
-        expanded={!collapsed}
-        onToggle={() => setCollapsed((v) => !v)}
-        editMode={editMode}
-        entityId={entityId}
-        properties={inheritedProps}
-        onSaved={onSaved}
-        onExpandValue={onExpandValue}
-      />
-      {!collapsed && ips.Inherited && Object.entries(ips.Inherited).map(([nestedId, nestedIps]) => (
-        <InheritedPropertySetView key={nestedId} ips={nestedIps} onSelectNode={onSelectNode} onExpandValue={onExpandValue} editMode={editMode} entityId={entityId} onSaved={onSaved} depth={depth + 1} />
       ))}
     </div>
   );

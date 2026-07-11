@@ -41,8 +41,8 @@ function buildModel() {
   T('Service', 'Service'); T('Port', 'Port'); T('PipelineWire', 'PipelineWire');
   R('feeds', 'is', 'PipelineWire');
 
-  const svc = T('svc', 'svc'); R('svc', 'is', 'Service');
-  const conn = T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'PlatformServiceConnection'); R('conn', 'has', 'svc');
+  T('svc', 'svc'); R('svc', 'is', 'Service');
+  T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'PlatformServiceConnection'); R('conn', 'has', 'svc');
 
   // Existing pipeline P: N1 --feeds(out->in)--> N2
   T('P', 'MyPipeline'); R('P', 'is', 'Pipeline');
