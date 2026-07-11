@@ -102,6 +102,9 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     public Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken) =>
         SetPropertyAsync(runId, "status", status, cancellationToken);
 
+    public Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken cancellationToken) =>
+        SetPropertyAsync(runId, ModelNames.Result, result.GetRawText(), cancellationToken);
+
     public async Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));

@@ -32,6 +32,8 @@ public record CliArgs(
             Service = Arg(args, "serviceArchetype") ?? defaults.Service,
             Pipeline = Arg(args, "pipelineArchetype") ?? defaults.Pipeline,
             PipelineNode = Arg(args, "pipelineNodeArchetype") ?? defaults.PipelineNode,
+            PipelineInput = Arg(args, "pipelineInputArchetype") ?? defaults.PipelineInput,
+            PipelineOutput = Arg(args, "pipelineOutputArchetype") ?? defaults.PipelineOutput,
             Port = Arg(args, "portArchetype") ?? defaults.Port,
             PipelineWire = Arg(args, "pipelineWireArchetype") ?? defaults.PipelineWire,
             PipelineRun = Arg(args, "pipelineRunArchetype") ?? defaults.PipelineRun,
@@ -60,6 +62,7 @@ public record CliArgs(
     public static string UsageMessage =>
         "Usage: dotnet run -- --port=<port> --myceliumUrl=<url> [--token=<jwt>] [--signingKey=<base64>] " +
         "[--issuer=<iss>] [--audience=<aud>] [--connectionArchetype=<name>] [--serviceArchetype=<name>] " +
-        "[--pipelineArchetype=<name>] [--pipelineNodeArchetype=<name>] [--portArchetype=<name>] " +
+        "[--pipelineArchetype=<name>] [--pipelineNodeArchetype=<name>] [--pipelineInputArchetype=<name>] " +
+        "[--pipelineOutputArchetype=<name>] [--portArchetype=<name>] " +
         "[--pipelineWireArchetype=<name>] [--pipelineRunArchetype=<name>] [--nodeRunArchetype=<name>]";
 }

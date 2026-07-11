@@ -280,6 +280,50 @@ public class PipelineExecutorTests
 
     // --- helpers ---
 
+    // Boundary I/O nodes (#5873) ------------------------------------------------------------------------
+
+    [Fact] // TC #5879: Input node output ports are filled from run params
+    public async Task RunAsync_InputBoundaryNode_SeedsOutputPortsFromRunParams()
+    {
+        var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+
+        var runParams = JsonSerializer.SerializeToElement(new { seed = "hi" });
+        var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        // Echo received the Input node's `seed` (filled from the run param) on its wired `message` input.
+        result.Nodes.Single(n => n.Name == "Echo").Outputs["echo"].GetString().Should().Be("hi");
+        // Only the service node dispatches — boundary nodes never hit a subdomain.
+        gateway.Dispatched.Should().Equal("ech");
+    }
+
+    [Fact] // TC #5880: value wired into the Output node becomes the run result
+    public async Task RunAsync_OutputBoundaryNode_CollectsWiredInputAsRunResult()
+    {
+        var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+
+        var runParams = JsonSerializer.SerializeToElement(new { seed = "world" });
+        var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        // The value wired into the Output node's `result` input is the pipeline's published result …
+        result.Result.Should().NotBeNull();
+        result.Result!.Value.GetProperty("result").GetString().Should().Be("world");
+        // … and it is persisted on the PipelineRun Thing.
+        gateway.RunResult.Should().NotBeNull();
+        gateway.RunResult!.Value.GetProperty("result").GetString().Should().Be("world");
+    }
+
     private static NodeDispatchResult NodeOk(params (string Port, string Value)[] outputs)
     {
         var outs = outputs.ToDictionary(o => o.Port, o => o.Value);
@@ -302,6 +346,7 @@ public class PipelineExecutorTests
         public List<string> Dispatched { get; } = new();
         public List<string> StatusUpdates { get; } = new();
         public List<(string Name, string Status)> NodeStatuses { get; } = new();
+        public JsonElement? RunResult { get; private set; }
 
         public Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken ct) => Task.FromResult(_graph);
         public Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken ct) => Task.CompletedTask;
@@ -311,6 +356,7 @@ public class PipelineExecutorTests
             return Task.CompletedTask;
         }
         public Task SetRunStatusAsync(Guid runId, string status, CancellationToken ct) { StatusUpdates.Add(status); return Task.CompletedTask; }
+        public Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken ct) { RunResult = result.Clone(); return Task.CompletedTask; }
         public Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken ct) => Task.FromResult(CancelRequested(runId));
 
         public Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken ct)

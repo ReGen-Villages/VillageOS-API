@@ -12,6 +12,39 @@ public class PipelineModelTests
 {
     private static readonly PipelineModelOptions Names = new();
 
+    [Fact] // #5873: boundary nodes resolve with a kind + their own declared ports, and no dispatch subdomain.
+    public void Build_BoundaryNodes_ResolveKindAndDeclaredPorts()
+    {
+        var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId, Names);
+
+        var input = dag.Node(fx.Get("In").Id)!;
+        input.Kind.Should().Be(DagNodeKind.Input);
+        input.Subdomain.Should().BeEmpty();
+        input.OutputPorts.Select(p => p.PortName).Should().Contain("seed");
+
+        var output = dag.Node(fx.Get("Out").Id)!;
+        output.Kind.Should().Be(DagNodeKind.Output);
+        output.Subdomain.Should().BeEmpty();
+        output.InputPorts.Select(p => p.PortName).Should().Contain("result");
+
+        // The service node in the same pipeline still resolves as a Service with a subdomain.
+        dag.Node(fx.Get("Echo").Id)!.Kind.Should().Be(DagNodeKind.Service);
+
+        // Both boundary wires are present (In.seed → Echo.message, Echo.echo → Out.result).
+        dag.Wires.Should().HaveCount(2);
+    }
+
+    [Fact] // A boundary pipeline validates: every wire connects real ports and the graph is acyclic.
+    public void Validate_BoundaryPipeline_IsValid()
+    {
+        var (fx, pipelineId) = TestGraphs.BoundaryPipeline();
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId, Names);
+
+        DagValidator.Validate(dag).IsValid.Should().BeTrue();
+    }
+
     [Fact]
     public void Build_ResolvesNodesSubdomainsPortsAndWire()
     {

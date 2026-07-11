@@ -103,8 +103,20 @@ public sealed class PipelineExecutor
 
         var success = runStatus == RunStatus.Succeeded;
         var ordered = dag.Nodes.Select(n => results[n.NodeId]).ToList();
+
+        // The pipeline's published result (#5873): the Output boundary node's collected inputs. Persisted on the
+        // PipelineRun Thing (so it streams over SSE and is temporally queryable) and returned to the caller.
+        JsonElement? runResult = null;
+        var outputNode = dag.Nodes.FirstOrDefault(n => n.Kind == DagNodeKind.Output);
+        if (outputNode != null && success)
+        {
+            var collected = AssembleInputs(dag, outputNode, outputs, runParams);
+            runResult = JsonSerializer.SerializeToElement(collected);
+            await BestEffort(() => _gateway.SetRunResultAsync(rid, runResult.Value, cancellationToken), "set run result");
+        }
+
         return new PipelineRunResult(rid, pipelineId, success, ordered,
-            success ? null : cancelled ? "Run cancelled." : "One or more nodes failed.");
+            success ? null : cancelled ? "Run cancelled." : "One or more nodes failed.", runResult);
     }
 
     private async Task<PipelineRunResult> FailRunAsync(Guid runId, Guid pipelineId, string error, CancellationToken cancellationToken)
@@ -145,6 +157,14 @@ public sealed class PipelineExecutor
         // is written by RunAsync from the value returned here.
         await BestEffort(() => _gateway.SetNodeRunStatusAsync(runId, node.NodeId, node.Name, RunStatus.Running, null, cancellationToken), "persist node running");
 
+        // Boundary nodes (#5873) never dispatch: an Input node projects the run's params onto its output ports
+        // (which then flow downstream via wires); an Output node is a sink — its inputs are collected as the
+        // run result after the sweep (see RunAsync), so here it simply succeeds.
+        if (node.Kind == DagNodeKind.Input)
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, ProjectParamsOntoOutputs(node, runParams), null);
+        if (node.Kind == DagNodeKind.Output)
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
+
         var inputs = AssembleInputs(dag, node, outputs, runParams);
 
         // Fan-out (#5648): if the node has a collection input and it carries a list, run the node once per item.
@@ -168,6 +188,17 @@ public sealed class PipelineExecutor
             if (outputs.TryGetValue(wire.FromNodeId, out var upstream) && upstream.TryGetValue(wire.FromPort, out var value))
                 inputs[wire.ToPort] = value;
         return inputs;
+    }
+
+    /// <summary>An Input boundary node's outputs (#5873): each output port is filled from the run param of the
+    /// same name, so downstream nodes receive the run's external inputs through ordinary wires.</summary>
+    private static IReadOnlyDictionary<string, JsonElement> ProjectParamsOntoOutputs(DagNode node, JsonElement runParams)
+    {
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var port in node.OutputPorts)
+            if (TryGetParam(runParams, port.PortName, out var value))
+                outputs[port.PortName] = value;
+        return outputs;
     }
 
     /// <summary>Run the node once per item of its collection input (bounded), writing a per-item NodeRun for each,

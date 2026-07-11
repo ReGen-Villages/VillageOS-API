@@ -23,6 +23,8 @@ public static class ModelNames
     public const string ParamBindings = "paramBindings";
     public const string Collection = "collection";
     public const string OnItemError = "onItemError";
+    // The pipeline's published result — the Output boundary node's collected inputs, stored on the PipelineRun (#5873).
+    public const string Result = "result";
 
     public const string DirectionIn = "in";
     public const string DirectionOut = "out";
