@@ -46,8 +46,10 @@ public sealed class DagNode
         Ports.FirstOrDefault(p => string.Equals(p.PortName, portName, StringComparison.OrdinalIgnoreCase));
 }
 
-/// <summary>A wire: an output port on one node feeds an input port on another.</summary>
-public sealed record DagWire(Guid FromNodeId, string FromPort, Guid ToNodeId, string ToPort);
+/// <summary>A wire: an output port on one node feeds an input port on another. <paramref name="FromPath"/> and
+/// <paramref name="ToPath"/> (both optional, empty = the whole payload) select a field of the upstream output
+/// and place it at a field of the downstream input, so several wires can compose one input (#5874).</summary>
+public sealed record DagWire(Guid FromNodeId, string FromPort, Guid ToNodeId, string ToPort, string FromPath = "", string ToPath = "");
 
 /// <summary>The resolved pipeline DAG ready to validate and execute.</summary>
 public sealed class PipelineDag

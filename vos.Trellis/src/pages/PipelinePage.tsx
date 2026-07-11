@@ -47,6 +47,12 @@ export function parseParamValue(raw: string): unknown {
   }
 }
 
+/** A short edge label for a field-mapped wire (#5874), e.g. `user.id → a`; undefined when both paths empty. */
+function pathLabel(fromPath?: string, toPath?: string): string | undefined {
+  if (!fromPath && !toPath) return undefined;
+  return `${fromPath || '·'} → ${toPath || '·'}`;
+}
+
 export function PipelinePage() {
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
@@ -72,6 +78,7 @@ export function PipelinePage() {
   const [thingIdByCanvasId, setThingIdByCanvasId] = useState<Record<string, string>>({});
   // Param routing (#5647): the selected node (binding editor) + the values supplied for each bound run param.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [runParamValues, setRunParamValues] = useState<Record<string, string>>({});
 
   // Undo + optimistic rollback (#5872). The history records the editor state *before* each mutation (undo),
@@ -138,6 +145,18 @@ export function PipelinePage() {
   }, [nodes, edges]);
 
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : undefined;
+  const selectedEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) : undefined;
+
+  // Edit a wire's field-path (#5874): update the edge's data + its label, and mark the canvas dirty.
+  const setEdgePath = useCallback((edgeId: string, which: 'fromPath' | 'toPath', value: string) => {
+    recordSnapshot();
+    setEdges((es) => es.map((e) => {
+      if (e.id !== edgeId) return e;
+      const data = { ...(e.data as { fromPath?: string; toPath?: string } | undefined), [which]: value || undefined };
+      return { ...e, data, label: pathLabel(data.fromPath, data.toPath) };
+    }));
+    setSavedId(null);
+  }, [setEdges, recordSnapshot]);
 
   const liveRunStatus = runId ? model.runStatus(runId) : undefined;
   const runActive = !!runId && (liveRunStatus === undefined || liveRunStatus === 'running');
@@ -230,6 +249,8 @@ export function PipelinePage() {
       sourceHandle: e.sourceHandle ?? '',
       target: e.target,
       targetHandle: e.targetHandle ?? '',
+      fromPath: (e.data as { fromPath?: string } | undefined)?.fromPath,
+      toPath: (e.data as { toPath?: string } | undefined)?.toPath,
     }));
 
   const onSave = useCallback(async () => {
@@ -277,7 +298,7 @@ export function PipelinePage() {
       position: { x: n.x, y: n.y },
       data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, paramBindings: n.paramBindings } as unknown as Record<string, unknown>,
     }));
-    const loadedEdges: Edge[] = loaded.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle }));
+    const loadedEdges: Edge[] = loaded.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, label: pathLabel(e.fromPath, e.toPath), data: { fromPath: e.fromPath, toPath: e.toPath } }));
     setNodes(loadedNodes);
     setEdges(loadedEdges);
     commitBaseline({ nodes: loadedNodes, edges: loadedEdges }); // a freshly loaded pipeline is the undo/rollback floor
@@ -482,8 +503,9 @@ export function PipelinePage() {
             onNodeDragStart={onNodeDragStart}
             onNodesDelete={onNodesDelete}
             onEdgesDelete={onEdgesDelete}
-            onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-            onPaneClick={() => setSelectedNodeId(null)}
+            onNodeClick={(_, node) => { setSelectedNodeId(node.id); setSelectedEdgeId(null); }}
+            onEdgeClick={(_, edge) => { setSelectedEdgeId(edge.id); setSelectedNodeId(null); }}
+            onPaneClick={() => { setSelectedNodeId(null); setSelectedEdgeId(null); }}
             nodeTypes={nodeTypes}
             fitView
           >
@@ -546,6 +568,38 @@ export function PipelinePage() {
                     ))}
                   </div>
                 )}
+              </div>
+            );
+          })()}
+          {selectedEdge && (() => {
+            const data = (selectedEdge.data as { fromPath?: string; toPath?: string } | undefined) ?? {};
+            return (
+              <div className="absolute top-2 right-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
+                <div className="font-semibold mb-1.5 flex items-center justify-between gap-2">
+                  <span className="truncate">Wire · {selectedEdge.sourceHandle} → {selectedEdge.targetHandle}</span>
+                  <button onClick={() => setSelectedEdgeId(null)} aria-label="Close inspector" className="text-zinc-400 hover:text-zinc-600">×</button>
+                </div>
+                <div className="text-zinc-400 mb-1">Map a field (blank = whole payload):</div>
+                <label className="flex items-center gap-1 mb-1">
+                  <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">from-path</span>
+                  <input
+                    aria-label="Wire from-path"
+                    placeholder="e.g. user.id"
+                    value={data.fromPath ?? ''}
+                    onChange={(e) => setEdgePath(selectedEdge.id, 'fromPath', e.target.value)}
+                    className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">to-path</span>
+                  <input
+                    aria-label="Wire to-path"
+                    placeholder="e.g. a"
+                    value={data.toPath ?? ''}
+                    onChange={(e) => setEdgePath(selectedEdge.id, 'toPath', e.target.value)}
+                    className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
+                  />
+                </label>
               </div>
             );
           })()}

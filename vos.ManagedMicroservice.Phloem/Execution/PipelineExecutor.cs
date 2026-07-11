@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using vos.ManagedMicroservice.Phloem.Configuration;
 using vos.ManagedMicroservice.Phloem.Model;
@@ -175,18 +176,32 @@ public sealed class PipelineExecutor
         return await DispatchAndParseAsync(node, runId, inputs, index: null, cancellationToken);
     }
 
-    /// <summary>Assemble a node's inputs: param-bound inputs first (#5647), then wires (a wire overrides).</summary>
+    /// <summary>Assemble a node's inputs: param-bound inputs first (#5647), then wires. Each wire extracts its
+    /// from-path of the upstream output and deep-merges it at its to-path into the target input, so several
+    /// wires compose one input value; empty paths carry the whole payload and a scalar wire overrides (#5874).</summary>
     private static Dictionary<string, JsonElement> AssembleInputs(
         PipelineDag dag, DagNode node,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams)
     {
-        var inputs = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        var accumulated = new Dictionary<string, JsonNode?>(StringComparer.Ordinal);
         foreach (var (port, paramKey) in node.ParamBindings)
             if (TryGetParam(runParams, paramKey, out var bound))
-                inputs[port] = bound;
+                accumulated[port] = JsonSerializer.SerializeToNode(bound);
         foreach (var wire in dag.WiresInto(node.NodeId))
-            if (outputs.TryGetValue(wire.FromNodeId, out var upstream) && upstream.TryGetValue(wire.FromPort, out var value))
-                inputs[wire.ToPort] = value;
+        {
+            if (!outputs.TryGetValue(wire.FromNodeId, out var upstream) || !upstream.TryGetValue(wire.FromPort, out var value))
+                continue;
+            var extracted = PayloadMapping.Extract(value, wire.FromPath);
+            if (extracted is null) continue; // the from-path is not present in the upstream output
+            var placed = PayloadMapping.Place(wire.ToPath, extracted.Value);
+            accumulated[wire.ToPort] = accumulated.TryGetValue(wire.ToPort, out var existing)
+                ? PayloadMapping.Merge(existing, placed)
+                : placed;
+        }
+
+        var inputs = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var (port, node2) in accumulated)
+            inputs[port] = PayloadMapping.ToElement(node2);
         return inputs;
     }
 

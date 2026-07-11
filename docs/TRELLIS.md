@@ -467,6 +467,12 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   `PipelineInput` / `PipelineOutput` Things (each also a `PipelineNode`) with their own `Port` children.
 - **Wiring** — drag from an output port to an input port. Wires are **type-checked**; incompatible types are
   refused.
+- **Field mapping** (#5874) — click a wire to open its inspector and set an optional **from-path** and
+  **to-path** (dotted field paths, e.g. `user.id` → `a`); blank means the whole payload. Phloem extracts the
+  from-path of the upstream output and places it at the to-path of the downstream input, so **several wires
+  into one input deep-merge** into a composed object (a leaf clash resolves last-wire-wins) instead of one
+  overwriting another. The mapping shows as the wire's label; paths persist as `fromPath`/`toPath` properties
+  on the wire.
 - **New / Save / Load** — **New** clears the canvas; **Save** writes a `Pipeline` + `PipelineNode` Things and
   `has`/`feeds` relationships (node `‑has→ Connection`, positions round-trip as x/y); **Load** picks an
   existing pipeline from the model. **Editing is in place**: saving a loaded pipeline **updates it** rather
