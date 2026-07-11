@@ -459,6 +459,12 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
 - **Palette** — every dispatchable **Connection** in the model (an http connection with a `Subdomain` and a
   bound Service). Click one to drop a node bound to it; its typed input/output **ports** resolve from the
   bound service's `is`-chain (the same resolution Phloem does).
+- **Boundary nodes** (#5873) — the palette's **Input** and **Output** buttons drop a pipeline's external
+  edges: an **Input** node ("from the start") whose output ports are filled from the run's parameters, and an
+  **Output** node ("at the end") whose wired-in value becomes the run's published **result** (stored as a
+  `result` property on the `PipelineRun` Thing). Boundary nodes bind no Connection — their ports are
+  user-declared: select the node and add / rename / remove ports in the inspector. They persist as
+  `PipelineInput` / `PipelineOutput` Things (each also a `PipelineNode`) with their own `Port` children.
 - **Wiring** — drag from an output port to an input port. Wires are **type-checked**; incompatible types are
   refused.
 - **New / Save / Load** — **New** clears the canvas; **Save** writes a `Pipeline` + `PipelineNode` Things and

@@ -4,8 +4,10 @@ import type { PortInfo } from '../../pipeline/model';
 
 export interface PipelineNodeData {
   label: string;
-  connectionId: string;
-  subdomain: string;
+  /** Boundary node (#5873): 'input' (param source) or 'output' (result sink); absent for service nodes. */
+  kind?: 'input' | 'output';
+  connectionId?: string;
+  subdomain?: string;
   ports: PortInfo[];
   status?: string;
   /** Input-port name → run-param key (#5647). */
@@ -45,7 +47,7 @@ export function PipelineNodeView({ data }: NodeProps) {
               {d.progress.done}/{d.progress.total}
             </span>
           )}
-          <span className="text-[10px] font-mono text-zinc-400">{d.subdomain}</span>
+          <span className="text-[10px] font-mono text-zinc-400">{d.kind ? d.kind : d.subdomain}</span>
         </span>
       </div>
       <div className="flex justify-between gap-4 py-2 text-xs">

@@ -12,7 +12,7 @@ vi.mock('../api/relationshipApi', () => ({
 
 import type { VosThing, VosRelationship } from '../types/vos';
 import { PipelineModel } from './model';
-import { savePipeline, type EditorNode } from './serialize';
+import { savePipeline, loadPipeline, type EditorNode } from './serialize';
 import { modelApi } from '../api/modelApi';
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
@@ -39,6 +39,9 @@ function buildModel() {
   const is = T('is', 'is'), has = T('has', 'has'), feeds = T('feeds', 'feeds');
   T('Pipeline', 'Pipeline'); T('PipelineNode', 'PipelineNode'); T('PlatformServiceConnection', 'PlatformServiceConnection');
   T('Service', 'Service'); T('Port', 'Port'); T('PipelineWire', 'PipelineWire');
+  // Boundary-node archetypes (#5873); each is-a PipelineNode so the node collection picks its instances up.
+  T('PipelineInput', 'PipelineInput'); R('PipelineInput', 'is', 'PipelineNode');
+  T('PipelineOutput', 'PipelineOutput'); R('PipelineOutput', 'is', 'PipelineNode');
   R('feeds', 'is', 'PipelineWire');
 
   T('svc', 'svc'); R('svc', 'is', 'Service');
@@ -108,5 +111,65 @@ describe('savePipeline — update in place (existing pipeline id)', () => {
     // N2->N1 is new (fixture only had N1->N2), so a wire is created + its ports set.
     expect(relCreate).toHaveBeenCalledWith('N2', 'feeds', 'N1');
     expect(relationshipApi.setProperty).toHaveBeenCalledWith('new-rel', 'fromPort', 'vos.String', 'out');
+  });
+});
+
+// Boundary I/O nodes (#5873) --------------------------------------------------------------------------
+
+type Frag = {
+  Things: { Id: string; Name: string; Properties: Record<string, unknown> }[];
+  Relationships: { Name: string; Subject: string; Predicate: string; Target: string }[];
+};
+
+describe('savePipeline — boundary nodes (#5873)', () => {
+  it('persists an Input node as a PipelineInput + PipelineNode with its declared output port, and no connection', async () => {
+    const { model } = buildModel();
+    const inputNode: EditorNode = {
+      id: 'nin', label: 'Input', connectionId: '', x: 0, y: 0, kind: 'input',
+      ports: [{ portName: 'seed', direction: 'out', type: 'any', required: false }],
+    };
+
+    await savePipeline('B', [inputNode], [], model);
+
+    const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
+    const nodeThing = frag.Things.find((t) => t.Name === 'Input')!;
+    const isTargets = frag.Relationships.filter((r) => r.Subject === nodeThing.Id && r.Name === 'is').map((r) => r.Target);
+    expect(isTargets).toContain('PipelineInput');
+    expect(isTargets).toContain('PipelineNode');
+
+    // Declares a Port child (has → Port, direction out) …
+    const portThing = frag.Things.find((t) => t.Name === 'seed')!;
+    expect(portThing).toBeTruthy();
+    expect(frag.Relationships.some((r) => r.Subject === portThing.Id && r.Name === 'is' && r.Target === 'Port')).toBe(true);
+    expect(frag.Relationships.some((r) => r.Subject === nodeThing.Id && r.Name === 'has' && r.Target === portThing.Id)).toBe(true);
+    // … and binds NO connection.
+    expect(frag.Relationships.some((r) => r.Subject === nodeThing.Id && r.Name === 'has' && r.Target === 'conn')).toBe(false);
+  });
+});
+
+describe('loadPipeline — boundary nodes (#5873)', () => {
+  it('reconstructs a boundary node kind and its declared ports', () => {
+    // A model with a pipeline BP → an Output boundary node OUT that declares an input port `result`.
+    const things: VosThing[] = [];
+    const rels: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}) => { things.push({ Id: id, Name: name, Properties: props }); };
+    const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
+      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
+
+    T('is', 'is'); T('has', 'has');
+    T('Pipeline', 'Pipeline'); T('PipelineNode', 'PipelineNode'); T('Port', 'Port');
+    T('PipelineOutput', 'PipelineOutput'); R('PipelineOutput', 'is', 'PipelineNode');
+    T('BP', 'Boundary'); R('BP', 'is', 'Pipeline');
+    T('OUT', 'Output'); R('OUT', 'is', 'PipelineOutput'); R('BP', 'has', 'OUT');
+    T('OUT.result', 'result', { portName: 'result', direction: 'in', type: 'any', required: 'true' });
+    R('OUT.result', 'is', 'Port'); R('OUT', 'has', 'OUT.result');
+
+    const loaded = loadPipeline('BP', new PipelineModel(things, rels))!;
+    const out = loaded.nodes.find((node) => node.id === 'OUT')!;
+    expect(out.kind).toBe('output');
+    expect(out.connectionId).toBe('');
+    expect(out.ports.map((p) => p.portName)).toContain('result');
+    expect(out.ports.find((p) => p.portName === 'result')!.direction).toBe('in');
   });
 });

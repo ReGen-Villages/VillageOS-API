@@ -20,6 +20,9 @@ export interface EditorNode {
   ports: PortInfo[];
   /** Input-port name → run-param key (#5647). Persisted as a JSON `paramBindings` property on the node. */
   paramBindings?: Record<string, string>;
+  /** Boundary node (#5873): 'input' (a param source) or 'output' (the run's result sink). A boundary node
+   * binds no Connection — its `ports` are user-declared and persisted as its own Port child-Things. */
+  kind?: 'input' | 'output';
 }
 
 export interface EditorEdge {
@@ -58,10 +61,16 @@ export async function savePipeline(
   const isId = model.predicateIdByName('is');
   const hasId = model.predicateIdByName('has');
   const wireId = model.wirePredicateId();
-  const pipelineArch = model.archetypeId(ARCHETYPE.Pipeline);
-  const nodeArch = model.archetypeId(ARCHETYPE.PipelineNode);
-  if (!isId || !hasId || !wireId || !pipelineArch || !nodeArch)
+  const pipelineArchetype = model.archetypeId(ARCHETYPE.Pipeline);
+  const nodeArchetype = model.archetypeId(ARCHETYPE.PipelineNode);
+  if (!isId || !hasId || !wireId || !pipelineArchetype || !nodeArchetype)
     throw new Error('Model is missing pipeline archetypes/predicates — load the pipeline seed first.');
+
+  const portArchetype = model.archetypeId(ARCHETYPE.Port);
+  const boundaryArchetype = (kind: 'input' | 'output') =>
+    model.archetypeId(kind === 'input' ? ARCHETYPE.PipelineInput : ARCHETYPE.PipelineOutput);
+  if (nodes.some((n) => n.kind) && (!portArchetype || !boundaryArchetype('input') || !boundaryArchetype('output')))
+    throw new Error('Model is missing boundary-node archetypes (PipelineInput/PipelineOutput/Port) — load a seed that defines them.');
 
   const pipelineId = existingPipelineId ?? crypto.randomUUID();
 
@@ -75,17 +84,46 @@ export async function savePipeline(
     { Id: pipelineId, Name: name, Properties: {} },
   ];
   const relationships: Array<{ Name: string; Subject: string; Predicate: string; Target: string }> = [
-    { Name: 'is', Subject: pipelineId, Predicate: isId, Target: pipelineArch },
+    { Name: 'is', Subject: pipelineId, Predicate: isId, Target: pipelineArchetype },
   ];
+  // A boundary node's persisted ports, matched by name to reuse ids on update (retract removed ones below).
+  const portsToRetract: string[] = [];
   for (const n of nodes) {
     const tid = nodeThingId.get(n.id)!;
     const props: Record<string, unknown> = { x: env(DOUBLE, n.x), y: env(DOUBLE, n.y) };
     if (n.paramBindings && Object.keys(n.paramBindings).length > 0)
       props.paramBindings = env(STRING, JSON.stringify(n.paramBindings));
     things.push({ Id: tid, Name: n.label, Properties: props });
-    relationships.push({ Name: 'is', Subject: tid, Predicate: isId, Target: nodeArch });
-    relationships.push({ Name: 'has', Subject: tid, Predicate: hasId, Target: n.connectionId });
+    // Boundary nodes are PipelineNodes too (so the run + editor pick them up), plus their own Input/Output
+    // archetype which marks them a param source / result sink for Phloem.
+    relationships.push({ Name: 'is', Subject: tid, Predicate: isId, Target: nodeArchetype });
     relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: tid });
+
+    if (n.kind) {
+      relationships.push({ Name: 'is', Subject: tid, Predicate: isId, Target: boundaryArchetype(n.kind)! });
+      // Declared ports become Port child-Things (has → Port). Reuse a persisted port's id when the name
+      // matches (idempotent update); a persisted port no longer declared is retracted.
+      const persisted = new Map(model.boundaryPortRels(n.id).map((r) => [r.port.portName, r.portId]));
+      for (const p of n.ports) {
+        const portId = persisted.get(p.portName) ?? crypto.randomUUID();
+        persisted.delete(p.portName);
+        things.push({
+          Id: portId,
+          Name: p.portName,
+          Properties: {
+            portName: env(STRING, p.portName),
+            direction: env(STRING, p.direction),
+            type: env(STRING, p.type || 'any'),
+            required: env(STRING, String(p.required)),
+          },
+        });
+        relationships.push({ Name: 'is', Subject: portId, Predicate: isId, Target: portArchetype! });
+        relationships.push({ Name: 'has', Subject: tid, Predicate: hasId, Target: portId });
+      }
+      for (const staleId of persisted.values()) portsToRetract.push(staleId);
+    } else {
+      relationships.push({ Name: 'has', Subject: tid, Predicate: hasId, Target: n.connectionId });
+    }
   }
   await modelApi.applyFragment(JSON.stringify({ Name: name, Things: things, Relationships: relationships }));
 
@@ -111,9 +149,17 @@ export async function savePipeline(
   }
   for (const w of persistedWires) if (!desiredKeys.has(w.key)) await relationshipApi.remove(w.relId);
 
-  // Deleted nodes: persisted PipelineNodes no longer on the canvas are retracted.
+  // Ports removed from a boundary node (still on the canvas) are retracted.
+  for (const portId of portsToRetract) await thingApi.remove(portId);
+
+  // Deleted nodes: persisted PipelineNodes no longer on the canvas are retracted, along with any Port
+  // child-Things a removed boundary node declared (so they don't linger as orphans).
   const desiredThingIds = new Set(nodeThingId.values());
-  for (const nid of persistedNodeIds) if (!desiredThingIds.has(nid)) await thingApi.remove(nid);
+  for (const nid of persistedNodeIds)
+    if (!desiredThingIds.has(nid)) {
+      for (const r of model.boundaryPortRels(nid)) await thingApi.remove(r.portId);
+      await thingApi.remove(nid);
+    }
 
   return { pipelineId, nodeIdMap: Object.fromEntries(nodeThingId) };
 }
@@ -142,16 +188,19 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
   const nodeIds = new Set(nodeThings.map((t) => t.Id));
 
   const nodes: EditorNode[] = nodeThings.map((t, i) => {
-    const conn = model.outgoing(t.Id, 'has').find((c) => model.isOfType(c.Id, ARCHETYPE.Connection));
-    return {
+    const base = {
       id: t.Id,
-      connectionId: conn?.Id ?? '',
       label: t.Name,
       x: Number(t.Properties.x ?? i * 280),
       y: Number(t.Properties.y ?? 80),
-      ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [],
       paramBindings: parseParamBindings(t.Properties.paramBindings),
     };
+    // Boundary node (#5873): its ports are declared on the node itself, and it binds no Connection.
+    const kind = model.boundaryKind(t.Id);
+    if (kind) return { ...base, kind, connectionId: '', ports: model.boundaryPortRels(t.Id).map((r) => r.port) };
+
+    const conn = model.outgoing(t.Id, 'has').find((c) => model.isOfType(c.Id, ARCHETYPE.Connection));
+    return { ...base, connectionId: conn?.Id ?? '', ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [] };
   });
 
   const edges: EditorEdge[] = [];
