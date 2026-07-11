@@ -280,6 +280,34 @@ public class PipelineExecutorTests
 
     // --- helpers ---
 
+    // Field-level mapping + merge (#5874) ---------------------------------------------------------------
+
+    [Fact] // TC #5883 at the executor level: two wires into one input deep-merge by their to-paths
+    public async Task RunAsync_TwoWiresIntoOneInput_DeepMergeByToPath()
+    {
+        var (fx, pipelineId) = TestGraphs.FieldMergePipeline();
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (subdomain, _) => subdomain switch
+            {
+                "a" => NodeOk(("out", "AA")),
+                "b" => NodeOk(("out", "BB")),
+                "c" => NodeOk(("out", "done")),
+                _ => NodeFail("unexpected subdomain"),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        // C's single `in` input carries both upstream outputs, merged under their to-paths — neither overwrote.
+        var envelope = gateway.Envelopes.Single(e => e.Subdomain == "c").Envelope;
+        var input = envelope.GetProperty("inputs").GetProperty("in");
+        input.GetProperty("a").GetString().Should().Be("AA");
+        input.GetProperty("b").GetString().Should().Be("BB");
+    }
+
     // Boundary I/O nodes (#5873) ------------------------------------------------------------------------
 
     [Fact] // TC #5879: Input node output ports are filled from run params
@@ -344,6 +372,7 @@ public class PipelineExecutorTests
         public Func<string, JsonElement, NodeDispatchResult> OnDispatch { get; set; } = (_, _) => new NodeDispatchResult(200, "{\"success\":true,\"outputs\":{}}");
         public Func<Guid, bool> CancelRequested { get; set; } = _ => false;
         public List<string> Dispatched { get; } = new();
+        public List<(string Subdomain, JsonElement Envelope)> Envelopes { get; } = new();
         public List<string> StatusUpdates { get; } = new();
         public List<(string Name, string Status)> NodeStatuses { get; } = new();
         public JsonElement? RunResult { get; private set; }
@@ -361,7 +390,7 @@ public class PipelineExecutorTests
 
         public Task<NodeDispatchResult> DispatchAsync(string subdomain, JsonElement envelope, CancellationToken ct)
         {
-            lock (Dispatched) Dispatched.Add(subdomain);
+            lock (Dispatched) { Dispatched.Add(subdomain); Envelopes.Add((subdomain, envelope.Clone())); }
             return Task.FromResult(OnDispatch(subdomain, envelope));
         }
     }

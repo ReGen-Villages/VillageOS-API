@@ -41,7 +41,9 @@ public static class PipelineDagBuilder
                     nodeThing.Id,
                     rel.PropertyString(ModelNames.FromPort) ?? string.Empty,
                     rel.TargetId,
-                    rel.PropertyString(ModelNames.ToPort) ?? string.Empty));
+                    rel.PropertyString(ModelNames.ToPort) ?? string.Empty,
+                    rel.PropertyString(ModelNames.FromPath) ?? string.Empty,
+                    rel.PropertyString(ModelNames.ToPath) ?? string.Empty));
             }
 
         return new PipelineDag

@@ -20,6 +20,10 @@ public static class ModelNames
     public const string Required = "required";
     public const string FromPort = "fromPort";
     public const string ToPort = "toPort";
+    // Field-level mapping on a wire (#5874): extract from-path of the upstream output, place at to-path of the
+    // downstream input; empty = the whole payload. Several wires into one input deep-merge by their to-paths.
+    public const string FromPath = "fromPath";
+    public const string ToPath = "toPath";
     public const string ParamBindings = "paramBindings";
     public const string Collection = "collection";
     public const string OnItemError = "onItemError";

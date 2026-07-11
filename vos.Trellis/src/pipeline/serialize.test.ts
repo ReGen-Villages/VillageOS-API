@@ -173,3 +173,47 @@ describe('loadPipeline — boundary nodes (#5873)', () => {
     expect(out.ports.find((p) => p.portName === 'result')!.direction).toBe('in');
   });
 });
+
+// Field-level wire mapping (#5874) --------------------------------------------------------------------
+
+describe('savePipeline — wire field-paths (#5874)', () => {
+  it('persists a new wire’s fromPath and toPath', async () => {
+    const { model } = buildModel();
+    const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in', fromPath: 'user.id', toPath: 'a' }];
+    await savePipeline('FM', [node('na', 'A'), node('nb', 'B')], edges, model);
+    expect(relationshipApi.setProperty).toHaveBeenCalledWith('new-rel', 'fromPath', 'vos.String', 'user.id');
+    expect(relationshipApi.setProperty).toHaveBeenCalledWith('new-rel', 'toPath', 'vos.String', 'a');
+  });
+
+  it('does not write a field-path when it is empty (whole-payload wire)', async () => {
+    const { model } = buildModel();
+    const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in' }];
+    await savePipeline('FM', [node('na', 'A'), node('nb', 'B')], edges, model);
+    expect(relationshipApi.setProperty).not.toHaveBeenCalledWith('new-rel', 'fromPath', 'vos.String', '');
+    expect(relationshipApi.setProperty).not.toHaveBeenCalledWith('new-rel', 'toPath', 'vos.String', '');
+  });
+});
+
+describe('loadPipeline — wire field-paths (#5874)', () => {
+  it('reconstructs a wire’s fromPath and toPath', () => {
+    const things: VosThing[] = [];
+    const rels: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}) => { things.push({ Id: id, Name: name, Properties: props }); };
+    const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
+      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
+
+    T('is', 'is'); T('has', 'has'); T('feeds', 'feeds');
+    T('Pipeline', 'Pipeline'); T('PipelineNode', 'PipelineNode'); T('PipelineWire', 'PipelineWire');
+    R('feeds', 'is', 'PipelineWire');
+    T('FP', 'FieldPipe'); R('FP', 'is', 'Pipeline');
+    T('N1', 'N1'); R('N1', 'is', 'PipelineNode'); R('FP', 'has', 'N1');
+    T('N2', 'N2'); R('N2', 'is', 'PipelineNode'); R('FP', 'has', 'N2');
+    R('N1', 'feeds', 'N2', { fromPort: 'out', toPort: 'in', fromPath: 'user.id', toPath: 'a' });
+
+    const loaded = loadPipeline('FP', new PipelineModel(things, rels))!;
+    const edge = loaded.edges[0];
+    expect(edge.fromPath).toBe('user.id');
+    expect(edge.toPath).toBe('a');
+  });
+});
