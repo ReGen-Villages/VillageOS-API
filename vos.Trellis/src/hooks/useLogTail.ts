@@ -1,0 +1,81 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiClient } from '../api/client';
+import { appendLines } from '../utils/logBuffer';
+
+const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
+
+// How many trailing lines the stream replays before going live.
+const TAIL_LINES = 200;
+
+/**
+ * Tails the broker log over SSE. Mirrors useSse's auth approach: EventSource can't set an
+ * Authorization header, so the short-lived token is passed as ?access_token (the /api/logs/stream
+ * path is whitelisted in Mycelium's BrowserStreamPaths). Reconnects with backoff on error.
+ */
+export function useLogTail(): { lines: string[]; connected: boolean; clear: () => void } {
+  const [lines, setLines] = useState<string[]>([]);
+  const [connected, setConnected] = useState(false);
+
+  const sourceRef = useRef<EventSource | null>(null);
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attemptRef = useRef(0);
+
+  const clear = useCallback(() => setLines([]), []);
+
+  useEffect(() => {
+    let released = false;
+
+    const scheduleReconnect = () => {
+      if (reconnectRef.current) return;
+      setConnected(false);
+      const delays = [1000, 2000, 5000, 10000, 30000];
+      const delay = delays[Math.min(attemptRef.current, delays.length - 1)];
+      attemptRef.current += 1;
+      reconnectRef.current = setTimeout(() => {
+        reconnectRef.current = null;
+        if (!released) void open();
+      }, delay);
+    };
+
+    const open = async () => {
+      sourceRef.current?.close();
+      try {
+        const token = await apiClient.ensureToken();
+        if (released) return;
+        const url = `${BASE_URL}/api/logs/stream?tail=${TAIL_LINES}&access_token=${encodeURIComponent(token)}`;
+        const es = new EventSource(url);
+        es.onopen = () => {
+          attemptRef.current = 0;
+          setConnected(true);
+        };
+        es.onerror = () => {
+          es.close();
+          scheduleReconnect();
+        };
+        es.addEventListener('log', (e: MessageEvent) => {
+          let line: string;
+          try {
+            line = JSON.parse(e.data) as string;
+          } catch {
+            line = e.data;
+          }
+          setLines((prev) => appendLines(prev, [line]));
+        });
+        sourceRef.current = es;
+      } catch {
+        scheduleReconnect();
+      }
+    };
+
+    void open();
+
+    return () => {
+      released = true;
+      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      sourceRef.current?.close();
+      sourceRef.current = null;
+    };
+  }, []);
+
+  return { lines, connected, clear };
+}

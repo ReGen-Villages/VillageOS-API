@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Network, LayoutDashboard, Clock, Search, Boxes, Box, Workflow, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Network, LayoutDashboard, Clock, Search, Boxes, Box, Workflow, Terminal, ChevronLeft, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -12,6 +12,7 @@ const links = [
   { to: '/temporal', icon: Clock, label: 'Temporal' },
   { to: '/things', icon: Boxes, label: 'Things' },
   { to: '/properties', icon: Search, label: 'Properties' },
+  { to: '/logs', icon: Terminal, label: 'Logs' },
 ];
 
 export function Sidebar() {
