@@ -305,6 +305,7 @@ export function GraphPage() {
             onDeleteProperty={handleDeleteProperty}
             onDeleteThing={(id, name) => setDeleteConfirm({ type: 'thing', id, name })}
             onPropertySet={reloadModelData}
+            onRenamed={reloadModelData}
             statesVersion={statesVersion}
           />
         </ResizablePanel>
