@@ -15,7 +15,7 @@ import '@xyflow/react/dist/style.css';
 import clsx from 'clsx';
 import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2 } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
-import { PipelineModel, ARCHETYPE, typesCompatible, type ConnectionInfo } from '../pipeline/model';
+import { PipelineModel, ARCHETYPE, typesCompatible, type ConnectionInfo, type PortInfo } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { validatePipeline } from '../pipeline/validate';
 import { EditorHistory } from '../pipeline/history';
@@ -169,6 +169,37 @@ export function PipelinePage() {
     setSavedId(null);
   }, [setNodes, recordSnapshot]);
 
+  // Drop a boundary node (#5873): an Input source (one output port) or an Output sink (one input port). Its
+  // ports are user-declared — editable in the inspector — and the run fills an Input's outputs from the run
+  // parameters and collects an Output's inputs as the pipeline result.
+  const addBoundaryNode = useCallback((kind: 'input' | 'output') => {
+    recordSnapshot();
+    const direction = kind === 'input' ? 'out' : 'in';
+    const data: PipelineNodeData = {
+      label: kind === 'input' ? 'Input' : 'Output',
+      kind,
+      ports: [{ portName: 'value', direction, type: 'any', required: kind === 'output' }],
+    };
+    setNodes((ns) => [
+      ...ns,
+      {
+        id: `n${++nodeSeq}`,
+        type: 'pipelineNode',
+        position: { x: 80 + ns.length * 60, y: 80 + ns.length * 40 },
+        data: data as unknown as Record<string, unknown>,
+      },
+    ]);
+    setSavedId(null);
+  }, [setNodes, recordSnapshot]);
+
+  // Add / rename / remove a port on a boundary node (its ports are user-declared). Direction is fixed by the
+  // node kind (Input → output ports, Output → input ports).
+  const setBoundaryPorts = useCallback((nodeId: string, ports: PortInfo[]) => {
+    recordSnapshot();
+    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ports } } : n)));
+    setSavedId(null);
+  }, [setNodes, recordSnapshot]);
+
   // Type-check a wire before accepting it (out-port type must be compatible with in-port type).
   const onConnect = useCallback((c: Connection) => {
     const src = nodes.find((n) => n.id === c.source)?.data as PipelineNodeData | undefined;
@@ -189,7 +220,7 @@ export function PipelinePage() {
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
       const d = n.data as unknown as PipelineNodeData;
-      return { id: n.id, connectionId: d.connectionId, label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, paramBindings: d.paramBindings };
+      return { id: n.id, connectionId: d.connectionId ?? '', label: d.label, x: n.position.x, y: n.position.y, ports: d.ports, paramBindings: d.paramBindings, kind: d.kind };
     });
 
   const toEditorEdges = (): EditorEdge[] =>
@@ -244,7 +275,7 @@ export function PipelinePage() {
       id: n.id,
       type: 'pipelineNode',
       position: { x: n.x, y: n.y },
-      data: { label: n.label, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, paramBindings: n.paramBindings } as unknown as Record<string, unknown>,
+      data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, paramBindings: n.paramBindings } as unknown as Record<string, unknown>,
     }));
     const loadedEdges: Edge[] = loaded.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle }));
     setNodes(loadedNodes);
@@ -344,7 +375,7 @@ export function PipelinePage() {
 
   return (
     <div className="flex h-full">
-      <Palette connections={connections} onAdd={addNode} />
+      <Palette connections={connections} onAdd={addNode} onAddBoundary={addBoundaryNode} />
       <div className="flex-1 flex flex-col">
         <div className="flex items-center gap-2 p-2 border-b border-zinc-200 dark:border-zinc-700">
           <button onClick={onNew} className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400">
@@ -470,11 +501,34 @@ export function PipelinePage() {
                   <span className="truncate">{d.label}</span>
                   <button onClick={() => setSelectedNodeId(null)} aria-label="Close inspector" className="text-zinc-400 hover:text-zinc-600">×</button>
                 </div>
-                {inputs.length === 0 ? (
+                {d.kind ? (
+                  <div className="flex flex-col gap-1">
+                    <div className="text-zinc-400">Ports ({d.kind === 'input' ? 'outputs' : 'inputs'}):</div>
+                    {d.ports.map((p, i) => (
+                      <div key={i} className="flex items-center gap-1">
+                        <input
+                          aria-label={`Port ${i + 1} name`}
+                          value={p.portName}
+                          onChange={(e) => setBoundaryPorts(selectedNode.id, d.ports.map((q, j) => (j === i ? { ...q, portName: e.target.value } : q)))}
+                          className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
+                        />
+                        <button
+                          onClick={() => setBoundaryPorts(selectedNode.id, d.ports.filter((_, j) => j !== i))}
+                          aria-label={`Remove port ${p.portName}`}
+                          className="text-zinc-400 hover:text-red-400 px-1"
+                        >×</button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setBoundaryPorts(selectedNode.id, [...d.ports, { portName: `port${d.ports.length + 1}`, direction: d.kind === 'input' ? 'out' : 'in', type: 'any', required: d.kind === 'output' }])}
+                      className="mt-1 text-blue-500 hover:text-blue-600 text-left"
+                    >+ add port</button>
+                  </div>
+                ) : inputs.length === 0 ? (
                   <div className="text-zinc-400">No input ports.</div>
                 ) : (
                   <div className="flex flex-col gap-1">
-                    <div className="text-zinc-400">Bind an input to a run param:</div>
+                    <div className="text-zinc-400">Bind an input to a run parameter:</div>
                     {inputs.map((p) => (
                       <label key={p.portName} className="flex items-center gap-1">
                         <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{p.portName}</span>
