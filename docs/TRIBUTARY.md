@@ -16,8 +16,8 @@ endpoint service and points back here.
 ## The endpoint-template graph
 
 Endpoints are not free-form. Delta provisions a **single-rooted template hierarchy**
-into Mycelium at boot and validates every registration against it (see the *Delta*
-service docs and `MICROSERVICES.md`). A registration `is` a template, which `is` the
+into Mycelium at boot and validates every registration against it (see
+[`DELTA.md`](DELTA.md) and `MICROSERVICES.md`). A registration `is` a template, which `is` the
 root — admissible properties are the union of keys along that chain, and a value
 resolves to the closest ancestor that declares it:
 
@@ -192,7 +192,7 @@ feed the same compute node.
 
 - `MICROSERVICES.md` section 14 — how Mycelium hosts Tributary as an endpoint service
   (auto-discovery, daemon lifecycle, pass-through proxying).
-- *Delta* service docs (DevOps wiki) — how the template catalog is provisioned and how
+- [`DELTA.md`](DELTA.md) — how the template catalog is provisioned and how
   registrations are validated against it.
 - `METABOLISM.md` — the derived-calculation engine on the other side of the
   fetch-and-shape boundary.
