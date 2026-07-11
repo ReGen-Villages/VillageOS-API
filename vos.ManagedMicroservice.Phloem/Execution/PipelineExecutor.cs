@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using vos.ManagedMicroservice.Phloem.Configuration;
 using vos.ManagedMicroservice.Phloem.Model;
+using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Phloem.Execution;
 
@@ -111,9 +112,16 @@ public sealed class PipelineExecutor
         var outputNode = dag.Nodes.FirstOrDefault(n => n.Kind == DagNodeKind.Output);
         if (outputNode != null && success)
         {
-            var collected = AssembleInputs(dag, outputNode, outputs, runParams);
-            runResult = JsonSerializer.SerializeToElement(collected);
-            await BestEffort(() => _gateway.SetRunResultAsync(rid, runResult.Value, cancellationToken), "set run result");
+            try
+            {
+                var collected = AssembleInputs(dag, outputNode, outputs, runParams);
+                runResult = JsonSerializer.SerializeToElement(collected);
+                await BestEffort(() => _gateway.SetRunResultAsync(rid, runResult.Value, cancellationToken), "set run result");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to assemble the Output node result for run {RunId}", rid);
+            }
         }
 
         return new PipelineRunResult(rid, pipelineId, success, ordered,
@@ -166,7 +174,16 @@ public sealed class PipelineExecutor
         if (node.Kind == DagNodeKind.Output)
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Succeeded, NoOutputs, null);
 
-        var inputs = AssembleInputs(dag, node, outputs, runParams);
+        Dictionary<string, JsonElement> inputs;
+        try
+        {
+            inputs = AssembleInputs(dag, node, outputs, runParams);
+        }
+        catch (Exception ex)
+        {
+            // A wire's JSONata transform failed at run time (bad shape / runtime error) — fail the node clearly.
+            return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, $"Wire transform failed: {ex.Message}");
+        }
 
         // Fan-out (#5648): if the node has a collection input and it carries a list, run the node once per item.
         var collection = node.CollectionInput;
@@ -193,7 +210,10 @@ public sealed class PipelineExecutor
                 continue;
             var extracted = PayloadMapping.Extract(value, wire.FromPath);
             if (extracted is null) continue; // the from-path is not present in the upstream output
-            var placed = PayloadMapping.Place(wire.ToPath, extracted.Value);
+            var reshaped = string.IsNullOrEmpty(wire.Transform)
+                ? extracted.Value
+                : new JsonataTransform(wire.Transform).Eval(extracted.Value); // #5875 — may throw on a bad expression
+            var placed = PayloadMapping.Place(wire.ToPath, reshaped);
             accumulated[wire.ToPort] = accumulated.TryGetValue(wire.ToPort, out var existing)
                 ? PayloadMapping.Merge(existing, placed)
                 : placed;

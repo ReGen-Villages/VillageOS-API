@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using Jsonata.Net.Native;
+using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Tributary.Services;
 
@@ -33,7 +33,7 @@ public class ObservationIngestService
         _logger = logger;
     }
 
-    public bool TryTransform(string body, JsonataQuery query, out string transformed, out string error)
+    public bool TryTransform(string body, JsonataTransform query, out string transformed, out string error)
     {
         transformed = string.Empty;
         error = string.Empty;
@@ -73,7 +73,7 @@ public class ObservationIngestService
         }
     }
 
-    public async Task<ObservationIngestResult> CreateObservationsAsync(Guid endpointThingId, JsonataQuery query, string body)
+    public async Task<ObservationIngestResult> CreateObservationsAsync(Guid endpointThingId, JsonataTransform query, string body)
     {
         if (!TryTransform(body, query, out var transformed, out var transformError))
             return new ObservationIngestResult(false, 0, 0, "Endpoint response transform failed", transformError);

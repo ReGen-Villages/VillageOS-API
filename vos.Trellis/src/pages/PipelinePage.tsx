@@ -47,10 +47,12 @@ export function parseParamValue(raw: string): unknown {
   }
 }
 
-/** A short edge label for a field-mapped wire (#5874), e.g. `user.id → a`; undefined when both paths empty. */
-function pathLabel(fromPath?: string, toPath?: string): string | undefined {
-  if (!fromPath && !toPath) return undefined;
-  return `${fromPath || '·'} → ${toPath || '·'}`;
+/** A short edge label for a mapped wire (#5874/#5875), e.g. `user.id → a` with a trailing `ƒ` when the wire
+ * carries a JSONata transform; undefined when the wire is a plain whole-payload pass-through. */
+function pathLabel(fromPath?: string, toPath?: string, transform?: string): string | undefined {
+  if (!fromPath && !toPath && !transform) return undefined;
+  const paths = fromPath || toPath ? `${fromPath || '·'} → ${toPath || '·'}` : '';
+  return transform ? `${paths} ƒ`.trim() : paths;
 }
 
 export function PipelinePage() {
@@ -148,12 +150,12 @@ export function PipelinePage() {
   const selectedEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) : undefined;
 
   // Edit a wire's field-path (#5874): update the edge's data + its label, and mark the canvas dirty.
-  const setEdgePath = useCallback((edgeId: string, which: 'fromPath' | 'toPath', value: string) => {
+  const setEdgePath = useCallback((edgeId: string, which: 'fromPath' | 'toPath' | 'transform', value: string) => {
     recordSnapshot();
     setEdges((es) => es.map((e) => {
       if (e.id !== edgeId) return e;
-      const data = { ...(e.data as { fromPath?: string; toPath?: string } | undefined), [which]: value || undefined };
-      return { ...e, data, label: pathLabel(data.fromPath, data.toPath) };
+      const data = { ...(e.data as { fromPath?: string; toPath?: string; transform?: string } | undefined), [which]: value || undefined };
+      return { ...e, data, label: pathLabel(data.fromPath, data.toPath, data.transform) };
     }));
     setSavedId(null);
   }, [setEdges, recordSnapshot]);
@@ -250,6 +252,7 @@ export function PipelinePage() {
       target: e.target,
       targetHandle: e.targetHandle ?? '',
       fromPath: (e.data as { fromPath?: string } | undefined)?.fromPath,
+      transform: (e.data as { transform?: string } | undefined)?.transform,
       toPath: (e.data as { toPath?: string } | undefined)?.toPath,
     }));
 
@@ -298,7 +301,7 @@ export function PipelinePage() {
       position: { x: n.x, y: n.y },
       data: { label: n.label, kind: n.kind, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, paramBindings: n.paramBindings } as unknown as Record<string, unknown>,
     }));
-    const loadedEdges: Edge[] = loaded.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, label: pathLabel(e.fromPath, e.toPath), data: { fromPath: e.fromPath, toPath: e.toPath } }));
+    const loadedEdges: Edge[] = loaded.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, label: pathLabel(e.fromPath, e.toPath, e.transform), data: { fromPath: e.fromPath, toPath: e.toPath, transform: e.transform } }));
     setNodes(loadedNodes);
     setEdges(loadedEdges);
     commitBaseline({ nodes: loadedNodes, edges: loadedEdges }); // a freshly loaded pipeline is the undo/rollback floor
@@ -572,7 +575,7 @@ export function PipelinePage() {
             );
           })()}
           {selectedEdge && (() => {
-            const data = (selectedEdge.data as { fromPath?: string; toPath?: string } | undefined) ?? {};
+            const data = (selectedEdge.data as { fromPath?: string; toPath?: string; transform?: string } | undefined) ?? {};
             return (
               <div className="absolute top-2 right-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
                 <div className="font-semibold mb-1.5 flex items-center justify-between gap-2">
@@ -600,6 +603,15 @@ export function PipelinePage() {
                     className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
                   />
                 </label>
+                <div className="text-zinc-400 mt-2 mb-1">Transform (JSONata, optional):</div>
+                <textarea
+                  aria-label="Wire transform"
+                  placeholder='e.g. {"name": firstName & " " & lastName}'
+                  value={data.transform ?? ''}
+                  onChange={(e) => setEdgePath(selectedEdge.id, 'transform', e.target.value)}
+                  rows={2}
+                  className="w-full px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 font-mono"
+                />
               </div>
             );
           })()}

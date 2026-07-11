@@ -308,6 +308,49 @@ public class PipelineExecutorTests
         input.GetProperty("b").GetString().Should().Be("BB");
     }
 
+    // On-wire JSONata transforms (#5875) ----------------------------------------------------------------
+
+    [Fact] // TC #5885: a JSONata transform reshapes the upstream output before the downstream input
+    public async Task RunAsync_WireTransform_ReshapesUpstreamOutput()
+    {
+        var (fx, pipelineId) = TestGraphs.WireTransformPipeline("{\"name\": firstName & \" \" & lastName}");
+        var gateway = new FakeGateway(fx.Build())
+        {
+            OnDispatch = (subdomain, _) => subdomain switch
+            {
+                "a" => new NodeDispatchResult(200, JsonSerializer.Serialize(new
+                {
+                    success = true,
+                    outputs = new Dictionary<string, object> { ["out"] = new { firstName = "Ada", lastName = "Lovelace" } },
+                    error = (string?)null,
+                })),
+                "c" => NodeOk(("out", "done")),
+                _ => NodeFail("unexpected subdomain"),
+            },
+        };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeTrue();
+        var envelope = gateway.Envelopes.Single(e => e.Subdomain == "c").Envelope;
+        envelope.GetProperty("inputs").GetProperty("in").GetProperty("name").GetString().Should().Be("Ada Lovelace");
+    }
+
+    [Fact] // TC #5886: an invalid transform is caught at pre-run validation — the run fails without dispatching
+    public async Task RunAsync_InvalidWireTransform_FailsValidationBeforeDispatch()
+    {
+        var (fx, pipelineId) = TestGraphs.WireTransformPipeline("this is ( not valid jsonata");
+        var gateway = new FakeGateway(fx.Build()) { OnDispatch = (_, _) => NodeOk(("out", "x")) };
+        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+
+        var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("invalid").And.Contain("transform");
+        gateway.Dispatched.Should().BeEmpty("a pipeline that fails validation never dispatches a node");
+    }
+
     // Boundary I/O nodes (#5873) ------------------------------------------------------------------------
 
     [Fact] // TC #5879: Input node output ports are filled from run params

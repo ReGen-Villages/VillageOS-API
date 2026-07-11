@@ -1,4 +1,5 @@
 using vos.ManagedMicroservice.Phloem.Model;
+using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Phloem.Execution;
 
@@ -54,6 +55,10 @@ public static class DagValidator
         }
         if (!TypesCompatible(outPort.Type, inPort.Type))
             errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: type '{outPort.Type}' is not compatible with '{inPort.Type}'.");
+
+        // A wire's JSONata transform must compile — caught here before dispatch, not as a silent runtime failure (#5875).
+        if (!string.IsNullOrEmpty(wire.Transform) && JsonataTransform.Validate(wire.Transform) is { } transformError)
+            errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: invalid transform — {transformError}");
     }
 
     /// <summary>Equal types are compatible; an empty/"any" type on either side is a wildcard.</summary>

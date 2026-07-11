@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using Jsonata.Net.Native;
+using vos.ManagedMicroservice.Shared;
 using Microsoft.Extensions.Logging;
 using vos.ManagedMicroservice.Tributary.Helpers;
 using vos.ManagedMicroservice.Tributary.Models;
@@ -51,12 +51,12 @@ public sealed class EndpointCallService
             return Problem(500, "Endpoint resolution failed", "Failed to resolve effective properties for endpoint thing.");
 
         var hasOverrideTransform = !string.IsNullOrWhiteSpace(request.ResponseTransform);
-        JsonataQuery? overrideQuery = null;
+        JsonataTransform? overrideQuery = null;
         if (hasOverrideTransform)
         {
             try
             {
-                overrideQuery = new JsonataQuery(request.ResponseTransform!);
+                overrideQuery = new JsonataTransform(request.ResponseTransform!);
             }
             catch (Exception ex)
             {
@@ -320,10 +320,10 @@ public sealed class EndpointCallService
 
             if (!string.IsNullOrWhiteSpace(responseTransform) && status is >= 200 and < 300)
             {
-                JsonataQuery propertyQuery;
+                JsonataTransform propertyQuery;
                 try
                 {
-                    propertyQuery = new JsonataQuery(responseTransform!);
+                    propertyQuery = new JsonataTransform(responseTransform!);
                 }
                 catch (Exception ex)
                 {

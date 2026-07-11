@@ -35,6 +35,8 @@ export interface EditorEdge {
    * dotted to-path of the downstream input. Empty = the whole payload. */
   fromPath?: string;
   toPath?: string;
+  /** On-wire JSONata transform (#5875): reshape the extracted value before it is placed at the to-path. */
+  transform?: string;
 }
 
 export interface LoadedPipeline {
@@ -135,23 +137,24 @@ export async function savePipeline(
   const wireKey = (from: string, fp: string, to: string, tp: string) => `${from}|${fp}|${to}|${tp}`;
   // A wire is identified by its endpoints + ports; the field-paths are editable properties on that same wire.
   const desired = edges
-    .map((e) => ({ from: nodeThingId.get(e.source), fp: e.sourceHandle, to: nodeThingId.get(e.target), tp: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '' }))
-    .filter((w): w is { from: string; fp: string; to: string; tp: string; fromPath: string; toPath: string } => Boolean(w.from && w.to));
+    .map((e) => ({ from: nodeThingId.get(e.source), fp: e.sourceHandle, to: nodeThingId.get(e.target), tp: e.targetHandle, fromPath: e.fromPath ?? '', toPath: e.toPath ?? '', transform: e.transform ?? '' }))
+    .filter((w): w is { from: string; fp: string; to: string; tp: string; fromPath: string; toPath: string; transform: string } => Boolean(w.from && w.to));
   const desiredKeys = new Set(desired.map((w) => wireKey(w.from, w.fp, w.to, w.tp)));
 
   const persistedNodeIds = existingPipelineId
     ? model.outgoing(existingPipelineId, 'has').filter((t) => model.isOfType(t.Id, ARCHETYPE.PipelineNode)).map((t) => t.Id)
     : [];
   const persistedWires = persistedNodeIds.flatMap((nid) =>
-    model.outgoingWireRels(nid).map((w) => ({ relId: w.relId, key: wireKey(nid, w.fromPort, w.targetId, w.toPort), fromPath: w.fromPath, toPath: w.toPath })));
+    model.outgoingWireRels(nid).map((w) => ({ relId: w.relId, key: wireKey(nid, w.fromPort, w.targetId, w.toPort), fromPath: w.fromPath, toPath: w.toPath, transform: w.transform })));
   const persistedByKey = new Map(persistedWires.map((w) => [w.key, w]));
 
   for (const w of desired) {
     const existing = persistedByKey.get(wireKey(w.from, w.fp, w.to, w.tp));
     if (existing) {
-      // Wire persists — only re-write a field-path that actually changed.
+      // Wire persists — only re-write a field-path or transform that actually changed.
       if (w.fromPath !== existing.fromPath) await relationshipApi.setProperty(existing.relId, 'fromPath', STRING, w.fromPath);
       if (w.toPath !== existing.toPath) await relationshipApi.setProperty(existing.relId, 'toPath', STRING, w.toPath);
+      if (w.transform !== existing.transform) await relationshipApi.setProperty(existing.relId, 'transform', STRING, w.transform);
       continue;
     }
     const rel = await relationshipApi.create(w.from, wireId, w.to);
@@ -159,6 +162,7 @@ export async function savePipeline(
     await relationshipApi.setProperty(rel.Id, 'toPort', STRING, w.tp);
     if (w.fromPath) await relationshipApi.setProperty(rel.Id, 'fromPath', STRING, w.fromPath);
     if (w.toPath) await relationshipApi.setProperty(rel.Id, 'toPath', STRING, w.toPath);
+    if (w.transform) await relationshipApi.setProperty(rel.Id, 'transform', STRING, w.transform);
   }
   for (const w of persistedWires) if (!desiredKeys.has(w.key)) await relationshipApi.remove(w.relId);
 
@@ -228,6 +232,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
         targetHandle: wire.toPort,
         fromPath: wire.fromPath || undefined,
         toPath: wire.toPath || undefined,
+        transform: wire.transform || undefined,
       });
     }
 

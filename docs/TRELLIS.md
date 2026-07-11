@@ -473,6 +473,12 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   into one input deep-merge** into a composed object (a leaf clash resolves last-wire-wins) instead of one
   overwriting another. The mapping shows as the wire's label; paths persist as `fromPath`/`toPath` properties
   on the wire.
+- **On-wire transform** (#5875) — the same wire inspector has an optional **JSONata** expression that reshapes
+  the extracted value before it is placed at the to-path (e.g. `{"name": firstName & " " & lastName}`). It runs
+  through the one shared JSONata engine that Tributary also uses (`JsonataTransform` in
+  `vos.ManagedMicroservice.Shared`). An invalid expression is caught by **pre-run validation** (Run is gated);
+  a runtime error becomes a clear node failure. A wire with a transform shows a `ƒ` in its label; the expression
+  persists as a `transform` property on the wire.
 - **New / Save / Load** — **New** clears the canvas; **Save** writes a `Pipeline` + `PipelineNode` Things and
   `has`/`feeds` relationships (node `‑has→ Connection`, positions round-trip as x/y); **Load** picks an
   existing pipeline from the model. **Editing is in place**: saving a loaded pipeline **updates it** rather

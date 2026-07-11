@@ -48,8 +48,9 @@ public sealed class DagNode
 
 /// <summary>A wire: an output port on one node feeds an input port on another. <paramref name="FromPath"/> and
 /// <paramref name="ToPath"/> (both optional, empty = the whole payload) select a field of the upstream output
-/// and place it at a field of the downstream input, so several wires can compose one input (#5874).</summary>
-public sealed record DagWire(Guid FromNodeId, string FromPort, Guid ToNodeId, string ToPort, string FromPath = "", string ToPath = "");
+/// and place it at a field of the downstream input, so several wires can compose one input (#5874). An optional
+/// <paramref name="Transform"/> is a JSONata expression that reshapes the extracted value before placement (#5875).</summary>
+public sealed record DagWire(Guid FromNodeId, string FromPort, Guid ToNodeId, string ToPort, string FromPath = "", string ToPath = "", string Transform = "");
 
 /// <summary>The resolved pipeline DAG ready to validate and execute.</summary>
 public sealed class PipelineDag

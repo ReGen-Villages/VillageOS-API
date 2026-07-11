@@ -1,6 +1,6 @@
 using vos.ManagedMicroservice.Tributary.Services;
 using FluentAssertions;
-using Jsonata.Net.Native;
+using JsonataTransform = vos.ManagedMicroservice.Shared.JsonataTransform;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -15,7 +15,7 @@ public class ObservationIngestServiceTests
     public void TryTransform_WithValidJsonAndExpression_ReturnsNormalizedJson()
     {
         var sut = CreateService();
-        var query = new JsonataQuery("{\"value\":hourly.temperature_2m[0]}");
+        var query = new JsonataTransform("{\"value\":hourly.temperature_2m[0]}");
         var upstream = """
         {
           "hourly": {
@@ -35,7 +35,7 @@ public class ObservationIngestServiceTests
     public void TryTransform_WithNonJsonBody_ReturnsError()
     {
         var sut = CreateService();
-        var query = new JsonataQuery("{\"x\":1}");
+        var query = new JsonataTransform("{\"x\":1}");
 
         var ok = sut.TryTransform("not-json", query, out _, out var error);
 
@@ -47,7 +47,7 @@ public class ObservationIngestServiceTests
     public void TryTransform_QueryEvalReturnsScalar_NormalizedToJson()
     {
         var sut = CreateService();
-        var query = new JsonataQuery("x");
+        var query = new JsonataTransform("x");
 
         var ok = sut.TryTransform("{\"x\":42}", query, out var transformed, out _);
 
@@ -59,7 +59,7 @@ public class ObservationIngestServiceTests
     public void TryTransform_QueryReturnsRawStringConcat_TryNormalizeJsonFallsBackToSerialize()
     {
         var sut = CreateService();
-        var query = new JsonataQuery("name & \"hello\"");
+        var query = new JsonataTransform("name & \"hello\"");
 
         var ok = sut.TryTransform("{\"name\":\"abc\"}", query, out var transformed, out _);
 
@@ -71,7 +71,7 @@ public class ObservationIngestServiceTests
     public void TryTransform_QueryEvalThrows_ReturnsErrorFromOuterCatch()
     {
         var sut = CreateService();
-        var query = new JsonataQuery("$noSuchFunction()");
+        var query = new JsonataTransform("$noSuchFunction()");
 
         var ok = sut.TryTransform("{\"x\":1}", query, out _, out var error);
 
@@ -91,7 +91,7 @@ public class ObservationIngestServiceTests
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var query = new JsonataQuery("readings.{\"name\":\"Sensor-1\",\"properties\":{\"temp\":temp},\"observedAt\":at}");
+        var query = new JsonataTransform("readings.{\"name\":\"Sensor-1\",\"properties\":{\"temp\":temp},\"observedAt\":at}");
         var upstream = """{"readings":[{"temp":5.8,"at":"2026-03-03T00:00:00Z"},{"temp":6.1,"at":"2026-03-03T01:00:00Z"}]}""";
 
         var result = await sut.CreateObservationsAsync(endpointThingId, query, upstream);
@@ -120,7 +120,7 @@ public class ObservationIngestServiceTests
         client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var query = new JsonataQuery("readings.{\"name\":\"Sensor-1\",\"properties\":{\"temp\":temp}}");
+        var query = new JsonataTransform("readings.{\"name\":\"Sensor-1\",\"properties\":{\"temp\":temp}}");
         var upstream = """{"readings":[{"temp":5.8},{"temp":6.1}]}""";
 
         var result = await sut.CreateObservationsAsync(endpointThingId, query, upstream);
@@ -151,7 +151,7 @@ public class ObservationIngestServiceTests
         client.SubmitObservationsAsync(Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var query = new JsonataQuery("items.{\"name\":name,\"properties\":{\"v\":value}}");
+        var query = new JsonataTransform("items.{\"name\":name,\"properties\":{\"v\":value}}");
         var upstream = """{"items":[{"name":"A","value":1},{"name":"B","value":2},{"name":"A","value":3}]}""";
 
         var result = await sut.CreateObservationsAsync(endpointThingId, query, upstream);
@@ -172,7 +172,7 @@ public class ObservationIngestServiceTests
         client.SubmitObservationsAsync(entityId, Arg.Do<IReadOnlyList<ObservationSample>>(s => captured = s)).Returns(true);
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var query = new JsonataQuery("{\"name\":\"S\",\"properties\":{\"v\":1},\"observedAt\":\"2026-03-03T12:00:00Z\"}");
+        var query = new JsonataTransform("{\"name\":\"S\",\"properties\":{\"v\":1},\"observedAt\":\"2026-03-03T12:00:00Z\"}");
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "{\"x\":1}");
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
@@ -188,7 +188,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataQuery("$"), "not-json");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataTransform("$"), "not-json");
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("transform failed");
@@ -202,7 +202,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataQuery("$"), "42");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataTransform("$"), "42");
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("not a valid reading array");
@@ -214,7 +214,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataQuery("{\"properties\":{\"v\":1}}"), "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataTransform("{\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Detail.Should().Contain("missing a string 'name'");
@@ -226,7 +226,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataQuery("{\"name\":\"X\"}"), "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataTransform("{\"name\":\"X\"}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Detail.Should().Contain("missing an object 'properties'");
@@ -238,7 +238,7 @@ public class ObservationIngestServiceTests
         var client = Substitute.For<IEndpointMyceliumClient>();
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataQuery("[\"not-an-object\"]"), "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), new JsonataTransform("[\"not-an-object\"]"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Detail.Should().Contain("must be a JSON object");
@@ -253,7 +253,7 @@ public class ObservationIngestServiceTests
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
-            new JsonataQuery("{\"name\":\"X\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
+            new JsonataTransform("{\"name\":\"X\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("Failed to create entity thing");
@@ -273,7 +273,7 @@ public class ObservationIngestServiceTests
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
-            new JsonataQuery("{\"name\":\"E\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
+            new JsonataTransform("{\"name\":\"E\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("resolve or create 'observed' predicate");
@@ -294,7 +294,7 @@ public class ObservationIngestServiceTests
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
-            new JsonataQuery("{\"name\":\"E\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
+            new JsonataTransform("{\"name\":\"E\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("relate entity to endpoint");
@@ -310,7 +310,7 @@ public class ObservationIngestServiceTests
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
-            new JsonataQuery("{\"name\":\"S\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
+            new JsonataTransform("{\"name\":\"S\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("submit observations");

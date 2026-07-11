@@ -219,6 +219,57 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
+    /// <summary>Wire-transform demo (#5875): A → C over one wire carrying a JSONata <paramref name="transform"/>
+    /// that reshapes A's output before it reaches C's `in` input.</summary>
+    public static (GraphFixture Fixture, Guid PipelineId) WireTransformPipeline(string transform)
+    {
+        var fx = new GraphFixture();
+        var isP = fx.Thing("is");
+        var has = fx.Thing("has");
+        var feeds = fx.Thing("feeds");
+
+        var pipelineArchetype = fx.Thing("Pipeline");
+        var nodeArchetype = fx.Thing("PipelineNode");
+        var connectionArchetype = fx.Thing("PlatformServiceConnection");
+        var serviceArchetype = fx.Thing("Service");
+        var portArchetype = fx.Thing("Port");
+        var wireArchetype = fx.Thing("PipelineWire");
+        fx.Rel(feeds, isP, wireArchetype);
+
+        var proto = fx.Thing("IOProto");
+        fx.Rel(proto, isP, serviceArchetype);
+        var portIn = fx.Thing("p.in", ("direction", "in"), ("type", "any"), ("portName", "in"));
+        var portOut = fx.Thing("p.out", ("direction", "out"), ("type", "any"), ("portName", "out"));
+        fx.Rel(portIn, isP, portArchetype);
+        fx.Rel(portOut, isP, portArchetype);
+        fx.Rel(proto, has, portIn);
+        fx.Rel(proto, has, portOut);
+
+        GraphThing Node(string name, string subdomain)
+        {
+            var service = fx.Thing($"{name}Svc");
+            fx.Rel(service, isP, proto);
+            var connection = fx.Thing($"{name}Conn", ("Subdomain", subdomain));
+            fx.Rel(connection, isP, connectionArchetype);
+            fx.Rel(connection, has, service);
+            var node = fx.Thing(name);
+            fx.Rel(node, isP, nodeArchetype);
+            fx.Rel(node, has, connection);
+            return node;
+        }
+
+        var a = Node("A", "a");
+        var c = Node("C", "c");
+
+        var pipe = fx.Thing("TransformDemo");
+        fx.Rel(pipe, isP, pipelineArchetype);
+        fx.Rel(pipe, has, a);
+        fx.Rel(pipe, has, c);
+        fx.Rel(a, feeds, c, ("fromPort", "out"), ("toPort", "in"), ("transform", transform));
+
+        return (fx, pipe.Id);
+    }
+
     /// <summary>A single Echo node whose input port `message` is bound to the run param `greeting`
     /// (no wires) — exercises run-level param routing (#5647).</summary>
     public static (GraphFixture Fixture, Guid PipelineId) ParamBoundPipeline()

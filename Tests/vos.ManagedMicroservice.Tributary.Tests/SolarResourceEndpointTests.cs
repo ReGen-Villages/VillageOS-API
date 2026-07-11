@@ -1,6 +1,6 @@
 using vos.ManagedMicroservice.Tributary.Services;
 using FluentAssertions;
-using Jsonata.Net.Native;
+using JsonataTransform = vos.ManagedMicroservice.Shared.JsonataTransform;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -23,7 +23,7 @@ public class SolarResourceEndpointTests
         var sut = new ObservationIngestService(
             Substitute.For<IEndpointMyceliumClient>(),
             Substitute.For<ILogger<ObservationIngestService>>());
-        var query = new JsonataQuery(SolarResourceReshape);
+        var query = new JsonataTransform(SolarResourceReshape);
         var upstream = """
         {
           "latitude": -25.75,

@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <PackageReference Include="NJsonSchema" Version="11.0.2" />
+    <!-- One JSONata engine wiring shared by Tributary (endpoint transforms) and Phloem (on-wire transforms, #5875). -->
+    <PackageReference Include="Jsonata.Net.Native.SystemTextJson" Version="2.11.0" />
   </ItemGroup>
 
   <ItemGroup>

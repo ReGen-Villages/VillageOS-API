@@ -217,3 +217,34 @@ describe('loadPipeline — wire field-paths (#5874)', () => {
     expect(edge.toPath).toBe('a');
   });
 });
+
+// On-wire JSONata transforms (#5875) ------------------------------------------------------------------
+
+describe('savePipeline / loadPipeline — wire transform (#5875)', () => {
+  it('persists a new wire’s transform', async () => {
+    const { model } = buildModel();
+    const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in', transform: '{"name": firstName}' }];
+    await savePipeline('T', [node('na', 'A'), node('nb', 'B')], edges, model);
+    expect(relationshipApi.setProperty).toHaveBeenCalledWith('new-rel', 'transform', 'vos.String', '{"name": firstName}');
+  });
+
+  it('reconstructs a wire’s transform on load', () => {
+    const things: VosThing[] = [];
+    const rels: VosRelationship[] = [];
+    let n = 0;
+    const T = (id: string, name: string, props: Record<string, unknown> = {}) => { things.push({ Id: id, Name: name, Properties: props }); };
+    const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
+      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
+
+    T('is', 'is'); T('has', 'has'); T('feeds', 'feeds');
+    T('Pipeline', 'Pipeline'); T('PipelineNode', 'PipelineNode'); T('PipelineWire', 'PipelineWire');
+    R('feeds', 'is', 'PipelineWire');
+    T('TP', 'TransformPipe'); R('TP', 'is', 'Pipeline');
+    T('N1', 'N1'); R('N1', 'is', 'PipelineNode'); R('TP', 'has', 'N1');
+    T('N2', 'N2'); R('N2', 'is', 'PipelineNode'); R('TP', 'has', 'N2');
+    R('N1', 'feeds', 'N2', { fromPort: 'out', toPort: 'in', transform: '{"x": y}' });
+
+    const loaded = loadPipeline('TP', new PipelineModel(things, rels))!;
+    expect(loaded.edges[0].transform).toBe('{"x": y}');
+  });
+});

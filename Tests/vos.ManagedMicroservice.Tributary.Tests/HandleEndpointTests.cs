@@ -429,7 +429,7 @@ public class HandleEndpointTests
     {
         // ResponseTransform is persisted on the thing (not in request), but is unparseable.
         // SetThingPropertyAsync path is not hit (no override on request). The stored value
-        // fails the JsonataQuery ctor in the catch-bound try, which returns 502.
+        // fails the JsonataTransform ctor in the catch-bound try, which returns 502.
         var thingId = Guid.NewGuid();
         var props = """
         {
