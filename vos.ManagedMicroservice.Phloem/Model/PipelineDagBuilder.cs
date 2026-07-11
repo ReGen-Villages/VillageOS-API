@@ -55,6 +55,13 @@ public static class PipelineDagBuilder
 
     private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing, PipelineModelOptions model)
     {
+        // Boundary nodes (#5873) bind no Connection/Service: they declare their own ports (has → Port) and
+        // are an Input source (params → outputs) or an Output sink (inputs → run result).
+        if (graph.IsOfType(nodeThing, model.PipelineInput))
+            return BuildBoundaryNode(graph, nodeThing, model, DagNodeKind.Input);
+        if (graph.IsOfType(nodeThing, model.PipelineOutput))
+            return BuildBoundaryNode(graph, nodeThing, model, DagNodeKind.Output);
+
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
             .FirstOrDefault(t => graph.IsOfType(t, model.Connection))
             ?? throw new PipelineModelException($"Node '{nodeThing.Name}' binds no {model.Connection} (has → {model.Connection}).");
@@ -78,6 +85,23 @@ public static class PipelineDagBuilder
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
                 : ModelNames.OnItemErrorFail,
+        };
+    }
+
+    /// <summary>A boundary node (#5873): ports are declared on the node itself (its own <c>has → Port</c> chain),
+    /// there is no dispatch subdomain, and its <see cref="DagNodeKind"/> tells the executor to seed from params
+    /// (Input) or collect into the run result (Output).</summary>
+    private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, PipelineModelOptions model, DagNodeKind kind)
+    {
+        return new DagNode
+        {
+            NodeId = nodeThing.Id,
+            Name = nodeThing.Name,
+            Kind = kind,
+            Subdomain = string.Empty,
+            Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
+            Ports = ResolvePorts(graph, nodeThing, model).ToList(),
+            ParamBindings = ParseParamBindings(nodeThing),
         };
     }
 

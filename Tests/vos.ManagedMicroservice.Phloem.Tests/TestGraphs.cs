@@ -96,6 +96,72 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
+    /// <summary>Boundary I/O demo (#5873): In (PipelineInput, out port `seed`) → Echo (message→echo) → Out
+    /// (PipelineOutput, in port `result`). The Input node's `seed` output is filled from the run param `seed`;
+    /// the value wired into the Output node's `result` input becomes the run's published result.</summary>
+    public static (GraphFixture Fixture, Guid PipelineId) BoundaryPipeline()
+    {
+        var fx = new GraphFixture();
+        var isP = fx.Thing("is");
+        var has = fx.Thing("has");
+        var feeds = fx.Thing("feeds");
+
+        var pipelineArch = fx.Thing("Pipeline");
+        var nodeArch = fx.Thing("PipelineNode");
+        var connArch = fx.Thing("PlatformServiceConnection");
+        var svcArch = fx.Thing("Service");
+        var portArch = fx.Thing("Port");
+        var wireArch = fx.Thing("PipelineWire");
+        var inArch = fx.Thing("PipelineInput");
+        var outArch = fx.Thing("PipelineOutput");
+        fx.Rel(feeds, isP, wireArch);
+        fx.Rel(inArch, isP, nodeArch);  // boundary archetypes ARE pipeline nodes (multiple inheritance)
+        fx.Rel(outArch, isP, nodeArch);
+
+        // Echo service node: message (in) → echo (out).
+        var proto = fx.Thing("EchoProto");
+        fx.Rel(proto, isP, svcArch);
+        var portIn = fx.Thing("e.in", ("direction", "in"), ("type", "string"), ("portName", "message"), ("required", "true"));
+        var portOut = fx.Thing("e.out", ("direction", "out"), ("type", "string"), ("portName", "echo"));
+        fx.Rel(portIn, isP, portArch);
+        fx.Rel(portOut, isP, portArch);
+        fx.Rel(proto, has, portIn);
+        fx.Rel(proto, has, portOut);
+        var echSvc = fx.Thing("echSvc");
+        fx.Rel(echSvc, isP, proto);
+        var echConn = fx.Thing("echConn", ("Subdomain", "ech"));
+        fx.Rel(echConn, isP, connArch);
+        fx.Rel(echConn, has, echSvc);
+        var ech = fx.Thing("Echo");
+        fx.Rel(ech, isP, nodeArch);
+        fx.Rel(ech, has, echConn);
+
+        // Input boundary node with an output port `seed`.
+        var input = fx.Thing("In");
+        fx.Rel(input, isP, inArch);
+        var seedPort = fx.Thing("in.seed", ("direction", "out"), ("type", "string"), ("portName", "seed"));
+        fx.Rel(seedPort, isP, portArch);
+        fx.Rel(input, has, seedPort);
+
+        // Output boundary node with an input port `result`.
+        var output = fx.Thing("Out");
+        fx.Rel(output, isP, outArch);
+        var resultPort = fx.Thing("out.result", ("direction", "in"), ("type", "string"), ("portName", "result"));
+        fx.Rel(resultPort, isP, portArch);
+        fx.Rel(output, has, resultPort);
+
+        var pipe = fx.Thing("BoundaryDemo");
+        fx.Rel(pipe, isP, pipelineArch);
+        fx.Rel(pipe, has, input);
+        fx.Rel(pipe, has, ech);
+        fx.Rel(pipe, has, output);
+
+        fx.Rel(input, feeds, ech, ("fromPort", "seed"), ("toPort", "message"));
+        fx.Rel(ech, feeds, output, ("fromPort", "echo"), ("toPort", "result"));
+
+        return (fx, pipe.Id);
+    }
+
     /// <summary>A single Echo node whose input port `message` is bound to the run param `greeting`
     /// (no wires) — exercises run-level param routing (#5647).</summary>
     public static (GraphFixture Fixture, Guid PipelineId) ParamBoundPipeline()

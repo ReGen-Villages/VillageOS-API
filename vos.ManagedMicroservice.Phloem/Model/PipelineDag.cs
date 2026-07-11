@@ -10,11 +10,18 @@ public sealed record DagPort(string PortName, string Direction, string Type, boo
     public bool IsOutput => string.Equals(Direction, ModelNames.DirectionOut, StringComparison.OrdinalIgnoreCase);
 }
 
+/// <summary>What a node does at execution: a dispatchable <see cref="Service"/> node (the default), or a
+/// boundary node — an <see cref="Input"/> source (projects run params onto its output ports) or an
+/// <see cref="Output"/> sink (its collected inputs are the run's published result). Boundary nodes never
+/// dispatch (#5873).</summary>
+public enum DagNodeKind { Service, Input, Output }
+
 /// <summary>A resolved DAG node: identity, the Connection subdomain Phloem forwards to, static params, and ports.</summary>
 public sealed class DagNode
 {
     public Guid NodeId { get; init; }
     public string Name { get; init; } = string.Empty;
+    public DagNodeKind Kind { get; init; } = DagNodeKind.Service;
     public string Subdomain { get; init; } = string.Empty;
     public IReadOnlyDictionary<string, JsonElement> Params { get; init; } =
         new Dictionary<string, JsonElement>(StringComparer.Ordinal);

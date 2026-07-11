@@ -28,6 +28,10 @@ public interface IMyceliumGateway
     /// <summary>Update the run's status (drives the live SSE animation).</summary>
     Task SetRunStatusAsync(Guid runId, string status, CancellationToken cancellationToken);
 
+    /// <summary>Store the pipeline's published result (the Output boundary node's collected inputs) on the
+    /// PipelineRun Thing, so it persists in the model and streams over SSE like any other property (#5873).</summary>
+    Task SetRunResultAsync(Guid runId, JsonElement result, CancellationToken cancellationToken);
+
     /// <summary>True if the run's <c>cancelRequested</c> flag has been set (by Trellis). Polled between
     /// dispatches for cooperative cancellation (#5635).</summary>
     Task<bool> IsCancelRequestedAsync(Guid runId, CancellationToken cancellationToken);

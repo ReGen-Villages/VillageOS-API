@@ -21,13 +21,16 @@ public sealed record NodeRunResult(
     IReadOnlyDictionary<string, JsonElement> Outputs,
     string? Error);
 
-/// <summary>The synchronous result Phloem returns to whoever spawned the run.</summary>
+/// <summary>The synchronous result Phloem returns to whoever spawned the run. <see cref="Result"/> is the
+/// pipeline's published output — the Output boundary node's collected inputs — or null when the pipeline has
+/// no Output node or did not succeed (#5873).</summary>
 public sealed record PipelineRunResult(
     Guid RunId,
     Guid PipelineId,
     bool Success,
     IReadOnlyList<NodeRunResult> Nodes,
-    string? Error)
+    string? Error,
+    JsonElement? Result = null)
 {
     public static PipelineRunResult Failed(Guid runId, Guid pipelineId, string error, IReadOnlyList<NodeRunResult>? nodes = null) =>
         new(runId, pipelineId, false, nodes ?? Array.Empty<NodeRunResult>(), error);
