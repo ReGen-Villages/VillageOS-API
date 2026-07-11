@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -13,11 +13,12 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import clsx from 'clsx';
-import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle } from 'lucide-react';
+import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2 } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
 import { PipelineModel, ARCHETYPE, typesCompatible, type ConnectionInfo } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { validatePipeline } from '../pipeline/validate';
+import { EditorHistory } from '../pipeline/history';
 import { pipelineApi } from '../api/pipelineApi';
 import { PipelineNodeView, type PipelineNodeData } from '../components/pipeline/PipelineNodeView';
 import { Palette } from '../components/pipeline/Palette';
@@ -73,6 +74,43 @@ export function PipelinePage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [runParamValues, setRunParamValues] = useState<Record<string, string>>({});
 
+  // Undo + optimistic rollback (#5872). The history records the editor state *before* each mutation (undo),
+  // and holds the last server-confirmed state as a baseline (rollback on a rejected save). `canUndo`/`dirty`
+  // drive the toolbar. A ref mirrors the latest nodes/edges so any handler can snapshot the current state.
+  type EditorSnapshot = { nodes: Node[]; edges: Edge[] };
+  const historyRef = useRef(new EditorHistory<EditorSnapshot>({ nodes: [], edges: [] }));
+  const stateRef = useRef<EditorSnapshot>({ nodes, edges });
+  stateRef.current = { nodes, edges };
+  const [canUndo, setCanUndo] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  const recordSnapshot = useCallback(() => {
+    historyRef.current.record(structuredClone(stateRef.current));
+    setCanUndo(true);
+    setDirty(true);
+  }, []);
+
+  const applySnapshot = useCallback((s: EditorSnapshot) => {
+    setNodes(structuredClone(s.nodes));
+    setEdges(structuredClone(s.edges));
+  }, [setNodes, setEdges]);
+
+  // Baseline = the last server-confirmed state; also clears the undo stack (a fresh save/load/new is the floor).
+  const commitBaseline = useCallback((s: EditorSnapshot) => {
+    historyRef.current.commit(structuredClone(s));
+    setCanUndo(false);
+    setDirty(false);
+  }, []);
+
+  const onUndo = useCallback(() => {
+    const prev = historyRef.current.undo();
+    if (!prev) return;
+    applySnapshot(prev);
+    setCanUndo(historyRef.current.canUndo());
+    setDirty(true);
+    setSavedId(null); // an undo leaves the canvas out of step with the last save
+  }, [applySnapshot]);
+
   // The distinct run-param keys any node binds an input to — drives the Params form.
   const paramKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -117,6 +155,7 @@ export function PipelinePage() {
   }, [clearStatuses]);
 
   const addNode = useCallback((c: ConnectionInfo) => {
+    recordSnapshot();
     const data: PipelineNodeData = { label: c.name, connectionId: c.connectionId, subdomain: c.subdomain, ports: c.ports };
     setNodes((ns) => [
       ...ns,
@@ -128,7 +167,7 @@ export function PipelinePage() {
       },
     ]);
     setSavedId(null);
-  }, [setNodes]);
+  }, [setNodes, recordSnapshot]);
 
   // Type-check a wire before accepting it (out-port type must be compatible with in-port type).
   const onConnect = useCallback((c: Connection) => {
@@ -142,9 +181,10 @@ export function PipelinePage() {
       return;
     }
     setError(null);
+    recordSnapshot();
     setEdges((es) => addEdge(c, es));
     setSavedId(null);
-  }, [nodes, setEdges]);
+  }, [nodes, setEdges, recordSnapshot]);
 
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
@@ -162,6 +202,9 @@ export function PipelinePage() {
     }));
 
   const onSave = useCallback(async () => {
+    // Optimistic rollback (#5872): remember the state we are trying to save so a rejected save can revert
+    // the canvas to the last server-confirmed state instead of leaving it out of step with the server.
+    const attempt = structuredClone(stateRef.current);
     setBusy(true);
     setError(null);
     try {
@@ -171,13 +214,22 @@ export function PipelinePage() {
       setThingIdByCanvasId(saved.nodeIdMap);
       setRunId(null);
       setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
+      commitBaseline(attempt); // the saved canvas is the new baseline; undo history clears
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed.');
+      // Revert to the last server-confirmed state, if we have one (a never-saved canvas keeps the user's work).
+      const target = historyRef.current.rollbackTarget();
+      if (target) {
+        applySnapshot(target);
+        setCanUndo(false);
+        setDirty(false);
+        setSavedId(editingPipelineId);
+      }
     } finally {
       setBusy(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, nodes, edges, model, editingPipelineId]);
+  }, [name, nodes, edges, model, editingPipelineId, commitBaseline, applySnapshot]);
 
   const onLoad = useCallback((pipelineId: string) => {
     const loaded = loadPipeline(pipelineId, model);
@@ -188,14 +240,17 @@ export function PipelinePage() {
     setRunId(null);
     // Loaded canvas node ids ARE the Thing ids, so the canvas→Thing map is the identity.
     setThingIdByCanvasId(Object.fromEntries(loaded.nodes.map((n) => [n.id, n.id])));
-    setNodes(loaded.nodes.map((n) => ({
+    const loadedNodes: Node[] = loaded.nodes.map((n) => ({
       id: n.id,
       type: 'pipelineNode',
       position: { x: n.x, y: n.y },
       data: { label: n.label, connectionId: n.connectionId, subdomain: connections.find((c) => c.connectionId === n.connectionId)?.subdomain ?? '', ports: n.ports, paramBindings: n.paramBindings } as unknown as Record<string, unknown>,
-    })));
-    setEdges(loaded.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle })));
-  }, [model, connections, setNodes, setEdges]);
+    }));
+    const loadedEdges: Edge[] = loaded.edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle }));
+    setNodes(loadedNodes);
+    setEdges(loadedEdges);
+    commitBaseline({ nodes: loadedNodes, edges: loadedEdges }); // a freshly loaded pipeline is the undo/rollback floor
+  }, [model, connections, setNodes, setEdges, commitBaseline]);
 
   const onNew = useCallback(() => {
     setNodes([]);
@@ -206,7 +261,8 @@ export function PipelinePage() {
     setRunId(null);
     setThingIdByCanvasId({});
     setError(null);
-  }, [setNodes, setEdges]);
+    commitBaseline({ nodes: [], edges: [] }); // empty canvas is the floor; nothing to undo/roll back to
+  }, [setNodes, setEdges, commitBaseline]);
 
   const onRun = useCallback(async () => {
     if (!savedId) return;
@@ -226,6 +282,7 @@ export function PipelinePage() {
 
   // Bind (or clear) an input port of a node to a run-param key.
   const setBinding = useCallback((nodeId: string, port: string, paramKey: string) => {
+    recordSnapshot();
     setNodes((ns) => ns.map((n) => {
       if (n.id !== nodeId) return n;
       const d = n.data as unknown as PipelineNodeData;
@@ -235,7 +292,7 @@ export function PipelinePage() {
       return { ...n, data: { ...n.data, paramBindings: next } };
     }));
     setSavedId(null);
-  }, [setNodes]);
+  }, [setNodes, recordSnapshot]);
 
   const onCancel = useCallback(async () => {
     if (!runId) return;
@@ -245,6 +302,27 @@ export function PipelinePage() {
       setError(e instanceof Error ? e.message : 'Cancel failed.');
     }
   }, [runId]);
+
+  // Record once at the start of a node drag (not per position tick), and before a delete — so undo restores
+  // the pre-move / pre-delete canvas. Deletes also mark the canvas dirty relative to the last save.
+  const onNodeDragStart = useCallback(() => recordSnapshot(), [recordSnapshot]);
+  const onNodesDelete = useCallback(() => { recordSnapshot(); setSavedId(null); }, [recordSnapshot]);
+  const onEdgesDelete = useCallback(() => { recordSnapshot(); setSavedId(null); }, [recordSnapshot]);
+
+  // Ctrl/Cmd+Z undoes the last editor change. Ignored while typing in a field so it doesn't hijack text undo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        const el = e.target as HTMLElement | null;
+        const tag = el?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
+        e.preventDefault();
+        onUndo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onUndo]);
 
   // Drive the live animation: as Phloem writes NodeRun statuses, the model store updates over SSE → this
   // recomputes and paints each node's status ring (PipelineNodeView). Canvas ids map to Thing ids via the
@@ -271,6 +349,15 @@ export function PipelinePage() {
         <div className="flex items-center gap-2 p-2 border-b border-zinc-200 dark:border-zinc-700">
           <button onClick={onNew} className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400">
             <FilePlus size={14} /> New
+          </button>
+          <button
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Undo (Ctrl/Cmd+Z)"
+            aria-label="Undo"
+            className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400 disabled:opacity-40"
+          >
+            <Undo2 size={14} /> Undo
           </button>
           <input
             value={name}
@@ -332,7 +419,11 @@ export function PipelinePage() {
               </select>
             </div>
           )}
-          {savedId && <span className="text-xs text-green-600">saved</span>}
+          {dirty ? (
+            <span className="text-xs text-amber-600">unsaved changes</span>
+          ) : savedId ? (
+            <span className="text-xs text-green-600">saved</span>
+          ) : null}
           {error && <span className="text-xs text-red-500 ml-2">{error}</span>}
         </div>
         {paramKeys.length > 0 && (
@@ -357,6 +448,9 @@ export function PipelinePage() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeDragStart={onNodeDragStart}
+            onNodesDelete={onNodesDelete}
+            onEdgesDelete={onEdgesDelete}
             onNodeClick={(_, node) => setSelectedNodeId(node.id)}
             onPaneClick={() => setSelectedNodeId(null)}
             nodeTypes={nodeTypes}

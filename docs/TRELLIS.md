@@ -468,6 +468,14 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   fragment upsert (existing nodes keep their Ids), and nodes or wires removed on the canvas are retracted on
   save. Wire `fromPort`/`toPort` are written per-edge (the fragment endpoint does not carry relationship
   properties). A node can also be deleted from its detail panel.
+- **Undo & optimistic rollback** (#5872) — the toolbar **Undo** button (or **Ctrl/Cmd+Z**) reverses the last
+  edit: add / move / delete a node, add / delete a wire, or change a param binding. Editing is **optimistic** —
+  changes show immediately and an **unsaved changes** indicator appears; on a successful save (or load, or New)
+  the saved canvas becomes the new baseline and the undo history clears. If a **save is rejected** by the
+  server, the canvas **rolls back** to the last server-confirmed state and the error explains why (a canvas
+  that has never been saved keeps the user's work instead). The history is a bounded stack of editor snapshots
+  in `pipeline/history.ts` (`EditorHistory`), kept pure and unit-tested; the page records a snapshot before
+  each mutation and holds the last saved state as the rollback baseline.
 - **Validation** — before Run, the toolbar flags why a pipeline will not run — a **required input** that is
   neither wired nor param-bound, or a **dangling wire** — and **Run is disabled** until the issues are
   resolved, so a broken DAG fails loud rather than silently at dispatch.
