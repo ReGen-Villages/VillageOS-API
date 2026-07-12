@@ -36,5 +36,5 @@ export const thingApi = {
     apiClient.del<{ message: string }>(`/api/things/${id}/properties/${encodeURIComponent(name)}`),
 
   getEffectiveProperties: (id: string) =>
-    apiClient.get<Record<string, EffectiveProperty>>(`/api/things/${id}/effective-properties`),
+    apiClient.get<Record<string, EffectiveProperty>>(`/api/things/${id}/properties`),
 };
