@@ -314,6 +314,10 @@ relationships (including the `is` type edge), and their initial values — in on
 - **Emits the same Facts/SSE** as the per-write endpoints (it goes through the same fact pipeline), so
   every created Thing/edge/value animates and survives replay. Property values carry a typed envelope
   (`{ "typeInfo": "vos.Decimal", "value": 2.5 }`) so decimals/measures don't truncate.
+- **Batch-scale reactive work.** Each write still re-evaluates its own affected ranges, but the O(model)
+  roll-up recompute is **deferred and run once** for the whole batch (not per write), so applying a large
+  fragment is ~O(model), not O((things + rels) × model). Send big graphs as one fragment rather than many
+  single writes: a standing-world batch that would otherwise be quadratic completes in one recompute pass.
 
 Contrast `POST /api/model`, which **replaces** the whole model (admin-only, bulk load); the fragment
 endpoint merges incrementally into the live model.
