@@ -5,10 +5,8 @@ namespace vos.ManagedMicroservice.Shared.Subscriptions;
 
 public sealed record SseFrame(string? Id, string? EventType, string Data);
 
-/// <summary>
-/// Minimal SSE wire parser (W3C event-stream). A mid-stream read failure ends the enumeration
-/// cleanly so the caller can reconnect; only caller cancellation propagates.
-/// </summary>
+// Minimal SSE wire parser (W3C event-stream). A mid-stream read failure ends the enumeration
+// cleanly so the caller can reconnect; only caller cancellation propagates.
 public static class SseEventReader
 {
     public static async IAsyncEnumerable<SseFrame> ReadAsync(

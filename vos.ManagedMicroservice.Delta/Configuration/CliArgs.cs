@@ -2,9 +2,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace vos.ManagedMicroservice.Delta.Configuration;
 
-/// <summary>
-/// Parsed command-line arguments for the Delta service.
-/// </summary>
+// Parsed command-line arguments for the Delta service.
 public record CliArgs(
     int Port,
     string MyceliumUrl,
@@ -13,12 +11,10 @@ public record CliArgs(
     string? Issuer = null,
     string? Audience = null)
 {
-    /// <summary>
-    /// Parses command-line arguments. Returns null if required args are missing or invalid.
-    /// If <paramref name="config"/> is provided, any flag absent from <paramref name="args"/>
-    /// falls back to <c>config[key]</c> — keys are flat: Port, MyceliumUrl, Token,
-    /// SigningKey, Issuer, Audience. CLI args always take precedence over config.
-    /// </summary>
+    // Parses command-line arguments. Returns null if required args are missing or invalid.
+    // If config is provided, any flag absent from args
+    // falls back to config[key] — keys are flat: Port, MyceliumUrl, Token,
+    // SigningKey, Issuer, Audience. CLI args always take precedence over config.
     public static CliArgs? Parse(string[] args, IConfiguration? config = null)
     {
         string? FromArgsOrConfig(string flagPrefix, string configKey)

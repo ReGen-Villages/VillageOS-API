@@ -4,13 +4,11 @@ using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.EnergyBalance.Services;
 
-/// <summary>
-/// The reactive (model-driven) form of the energy analysis (User Story #5839). Instead of running as a DAG node with
-/// wired ports, it reacts to a graph relationship whose subject is the SiteStudy: it reads its inputs straight off
-/// the study's effective properties, computes with <see cref="EnergyBalanceCalculator"/>, and writes its outputs back
-/// onto the study as Facts — so the study's judge ranges (e.g. <c>EnergyNetPositive</c>) re-evaluate. No pipeline, no
-/// wires: the compute is a value on the study, like a roll-up or a range.
-/// </summary>
+// The reactive (model-driven) form of the energy analysis (User Story #5839). Instead of running as a DAG node with
+// wired ports, it reacts to a graph relationship whose subject is the SiteStudy: it reads its inputs straight off
+// the study's effective properties, computes with EnergyBalanceCalculator, and writes its outputs back
+// onto the study as Facts — so the study's judge ranges (e.g. EnergyNetPositive) re-evaluate. No pipeline, no
+// wires: the compute is a value on the study, like a roll-up or a range.
 public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
 {
     public EnergyBalanceReactiveHandler(
@@ -27,7 +25,7 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
         "otherGenerationMwhPerYear", "annualConsumptionMwhPerYear",
     };
 
-    /// <summary>Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.</summary>
+    // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.
     public async Task<EnergyBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));

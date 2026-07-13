@@ -2,30 +2,26 @@ using System.Text.Json;
 
 namespace vos.ManagedMicroservice.Phloem.Execution;
 
-/// <summary>How a spawn reached Phloem.</summary>
+// How a spawn reached Phloem.
 public enum SpawnKind
 {
-    /// <summary>http endpoint-forward: <c>{ pipelineId, params }</c> — synchronous spawn-and-wait.</summary>
+    // http endpoint-forward: { pipelineId, params } — synchronous spawn-and-wait.
     Http,
-    /// <summary>graph trigger: a <c>X runs Pipeline</c> relationship envelope — fire-and-forget.</summary>
+    // graph trigger: a X runs Pipeline relationship envelope — fire-and-forget.
     Graph,
     Invalid,
 }
 
-/// <summary>
-/// Classifies a <c>/handle</c> body into a spawn (#5633). Phloem is reachable two ways through Mycelium,
-/// both via the same <c>/handle</c>:
-/// <list type="bullet">
-/// <item>an <b>http endpoint-forward</b> carrying <c>{pipelineId, params}</c> (Trellis Run, or any caller);</item>
-/// <item>a <b>graph trigger</b> — Mycelium forwards a <c>X runs Pipeline</c> relationship as
-/// <c>{relationshipId, subjectId, targetId, subjectName, targetName, properties}</c>; the <c>targetId</c>
-/// is the Pipeline and the relationship's <c>properties</c> are the run params.</item>
-/// </list>
-/// Detected by shape — <c>pipelineId</c> ⇒ http, else <c>targetId</c> ⇒ graph.
-/// </summary>
-/// <param name="Async">For an http spawn, <c>{"async":true}</c> asks Phloem to return the run id immediately
-/// and run the DAG in the background (the editor animates over SSE) instead of blocking for the result. A graph
-/// trigger is always fire-and-forget.</param>
+// Classifies a /handle body into a spawn (#5633). Phloem is reachable two ways through Mycelium,
+// both via the same /handle:
+// an http endpoint-forward carrying {pipelineId, params} (Trellis Run, or any caller);
+// a graph trigger — Mycelium forwards a X runs Pipeline relationship as
+// {relationshipId, subjectId, targetId, subjectName, targetName, properties}; the targetId
+// is the Pipeline and the relationship's properties are the run params.
+// Detected by shape — pipelineId ⇒ http, else targetId ⇒ graph.
+// Async: For an http spawn, {"async":true} asks Phloem to return the run id immediately
+// and run the DAG in the background (the editor animates over SSE) instead of blocking for the result. A graph
+// trigger is always fire-and-forget.
 public sealed record SpawnTrigger(SpawnKind Kind, Guid PipelineId, JsonElement Params, bool Async, string? Error)
 {
     public static SpawnTrigger Resolve(JsonElement root)

@@ -5,11 +5,9 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Tributary.Tests;
 
-/// <summary>
-/// Integration tests for Tributary's auth wireup: when a signing key is configured,
-/// the authenticated endpoints (<c>/handle</c>, <c>/shutdown</c>) reject anonymous requests
-/// with 401, but <c>/health</c> stays open.
-/// </summary>
+// Integration tests for Tributary's auth wireup: when a signing key is configured,
+// the authenticated endpoints (/handle, /shutdown) reject anonymous requests
+// with 401, but /health stays open.
 public class AuthWireupTests
 {
     private static TributaryWebApplicationFactory MakeAuthFactory() => new()

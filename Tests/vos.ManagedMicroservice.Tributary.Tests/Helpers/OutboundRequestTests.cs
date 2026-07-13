@@ -5,11 +5,9 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Tributary.Tests.Helpers;
 
-/// <summary>
-/// Unit tests for <see cref="OutboundRequest"/> — pure construction of the outbound REST request from
-/// effective properties (Task #5469). Each base capability (headers, query params, content-type,
-/// timeout) is pinned in isolation here; end-to-end wiring is covered in HandleEndpointTests.
-/// </summary>
+// Unit tests for OutboundRequest — pure construction of the outbound REST request from
+// effective properties (Task #5469). Each base capability (headers, query params, content-type,
+// timeout) is pinned in isolation here; end-to-end wiring is covered in HandleEndpointTests.
 public class OutboundRequestTests
 {
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement;

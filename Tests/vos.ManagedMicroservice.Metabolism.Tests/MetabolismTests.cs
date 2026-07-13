@@ -211,10 +211,8 @@ public class MetabolismTests
 
     #region RunSimulationLoop execution tests
 
-    /// <summary>
-    /// Create a Metabolism engine whose MyceliumClient is backed by a MockHttpMessageHandler
-    /// so that ApplyQuantityAsync and IncrementRelationshipPropertyAsync succeed.
-    /// </summary>
+    // Create a Metabolism engine whose MyceliumClient is backed by a MockHttpMessageHandler
+    // so that ApplyQuantityAsync and IncrementRelationshipPropertyAsync succeed.
     private static Services.Metabolism CreateEngineWithMockedMycelium(
         Func<HttpRequestMessage, HttpResponseMessage>? apiResponder = null)
     {

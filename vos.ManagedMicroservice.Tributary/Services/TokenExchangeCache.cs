@@ -10,18 +10,16 @@ public sealed record TokenExchangeRequest(
     string? ExpiryPath,
     string? ExpiryUnit);
 
-/// <summary>
-/// Per-process cache of bearer tokens, keyed by token URL plus the full request-field set so distinct
-/// credentials cache independently. One fetch gate per key: same-key callers collapse onto a single mint
-/// (no stampede); distinct keys mint concurrently. Refreshes once ~75% of a token's lifetime has elapsed.
-/// </summary>
+// Per-process cache of bearer tokens, keyed by token URL plus the full request-field set so distinct
+// credentials cache independently. One fetch gate per key: same-key callers collapse onto a single mint
+// (no stampede); distinct keys mint concurrently. Refreshes once ~75% of a token's lifetime has elapsed.
 public sealed class TokenExchangeCache
 {
-    /// <summary>Expiry is an absolute Unix time in milliseconds (e.g. ArcGIS <c>expires</c>).</summary>
+    // Expiry is an absolute Unix time in milliseconds (e.g. ArcGIS expires).
     public const string ExpiryUnitEpochMillis = "epochMillis";
-    /// <summary>Expiry is an absolute Unix time in seconds.</summary>
+    // Expiry is an absolute Unix time in seconds.
     public const string ExpiryUnitEpochSeconds = "epochSeconds";
-    /// <summary>Expiry is a lifetime in seconds from now (e.g. OAuth2 <c>expires_in</c>).</summary>
+    // Expiry is a lifetime in seconds from now (e.g. OAuth2 expires_in).
     public const string ExpiryUnitSeconds = "seconds";
 
     private const double RefreshAtLifetimeFraction = 0.75;

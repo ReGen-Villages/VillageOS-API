@@ -23,10 +23,8 @@ public abstract class MyceliumClientBase
 
     public Guid HandlerId { get; } = Guid.NewGuid();
 
-    /// <summary>
-    /// Failure policy for outbound contract violations: Debug throws to surface schema drift;
-    /// Release logs so a stale schema never blocks production traffic.
-    /// </summary>
+    // Failure policy for outbound contract violations: Debug throws to surface schema drift;
+    // Release logs so a stale schema never blocks production traffic.
     protected virtual SchemaViolationMode OutboundViolationMode =>
 #if DEBUG
         SchemaViolationMode.Throw;
@@ -188,8 +186,8 @@ public abstract class MyceliumClientBase
     private const string ObservationBatchRequestSchemaId = "https://villageos/contracts/observation-batch-request.schema.json";
     private const string SedimentDepositRequestSchemaId = "https://villageos/contracts/sediment-deposit-request.schema.json";
 
-    /// <summary>Assert a structural Fact (synchronous, never lossy). Returns the commit sequence
-    /// number; throws with StatusCode on failure (405 ObservationOnly, 404 unknown).</summary>
+    // Assert a structural Fact (synchronous, never lossy). Returns the commit sequence
+    // number; throws with StatusCode on failure (405 ObservationOnly, 404 unknown).
     public async Task<long> SetFactAsync(Guid thingId, string property, object? value)
     {
         var json = JsonSerializer.Serialize(new { value });
@@ -209,8 +207,8 @@ public abstract class MyceliumClientBase
         throw await FailureAsync("Fact write", response);
     }
 
-    /// <summary>Record one Observation (queued/batched, 202). Pass <paramref name="observedAt"/> for
-    /// late/out-of-order samples. Throws on failure (405 FactOnly).</summary>
+    // Record one Observation (queued/batched, 202). Pass observedAt for
+    // late/out-of-order samples. Throws on failure (405 FactOnly).
     public async Task RecordObservationAsync(Guid thingId, string property, object? value, DateTime? observedAt = null)
     {
         var json = observedAt is { } at
@@ -227,7 +225,7 @@ public abstract class MyceliumClientBase
             throw await FailureAsync("Observation write", response);
     }
 
-    /// <summary>Record many Observations across an entity's properties in one batch (202); returns the accepted count.</summary>
+    // Record many Observations across an entity's properties in one batch (202); returns the accepted count.
     public async Task<int> RecordObservationsAsync(Guid thingId, IReadOnlyList<ObservationSample> samples)
     {
         if (samples.Count == 0) return 0;
@@ -249,8 +247,8 @@ public abstract class MyceliumClientBase
         return doc.TryGetProperty("accepted", out var n) ? n.GetInt32() : samples.Count;
     }
 
-    /// <summary>Bulk-deposit historical readings to sealed Sapwood (202). Entities must exist and every
-    /// reading needs an ObservedAt. Returns the deposit summary.</summary>
+    // Bulk-deposit historical readings to sealed Sapwood (202). Entities must exist and every
+    // reading needs an ObservedAt. Returns the deposit summary.
     public async Task<SedimentDepositResult> DepositSedimentAsync(IReadOnlyList<SedimentReading> readings)
     {
         if (readings.Count == 0)

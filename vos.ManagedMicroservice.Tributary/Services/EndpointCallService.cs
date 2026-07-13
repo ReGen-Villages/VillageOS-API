@@ -8,13 +8,11 @@ using vos.ManagedMicroservice.Shared.Validation;
 
 namespace vos.ManagedMicroservice.Tributary.Services;
 
-/// <summary>
-/// Resolves an endpoint Thing's effective properties and performs the outbound HTTP call — auth-kinds,
-/// offset paging, and optional JSONata response transform / observation ingest. Extracted verbatim from
-/// the original <c>/handle</c> lambda so both the HTTP endpoint and the pipeline DAG node
-/// (<see cref="TributaryNode"/>, Feature #5628) run the identical path. Returns a framework-free
-/// <see cref="EndpointCallResult"/>; callers map it to their own response type.
-/// </summary>
+// Resolves an endpoint Thing's effective properties and performs the outbound HTTP call — auth-kinds,
+// offset paging, and optional JSONata response transform / observation ingest. Extracted verbatim from
+// the original /handle lambda so both the HTTP endpoint and the pipeline DAG node
+// (TributaryNode, Feature #5628) run the identical path. Returns a framework-free
+// EndpointCallResult; callers map it to their own response type.
 public sealed class EndpointCallService
 {
     private readonly MyceliumClient _mycelium;

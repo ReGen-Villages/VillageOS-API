@@ -1,6 +1,14 @@
 # VillageOS API
 
-Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev.azure.com/ReGenVillages/VillageOS) temporal graph platform.
+This repository holds the **client-facing tools** for [VillageOS](https://dev.azure.com/ReGenVillages/VillageOS), a *temporal graph platform* — a database that stores everything as connected "Things" and remembers how they change over time.
+
+Three kinds of tool live here:
+
+- **Trellis** — a web GUI for exploring and monitoring a model in the browser.
+- **Taproot** — a command-line interface for the same operations.
+- **Microservices** — small networked services that extend the platform (ingesting data, running simulations, orchestrating pipelines).
+
+Everything talks to **Mycelium**, the VillageOS server that stores the graph and exposes the REST API and real-time event streams. (Mycelium itself lives in a separate repository.)
 
 ## Projects
 
@@ -12,7 +20,8 @@ Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev
 - Three.js + `@thatopen/fragments` for the IFC Model viewer (loader, picking, plan/section toolbar, and shared `NodeDetailPanel`)
 - Server-Sent Events (SSE) real-time updates with flash effects
 - Zustand state management
-- Dashboard, Graph, Model, Temporal, Things, and Properties pages
+- Config-driven **Operations** dashboard — a model supplies a JSON spec and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
+- Dashboard, Operations, Graph, Model, Pipelines, Temporal, Things, Properties, and Logs pages
 
 ### Taproot (CLI)
 
@@ -33,6 +42,9 @@ Client tools, the Trellis GUI, and microservices for the [VillageOS](https://dev
 | vos.ManagedMicroservice.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
 | vos.ManagedMicroservice.Phloem | Production | Pipeline/DAG orchestrator — runs a user-authored DAG of microservice nodes; spawned synchronously through Mycelium, dispatches each node via endpoint-forward (see [MICROSERVICES.md §16](docs/MICROSERVICES.md)) |
 | vos.ManagedMicroservice.Xylem | Production | IFC ingestion — accepts an `.ifc` upload (`POST /ingest`, merge or new-model), runs the `vos.Tools.IfcIngest` tool, and applies the graph to Mycelium; frees clients from a local ingest toolchain. Large files: `?async=true` returns a job id (poll `GET /ingest/jobs/{id}`) and the upload is streamed with a configurable cap |
+| vos.ManagedMicroservice.EnergyBalance | Production | Site energy-balance simulation — sums generation (e.g. solar: PV area × resource × efficiency) against demand; a Handled-Predicate service in the same family as Metabolism |
+| vos.ManagedMicroservice.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure) |
+| vos.ManagedMicroservice.ModelBridge | Production | Generic bridge between a pipeline DAG and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
 | vos.ManagedMicroservice.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline DAG node |
 | vos.ManagedMicroservice.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
 | vos.ManagedMicroservice.Node.Echo | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |
@@ -44,7 +56,7 @@ Writing your own handler in any language? See **[docs/MICROSERVICE_AUTHORING.md]
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Node.js 20+](https://nodejs.org/) (for Trellis)
+- [Node.js 20.19+](https://nodejs.org/) (for Trellis; required by Vite 7)
 
 ## Getting Started
 
@@ -82,7 +94,9 @@ local artifact.
 
 ## Documentation
 
-Full documentation is available in the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki).
+In-repo docs live in **[docs/](docs/README.md)** — an indexed map grouped by client tools, platform concepts, and microservice authoring.
+
+The full published documentation is also available in the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki).
 
 Key pages:
 

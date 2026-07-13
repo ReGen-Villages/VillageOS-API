@@ -4,11 +4,9 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-/// <summary>
-/// Integration tests that test CLI command flows using mocked mycelium responses.
-/// These tests verify that commands are correctly dispatched and produce expected output.
-/// For true end-to-end tests, a running mycelium is required.
-/// </summary>
+// Integration tests that test CLI command flows using mocked mycelium responses.
+// These tests verify that commands are correctly dispatched and produce expected output.
+// For true end-to-end tests, a running mycelium is required.
 public class IntegrationTests : IDisposable
 {
     private readonly string _testDirectory;

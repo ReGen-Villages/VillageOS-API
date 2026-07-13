@@ -6,10 +6,8 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
-/// <summary>
-/// #5506: the CLI must validate TLS certificates by default and bypass validation only when
-/// VOS_INSECURE_TLS is explicitly set (previously it accepted any certificate — MITM).
-/// </summary>
+// #5506: the CLI must validate TLS certificates by default and bypass validation only when
+// VOS_INSECURE_TLS is explicitly set (previously it accepted any certificate — MITM).
 [Collection(nameof(CliEnvVarCollection))]
 public class MyceliumClientTlsTests : IDisposable
 {

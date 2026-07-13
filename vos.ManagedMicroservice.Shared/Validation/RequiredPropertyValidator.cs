@@ -1,14 +1,10 @@
 namespace vos.ManagedMicroservice.Shared.Validation;
 
-/// <summary>
-/// Validates that required property keys are present in a provided key set.
-/// </summary>
+// Validates that required property keys are present in a provided key set.
 public static class RequiredPropertyValidator
 {
-    /// <summary>
-    /// Returns required keys that are missing from provided keys.
-    /// Output preserves required key order.
-    /// </summary>
+    // Returns required keys that are missing from provided keys.
+    // Output preserves required key order.
     public static IReadOnlyList<string> GetMissingRequiredKeys(
         IEnumerable<string>? requiredKeys,
         IEnumerable<string>? providedKeys,

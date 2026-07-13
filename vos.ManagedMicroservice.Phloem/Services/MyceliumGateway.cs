@@ -10,9 +10,9 @@ using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Phloem.Services;
 
-/// <summary>The HTTP implementation of <see cref="IMyceliumGateway"/> over Mycelium's API: loads the pipeline
-/// subgraph via a subscription snapshot, persists run state through the thing/relationship API, and dispatches
-/// nodes through the endpoint-forward route. Also registers Phloem as a managed microservice.</summary>
+// The HTTP implementation of IMyceliumGateway over Mycelium's API: loads the pipeline
+// subgraph via a subscription snapshot, persists run state through the thing/relationship API, and dispatches
+// nodes through the endpoint-forward route. Also registers Phloem as a managed microservice.
 public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 {
     private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.OrdinalIgnoreCase);
@@ -149,8 +149,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         response.EnsureSuccessStatusCode();
     }
 
-    /// <summary>A stable id per (run, node) so a node's NodeRun is one Thing across its running→terminal
-    /// transitions — required for the SSE animation to see property changes, not duplicate creates.</summary>
+    // A stable id per (run, node) so a node's NodeRun is one Thing across its running→terminal
+    // transitions — required for the SSE animation to see property changes, not duplicate creates.
     private static Guid DeterministicGuid(Guid runId, Guid nodeId)
     {
         Span<byte> buffer = stackalloc byte[32];
@@ -159,7 +159,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
     }
 
-    /// <summary>Per-item NodeRun id for a fan-out — stable per (run, node, item index) (#5648).</summary>
+    // Per-item NodeRun id for a fan-out — stable per (run, node, item index) (#5648).
     private static Guid DeterministicGuid(Guid runId, Guid nodeId, int index)
     {
         Span<byte> buffer = stackalloc byte[36];
@@ -169,7 +169,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
     }
 
-    /// <summary>A property value arrives wrapped as <c>{ value|Value, type }</c>; return the bare value.</summary>
+    // A property value arrives wrapped as { value|Value, type }; return the bare value.
     private static JsonElement Unwrap(JsonElement value)
     {
         if (value.ValueKind == JsonValueKind.Object)

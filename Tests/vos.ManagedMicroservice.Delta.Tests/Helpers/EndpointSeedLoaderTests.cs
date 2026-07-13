@@ -5,13 +5,11 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests.Helpers;
 
-/// <summary>
-/// Unit tests for <see cref="EndpointSeedLoader.LoadGraph"/> — loading a single model-seed document
-/// (things + relationships) from the first existing candidate path and assembling it into a validated
-/// <see cref="vos.ManagedMicroservice.Delta.Models.EndpointSeedGraph"/>. The graph's own validation
-/// rules are covered by <c>Models/EndpointSeedGraphTests</c>; here we pin discovery, parse failures,
-/// and that validation errors propagate.
-/// </summary>
+// Unit tests for EndpointSeedLoader.LoadGraph — loading a single model-seed document
+// (things + relationships) from the first existing candidate path and assembling it into a validated
+// vos.ManagedMicroservice.Delta.Models.EndpointSeedGraph. The graph's own validation
+// rules are covered by Models/EndpointSeedGraphTests; here we pin discovery, parse failures,
+// and that validation errors propagate.
 public class EndpointSeedLoaderTests : IDisposable
 {
     private readonly string _tempDir;

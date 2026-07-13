@@ -2,11 +2,9 @@ using System.Text.Json;
 
 namespace vos.ManagedMicroservice.Metabolism.Helpers;
 
-/// <summary>
-/// Unwraps a <see cref="JsonElement"/> to its native CLR type — JSON transports hand the engine
-/// values typed as <c>object?</c> that are really <see cref="JsonElement"/>, and the engine needs
-/// native types so property assignment compares cleanly.
-/// </summary>
+// Unwraps a JsonElement to its native CLR type — JSON transports hand the engine
+// values typed as object? that are really JsonElement, and the engine needs
+// native types so property assignment compares cleanly.
 public static class JsonValueUnwrapper
 {
     public static object? Unwrap(object? value)

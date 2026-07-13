@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-/// <summary>Resolves between thing GUIDs and names; name lookups must be unambiguous to succeed.</summary>
+// Resolves between thing GUIDs and names; name lookups must be unambiguous to succeed.
 public class NameResolver
 {
     private readonly MyceliumClient _mycelium;
@@ -30,7 +30,7 @@ public class NameResolver
         return await ResolveByNameAsync(nameOrId);
     }
 
-    /// <summary>Resolves multiple names or IDs with a single API fetch.</summary>
+    // Resolves multiple names or IDs with a single API fetch.
     public async Task<ResolveResult[]> ResolveThingsAsync(params string[] namesOrIds)
     {
         await EnsureThingsCachedAsync();
@@ -43,7 +43,7 @@ public class NameResolver
         return results;
     }
 
-    /// <summary>Resolves a GUID to a thing name, falling back to the GUID string if not found.</summary>
+    // Resolves a GUID to a thing name, falling back to the GUID string if not found.
     public async Task<string> ResolveNameAsync(string guidString)
     {
         await EnsureGuidToNameMapAsync();

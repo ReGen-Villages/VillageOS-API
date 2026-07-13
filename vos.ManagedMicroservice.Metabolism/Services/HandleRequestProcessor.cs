@@ -15,7 +15,7 @@ public class HandleRequestProcessor
         _logger = logger;
     }
 
-    /// <summary>Returns (entry, null) on success or (null, errorMessage) on failure.</summary>
+    // Returns (entry, null) on success or (null, errorMessage) on failure.
     public (SimulationEntry? entry, string? error) ProcessHandle(HandleRequest request)
     {
         if (string.IsNullOrEmpty(request.SubjectId) || string.IsNullOrEmpty(request.TargetId))
@@ -30,9 +30,7 @@ public class HandleRequestProcessor
         return (entry, null);
     }
 
-    /// <summary>
-    /// Pure extraction of SimulationConfig from a HandleRequest. No side effects.
-    /// </summary>
+    // Pure extraction of SimulationConfig from a HandleRequest. No side effects.
     internal static SimulationConfig ExtractConfig(HandleRequest request)
     {
         decimal quantity = 1.0m;

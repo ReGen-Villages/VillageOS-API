@@ -4,11 +4,11 @@ namespace vos.ManagedMicroservice.Xylem.Services;
 
 public enum IngestJobStatus { Running, Succeeded, Failed }
 
-/// <summary>A background ingest and its outcome. Result is null while Running.</summary>
+// A background ingest and its outcome. Result is null while Running.
 public record IngestJob(string Id, IngestJobStatus Status, IngestResult? Result);
 
-/// <summary>In-memory registry of async ingest jobs (#5845) so a large ingest returns a job id
-/// immediately and its progress is polled at GET /ingest/jobs/{id}. Thread-safe.</summary>
+// In-memory registry of async ingest jobs (#5845) so a large ingest returns a job id
+// immediately and its progress is polled at GET /ingest/jobs/{id}. Thread-safe.
 public sealed class IngestJobStore
 {
     private readonly ConcurrentDictionary<string, IngestJob> _jobs = new();

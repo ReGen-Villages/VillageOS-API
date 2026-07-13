@@ -44,8 +44,8 @@ Mycelium launches your binary with `--key=value` flags. `--port` and `--mycelium
 | `--myceliumUrl` | ✓ | Base URL of Mycelium, e.g. `https://localhost:7243` |
 | `--token` | | Pre-minted service JWT for outbound calls; if omitted, fetch one from `POST /api/auth/token` |
 | `--signingKey` | | Base64-encoded HMAC key for validating **inbound** requests. When present, `/handle` and `/shutdown` require auth; when absent, auth is disabled |
-| `--issuer` | | JWT issuer to validate against (default `VillageOS`) |
-| `--audience` | | JWT audience to validate against (default `VosClients`) |
+| `--issuer` | | JWT issuer to validate against. **Required when `--signingKey` is set** (startup fails otherwise); must match what Mycelium signs |
+| `--audience` | | JWT audience to validate against. **Required when `--signingKey` is set** (startup fails otherwise); must match what Mycelium signs |
 
 ## Registration
 

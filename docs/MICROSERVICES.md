@@ -21,7 +21,7 @@ handlers in Go, Node/TypeScript, Python, and Rust, see
 [`MICROSERVICE_AUTHORING.md`](MICROSERVICE_AUTHORING.md).
 
 Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`, `Phloem`,
-`WaterReserve`, `EnergyBalance`, `ModelBridge`. `Delta` is the endpoint-registration service: it
+`WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`. `Delta` is the endpoint-registration service: it
 provisions the endpoint-template catalog into Mycelium at startup and validates every endpoint
 registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
 fetch side of the same endpoint story. `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
@@ -42,7 +42,7 @@ pipeline/DAG orchestrator and a service becomes a pipeline *node* via an additiv
 envelope — both documented in §16 (Pipelines / DAG orchestration).
 
 **Two kinds of predicates — the extension point.** `is` is the *only* predicate built into
-Mycelium; **every other predicate that does work is a _Handled Predicate_** dispatched to a
+Mycelium; **every other predicate that does work is a *Handled Predicate*** dispatched to a
 microservice. That is the platform's extension point: a new capability — simulation, integration,
 computation — ships as a microservice bound to a predicate, with no change to Mycelium (Metabolism
 backs `consumes`/`produces` today; a pipeline node and the `runs` spawn-trigger are the same

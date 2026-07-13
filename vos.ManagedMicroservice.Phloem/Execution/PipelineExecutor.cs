@@ -7,12 +7,10 @@ using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Phloem.Execution;
 
-/// <summary>
-/// Runs a pipeline synchronously (spawn-and-wait): load the subgraph → build the DAG → validate (acyclic +
-/// port types) → execute nodes in dependency order, dispatching each through Mycelium and routing each
-/// node's outputs to its downstream inputs → return the full result. Independent nodes in a level run
-/// concurrently (bounded). Run/NodeRun state is persisted best-effort for the live SSE view.
-/// </summary>
+// Runs a pipeline synchronously (spawn-and-wait): load the subgraph → build the DAG → validate (acyclic +
+// port types) → execute nodes in dependency order, dispatching each through Mycelium and routing each
+// node's outputs to its downstream inputs → return the full result. Independent nodes in a level run
+// concurrently (bounded). Run/NodeRun state is persisted best-effort for the live SSE view.
 public sealed class PipelineExecutor
 {
     private static readonly IReadOnlyDictionary<string, JsonElement> NoOutputs =
@@ -31,8 +29,8 @@ public sealed class PipelineExecutor
         _maxConcurrency = Math.Max(1, maxConcurrency);
     }
 
-    /// <param name="runId">Pre-generated run id for an async spawn (the editor already holds it to animate over
-    /// SSE); when null a fresh id is minted (synchronous spawn / graph trigger).</param>
+    // runId: Pre-generated run id for an async spawn (the editor already holds it to animate over
+    // SSE); when null a fresh id is minted (synchronous spawn / graph trigger).
     public async Task<PipelineRunResult> RunAsync(Guid pipelineId, JsonElement runParams, CancellationToken cancellationToken, Guid? runId = null)
     {
         var rid = runId ?? Guid.NewGuid();
@@ -193,9 +191,9 @@ public sealed class PipelineExecutor
         return await DispatchAndParseAsync(node, runId, inputs, index: null, cancellationToken);
     }
 
-    /// <summary>Assemble a node's inputs: param-bound inputs first (#5647), then wires. Each wire extracts its
-    /// from-path of the upstream output and deep-merges it at its to-path into the target input, so several
-    /// wires compose one input value; empty paths carry the whole payload and a scalar wire overrides (#5874).</summary>
+    // Assemble a node's inputs: param-bound inputs first (#5647), then wires. Each wire extracts its
+    // from-path of the upstream output and deep-merges it at its to-path into the target input, so several
+    // wires compose one input value; empty paths carry the whole payload and a scalar wire overrides (#5874).
     private static Dictionary<string, JsonElement> AssembleInputs(
         PipelineDag dag, DagNode node,
         IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, JsonElement>> outputs, JsonElement runParams)
@@ -225,8 +223,8 @@ public sealed class PipelineExecutor
         return inputs;
     }
 
-    /// <summary>An Input boundary node's outputs (#5873): each output port is filled from the run param of the
-    /// same name, so downstream nodes receive the run's external inputs through ordinary wires.</summary>
+    // An Input boundary node's outputs (#5873): each output port is filled from the run param of the
+    // same name, so downstream nodes receive the run's external inputs through ordinary wires.
     private static IReadOnlyDictionary<string, JsonElement> ProjectParamsOntoOutputs(DagNode node, JsonElement runParams)
     {
         var outputs = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
@@ -236,8 +234,8 @@ public sealed class PipelineExecutor
         return outputs;
     }
 
-    /// <summary>Run the node once per item of its collection input (bounded), writing a per-item NodeRun for each,
-    /// and gather each output port into a list. <c>onItemError</c> chooses fail-fast vs collect-partial (#5648).</summary>
+    // Run the node once per item of its collection input (bounded), writing a per-item NodeRun for each,
+    // and gather each output port into a list. onItemError chooses fail-fast vs collect-partial (#5648).
     private async Task<NodeRunResult> RunFanOutAsync(
         DagNode node, Guid runId, IReadOnlyDictionary<string, JsonElement> baseInputs,
         string collectionPort, JsonElement items, CancellationToken cancellationToken)
@@ -283,7 +281,7 @@ public sealed class PipelineExecutor
         }
     }
 
-    /// <summary>Gather per-item results into one list per output port (item order; null for a failed item).</summary>
+    // Gather per-item results into one list per output port (item order; null for a failed item).
     private static IReadOnlyDictionary<string, JsonElement> GatherOutputs(DagNode node, NodeRunResult[] results)
     {
         var portNames = new HashSet<string>(node.OutputPorts.Select(p => p.PortName), StringComparer.Ordinal);
@@ -354,7 +352,7 @@ public sealed class PipelineExecutor
     private static NodeRunResult Failure(DagNode node, string error) =>
         new(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, error);
 
-    /// <summary>Look up a run-param by key — the spawn's <c>params</c> object (#5647).</summary>
+    // Look up a run-param by key — the spawn's params object (#5647).
     private static bool TryGetParam(JsonElement runParams, string key, out JsonElement value)
     {
         if (runParams.ValueKind == JsonValueKind.Object && runParams.TryGetProperty(key, out value))
@@ -363,8 +361,8 @@ public sealed class PipelineExecutor
         return false;
     }
 
-    /// <summary>Serialize the node envelope <c>{runId,nodeId,index?,params,inputs}</c>. <c>index</c> is the
-    /// fan-out item index (null for a normal single dispatch).</summary>
+    // Serialize the node envelope {runId,nodeId,index?,params,inputs}. index is the
+    // fan-out item index (null for a normal single dispatch).
     private static JsonElement BuildEnvelope(Guid runId, DagNode node, IReadOnlyDictionary<string, JsonElement> inputs, int? index = null)
     {
         var json = JsonSerializer.Serialize(new

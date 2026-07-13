@@ -11,17 +11,15 @@ public record ObservationIngestResult(
     string? Error,
     string? Detail);
 
-/// <summary>
-/// Ingests fetched-and-reshaped readings as time-series observations (Phase 5b hybrid, #5587).
-/// Each reading names an entity and carries a bag of property values at an observed time. Entities
-/// become structural Things — created once, related to the source endpoint once — so the graph
-/// scales with the number of entities, not readings; the readings themselves are written as
-/// observations on each entity's property series (Canopy → Sapwood), bounded by PropertyMode.
-/// </summary>
+// Ingests fetched-and-reshaped readings as time-series observations (Phase 5b hybrid, #5587).
+// Each reading names an entity and carries a bag of property values at an observed time. Entities
+// become structural Things — created once, related to the source endpoint once — so the graph
+// scales with the number of entities, not readings; the readings themselves are written as
+// observations on each entity's property series (Canopy → Sapwood), bounded by PropertyMode.
 public class ObservationIngestService
 {
-    /// <summary>Retention applied to newly-declared observed properties. Sampled bounds storage
-    /// growth at the source — the right default for high-volume sediment series.</summary>
+    // Retention applied to newly-declared observed properties. Sampled bounds storage
+    // growth at the source — the right default for high-volume sediment series.
     public const string DefaultObservationMode = "Sampled";
 
     private readonly IEndpointMyceliumClient _myceliumClient;

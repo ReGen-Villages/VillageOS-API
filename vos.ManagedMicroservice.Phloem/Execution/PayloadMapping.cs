@@ -3,14 +3,14 @@ using System.Text.Json.Nodes;
 
 namespace vos.ManagedMicroservice.Phloem.Execution;
 
-/// <summary>Field-level wire mapping (#5874): extract a dotted field-path from an upstream output, place it at
-/// a dotted field-path of a downstream input, and deep-merge several such contributions into one input value.
-/// Pure and side-effect free, so it is trivially unit-tested. A dotted path (e.g. <c>user.id</c>) navigates
-/// nested JSON objects; an empty path means "the whole value".</summary>
+// Field-level wire mapping (#5874): extract a dotted field-path from an upstream output, place it at
+// a dotted field-path of a downstream input, and deep-merge several such contributions into one input value.
+// Pure and side-effect free, so it is trivially unit-tested. A dotted path (e.g. user.id) navigates
+// nested JSON objects; an empty path means "the whole value".
 public static class PayloadMapping
 {
-    /// <summary>The value at <paramref name="path"/> within <paramref name="value"/>. Empty path returns the
-    /// whole value. Returns null when any segment is missing (that wire then contributes nothing).</summary>
+    // The value at path within value. Empty path returns the
+    // whole value. Returns null when any segment is missing (that wire then contributes nothing).
     public static JsonElement? Extract(JsonElement value, string path)
     {
         if (string.IsNullOrEmpty(path)) return value;
@@ -24,8 +24,8 @@ public static class PayloadMapping
         return current;
     }
 
-    /// <summary>Wrap <paramref name="value"/> at <paramref name="path"/>, building nested objects from the
-    /// path segments (outermost first). Empty path returns the value unwrapped.</summary>
+    // Wrap value at path, building nested objects from the
+    // path segments (outermost first). Empty path returns the value unwrapped.
     public static JsonNode? Place(string path, JsonElement value)
     {
         var node = JsonSerializer.SerializeToNode(value);
@@ -36,8 +36,8 @@ public static class PayloadMapping
         return node;
     }
 
-    /// <summary>Deep-merge two JSON values: object keys combine recursively; any non-object clash resolves to
-    /// <paramref name="incoming"/> (last wire wins). Neither input is mutated.</summary>
+    // Deep-merge two JSON values: object keys combine recursively; any non-object clash resolves to
+    // incoming (last wire wins). Neither input is mutated.
     public static JsonNode? Merge(JsonNode? existing, JsonNode? incoming)
     {
         if (existing is JsonObject a && incoming is JsonObject b)
@@ -54,7 +54,7 @@ public static class PayloadMapping
         return incoming?.DeepClone();
     }
 
-    /// <summary>Convert a built node back to a JsonElement for the inputs map.</summary>
+    // Convert a built node back to a JsonElement for the inputs map.
     public static JsonElement ToElement(JsonNode? node) =>
         node is null ? default : node.Deserialize<JsonElement>();
 }

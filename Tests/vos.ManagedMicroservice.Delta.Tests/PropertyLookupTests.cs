@@ -6,14 +6,12 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests;
 
-/// <summary>
-/// Integration test for Delta's case-insensitive property-name lookup at the /handle
-/// endpoint. <c>JsonValueCoercion.TryGetPropertyValue</c> is unit-tested directly (see
-/// <c>Helpers/JsonValueCoercionTests.cs</c>); this test exists to pin the end-to-end
-/// happy path &mdash; a caller posts properties with uppercase keys (URL, HTTPMethod) and
-/// the registration succeeds. A regression that broke the wiring (e.g. swapping the
-/// helper for an exact-match lookup) would unit-test pass but fail here.
-/// </summary>
+// Integration test for Delta's case-insensitive property-name lookup at the /handle
+// endpoint. JsonValueCoercion.TryGetPropertyValue is unit-tested directly (see
+// Helpers/JsonValueCoercionTests.cs); this test exists to pin the end-to-end
+// happy path — a caller posts properties with uppercase keys (URL, HTTPMethod) and
+// the registration succeeds. A regression that broke the wiring (e.g. swapping the
+// helper for an exact-match lookup) would unit-test pass but fail here.
 public class PropertyLookupTests
 {
     [Fact]

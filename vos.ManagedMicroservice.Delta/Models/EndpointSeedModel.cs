@@ -1,27 +1,24 @@
 namespace vos.ManagedMicroservice.Delta.Models;
 
-/// <summary>
-/// A Delta endpoint-template seed document — a simplified, hand-authored mirror of a VosModel
-/// fragment. It carries the template Things and the relationships among them. Template inheritance
-/// is expressed the model-native way, as <c>is</c> relationships in <see cref="Relationships"/>
-/// (never a scalar field on a thing), matching how Mycelium and CLI serialize a model. References
-/// are by template name; Delta resolves them to mycelium GUIDs at realization time.
-///
-/// Introduced under Feature #5465 / Task #5466.
-/// </summary>
+// A Delta endpoint-template seed document — a simplified, hand-authored mirror of a VosModel
+// fragment. It carries the template Things and the relationships among them. Template inheritance
+// is expressed the model-native way, as is relationships in Relationships
+// (never a scalar field on a thing), matching how Mycelium and CLI serialize a model. References
+// are by template name; Delta resolves them to mycelium GUIDs at realization time.
+// Introduced under Feature #5465 / Task #5466.
 public sealed class EndpointSeedModel
 {
-    /// <summary>Optional document name (the model name); not part of the template graph.</summary>
+    // Optional document name (the model name); not part of the template graph.
     public string? Name { get; set; }
 
-    /// <summary>The template things, each a name + flat property bag.</summary>
+    // The template things, each a name + flat property bag.
     public List<RegisterEndpointRequest> Things { get; set; } = new();
 
-    /// <summary>Relationships among the things; <c>is</c> rows define the inheritance hierarchy.</summary>
+    // Relationships among the things; is rows define the inheritance hierarchy.
     public List<SeedRelationship> Relationships { get; set; } = new();
 }
 
-/// <summary>A name-keyed relationship row in an <see cref="EndpointSeedModel"/> (mirrors a model relationship).</summary>
+// A name-keyed relationship row in an EndpointSeedModel (mirrors a model relationship).
 public sealed class SeedRelationship
 {
     public string Subject { get; set; } = string.Empty;

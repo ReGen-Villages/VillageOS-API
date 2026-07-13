@@ -1,9 +1,7 @@
 namespace vos.ManagedMicroservice.Shared.Contracts.Tests;
 
-/// <summary>
-/// Locates fixture JSON files copied to the test output directory under
-/// <c>Fixtures/&lt;schema-folder&gt;/&lt;name&gt;.json</c>.
-/// </summary>
+// Locates fixture JSON files copied to the test output directory under
+// Fixtures/<schema-folder>/<name>.json.
 internal static class FixtureLoader
 {
     public static string Read(string schemaFolder, string fixtureName)

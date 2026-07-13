@@ -1,16 +1,13 @@
 namespace vos.ManagedMicroservice.Phloem.Configuration;
 
-/// <summary>
-/// The archetype Thing names the orchestrator resolves by transitive <c>is</c>. Mirrors Mycelium's
-/// <c>ServiceModelOptions</c> (PlatformServiceConnection / Service) and extends it with the pipeline vocabulary, so a
-/// deployment can rename the model via config alone — no literals in code. Mycelium is the single source:
-/// it pushes these to Phloem as launch args when it starts the daemon (see CliArgs); the defaults here
-/// only apply when an arg is absent.
-///
-/// Only archetype names are configurable. The built-in predicates (<c>is</c>/<c>has</c>) and property
-/// names (<c>Subdomain</c>, <c>fromPort</c>, …) stay constants in <c>ModelNames</c> — the same granularity
-/// Mycelium uses (it hardcodes <c>"Subdomain"</c> and <c>PredicateNames.Is</c>).
-/// </summary>
+// The archetype Thing names the orchestrator resolves by transitive is. Mirrors Mycelium's
+// ServiceModelOptions (PlatformServiceConnection / Service) and extends it with the pipeline vocabulary, so a
+// deployment can rename the model via config alone — no literals in code. Mycelium is the single source:
+// it pushes these to Phloem as launch args when it starts the daemon (see CliArgs); the defaults here
+// only apply when an arg is absent.
+// Only archetype names are configurable. The built-in predicates (is/has) and property
+// names (Subdomain, fromPort, …) stay constants in ModelNames — the same granularity
+// Mycelium uses (it hardcodes "Subdomain" and PredicateNames.Is).
 public sealed class PipelineModelOptions
 {
     public string Connection { get; init; } = "PlatformServiceConnection";

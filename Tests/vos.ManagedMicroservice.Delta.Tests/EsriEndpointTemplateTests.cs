@@ -4,19 +4,16 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests;
 
-/// <summary>
-/// Pins the canonical EsriEndpoint template contract for Task #5470. The template hierarchy is not a
-/// committed file — deployment seed.json stores every template as a thing plus the <c>is</c>
-/// relationships between them — so this test is the executable spec for the EsriEndpoint shape Delta
-/// is expected to resolve.
-///
-/// Key design point: Tributary's handling is source-agnostic (a generic token-exchange + offset
-/// paginator). "ESRI-ness" is therefore pure template <em>config</em>: the EsriEndpoint template
-/// selects <c>authKind=tokenExchange</c> and <c>pagingKind=offset</c> and supplies the ArcGIS field
-/// names (<c>tokenPath=token</c>, <c>hasMorePath=exceededTransferLimit</c>, <c>itemsPath=features</c>,
-/// …). <c>authKind</c> itself is a structural key on the <em>root</em> Endpoint template; the child
-/// only resolves its value.
-/// </summary>
+// Pins the canonical EsriEndpoint template contract for Task #5470. The template hierarchy is not a
+// committed file — deployment seed.json stores every template as a thing plus the is
+// relationships between them — so this test is the executable spec for the EsriEndpoint shape Delta
+// is expected to resolve.
+// Key design point: Tributary's handling is source-agnostic (a generic token-exchange + offset
+// paginator). "ESRI-ness" is therefore pure template config: the EsriEndpoint template
+// selects authKind=tokenExchange and pagingKind=offset and supplies the ArcGIS field
+// names (tokenPath=token, hasMorePath=exceededTransferLimit, itemsPath=features,
+// …). authKind itself is a structural key on the root Endpoint template; the child
+// only resolves its value.
 public class EsriEndpointTemplateTests
 {
     private static RegisterEndpointRequest Thing(string name, Dictionary<string, object> props) =>

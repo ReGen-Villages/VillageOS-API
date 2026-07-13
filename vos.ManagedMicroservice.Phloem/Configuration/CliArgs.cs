@@ -1,8 +1,8 @@
 namespace vos.ManagedMicroservice.Phloem.Configuration;
 
-/// <summary>Standard managed-microservice launch args (mirrors the other services), plus the model archetype
-/// names Mycelium pushes from its <c>ServiceModel</c> config so the orchestrator's vocabulary stays in sync
-/// with the broker. The pipeline to run arrives per request, not at startup.</summary>
+// Standard managed-microservice launch args (mirrors the other services), plus the model archetype
+// names Mycelium pushes from its ServiceModel config so the orchestrator's vocabulary stays in sync
+// with the broker. The pipeline to run arrives per request, not at startup.
 public record CliArgs(
     int Port,
     string MyceliumUrl,
@@ -11,10 +11,10 @@ public record CliArgs(
     string? Issuer = null,
     string? Audience = null)
 {
-    /// <summary>Archetype names resolved from <c>--*Archetype=</c> args (each falls back to its default).</summary>
+    // Archetype names resolved from --*Archetype= args (each falls back to its default).
     public PipelineModelOptions Model { get; init; } = new();
 
-    /// <summary>Returns null if required args are missing or invalid.</summary>
+    // Returns null if required args are missing or invalid.
     public static CliArgs? Parse(string[] args)
     {
         var portArg = args.FirstOrDefault(a => a.StartsWith("--port="));

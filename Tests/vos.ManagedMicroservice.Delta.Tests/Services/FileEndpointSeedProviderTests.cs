@@ -5,13 +5,11 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests.Services;
 
-/// <summary>
-/// Unit tests for the production <see cref="FileEndpointSeedProvider"/> — the thin wrapper around
-/// <c>EndpointSeedLoader.LoadGraphDefault</c>. The loader's discovery decision tree is covered by
-/// <c>Helpers/EndpointSeedLoaderTests</c>; here we pin that the wrapper delegates to it (happy path
-/// via a model <c>seed.json</c> in the base directory) and surfaces the same throw contract when no
-/// seed is reachable.
-/// </summary>
+// Unit tests for the production FileEndpointSeedProvider — the thin wrapper around
+// EndpointSeedLoader.LoadGraphDefault. The loader's discovery decision tree is covered by
+// Helpers/EndpointSeedLoaderTests; here we pin that the wrapper delegates to it (happy path
+// via a model seed.json in the base directory) and surfaces the same throw contract when no
+// seed is reachable.
 public class FileEndpointSeedProviderTests : IDisposable
 {
     private readonly string _seedPath = Path.Combine(AppContext.BaseDirectory, "seed.json");

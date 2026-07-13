@@ -13,7 +13,7 @@ public class MyceliumClient : MyceliumClientBase
     {
     }
 
-    /// <summary>Register with Mycelium as an endpoint service.</summary>
+    // Register with Mycelium as an endpoint service.
     public Task<bool> RegisterAsync(int port)
         => RegisterAsync(port, "Echo", "endpoint-service");
 }

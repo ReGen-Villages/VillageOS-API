@@ -2,9 +2,7 @@ using System.Text.Json;
 
 namespace vos.Taproot;
 
-/// <summary>
-/// Handles expected range commands for the CLI.
-/// </summary>
+// Handles expected range commands for the CLI.
 public class RangeCommandHandler
 {
     private readonly TextWriter _writer;

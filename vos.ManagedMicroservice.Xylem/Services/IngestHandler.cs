@@ -1,7 +1,7 @@
 namespace vos.ManagedMicroservice.Xylem.Services;
 
-/// <summary>Orchestrates one ingest: validate the request, run IfcIngest via the runner, surface the
-/// counts. Kept free of transport/subprocess details so it is fully unit-tested (#5842).</summary>
+// Orchestrates one ingest: validate the request, run IfcIngest via the runner, surface the
+// counts. Kept free of transport/subprocess details so it is fully unit-tested (#5842).
 public class IngestHandler
 {
     private readonly IIfcIngestRunner _runner;
@@ -13,9 +13,9 @@ public class IngestHandler
         _preparer = preparer;
     }
 
-    /// <summary>Ingest an uploaded stream: stream it to a temp file enforcing the size cap as it copies,
-    /// run, always clean up. Streaming (not a length check) keeps a very large IFC out of memory (#5845)
-    /// and keeps the endpoint a thin form-read so the whole upload path is unit-tested without a web host.</summary>
+    // Ingest an uploaded stream: stream it to a temp file enforcing the size cap as it copies,
+    // run, always clean up. Streaming (not a length check) keeps a very large IFC out of memory (#5845)
+    // and keeps the endpoint a thin form-read so the whole upload path is unit-tested without a web host.
     public async Task<IngestResult> IngestUploadAsync(
         Stream ifc, string modelName, IngestMode mode, long maxBytes, CancellationToken ct)
     {

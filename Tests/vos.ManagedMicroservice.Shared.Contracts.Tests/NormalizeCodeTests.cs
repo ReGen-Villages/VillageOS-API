@@ -5,10 +5,8 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Shared.Contracts.Tests;
 
-/// <summary>
-/// Pins the <see cref="SchemaValidator.NormalizeCode"/> dispatch table. The public surface
-/// (<see cref="ContractValidationError.Code"/>) is part of the contract these tests defend.
-/// </summary>
+// Pins the SchemaValidator.NormalizeCode dispatch table. The public surface
+// (ContractValidationError.Code) is part of the contract these tests defend.
 public class NormalizeCodeTests
 {
     [Theory]

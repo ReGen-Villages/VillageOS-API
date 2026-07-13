@@ -4,7 +4,7 @@ using NJsonSchema.Validation;
 
 namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
-/// <summary>Stateless; safe to share.</summary>
+// Stateless; safe to share.
 public sealed class SchemaValidator
 {
     public ContractValidationResult Validate(string json, JsonSchema schema)
@@ -29,7 +29,7 @@ public sealed class SchemaValidator
             throw new ContractValidationException(schemaId, result);
     }
 
-    /// <summary>Never throws on validation failure; lets production traffic flow past stale schemas.</summary>
+    // Never throws on validation failure; lets production traffic flow past stale schemas.
     public void ValidateForLog(string json, JsonSchema schema, string schemaId, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
@@ -70,7 +70,7 @@ public sealed class SchemaValidator
         "BooleanExpected", "ArrayExpected", "ObjectExpected", "NullExpected"
     };
 
-    /// <summary>Maps NJsonSchema's kinds to a stable public code family; unknown kinds fall through to the raw name.</summary>
+    // Maps NJsonSchema's kinds to a stable public code family; unknown kinds fall through to the raw name.
     internal static string NormalizeCode(ValidationErrorKind kind)
     {
         var name = kind.ToString();

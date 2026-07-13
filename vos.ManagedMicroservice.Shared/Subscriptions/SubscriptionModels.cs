@@ -3,12 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace vos.ManagedMicroservice.Shared.Subscriptions;
 
-/// <summary>
-/// Selector for <c>POST /api/subscriptions</c> resolving the object closure to snapshot and stream.
-/// </summary>
+// Selector for POST /api/subscriptions resolving the object closure to snapshot and stream.
 public sealed class SubscriptionSelector
 {
-    /// <summary>Cover the whole model plus all future objects.</summary>
+    // Cover the whole model plus all future objects.
     public bool All { get; set; }
     public List<Guid>? Ids { get; set; }
     public List<string>? Names { get; set; }
@@ -36,7 +34,7 @@ public sealed record SnapshotDocument(
 
 public sealed record SnapshotProperty(JsonElement Value, string? TypeInfo, string? Mode);
 
-/// <summary>Properties inherited from one type ancestor, kept separate from own properties (no shadowing).</summary>
+// Properties inherited from one type ancestor, kept separate from own properties (no shadowing).
 public sealed record InheritedPropertySet(
     string? SourceName,
     Dictionary<string, SnapshotProperty> Properties);
@@ -59,7 +57,7 @@ public sealed record SnapshotRelationship(
     Dictionary<string, InheritedPropertySet> InheritedProperties,
     string[] States);
 
-/// <summary><see cref="Sequence"/> is the commit sequence (the SSE event id) used for Last-Event-ID resume.</summary>
+// Sequence is the commit sequence (the SSE event id) used for Last-Event-ID resume.
 public sealed record ModelChangeEvent
 {
     public long Sequence { get; init; }

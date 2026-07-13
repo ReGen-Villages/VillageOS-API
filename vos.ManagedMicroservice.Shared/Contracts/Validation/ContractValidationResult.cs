@@ -9,5 +9,5 @@ public sealed record ContractValidationResult(bool IsValid, IReadOnlyList<Contra
         new(false, errors);
 }
 
-/// <summary>Path is a JSON Pointer (RFC 6901), null only if the validator did not populate it.</summary>
+// Path is a JSON Pointer (RFC 6901), null only if the validator did not populate it.
 public sealed record ContractValidationError(string? Path, string Code, string Message);

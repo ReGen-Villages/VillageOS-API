@@ -7,7 +7,7 @@ using NJsonSchema;
 
 namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
-/// <summary>Eagerly loads every embedded JSON Schema and exposes them by $id; treat as a singleton.</summary>
+// Eagerly loads every embedded JSON Schema and exposes them by $id; treat as a singleton.
 public sealed class SchemaRegistry
 {
     private const string ResourcePrefix = "vos.ManagedMicroservice.Shared.Contracts.Schemas.";

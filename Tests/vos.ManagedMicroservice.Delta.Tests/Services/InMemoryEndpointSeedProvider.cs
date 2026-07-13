@@ -4,16 +4,13 @@ using vos.ManagedMicroservice.Delta.Services;
 
 namespace vos.ManagedMicroservice.Delta.Tests.Services;
 
-/// <summary>
-/// Test-only <see cref="IEndpointSeedProvider"/> backed by a single model-seed JSON string supplied
-/// at construction. <see cref="DeltaWebApplicationFactory"/> uses this to inject a per-instance seed
-/// without touching <c>AppContext.BaseDirectory</c>, so factory instances no longer race on a shared
-/// <c>seed.json</c> path.
-///
-/// Mirrors the file-loader's throw contract: malformed JSON raises
-/// <see cref="InvalidOperationException"/>, and structural defects surface from
-/// <see cref="EndpointSeedGraph.Build"/> (empty/duplicate name, missing/multiple root, unknown reference, cycle).
-/// </summary>
+// Test-only IEndpointSeedProvider backed by a single model-seed JSON string supplied
+// at construction. DeltaWebApplicationFactory uses this to inject a per-instance seed
+// without touching AppContext.BaseDirectory, so factory instances no longer race on a shared
+// seed.json path.
+// Mirrors the file-loader's throw contract: malformed JSON raises
+// InvalidOperationException, and structural defects surface from
+// EndpointSeedGraph.Build (empty/duplicate name, missing/multiple root, unknown reference, cycle).
 public sealed class InMemoryEndpointSeedProvider : IEndpointSeedProvider
 {
     private static readonly JsonSerializerOptions DeserializeOptions = new()

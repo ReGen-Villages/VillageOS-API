@@ -5,11 +5,9 @@ using vos.ManagedMicroservice.Delta.Models;
 
 namespace vos.ManagedMicroservice.Delta.Services;
 
-/// <summary>
-/// HTTP client for communicating with the VOS Mycelium.
-/// Extends MyceliumClientBase for shared token management.
-/// Adds Delta-specific operations (thing/relationship CRUD).
-/// </summary>
+// HTTP client for communicating with the VOS Mycelium.
+// Extends MyceliumClientBase for shared token management.
+// Adds Delta-specific operations (thing/relationship CRUD).
 public class MyceliumClient : MyceliumClientBase
 {
     public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null)
@@ -177,10 +175,8 @@ public class MyceliumClient : MyceliumClientBase
         return true;
     }
 
-    /// <summary>
-    /// Unwraps a potential JsonElement (produced by System.Text.Json when deserializing
-    /// Dictionary&lt;string, object&gt;) into a CLR value and infers Mycelium type string.
-    /// </summary>
+    // Unwraps a potential JsonElement (produced by System.Text.Json when deserializing
+    // Dictionary<string, object>) into a CLR value and infers Mycelium type string.
     private static (object? Value, string Type) ResolveMyceliumValue(object? value)
     {
         if (value is JsonElement je)

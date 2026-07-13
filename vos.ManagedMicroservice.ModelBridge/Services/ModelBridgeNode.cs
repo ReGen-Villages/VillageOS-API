@@ -4,14 +4,12 @@ using vos.ManagedMicroservice.Shared.DagNode;
 
 namespace vos.ManagedMicroservice.ModelBridge.Services;
 
-/// <summary>
-/// A generic bridge between a pipeline DAG and the model (User Story #5866). It closes the gap that Phloem assembles a
-/// node's inputs only from wires and run params — with no path to read a model property or write one back. With
-/// <c>mode = "read"</c> it outputs the value of a Thing's property (GET effective-properties); with <c>mode = "write"</c>
-/// it writes its <c>value</c> input onto a Thing's property (a Fact). So a compute node can read a roll-up / anchor
-/// param and write its result back, using ordinary node→node wires — no orchestrator change. The Thing id is baked into
-/// the node params at seed-build time (deterministic under <c>--name</c>), so no runtime lookup is needed.
-/// </summary>
+// A generic bridge between a pipeline DAG and the model (User Story #5866). It closes the gap that Phloem assembles a
+// node's inputs only from wires and run params — with no path to read a model property or write one back. With
+// mode = "read" it outputs the value of a Thing's property (GET effective-properties); with mode = "write"
+// it writes its value input onto a Thing's property (a Fact). So a compute node can read a roll-up / anchor
+// param and write its result back, using ordinary node→node wires — no orchestrator change. The Thing id is baked into
+// the node params at seed-build time (deterministic under --name), so no runtime lookup is needed.
 public sealed class ModelBridgeNode : DagNodeService
 {
     public ModelBridgeNode(IHttpClientFactory httpClientFactory, ILogger<ModelBridgeNode> logger,
