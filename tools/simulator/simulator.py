@@ -251,7 +251,8 @@ class Simulator:
                 things.append({"Id": a["thing_id"], "Name": a["name"],
                                "Properties": typed_properties(a.get("properties"))})
             elif action.op == "create_rel":
-                rels.append({"Subject": a["subject_id"], "Predicate": a["predicate_id"],
+                rels.append({"Name": a.get("predicate") or "rel",
+                             "Subject": a["subject_id"], "Predicate": a["predicate_id"],
                              "Target": a["target_id"]})
         return {"Name": "simulator standing world", "Things": things, "Relationships": rels}
 
@@ -287,6 +288,12 @@ class Simulator:
         # ── PACED → each create_thing folds its same-offset creation-time edges into one fragment. ──
         # A create_rel is a creation-time edge of C iff it shares C's offset and its subject is C.
         # Such edges travel with C; a later-offset edge on an already-existing Thing stays granular.
+        # Creation position of every Thing, so a forward-referencing edge (target created in a LATER
+        # fragment) is not folded into its subject's fragment — where it would apply before the target
+        # exists (400 "target does not resolve"). It stays granular and applies via create_relationship
+        # once both endpoints exist.
+        created_at = {x.args["thing_id"]: (x.offset, x.seq) for x in actions if x.op == "create_thing"}
+
         edges = collections.defaultdict(list)          # (offset, subject_id) → [paced index]
         for i, x in enumerate(paced):
             if x.op == "create_rel":
@@ -296,7 +303,11 @@ class Simulator:
         for i, x in enumerate(paced):
             if x.op == "create_thing":
                 rels = []
+                here = (x.offset, x.seq)
                 for j in edges.get((x.offset, x.args["thing_id"]), []):
+                    target_at = created_at.get(paced[j].args.get("target_id"))
+                    if target_at is not None and target_at > here:
+                        continue                       # forward reference — leave granular
                     rels.append(_fragment_rel(paced[j].args))
                     consumed.add(j)
                 paced_out.append(Action(x.offset, x.seq, x.actor, "apply_fragment",

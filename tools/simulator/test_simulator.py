@@ -134,7 +134,7 @@ class AuthMintsFromApiKeyViaHeader(unittest.TestCase):
             def __exit__(self_, *a):
                 return False
 
-        def fake_urlopen(req, timeout=None):
+        def fake_urlopen(req, timeout=None, **kwargs):
             captured["method"] = req.get_method()
             captured["url"] = req.full_url
             captured["headers"] = {k.lower(): v for k, v in req.header_items()}
@@ -358,3 +358,27 @@ class CliPlaysATimelineFile(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CoalesceForwardReference(unittest.TestCase):
+    """A create_rel whose target is created in a LATER fragment must not fold into its subject's
+    fragment (it would apply before the target exists → 400); it stays granular."""
+
+    def test_forward_referencing_edge_stays_granular(self):
+        sim = S.Simulator(FakeMycelium(), **_fast())
+        A = S.Action
+        actions = [
+            A(1, 0, "w", "create_thing", {"thing_id": "W", "name": "W"}, "W"),
+            A(1, 1, "w", "create_rel",
+              {"subject_id": "W", "predicate_id": "contains", "target_id": "O"}, "WO"),
+            A(1, 2, "w", "create_thing", {"thing_id": "O", "name": "O"}, "O"),
+        ]
+        out = sim._coalesce(actions)
+
+        w_frag = next(a for a in out
+                      if a.op == "apply_fragment" and a.args["things"][0]["Id"] == "W")
+        self.assertEqual(w_frag.args["relationships"], [],
+                         "the forward-referencing W->O edge must not fold into W's fragment")
+        self.assertTrue(
+            any(a.op == "create_rel" and a.args.get("target_id") == "O" for a in out),
+            "the W->O edge must survive as a granular create_rel applied after O exists")
