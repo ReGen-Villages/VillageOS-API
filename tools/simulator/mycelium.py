@@ -12,6 +12,8 @@ Reference: docs/MICROSERVICE_CONTRACT.md.
 from __future__ import annotations
 
 import json
+import os
+import ssl
 import urllib.error
 import urllib.request
 import uuid
@@ -55,12 +57,16 @@ def typed_properties(properties):
 
 
 class MyceliumClient:
-    def __init__(self, url, token=None, api_key=None, model_id=None, timeout=30):
+    def __init__(self, url, token=None, api_key=None, model_id=None, timeout=300, insecure=False):
         self.url = url.rstrip("/")
         self._token = token
         self._api_key = api_key
         self._model_id = model_id
         self.timeout = timeout
+        # Skip TLS verification for a local Mycelium's self-signed dev cert. Off by default; enable via
+        # insecure=True (the --insecure flag) or the VOS_TLS_NOVERIFY env var. None = default verification.
+        self._ssl = (ssl._create_unverified_context()
+                     if insecure or os.environ.get("VOS_TLS_NOVERIFY") else None)
 
     # -- auth -------------------------------------------------------------
     def token(self) -> str:
@@ -90,7 +96,7 @@ class MyceliumClient:
         for name, value in (headers or {}).items():
             req.add_header(name, value)
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout, context=self._ssl) as resp:
                 raw = resp.read().decode()
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as e:
@@ -190,7 +196,7 @@ class MyceliumClient:
             req.add_header("Authorization", "Bearer " + self.token())
         req.add_header("Accept", "text/event-stream")
         req.add_header("Last-Event-ID", str(last))
-        with urllib.request.urlopen(req, timeout=None) as resp:
+        with urllib.request.urlopen(req, timeout=None, context=self._ssl) as resp:
             event_id = kind = data = None
             for raw in resp:
                 line = raw.decode().rstrip("\n")
