@@ -161,3 +161,7 @@ tools/simulator/*.ckpt
 # Rust build output (cargo). Each Rust microservice also ignores its own target/,
 # but this covers any orphaned target/ (e.g. left behind by a directory rename).
 **/target/
+
+# Playwright MCP browser-automation output (console logs + page-snapshot .yml,
+# written when driving the app for verification/screenshots). Session artifacts.
+.playwright-mcp/
