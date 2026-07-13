@@ -15,7 +15,7 @@ public class SolarResourceEndpointTests
 {
     // Open-Meteo hourly shortwave radiation -> a Site reading { name, properties:{shortwaveRadiation}, observedAt }.
     private const string SolarResourceReshape =
-        "{\"name\": \"JosudanSite\", \"properties\": {\"shortwaveRadiation\": hourly.shortwave_radiation[0]}, \"observedAt\": hourly.time[0]}";
+        "{\"name\": \"ExampleSite\", \"properties\": {\"shortwaveRadiation\": hourly.shortwave_radiation[0]}, \"observedAt\": hourly.time[0]}";
 
     [Fact]
     public void Reshape_maps_open_meteo_solar_radiation_to_a_site_reading()
@@ -38,7 +38,7 @@ public class SolarResourceEndpointTests
         var ok = sut.TryTransform(upstream, query, out var transformed, out var error);
 
         ok.Should().BeTrue(error);
-        transformed.Should().Contain("\"name\":\"JosudanSite\"");
+        transformed.Should().Contain("\"name\":\"ExampleSite\"");
         transformed.Should().Contain("\"shortwaveRadiation\":612");
         transformed.Should().Contain("\"observedAt\":\"2026-07-09T11:00\"");
     }

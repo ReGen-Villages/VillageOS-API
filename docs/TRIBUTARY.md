@@ -168,15 +168,15 @@ no Tributary code changes, just config:
 
 ```jsonc
 // endpoint registration (descends from the root Endpoint template)
-{ "name": "JosudanPrecipitation",
+{ "name": "ExamplePrecipitation",
   "properties": {
-    "url": "https://api.open-meteo.com/v1/forecast?latitude=-25.75&longitude=28.19&hourly=precipitation",
+    "url": "https://api.open-meteo.com/v1/forecast?latitude=<lat>&longitude=<lon>&hourly=precipitation",
     "responseTransform":
-      "{\"name\": \"JosudanSite\", \"properties\": {\"precipitation\": hourly.precipitation[0]}, \"observedAt\": hourly.time[0]}"
+      "{\"name\": \"ExampleSite\", \"properties\": {\"precipitation\": hourly.precipitation[0]}, \"observedAt\": hourly.time[0]}"
   } }
 ```
 
-Tributary fetches it and ingests `precipitation` (mm) as an observation on `JosudanSite` at the
+Tributary fetches it and ingests `precipitation` (mm) as an observation on `ExampleSite` at the
 observed time (see `PrecipitationEndpointTests`). That rainfall series feeds the catchment/reserve
 the `WaterReserve` node computes over — real discovered data instead of a run param.
 
@@ -196,3 +196,5 @@ feed the same compute node.
   registrations are validated against it.
 - `METABOLISM.md` — the derived-calculation engine on the other side of the
   fetch-and-shape boundary.
+- [`TEMPORAL_READS.md`](TEMPORAL_READS.md) — the tiered time-series store the ingested
+  observations land in, and how historical / as-of reads are served from it.

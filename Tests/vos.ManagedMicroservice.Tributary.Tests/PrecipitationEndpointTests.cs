@@ -15,7 +15,7 @@ public class PrecipitationEndpointTests
 {
     // Open-Meteo hourly precipitation -> a Site reading { name, properties:{precipitation}, observedAt }.
     private const string PrecipitationReshape =
-        "{\"name\": \"JosudanSite\", \"properties\": {\"precipitation\": hourly.precipitation[0]}, \"observedAt\": hourly.time[0]}";
+        "{\"name\": \"ExampleSite\", \"properties\": {\"precipitation\": hourly.precipitation[0]}, \"observedAt\": hourly.time[0]}";
 
     [Fact]
     public void Reshape_maps_open_meteo_precipitation_to_a_site_reading()
@@ -38,7 +38,7 @@ public class PrecipitationEndpointTests
         var ok = sut.TryTransform(upstream, query, out var transformed, out var error);
 
         ok.Should().BeTrue(error);
-        transformed.Should().Contain("\"name\":\"JosudanSite\"");
+        transformed.Should().Contain("\"name\":\"ExampleSite\"");
         transformed.Should().Contain("\"precipitation\":3.4");
         transformed.Should().Contain("\"observedAt\":\"2026-07-09T00:00\"");
     }

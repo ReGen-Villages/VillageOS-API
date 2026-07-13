@@ -99,7 +99,7 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
     mockLogin.mockRejectedValueOnce(noModelsError());
     mockGetStartupProgress.mockResolvedValue({
       IsLoading: true,
-      CurrentFile: 'MarthasVineyard.seed.json',
+      CurrentFile: 'ExampleModel.seed.json',
       Phase: 'Deserializing',
       ThingsLoaded: 1234,
       RelationshipsLoaded: 56,
@@ -116,7 +116,7 @@ describe('useAuthState login: no-models-loaded handling (Bug #5324)', () => {
       expect(result.current.startupProgress?.IsLoading).toBe(true);
     });
     expect(result.current.error).toBeNull();
-    expect(result.current.startupProgress?.CurrentFile).toBe('MarthasVineyard.seed.json');
+    expect(result.current.startupProgress?.CurrentFile).toBe('ExampleModel.seed.json');
   });
 });
 

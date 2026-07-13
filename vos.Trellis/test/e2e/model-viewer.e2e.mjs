@@ -7,7 +7,7 @@
 //
 // Preconditions (manual setup):
 //   1. Mycelium running on https://localhost:7243 with a model that has an
-//      ingested .frag file (MarthasVineyard.frag is the canonical fixture).
+//      ingested .frag file (the canonical Fragments (.frag) fixture is ingested).
 //   2. GUI dev server running on http://localhost:5173 (npm run dev).
 //
 // Usage:

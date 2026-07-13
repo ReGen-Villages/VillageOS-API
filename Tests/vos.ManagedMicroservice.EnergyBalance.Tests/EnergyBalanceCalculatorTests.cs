@@ -7,7 +7,7 @@ namespace vos.ManagedMicroservice.EnergyBalance.Tests;
 public class EnergyBalanceCalculatorTests
 {
     [Fact]
-    public void Josudan_pv_geometry_reproduces_the_case_study_solar_figure()
+    public void Pv_geometry_reproduces_the_case_study_solar_figure()
     {
         // The ingested IFC's real PV area x the site's own solar resource x ~20% efficiency reproduces
         // the case study's ~13,500 MWh/yr solar figure from first principles (design doc §4).

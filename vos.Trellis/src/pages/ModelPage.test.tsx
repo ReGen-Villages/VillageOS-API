@@ -214,7 +214,7 @@ describe('ModelPage', () => {
   // Graph page: (a) instances of a hidden type, (b) the hidden type-Things
   // themselves, (c) untyped Things when NO_TYPE_ID is hidden. The previous
   // bespoke loop only handled (a), leaving ~9.6k IFC objects rendered after
-  // clicking "None" on the MarthasVineyard model.
+  // clicking "None" on the example model.
   it('emits hiddenIfcGuids for instances, type-Things, AND untyped Things', async () => {
     const bytes = new Uint8Array([0x01]).buffer;
     mockGetBytes.mockResolvedValue(bytes);
