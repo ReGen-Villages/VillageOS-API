@@ -6,15 +6,12 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Metabolism.Tests;
 
-/// <summary>
-/// Integration tests covering the contract-validation middleware on Metabolism's /handle
-/// endpoint. Task #5429 wires <c>AddContractValidation</c> + <c>UseRequestContractValidation</c>
-/// + <c>RequireContract&lt;HandleRequest&gt;</c> into Program.cs. Tests use
-/// <c>WebApplicationFactory&lt;Program&gt;</c> (same pattern as EndpointMapperTests).
-///
-/// Schema: <c>handle-request-metabolism.schema.json</c> — requires <c>subjectId</c> and
-/// <c>targetId</c> (both non-empty strings); <c>additionalProperties: false</c>.
-/// </summary>
+// Integration tests covering the contract-validation middleware on Metabolism's /handle
+// endpoint. Task #5429 wires AddContractValidation + UseRequestContractValidation
+// + RequireContract<HandleRequest> into Program.cs. Tests use
+// WebApplicationFactory<Program> (same pattern as EndpointMapperTests).
+// Schema: handle-request-metabolism.schema.json — requires subjectId and
+// targetId (both non-empty strings); additionalProperties: false.
 public class ContractValidationIntegrationTests : IAsyncLifetime
 {
     private const string SchemaId = "https://villageos/contracts/handle-request-metabolism.schema.json";

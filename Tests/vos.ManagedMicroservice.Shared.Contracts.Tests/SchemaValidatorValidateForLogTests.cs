@@ -5,13 +5,11 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Shared.Contracts.Tests;
 
-/// <summary>
-/// Tests for the Phase 3 (Feature #5440) "log instead of throw" failure policy that
-/// <see cref="SchemaValidator.ValidateForLog"/> implements. Pairs with the existing
-/// <see cref="SchemaValidator.ValidateOrThrow"/> -- one explicit policy per method, so
-/// callers (<c>MyceliumClientBase</c>) can pick via <c>#if DEBUG</c> and both paths stay
-/// unit-testable regardless of the test assembly's build configuration.
-/// </summary>
+// Tests for the Phase 3 (Feature #5440) "log instead of throw" failure policy that
+// SchemaValidator.ValidateForLog implements. Pairs with the existing
+// SchemaValidator.ValidateOrThrow -- one explicit policy per method, so
+// callers (MyceliumClientBase) can pick via #if DEBUG and both paths stay
+// unit-testable regardless of the test assembly's build configuration.
 public class SchemaValidatorValidateForLogTests
 {
     private const string TokenResponseSchemaId = "https://villageos/contracts/token-response.schema.json";

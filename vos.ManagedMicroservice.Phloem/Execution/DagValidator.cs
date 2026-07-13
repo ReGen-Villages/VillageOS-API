@@ -3,16 +3,16 @@ using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Phloem.Execution;
 
-/// <summary>The result of validating a DAG: a topological order when valid, or the reasons it isn't.</summary>
+// The result of validating a DAG: a topological order when valid, or the reasons it isn't.
 public sealed record DagValidationResult(bool IsValid, IReadOnlyList<Guid> Order, IReadOnlyList<string> Errors)
 {
     public static DagValidationResult Invalid(IReadOnlyList<string> errors) =>
         new(false, Array.Empty<Guid>(), errors);
 }
 
-/// <summary>Validates a <see cref="PipelineDag"/> up front (distinct from Hyphae's runtime oscillation
-/// detection): every wire connects a real out-port to a real in-port of compatible type, and the graph is
-/// acyclic — proven by a Kahn topological sort that orders every node.</summary>
+// Validates a PipelineDag up front (distinct from Hyphae's runtime oscillation
+// detection): every wire connects a real out-port to a real in-port of compatible type, and the graph is
+// acyclic — proven by a Kahn topological sort that orders every node.
 public static class DagValidator
 {
     public static DagValidationResult Validate(PipelineDag dag)
@@ -61,15 +61,15 @@ public static class DagValidator
             errors.Add($"Wire {from.Name}.{wire.FromPort} → {to.Name}.{wire.ToPort}: invalid transform — {transformError}");
     }
 
-    /// <summary>Equal types are compatible; an empty/"any" type on either side is a wildcard.</summary>
+    // Equal types are compatible; an empty/"any" type on either side is a wildcard.
     private static bool TypesCompatible(string outType, string inType) =>
         string.IsNullOrWhiteSpace(outType) || string.IsNullOrWhiteSpace(inType)
         || string.Equals(outType, "any", StringComparison.OrdinalIgnoreCase)
         || string.Equals(inType, "any", StringComparison.OrdinalIgnoreCase)
         || string.Equals(outType, inType, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Kahn topological sort. Returns the ordered node ids; any nodes left unscheduled (in a cycle)
-    /// are returned via <paramref name="cyclic"/>.</summary>
+    // Kahn topological sort. Returns the ordered node ids; any nodes left unscheduled (in a cycle)
+    // are returned via cyclic.
     public static IReadOnlyList<Guid> TopoSort(PipelineDag dag, out IReadOnlyList<Guid> cyclic)
     {
         var indeg = dag.Nodes.ToDictionary(n => n.NodeId, _ => 0);

@@ -2,15 +2,12 @@ using vos.ManagedMicroservice.Delta.Models;
 
 namespace vos.ManagedMicroservice.Delta.Services;
 
-/// <summary>
-/// Idempotently provisions the endpoint-template catalog into Mycelium at startup. Idempotency rests on
-/// find-or-create by name; a template's <c>is</c> edge is created only when the thing was newly created
-/// this run. The <c>is</c> predicate is a model primitive and is never created — if missing, provisioning
-/// logs and aborts (best-effort startup; Mycelium's liveness monitor covers an unusable model).
-///
-/// Known gap: if a thing was created on a prior run but its <c>is</c> edge failed, a later run finds the
-/// thing and cannot repair the missing edge — no mycelium relationship-query API exists to detect it.
-/// </summary>
+// Idempotently provisions the endpoint-template catalog into Mycelium at startup. Idempotency rests on
+// find-or-create by name; a template's is edge is created only when the thing was newly created
+// this run. The is predicate is a model primitive and is never created — if missing, provisioning
+// logs and aborts (best-effort startup; Mycelium's liveness monitor covers an unusable model).
+// Known gap: if a thing was created on a prior run but its is edge failed, a later run finds the
+// thing and cannot repair the missing edge — no mycelium relationship-query API exists to detect it.
 public sealed class TemplateCatalogProvisioner
 {
     private readonly MyceliumClient _myceliumClient;

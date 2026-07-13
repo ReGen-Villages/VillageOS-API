@@ -2,9 +2,9 @@ using System.Text.Json;
 
 namespace vos.ManagedMicroservice.Phloem.Model;
 
-/// <summary>Builds a <see cref="PipelineGraph"/> from a Mycelium subscription snapshot
-/// (<c>{ snapshot: { things:[...], relationships:[...] } }</c>). Property/edge values arrive wrapped as
-/// <c>{ value|Value, type }</c>; this unwraps them to the bare value.</summary>
+// Builds a PipelineGraph from a Mycelium subscription snapshot
+// ({ snapshot: { things:[...], relationships:[...] } }). Property/edge values arrive wrapped as
+// { value|Value, type }; this unwraps them to the bare value.
 public static class SnapshotParser
 {
     public static PipelineGraph Parse(JsonElement root)
@@ -53,7 +53,7 @@ public static class SnapshotParser
         return result;
     }
 
-    /// <summary>A property value is <c>{ value|Value: x, type: ... }</c> — return <c>x</c>; otherwise the raw element.</summary>
+    // A property value is { value|Value: x, type: ... } — return x; otherwise the raw element.
     private static JsonElement Unwrap(JsonElement value)
     {
         if (value.ValueKind == JsonValueKind.Object)

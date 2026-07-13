@@ -6,16 +6,13 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests;
 
-/// <summary>
-/// Integration test for Delta's compensation behavior: when a registered Endpoint thing
-/// gets stuck mid-registration (e.g. <c>SetThingPropertyAsync</c> fails after the thing
-/// is created), the handler MUST issue a DELETE for the orphaned thing &mdash; even if the
-/// DELETE itself fails (in which case the compensation logs an error but the request
-/// still returns 500).
-///
-/// Pins the contract: <c>deleteAttempted.Should().BeTrue()</c> is the real assertion.
-/// A regression that silently skips compensation would leak orphans in Mycelium model.
-/// </summary>
+// Integration test for Delta's compensation behavior: when a registered Endpoint thing
+// gets stuck mid-registration (e.g. SetThingPropertyAsync fails after the thing
+// is created), the handler MUST issue a DELETE for the orphaned thing — even if the
+// DELETE itself fails (in which case the compensation logs an error but the request
+// still returns 500).
+// Pins the contract: deleteAttempted.Should().BeTrue() is the real assertion.
+// A regression that silently skips compensation would leak orphans in Mycelium model.
 public class CompensateAsyncTests
 {
     [Fact]

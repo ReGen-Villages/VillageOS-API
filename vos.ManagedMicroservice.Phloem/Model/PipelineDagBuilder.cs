@@ -3,17 +3,17 @@ using vos.ManagedMicroservice.Phloem.Configuration;
 
 namespace vos.ManagedMicroservice.Phloem.Model;
 
-/// <summary>Thrown when a pipeline cannot be resolved into an executable DAG (missing binding, no subdomain,
-/// unknown pipeline). Distinct from validation failures (cycles / port-type mismatches).</summary>
+// Thrown when a pipeline cannot be resolved into an executable DAG (missing binding, no subdomain,
+// unknown pipeline). Distinct from validation failures (cycles / port-type mismatches).
 public sealed class PipelineModelException : Exception
 {
     public PipelineModelException(string message) : base(message) { }
 }
 
-/// <summary>Resolves a loaded <see cref="PipelineGraph"/> + pipelineId into a <see cref="PipelineDag"/>:
-/// nodes, their dispatch subdomain (node <c>has</c> Connection, <c>Subdomain</c> property), ports (walk the
-/// bound service's <c>is</c>-chain), and wires (predicate <c>is PipelineWire</c>, carrying fromPort/toPort).
-/// Archetype names come from <see cref="PipelineModelOptions"/> (config), never literals.</summary>
+// Resolves a loaded PipelineGraph + pipelineId into a PipelineDag:
+// nodes, their dispatch subdomain (node has Connection, Subdomain property), ports (walk the
+// bound service's is-chain), and wires (predicate is PipelineWire, carrying fromPort/toPort).
+// Archetype names come from PipelineModelOptions (config), never literals.
 public static class PipelineDagBuilder
 {
     public static PipelineDag Build(PipelineGraph graph, Guid pipelineId, PipelineModelOptions model)
@@ -91,9 +91,9 @@ public static class PipelineDagBuilder
         };
     }
 
-    /// <summary>A boundary node (#5873): ports are declared on the node itself (its own <c>has → Port</c> chain),
-    /// there is no dispatch subdomain, and its <see cref="DagNodeKind"/> tells the executor to seed from params
-    /// (Input) or collect into the run result (Output).</summary>
+    // A boundary node (#5873): ports are declared on the node itself (its own has → Port chain),
+    // there is no dispatch subdomain, and its DagNodeKind tells the executor to seed from params
+    // (Input) or collect into the run result (Output).
     private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, PipelineModelOptions model, DagNodeKind kind)
     {
         return new DagNode
@@ -108,8 +108,8 @@ public static class PipelineDagBuilder
         };
     }
 
-    /// <summary>Parse the node's <c>paramBindings</c> property — a JSON object mapping input-port name → the
-    /// run-param key that fills it (#5647). Malformed/absent → no bindings (never fails a build).</summary>
+    // Parse the node's paramBindings property — a JSON object mapping input-port name → the
+    // run-param key that fills it (#5647). Malformed/absent → no bindings (never fails a build).
     private static IReadOnlyDictionary<string, string> ParseParamBindings(GraphThing nodeThing)
     {
         var raw = nodeThing.PropertyString(ModelNames.ParamBindings);
@@ -133,8 +133,8 @@ public static class PipelineDagBuilder
     private static readonly IReadOnlyDictionary<string, string> EmptyBindings =
         new Dictionary<string, string>();
 
-    /// <summary>Collect Port child-Things by walking the service's <c>is</c>-chain — relationships do not
-    /// inherit through <c>is</c>, so ports resolve at read time at each level of the chain.</summary>
+    // Collect Port child-Things by walking the service's is-chain — relationships do not
+    // inherit through is, so ports resolve at read time at each level of the chain.
     private static IEnumerable<DagPort> ResolvePorts(PipelineGraph graph, GraphThing service, PipelineModelOptions model)
     {
         var seen = new HashSet<Guid>();

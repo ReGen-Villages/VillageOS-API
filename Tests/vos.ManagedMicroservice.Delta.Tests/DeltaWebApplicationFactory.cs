@@ -11,49 +11,41 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests;
 
-/// <summary>
-/// Custom WebApplicationFactory for Delta endpoint tests.
-///
-/// Pattern follows <c>vos.Mycelium.Tests.MyceliumWebApplicationFactory</c> from the sibling
-/// VillageOS repo, including the <c>IAsyncLifetime</c> workaround for the sync-over-async
-/// deadlock in <c>CreateHost</c> under the XPlat Code Coverage collector on Windows CI
-/// (VillageOS Bug #5260).
-///
-/// Config is injected via <c>UseSetting</c> on the host builder; <c>CliArgs.Parse</c> reads
-/// these as a fallback when CLI args are absent (always the case under WebApplicationFactory).
-/// Tests that need a per-test signing key set <see cref="SigningKey"/> / <see cref="Issuer"/> /
-/// <see cref="Audience"/> on the factory instance before creating a client.
-///
-/// The seed is supplied in-memory: <see cref="ConfigureWebHost"/> swaps the production
-/// <see cref="IEndpointSeedProvider"/> (<c>FileEndpointSeedProvider</c>) for an
-/// <see cref="InMemoryEndpointSeedProvider"/> seeded from <see cref="SeedJson"/>, so each
-/// factory instance owns its seed without touching <see cref="AppContext.BaseDirectory"/>
-/// (Task #5455). Tests override <see cref="SeedJson"/> before the first <c>CreateClient()</c>
-/// to exercise malformed-seed boot paths.
-///
-/// <c>IHttpClientFactory</c> is replaced with a <c>PerCallHttpClientFactory</c> that returns
-/// a fresh <c>HttpClient</c> per <c>CreateClient</c> call — <c>MyceliumClientBase.CreateAuthenticatedClientAsync</c>
-/// mutates <c>client.Timeout</c> on every call, which throws on an already-used <c>HttpClient</c>.
-/// </summary>
+// Custom WebApplicationFactory for Delta endpoint tests.
+// Pattern follows vos.Mycelium.Tests.MyceliumWebApplicationFactory from the sibling
+// VillageOS repo, including the IAsyncLifetime workaround for the sync-over-async
+// deadlock in CreateHost under the XPlat Code Coverage collector on Windows CI
+// (VillageOS Bug #5260).
+// Config is injected via UseSetting on the host builder; CliArgs.Parse reads
+// these as a fallback when CLI args are absent (always the case under WebApplicationFactory).
+// Tests that need a per-test signing key set SigningKey / Issuer /
+// Audience on the factory instance before creating a client.
+// The seed is supplied in-memory: ConfigureWebHost swaps the production
+// IEndpointSeedProvider (FileEndpointSeedProvider) for an
+// InMemoryEndpointSeedProvider seeded from SeedJson, so each
+// factory instance owns its seed without touching AppContext.BaseDirectory
+// (Task #5455). Tests override SeedJson before the first CreateClient()
+// to exercise malformed-seed boot paths.
+// IHttpClientFactory is replaced with a PerCallHttpClientFactory that returns
+// a fresh HttpClient per CreateClient call — MyceliumClientBase.CreateAuthenticatedClientAsync
+// mutates client.Timeout on every call, which throws on an already-used HttpClient.
 public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    /// <summary>Per-test routing callback. Set BEFORE the first <c>CreateClient()</c>.</summary>
+    // Per-test routing callback. Set BEFORE the first CreateClient().
     public Func<HttpRequestMessage, HttpResponseMessage> HandlerCallback { get; set; }
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
     public MockHttpMessageHandler? Handler { get; private set; }
 
-    /// <summary>Base64 HMAC key for inbound-request JWT validation. Null = auth disabled.</summary>
+    // Base64 HMAC key for inbound-request JWT validation. Null = auth disabled.
     public string? SigningKey { get; set; }
     public string? Issuer { get; set; }
     public string? Audience { get; set; }
 
-    /// <summary>
-    /// In-memory model-seed document passed to <see cref="InMemoryEndpointSeedProvider"/> at host
-    /// build (an <see cref="vos.ManagedMicroservice.Delta.Models.EndpointSeedModel"/>: things +
-    /// relationships). Tests override before the first <c>CreateClient()</c> to drive happy-path,
-    /// multi-template, malformed, and invalid-graph boot scenarios.
-    /// </summary>
+    // In-memory model-seed document passed to InMemoryEndpointSeedProvider at host
+    // build (an vos.ManagedMicroservice.Delta.Models.EndpointSeedModel: things +
+    // relationships). Tests override before the first CreateClient() to drive happy-path,
+    // multi-template, malformed, and invalid-graph boot scenarios.
     public string SeedJson { get; set; } = """
     {
       "name": "Endpoint Templates",

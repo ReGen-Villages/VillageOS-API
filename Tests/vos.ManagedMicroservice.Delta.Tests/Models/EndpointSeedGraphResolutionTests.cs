@@ -4,14 +4,12 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests.Models;
 
-/// <summary>
-/// Unit tests for the chain-resolution surface added under Task #5467:
-/// <see cref="EndpointSeedGraph.ContainsTemplate"/>, <see cref="EndpointSeedGraph.Chain"/>,
-/// <see cref="EndpointSeedGraph.AllowedKeys"/>, and <see cref="EndpointSeedGraph.TryGetEffectiveSeedValue"/>.
-/// Structural Build validation lives in <see cref="EndpointSeedGraphTests"/>; these pin the
-/// closest-ancestor-wins resolution over the in-memory seed graph that Delta uses to verify descent
-/// and validate the effective httpMethod with no mycelium round-trip.
-/// </summary>
+// Unit tests for the chain-resolution surface added under Task #5467:
+// EndpointSeedGraph.ContainsTemplate, EndpointSeedGraph.Chain,
+// EndpointSeedGraph.AllowedKeys, and EndpointSeedGraph.TryGetEffectiveSeedValue.
+// Structural Build validation lives in EndpointSeedGraphTests; these pin the
+// closest-ancestor-wins resolution over the in-memory seed graph that Delta uses to verify descent
+// and validate the effective httpMethod with no mycelium round-trip.
 public class EndpointSeedGraphResolutionTests
 {
     private static RegisterEndpointRequest Thing(string name, Dictionary<string, object>? props = null) =>

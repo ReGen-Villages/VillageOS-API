@@ -5,12 +5,10 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests;
 
-/// <summary>
-/// Integration tests for Delta's auth wireup: when a signing key is configured,
-/// authenticated endpoints (<c>/handle</c>, <c>/register</c>, <c>/shutdown</c>) reject
-/// anonymous requests with 401, but <c>/health</c> remains open. Encodes a real
-/// security contract &mdash; a regression here ships an open endpoint.
-/// </summary>
+// Integration tests for Delta's auth wireup: when a signing key is configured,
+// authenticated endpoints (/handle, /register, /shutdown) reject
+// anonymous requests with 401, but /health remains open. Encodes a real
+// security contract — a regression here ships an open endpoint.
 public class AuthWireupTests
 {
     private static DeltaWebApplicationFactory MakeAuthFactory() => new()

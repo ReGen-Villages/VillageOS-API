@@ -5,14 +5,11 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Metabolism.Tests;
 
-/// <summary>
-/// Integration test for Metabolism's /handle endpoint error path: when the inbound
-/// JSON properties contain a value that cannot be parsed by <c>ExtractConfig</c>
-/// (e.g. an unparseable <c>startUtc</c>), the handler returns 500 rather than crashing
-/// the host or returning an opaque success.
-///
-/// Pins the contract that malformed request bodies surface as a clean error response.
-/// </summary>
+// Integration test for Metabolism's /handle endpoint error path: when the inbound
+// JSON properties contain a value that cannot be parsed by ExtractConfig
+// (e.g. an unparseable startUtc), the handler returns 500 rather than crashing
+// the host or returning an opaque success.
+// Pins the contract that malformed request bodies surface as a clean error response.
 public class HandleErrorPathTests
 {
     [Fact]

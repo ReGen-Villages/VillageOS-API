@@ -3,11 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace vos.ManagedMicroservice.Shared.DagNode;
 
-/// <summary>
-/// One input/output port a service advertises when it acts as a DAG node (Feature #5628). The
-/// shape mirrors the model's <c>Port</c> archetype (direction / type / portName / required) so a
-/// service's <c>/manifest</c> can seed those Port Things, and the Trellis editor can type-check wires.
-/// </summary>
+// One input/output port a service advertises when it acts as a DAG node (Feature #5628). The
+// shape mirrors the model's Port archetype (direction / type / portName / required) so a
+// service's /manifest can seed those Port Things, and the Trellis editor can type-check wires.
 public sealed record PortDescriptor(
     [property: JsonPropertyName("portName")] string PortName,
     [property: JsonPropertyName("direction")] string Direction,
@@ -21,11 +19,9 @@ public sealed record PortDescriptor(
         new(portName, "out", type);
 }
 
-/// <summary>
-/// The resolved invocation a node's business logic runs against: run/node identity, the node's static
-/// <c>params</c>, and its <c>inputs</c> keyed by input-port name. Any graph references in the wire
-/// inputs have already been fetched, so every value here is a concrete <see cref="JsonElement"/>.
-/// </summary>
+// The resolved invocation a node's business logic runs against: run/node identity, the node's static
+// params, and its inputs keyed by input-port name. Any graph references in the wire
+// inputs have already been fetched, so every value here is a concrete JsonElement.
 public sealed class NodeContext
 {
     public Guid RunId { get; }
@@ -41,17 +37,17 @@ public sealed class NodeContext
         Inputs = inputs;
     }
 
-    /// <summary>The value wired into <paramref name="portName"/>, or null if nothing feeds that port.</summary>
+    // The value wired into portName, or null if nothing feeds that port.
     public JsonElement? Input(string portName) =>
         Inputs.TryGetValue(portName, out var value) ? value : null;
 
-    /// <summary>The static param named <paramref name="name"/>, or null if unset.</summary>
+    // The static param named name, or null if unset.
     public JsonElement? Param(string name) =>
         Params.ValueKind == JsonValueKind.Object && Params.TryGetProperty(name, out var value) ? value : null;
 }
 
-/// <summary>The result a node returns: output-port values, by port name. Values are literals (in-band)
-/// or graph references the orchestrator routes downstream.</summary>
+// The result a node returns: output-port values, by port name. Values are literals (in-band)
+// or graph references the orchestrator routes downstream.
 public sealed class NodeResult
 {
     public IReadOnlyDictionary<string, object?> Outputs { get; }
@@ -66,15 +62,15 @@ public sealed class NodeResult
         new(outputs.ToDictionary(o => o.Port, o => o.Value, StringComparer.Ordinal));
 }
 
-/// <summary>The parsed orchestrator envelope before reference inputs are resolved: run/node identity, the
-/// node's static <c>params</c>, and its raw <c>inputs</c> (literals or <c>{"ref":{thingId,property}}</c>).</summary>
+// The parsed orchestrator envelope before reference inputs are resolved: run/node identity, the
+// node's static params, and its raw inputs (literals or {"ref":{thingId,property}}).
 public sealed record NodeRequest(
     Guid RunId,
     Guid NodeId,
     JsonElement Params,
     IReadOnlyDictionary<string, JsonElement> Inputs);
 
-/// <summary>The wire-level reply the orchestrator reads back from a node's <c>/handle</c>.</summary>
+// The wire-level reply the orchestrator reads back from a node's /handle.
 public sealed record NodeResponse(
     [property: JsonPropertyName("success")] bool Success,
     [property: JsonPropertyName("outputs")] IReadOnlyDictionary<string, object?> Outputs,

@@ -4,7 +4,7 @@ using vos.ManagedMicroservice.Metabolism.Models;
 
 namespace vos.ManagedMicroservice.Metabolism.Services;
 
-/// <summary>Manages continuous simulation loops for registered resource relationships.</summary>
+// Manages continuous simulation loops for registered resource relationships.
 public class Metabolism
 {
     private readonly ConcurrentDictionary<string, SimulationEntry> _simulations = new();
@@ -21,14 +21,14 @@ public class Metabolism
         _mode = mode;
     }
 
-    /// <summary>Raised when a relationship gains a simulation via a /handle request — the
-    /// subscription coordinator adds it to the SSE membership so its changes are streamed.</summary>
+    // Raised when a relationship gains a simulation via a /handle request — the
+    // subscription coordinator adds it to the SSE membership so its changes are streamed.
     public event Action<string>? RelationshipRegistered;
 
-    /// <summary>Raised when a simulation is cancelled — the coordinator drops it from membership.</summary>
+    // Raised when a simulation is cancelled — the coordinator drops it from membership.
     public event Action<string>? RelationshipCancelled;
 
-    /// <summary>Public registration (from /handle): registers + announces the relationship for SSE membership.</summary>
+    // Public registration (from /handle): registers + announces the relationship for SSE membership.
     public SimulationEntry Register(SimulationConfig config)
     {
         var entry = RegisterCore(config);
@@ -139,9 +139,7 @@ public class Metabolism
         _logger.LogInformation("Simulation {RelId}: completed after {Ticks} ticks", config.RelationshipId, entry.TickCount);
     }
 
-    /// <summary>
-    /// Update a single property on a running simulation, restarting the loop with the new config.
-    /// </summary>
+    // Update a single property on a running simulation, restarting the loop with the new config.
     public virtual void UpdateProperty(string relationshipId, string propertyName, object? newValue)
     {
         // Lock so rapid sequential changes (e.g. quantity then frequencySeconds) don't race —

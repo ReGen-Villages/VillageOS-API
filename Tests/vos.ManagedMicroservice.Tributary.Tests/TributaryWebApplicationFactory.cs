@@ -9,36 +9,29 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Tributary.Tests;
 
-/// <summary>
-/// Custom WebApplicationFactory for Tributary endpoint tests.
-///
-/// Pattern follows <c>vos.Mycelium.Tests.MyceliumWebApplicationFactory</c> from the sibling
-/// VillageOS repo, including the <c>IAsyncLifetime</c> workaround for the sync-over-async
-/// deadlock in <c>CreateHost</c> under the XPlat Code Coverage collector on Windows CI
-/// (VillageOS Bug #5260).
-///
-/// Config is injected via <c>UseSetting</c> on the host builder; <c>CliArgs.Parse</c> reads
-/// these as a fallback when CLI args are absent (always the case under WebApplicationFactory).
-/// Tests that need a per-test signing key set <see cref="SigningKey"/> / <see cref="Issuer"/> /
-/// <see cref="Audience"/> on the factory instance before creating a client.
-///
-/// <c>IHttpClientFactory</c> is replaced with one that wraps a per-test
-/// <c>MockHttpMessageHandler</c>. The handler routes BOTH mycelium calls AND the outbound
-/// endpoint call dispatched by <c>CallEndpointAsync</c> via the same factory; tests set
-/// <see cref="HandlerCallback"/> to control responses for their scenario.
-/// </summary>
+// Custom WebApplicationFactory for Tributary endpoint tests.
+// Pattern follows vos.Mycelium.Tests.MyceliumWebApplicationFactory from the sibling
+// VillageOS repo, including the IAsyncLifetime workaround for the sync-over-async
+// deadlock in CreateHost under the XPlat Code Coverage collector on Windows CI
+// (VillageOS Bug #5260).
+// Config is injected via UseSetting on the host builder; CliArgs.Parse reads
+// these as a fallback when CLI args are absent (always the case under WebApplicationFactory).
+// Tests that need a per-test signing key set SigningKey / Issuer /
+// Audience on the factory instance before creating a client.
+// IHttpClientFactory is replaced with one that wraps a per-test
+// MockHttpMessageHandler. The handler routes BOTH mycelium calls AND the outbound
+// endpoint call dispatched by CallEndpointAsync via the same factory; tests set
+// HandlerCallback to control responses for their scenario.
 public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    /// <summary>
-    /// Per-test routing callback. Defaults to returning 404 for any unhandled request so
-    /// tests must opt in. Set this BEFORE the first <c>CreateClient()</c> call.
-    /// </summary>
+    // Per-test routing callback. Defaults to returning 404 for any unhandled request so
+    // tests must opt in. Set this BEFORE the first CreateClient() call.
     public Func<HttpRequestMessage, HttpResponseMessage> HandlerCallback { get; set; }
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
     public MockHttpMessageHandler? Handler { get; private set; }
 
-    /// <summary>Base64 HMAC key for inbound-request JWT validation. Null = auth disabled.</summary>
+    // Base64 HMAC key for inbound-request JWT validation. Null = auth disabled.
     public string? SigningKey { get; set; }
     public string? Issuer { get; set; }
     public string? Audience { get; set; }

@@ -28,11 +28,11 @@ export type NumberFormat =
 
 /**
  * A Binding is *how a widget slot gets its number/rows*. The `kind` set is
- * generic; the values (`state: 'picking'`, `archetype: 'Order'`, property names)
+ * generic; the values (`state: 'active'`, `archetype: 'Device'`, property names)
  * are model-specific and come from the spec.
  *
  * The special thing reference `$scope` resolves to the compare-entity currently
- * selected in the page's scope switcher (e.g. the chosen warehouse), or is
+ * selected in the page's scope switcher (e.g. the selected site), or is
  * averaged across all compare entities when "All" is selected.
  */
 export type Binding =
@@ -244,7 +244,7 @@ export interface DashboardDescriptor {
   spec: DashboardSpec;
 }
 
-/** A compare entity (e.g. a warehouse) offered in the scope switcher. */
+/** A compare entity (e.g. a site or region) offered in the scope switcher. */
 export interface ScopeEntity {
   id: string;
   name: string;

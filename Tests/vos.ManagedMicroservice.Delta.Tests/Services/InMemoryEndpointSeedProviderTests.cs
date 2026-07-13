@@ -3,12 +3,10 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests.Services;
 
-/// <summary>
-/// Unit tests for the test-only <see cref="InMemoryEndpointSeedProvider"/>. The provider exists so
-/// <see cref="DeltaWebApplicationFactory"/> can supply a per-instance model seed without writing to
-/// <c>AppContext.BaseDirectory</c>. Behavior must mirror the file-loader's throw contract when the
-/// JSON is unusable, so <c>EndpointSeedBootTests</c> keeps pinning the host-startup-fail contract.
-/// </summary>
+// Unit tests for the test-only InMemoryEndpointSeedProvider. The provider exists so
+// DeltaWebApplicationFactory can supply a per-instance model seed without writing to
+// AppContext.BaseDirectory. Behavior must mirror the file-loader's throw contract when the
+// JSON is unusable, so EndpointSeedBootTests keeps pinning the host-startup-fail contract.
 public class InMemoryEndpointSeedProviderTests
 {
     [Fact]

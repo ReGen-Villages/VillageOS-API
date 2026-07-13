@@ -2,8 +2,8 @@ using vos.ManagedMicroservice.Shared.Subscriptions;
 
 namespace vos.ManagedMicroservice.CSharp.Echo.Services;
 
-/// <summary>Worked example of the snapshot selector that replaced launch-time object IDs
-/// (docs/MICROSERVICE_CONTRACT.md § "Selecting a slice").</summary>
+// Worked example of the snapshot selector that replaced launch-time object IDs
+// (docs/MICROSERVICE_CONTRACT.md § "Selecting a slice").
 public sealed class SelectorDemo
 {
     private readonly ISubscriptionClient _subscriptions;
@@ -24,7 +24,7 @@ public sealed class SelectorDemo
         return result;
     }
 
-    /// <summary>Every Thing of <paramref name="type"/> plus its depth-1 <paramref name="predicate"/> neighbours.</summary>
+    // Every Thing of type plus its depth-1 predicate neighbours.
     public static SubscriptionSelector SliceByTypeAndTraverse(string type, string predicate) => new()
     {
         Types = new List<string> { type },

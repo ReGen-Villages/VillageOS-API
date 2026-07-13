@@ -1,8 +1,6 @@
 namespace vos.ManagedMicroservice.Shared.Validation;
 
-/// <summary>
-/// Validates supported HTTP methods.
-/// </summary>
+// Validates supported HTTP methods.
 public static class HttpMethodValidator
 {
     private static readonly HashSet<string> SupportedMethods = new(StringComparer.OrdinalIgnoreCase)

@@ -1,11 +1,9 @@
 namespace vos.ManagedMicroservice.Tributary.Services;
 
-/// <summary>
-/// The outcome of an endpoint call, free of any HTTP-framework (<c>IResult</c>) type so it can be
-/// consumed by both the legacy <c>/handle</c> endpoint (which maps it back to the exact HTTP shapes it
-/// always returned) and the pipeline DAG node (Feature #5628). Exactly one of <see cref="Error"/>,
-/// <see cref="Ingest"/>, or <see cref="Content"/> is set.
-/// </summary>
+// The outcome of an endpoint call, free of any HTTP-framework (IResult) type so it can be
+// consumed by both the legacy /handle endpoint (which maps it back to the exact HTTP shapes it
+// always returned) and the pipeline DAG node (Feature #5628). Exactly one of Error,
+// Ingest, or Content is set.
 public sealed class EndpointCallResult
 {
     public EndpointCallError? Error { get; private init; }
@@ -21,15 +19,15 @@ public sealed class EndpointCallResult
         new() { Content = content, ContentType = contentType };
 }
 
-/// <summary>A failure carrying the exact HTTP status the legacy endpoint returned, plus a human message
-/// for the node failure path.</summary>
+// A failure carrying the exact HTTP status the legacy endpoint returned, plus a human message
+// for the node failure path.
 public abstract record EndpointCallError(int StatusCode, string Message);
 
-/// <summary>A plain-JSON error body — the <c>BadRequest</c>/<c>NotFound</c> shape <c>{ error, … }</c>.</summary>
+// A plain-JSON error body — the BadRequest/NotFound shape { error, … }.
 public sealed record JsonError(int StatusCode, object Body, string Message) : EndpointCallError(StatusCode, Message);
 
-/// <summary>A ProblemDetails error (<c>application/problem+json</c>), as <c>Results.Problem</c> produced.</summary>
+// A ProblemDetails error (application/problem+json), as Results.Problem produced.
 public sealed record ProblemError(int StatusCode, string Title, string Detail) : EndpointCallError(StatusCode, Detail);
 
-/// <summary>The summary returned when a response transform ingests readings as observations.</summary>
+// The summary returned when a response transform ingests readings as observations.
 public sealed record IngestSummary(Guid EndpointThingId, int EntitiesTouched, int ObservationsSubmitted);

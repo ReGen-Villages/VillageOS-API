@@ -3,18 +3,18 @@ using Jsonata.Net.Native;
 
 namespace vos.ManagedMicroservice.Shared;
 
-/// <summary>The single JSONata engine wiring for the platform (#5875): Tributary reshapes endpoint responses,
-/// Phloem reshapes values on a pipeline wire — both go through this one wrapper rather than each newing up the
-/// engine. A JSONata expression compiles once (the ctor throws on a syntax error) and is evaluated many times.</summary>
+// The single JSONata engine wiring for the platform (#5875): Tributary reshapes endpoint responses,
+// Phloem reshapes values on a pipeline wire — both go through this one wrapper rather than each newing up the
+// engine. A JSONata expression compiles once (the ctor throws on a syntax error) and is evaluated many times.
 public sealed class JsonataTransform
 {
     private readonly JsonataQuery _query;
 
-    /// <summary>Compile <paramref name="expression"/>. Throws if it is not valid JSONata.</summary>
+    // Compile expression. Throws if it is not valid JSONata.
     public JsonataTransform(string expression) => _query = new JsonataQuery(expression);
 
-    /// <summary>Compile-check an expression without evaluating it — for pre-run validation. Returns null when
-    /// the expression is valid, otherwise the compiler's error message.</summary>
+    // Compile-check an expression without evaluating it — for pre-run validation. Returns null when
+    // the expression is valid, otherwise the compiler's error message.
     public static string? Validate(string expression)
     {
         try
@@ -28,11 +28,11 @@ public sealed class JsonataTransform
         }
     }
 
-    /// <summary>Evaluate against a JSON string, returning the result as a JSON string.</summary>
+    // Evaluate against a JSON string, returning the result as a JSON string.
     public string Eval(string inputJson) => _query.Eval(inputJson);
 
-    /// <summary>Evaluate against a JSON value, returning the reshaped value. An empty/whitespace result (JSONata
-    /// "nothing") becomes a JSON null.</summary>
+    // Evaluate against a JSON value, returning the reshaped value. An empty/whitespace result (JSONata
+    // "nothing") becomes a JSON null.
     public JsonElement Eval(JsonElement input)
     {
         var result = _query.Eval(input.GetRawText());

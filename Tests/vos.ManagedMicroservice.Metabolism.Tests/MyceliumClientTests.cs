@@ -13,9 +13,7 @@ public class MyceliumClientTests
 {
     private readonly Mock<ILogger<MyceliumClient>> _logger = new();
 
-    /// <summary>
-    /// Create a MyceliumClient whose GetTokenAsync() always fails (no reachable mycelium).
-    /// </summary>
+    // Create a MyceliumClient whose GetTokenAsync() always fails (no reachable mycelium).
     private MyceliumClient CreateUnreachableClient()
     {
         var httpFactory = new Mock<IHttpClientFactory>();
@@ -23,10 +21,8 @@ public class MyceliumClientTests
         return new MyceliumClient(httpFactory.Object, _logger.Object, "http://localhost:0", "consumes");
     }
 
-    /// <summary>
-    /// Create a MyceliumClient backed by a MockHttpMessageHandler so HTTP calls
-    /// are intercepted without requiring a running mycelium.
-    /// </summary>
+    // Create a MyceliumClient backed by a MockHttpMessageHandler so HTTP calls
+    // are intercepted without requiring a running mycelium.
     private MyceliumClient CreateMockedClient(MockHttpMessageHandler handler, string mode = "consumes")
     {
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://test-mycelium") };
@@ -43,10 +39,8 @@ public class MyceliumClientTests
         return new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium", mode);
     }
 
-    /// <summary>
-    /// Build a MockHttpMessageHandler that responds to /api/auth/token with a fake JWT
-    /// and routes all other requests through the supplied responder.
-    /// </summary>
+    // Build a MockHttpMessageHandler that responds to /api/auth/token with a fake JWT
+    // and routes all other requests through the supplied responder.
     private static MockHttpMessageHandler CreateTokenAwareMock(
         Func<HttpRequestMessage, HttpResponseMessage> apiResponder)
     {

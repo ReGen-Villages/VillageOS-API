@@ -11,10 +11,8 @@ public static class EndpointSeedLoader
         PropertyNameCaseInsensitive = true
     };
 
-    /// <summary>
-    /// BaseDirectory is the bin output for normal runs; CurrentDirectory covers IDE/dev shells launching
-    /// from the project root; the three-up path is the canonical seed location relative to a built binary.
-    /// </summary>
+    // BaseDirectory is the bin output for normal runs; CurrentDirectory covers IDE/dev shells launching
+    // from the project root; the three-up path is the canonical seed location relative to a built binary.
     public static IEnumerable<string> DefaultCandidatePaths => new[]
     {
         Path.Combine(AppContext.BaseDirectory, "seed.json"),

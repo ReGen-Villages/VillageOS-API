@@ -2,9 +2,9 @@ using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.CSharp.Echo.Services;
 
-/// <summary>Worked example of the three write kinds (docs/MICROSERVICE_CONTRACT.md § "Writing data
-/// back"). A live run needs the Thing to exist with <c>status</c> Fact-writable and
-/// <c>temperature</c>/<c>flow</c> Observation-writable.</summary>
+// Worked example of the three write kinds (docs/MICROSERVICE_CONTRACT.md § "Writing data
+// back"). A live run needs the Thing to exist with status Fact-writable and
+// temperature/flow Observation-writable.
 public sealed class WriteKindsDemo
 {
     private readonly MyceliumClient _mycelium;

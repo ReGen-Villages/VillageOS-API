@@ -2,26 +2,19 @@ using System.Text.Json;
 
 namespace vos.ManagedMicroservice.Tributary.Helpers;
 
-/// <summary>
-/// Looks up a property by name in a dictionary keyed by potentially-namespaced strings
-/// (e.g. <c>"http.url"</c>, <c>"resource.url"</c>). Exact match wins; otherwise, the
-/// suffix after the last <c>.</c> is matched case-insensitively against the requested
-/// name. Multiple suffix matches produce a conflict list so callers can surface the
-/// ambiguity instead of picking one arbitrarily.
-///
-/// Extracted from <c>Program.cs</c> under Feature #5433 / Task #5436.
-/// </summary>
+// Looks up a property by name in a dictionary keyed by potentially-namespaced strings
+// (e.g. "http.url", "resource.url"). Exact match wins; otherwise, the
+// suffix after the last . is matched case-insensitively against the requested
+// name. Multiple suffix matches produce a conflict list so callers can surface the
+// ambiguity instead of picking one arbitrarily.
+// Extracted from Program.cs under Feature #5433 / Task #5436.
 public static class EffectivePropertyResolver
 {
-    /// <summary>
-    /// Try to resolve <paramref name="name"/> in <paramref name="properties"/>.
-    /// <list type="number">
-    ///   <item>Exact key match → returns true, <paramref name="value"/> set.</item>
-    ///   <item>Single key whose suffix (after the last <c>.</c>) matches <paramref name="name"/> case-insensitively → returns true.</item>
-    ///   <item>Multiple suffix matches → returns false, <paramref name="conflicts"/> lists every matching key.</item>
-    ///   <item>No match → returns false, both out-params at their defaults.</item>
-    /// </list>
-    /// </summary>
+    // Try to resolve name in properties.
+    //   Exact key match → returns true, value set.
+    //   Single key whose suffix (after the last .) matches name case-insensitively → returns true.
+    //   Multiple suffix matches → returns false, conflicts lists every matching key.
+    //   No match → returns false, both out-params at their defaults.
     public static bool TryGetEffectiveProperty(
         Dictionary<string, JsonElement> properties,
         string name,

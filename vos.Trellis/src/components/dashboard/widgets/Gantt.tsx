@@ -14,8 +14,8 @@ interface GanttRow {
   bars: GanttBar[];
 }
 
-/** Schedule/timeline widget (e.g. dock doors): rows of time-positioned bars, 0..1 across the axis. */
-export function DockGantt({ widget, ctx }: { widget: GanttWidget; ctx: ResolveContext }) {
+/** Schedule/timeline widget: rows of time-positioned bars, 0..1 across the axis. */
+export function Gantt({ widget, ctx }: { widget: GanttWidget; ctx: ResolveContext }) {
   const { loading, value } = useBinding(widget.rows, ctx);
   const rows: GanttRow[] = Array.isArray(value) ? (value as unknown as GanttRow[]) : [];
   const now = widget.now;
@@ -26,7 +26,7 @@ export function DockGantt({ widget, ctx }: { widget: GanttWidget; ctx: ResolveCo
         <div className="py-6 text-center text-xs text-zinc-400">Loading…</div>
       ) : !rows.length ? (
         <div className="py-8 text-center text-xs text-zinc-400 dark:text-zinc-500">
-          No schedule data. Connect the dashboard-metrics service to populate this timeline.
+          No schedule data available for this timeline.
         </div>
       ) : (
         <div className="mt-2">

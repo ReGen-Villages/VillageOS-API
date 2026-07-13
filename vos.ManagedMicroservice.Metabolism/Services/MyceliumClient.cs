@@ -5,12 +5,10 @@ using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Metabolism.Services;
 
-/// <summary>
-/// HTTP client for communicating with the VOS Mycelium (Metabolism-specific operations).
-/// Adds the resource/quantity write endpoints on top of the shared base. Live property
-/// updates now arrive via the SSE <see cref="Shared.Subscriptions.SubscriptionClient"/>
-/// (Phase 5c, #5558).
-/// </summary>
+// HTTP client for communicating with the VOS Mycelium (Metabolism-specific operations).
+// Adds the resource/quantity write endpoints on top of the shared base. Live property
+// updates now arrive via the SSE Shared.Subscriptions.SubscriptionClient
+// (Phase 5c, #5558).
 public class MyceliumClient : MyceliumClientBase
 {
     private readonly string _mode;
@@ -21,7 +19,7 @@ public class MyceliumClient : MyceliumClientBase
         _mode = mode;
     }
 
-    /// <summary>Registers this handler with Mycelium.</summary>
+    // Registers this handler with Mycelium.
     public Task<bool> RegisterAsync(int port)
         => RegisterAsync(port, $"Metabolism-{_mode}",
             $"dotnet run --project vos.ManagedMicroservice.Metabolism -- --port={port} --myceliumUrl={MyceliumUrl} --mode={_mode}");
@@ -37,7 +35,7 @@ public class MyceliumClient : MyceliumClientBase
     protected virtual object BuildIncrementRelationshipPayload(decimal amount) =>
         new { amount };
 
-    /// <summary>Applies the resource operation (increment or decrement) based on mode.</summary>
+    // Applies the resource operation (increment or decrement) based on mode.
     public async Task<JsonElement?> ApplyQuantityAsync(string thingId, string propertyPath, decimal amount, string? subjectName = null, string? unit = null)
     {
         var action = _mode == "consumes" ? "decrements" : "increments";
@@ -71,7 +69,7 @@ public class MyceliumClient : MyceliumClientBase
         }
     }
 
-    /// <summary>Increment a property on a relationship (for tracking per-relationship cumulative totals).</summary>
+    // Increment a property on a relationship (for tracking per-relationship cumulative totals).
     public async Task IncrementRelationshipPropertyAsync(string relationshipId, string propertyPath, decimal amount)
     {
         var payload = BuildIncrementRelationshipPayload(amount);

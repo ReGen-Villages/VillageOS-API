@@ -8,7 +8,7 @@ import { DataTable } from './DataTable';
 
 const DEFAULT_COLORS = ['#f43f5e', '#f59e0b', '#f59e0b', '#0ea5e9', '#3b82f6', '#3b82f6', '#10b981'];
 
-/** Order-pipeline style funnel: one bar per stage, click a stage to drill into rows. */
+/** Pipeline funnel: one bar per stage, click a stage to drill into its rows. */
 export function Funnel({ widget, ctx }: { widget: FunnelWidget; ctx: ResolveContext }) {
   const counts = useBindings(
     widget.stages.map((s) => s.count),
@@ -64,7 +64,7 @@ export function Funnel({ widget, ctx }: { widget: FunnelWidget; ctx: ResolveCont
           <div className="flex items-center justify-between mb-2">
             <div className="text-[13px] font-bold text-zinc-800 dark:text-zinc-100 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: active.color ?? DEFAULT_COLORS[drill! % DEFAULT_COLORS.length] }} />
-              {active.label} — orders
+              {active.label}
             </div>
             <button
               onClick={() => setDrill(null)}

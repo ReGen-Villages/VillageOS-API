@@ -1,6 +1,6 @@
 namespace vos.ManagedMicroservice.Shared.Contracts.Validation;
 
-/// <summary>Carries the structured <see cref="ContractValidationResult"/> so callers can map errors back to the wire.</summary>
+// Carries the structured ContractValidationResult so callers can map errors back to the wire.
 public sealed class ContractValidationException : Exception
 {
     public ContractValidationResult Result { get; }

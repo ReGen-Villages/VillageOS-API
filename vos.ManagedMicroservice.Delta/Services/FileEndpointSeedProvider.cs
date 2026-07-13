@@ -4,12 +4,10 @@ using vos.ManagedMicroservice.Delta.Models;
 
 namespace vos.ManagedMicroservice.Delta.Services;
 
-/// <summary>
-/// Production <see cref="IEndpointSeedProvider"/> that delegates to
-/// <see cref="EndpointSeedLoader.LoadGraphDefault"/> — discovers the seed files under the default
-/// candidate directories and returns the validated <see cref="EndpointSeedGraph"/>, or throws when
-/// none are found or the graph is invalid.
-/// </summary>
+// Production IEndpointSeedProvider that delegates to
+// EndpointSeedLoader.LoadGraphDefault — discovers the seed files under the default
+// candidate directories and returns the validated EndpointSeedGraph, or throws when
+// none are found or the graph is invalid.
 public sealed class FileEndpointSeedProvider : IEndpointSeedProvider
 {
     private readonly ILogger<FileEndpointSeedProvider> _logger;

@@ -10,13 +10,11 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Metabolism.Tests;
 
-/// <summary>
-/// Phase 4 (Feature #5445): ApplyQuantityAsync + IncrementRelationshipPropertyAsync now
-/// validate their outbound payloads against apply-quantity-request /
-/// relationship-property-increment-request before POSTing. Same Throw/Log policy as
-/// Phase 3, switched via OutboundViolationMode -- tests override it on a thin subclass
-/// so both paths run regardless of build config.
-/// </summary>
+// Phase 4 (Feature #5445): ApplyQuantityAsync + IncrementRelationshipPropertyAsync now
+// validate their outbound payloads against apply-quantity-request /
+// relationship-property-increment-request before POSTing. Same Throw/Log policy as
+// Phase 3, switched via OutboundViolationMode -- tests override it on a thin subclass
+// so both paths run regardless of build config.
 public class MyceliumClientValidationTests
 {
     private const string ApplyQuantitySchemaId = "https://villageos/contracts/apply-quantity-request.schema.json";
@@ -140,11 +138,9 @@ public class MyceliumClientValidationTests
         return (client, mock);
     }
 
-    /// <summary>
-    /// Subclass that exposes the OutboundViolationMode override + lets tests inject a
-    /// deliberately malformed payload object via overrideable build hooks. The hooks
-    /// are protected-virtual on the production MyceliumClient (Phase 4).
-    /// </summary>
+    // Subclass that exposes the OutboundViolationMode override + lets tests inject a
+    // deliberately malformed payload object via overrideable build hooks. The hooks
+    // are protected-virtual on the production MyceliumClient (Phase 4).
     private sealed class TestableMetabolismMyceliumClient : MyceliumClient
     {
         public TestableMetabolismMyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string myceliumUrl, string mode)

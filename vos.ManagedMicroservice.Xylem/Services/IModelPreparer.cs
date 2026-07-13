@@ -2,14 +2,14 @@ using System.Net.Http.Headers;
 
 namespace vos.ManagedMicroservice.Xylem.Services;
 
-/// <summary>Prepares the model before a new-model ingest. Returns null on success, or an error message.
-/// Kept behind an interface so the handler's new-model decision is unit-tested without a live broker.</summary>
+// Prepares the model before a new-model ingest. Returns null on success, or an error message.
+// Kept behind an interface so the handler's new-model decision is unit-tested without a live broker.
 public interface IModelPreparer
 {
     Task<string?> ClearModelAsync(CancellationToken ct);
 }
 
-/// <summary>Clears the current model via DELETE /api/model so an ingest can build a fresh one.</summary>
+// Clears the current model via DELETE /api/model so an ingest can build a fresh one.
 public sealed class HttpModelPreparer : IModelPreparer
 {
     private readonly IHttpClientFactory _httpFactory;

@@ -3,8 +3,8 @@ using vos.ManagedMicroservice.Phloem.Model;
 
 namespace vos.ManagedMicroservice.Phloem.Tests;
 
-/// <summary>Builds a <see cref="PipelineGraph"/> programmatically for tests — Things + Relationships with
-/// the same shapes Phloem reads from a Mycelium snapshot.</summary>
+// Builds a PipelineGraph programmatically for tests — Things + Relationships with
+// the same shapes Phloem reads from a Mycelium snapshot.
 public sealed class GraphFixture
 {
     private readonly Dictionary<Guid, GraphThing> _things = new();
@@ -39,8 +39,8 @@ public sealed class GraphFixture
     public PipelineGraph Build() => new(_things, _rels);
 }
 
-/// <summary>The canonical demo: Generate –feeds(echo→message)→ Echo. Each node binds a Connection (subdomain)
-/// → Service → shared EchoProto prototype with typed ports.</summary>
+// The canonical demo: Generate –feeds(echo→message)→ Echo. Each node binds a Connection (subdomain)
+// → Service → shared EchoProto prototype with typed ports.
 public static class TestGraphs
 {
     public static (GraphFixture Fixture, Guid PipelineId) DemoPipeline()
@@ -96,9 +96,9 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    /// <summary>Boundary I/O demo (#5873): In (PipelineInput, out port `seed`) → Echo (message→echo) → Out
-    /// (PipelineOutput, in port `result`). The Input node's `seed` output is filled from the run param `seed`;
-    /// the value wired into the Output node's `result` input becomes the run's published result.</summary>
+    // Boundary I/O demo (#5873): In (PipelineInput, out port `seed`) → Echo (message→echo) → Out
+    // (PipelineOutput, in port `result`). The Input node's `seed` output is filled from the run param `seed`;
+    // the value wired into the Output node's `result` input becomes the run's published result.
     public static (GraphFixture Fixture, Guid PipelineId) BoundaryPipeline()
     {
         var fx = new GraphFixture();
@@ -162,9 +162,9 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    /// <summary>Field-merge demo (#5874): A and B both feed node C's single `in` input, A at to-path `a` and B
-    /// at to-path `b`, so C receives the two outputs deep-merged into one object. All three nodes share an IO
-    /// prototype with an `in` input and an `out` output.</summary>
+    // Field-merge demo (#5874): A and B both feed node C's single `in` input, A at to-path `a` and B
+    // at to-path `b`, so C receives the two outputs deep-merged into one object. All three nodes share an IO
+    // prototype with an `in` input and an `out` output.
     public static (GraphFixture Fixture, Guid PipelineId) FieldMergePipeline()
     {
         var fx = new GraphFixture();
@@ -219,8 +219,8 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    /// <summary>Wire-transform demo (#5875): A → C over one wire carrying a JSONata <paramref name="transform"/>
-    /// that reshapes A's output before it reaches C's `in` input.</summary>
+    // Wire-transform demo (#5875): A → C over one wire carrying a JSONata transform
+    // that reshapes A's output before it reaches C's `in` input.
     public static (GraphFixture Fixture, Guid PipelineId) WireTransformPipeline(string transform)
     {
         var fx = new GraphFixture();
@@ -270,8 +270,8 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    /// <summary>A single Echo node whose input port `message` is bound to the run param `greeting`
-    /// (no wires) — exercises run-level param routing (#5647).</summary>
+    // A single Echo node whose input port `message` is bound to the run param `greeting`
+    // (no wires) — exercises run-level param routing (#5647).
     public static (GraphFixture Fixture, Guid PipelineId) ParamBoundPipeline()
     {
         var fx = new GraphFixture();
@@ -411,9 +411,9 @@ public static class TestGraphs
         return (fx, pipe.Id);
     }
 
-    /// <summary>A single Scorer node whose input port `item` is a collection (fan-out, #5648) and `weight` is a
-    /// scalar (broadcast). Both inputs are param-bound (`item`→`items`, `weight`→`w`) so a run supplies the list.
-    /// <paramref name="onItemError"/> sets the node's failure policy.</summary>
+    // A single Scorer node whose input port `item` is a collection (fan-out, #5648) and `weight` is a
+    // scalar (broadcast). Both inputs are param-bound (`item`→`items`, `weight`→`w`) so a run supplies the list.
+    // onItemError sets the node's failure policy.
     public static (GraphFixture Fixture, Guid PipelineId) FanOutPipeline(string onItemError = "fail")
     {
         var fx = new GraphFixture();

@@ -4,11 +4,9 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Shared.Contracts.Tests;
 
-/// <summary>
-/// Exercises the internal <see cref="SchemaRegistry"/> constructor that takes raw (resourceName, json)
-/// pairs. Routes coverage through the guard branches (missing $id, duplicate $id) without depending on
-/// the embedded-resource enumeration path.
-/// </summary>
+// Exercises the internal SchemaRegistry constructor that takes raw (resourceName, json)
+// pairs. Routes coverage through the guard branches (missing $id, duplicate $id) without depending on
+// the embedded-resource enumeration path.
 public class SchemaRegistryInternalTests
 {
     private const string ValidSchemaA = """

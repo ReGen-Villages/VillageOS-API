@@ -14,10 +14,8 @@ public interface ISubscriptionClient
     IAsyncEnumerable<ModelChangeEvent> StreamAsync(Guid subscriptionId, long fromSequence, CancellationToken ct = default);
 }
 
-/// <summary>
-/// Subscribe once for a snapshot, then stream live changes over SSE, resuming via Last-Event-ID
-/// so no change is missed or double-applied across drops.
-/// </summary>
+// Subscribe once for a snapshot, then stream live changes over SSE, resuming via Last-Event-ID
+// so no change is missed or double-applied across drops.
 public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -63,11 +61,9 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
         await client.DeleteAsync($"{MyceliumUrl}/api/subscriptions/{subscriptionId}", ct);
     }
 
-    /// <summary>
-    /// Follow the subscription's live change stream, resuming after <paramref name="fromSequence"/>
-    /// (typically the snapshot watermark). Yields each change in commit order exactly once,
-    /// reconnecting transparently on drops until <paramref name="ct"/> is cancelled.
-    /// </summary>
+    // Follow the subscription's live change stream, resuming after fromSequence
+    // (typically the snapshot watermark). Yields each change in commit order exactly once,
+    // reconnecting transparently on drops until ct is cancelled.
     public async IAsyncEnumerable<ModelChangeEvent> StreamAsync(
         Guid subscriptionId, long fromSequence, [EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -136,7 +132,7 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
         return long.TryParse(frame.Id, out var seq) ? change with { Sequence = seq } : change;
     }
 
-    /// <summary>Delay before a reconnect; returns false if cancelled (caller should stop).</summary>
+    // Delay before a reconnect; returns false if cancelled (caller should stop).
     private async Task<bool> DelayReconnectAsync(CancellationToken ct)
     {
         try { await Task.Delay(ReconnectDelay, ct); return !ct.IsCancellationRequested; }

@@ -90,7 +90,7 @@ public class SelectorDemoTests
     private static SnapshotRelationship Rel() =>
         new(Guid.NewGuid(), "powers", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new(), new(), Array.Empty<string>());
 
-    /// <summary>Records the selector it was subscribed with and the id it was asked to unsubscribe.</summary>
+    // Records the selector it was subscribed with and the id it was asked to unsubscribe.
     private sealed class FakeSubscriptionClient(SubscribeResult result) : ISubscriptionClient
     {
         public SubscriptionSelector? Subscribed { get; private set; }

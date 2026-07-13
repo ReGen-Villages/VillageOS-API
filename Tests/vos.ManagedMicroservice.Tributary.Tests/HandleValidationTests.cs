@@ -6,16 +6,12 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Tributary.Tests;
 
-/// <summary>
-/// Integration tests for Tributary's <c>/handle</c> validation surface:
-/// <list type="bullet">
-///   <item>Empty-string url in the effective properties returns 400 with the documented "non-empty strings" message.</item>
-///   <item>Effective properties exposing <c>url</c>/<c>httpMethod</c> as raw keys (no <c>Endpoint.</c> prefix) route through <c>EffectivePropertyResolver</c>'s exact-match branch and complete the happy path.</item>
-/// </list>
-/// <c>EffectivePropertyResolver</c> itself is unit-tested in
-/// <c>Helpers/EffectivePropertyResolverTests.cs</c>; these tests pin the end-to-end
-/// integration through Program.cs.
-/// </summary>
+// Integration tests for Tributary's /handle validation surface:
+//   Empty-string url in the effective properties returns 400 with the documented "non-empty strings" message.
+//   Effective properties exposing url/httpMethod as raw keys (no Endpoint. prefix) route through EffectivePropertyResolver's exact-match branch and complete the happy path.
+// EffectivePropertyResolver itself is unit-tested in
+// Helpers/EffectivePropertyResolverTests.cs; these tests pin the end-to-end
+// integration through Program.cs.
 public class HandleValidationTests
 {
     [Fact]

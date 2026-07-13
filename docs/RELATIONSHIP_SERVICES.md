@@ -260,8 +260,9 @@ Simulation states: `delayed` -> `waiting` -> `active` -> `completed` (or `cancel
 
 ### Live Configuration Hot-Reload via SSE
 
-The Metabolism service's `MyceliumClient` subscribes to Mycelium's model-change SSE stream
-(`GET /api/subscriptions/{id}/stream`) for `RelationshipPropertyChanged` events. This enables
+The Metabolism service subscribes to Mycelium's model-change SSE stream
+(`GET /api/subscriptions/{id}/stream`) for `RelationshipPropertyChanged` events — via
+`MetabolismSubscriptionService`, built on the shared `Subscriptions.SubscriptionClient`. This enables
 **live hot-reload of simulation parameters** without restarting the handler:
 
 1. **Connection**: the client opens an SSE subscription with `Authorization: Bearer` auth and automatic reconnection, resuming via `Last-Event-ID` so no change is missed across drops
@@ -475,7 +476,7 @@ The platform side of adding a relationship service is purely declarative — you
 
 1. **Declare the connection + service.** Create a predicate that `is PlatformServiceConnection` (`trigger: graph`) and `has` a Service Thing carrying the handler configuration (`ExecutablePath`, `ServicePort`, optional `ServiceArgs`, `TokenScope`, `AutoStart`) — typically inherited from a shared prototype. See [How Relationship Services Work](#how-relationship-services-work) for each property's meaning. This is the entire contract the platform needs in order to find and launch the handler.
 2. **Discovery.** At seed load, Mycelium discovers connections by walking the `is`-chain and registers them with the service broker; those whose Service has `AutoStart: true` are invoked for existing relationships immediately.
-3. **Dispatch.** When a relationship using the predicate is created, the service broker delegates to the shared daemon lifecycle manager, which lazily launches the daemon (if needed), waits for health, and POSTs the relationship to the handler's `/handle` endpoint (see [Daemon Lifecycle](#daemon-lifecycle)).
+3. **Dispatch.** When a relationship using the predicate is created, the service broker delegates to the shared daemon lifecycle manager, which lazily launches the daemon (if needed), waits for health, and POSTs the relationship to the handler's `/handle` endpoint. (The daemon register/deregister/health lifecycle is documented in the broker's service-lifecycle flow — see the note below.)
 
 The handler's own obligations — implementing `/handle`, `/health`, `/shutdown`, and the register/deregister handshake — are the authoring contract documented in the API repo's MICROSERVICE_AUTHORING.md linked above. The register/deregister/health lifecycle itself is documented in the broker's service registration & lifecycle flow (private Mycelium docs).
 

@@ -10,10 +10,8 @@ public sealed record OffsetPaginationConfig(
     string HasMorePath,
     string ItemsPath);
 
-/// <summary>
-/// Drives an offset-paginated list endpoint across its pages and concatenates every page's items into
-/// the first page's body, so a downstream JSONata transform runs once over the complete result.
-/// </summary>
+// Drives an offset-paginated list endpoint across its pages and concatenates every page's items into
+// the first page's body, so a downstream JSONata transform runs once over the complete result.
 public static class OffsetPaginator
 {
     // Guard against an endpoint that keeps claiming more while we advance — surface it, don't loop forever.

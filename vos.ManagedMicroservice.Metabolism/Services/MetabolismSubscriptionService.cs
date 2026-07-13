@@ -3,13 +3,11 @@ using vos.ManagedMicroservice.Shared.Subscriptions;
 
 namespace vos.ManagedMicroservice.Metabolism.Services;
 
-/// <summary>
-/// Owns Metabolism's single Mycelium subscription (Phase 5c, #5558). Subscribes at startup,
-/// streams relationship-property changes into the engine, and keeps the subscription's
-/// membership in step with the engine's simulations — adding a relationship on Register and
-/// removing it on Cancel. An open stream is also the
-/// service's liveness signal to Mycelium).
-/// </summary>
+// Owns Metabolism's single Mycelium subscription (Phase 5c, #5558). Subscribes at startup,
+// streams relationship-property changes into the engine, and keeps the subscription's
+// membership in step with the engine's simulations — adding a relationship on Register and
+// removing it on Cancel. An open stream is also the
+// service's liveness signal to Mycelium).
 public sealed class MetabolismSubscriptionService : IHostedService
 {
     private static readonly int[] Backoff = { 0, 1000, 2000, 5000, 10000 };

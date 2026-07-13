@@ -116,7 +116,7 @@ function parseSpec(raw: unknown): DashboardSpec | null {
   return null;
 }
 
-/** Compare entities (e.g. warehouses) offered in the scope switcher. */
+/** Compare entities (e.g. sites) offered in the scope switcher. */
 export function scopeEntities(spec: DashboardSpec, idx: ModelIndex): ScopeEntity[] {
   if (!spec.compare) return [];
   return thingsOfArchetype(spec.compare.archetype, idx)

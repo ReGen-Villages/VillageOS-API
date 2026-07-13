@@ -60,7 +60,7 @@ structure, state management, and the API and SSE (Server-Sent Events) layer.
 ### 1.1 Prerequisites
 
 - **VillageOS Mycelium** running (provides the REST API and SSE streams)
-- **Node.js 20+** installed (for the Vite dev server)
+- **Node.js 20.19+** installed (for the Vite dev server; required by Vite 7)
 - A modern browser — Chrome, Firefox, or Safari (Safari has some WebGL limitations, see [Section 6](#6-single-building-3d-view))
 
 ### 1.2 Launching the GUI
@@ -876,10 +876,10 @@ Two layout algorithms selected by graph size:
 - **Small graphs (< 2000 nodes)**: `graphology-layout-force/worker` — runs via `requestAnimationFrame` on the main thread. Simple spring-electric model, supports `isNodeFixed` callback
 - **Large graphs (≥ 2000 nodes)**: `graphology-layout-forceatlas2/worker` (`FA2Supervisor`) — runs in a **real Web Worker** using Barnes-Hut optimization (O(N log N) vs O(N²)). Provides ~70x speedup at 10K nodes
 
-Layout parameters are read from the model's "GUI Settings" Thing (via `extractLayoutSettings()` in `guiSettings.ts`), stored in `uiStore.layoutSettings`. Defaults when no settings thing is present:
+Layout parameters are read from the model's `GUI_Settings` Thing (via `extractLayoutSettings()` in `guiSettings.ts`), stored in `uiStore.layoutSettings`. Defaults when no settings thing is present:
 
 - `attraction: 0.0005`, `repulsion: 0.1` (cluster mode: `clusterRepulsion: 0.4`), `gravity: 0.0001`, `inertia: 0.6`, `maxMove: 200`
-- Properties on the "GUI Settings" Thing: `LayoutAttraction`, `LayoutRepulsion`, `LayoutGravity`, `LayoutInertia`, `LayoutMaxMove`, `ClusterRepulsion`, `FlashEdgeSize`, `FlashNodeSizeFactor`, `FlashNodeBrighten`, `PredicateColors` (JSON string: `{"consumes":"#fb7185",...}`)
+- Properties on the `GUI_Settings` Thing: `LayoutAttraction`, `LayoutRepulsion`, `LayoutGravity`, `LayoutInertia`, `LayoutMaxMove`, `ClusterRepulsion`, `FlashEdgeSize`, `FlashNodeSizeFactor`, `FlashNodeBrighten`, `PredicateColors` (JSON string: `{"consumes":"#fb7185",...}`)
 - **Spread mode**: Toggle via toolbar — boosts repulsion 5x and reduces gravity 10x, causing nodes to push apart while maintaining cluster structure. Toggling off restores normal parameters and nodes re-settle
 - Supervisor is recreated when clustering predicates change, spread mode toggles, or layout settings change (tracked via `JSON.stringify(layoutSettings)`)
 
@@ -940,7 +940,7 @@ When a node is selected, **NodeDetailPanel** fetches the full thing detail (incl
 5. **Ranges** — `RangesTabContent` showing active states as colored severity badges (green/yellow/red), own ranges with criteria and evaluation status, inherited ranges grouped by source, relationship ranges, and per-binding detail with deviation deltas. Data is fetched via a single composite `GET /api/things/{id}/range-summary` call that returns the thing's ranges, states, and all relationship range data in one response. Uses a **temporal snapshot** approach: `statesVersion` is captured when the tab opens (or when the selected node changes), and all fetches use that snapshot. Continuous SSE state-change pushes do not trigger re-fetches — the user gets a consistent point-in-time view. A windmill spinner shows while the summary loads. A **refresh button** in the tab bar lets the user manually re-fetch the latest data without navigating away
 6. **3D** (conditional) — appears for things with a `geometry` property on non-Safari browsers, or for IFC containers (things with an `ifcClass` property like IfcBuilding/IfcStorey) whose `contains`/`aggregates` children have geometry. Renders a lazy-loaded `BuildingDetail3D` viewer with auto-rotation and OrbitControls. IFC containers pass `childElements` to render all child meshes in a combined scene
 
-The seed data supports multi-level transitive inheritance (e.g., `ConveyorPLC → Controller → SmartAppliance`), rendered as nested tree nodes in the chain view.
+The seed data supports multi-level transitive inheritance (e.g., `EnvironmentalSensor → Sensor → PhysicalThing`), rendered as nested tree nodes in the chain view.
 
 ### Edge Detail Display
 
@@ -994,12 +994,14 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
+| `/operations` | `OperationsPage` | Config-driven operations dashboard. Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
 | `/things` | `ThingSearchPage` | Dedicated thing-name search with ranked results (exact → prefix → substring → ID), type badges from `is` relationships, property preview, markdown export. Pure search logic in `src/utils/thingSearch.ts`. |
 | `/properties` | `PropertySearchPage` | Dedicated property-name search across all things and relationships, grouped by property name, inherited property tree walking, temporal history panel, markdown export. |
 | `/pipelines` | `PipelinePage` | Visual DAG editor (react-flow) for pipeline/orchestration. Palette of dispatchable Connections (subdomain + typed ports), type-checked wiring, save/load as Things+relationships, and **Run** (async spawn with live SSE node animation + **Cancel**). See §7.4. |
+| `/logs` | `LogPage` | Live tail of the Mycelium broker log. |
 
 ---
 
@@ -1209,7 +1211,7 @@ Four components on `DashboardPage`:
 
 Service health badges (Healthy/Unhealthy/Unreachable/Unknown) and the
 running/stopped pill follow the color scheme documented in
-[Section 7.2](#72-registered-services).
+[Section 7.2](#72-services).
 
 ---
 

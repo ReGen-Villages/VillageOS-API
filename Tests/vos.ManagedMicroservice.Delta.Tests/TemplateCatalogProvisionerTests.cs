@@ -12,13 +12,11 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests;
 
-/// <summary>
-/// Unit tests for <see cref="TemplateCatalogProvisioner"/> (Task #5468) — boot-time idempotent
-/// creation of the endpoint-template catalog and its <c>is</c> wiring. The provisioner is exercised
-/// against a real <see cref="MyceliumClient"/> over a <see cref="MockHttpMessageHandler"/> (the repo's
-/// mycelium-faking convention), with a small stateful <see cref="MyceliumStub"/> tracking created things
-/// and relationships so we can assert the exact mycelium writes.
-/// </summary>
+// Unit tests for TemplateCatalogProvisioner (Task #5468) — boot-time idempotent
+// creation of the endpoint-template catalog and its is wiring. The provisioner is exercised
+// against a real MyceliumClient over a MockHttpMessageHandler (the repo's
+// mycelium-faking convention), with a small stateful MyceliumStub tracking created things
+// and relationships so we can assert the exact mycelium writes.
 public class TemplateCatalogProvisionerTests
 {
     private const string RootOnlySeed = """
@@ -223,7 +221,7 @@ public class TemplateCatalogProvisionerTests
         public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
     }
 
-    /// <summary>Stateful fake of Mycelium's thing/relationship endpoints used by the provisioner.</summary>
+    // Stateful fake of Mycelium's thing/relationship endpoints used by the provisioner.
     private sealed class MyceliumStub
     {
         public Guid IsId { get; } = Guid.NewGuid();

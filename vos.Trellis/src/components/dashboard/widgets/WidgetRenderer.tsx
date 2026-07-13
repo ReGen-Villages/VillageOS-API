@@ -3,7 +3,7 @@ import type { ResolveContext } from '../../../api/dashboardApi';
 import { KpiCard } from './KpiCard';
 import { Funnel } from './Funnel';
 import { BulletChart } from './BulletChart';
-import { DockGantt } from './DockGantt';
+import { Gantt } from './Gantt';
 import { Leaderboard } from './Leaderboard';
 import { ExceptionBar } from './ExceptionBar';
 import { DataTable } from './DataTable';
@@ -19,7 +19,7 @@ export function WidgetRenderer({ widget, ctx }: { widget: Widget; ctx: ResolveCo
     case 'bullet':
       return <BulletChart widget={widget} ctx={ctx} />;
     case 'gantt':
-      return <DockGantt widget={widget} ctx={ctx} />;
+      return <Gantt widget={widget} ctx={ctx} />;
     case 'leaderboard':
       return <Leaderboard widget={widget} ctx={ctx} />;
     case 'exceptionBar':

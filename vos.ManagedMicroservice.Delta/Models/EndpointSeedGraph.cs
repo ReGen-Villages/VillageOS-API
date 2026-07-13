@@ -1,12 +1,10 @@
 namespace vos.ManagedMicroservice.Delta.Models;
 
-/// <summary>
-/// A validated, single-rooted graph of endpoint-template things. Parentage is derived from the
-/// model's <c>is</c> relationships, not a scalar field. Construction validates what Mycelium does
-/// NOT (single root, at most one <c>is</c> parent, no duplicate name, no cycle, no unknown-template
-/// reference) so a misconfigured deployment fails fast at boot rather than stack-overflowing
-/// Mycelium's cycle-unsafe effective-property traversal.
-/// </summary>
+// A validated, single-rooted graph of endpoint-template things. Parentage is derived from the
+// model's is relationships, not a scalar field. Construction validates what Mycelium does
+// NOT (single root, at most one is parent, no duplicate name, no cycle, no unknown-template
+// reference) so a misconfigured deployment fails fast at boot rather than stack-overflowing
+// Mycelium's cycle-unsafe effective-property traversal.
 public sealed class EndpointSeedGraph
 {
     private readonly IReadOnlyDictionary<string, string> _parents;
@@ -30,7 +28,7 @@ public sealed class EndpointSeedGraph
 
     public bool ContainsTemplate(string templateName) => Templates.ContainsKey(templateName);
 
-    /// <summary>The inheritance chain for the template, nearest-first up to and including the root.</summary>
+    // The inheritance chain for the template, nearest-first up to and including the root.
     public IReadOnlyList<RegisterEndpointRequest> Chain(string templateName)
     {
         if (!Templates.TryGetValue(templateName, out var template))
@@ -46,7 +44,7 @@ public sealed class EndpointSeedGraph
         return chain;
     }
 
-    /// <summary>The union of property keys along the chain — the admissible property set for a registration.</summary>
+    // The union of property keys along the chain — the admissible property set for a registration.
     public ISet<string> AllowedKeys(string templateName)
     {
         var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -60,7 +58,7 @@ public sealed class EndpointSeedGraph
         return keys;
     }
 
-    /// <summary>The closest-ancestor-wins seed value for the key along the chain; false if none is non-blank.</summary>
+    // The closest-ancestor-wins seed value for the key along the chain; false if none is non-blank.
     public bool TryGetEffectiveSeedValue(string templateName, string key, out object? value)
     {
         foreach (var template in Chain(templateName))

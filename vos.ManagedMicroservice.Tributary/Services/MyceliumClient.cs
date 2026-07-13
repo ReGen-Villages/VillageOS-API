@@ -4,9 +4,7 @@ using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.Tributary.Services;
 
-/// <summary>
-/// HTTP client for communicating with the VOS Mycelium.
-/// </summary>
+// HTTP client for communicating with the VOS Mycelium.
 public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
 {
     public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null)

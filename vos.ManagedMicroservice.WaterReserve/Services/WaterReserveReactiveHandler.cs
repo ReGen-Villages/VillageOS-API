@@ -4,12 +4,10 @@ using vos.ManagedMicroservice.Shared;
 
 namespace vos.ManagedMicroservice.WaterReserve.Services;
 
-/// <summary>
-/// The reactive (model-driven) form of the water analysis (User Story #5839). It reacts to a graph relationship whose
-/// subject is the SiteStudy: reads its inputs straight off the study's effective properties, computes with
-/// <see cref="WaterReserveCalculator"/>, and writes its outputs back onto the study as Facts — so the study's
-/// <c>WaterResilient</c> range re-evaluates. No pipeline, no wires: the compute is a value on the study.
-/// </summary>
+// The reactive (model-driven) form of the water analysis (User Story #5839). It reacts to a graph relationship whose
+// subject is the SiteStudy: reads its inputs straight off the study's effective properties, computes with
+// WaterReserveCalculator, and writes its outputs back onto the study as Facts — so the study's
+// WaterResilient range re-evaluates. No pipeline, no wires: the compute is a value on the study.
 public sealed class WaterReserveReactiveHandler : MyceliumClientBase
 {
     public WaterReserveReactiveHandler(
@@ -22,7 +20,7 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
     // Input port names, read off the study by name.
     private static readonly string[] Inputs = { "population", "perCapitaConsumptionM3", "storageCapacityM3" };
 
-    /// <summary>Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.</summary>
+    // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.
     public async Task<WaterReserveOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));

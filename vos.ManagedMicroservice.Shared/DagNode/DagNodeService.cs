@@ -4,14 +4,12 @@ using Microsoft.Extensions.Logging;
 
 namespace vos.ManagedMicroservice.Shared.DagNode;
 
-/// <summary>
-/// Base a microservice inherits to act as a node in a pipeline DAG (Feature #5628). It maps the uniform
-/// orchestrator envelope <c>{runId,nodeId,params,inputs} → {success,outputs,error}</c> onto the
-/// subclass's <see cref="ExecuteNodeAsync"/>, resolving any graph-reference inputs first. The envelope is
-/// <b>additive</b>: a service detects a node invocation with <see cref="IsNodeEnvelope"/> and routes it
-/// here, leaving its existing graph/http <c>/handle</c> behaviour untouched. <see cref="Ports"/> backs the
-/// optional <c>/manifest</c> endpoint and the Trellis palette.
-/// </summary>
+// Base a microservice inherits to act as a node in a pipeline DAG (Feature #5628). It maps the uniform
+// orchestrator envelope {runId,nodeId,params,inputs} → {success,outputs,error} onto the
+// subclass's ExecuteNodeAsync, resolving any graph-reference inputs first. The envelope is
+// additive: a service detects a node invocation with IsNodeEnvelope and routes it
+// here, leaving its existing graph/http /handle behaviour untouched. Ports backs the
+// optional /manifest endpoint and the Trellis palette.
 public abstract class DagNodeService : MyceliumClientBase
 {
     protected DagNodeService(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null)
@@ -19,22 +17,22 @@ public abstract class DagNodeService : MyceliumClientBase
     {
     }
 
-    /// <summary>The input/output ports this node advertises — served at <c>/manifest</c> and shown in the editor.</summary>
+    // The input/output ports this node advertises — served at /manifest and shown in the editor.
     public abstract IReadOnlyList<PortDescriptor> Ports { get; }
 
-    /// <summary>Map resolved inputs + params to outputs. Throw to fail the node — the failure is reported as
-    /// <c>{success:false,error}</c>, never as an unhandled 500.</summary>
+    // Map resolved inputs + params to outputs. Throw to fail the node — the failure is reported as
+    // {success:false,error}, never as an unhandled 500.
     protected abstract Task<NodeResult> ExecuteNodeAsync(NodeContext context, CancellationToken cancellationToken);
 
-    /// <summary>True iff <paramref name="root"/> is a DAG-node invocation (carries both <c>runId</c> and
-    /// <c>nodeId</c>) rather than a legacy graph/http <c>/handle</c> body.</summary>
+    // True iff root is a DAG-node invocation (carries both runId and
+    // nodeId) rather than a legacy graph/http /handle body.
     public static bool IsNodeEnvelope(JsonElement root) =>
         root.ValueKind == JsonValueKind.Object
         && root.TryGetProperty("runId", out _)
         && root.TryGetProperty("nodeId", out _);
 
-    /// <summary>Parse the envelope, resolve reference inputs, run the node, and shape the reply. A service
-    /// wires this into its <c>/handle</c> after <see cref="IsNodeEnvelope"/> matches.</summary>
+    // Parse the envelope, resolve reference inputs, run the node, and shape the reply. A service
+    // wires this into its /handle after IsNodeEnvelope matches.
     public async Task<NodeResponse> HandleNodeAsync(JsonElement root, CancellationToken cancellationToken = default)
     {
         NodeRequest request;
@@ -75,7 +73,7 @@ public abstract class DagNodeService : MyceliumClientBase
         return new NodeRequest(runId, nodeId, @params, inputs);
     }
 
-    /// <summary>Replace any <c>{"ref":{"thingId","property"}}</c> input with the live graph value; pass literals through.</summary>
+    // Replace any {"ref":{"thingId","property"}} input with the live graph value; pass literals through.
     private async Task<IReadOnlyDictionary<string, JsonElement>> ResolveInputsAsync(
         IReadOnlyDictionary<string, JsonElement> inputs, CancellationToken cancellationToken)
     {
@@ -119,7 +117,7 @@ public abstract class DagNodeService : MyceliumClientBase
         throw new KeyNotFoundException($"Property '{property}' not found on thing {thingId}");
     }
 
-    /// <summary>effective-properties returns each property as <c>{ "Value": &lt;v&gt;, ... }</c> (case-insensitive key).</summary>
+    // effective-properties returns each property as { "Value": <v>, ... } (case-insensitive key).
     private static JsonElement ExtractValue(JsonElement propertyEnvelope)
     {
         if (propertyEnvelope.ValueKind == JsonValueKind.Object)

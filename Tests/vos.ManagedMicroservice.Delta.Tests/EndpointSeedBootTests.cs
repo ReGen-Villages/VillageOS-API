@@ -3,13 +3,11 @@ using Xunit;
 
 namespace vos.ManagedMicroservice.Delta.Tests;
 
-/// <summary>
-/// Integration tests that pin the boot-time fail-fast contract: when the model <c>seed.json</c>
-/// cannot be parsed or forms an invalid template graph, the host fails to start.
-/// <c>EndpointSeedLoader</c> and <c>EndpointSeedGraph</c> are unit-tested directly; these assert that
-/// Program.cs surfaces their exceptions to host construction so a misconfigured deployment fails
-/// loudly rather than starting with no usable seed.
-/// </summary>
+// Integration tests that pin the boot-time fail-fast contract: when the model seed.json
+// cannot be parsed or forms an invalid template graph, the host fails to start.
+// EndpointSeedLoader and EndpointSeedGraph are unit-tested directly; these assert that
+// Program.cs surfaces their exceptions to host construction so a misconfigured deployment fails
+// loudly rather than starting with no usable seed.
 public class EndpointSeedBootTests
 {
     [Fact]

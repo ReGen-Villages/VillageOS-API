@@ -11,7 +11,7 @@ public record CliArgs(
     string? Issuer = null,
     string? Audience = null)
 {
-    /// <summary>Returns null on missing/invalid required args. CLI args override config; absent flags fall back to config[key].</summary>
+    // Returns null on missing/invalid required args. CLI args override config; absent flags fall back to config[key].
     public static CliArgs? Parse(string[] args, IConfiguration? config = null)
     {
         string? FromArgsOrConfig(string flagPrefix, string configKey)
