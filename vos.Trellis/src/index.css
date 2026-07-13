@@ -20,6 +20,27 @@
   background: transparent !important;
 }
 
+/*
+ * Semantic status tokens + surface refs used by the config-driven dashboard
+ * widgets (src/components/dashboard/widgets/*). Defined here (not inline) so the
+ * dark variants can key off the .dark class. These are generic UI tokens — no
+ * domain meaning — mirroring Tailwind's emerald/amber/red status scale.
+ */
+:root {
+  --good: #059669;
+  --warn: #d97706;
+  --crit: #dc2626;
+  --card-bg: #ffffff;
+  --spark: #2563eb;
+}
+.dark {
+  --good: #34d399;
+  --warn: #fbbf24;
+  --crit: #f87171;
+  --card-bg: #27272a;
+  --spark: #60a5fa;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
