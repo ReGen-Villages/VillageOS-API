@@ -93,6 +93,27 @@ describe('resolveBinding', () => {
     expect(v).toBeCloseTo((98.9 + 94.1) / 2);
   });
 
+  // Regression (Bug #5932): under lazy inheritance the value lives in
+  // InheritedProperties, not Properties. Bindings must read effective properties.
+  it('property $scope resolves a value inherited from an archetype', async () => {
+    const child: VosThing = {
+      Id: 'wh3',
+      Name: 'WH-3',
+      Properties: {},
+      InheritedProperties: {
+        Warehouse: {
+          SourceId: 'arch-wh',
+          SourceName: 'Warehouse',
+          InheritedAt: '2024-01-01',
+          Properties: { perfect_order_rate: 88.5 },
+        },
+      },
+    };
+    const ctx: ResolveContext = { idx: buildModelIndex([child], []), scopeId: 'wh3', compareArchetype: 'Warehouse' };
+    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'perfect_order_rate' }, ctx);
+    expect(v).toBeCloseTo(88.5);
+  });
+
   it('aggregate count over an archetype', async () => {
     const v = await resolveBinding({ kind: 'aggregate', archetype: 'Warehouse', op: 'count' }, ctxFor(null));
     expect(v).toBe(2);
