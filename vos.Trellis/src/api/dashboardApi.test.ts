@@ -11,6 +11,7 @@ import {
   scopeEntities,
   buildModelIndex,
   thingsOfArchetype,
+  thingIdsOfArchetype,
   resolveBinding,
   type ResolveContext,
 } from './dashboardApi';
@@ -73,6 +74,50 @@ describe('discovery', () => {
     const { things, relationships } = model();
     const idx = buildModelIndex(things, relationships);
     expect(thingsOfArchetype('Warehouse', idx).map((x) => x.Name).sort()).toEqual(['WH-1', 'WH-2']);
+  });
+});
+
+// Bug #5942: archetypes are subtyped (Customer is Party, PickLocation is Location),
+// so membership must be transitive over the is-chain and count instances only.
+describe('thingIdsOfArchetype (transitive, instances-only)', () => {
+  const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
+  const rel = (SubjectId: string, TargetId: string): VosRelationship => ({
+    Id: `${SubjectId}-is-${TargetId}`, Name: `${SubjectId} is ${TargetId}`,
+    SubjectId, PredicateId: 'is', TargetId, Properties: {},
+  });
+  // Party <- Customer(sub-archetype) <- ACME(instance); Warehouse(leaf) <- WH-1;
+  // EquipmentClass <- EQC-REACH <- FORK-1, and FORK-1 also is-a Equipment (multi-parent).
+  const idx = buildModelIndex(
+    [t('is', 'is'), t('Party', 'Party'), t('Customer', 'Customer'), t('c1', 'ACME'),
+     t('Warehouse', 'Warehouse'), t('wh1', 'WH-1'),
+     t('EquipmentClass', 'EquipmentClass'), t('EQC', 'EQC-REACH'), t('Equipment', 'Equipment'), t('fork', 'FORK-1')],
+    [rel('Customer', 'Party'), rel('c1', 'Customer'), rel('wh1', 'Warehouse'),
+     rel('EQC', 'EquipmentClass'), rel('fork', 'EQC'), rel('fork', 'Equipment')],
+  );
+
+  it('includes instances under a sub-archetype and excludes the sub-archetype node', () => {
+    expect(thingIdsOfArchetype('Party', idx)).toEqual(new Set(['c1'])); // ACME, not the Customer type node
+  });
+
+  it('resolves a directly-typed instance', () => {
+    expect(thingIdsOfArchetype('Customer', idx)).toEqual(new Set(['c1']));
+  });
+
+  it('leaves a leaf archetype unchanged (transitive == direct)', () => {
+    expect(thingIdsOfArchetype('Warehouse', idx)).toEqual(new Set(['wh1']));
+  });
+
+  it('descends multi-level and multi-parent chains to the instance', () => {
+    expect(thingIdsOfArchetype('EquipmentClass', idx)).toEqual(new Set(['fork']));
+    expect(thingIdsOfArchetype('Equipment', idx)).toEqual(new Set(['fork']));
+  });
+
+  it('terminates on an is-cycle without hanging', () => {
+    const cyc = buildModelIndex(
+      [t('is', 'is'), t('A', 'A'), t('B', 'B')],
+      [rel('A', 'B'), rel('B', 'A')],
+    );
+    expect(thingIdsOfArchetype('A', cyc)).toEqual(new Set()); // no instances, no infinite loop
   });
 });
 
