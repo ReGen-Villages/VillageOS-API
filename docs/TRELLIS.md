@@ -1112,7 +1112,15 @@ system stream.
 
 - Module-level singleton managing both EventSources (shared across all hook consumers)
 - Manual reconnect with backoff [1s, 2s, 5s, 10s, 30s], reopening with a fresh `?access_token`
-  (EventSource can't refresh the token on its own retry); the object stream resumes via Last-Event-ID
+  (EventSource can't refresh the token on its own retry)
+- **Resume from the consumed sequence** (Bug #5943): the object stream records each event's SSE id
+  (`e.lastEventId`) as the highest applied Fact sequence, and on reconnect reopens with
+  `?lastEventId=<that sequence>` so the broker replays exactly the Facts missed during the drop and
+  de-dupes by sequence — instead of re-subscribing at the current head and skipping the gap. The
+  watermark is reset on full teardown (`release`), because the sequence is per-model and a model
+  switch must restart from the fresh snapshot head. Replaying beyond the broker's retained commit log
+  (post snapshot eviction) is the one case this can't cover — the `useModelData` reconnect reconcile
+  is the backstop for it
 - `useSyncExternalStore` subscription model for `connected` state
 - Ref counting (acquire/release) for stream lifecycle
 - Token from `apiClient.ensureToken()` for authentication
@@ -1125,7 +1133,7 @@ system stream.
 - **useModelData** (app-shell hook): Subscribes to structural and property events and keeps the `modelStore` current with an incremental strategy — individual events do not trigger a full-model refetch (a reconnect reconcile backstops the stream, see below):
   - **Delete → local removal** (zero network): ThingDeleted / RelationshipDeleted read the event's `EntityId` and drop that element from the store via `removeThing` / `removeRelationship`. Unknown ids are a no-op.
   - **Create → single-object hydrate**: ThingCreated / RelationshipCreated carry only an id (the broker deliberately does not stream a new object's properties), so the handler fetches just that one object (`GET /api/things/{id}` or `/api/relationships/{id}`) and `upsert`s it. Upsert is idempotent, so duplicate events don't double-add. A failed hydrate is **retried once** after a short delay (covers a transient fetch error); a genuine create/delete race 404s again and is correctly abandoned (the delete event removes it).
-  - **Full reload** (`reloadModelData(opts?)`): on mount, on `ModelChanged`, and **once when the SSE stream reconnects**. While the stream is down the incremental handlers miss structural events, so on recovery (`connected` false→true, after a prior connect — the first connect is skipped since mount already loads) the store resyncs to recover the gap. This reconcile passes `{ silent: true }`: error toasts do not auto-dismiss, so a background refresh must not surface one. Known bounded gap: a single event dropped mid-stream **without** a disconnect is only recovered by the next `ModelChanged`/reconnect/navigation — a deliberate trade against blind polling (Bug #5940, which replaced an earlier 15s poll).
+  - **Full reload** (`reloadModelData(opts?)`): on mount, on `ModelChanged`, and **once when the SSE stream reconnects** (`connected` false→true, after a prior connect — the first connect is skipped since mount already loads). The reconnect reconcile is now the **backstop**, not the primary recovery: the stream itself resumes from the consumed sequence and the broker replays the missed Facts (Bug #5943), so the reconcile only matters when the client's watermark predates the broker's retained commit log (post snapshot eviction), where a full re-snapshot is the only recovery. It passes `{ silent: true }` (error toasts don't auto-dismiss, so a background refresh must not surface one). Retiring this belt-and-suspenders reconcile in favour of a broker `SnapshotRequired` signal is tracked as future work (Bug #5940 replaced an earlier 15s poll; #5943 added the resume).
   - **Clear**: ModelCleared → empties things and relationships arrays.
   - **Incremental O(1) property updates** (no reload):
     - `PropertyChanged` → only rebuilds the things array when `isGraphAffectingProperty()` returns true (currently only `geometry`). Triggers a visual flash on the node only (500ms duration).
