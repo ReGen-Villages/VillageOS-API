@@ -42,6 +42,10 @@ export interface ModelIndex {
   /** predicate name → id, and id → name */
   predicateNameToId: Map<string, string>;
   predicateIdToName: Map<string, string>;
+  /** archetype id → ids of Things directly `is`-linked to it (Bug #5942). */
+  isChildren: Map<string, string[]>;
+  /** ids that are the target of any `is`-edge — i.e. Things acting as an archetype. */
+  isTargets: Set<string>;
 }
 
 export function buildModelIndex(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
@@ -61,17 +65,45 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
       if (!predicateNameToId.has(p.Name)) predicateNameToId.set(p.Name, r.PredicateId);
     }
   }
-  return { byId, byName, relationships, predicateNameToId, predicateIdToName };
+  // Precompute the `is`-hierarchy once (Bug #5942): children-by-archetype for a
+  // transitive walk, and the set of all archetype (is-target) ids to tell types
+  // from instances. Replaces a per-query scan of every relationship.
+  const isId = predicateNameToId.get(IS_PREDICATE);
+  const isChildren = new Map<string, string[]>();
+  const isTargets = new Set<string>();
+  if (isId) {
+    for (const r of relationships) {
+      if (r.PredicateId !== isId) continue;
+      isTargets.add(r.TargetId);
+      const kids = isChildren.get(r.TargetId);
+      if (kids) kids.push(r.SubjectId);
+      else isChildren.set(r.TargetId, [r.SubjectId]);
+    }
+  }
+  return { byId, byName, relationships, predicateNameToId, predicateIdToName, isChildren, isTargets };
 }
 
-/** Ids of Things that are `is`-linked to the given archetype name. */
+/**
+ * Ids of the Things that are of the given archetype, **transitively** over the `is`-chain
+ * and counting **instances only** (Bug #5942). Archetypes are subtyped (Customer is Party,
+ * PickLocation is Location), so a direct-edge match would miss every real instance under a
+ * parent archetype. We descend the is-chain; a Thing that is itself an `is`-target is treated
+ * as an archetype/sub-type and descended into, not counted. Cycle-guarded.
+ */
 export function thingIdsOfArchetype(archetype: string, idx: ModelIndex): Set<string> {
   const archThing = idx.byName.get(archetype);
-  const isId = idx.predicateNameToId.get(IS_PREDICATE);
   const out = new Set<string>();
-  if (!archThing || !isId) return out;
-  for (const r of idx.relationships) {
-    if (r.PredicateId === isId && r.TargetId === archThing.Id) out.add(r.SubjectId);
+  if (!archThing) return out;
+  const seen = new Set<string>();          // archetype nodes already descended (cycle guard)
+  const frontier = [archThing.Id];
+  while (frontier.length) {
+    const current = frontier.pop()!;
+    if (seen.has(current)) continue;
+    seen.add(current);
+    for (const childId of idx.isChildren.get(current) ?? []) {
+      if (idx.isTargets.has(childId)) frontier.push(childId);  // a sub-archetype — descend
+      else out.add(childId);                                   // a real instance — count it
+    }
   }
   return out;
 }
