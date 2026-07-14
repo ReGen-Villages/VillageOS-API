@@ -17,6 +17,9 @@ export async function reloadModelData(): Promise<void> {
     const [t, r] = await Promise.all([thingApi.getAll(), relationshipApi.getAll()]);
     useModelStore.getState().setThings(t);
     useModelStore.getState().setRelationships(r);
+    // Flip the gate that pages (e.g. OperationsPage) block rendering on. Without
+    // this the Operations page sits on "Loading model…" forever (Bug #5930).
+    useModelStore.getState().markLoaded();
   } catch {
     toast.error('Failed to load model');
   }

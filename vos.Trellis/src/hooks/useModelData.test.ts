@@ -47,7 +47,7 @@ describe('useModelData', () => {
     mockGetRel.mockReset();
     mockGetAllThings.mockResolvedValue([]);
     mockGetAllRels.mockResolvedValue([]);
-    useModelStore.setState({ things: [], relationships: [] });
+    useModelStore.setState({ things: [], relationships: [], loaded: false });
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, statesVersion: 0 });
   });
 
@@ -169,6 +169,21 @@ describe('useModelData', () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: {} }]);
     await reloadModelData();
     expect(useModelStore.getState().things).toHaveLength(1);
+  });
+
+  // Regression (Bug #5930): OperationsPage blocks rendering on the store's
+  // `loaded` flag. reloadModelData must flip it, or the page hangs on
+  // "Loading model…" forever even though the data arrived.
+  it('marks the store loaded after a successful fetch', async () => {
+    expect(useModelStore.getState().loaded).toBe(false);
+    await reloadModelData();
+    expect(useModelStore.getState().loaded).toBe(true);
+  });
+
+  it('leaves the store unloaded when the fetch fails', async () => {
+    mockGetAllThings.mockRejectedValue(new Error('network'));
+    await reloadModelData();
+    expect(useModelStore.getState().loaded).toBe(false);
   });
 
   it('PropertyChanged on a graph-affecting property updates the things array in place', async () => {
