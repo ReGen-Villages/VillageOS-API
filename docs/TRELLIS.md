@@ -1122,10 +1122,10 @@ system stream.
 
 ### Integration
 
-- **useModelData** (app-shell hook): Subscribes to structural and property events and keeps the `modelStore` current with an incremental strategy — no event triggers a full-model refetch:
+- **useModelData** (app-shell hook): Subscribes to structural and property events and keeps the `modelStore` current with an incremental strategy — individual events do not trigger a full-model refetch (a periodic reconcile backstops the stream, see below):
   - **Delete → local removal** (zero network): ThingDeleted / RelationshipDeleted read the event's `EntityId` and drop that element from the store via `removeThing` / `removeRelationship`. Unknown ids are a no-op.
   - **Create → single-object hydrate**: ThingCreated / RelationshipCreated carry only an id (the broker deliberately does not stream a new object's properties), so the handler fetches just that one object (`GET /api/things/{id}` or `/api/relationships/{id}`) and `upsert`s it. Upsert is idempotent, so duplicate events don't double-add; a failed hydrate (create raced with a delete) is ignored and reconciled by the next `ModelChanged`/reload.
-  - **Full reload** (`reloadModelData()`): only on mount and `ModelChanged`.
+  - **Full reload** (`reloadModelData()`): on mount, on `ModelChanged`, and on a fixed **15-second interval**. The periodic reconcile is a backstop: incremental SSE hydration is lossy under a high event rate (missed `ThingCreated` events, failed single-Thing hydrate fetches), so without it Things can be permanently missing from the store and dashboards render them blank. The interval refetch keeps the store complete and self-healing even when the live stream drops updates.
   - **Clear**: ModelCleared → empties things and relationships arrays.
   - **Incremental O(1) property updates** (no reload):
     - `PropertyChanged` → only rebuilds the things array when `isGraphAffectingProperty()` returns true (currently only `geometry`). Triggers a visual flash on the node only (500ms duration).

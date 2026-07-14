@@ -58,6 +58,15 @@ export function useModelData(): void {
 
   useEffect(() => { reloadModelData(); }, []);
 
+  // Reconcile the whole store on a fixed cadence. Incremental SSE hydration is lossy under a high
+  // event rate (missed ThingCreated events, failed single-thing fetches), so without this many
+  // Things never enter the store and dashboards render them blank. A periodic full refetch keeps the
+  // store complete and fresh even when the live stream drops updates.
+  useEffect(() => {
+    const id = setInterval(() => { reloadModelData(); }, 15000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     const unsubs = [
       on('ThingCreated', (data) => hydrateThing(entityId(data))),

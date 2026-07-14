@@ -186,6 +186,33 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(false);
   });
 
+  // Regression (Bug #5931): incremental SSE hydration is lossy under load (missed
+  // ThingCreated events, failed single-Thing fetches), leaving dashboards blank. A
+  // periodic full reconcile must refetch the whole model and recover the gaps.
+  it('reconciles the full model on a 15s interval and recovers Things dropped by SSE', async () => {
+    vi.useFakeTimers();
+    try {
+      mockGetAllThings.mockResolvedValue([]);
+      const { unmount } = renderHook(() => useModelData());
+      await act(async () => {});
+      expect(mockGetAllThings).toHaveBeenCalledTimes(1);
+
+      // A Thing whose ThingCreated event was dropped now shows up in the next full payload.
+      mockGetAllThings.mockResolvedValue([{ Id: 't-late', Name: 'Late', Properties: {} }]);
+      await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
+      expect(mockGetAllThings).toHaveBeenCalledTimes(2);
+      expect(useModelStore.getState().things.map((t) => t.Id)).toContain('t-late');
+
+      // The interval is cleared on unmount — no leak.
+      mockGetAllThings.mockClear();
+      unmount();
+      await act(async () => { await vi.advanceTimersByTimeAsync(45000); });
+      expect(mockGetAllThings).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('PropertyChanged on a graph-affecting property updates the things array in place', async () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { geometry: 'old' } }]);
     renderHook(() => useModelData());
