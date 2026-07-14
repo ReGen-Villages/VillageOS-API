@@ -163,8 +163,8 @@ export function ModelPage() {
                 onClose={() => selectNode(null)}
                 onSelectNode={selectNode}
                 onDeleteProperty={handleDeleteProperty}
-                onPropertySet={reloadModelData}
-                onRenamed={reloadModelData}
+                onPropertySet={() => reloadModelData()}
+                onRenamed={() => reloadModelData()}
               />
             </ResizablePanel>
           )}

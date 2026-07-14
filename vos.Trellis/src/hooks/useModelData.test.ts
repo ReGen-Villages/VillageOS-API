@@ -13,10 +13,14 @@ vi.mock('../api/relationshipApi', () => ({
 }));
 
 // Capture the SSE handler registry so tests can fire events synthetically.
+// `mockConnected` is read at call-time so a test can flip it and rerender() to
+// simulate the stream dropping and recovering.
 type Handler = (...args: unknown[]) => void;
 const handlers = new Map<string, Handler>();
+let mockConnected = false;
 vi.mock('./useSse', () => ({
   useSse: () => ({
+    connected: mockConnected,
     on: (event: string, cb: Handler) => {
       handlers.set(event, cb);
       return () => handlers.delete(event);
@@ -37,6 +41,7 @@ vi.mock('../components/common/Toast', () => ({
 import { useModelData, reloadModelData } from './useModelData';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
+import { toast } from '../components/common/Toast';
 
 describe('useModelData', () => {
   beforeEach(() => {
@@ -47,6 +52,8 @@ describe('useModelData', () => {
     mockGetRel.mockReset();
     mockGetAllThings.mockResolvedValue([]);
     mockGetAllRels.mockResolvedValue([]);
+    mockConnected = false;
+    vi.mocked(toast.error).mockClear();
     useModelStore.setState({ things: [], relationships: [], loaded: false });
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, statesVersion: 0 });
   });
@@ -186,28 +193,64 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(false);
   });
 
-  // Regression (Bug #5931): incremental SSE hydration is lossy under load (missed
-  // ThingCreated events, failed single-Thing fetches), leaving dashboards blank. A
-  // periodic full reconcile must refetch the whole model and recover the gaps.
-  it('reconciles the full model on a 15s interval and recovers Things dropped by SSE', async () => {
+  // Regression (Bug #5940): reconcile once when the SSE stream RECOVERS so events
+  // missed while disconnected are recovered — without blind polling.
+  it('reconciles the model silently when the SSE stream reconnects', async () => {
+    mockConnected = true; // already connected at mount
+    const { rerender } = renderHook(() => useModelData());
+    await act(async () => {});
+    expect(mockGetAllThings).toHaveBeenCalledTimes(1); // mount load only; first connect does not reconcile
+
+    // A Thing created while we were disconnected shows up in the next full payload.
+    mockGetAllThings.mockResolvedValue([{ Id: 't-late', Name: 'Late', Properties: {} }]);
+    mockConnected = false; rerender(); // stream drops
+    await act(async () => { mockConnected = true; rerender(); }); // stream recovers
+
+    expect(mockGetAllThings).toHaveBeenCalledTimes(2);
+    expect(useModelStore.getState().things.map((t) => t.Id)).toContain('t-late');
+    // Background reconcile must not raise a toast (error toasts do not auto-dismiss).
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('does NOT reconcile on the first connect (mount already loaded)', async () => {
+    mockConnected = false;
+    const { rerender } = renderHook(() => useModelData());
+    await act(async () => {});
+    expect(mockGetAllThings).toHaveBeenCalledTimes(1); // mount only
+
+    await act(async () => { mockConnected = true; rerender(); }); // first-ever connect
+    expect(mockGetAllThings).toHaveBeenCalledTimes(1); // no extra reconcile
+  });
+
+  it('a failed reconnect reconcile does not raise a toast', async () => {
+    mockConnected = true;
+    const { rerender } = renderHook(() => useModelData());
+    await act(async () => {});
+    mockGetAllThings.mockRejectedValue(new Error('network'));
+
+    mockConnected = false; rerender();
+    await act(async () => { mockConnected = true; rerender(); });
+
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('retries a failed Thing hydrate once, then upserts (Bug #5940)', async () => {
     vi.useFakeTimers();
     try {
-      mockGetAllThings.mockResolvedValue([]);
-      const { unmount } = renderHook(() => useModelData());
+      renderHook(() => useModelData());
       await act(async () => {});
-      expect(mockGetAllThings).toHaveBeenCalledTimes(1);
+      mockGetThing.mockReset();
+      mockGetThing
+        .mockRejectedValueOnce(new Error('transient'))
+        .mockResolvedValueOnce({ Id: 't-new', Name: 'New', Properties: {} });
 
-      // A Thing whose ThingCreated event was dropped now shows up in the next full payload.
-      mockGetAllThings.mockResolvedValue([{ Id: 't-late', Name: 'Late', Properties: {} }]);
-      await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
-      expect(mockGetAllThings).toHaveBeenCalledTimes(2);
-      expect(useModelStore.getState().things.map((t) => t.Id)).toContain('t-late');
+      await act(async () => {
+        handlers.get('ThingCreated')!({ EntityId: 't-new' });
+        await vi.advanceTimersByTimeAsync(400);
+      });
 
-      // The interval is cleared on unmount — no leak.
-      mockGetAllThings.mockClear();
-      unmount();
-      await act(async () => { await vi.advanceTimersByTimeAsync(45000); });
-      expect(mockGetAllThings).not.toHaveBeenCalled();
+      expect(mockGetThing).toHaveBeenCalledTimes(2);
+      expect(useModelStore.getState().things.map((t) => t.Id)).toContain('t-new');
     } finally {
       vi.useRealTimers();
     }
