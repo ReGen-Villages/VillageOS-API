@@ -24,6 +24,7 @@ import {
 import { stateApi } from './stateApi';
 import { temporalApi } from './temporalApi';
 import { apiClient } from './client';
+import { effectiveProperties } from '../utils/propertyMapper';
 
 const IS_PREDICATE = 'is';
 
@@ -94,7 +95,7 @@ export function discoverDashboards(
   const idx = buildModelIndex(things, relationships);
   const out: DashboardDescriptor[] = [];
   for (const t of thingsOfArchetype(DASHBOARD_ARCHETYPE, idx)) {
-    const raw = t.Properties?.[DASHBOARD_SPEC_PROPERTY];
+    const raw = effectiveProperties(t)[DASHBOARD_SPEC_PROPERTY];
     const spec = parseSpec(raw);
     if (spec) out.push({ id: t.Id, name: t.Name, spec });
   }
@@ -164,7 +165,7 @@ function num(v: unknown): number {
 function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined): boolean {
   if (!filters) return true;
   for (const f of filters) {
-    const v = thing.Properties?.[f.property];
+    const v = effectiveProperties(thing)[f.property];
     switch (f.op) {
       case '=': if (v !== f.value) return false; break;
       case '!=': if (v === f.value) return false; break;
@@ -195,15 +196,15 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       if (binding.thing === '$scope') {
         if (ctx.scopeId) {
           const t = ctx.idx.byId.get(ctx.scopeId);
-          return t ? num(t.Properties?.[binding.property]) : null;
+          return t ? num(effectiveProperties(t)[binding.property]) : null;
         }
         // "All" → average across compare entities.
         const ents = ctx.compareArchetype ? thingsOfArchetype(ctx.compareArchetype, ctx.idx) : [];
-        const vals = ents.map((t) => num(t.Properties?.[binding.property])).filter((n) => !isNaN(n));
+        const vals = ents.map((t) => num(effectiveProperties(t)[binding.property])).filter((n) => !isNaN(n));
         return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
       }
       const t = ctx.idx.byId.get(binding.thing) ?? ctx.idx.byName.get(binding.thing);
-      return t ? num(t.Properties?.[binding.property]) : null;
+      return t ? num(effectiveProperties(t)[binding.property]) : null;
     }
 
     case 'aggregate': {
@@ -214,7 +215,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       if (members) items = items.filter((t) => members.has(t.Id));
       if (binding.op === 'count') return items.length;
       const vals = items
-        .map((t) => num(t.Properties?.[binding.property ?? '']))
+        .map((t) => num(effectiveProperties(t)[binding.property ?? '']))
         .filter((n) => !isNaN(n));
       if (!vals.length) return 0;
       switch (binding.op) {
@@ -230,7 +231,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       const ents = ctx.compareArchetype ? thingsOfArchetype(ctx.compareArchetype, ctx.idx) : [];
       return ents.map((t) => {
         const row: Row = { id: t.Id, name: t.Name };
-        for (const p of binding.properties) row[p] = num(t.Properties?.[p]);
+        for (const p of binding.properties) row[p] = num(effectiveProperties(t)[p]);
         return row;
       });
     }
@@ -250,7 +251,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       if (binding.limit) list = list.slice(0, binding.limit);
       return list.map((ref) => {
         const full = ctx.idx.byId.get(ref.Id);
-        return { id: ref.Id, name: ref.Name, ...(full?.Properties ?? {}) } as Row;
+        return { id: ref.Id, name: ref.Name, ...(full ? effectiveProperties(full) : {}) } as Row;
       });
     }
 
