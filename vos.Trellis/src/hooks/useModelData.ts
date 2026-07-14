@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { useModelStore } from '../stores/modelStore';
@@ -8,11 +8,19 @@ import { useFlashTimer } from './useFlashTimer';
 import { toast } from '../components/common/Toast';
 import { isGraphAffectingProperty, applyThingPropertyUpdate, applyRelationshipPropertyUpdate, isVisibleRelationship } from '../utils/propertyUpdates';
 
+/** How long to wait before a single hydrate retry (Bug #5940). */
+const HYDRATE_RETRY_MS = 400;
+
 /**
  * Single source of truth for the model fetch. Exported so mutation handlers can
  * refresh after their action without going through the hook.
+ *
+ * Pass `{ silent: true }` for background reconciles (e.g. the SSE reconnect
+ * recovery) so a transient failure does not raise a toast — error toasts do not
+ * auto-dismiss, so a background loop would otherwise stack un-dismissable toasts
+ * (Bug #5940). User-initiated loads (mount, mutations, ModelChanged) stay loud.
  */
-export async function reloadModelData(): Promise<void> {
+export async function reloadModelData(opts?: { silent?: boolean }): Promise<void> {
   try {
     const [t, r] = await Promise.all([thingApi.getAll(), relationshipApi.getAll()]);
     useModelStore.getState().setThings(t);
@@ -21,7 +29,7 @@ export async function reloadModelData(): Promise<void> {
     // this the Operations page sits on "Loading model…" forever (Bug #5930).
     useModelStore.getState().markLoaded();
   } catch {
-    toast.error('Failed to load model');
+    if (!opts?.silent) toast.error('Failed to load model');
   }
 }
 
@@ -30,22 +38,36 @@ function entityId(data: unknown): string | undefined {
   return (data as { EntityId?: string } | undefined)?.EntityId;
 }
 
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Structural create events carry only an id — the object's properties are
 // deliberately not streamed — so we hydrate the single new object and upsert it
-// rather than refetching the whole model. A failed fetch (e.g. the create raced
-// with a delete) is ignored: a later ModelChanged/reload reconciles the store.
+// rather than refetching the whole model. The fetch is retried once on failure
+// (Bug #5940): a transient error would otherwise drop the object from the store
+// until the next ModelChanged. A genuine create/delete race 404s on the retry
+// too and is correctly abandoned (the delete event removes it).
 async function hydrateThing(id: string | undefined): Promise<void> {
   if (!id) return;
   try {
     useModelStore.getState().upsertThing(await thingApi.get(id));
-  } catch { /* transient or already deleted — leave the store as-is */ }
+  } catch {
+    try {
+      await delay(HYDRATE_RETRY_MS);
+      useModelStore.getState().upsertThing(await thingApi.get(id));
+    } catch { /* gone or still failing — reconciled by reconnect/ModelChanged */ }
+  }
 }
 
 async function hydrateRelationship(id: string | undefined): Promise<void> {
   if (!id) return;
   try {
     useModelStore.getState().upsertRelationship(await relationshipApi.get(id));
-  } catch { /* transient or already deleted — leave the store as-is */ }
+  } catch {
+    try {
+      await delay(HYDRATE_RETRY_MS);
+      useModelStore.getState().upsertRelationship(await relationshipApi.get(id));
+    } catch { /* gone or still failing — reconciled by reconnect/ModelChanged */ }
+  }
 }
 
 /**
@@ -53,19 +75,22 @@ async function hydrateRelationship(id: string | undefined): Promise<void> {
  * populated useModelStore from mount. Mount once in AuthenticatedApp.
  */
 export function useModelData(): void {
-  const { on } = useSse();
+  const { on, connected } = useSse();
   const { triggerFlashNode, triggerFlashEdge } = useFlashTimer();
 
   useEffect(() => { reloadModelData(); }, []);
 
-  // Reconcile the whole store on a fixed cadence. Incremental SSE hydration is lossy under a high
-  // event rate (missed ThingCreated events, failed single-thing fetches), so without this many
-  // Things never enter the store and dashboards render them blank. A periodic full refetch keeps the
-  // store complete and fresh even when the live stream drops updates.
+  // Reconcile once when the SSE stream RECOVERS (Bug #5940). While disconnected the
+  // incremental handlers miss structural events, so on reconnect we resync the whole
+  // store to recover the gap. `hasConnected` gates out the first connect (the mount
+  // effect already loads) so only genuine reconnects trigger a reconcile. Silent: a
+  // background refresh must not raise an un-dismissable "Failed to load model" toast.
+  const hasConnected = useRef(false);
   useEffect(() => {
-    const id = setInterval(() => { reloadModelData(); }, 15000);
-    return () => clearInterval(id);
-  }, []);
+    if (!connected) return;
+    if (hasConnected.current) reloadModelData({ silent: true });
+    hasConnected.current = true;
+  }, [connected]);
 
   useEffect(() => {
     const unsubs = [

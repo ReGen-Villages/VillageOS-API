@@ -304,8 +304,8 @@ export function GraphPage() {
             onSelectNode={selectNode}
             onDeleteProperty={handleDeleteProperty}
             onDeleteThing={(id, name) => setDeleteConfirm({ type: 'thing', id, name })}
-            onPropertySet={reloadModelData}
-            onRenamed={reloadModelData}
+            onPropertySet={() => reloadModelData()}
+            onRenamed={() => reloadModelData()}
             statesVersion={statesVersion}
           />
         </ResizablePanel>
@@ -325,7 +325,7 @@ export function GraphPage() {
               setDeleteConfirm({ type: 'relationship', id, name: detailRelationship.Name })
             }
             onDeleteProperty={handleDeleteRelProperty}
-            onPropertySet={reloadModelData}
+            onPropertySet={() => reloadModelData()}
             statesVersion={statesVersion}
           />
         </ResizablePanel>
