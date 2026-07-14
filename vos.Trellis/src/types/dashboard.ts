@@ -37,10 +37,11 @@ export type NumberFormat =
  */
 export type Binding =
   | { kind: 'const'; value: number }
-  /** Count of Things currently in a derived State (via GET /api/states/{state}/things). */
-  | { kind: 'stateCount'; state: string; scope?: ScopeRef }
+  /** Count of Things currently in a derived State (via GET /api/states/{state}/things).
+   *  `archetype` narrows the count to Things of that archetype (e.g. only Orders, not their lines). */
+  | { kind: 'stateCount'; state: string; scope?: ScopeRef; archetype?: string }
   /** Rows of Things currently in a State, enriched with their properties for a table. */
-  | { kind: 'stateList'; state: string; scope?: ScopeRef; limit?: number }
+  | { kind: 'stateList'; state: string; scope?: ScopeRef; limit?: number; archetype?: string }
   /** Aggregate over Things of an archetype held in the model store (client-side). */
   | {
       kind: 'aggregate';
