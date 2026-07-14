@@ -59,23 +59,46 @@ export function unwrapThing(thing: VosThing): VosThing {
   };
 }
 
+// Memoize the flattened result per Thing identity (Bug #5941). effectiveProperties is
+// called per-Thing per-property across aggregate/compareEntities/stateList, and each call
+// walks the whole ancestor chain and allocates a merged object. The store never mutates a
+// Thing in place — setThings/upsertThing/applyThingPropertyUpdate all produce new objects —
+// so a stale entry is impossible: a changed Thing is a new key, and the old key is GC'd.
+const effectivePropertiesCache = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
 /**
  * A Thing's effective properties: own + inherited overrides, own winning, flattened and unwrapped.
  * Under lazy inheritance an instance's value for an inherited name is relocated out of Properties into
  * InheritedProperties, so reading Properties alone misses it. Call unwrapThing first (values raw here).
+ *
+ * Precedence is deterministic: own > nearer ancestor > farther ancestor, and among same-distance
+ * sibling ancestors the one whose `SourceName` sorts last wins — so a property defined by two sibling
+ * archetypes always resolves the same way regardless of server JSON key order. The returned object is
+ * frozen (it is a shared cache entry); callers read or spread it but must not mutate it.
  */
-export function effectiveProperties(thing: Pick<VosThing, 'Properties' | 'InheritedProperties'>): Record<string, unknown> {
+export function effectiveProperties(
+  thing: Pick<VosThing, 'Properties' | 'InheritedProperties'>,
+): Readonly<Record<string, unknown>> {
+  const cached = effectivePropertiesCache.get(thing);
+  if (cached) return cached;
+
   const merged: Record<string, unknown> = {};
   const collect = (sets?: Record<string, InheritedPropertySet>): void => {
     if (!sets) return;
-    for (const set of Object.values(sets)) {
+    // Fixed order (by SourceName) makes sibling resolution deterministic; assigning in
+    // ascending order means the alphabetically-last sibling wins a same-distance conflict.
+    const ordered = Object.values(sets).sort((a, b) => a.SourceName.localeCompare(b.SourceName));
+    for (const set of ordered) {
       collect(set.Inherited as unknown as Record<string, InheritedPropertySet>);  // farther ancestors first
       Object.assign(merged, set.Properties);
     }
   };
   collect(thing.InheritedProperties);
   Object.assign(merged, thing.Properties);  // own wins
-  return merged;
+
+  const frozen = Object.freeze(merged);
+  effectivePropertiesCache.set(thing, frozen);
+  return frozen;
 }
 
 /**
