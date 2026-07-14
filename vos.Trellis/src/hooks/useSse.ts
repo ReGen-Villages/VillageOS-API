@@ -31,6 +31,14 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 let generation = 0; // bumped on release/reconnect to abort stale async opens
 
+// Highest object-stream sequence (SSE event id) this client has applied (Bug #5943).
+// Persists across reconnects so we resume from here — the broker replays committed Facts
+// after it and de-dupes by sequence, closing the disconnect gap precisely instead of
+// re-subscribing at the current head (which skipped everything during the drop). Reset on
+// full teardown / model switch (release) because the sequence is per-model. null = no
+// position yet → start from the fresh snapshot watermark.
+let consumedWatermark: number | null = null;
+
 function notify() { listeners.forEach((l) => l()); }
 function setConnected(v: boolean) { if (connectedState !== v) { connectedState = v; notify(); } }
 
@@ -52,9 +60,18 @@ function dispatch(kind: string, data: unknown) {
   });
 }
 
-function attachListeners(source: EventSource) {
+// `trackWatermark` is true only for the object subscription — its events carry the
+// per-model Fact sequence as their SSE id; the system/operational stream does not.
+function attachListeners(source: EventSource, trackWatermark = false) {
   for (const kind of KNOWN_EVENTS) {
     source.addEventListener(kind, (e: MessageEvent) => {
+      if (trackWatermark && e.lastEventId) {
+        const seq = Number(e.lastEventId);
+        // Monotonic guard: replay/de-dup can re-deliver ≤ our position; never rewind.
+        if (Number.isFinite(seq) && (consumedWatermark === null || seq > consumedWatermark)) {
+          consumedWatermark = seq;
+        }
+      }
       let data: unknown;
       try { data = e.data ? JSON.parse(e.data) : undefined; } catch { data = e.data; }
       dispatch(kind, data);
@@ -102,12 +119,18 @@ async function openStreams() {
     if (resp.ok) {
       const { subscriptionId, watermark } = await resp.json();
       if (myGeneration !== generation || refCount === 0) return;
+      // Resume from where we left off (Bug #5943): on a reconnect the broker replays the
+      // Facts we missed and de-dupes by sequence; on a first connect we have no position, so
+      // seed from the fresh snapshot watermark. The stream honours ?lastEventId over the
+      // subscription's own watermark, so a fresh subscription still resumes precisely.
+      const resumeFrom = consumedWatermark ?? watermark;
+      consumedWatermark = resumeFrom;
       const obj = new EventSource(
-        `${BASE_URL}/api/subscriptions/${subscriptionId}/stream?${tokenParam}&lastEventId=${watermark}`,
+        `${BASE_URL}/api/subscriptions/${subscriptionId}/stream?${tokenParam}&lastEventId=${resumeFrom}`,
       );
       obj.onopen = () => { reconnectAttempt = 0; setConnected(true); };
       obj.onerror = () => scheduleReconnect();
-      attachListeners(obj);
+      attachListeners(obj, true);
       objectSource = obj;
     } else {
       scheduleReconnect();
@@ -137,6 +160,7 @@ function release() {
     generation++; // abort any in-flight open
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     reconnectAttempt = 0;
+    consumedWatermark = null; // per-model sequence — a fresh acquire (e.g. model switch) restarts from head
     closeStreams();
     setConnected(false);
   }

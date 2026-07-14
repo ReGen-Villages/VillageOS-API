@@ -13,8 +13,11 @@ class FakeEventSource {
   constructor(url: string) { this.url = url; FakeEventSource.instances.push(this); }
   addEventListener(type: string, cb: (e: MessageEvent) => void) { this.listeners.set(type, cb); }
   close() { this.closed = true; }
-  emit(type: string, data: unknown) {
-    this.listeners.get(type)?.({ data: JSON.stringify(data) } as MessageEvent);
+  emit(type: string, data: unknown, id?: number | string) {
+    this.listeners.get(type)?.({
+      data: JSON.stringify(data),
+      lastEventId: id != null ? String(id) : '',
+    } as MessageEvent);
   }
 }
 
@@ -70,5 +73,48 @@ describe('useSse', () => {
     expect(urls.some((u) => u.includes('/api/events/stream'))).toBe(true);
     expect(urls.every((u) => u.includes('access_token=tok'))).toBe(true);
     unmount();
+  });
+
+  const objectStreams = () => FakeEventSource.instances.filter((e) => e.url.includes('/subscriptions/'));
+
+  // Bug #5943: the first connect has no consumed position, so it seeds from the snapshot
+  // watermark; after consuming events, a reconnect must resume from the consumed sequence so
+  // the broker replays only the gap — not re-subscribe at the current head (skipping the gap).
+  it('resumes the object stream from the consumed sequence on reconnect', async () => {
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    expect(objectStreams()[0].url).toContain('lastEventId=0'); // first connect: snapshot watermark
+
+    const obj0 = objectStreams()[0];
+    act(() => obj0.emit('ThingCreated', { EntityId: 't7' }, 7)); // consume up to sequence 7
+
+    vi.useFakeTimers();
+    act(() => obj0.onerror?.());               // stream drops → schedules reconnect
+    await vi.advanceTimersByTimeAsync(1000);   // first backoff delay
+    vi.useRealTimers();
+
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+    expect(objectStreams()[1].url).toContain('lastEventId=7'); // resumed from consumed sequence
+    unmount();
+  });
+
+  it('resets the watermark on full teardown so a model switch restarts from the fresh snapshot', async () => {
+    const first = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    act(() => objectStreams()[0].emit('ThingCreated', { EntityId: 't7' }, 7));
+    first.unmount(); // release() → consumedWatermark reset
+
+    // A different model's snapshot head is 99; the remount must resume from 99, not the stale 7.
+    FakeEventSource.instances = [];
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ subscriptionId: 's2', watermark: 99 }),
+    }) as unknown as typeof fetch;
+
+    const second = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    expect(objectStreams()[0].url).toContain('lastEventId=99');
+    expect(objectStreams()[0].url).not.toContain('lastEventId=7');
+    second.unmount();
   });
 });

@@ -80,11 +80,12 @@ export function useModelData(): void {
 
   useEffect(() => { reloadModelData(); }, []);
 
-  // Reconcile once when the SSE stream RECOVERS (Bug #5940). While disconnected the
-  // incremental handlers miss structural events, so on reconnect we resync the whole
-  // store to recover the gap. `hasConnected` gates out the first connect (the mount
-  // effect already loads) so only genuine reconnects trigger a reconcile. Silent: a
-  // background refresh must not raise an un-dismissable "Failed to load model" toast.
+  // Reconcile once when the SSE stream RECOVERS (Bug #5940). The stream itself now resumes
+  // from our consumed sequence and the broker replays the missed Facts (Bug #5943), so this
+  // full reconcile is the backstop for the one case replay can't serve: our watermark is
+  // older than the broker's retained commit log (post snapshot eviction). `hasConnected`
+  // gates out the first connect (the mount effect already loads) so only genuine reconnects
+  // trigger it. Silent: a background refresh must not raise an un-dismissable toast.
   const hasConnected = useRef(false);
   useEffect(() => {
     if (!connected) return;
