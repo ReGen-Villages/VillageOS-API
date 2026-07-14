@@ -156,6 +156,45 @@ describe('effectiveProperties', () => {
     const merged = effectiveProperties({ Properties: { a: 1 }, InheritedProperties: undefined });
     expect(merged).toEqual({ a: 1 });
   });
+
+  // Bug #5941: resolve sibling ancestors deterministically (by SourceName) instead of
+  // relying on server JSON key order. Two siblings define `x`; the alphabetically-last
+  // SourceName wins, whatever order the keys arrive in.
+  it('resolves sibling ancestor conflicts deterministically by SourceName', () => {
+    const thing = {
+      Properties: {},
+      InheritedProperties: {
+        Beta: inheritedSet('Beta', { x: 'from-beta' }),
+        Alpha: inheritedSet('Alpha', { x: 'from-alpha' }),
+      },
+    };
+    // Reversed key order must not change the outcome.
+    const reversed = {
+      Properties: {},
+      InheritedProperties: {
+        Alpha: inheritedSet('Alpha', { x: 'from-alpha' }),
+        Beta: inheritedSet('Beta', { x: 'from-beta' }),
+      },
+    };
+    expect(effectiveProperties(thing).x).toBe('from-beta');
+    expect(effectiveProperties(reversed).x).toBe('from-beta');
+  });
+
+  // Bug #5941: memoized per Thing identity — a repeat call returns the very same
+  // (frozen) object, and the result cannot be mutated.
+  it('memoizes by Thing identity and freezes the result', () => {
+    const thing = {
+      Properties: { a: 1 },
+      InheritedProperties: { Home: inheritedSet('Home', { b: 2 }) },
+    };
+    const first = effectiveProperties(thing);
+    const second = effectiveProperties(thing);
+    expect(second).toBe(first); // same reference — computed once
+    expect(Object.isFrozen(first)).toBe(true);
+    expect(() => {
+      (first as Record<string, unknown>).a = 99;
+    }).toThrow();
+  });
 });
 
 describe('unwrapRelationship', () => {
