@@ -239,15 +239,20 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     case 'stateCount': {
       const resp = await stateApi.getThingsInState(binding.state);
       const members = scopeMemberIds(binding.scope, ctx);
-      const list = resp.Things ?? [];
-      return members ? list.filter((t) => members.has(t.Id)).length : list.length;
+      const ofArchetype = binding.archetype ? thingIdsOfArchetype(binding.archetype, ctx.idx) : null;
+      let list = resp.Things ?? [];
+      if (members) list = list.filter((t) => members.has(t.Id));
+      if (ofArchetype) list = list.filter((t) => ofArchetype.has(t.Id));
+      return list.length;
     }
 
     case 'stateList': {
       const resp = await stateApi.getThingsInState(binding.state);
       const members = scopeMemberIds(binding.scope, ctx);
+      const ofArchetype = binding.archetype ? thingIdsOfArchetype(binding.archetype, ctx.idx) : null;
       let list = resp.Things ?? [];
       if (members) list = list.filter((t) => members.has(t.Id));
+      if (ofArchetype) list = list.filter((t) => ofArchetype.has(t.Id));
       if (binding.limit) list = list.slice(0, binding.limit);
       return list.map((ref) => {
         const full = ctx.idx.byId.get(ref.Id);

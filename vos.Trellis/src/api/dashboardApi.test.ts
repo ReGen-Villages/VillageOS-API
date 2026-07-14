@@ -157,4 +157,48 @@ describe('resolveBinding', () => {
     )) as Record<string, unknown>[];
     expect(rows[0]).toMatchObject({ id: 'wh1', name: 'WH-1', perfect_order_rate: 98.9 });
   });
+
+  // Feature (#5933): a State can contain Things of several archetypes (Orders
+  // and their OrderLines). `archetype` narrows the count/list to one archetype.
+  describe('archetype narrowing', () => {
+    // Model: 2 Orders + 1 OrderLine, all is-typed; state "open" holds all three.
+    function orderCtx(): ResolveContext {
+      const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
+      const things: VosThing[] = [
+        t('is', 'is'), t('arch-order', 'Order'), t('arch-line', 'OrderLine'),
+        t('o1', 'O-1'), t('o2', 'O-2'), t('l1', 'L-1'),
+      ];
+      const rel = (SubjectId: string, TargetId: string): VosRelationship => ({
+        Id: `${SubjectId}-is-${TargetId}`, Name: `${SubjectId} is ${TargetId}`,
+        SubjectId, PredicateId: 'is', TargetId, Properties: {},
+      });
+      const relationships = [rel('o1', 'arch-order'), rel('o2', 'arch-order'), rel('l1', 'arch-line')];
+      return { idx: buildModelIndex(things, relationships), scopeId: null, compareArchetype: 'Order' };
+    }
+
+    beforeEach(() => {
+      vi.mocked(stateApi.getThingsInState).mockResolvedValue({
+        StateName: 'open',
+        Things: [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }, { Id: 'l1', Name: 'L-1' }],
+      });
+    });
+
+    it('stateCount counts only Things of the given archetype', async () => {
+      const v = await resolveBinding({ kind: 'stateCount', state: 'open', archetype: 'Order' }, orderCtx());
+      expect(v).toBe(2);
+    });
+
+    it('stateList returns only Things of the given archetype', async () => {
+      const rows = (await resolveBinding(
+        { kind: 'stateList', state: 'open', archetype: 'Order' },
+        orderCtx(),
+      )) as Record<string, unknown>[];
+      expect(rows.map((r) => r.id)).toEqual(['o1', 'o2']);
+    });
+
+    it('without archetype counts every Thing in the state (backward-compatible)', async () => {
+      const v = await resolveBinding({ kind: 'stateCount', state: 'open' }, orderCtx());
+      expect(v).toBe(3);
+    });
+  });
 });
