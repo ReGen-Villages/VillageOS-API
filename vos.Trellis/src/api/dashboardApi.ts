@@ -175,19 +175,32 @@ export interface ResolveContext {
   nonce?: number;
 }
 
-/** Members related to the scope entity via a predicate (for scoped counts). */
+/** Members reachable from the scope entity by following a predicate transitively.
+ *  The walk is transitive because a scope predicate can nest: the entity relates to
+ *  intermediate Things that in turn relate to the ones a widget counts, and a one-hop walk
+ *  would stop at the intermediates. The scope entity is never a member of its own scope. */
 function scopeMemberIds(scope: ScopeRef | undefined, ctx: ResolveContext): Set<string> | null {
   if (!scope || !ctx.scopeId) return null;
   const pid = ctx.idx.predicateNameToId.get(scope.viaPredicate);
   if (!pid) return new Set();
-  const members = new Set<string>();
   const inbound = scope.direction === 'in';
+  const adjacency = new Map<string, string[]>();
   for (const r of ctx.idx.relationships) {
     if (r.PredicateId !== pid) continue;
-    if (inbound) {
-      if (r.TargetId === ctx.scopeId) members.add(r.SubjectId);
-    } else if (r.SubjectId === ctx.scopeId) {
-      members.add(r.TargetId);
+    const [from, to] = inbound ? [r.TargetId, r.SubjectId] : [r.SubjectId, r.TargetId];
+    const next = adjacency.get(from);
+    if (next) next.push(to);
+    else adjacency.set(from, [to]);
+  }
+  const members = new Set<string>();
+  const walked = new Set<string>([ctx.scopeId]);   // seeded so a cycle back to the scope re-adds nothing
+  const frontier = [ctx.scopeId];
+  while (frontier.length) {
+    for (const next of adjacency.get(frontier.pop()!) ?? []) {
+      if (walked.has(next)) continue;
+      walked.add(next);
+      members.add(next);
+      frontier.push(next);
     }
   }
   return members;
@@ -345,3 +358,4 @@ export function asRows(r: BindingResult): Row[] {
 export function asSeries(r: BindingResult): number[] {
   return Array.isArray(r) && (r.length === 0 || typeof r[0] === 'number') ? (r as number[]) : [];
 }
+
