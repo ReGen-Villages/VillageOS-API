@@ -120,11 +120,10 @@ export function thingsOfArchetype(archetype: string, idx: ModelIndex): VosThing[
 
 // ---- discovery ----------------------------------------------------------
 
-export function discoverDashboards(
-  things: VosThing[],
-  relationships: VosRelationship[],
-): DashboardDescriptor[] {
-  const idx = buildModelIndex(things, relationships);
+/** Discover dashboards from an already-built model index. Prefer this on the hot path
+ *  so the caller can share one index across discovery, scope, and binding resolution
+ *  instead of rebuilding it three times per model change. */
+export function discoverDashboardsFromIndex(idx: ModelIndex): DashboardDescriptor[] {
   const out: DashboardDescriptor[] = [];
   for (const t of thingsOfArchetype(DASHBOARD_ARCHETYPE, idx)) {
     const raw = effectiveProperties(t)[DASHBOARD_SPEC_PROPERTY];
@@ -132,6 +131,13 @@ export function discoverDashboards(
     if (spec) out.push({ id: t.Id, name: t.Name, spec });
   }
   return out;
+}
+
+export function discoverDashboards(
+  things: VosThing[],
+  relationships: VosRelationship[],
+): DashboardDescriptor[] {
+  return discoverDashboardsFromIndex(buildModelIndex(things, relationships));
 }
 
 function parseSpec(raw: unknown): DashboardSpec | null {

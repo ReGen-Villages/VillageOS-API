@@ -6,10 +6,19 @@ import { useUiStore } from '../stores/uiStore';
 import { useSse } from './useSse';
 import { useFlashTimer } from './useFlashTimer';
 import { toast } from '../components/common/Toast';
-import { isGraphAffectingProperty, applyThingPropertyUpdate, applyRelationshipPropertyUpdate, isVisibleRelationship } from '../utils/propertyUpdates';
+import { isGraphAffectingProperty, isVisibleRelationship } from '../utils/propertyUpdates';
 
 /** How long to wait before a single hydrate retry (Bug #5940). */
 const HYDRATE_RETRY_MS = 400;
+
+/** Coalesce a burst of SSE structural events into one store write. A high-throughput
+ *  sim emits hundreds of ThingCreated/RelationshipCreated per second; applying each as
+ *  its own O(N) store rebuild saturates the main thread and makes Trellis degrade as the
+ *  model grows. We buffer events and flush once per window instead. */
+const FLUSH_DEBOUNCE_MS = 150;
+
+/** Max hydrate fetches in flight per flush — bounds the request fan-out on a big burst. */
+const HYDRATE_CONCURRENCY = 8;
 
 /**
  * Single source of truth for the model fetch. Exported so mutation handlers can
@@ -41,33 +50,30 @@ function entityId(data: unknown): string | undefined {
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Structural create events carry only an id — the object's properties are
-// deliberately not streamed — so we hydrate the single new object and upsert it
-// rather than refetching the whole model. The fetch is retried once on failure
+// deliberately not streamed — so we hydrate the new objects and upsert them
+// rather than refetching the whole model. Each fetch is retried once on failure
 // (Bug #5940): a transient error would otherwise drop the object from the store
 // until the next ModelChanged. A genuine create/delete race 404s on the retry
 // too and is correctly abandoned (the delete event removes it).
-async function hydrateThing(id: string | undefined): Promise<void> {
-  if (!id) return;
-  try {
-    useModelStore.getState().upsertThing(await thingApi.get(id));
-  } catch {
-    try {
-      await delay(HYDRATE_RETRY_MS);
-      useModelStore.getState().upsertThing(await thingApi.get(id));
-    } catch { /* gone or still failing — reconciled by reconnect/ModelChanged */ }
+async function hydrateMany<T>(ids: string[], fetchOne: (id: string) => Promise<T>): Promise<T[]> {
+  const out: T[] = [];
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    while (cursor < ids.length) {
+      const id = ids[cursor++];
+      try {
+        out.push(await fetchOne(id));
+      } catch {
+        try {
+          await delay(HYDRATE_RETRY_MS);
+          out.push(await fetchOne(id));
+        } catch { /* gone or still failing — reconciled by reconnect/ModelChanged */ }
+      }
+    }
   }
-}
-
-async function hydrateRelationship(id: string | undefined): Promise<void> {
-  if (!id) return;
-  try {
-    useModelStore.getState().upsertRelationship(await relationshipApi.get(id));
-  } catch {
-    try {
-      await delay(HYDRATE_RETRY_MS);
-      useModelStore.getState().upsertRelationship(await relationshipApi.get(id));
-    } catch { /* gone or still failing — reconciled by reconnect/ModelChanged */ }
-  }
+  const workers = Array.from({ length: Math.min(HYDRATE_CONCURRENCY, ids.length) }, worker);
+  await Promise.all(workers);
+  return out;
 }
 
 /**
@@ -94,23 +100,85 @@ export function useModelData(): void {
   }, [connected]);
 
   useEffect(() => {
+    // Buffered live updates: SSE events accumulate here and flush together, so a burst
+    // of structural changes becomes one store write instead of one O(N) rebuild each.
+    const pending = {
+      thingHydrate: new Set<string>(),
+      thingRemove: new Set<string>(),
+      relHydrate: new Set<string>(),
+      relRemove: new Set<string>(),
+      thingProps: new Map<string, { path: string; value: unknown }>(),
+      relProps: new Map<string, { name: string; value: unknown }>(),
+    };
+    const isEmpty = () =>
+      pending.thingHydrate.size === 0 && pending.thingRemove.size === 0 &&
+      pending.relHydrate.size === 0 && pending.relRemove.size === 0 &&
+      pending.thingProps.size === 0 && pending.relProps.size === 0;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let flushing = false;
+    const schedule = () => { if (!timer && !flushing) timer = setTimeout(() => void flush(), FLUSH_DEBOUNCE_MS); };
+
+    async function flush(): Promise<void> {
+      timer = null;
+      flushing = true;
+      // Snapshot and clear the buffers up front so events arriving during the async
+      // hydrate below land in the next window rather than being dropped.
+      const thingIds = [...pending.thingHydrate]; pending.thingHydrate.clear();
+      const relIds = [...pending.relHydrate]; pending.relHydrate.clear();
+      const thingRemovals = [...pending.thingRemove]; pending.thingRemove.clear();
+      const relationshipRemovals = [...pending.relRemove]; pending.relRemove.clear();
+      const thingPropertyUpdates = [...pending.thingProps].map(([id, u]) => ({ id, path: u.path, value: u.value }));
+      pending.thingProps.clear();
+      const relationshipPropertyUpdates = [...pending.relProps].map(([id, u]) => ({ id, name: u.name, value: u.value }));
+      pending.relProps.clear();
+
+      const [thingUpserts, relationshipUpserts] = await Promise.all([
+        hydrateMany(thingIds, (id) => thingApi.get(id)),
+        hydrateMany(relIds, (id) => relationshipApi.get(id)),
+      ]);
+
+      useModelStore.getState().applyBatch({
+        thingUpserts,
+        thingRemovals,
+        relationshipUpserts,
+        relationshipRemovals,
+        thingPropertyUpdates,
+        relationshipPropertyUpdates,
+      });
+
+      flushing = false;
+      if (!isEmpty()) schedule(); // events arrived mid-flush — drain them next window
+    }
+
     const unsubs = [
-      on('ThingCreated', (data) => hydrateThing(entityId(data))),
-      on('ThingDeleted', (data) => useModelStore.getState().removeThing(entityId(data) ?? '')),
-      on('RelationshipCreated', (data) => hydrateRelationship(entityId(data))),
-      on('RelationshipDeleted', (data) => useModelStore.getState().removeRelationship(entityId(data) ?? '')),
+      on('ThingCreated', (data) => {
+        const id = entityId(data);
+        if (id) { pending.thingRemove.delete(id); pending.thingHydrate.add(id); schedule(); }
+      }),
+      on('ThingDeleted', (data) => {
+        const id = entityId(data);
+        if (id) { pending.thingHydrate.delete(id); pending.thingRemove.add(id); schedule(); }
+      }),
+      on('RelationshipCreated', (data) => {
+        const id = entityId(data);
+        if (id) { pending.relRemove.delete(id); pending.relHydrate.add(id); schedule(); }
+      }),
+      on('RelationshipDeleted', (data) => {
+        const id = entityId(data);
+        if (id) { pending.relHydrate.delete(id); pending.relRemove.add(id); schedule(); }
+      }),
       on('PropertyChanged', (...args: unknown[]) => {
         const thingId = args[0] as string;
         const propertyPath = args[1] as string | undefined;
         const newValue = args[2] as unknown;
         if (thingId && propertyPath !== undefined) {
           triggerFlashNode(thingId);
-          // Skip the O(n) rebuild unless the property affects graph rendering;
+          // Skip the store rebuild unless the property affects graph rendering;
           // other changes are detail-panel concerns only.
           if (isGraphAffectingProperty(propertyPath)) {
-            useModelStore.getState().updateThings((prev) => prev.map((t) =>
-              t.Id === thingId ? applyThingPropertyUpdate(t, propertyPath, newValue) : t,
-            ));
+            pending.thingProps.set(thingId, { path: propertyPath, value: newValue });
+            schedule();
           }
         }
       }),
@@ -124,9 +192,8 @@ export function useModelData(): void {
           const selNode = useUiStore.getState().selectedNodeId;
           const rels = useModelStore.getState().relationships;
           if (isVisibleRelationship(relId, selNode, rels)) {
-            useModelStore.getState().updateRelationships((prev) => prev.map((r) =>
-              r.Id === relId ? applyRelationshipPropertyUpdate(r, propertyName, newValue) : r,
-            ));
+            pending.relProps.set(relId, { name: propertyName, value: newValue });
+            schedule();
           }
         }
       }),
@@ -134,6 +201,9 @@ export function useModelData(): void {
       on('ModelCleared', () => useModelStore.getState().clear()),
       on('StatesChanged', () => useUiStore.getState().bumpStatesVersion()),
     ];
-    return () => unsubs.forEach((u) => u());
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubs.forEach((u) => u());
+    };
   }, [on, triggerFlashNode, triggerFlashEdge]);
 }

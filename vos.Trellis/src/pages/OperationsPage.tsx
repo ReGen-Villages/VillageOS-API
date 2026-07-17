@@ -13,7 +13,7 @@ import { useSse } from '../hooks/useSse';
 import { useResolveContext } from '../hooks/useDashboard';
 import {
   buildModelIndex,
-  discoverDashboards,
+  discoverDashboardsFromIndex,
   scopeEntities as computeScopeEntities,
 } from '../api/dashboardApi';
 import type { DashboardSection } from '../types/dashboard';
@@ -26,6 +26,12 @@ const REFRESH_EVENTS = [
   'RelationshipPropertyChanged',
   'ModelChanged',
 ];
+
+/** Coalesce a burst of live events into one dashboard re-resolution. Without this every
+ *  PropertyChanged re-runs every widget binding, and PropertyChanged is the highest-rate
+ *  event a busy model emits — so the cost climbs as the model grows and the page gets
+ *  less responsive over time. */
+const REFRESH_DEBOUNCE_MS = 400;
 
 function useIsWide(minWidth = 1024): boolean {
   const supported = typeof window !== 'undefined' && typeof window.matchMedia === 'function';
@@ -46,23 +52,31 @@ export function OperationsPage() {
   const loaded = useModelStore((s) => s.loaded);
   const { on, connected } = useSse();
 
-  const dashboards = useMemo(() => discoverDashboards(things, relationships), [things, relationships]);
+  // One shared index per model change, reused by discovery, scope, and resolution —
+  // instead of rebuilding it (over the whole model) three separate times.
+  const idx = useMemo(() => buildModelIndex(things, relationships), [things, relationships]);
+  const dashboards = useMemo(() => discoverDashboardsFromIndex(idx), [idx]);
   const [selected, setSelected] = useState(0);
   const dashboard = dashboards[Math.min(selected, Math.max(0, dashboards.length - 1))];
   const spec = dashboard?.spec;
 
-  const idx = useMemo(() => buildModelIndex(things, relationships), [things, relationships]);
   const entities = useMemo(() => (spec ? computeScopeEntities(spec, idx) : []), [spec, idx]);
 
   const [scopeId, setScopeId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
-  const ctx = useResolveContext(scopeId, spec?.compare?.archetype, nonce);
+  const ctx = useResolveContext(idx, scopeId, spec?.compare?.archetype, nonce);
 
-  // Live refresh: server-side bindings (state counts, services) re-resolve on
-  // relevant events even when the local store didn't change.
+  // Live refresh: server-side bindings (state counts, services) re-resolve on relevant
+  // events even when the local store didn't change. Debounced so a burst of events
+  // triggers a single re-resolution instead of one per event.
   useEffect(() => {
-    const unsubs = REFRESH_EVENTS.map((ev) => on(ev, () => setNonce((n) => n + 1)));
-    return () => unsubs.forEach((u) => u());
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => {
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; setNonce((n) => n + 1); }, REFRESH_DEBOUNCE_MS);
+    };
+    const unsubs = REFRESH_EVENTS.map((ev) => on(ev, bump));
+    return () => { if (timer) clearTimeout(timer); unsubs.forEach((u) => u()); };
   }, [on]);
 
   const isWide = useIsWide();

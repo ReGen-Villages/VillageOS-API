@@ -89,7 +89,29 @@ describe('useModelData', () => {
     await act(async () => { handlers.get('ThingCreated')!({ EntityId: 't-new' }); });
     await act(async () => { handlers.get('ThingCreated')!({ EntityId: 't-new' }); });
 
-    expect(useModelStore.getState().things.filter((t) => t.Id === 't-new')).toHaveLength(1);
+    await waitFor(() => expect(useModelStore.getState().things.filter((t) => t.Id === 't-new')).toHaveLength(1));
+    expect(mockGetThing).toHaveBeenCalledTimes(1); // deduped within the flush window
+  });
+
+  it('coalesces a burst of structural events into a single batched store write', async () => {
+    renderHook(() => useModelData());
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+
+    mockGetThing.mockImplementation((id: string) => Promise.resolve({ Id: id, Name: id, Properties: {} }));
+    let writes = 0;
+    const unsub = useModelStore.subscribe(() => { writes++; });
+
+    await act(async () => {
+      handlers.get('ThingCreated')!({ EntityId: 'a' });
+      handlers.get('ThingCreated')!({ EntityId: 'b' });
+      handlers.get('ThingCreated')!({ EntityId: 'c' });
+    });
+
+    await waitFor(() =>
+      expect(useModelStore.getState().things.map((t) => t.Id).sort()).toEqual(['a', 'b', 'c']),
+    );
+    unsub();
+    expect(writes).toBe(1); // one applyBatch for the whole burst, not one write per event
   });
 
   it('ThingCreated with a failed hydrate does not throw or change the store', async () => {
@@ -126,7 +148,7 @@ describe('useModelData', () => {
 
     await act(async () => { handlers.get('ThingDeleted')!({ EntityId: 't1' }); });
 
-    expect(useModelStore.getState().things.map((t) => t.Id)).toEqual(['t2']);
+    await waitFor(() => expect(useModelStore.getState().things.map((t) => t.Id)).toEqual(['t2']));
     expect(mockGetAllThings).not.toHaveBeenCalled();
   });
 
@@ -140,7 +162,7 @@ describe('useModelData', () => {
 
     await act(async () => { handlers.get('RelationshipDeleted')!({ EntityId: 'r1' }); });
 
-    expect(useModelStore.getState().relationships).toHaveLength(0);
+    await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(0));
     expect(mockGetAllRels).not.toHaveBeenCalled();
   });
 
@@ -246,7 +268,8 @@ describe('useModelData', () => {
 
       await act(async () => {
         handlers.get('ThingCreated')!({ EntityId: 't-new' });
-        await vi.advanceTimersByTimeAsync(400);
+        // Flush debounce (150) + hydrate retry delay (400) must both elapse.
+        await vi.advanceTimersByTimeAsync(700);
       });
 
       expect(mockGetThing).toHaveBeenCalledTimes(2);
@@ -265,7 +288,7 @@ describe('useModelData', () => {
     mockGetAllThings.mockClear();
 
     await act(async () => handlers.get('PropertyChanged')!('t1', 'geometry', 'new'));
-    expect(useModelStore.getState().things[0].Properties?.geometry).toBe('new');
+    await waitFor(() => expect(useModelStore.getState().things[0].Properties?.geometry).toBe('new'));
     expect(mockGetAllThings).not.toHaveBeenCalled();
   });
 });
