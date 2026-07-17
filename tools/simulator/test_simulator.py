@@ -167,6 +167,87 @@ class AuthMintsFromApiKeyViaHeader(unittest.TestCase):
             M.MyceliumClient("http://h").token()
 
 
+class ExpiredTokenIsReminted(unittest.TestCase):
+    """A cached JWT expires mid-run, so a long scenario would die with 401 on its first write
+    past the token's TTL. An authenticated 401 re-mints once from the API key and retries."""
+
+    def _client_with(self, responses):
+        """Drive urlopen from a scripted list of (status, payload) and record every request.
+        status None means a normal 200 returning payload."""
+        calls = []
+
+        class _Resp(io.BytesIO):
+            def __enter__(self_):
+                return self_
+
+            def __exit__(self_, *a):
+                return False
+
+        def fake_urlopen(req, timeout=None, **kwargs):
+            calls.append({
+                "url": req.full_url,
+                "headers": {k.lower(): v for k, v in req.header_items()},
+            })
+            status, payload = responses.pop(0)
+            if status is not None:
+                raise urllib.error.HTTPError(req.full_url, status, "err", {}, io.BytesIO(b"denied"))
+            return _Resp(json.dumps(payload).encode())
+
+        return calls, fake_urlopen
+
+    def test_401_remints_the_token_and_retries_once(self):
+        calls, fake = self._client_with([
+            (None, {"token": "first-jwt"}),      # initial mint
+            (401, None),                         # the cached token has expired
+            (None, {"token": "second-jwt"}),     # re-mint
+            (None, {"ok": True}),                # retry succeeds
+        ])
+        original = urllib.request.urlopen
+        urllib.request.urlopen = fake
+        try:
+            client = M.MyceliumClient("http://h", api_key="KEY-123")
+            result = client._json("POST", "/api/things", {"Name": "T"})
+        finally:
+            urllib.request.urlopen = original
+
+        self.assertEqual(result, {"ok": True})
+        writes = [c for c in calls if "/api/things" in c["url"]]
+        self.assertEqual(len(writes), 2)
+        self.assertEqual(writes[0]["headers"].get("authorization"), "Bearer first-jwt")
+        self.assertEqual(writes[1]["headers"].get("authorization"), "Bearer second-jwt")
+
+    def test_a_second_401_surfaces_rather_than_looping(self):
+        calls, fake = self._client_with([
+            (None, {"token": "first-jwt"}),
+            (401, None),
+            (None, {"token": "second-jwt"}),
+            (401, None),                         # still refused — the key itself is not accepted
+        ])
+        original = urllib.request.urlopen
+        urllib.request.urlopen = fake
+        try:
+            client = M.MyceliumClient("http://h", api_key="KEY-123")
+            with self.assertRaises(RuntimeError):
+                client._json("POST", "/api/things", {"Name": "T"})
+        finally:
+            urllib.request.urlopen = original
+
+        self.assertEqual(len([c for c in calls if "/api/things" in c["url"]]), 2)
+
+    def test_401_without_an_api_key_is_not_retried(self):
+        calls, fake = self._client_with([(401, None)])
+        original = urllib.request.urlopen
+        urllib.request.urlopen = fake
+        try:
+            client = M.MyceliumClient("http://h", token="ready-jwt")
+            with self.assertRaises(RuntimeError):
+                client._json("POST", "/api/things", {"Name": "T"})
+        finally:
+            urllib.request.urlopen = original
+
+        self.assertEqual(len(calls), 1)          # nothing to re-mint from, so it surfaces at once
+
+
 class ActionSerialization(unittest.TestCase):
     def test_roundtrips_through_jsonl(self):
         acts = _timeline()

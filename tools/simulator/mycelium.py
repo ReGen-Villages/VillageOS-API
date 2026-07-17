@@ -86,12 +86,13 @@ class MyceliumClient:
                                  headers={"X-API-Key": self._api_key}).get("token", "")
         return self._token
 
-    def _json(self, method, path, body=None, headers=None):
+    def _json(self, method, path, body=None, headers=None, _retry=True):
         url = self.url + path
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(url, data=data, method=method)
         req.add_header("Content-Type", "application/json")
-        if not path.startswith("/api/auth/token"):
+        authed = not path.startswith("/api/auth/token")
+        if authed:
             req.add_header("Authorization", "Bearer " + self.token())
         for name, value in (headers or {}).items():
             req.add_header(name, value)
@@ -100,6 +101,11 @@ class MyceliumClient:
                 raw = resp.read().decode()
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as e:
+            # A cached JWT expires mid-run (its `exp` passes); re-mint once from the API key and retry so
+            # a long scenario survives instead of dying with 401 on the first write past the token's TTL.
+            if e.code == 401 and authed and self._api_key and _retry:
+                self._token = None
+                return self._json(method, path, body, headers, _retry=False)
             raise RuntimeError(f"{method} {path} -> {e.code} {e.read().decode()[:200]}")
 
     # -- writes -----------------------------------------------------------
