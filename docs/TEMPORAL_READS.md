@@ -15,6 +15,22 @@ how data is addressed across tiers, and why current-state reads stay fast.
 This split is what keeps high-frequency, long-lived observation streams sustainable: the
 in-memory footprint stays bounded by the size of the graph, not by the length of its history.
 
+## Derived-state history is the exception
+
+A Thing's derived states (the ranges whose criteria hold) are computed, never stored — there is no
+state Fact and no state series in Rings. Their *history* is therefore served from a third place: the
+reactive engine's in-memory tracker, which records every change point as it happens.
+
+- `GET /api/things/{id}/state-transitions` — change points: states entered and exited, plus the
+  triggering property write.
+- `GET /api/things/{id}/states/{stateName}/occurrences` — intervals the Thing held one state.
+
+Both responses carry a `Coverage` block. While `Source` is `in-memory` the history only reaches back
+to when the engine loaded the model and is lost on restart, so absence of a transition is not
+evidence the state never held — read `Coverage.From` before drawing that conclusion. Durable
+reconstruction (replaying criteria against Rings) will return the same contract with
+`Source: reconstructed` over a wider window, so callers need no change.
+
 ## Rings: the tiered time-series store
 
 Rings stores samples keyed by `(entity, property, time-bucket)`. A bucket becomes a sealed,

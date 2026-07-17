@@ -8,9 +8,10 @@ import { useCallback, useRef, useState } from 'react';
 import { X, GripHorizontal } from 'lucide-react';
 import type { ModelIndex } from '../../../api/dashboardApi';
 import { effectiveProperties } from '../../../utils/propertyMapper';
-import { formatGuid, formatTimestamp } from '../../../utils/formatters';
+import { formatDateTime, formatGuid, formatPropertyValue, formatTimestamp } from '../../../utils/formatters';
 import { badgeTone } from '../widgets/format';
 import type { DetailSpec } from '../../../types/dashboard';
+import type { StateHistoryCoverage, StateTransition } from '../../../types/vos';
 import { useEntityDetail } from './useEntityDetail';
 
 interface Props {
@@ -38,8 +39,51 @@ function StatePills({ states }: { states: string[] }) {
   );
 }
 
+/** How far back the history reaches. Shown so an empty or short timeline reads as "not retained"
+ *  rather than "never happened" — in-memory history only starts when the engine loaded the model. */
+function CoverageNote({ coverage }: { coverage: StateHistoryCoverage }) {
+  if (coverage.Source !== 'in-memory') return null;
+  return (
+    <div className="mt-1.5 text-[10.5px] text-zinc-400 dark:text-zinc-500">
+      In-memory history — since {formatDateTime(coverage.From)}. Earlier transitions are not retained.
+    </div>
+  );
+}
+
+function TransitionRow({ transition }: { transition: StateTransition }) {
+  return (
+    <li className="flex gap-2 text-[11.5px]">
+      <span className="text-zinc-400 dark:text-zinc-500 font-mono whitespace-nowrap flex-shrink-0 w-[70px]">
+        {formatTimestamp(transition.At)}
+      </span>
+      <span className="min-w-0">
+        <span className="flex flex-wrap items-center gap-1">
+          {transition.Entered.map((s) => (
+            <span key={`entered-${s}`} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeTone(s)}`}>
+              + {s}
+            </span>
+          ))}
+          {transition.Exited.map((s) => (
+            <span
+              key={`exited-${s}`}
+              className="text-[10px] px-1.5 py-0.5 rounded-full line-through bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"
+            >
+              {s}
+            </span>
+          ))}
+        </span>
+        {transition.TriggeringProperty && (
+          <span className="block text-zinc-400 dark:text-zinc-500 font-mono">
+            {transition.TriggeringProperty}: {formatPropertyValue(transition.OldValue)} → {formatPropertyValue(transition.NewValue)}
+          </span>
+        )}
+      </span>
+    </li>
+  );
+}
+
 export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, zIndex, onClose, onFocus, openDetail }: Props) {
-  const { loading, root, involvedIds, statesById, timeline } = useEntityDetail(idx, thingId, detail, nonce);
+  const { loading, root, involvedIds, statesById, timeline, stateHistory } = useEntityDetail(idx, thingId, detail, nonce);
 
   const props = root ? effectiveProperties(root) : {};
   const title = (detail.titleProperty && (props[detail.titleProperty] as string)) || root?.Name || formatGuid(thingId);
@@ -100,6 +144,27 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, zIndex
         <section>
           <SectionTitle>Derived states</SectionTitle>
           <StatePills states={statesById.get(thingId) ?? []} />
+        </section>
+
+        {/* How the root reached those states, oldest-first like the handling history below */}
+        <section>
+          <SectionTitle>
+            State transitions {loading ? '· loading…' : stateHistory ? `· ${stateHistory.Transitions.length}` : ''}
+          </SectionTitle>
+          {!loading && !stateHistory && (
+            <div className="text-[11px] text-zinc-400">State history unavailable — no active reactive engine for this model.</div>
+          )}
+          {stateHistory && stateHistory.Transitions.length === 0 && (
+            <div className="text-[11px] text-zinc-400">No transitions recorded.</div>
+          )}
+          {stateHistory && stateHistory.Transitions.length > 0 && (
+            <ol className="mt-1 space-y-1.5">
+              {stateHistory.Transitions.map((transition, i) => (
+                <TransitionRow key={`${transition.At}-${i}`} transition={transition} />
+              ))}
+            </ol>
+          )}
+          {stateHistory && <CoverageNote coverage={stateHistory.Coverage} />}
         </section>
 
         {/* Details */}

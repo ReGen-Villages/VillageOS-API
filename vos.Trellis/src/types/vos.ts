@@ -239,6 +239,50 @@ export interface ThingsInStateResponse {
   Things: Array<{ Id: string; Name: string }>;
 }
 
+/** Window the returned state history covers. `Source` is "in-memory" while history comes from the
+ *  live engine tracker — it starts at model load and is lost on restart — and becomes
+ *  "reconstructed" once served from durable history, over a wider window and with no client change. */
+export interface StateHistoryCoverage {
+  Source: 'in-memory' | 'reconstructed';
+  From: string;
+  To: string;
+}
+
+/** One change point: the states entered and exited at `At`, the full set after it, and the
+ *  property write that caused it. */
+export interface StateTransition {
+  At: string;
+  Entered: string[];
+  Exited: string[];
+  States: string[];
+  TriggeringProperty?: string | null;
+  OldValue?: unknown;
+  NewValue?: unknown;
+}
+
+/** Response of GET /api/things/{id}/state-transitions. */
+export interface StateTransitionsResponse {
+  ThingId: string;
+  ThingName: string;
+  Coverage: StateHistoryCoverage;
+  Transitions: StateTransition[];
+}
+
+/** One interval a Thing held a state; `ExitedAt` is null while it is still in it. */
+export interface StateOccurrence {
+  EnteredAt: string;
+  ExitedAt?: string | null;
+}
+
+/** Response of GET /api/things/{id}/states/{stateName}/occurrences. */
+export interface StateOccurrencesResponse {
+  ThingId: string;
+  ThingName: string;
+  StateName: string;
+  Coverage: StateHistoryCoverage;
+  Occurrences: StateOccurrence[];
+}
+
 // Property mode configuration
 
 export interface PropertyModeConfig {

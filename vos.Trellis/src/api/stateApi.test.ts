@@ -29,3 +29,34 @@ describe('stateApi.getThingsInState', () => {
     expect(mockGet).toHaveBeenCalledWith('/api/states/low%20power/things');
   });
 });
+
+describe('stateApi.getStateTransitions', () => {
+  it('requests the transition timeline for a thing', async () => {
+    mockGet.mockResolvedValue({ ThingId: 't1', Transitions: [] });
+    await stateApi.getStateTransitions('t1');
+    expect(mockGet).toHaveBeenCalledWith('/api/things/t1/state-transitions', undefined);
+  });
+
+  it('passes a from/to window as query parameters', async () => {
+    mockGet.mockResolvedValue({ ThingId: 't1', Transitions: [] });
+    await stateApi.getStateTransitions('t1', '2026-07-01T00:00:00Z', '2026-07-02T00:00:00Z');
+    expect(mockGet).toHaveBeenCalledWith(
+      '/api/things/t1/state-transitions?from=2026-07-01T00%3A00%3A00Z&to=2026-07-02T00%3A00%3A00Z',
+      undefined,
+    );
+  });
+
+  it('omits the query string entirely when no window is given', async () => {
+    mockGet.mockResolvedValue({ ThingId: 't1', Transitions: [] });
+    await stateApi.getStateTransitions('t1');
+    expect(mockGet.mock.calls[0][0]).not.toContain('?');
+  });
+});
+
+describe('stateApi.getStateOccurrences', () => {
+  it('encodes the state name', async () => {
+    mockGet.mockResolvedValue({ ThingId: 't1', StateName: 'low power', Occurrences: [] });
+    await stateApi.getStateOccurrences('t1', 'low power');
+    expect(mockGet).toHaveBeenCalledWith('/api/things/t1/states/low%20power/occurrences', undefined);
+  });
+});

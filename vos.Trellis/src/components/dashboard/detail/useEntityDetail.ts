@@ -9,7 +9,7 @@ import type { ModelIndex } from '../../../api/dashboardApi';
 import { stateApi } from '../../../api/stateApi';
 import { temporalApi } from '../../../api/temporalApi';
 import type { DetailSpec } from '../../../types/dashboard';
-import type { PropertyFact, ThingMutations, VosThing } from '../../../types/vos';
+import type { PropertyFact, StateTransitionsResponse, ThingMutations, VosThing } from '../../../types/vos';
 import { collectInvolved, mergeTimeline, type MovementInput, type TimelineEvent } from './entityDetail';
 
 /** Bound the fan-out so a pathologically large root Thing can't fire thousands of requests. */
@@ -30,6 +30,8 @@ export interface EntityDetail {
   involvedIds: string[];
   statesById: Map<string, string[]>;
   timeline: TimelineEvent[];
+  /** Null when the model has no active reactive engine to serve state history. */
+  stateHistory: StateTransitionsResponse | null;
 }
 
 /** Follow `value` at most once per `ms`, leading-edge: the first change after a quiet period
@@ -97,10 +99,16 @@ export function useEntityDetail(
   // read through a ref rather than being a dependency.
   const refreshTick = useThrottled(nonce, REFRESH_THROTTLE_MS);
   const requestKey = `${allIds.join(',')}|${refreshTick}`;
-  const [resolved, setResolved] = useState<{ key: string; statesById: Map<string, string[]>; timeline: TimelineEvent[] }>({
+  const [resolved, setResolved] = useState<{
+    key: string;
+    statesById: Map<string, string[]>;
+    timeline: TimelineEvent[];
+    stateHistory: StateTransitionsResponse | null;
+  }>({
     key: '',
     statesById: new Map(),
     timeline: [],
+    stateHistory: null,
   });
 
   // Declared before the fetch effect so the edges are current by the time a round starts.
@@ -116,11 +124,18 @@ export function useEntityDetail(
     const { signal } = controller;
 
     (async () => {
-      const stateResults = await Promise.allSettled(allIds.map((id) => stateApi.getThingStates(id, signal)));
+      // The root's state history rides alongside the current-state fan-out rather than after it.
+      // It is rejected, not thrown, when the model has no active engine — the rest of the window
+      // still resolves.
+      const [stateResults, [historyResult]] = await Promise.all([
+        Promise.allSettled(allIds.map((id) => stateApi.getThingStates(id, signal))),
+        Promise.allSettled([stateApi.getStateTransitions(thingId, undefined, undefined, signal)]),
+      ]);
       const statesById = new Map<string, string[]>();
       stateResults.forEach((result, i) => {
         if (result.status === 'fulfilled') statesById.set(allIds[i], result.value.CurrentStates ?? []);
       });
+      const stateHistory = historyResult.status === 'fulfilled' ? historyResult.value : null;
 
       const mutationResults = await Promise.allSettled(
         allIds.map((id) => temporalApi.getThingMutations(id, undefined, undefined, signal)),
@@ -165,7 +180,7 @@ export function useEntityDetail(
       });
 
       if (signal.aborted) return;
-      setResolved({ key: requestKey, statesById, timeline: mergeTimeline({ mutations, movements, factsByKey }) });
+      setResolved({ key: requestKey, statesById, timeline: mergeTimeline({ mutations, movements, factsByKey }), stateHistory });
     })();
 
     return () => controller.abort();
@@ -178,5 +193,6 @@ export function useEntityDetail(
     involvedIds,
     statesById: resolved.statesById,
     timeline: resolved.timeline,
+    stateHistory: resolved.stateHistory,
   };
 }

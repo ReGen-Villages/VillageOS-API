@@ -2,12 +2,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 const mockGetThingStates = vi.fn();
+const mockGetStateTransitions = vi.fn();
 const mockGetThingMutations = vi.fn();
 const mockGetRelationshipMutations = vi.fn();
 const mockGetPropertyFacts = vi.fn();
 
 vi.mock('../../../api/stateApi', () => ({
-  stateApi: { getThingStates: (id: string, signal?: AbortSignal) => mockGetThingStates(id, signal) },
+  stateApi: {
+    getThingStates: (id: string, signal?: AbortSignal) => mockGetThingStates(id, signal),
+    getStateTransitions: (id: string, _from?: string, _to?: string, signal?: AbortSignal) =>
+      mockGetStateTransitions(id, signal),
+  },
 }));
 vi.mock('../../../api/temporalApi', () => ({
   temporalApi: {
@@ -43,6 +48,12 @@ describe('useEntityDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetThingStates.mockResolvedValue({ CurrentStates: [] });
+    mockGetStateTransitions.mockResolvedValue({
+      ThingId: 'root',
+      ThingName: 'ROOT-1',
+      Coverage: { Source: 'in-memory', From: '2026-07-17T00:00:00Z', To: '2026-07-17T01:00:00Z' },
+      Transitions: [],
+    });
     mockGetThingMutations.mockResolvedValue({ ObjectId: 'root', ObjectName: 'ROOT-1', Mutations: [] });
     mockGetRelationshipMutations.mockResolvedValue({ Mutations: [] });
     mockGetPropertyFacts.mockResolvedValue({ entries: [] });
@@ -123,5 +134,44 @@ describe('useEntityDetail', () => {
     rerender({ nonce: 1 });
     unmount();
     expect(signal.aborted).toBe(true);
+  });
+
+  it('fetches state history for the root only, not for involved Things', async () => {
+    const idx = index();
+    renderHook(() => useEntityDetail(idx, 'root', detail, 0));
+    await settle();
+
+    expect(mockGetStateTransitions.mock.calls.map((c) => c[0])).toEqual(['root']);
+  });
+
+  it('exposes the root state history once resolved', async () => {
+    const transitions = [
+      { At: '2026-07-17T00:30:00Z', Entered: ['overheating'], Exited: [], States: ['overheating'], TriggeringProperty: 'temp', OldValue: 50, NewValue: 150 },
+    ];
+    mockGetStateTransitions.mockResolvedValue({
+      ThingId: 'root',
+      ThingName: 'ROOT-1',
+      Coverage: { Source: 'in-memory', From: '2026-07-17T00:00:00Z', To: '2026-07-17T01:00:00Z' },
+      Transitions: transitions,
+    });
+    const idx = index();
+    const { result } = renderHook(() => useEntityDetail(idx, 'root', detail, 0));
+    await settle();
+
+    expect(result.current.stateHistory?.Transitions).toEqual(transitions);
+    expect(result.current.stateHistory?.Coverage.Source).toBe('in-memory');
+  });
+
+  // A model with no active reactive engine 503s on state history. The window must still render
+  // its states and timeline rather than losing the whole round to one rejected request.
+  it('leaves state history null and still resolves when the endpoint rejects', async () => {
+    mockGetStateTransitions.mockRejectedValue(new Error('503'));
+    const idx = index();
+    const { result } = renderHook(() => useEntityDetail(idx, 'root', detail, 0));
+    await settle();
+
+    expect(result.current.stateHistory).toBeNull();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.involvedIds).toEqual(['child']);
   });
 });
