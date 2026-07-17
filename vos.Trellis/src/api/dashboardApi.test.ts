@@ -13,6 +13,7 @@ import {
   thingsOfArchetype,
   thingIdsOfArchetype,
   resolveBinding,
+  filterRows,
   type ResolveContext,
 } from './dashboardApi';
 
@@ -333,4 +334,27 @@ describe('resolveBinding', () => {
     });
   });
 
+  describe('filterRows', () => {
+    const rows = [
+      { id: 'a1', name: 'THING-1001', grouping: 'alpha', rank: 3 },
+      { id: 'a2', name: 'THING-2002', grouping: 'beta', rank: 1 },
+    ];
+
+    it('returns rows unchanged for an empty query', () => {
+      expect(filterRows(rows, '')).toBe(rows);
+      expect(filterRows(rows, '   ')).toBe(rows);
+    });
+
+    it('matches case-insensitively across all values by default', () => {
+      expect(filterRows(rows, 'alpha').map((r) => r.id)).toEqual(['a1']);
+      expect(filterRows(rows, 'thing-2002').map((r) => r.id)).toEqual(['a2']);
+      expect(filterRows(rows, '1').map((r) => r.id)).toEqual(['a1', 'a2']); // matches rank 1 and THING-1001
+    });
+
+    it('restricts matching to the given keys', () => {
+      // "1" appears in name (THING-1001) but searchKeys limits to grouping, so no match.
+      expect(filterRows(rows, '1', ['grouping'])).toEqual([]);
+      expect(filterRows(rows, 'bet', ['grouping']).map((r) => r.id)).toEqual(['a2']);
+    });
+  });
 });

@@ -263,10 +263,13 @@ class ApiClient {
     if (!resp.ok) throw new ApiError(resp.status, await resp.text());
   }
 
-  async get<T>(path: string): Promise<T> {
+  /** `signal` lets a caller abandon a superseded round of requests; without it a fan-out
+   *  that is already stale keeps competing for connections with the round that replaced it. */
+  async get<T>(path: string, signal?: AbortSignal): Promise<T> {
     const resp = await fetch(`${BASE_URL}${path}`, {
       headers: await this.headers(),
       credentials: 'include',
+      signal,
     });
     await this.assertOk(resp);
     // Guard against empty response bodies (e.g. 200 with 0 bytes) —

@@ -144,6 +144,31 @@ export interface ThingStates {
   OutOfBoundsCount: number;
 }
 
+/** Response of GET /api/things/{id}/states — a single Thing's currently-holding derived states. */
+export interface ObjectStatesResponse {
+  ObjectId: string;
+  ObjectName: string;
+  CurrentStates: string[];
+  RangeEvaluations: RangeEvaluation[];
+  OutOfBoundsCount: number;
+}
+
+/** One PropertyValueAsserted/Retracted record from the Commit Log (provenance audit trail). */
+export interface PropertyFact {
+  kind: 'asserted' | 'retracted';
+  sequenceNumber: number;
+  committedAt: string;
+  author?: string;
+  value?: unknown;
+}
+
+export interface PropertyFactsResponse {
+  entityId: string;
+  property: string;
+  count: number;
+  entries: PropertyFact[];
+}
+
 export interface RelationshipRangesResponse {
   RelationshipId: string;
   RelationshipName: string;

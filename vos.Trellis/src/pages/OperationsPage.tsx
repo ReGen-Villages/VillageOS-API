@@ -18,6 +18,7 @@ import {
 } from '../api/dashboardApi';
 import type { DashboardSection } from '../types/dashboard';
 import { WidgetRenderer } from '../components/dashboard/widgets/WidgetRenderer';
+import { useDetailWindows } from '../components/dashboard/detail/DetailWindowManager';
 
 const REFRESH_EVENTS = [
   'StatesChanged',
@@ -80,6 +81,7 @@ export function OperationsPage() {
   }, [on]);
 
   const isWide = useIsWide();
+  const { openDetail, windows } = useDetailWindows(idx, spec?.detail, nonce);
 
   if (!loaded) {
     return <Centered>Loading model…</Centered>;
@@ -148,9 +150,10 @@ export function OperationsPage() {
 
       <div className="flex-1 overflow-auto px-6 pb-10">
         {spec.sections.map((section, i) => (
-          <Section key={i} section={section} ctx={ctx} isWide={isWide} />
+          <Section key={i} section={section} ctx={ctx} isWide={isWide} openDetail={openDetail} />
         ))}
       </div>
+      {windows}
     </div>
   );
 }
@@ -159,10 +162,12 @@ function Section({
   section,
   ctx,
   isWide,
+  openDetail,
 }: {
   section: DashboardSection;
   ctx: ReturnType<typeof useResolveContext>;
   isWide: boolean;
+  openDetail?: (thingId: string) => void;
 }) {
   const layout = section.layout ?? (section.widgets.every((w) => w.type === 'kpi') ? 'kpi-strip' : 'single');
   let gridTemplateColumns = '1fr';
@@ -186,7 +191,7 @@ function Section({
       )}
       <div className="grid gap-3.5" style={{ gridTemplateColumns }}>
         {section.widgets.map((widget, i) => (
-          <WidgetRenderer key={i} widget={widget} ctx={ctx} />
+          <WidgetRenderer key={i} widget={widget} ctx={ctx} openDetail={openDetail} />
         ))}
       </div>
     </section>

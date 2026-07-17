@@ -1,32 +1,43 @@
 import { useMemo, useState } from 'react';
 import type { Binding, TableColumn } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
-import { asRows } from '../../../api/dashboardApi';
+import { asRows, filterRows } from '../../../api/dashboardApi';
 import { useBinding } from '../../../hooks/useDashboard';
-import { formatNumber } from './format';
+import { formatNumber, badgeTone } from './format';
 
-/** Sortable, generic data table driven by a rows binding + column spec. */
+/** Sortable, generic data table driven by a rows binding + column spec.
+ *  Rows can come from a `rowsBinding` (resolved here) or be passed in directly
+ *  via `rows` (e.g. the funnel's cross-stage search results). */
 export function DataTable({
   columns,
   rowsBinding,
+  rows: rowsProp,
   ctx,
   minWidth = 520,
   sortKey,
   sortDir = 'desc',
   emptyLabel = 'No rows.',
   footnote,
+  query,
+  searchKeys,
+  onRowClick,
 }: {
   columns: TableColumn[];
-  rowsBinding: Binding;
+  rowsBinding?: Binding;
+  rows?: Row[];
   ctx: ResolveContext;
   minWidth?: number;
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
   emptyLabel?: string;
   footnote?: string;
+  query?: string;
+  searchKeys?: string[];
+  onRowClick?: (row: Row) => void;
 }) {
   const { loading, value } = useBinding(rowsBinding, ctx);
-  const rows = asRows(value);
+  const resolved = rowsProp ?? asRows(value);
+  const rows = useMemo(() => filterRows(resolved, query, searchKeys), [resolved, query, searchKeys]);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({
     key: sortKey ?? columns[0]?.key ?? '',
     dir: sortDir === 'asc' ? 1 : -1,
@@ -63,7 +74,12 @@ export function DataTable({
   }
 
   if (loading) return <div className="py-6 text-center text-xs text-zinc-400">Loading…</div>;
-  if (!rows.length) return <div className="py-6 text-center text-xs text-zinc-400">{emptyLabel}</div>;
+  if (!rows.length)
+    return (
+      <div className="py-6 text-center text-xs text-zinc-400">
+        {query?.trim() ? `No matches for “${query.trim()}”.` : emptyLabel}
+      </div>
+    );
 
   return (
     <div>
@@ -87,7 +103,11 @@ export function DataTable({
           </thead>
           <tbody>
             {sorted.map((r, i) => (
-              <tr key={(r.id as string) ?? i} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/40">
+              <tr
+                key={(r.id as string) ?? i}
+                onClick={onRowClick ? () => onRowClick(r) : undefined}
+                className={`hover:bg-zinc-50 dark:hover:bg-zinc-700/40 ${onRowClick ? 'cursor-pointer' : ''}`}
+              >
                 {columns.map((c) => (
                   <td
                     key={c.key}
@@ -114,16 +134,11 @@ function renderCell(row: Row, col: TableColumn, max?: number) {
     return <span className="font-mono text-[11.5px] text-zinc-600 dark:text-zinc-300">{String(raw ?? '')}</span>;
   }
   if (col.render === 'badge') {
-    const v = String(raw ?? '').toLowerCase();
-    const tone =
-      /crit|overdue|fail|error|out/.test(v)
-        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-        : /warn|risk|high|tight/.test(v)
-          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-          : /good|track|ok|normal|done|ship/.test(v)
-            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-            : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300';
-    return <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${tone}`}>{String(raw ?? '')}</span>;
+    return (
+      <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${badgeTone(String(raw ?? ''))}`}>
+        {String(raw ?? '')}
+      </span>
+    );
   }
   if (col.render === 'agebar') {
     const n = Number(raw) || 0;

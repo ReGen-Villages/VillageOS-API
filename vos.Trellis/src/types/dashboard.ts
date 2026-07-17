@@ -117,6 +117,17 @@ export interface FunnelWidget {
   hint?: string;
   stages: FunnelStage[];
   drillColumns?: TableColumn[];
+  /** Show a search box that filters the drill rows within a selected stage, or —
+   *  with no stage selected — searches across every stage's rows at once. */
+  searchable?: boolean;
+  /** Row keys the search matches against. Default: every string-valued cell. */
+  searchKeys?: string[];
+  /** What this funnel's rows are called, in the model's own vocabulary. Names them in the
+   *  search placeholder and the cross-stage results heading. Trellis never supplies this
+   *  wording itself; absent, it falls back to the generic "rows". */
+  searchNoun?: string;
+  /** Clicking a drilled/searched row opens a detail window for that row's Thing. */
+  rowDetail?: boolean;
 }
 
 export interface BulletRow {
@@ -154,6 +165,12 @@ export interface TableWidget {
   /** Column key to sort by initially. */
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
+  /** Show a search box above the table that filters its rows. */
+  searchable?: boolean;
+  /** Row keys the search matches against. Default: every string-valued cell. */
+  searchKeys?: string[];
+  /** Clicking a row opens a detail window for that row's Thing. */
+  rowDetail?: boolean;
 }
 
 export interface GanttWidget {
@@ -231,11 +248,40 @@ export interface CompareConfig {
   archetype: string;
 }
 
+/**
+ * How to render a detail window for a single Thing when a row is clicked. Entirely model
+ * vocabulary — Trellis reads the shape, the model supplies the property keys and predicate
+ * names (like {@link ScopeRef.viaPredicate}). Absent → rows aren't clickable.
+ */
+export interface DetailSpec {
+  /** Property whose value titles the window. Falls back to the Thing's name. */
+  titleProperty?: string;
+  /** Property shown as a subtitle under the title. */
+  subtitleProperty?: string;
+  /** Curated property groups. Omit to show all own properties in one group. */
+  propertyGroups?: { label: string; keys: string[] }[];
+  /** How to discover the Things involved in the root Thing — the traversal that finds them. */
+  involves?: {
+    /** Predicate names to traverse. Omit to follow every predicate. */
+    predicates?: string[];
+    /** Traverse outbound edges, inbound edges, or both. Default 'both'. */
+    direction?: 'out' | 'in' | 'both';
+    /** Hops from the root Thing. Default 2. */
+    depth?: number;
+  };
+  /** Predicate names whose edges are surfaced as "movements" in the timeline. */
+  movementPredicates?: string[];
+  /** Handling-history timeline options. */
+  history?: { enabled?: boolean };
+}
+
 export interface DashboardSpec {
   title: string;
   subtitle?: string;
   compare?: CompareConfig;
   sections: DashboardSection[];
+  /** Enables clickable rows that open a generic Thing detail window. */
+  detail?: DetailSpec;
 }
 
 /** A discovered, parsed dashboard: the source Thing + its validated spec. */

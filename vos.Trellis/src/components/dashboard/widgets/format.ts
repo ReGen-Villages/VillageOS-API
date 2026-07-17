@@ -28,6 +28,24 @@ export function formatNumber(value: number | null | undefined, fmt?: NumberForma
   }
 }
 
+/** Tailwind classes colouring a status/state pill by its wording. Shared by the table
+ *  `badge` cell and the detail window's derived-state pills so tones stay consistent.
+ *
+ *  The vocabulary is deliberately domain-neutral status wording only: a model's own terms
+ *  must not be listed here, since Trellis renders any model. A term it cannot read
+ *  generically falls through to the neutral tone until the model supplies its own
+ *  mapping (#5962). */
+export function badgeTone(value: string): string {
+  const v = value.toLowerCase();
+  if (/crit|overdue|fail|error|out|held|block|below/.test(v))
+    return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+  if (/warn|risk|high|tight|over/.test(v))
+    return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+  if (/good|track|ok|normal|done|ship|complete/.test(v))
+    return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+  return 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300';
+}
+
 /** Signed delta with a leading arrow, e.g. "▲ 6.1". */
 export function formatDelta(value: number | null | undefined, fmt?: NumberFormat): string {
   if (value === null || value === undefined || isNaN(value)) return '';

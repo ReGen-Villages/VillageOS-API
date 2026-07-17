@@ -45,13 +45,21 @@ describe('temporalApi.getThingMutations', () => {
     await temporalApi.getThingMutations('t1', '2024-01-01', '2024-12-31');
     expect(mockGet).toHaveBeenCalledWith(
       '/api/things/t1/mutations?startTime=2024-01-01&endTime=2024-12-31',
+      undefined,
     );
   });
 
   it('fetches thing mutations without time range', async () => {
     mockGet.mockResolvedValue({ ObjectId: 't1', Mutations: [] });
     await temporalApi.getThingMutations('t1');
-    expect(mockGet).toHaveBeenCalledWith('/api/things/t1/mutations');
+    expect(mockGet).toHaveBeenCalledWith('/api/things/t1/mutations', undefined);
+  });
+
+  it('forwards an abort signal so a superseded round can be abandoned', async () => {
+    mockGet.mockResolvedValue({ ObjectId: 't1', Mutations: [] });
+    const { signal } = new AbortController();
+    await temporalApi.getThingMutations('t1', undefined, undefined, signal);
+    expect(mockGet).toHaveBeenCalledWith('/api/things/t1/mutations', signal);
   });
 });
 
@@ -61,6 +69,7 @@ describe('temporalApi.getRelationshipMutations', () => {
     await temporalApi.getRelationshipMutations('r1', '2024-06-01');
     expect(mockGet).toHaveBeenCalledWith(
       '/api/relationships/r1/mutations?startTime=2024-06-01',
+      undefined,
     );
   });
 });

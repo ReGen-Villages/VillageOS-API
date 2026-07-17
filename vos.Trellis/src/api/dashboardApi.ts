@@ -359,3 +359,13 @@ export function asSeries(r: BindingResult): number[] {
   return Array.isArray(r) && (r.length === 0 || typeof r[0] === 'number') ? (r as number[]) : [];
 }
 
+/** Case-insensitive substring filter over table rows. `keys` limits which cells are matched;
+ *  omit it to match every value in the row. An empty query returns the rows unchanged. */
+export function filterRows(rows: Row[], query: string | undefined, keys?: string[]): Row[] {
+  const q = (query ?? '').trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((row) => {
+    const values = keys && keys.length ? keys.map((k) => row[k]) : Object.values(row);
+    return values.some((v) => v != null && String(v).toLowerCase().includes(q));
+  });
+}
