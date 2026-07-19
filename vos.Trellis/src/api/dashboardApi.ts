@@ -278,13 +278,33 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       return 0;
     }
 
+    case 'ratio': {
+      const [numerator, denominator] = await Promise.all([
+        resolveBinding(binding.numerator, ctx),
+        resolveBinding(binding.denominator, ctx),
+      ]);
+      const top = asNumber(numerator);
+      const bottom = asNumber(denominator);
+      if (top === null || bottom === null || bottom === 0) return null;
+      return top / bottom;
+    }
+
     case 'compareEntities': {
       const ents = ctx.compareArchetype ? thingsOfArchetype(ctx.compareArchetype, ctx.idx) : [];
-      return ents.map((t) => {
-        const row: Row = { id: t.Id, name: t.Name };
-        for (const p of binding.properties) row[p] = num(effectiveProperties(t)[p]);
-        return row;
-      });
+      const computed = binding.computed ?? [];
+      return Promise.all(
+        ents.map(async (t) => {
+          const row: Row = { id: t.Id, name: t.Name };
+          for (const p of binding.properties) row[p] = num(effectiveProperties(t)[p]);
+          // Each computed column resolves with the Thing as the scope, so the same binding a
+          // $scope-driven widget uses yields that Thing's own value here.
+          const values = await Promise.all(
+            computed.map((column) => resolveBinding(column.value, { ...ctx, scopeId: t.Id })),
+          );
+          computed.forEach((column, i) => (row[column.key] = asNumber(values[i])));
+          return row;
+        }),
+      );
     }
 
     case 'stateCount': {

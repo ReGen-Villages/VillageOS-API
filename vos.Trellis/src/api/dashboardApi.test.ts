@@ -352,6 +352,103 @@ describe('resolveBinding', () => {
     });
   });
 
+  // A utilization is a ratio of sums over the scope's members, which no single aggregate op
+  // yields: averaging per-location ratios weights a nearly-empty face the same as a full pallet.
+  describe('ratio', () => {
+    // WH-A contains 2 locations (80 of 200 filled); WH-B contains 1 (90 of 100).
+    function siteCtx(scopeId: string | null): ResolveContext {
+      const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({
+        Id, Name, Properties,
+      });
+      const things: VosThing[] = [
+        t('is', 'is'), t('contains', 'contains'),
+        t('arch-wh', 'Warehouse'), t('arch-loc', 'Location'),
+        t('whA', 'WH-A'), t('whB', 'WH-B'),
+        t('znA', 'ZN-A'), t('znB', 'ZN-B'),
+        t('locA1', 'LOC-A1', { contained_units: 60, capacity_units: 100 }),
+        t('locA2', 'LOC-A2', { contained_units: 20, capacity_units: 100 }),
+        t('locB1', 'LOC-B1', { contained_units: 90, capacity_units: 100 }),
+      ];
+      const rel = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
+        Id: `${SubjectId}-${PredicateId}-${TargetId}`, Name: `${SubjectId} ${PredicateId} ${TargetId}`,
+        SubjectId, PredicateId, TargetId, Properties: {},
+      });
+      const relationships = [
+        rel('whA', 'is', 'arch-wh'), rel('whB', 'is', 'arch-wh'),
+        rel('locA1', 'is', 'arch-loc'), rel('locA2', 'is', 'arch-loc'), rel('locB1', 'is', 'arch-loc'),
+        rel('whA', 'contains', 'znA'), rel('znA', 'contains', 'locA1'), rel('znA', 'contains', 'locA2'),
+        rel('whB', 'contains', 'znB'), rel('znB', 'contains', 'locB1'),
+      ];
+      return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Warehouse' };
+    }
+
+    const LOCATION_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
+    const utilization = {
+      kind: 'ratio' as const,
+      numerator: { kind: 'aggregate' as const, archetype: 'Location', op: 'sum' as const,
+        property: 'contained_units', scope: LOCATION_SCOPE },
+      denominator: { kind: 'aggregate' as const, archetype: 'Location', op: 'sum' as const,
+        property: 'capacity_units', scope: LOCATION_SCOPE },
+    };
+
+    it('divides the scoped sums for the selected Thing', async () => {
+      expect(await resolveBinding(utilization, siteCtx('whA'))).toBeCloseTo(80 / 200);
+      expect(await resolveBinding(utilization, siteCtx('whB'))).toBeCloseTo(90 / 100);
+    });
+
+    it('sums across every Thing before dividing when scope is All', async () => {
+      const v = await resolveBinding(utilization, siteCtx(null));
+      expect(v).toBeCloseTo(170 / 300);
+      expect(v).not.toBeCloseTo((0.4 + 0.9) / 2); // not the average of per-site ratios
+    });
+
+    it('resolves to null rather than Infinity when the denominator is zero', async () => {
+      const v = await resolveBinding(
+        { kind: 'ratio', numerator: { kind: 'const', value: 5 }, denominator: { kind: 'const', value: 0 } },
+        siteCtx(null),
+      );
+      expect(v).toBeNull();
+    });
+
+    // An absent property resolves to NaN, which must read as "no value" rather than propagate.
+    it('resolves to null when a side is not numeric', async () => {
+      const v = await resolveBinding(
+        {
+          kind: 'ratio',
+          numerator: { kind: 'property', thing: 'whA', property: 'missing' },
+          denominator: { kind: 'const', value: 10 },
+        },
+        siteCtx(null),
+      );
+      expect(v).toBeNull();
+    });
+
+    it('gives each compared Thing its own value in a computed column', async () => {
+      const rows = (await resolveBinding(
+        { kind: 'compareEntities', properties: [], computed: [{ key: 'utilization', value: utilization }] },
+        siteCtx(null),
+      )) as Record<string, unknown>[];
+      expect(rows).toHaveLength(2);
+      expect(rows.find((r) => r.name === 'WH-A')!.utilization).toBeCloseTo(0.4);
+      expect(rows.find((r) => r.name === 'WH-B')!.utilization).toBeCloseTo(0.9);
+    });
+
+    it('leaves a computed column null for a Thing with no members to measure', async () => {
+      const ctx = siteCtx(null);
+      const empty: VosThing = { Id: 'whC', Name: 'WH-C', Properties: {} };
+      ctx.idx = buildModelIndex(
+        [...ctx.idx.byId.values(), empty],
+        [...ctx.idx.relationships, { Id: 'whC-is', Name: 'whC is arch-wh',
+          SubjectId: 'whC', PredicateId: 'is', TargetId: 'arch-wh', Properties: {} }],
+      );
+      const rows = (await resolveBinding(
+        { kind: 'compareEntities', properties: [], computed: [{ key: 'utilization', value: utilization }] },
+        ctx,
+      )) as Record<string, unknown>[];
+      expect(rows.find((r) => r.name === 'WH-C')!.utilization).toBeNull();
+    });
+  });
+
   describe('filterRows', () => {
     const rows = [
       { id: 'a1', name: 'THING-1001', grouping: 'alpha', rank: 3 },

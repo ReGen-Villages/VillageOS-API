@@ -55,8 +55,14 @@ export type Binding =
     }
   /** A single property of a named/id'd Thing, or of the selected scope entity (`$scope`). */
   | { kind: 'property'; thing: string; property: string }
-  /** One row per compare-entity, carrying the listed numeric properties (leaderboard source). */
-  | { kind: 'compareEntities'; properties: string[] }
+  /** One binding divided by another — a rate the aggregate ops cannot express, because a ratio of
+   *  sums is not a sum of ratios. Resolves to null when the denominator is zero or non-numeric. */
+  | { kind: 'ratio'; numerator: Binding; denominator: Binding }
+  /** One row per compared Thing, carrying the listed numeric properties (leaderboard source).
+   *  `computed` adds columns whose value is a Binding resolved once per Thing, with that Thing
+   *  as the scope — so a column can hold a live aggregate over the Thing's members, not just a
+   *  property stored on the Thing itself. */
+  | { kind: 'compareEntities'; properties: string[]; computed?: ComputedColumn[] }
   /** A bucketed time series from the temporal API. Degrades to [] when history is absent. */
   | {
       kind: 'timeseries';
@@ -70,6 +76,19 @@ export type Binding =
   /** Delegate to a model-side service via POST /api/endpoints/{subdomain}. The escape
    *  hatch for model-specific aggregation. `select` is a dot-path into the JSON reply. */
   | { kind: 'service'; endpoint: string; body?: unknown; select?: string };
+
+/**
+ * A `compareEntities` column derived per Thing rather than read from a stored property.
+ * The binding resolves once per compared Thing, so prefer one that reads the model store
+ * (`aggregate`, `property`, or a `ratio` over those). A binding that calls the broker —
+ * `stateCount`, `stateList`, `timeseries`, `service` — costs one request per Thing on every
+ * dashboard refresh.
+ */
+export interface ComputedColumn {
+  /** Row key the column lands on — what a LeaderMetric/TableColumn references. */
+  key: string;
+  value: Binding;
+}
 
 export interface PropertyFilter {
   property: string;
