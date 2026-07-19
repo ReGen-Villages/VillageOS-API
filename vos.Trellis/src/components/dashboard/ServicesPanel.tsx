@@ -1,7 +1,7 @@
 import type { RegisteredService, EndpointServiceInfo, HealthStatus } from '../../types/mycelium';
 import { Badge } from '../common/Badge';
 import { formatMs, formatRelativeTime } from '../../utils/formatters';
-import { Play, Square, Workflow, Globe, Trash2, ScrollText } from 'lucide-react';
+import { Play, Square, Workflow, Globe, Trash2, ScrollText, HardDriveDownload } from 'lucide-react';
 
 interface Props {
   services: RegisteredService[];
@@ -12,6 +12,8 @@ interface Props {
   onDelete?: (thingId: string, name: string) => void;
   /** Open the live tail of a daemon's log (its watch-<serviceKey>.log). */
   onViewLogs?: (serviceKey: string) => void;
+  /** Download a daemon's whole log file without navigating to its tail. */
+  onDownloadLogs?: (serviceKey: string) => void;
 }
 
 const healthColor: Record<HealthStatus, 'green' | 'yellow' | 'red' | 'gray'> = {
@@ -93,7 +95,7 @@ function statGridCols(row: ServiceRow): string {
   }
 }
 
-export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, onViewLogs }: Props) {
+export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, onViewLogs, onDownloadLogs }: Props) {
   const rows = [...services.map(fromService), ...endpoints.map(fromEndpoint)];
 
   return (
@@ -121,6 +123,9 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
                 {row.isExternal && <Badge label="External" color="purple" />}
                 {row.trigger === 'graph' && onViewLogs && (
                   <button onClick={() => onViewLogs(row.name.toLowerCase())} className="p-1 text-zinc-400 hover:text-blue-400" title="View log"><ScrollText size={14} /></button>
+                )}
+                {row.trigger === 'graph' && onDownloadLogs && (
+                  <button onClick={() => onDownloadLogs(row.name.toLowerCase())} className="p-1 text-zinc-400 hover:text-blue-400" title="Download log"><HardDriveDownload size={14} /></button>
                 )}
                 {row.controlId && (row.running
                   ? <button onClick={() => onStop(row.controlId!)} className="p-1 text-red-400 hover:text-red-300" title="Stop"><Square size={14} /></button>

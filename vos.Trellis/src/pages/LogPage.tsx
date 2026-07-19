@@ -1,7 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Terminal, Pause, Play, Trash2 } from 'lucide-react';
+import { Terminal, Pause, Play, Trash2, Download, HardDriveDownload } from 'lucide-react';
 import { useLogTail } from '../hooks/useLogTail';
+import { fetchFullLog } from '../api/logsApi';
+import { snapshotBlob, snapshotFileName, triggerDownload } from '../utils/logDownload';
+import { toast } from '../components/common/Toast';
 
 /** Live tail of the Mycelium broker log — or a service daemon's log when ?service=<key> is set.
  *  Keyed by service so switching sources remounts the view with fresh state. */
@@ -15,7 +18,23 @@ function LogView({ service }: { service?: string }) {
   const { lines, connected, clear } = useLogTail(service);
   const title = service ? `${service} log` : 'Broker Log';
   const [autoScroll, setAutoScroll] = useState(true);
+  const [downloadingFull, setDownloadingFull] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const downloadSnapshot = () =>
+    triggerDownload(snapshotBlob(lines), snapshotFileName(service, new Date()));
+
+  const downloadFullLog = async () => {
+    setDownloadingFull(true);
+    try {
+      const { blob, fileName } = await fetchFullLog(service);
+      triggerDownload(blob, fileName);
+    } catch {
+      toast.error('Could not download the full log.');
+    } finally {
+      setDownloadingFull(false);
+    }
+  };
 
   // Stick to the bottom as new lines arrive, unless the user paused auto-scroll.
   useLayoutEffect(() => {
@@ -56,6 +75,24 @@ function LogView({ service }: { service?: string }) {
           >
             {autoScroll ? <Pause size={14} /> : <Play size={14} />}
             {autoScroll ? 'Pause' : 'Resume'}
+          </button>
+          <button
+            onClick={downloadSnapshot}
+            disabled={lines.length === 0}
+            title="Download the lines currently in view"
+            className="flex items-center gap-1.5 p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-500"
+          >
+            <Download size={14} />
+            Snapshot
+          </button>
+          <button
+            onClick={downloadFullLog}
+            disabled={downloadingFull}
+            title="Download the whole log file from the broker"
+            className="flex items-center gap-1.5 p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-500"
+          >
+            <HardDriveDownload size={14} />
+            {downloadingFull ? 'Downloading…' : 'Full log'}
           </button>
           <button
             onClick={clear}

@@ -7,6 +7,8 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { myceliumApi } from '../api/myceliumApi';
 import { endpointApi } from '../api/endpointApi';
 import { thingApi } from '../api/thingApi';
+import { fetchFullLog } from '../api/logsApi';
+import { triggerDownload } from '../utils/logDownload';
 import { useSse } from '../hooks/useSse';
 import { useActivityStore } from '../stores/activityStore';
 import { useModelStore } from '../stores/modelStore';
@@ -81,6 +83,15 @@ export function DashboardPage() {
     ];
     return () => unsubs.forEach((u) => u());
   }, [on, loadMyceliumData]);
+
+  const handleDownloadServiceLog = async (serviceKey: string) => {
+    try {
+      const { blob, fileName } = await fetchFullLog(serviceKey);
+      triggerDownload(blob, fileName);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Log download failed');
+    }
+  };
 
   const handleStartService = async (id: string) => {
     try {
@@ -204,7 +215,7 @@ export function DashboardPage() {
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
             <ModelStatsCard things={things} relationships={relationships} />
-            <ServicesPanel services={services} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} />
+            <ServicesPanel services={services} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} onDownloadLogs={handleDownloadServiceLog} />
             <PropertyModePanel />
           </div>
           {!feedCollapsed && (
