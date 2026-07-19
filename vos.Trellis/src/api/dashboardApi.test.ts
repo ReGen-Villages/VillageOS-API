@@ -204,6 +204,24 @@ describe('resolveBinding', () => {
     expect(rows[0]).toMatchObject({ id: 'wh1', name: 'WH-1', perfect_order_rate: 98.9 });
   });
 
+  // Derived statuses nest (a shipped order is still released), so an early stage's list would
+  // otherwise include every later one. excludeState drops the Things that advanced further.
+  it('stateList excludeState keeps only Things that reached this state and no further', async () => {
+    vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) => ({
+      StateName: state,
+      Things:
+        state === 'released'
+          ? [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }, { Id: 'o3', Name: 'O-3' }]
+          : [{ Id: 'o2', Name: 'O-2' }, { Id: 'o3', Name: 'O-3' }], // allocated ⊂ released
+    }));
+    const rows = (await resolveBinding(
+      { kind: 'stateList', state: 'released', excludeState: 'allocated' },
+      ctxFor(null),
+    )) as Record<string, unknown>[];
+    expect(rows.map((r) => r.id)).toEqual(['o1']);
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('allocated');
+  });
+
   // Feature (#5933): a State can contain Things of several archetypes (Orders
   // and their OrderLines). `archetype` narrows the count/list to one archetype.
   describe('archetype narrowing', () => {

@@ -1,13 +1,5 @@
 import type { VosThing, VosRelationship } from '../types/vos';
 
-/** Properties that affect graph rendering and require a full things array rebuild. */
-const GRAPH_AFFECTING_PROPS = new Set(['geometry']);
-
-/** Returns true if changing this property requires rebuilding the things array for graph rendering. */
-export function isGraphAffectingProperty(propertyPath: string): boolean {
-  return GRAPH_AFFECTING_PROPS.has(propertyPath);
-}
-
 /** Return a new VosThing with one property merged/overwritten. */
 export function applyThingPropertyUpdate(
   thing: VosThing,

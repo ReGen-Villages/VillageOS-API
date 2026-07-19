@@ -1,160 +1,150 @@
 /**
  * Pure helpers for the generic entity-detail window. No React, no I/O — the hook
  * (useEntityDetail) fetches; these shape the results. Kept model-agnostic: predicate
- * names and property keys arrive via the {@link DetailSpec}, never hardcoded.
+ * names, archetypes, and property keys arrive via the {@link DetailSpec}, never hardcoded.
  */
 import type { ModelIndex } from '../../../api/dashboardApi';
-import type { DetailSpec } from '../../../types/dashboard';
-import type { MutationDto, PropertyFact, ThingMutations } from '../../../types/vos';
+import { effectiveProperties } from '../../../utils/propertyMapper';
+import type { RelationSpec } from '../../../types/dashboard';
+import type { StateTransition, VosThing } from '../../../types/vos';
+
+/** The one canonical predicate whose name is fixed by the platform (an archetype edge). */
+const IS_PREDICATE = 'is';
+
+/** A related Thing surfaced under a relation, with the chosen properties and any nested relations. */
+export interface ResolvedEdge {
+  thingId: string;
+  /** Subject and target of the underlying relationship, so the card can render "A —predicate→ B". */
+  subjectName: string;
+  targetName: string;
+  /** The related Thing — the endpoint that is not the anchor the relation was followed from. */
+  relatedName: string;
+  properties: [string, unknown][];
+  children: ResolvedRelation[];
+}
+
+/** One relation group on the card: every edge of a single {@link RelationSpec} from an anchor Thing. */
+export interface ResolvedRelation {
+  label: string;
+  predicate: string;
+  direction: 'out' | 'in';
+  edges: ResolvedEdge[];
+}
+
+/** Archetype name for each Thing, from its direct `is`-edge. First writer wins. */
+function archetypeNames(idx: ModelIndex): Map<string, string> {
+  const isId = idx.predicateNameToId.get(IS_PREDICATE);
+  const names = new Map<string, string>();
+  if (!isId) return names;
+  for (const rel of idx.relationships) {
+    if (rel.PredicateId !== isId || names.has(rel.SubjectId)) continue;
+    names.set(rel.SubjectId, idx.byId.get(rel.TargetId)?.Name ?? rel.TargetId);
+  }
+  return names;
+}
+
+function selectProperties(thing: VosThing, which: RelationSpec['properties']): [string, unknown][] {
+  if (!which) return [];
+  const props = effectiveProperties(thing);
+  if (which === '*') return Object.entries(props);
+  return which.filter((key) => key in props).map((key) => [key, props[key]] as const);
+}
 
 /**
- * Ids of the Things involved in a root Thing — whatever the model links to it.
- * Breadth-first over the model's relationships, following the configured predicates/direction up
- * to `depth` hops. Cycle-guarded (a Thing is visited once). Excludes the root. Omitting
- * `involves.predicates` follows every predicate.
+ * Resolve the configured relations against the model, following each {@link RelationSpec} from the
+ * root Thing outward. Array order is preserved (it is the display order); within a group the edges
+ * are sorted by the related Thing's name for stability. Cycle-guarded per path so a relation that
+ * loops back (Order references Wave, Wave contains Order) can't recurse forever.
  */
-export function collectInvolved(
+export function resolveRelations(
   rootId: string,
   idx: ModelIndex,
-  involves?: DetailSpec['involves'],
-): string[] {
-  const depth = involves?.depth ?? 2;
-  const direction = involves?.direction ?? 'both';
-  const predicateIds = involves?.predicates?.length
-    ? new Set(
-        involves.predicates
-          .map((name) => idx.predicateNameToId.get(name))
-          .filter((id): id is string => !!id),
-      )
-    : null;
-  const followOut = direction !== 'in';
-  const followIn = direction !== 'out';
+  specs: RelationSpec[] | undefined,
+): ResolvedRelation[] {
+  if (!specs?.length) return [];
+  const archetypeOf = archetypeNames(idx);
 
-  const involved = new Set<string>();
-  const seen = new Set<string>([rootId]);
-  let frontier = new Set<string>([rootId]);
+  const walk = (anchorId: string, relationSpecs: RelationSpec[], visited: Set<string>): ResolvedRelation[] => {
+    const anchorName = idx.byId.get(anchorId)?.Name ?? anchorId;
 
-  for (let hop = 0; hop < depth && frontier.size; hop++) {
-    const next = new Set<string>();
-    const visit = (from: string, to: string) => {
-      if (!frontier.has(from) || seen.has(to)) return;
-      seen.add(to);
-      involved.add(to);
-      next.add(to);
-    };
-    for (const rel of idx.relationships) {
-      if (predicateIds && !predicateIds.has(rel.PredicateId)) continue;
-      if (followOut) visit(rel.SubjectId, rel.TargetId);
-      if (followIn) visit(rel.TargetId, rel.SubjectId);
+    return relationSpecs.map((spec) => {
+      const direction = spec.direction ?? 'out';
+      const predicateId = idx.predicateNameToId.get(spec.predicate);
+      const inlineSpecs = spec.relations?.filter((child) => child.inline) ?? [];
+      const nestedSpecs = spec.relations?.filter((child) => !child.inline) ?? [];
+      const edges: ResolvedEdge[] = [];
+
+      if (predicateId) {
+        for (const rel of idx.relationships) {
+          if (rel.PredicateId !== predicateId) continue;
+          const relatedId =
+            direction === 'out'
+              ? rel.SubjectId === anchorId
+                ? rel.TargetId
+                : null
+              : rel.TargetId === anchorId
+                ? rel.SubjectId
+                : null;
+          if (!relatedId || visited.has(relatedId)) continue;
+          if (spec.archetype && archetypeOf.get(relatedId) !== spec.archetype) continue;
+
+          const related = idx.byId.get(relatedId);
+          const relatedName = related?.Name ?? relatedId;
+          const nextVisited = new Set(visited).add(relatedId);
+
+          // Hoist each inline child's matched properties onto this row, ahead of the row's own.
+          const hoisted = inlineSpecs.flatMap((child) =>
+            walk(relatedId, [child], nextVisited).flatMap((group) => group.edges.flatMap((e) => e.properties)),
+          );
+
+          edges.push({
+            thingId: relatedId,
+            subjectName: direction === 'out' ? anchorName : relatedName,
+            targetName: direction === 'out' ? relatedName : anchorName,
+            relatedName,
+            properties: [...hoisted, ...(related ? selectProperties(related, spec.properties) : [])],
+            children: nestedSpecs.length ? walk(relatedId, nestedSpecs, nextVisited) : [],
+          });
+        }
+      }
+
+      edges.sort((a, b) => a.relatedName.localeCompare(b.relatedName));
+      return { label: spec.label ?? spec.predicate, predicate: spec.predicate, direction, edges };
+    });
+  };
+
+  return walk(rootId, specs, new Set([rootId]));
+}
+
+/** Every related Thing id across the resolved tree — for fetching each one's derived states. */
+export function flattenRelatedIds(relations: ResolvedRelation[]): string[] {
+  const ids: string[] = [];
+  const walk = (rels: ResolvedRelation[]) => {
+    for (const group of rels) {
+      for (const edge of group.edges) {
+        ids.push(edge.thingId);
+        walk(edge.children);
+      }
     }
-    frontier = next;
-  }
-  return [...involved];
+  };
+  walk(relations);
+  return ids;
 }
 
-/** A relationship among the involved subgraph, surfaced as a movement in the timeline. */
-export interface MovementInput {
-  predicate: string;
-  subjectId: string;
-  subjectName: string;
-  targetId: string;
-  targetName: string;
-  /** ISO time of the earliest known change to the edge, or null when unknown. */
-  time: string | null;
-  sequence?: number;
-}
-
-export type TimelineKind = 'change' | 'movement';
-
-export interface TimelineEvent {
-  time: string | null;
-  sequence: number;
-  kind: TimelineKind;
-  thingId: string;
-  thingName: string;
-  label: string;
-  detail?: string;
-  /** The service that wrote the value (the "sender" of the message), when known. */
-  author?: string;
-}
-
-function displayValue(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '∅';
-  return String(value);
-}
-
-/** Best-effort author of a property change: the Fact whose value matches, else the nearest in time. */
-function attributeFact(
-  mutation: MutationDto,
-  facts: PropertyFact[] | undefined,
-): { author?: string; sequence?: number } {
-  if (!facts?.length) return {};
-  const target = displayValue(mutation.NewValue);
-  const byValue = facts.find((f) => f.kind === 'asserted' && displayValue(f.value) === target);
-  if (byValue) return { author: byValue.author, sequence: byValue.sequenceNumber };
-  const changeTime = new Date(mutation.Timestamp).getTime();
-  let best: PropertyFact | undefined;
-  let bestGap = Infinity;
-  for (const fact of facts) {
-    const gap = Math.abs(new Date(fact.committedAt).getTime() - changeTime);
-    if (gap < bestGap) {
-      bestGap = gap;
-      best = fact;
-    }
-  }
-  return best ? { author: best.author, sequence: best.sequenceNumber } : {};
+/** A derived-state change of the root Thing, for the handling-history list. */
+export interface StateChange {
+  at: string;
+  entered: string[];
+  exited: string[];
 }
 
 /**
- * Merge property changes and relationship movements into one chronological timeline.
- * Property changes carry their writing service (author) from the Commit-Log Facts when available.
- * Ordering is by (time ascending, then commit sequence); events with no known time sort last.
+ * The root Thing's derived-state changes, oldest first. Transitions that neither enter nor exit a
+ * state (a property write that didn't move a boundary) are dropped — only actual state moves show.
  */
-export function mergeTimeline(input: {
-  mutations: ThingMutations[];
-  movements: MovementInput[];
-  factsByKey?: Map<string, PropertyFact[]>;
-}): TimelineEvent[] {
-  const events: TimelineEvent[] = [];
-
-  for (const thing of input.mutations) {
-    for (const mutation of thing.Mutations) {
-      const key = `${thing.ObjectId}::${mutation.PropertyName}`;
-      const { author, sequence } = attributeFact(mutation, input.factsByKey?.get(key));
-      events.push({
-        time: mutation.Timestamp,
-        sequence: sequence ?? 0,
-        kind: 'change',
-        thingId: thing.ObjectId,
-        thingName: thing.ObjectName,
-        label: `${mutation.PropertyName}: ${displayValue(mutation.OldValue)} → ${displayValue(mutation.NewValue)}`,
-        author,
-      });
-    }
-  }
-
-  for (const movement of input.movements) {
-    events.push({
-      time: movement.time,
-      sequence: movement.sequence ?? 0,
-      kind: 'movement',
-      thingId: movement.subjectId,
-      thingName: movement.subjectName,
-      label: `${movement.predicate} → ${movement.targetName}`,
-      detail: movement.subjectName,
-    });
-  }
-
-  events.sort((a, b) => {
-    if (a.time && b.time) {
-      const delta = new Date(a.time).getTime() - new Date(b.time).getTime();
-      if (delta !== 0) return delta;
-      return a.sequence - b.sequence;
-    }
-    if (a.time) return -1;
-    if (b.time) return 1;
-    return a.sequence - b.sequence;
-  });
-
-  return events;
+export function buildStateChanges(transitions: StateTransition[]): StateChange[] {
+  return transitions
+    .filter((t) => t.Entered.length || t.Exited.length)
+    .map((t) => ({ at: t.At, entered: [...t.Entered], exited: [...t.Exited] }))
+    .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 }

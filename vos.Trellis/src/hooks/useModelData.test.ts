@@ -279,7 +279,7 @@ describe('useModelData', () => {
     }
   });
 
-  it('PropertyChanged on a graph-affecting property updates the things array in place', async () => {
+  it('PropertyChanged updates the things array in place without a full reload', async () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { geometry: 'old' } }]);
     renderHook(() => useModelData());
     await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
@@ -290,5 +290,34 @@ describe('useModelData', () => {
     await act(async () => handlers.get('PropertyChanged')!('t1', 'geometry', 'new'));
     await waitFor(() => expect(useModelStore.getState().things[0].Properties?.geometry).toBe('new'));
     expect(mockGetAllThings).not.toHaveBeenCalled();
+  });
+
+  // The Operations dashboard reads live business properties from the store, so a change to a
+  // non-graph property must land there too — not only `geometry`.
+  it('PropertyChanged on a business property updates the store', async () => {
+    mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { contained_units: 18 } }]);
+    renderHook(() => useModelData());
+    await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
+
+    await act(async () => handlers.get('PropertyChanged')!('t1', 'contained_units', 3));
+    await waitFor(() => expect(useModelStore.getState().things[0].Properties?.contained_units).toBe(3));
+  });
+
+  // A thing can change several properties inside one debounce window; the buffer must keep
+  // them all, not collapse to the last one written.
+  it('coalesces multiple property changes on the same thing in one window', async () => {
+    mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { contained_units: 18, available_units: 18 } }]);
+    renderHook(() => useModelData());
+    await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
+
+    await act(async () => {
+      handlers.get('PropertyChanged')!('t1', 'contained_units', 3);
+      handlers.get('PropertyChanged')!('t1', 'available_units', 2);
+    });
+    await waitFor(() => {
+      const props = useModelStore.getState().things[0].Properties;
+      expect(props?.contained_units).toBe(3);
+      expect(props?.available_units).toBe(2);
+    });
   });
 });

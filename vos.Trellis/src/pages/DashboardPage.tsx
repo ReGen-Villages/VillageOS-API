@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ModelStatsCard } from '../components/dashboard/ModelStatsCard';
 import { ServicesPanel } from '../components/dashboard/ServicesPanel';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed';
@@ -20,6 +21,7 @@ import type { RegisteredService, EndpointServiceInfo } from '../types/mycelium';
 const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   const [services, setServices] = useState<RegisteredService[]>([]);
@@ -202,7 +204,7 @@ export function DashboardPage() {
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
             <ModelStatsCard things={things} relationships={relationships} />
-            <ServicesPanel services={services} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} />
+            <ServicesPanel services={services} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} />
             <PropertyModePanel />
           </div>
           {!feedCollapsed && (

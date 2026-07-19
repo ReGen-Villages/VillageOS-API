@@ -40,8 +40,10 @@ export type Binding =
   /** Count of Things currently in a derived State (via GET /api/states/{state}/things).
    *  `archetype` narrows the count to Things of that archetype (e.g. only Orders, not their lines). */
   | { kind: 'stateCount'; state: string; scope?: ScopeRef; archetype?: string }
-  /** Rows of Things currently in a State, enriched with their properties for a table. */
-  | { kind: 'stateList'; state: string; scope?: ScopeRef; limit?: number; archetype?: string }
+  /** Rows of Things currently in a State, enriched with their properties for a table.
+   *  `excludeState` drops Things also in that state — for a funnel stage, set it to the next
+   *  stage's state so the list shows only Things that reached this stage and no further. */
+  | { kind: 'stateList'; state: string; excludeState?: string; scope?: ScopeRef; limit?: number; archetype?: string }
   /** Aggregate over Things of an archetype held in the model store (client-side). */
   | {
       kind: 'aggregate';
@@ -249,6 +251,42 @@ export interface CompareConfig {
 }
 
 /**
+ * One relation to surface on the detail card: which edge to follow from the current Thing,
+ * which related Thing to keep, and what of it to show. `relations` nest, so a card can walk
+ * Order → line → allocation. Array order is the display order at every level.
+ */
+export interface RelationSpec {
+  /** Predicate name to follow from the current Thing. */
+  predicate: string;
+  /**
+   * 'out': the current Thing is the subject, follow to the targets.
+   * 'in': the current Thing is the target, follow to the subjects. Default 'out'.
+   */
+  direction?: 'out' | 'in';
+  /**
+   * Keep only related Things of this archetype (its `is`-target name). Omit to keep every
+   * match — needed when one predicate (e.g. `has`) reaches several archetypes at once.
+   */
+  archetype?: string;
+  /** Heading for the group. Defaults to the predicate name. */
+  label?: string;
+  /**
+   * Which properties of the related Thing to show: a list of keys, or '*' for all.
+   * Omit to show none (name and derived states only).
+   */
+  properties?: string[] | '*';
+  /**
+   * Fold this relation's matched Thing onto the parent row instead of rendering it as its own
+   * nested card: its selected `properties` are hoisted onto the parent edge. Use for a one-hop
+   * lookup that belongs on the parent line — e.g. an order line's item number, which lives on the
+   * referenced Item. Ignored on a top-level relation (there is no parent row to fold onto).
+   */
+  inline?: boolean;
+  /** Relations to follow from each matched Thing in turn. */
+  relations?: RelationSpec[];
+}
+
+/**
  * How to render a detail window for a single Thing when a row is clicked. Entirely model
  * vocabulary — Trellis reads the shape, the model supplies the property keys and predicate
  * names (like {@link ScopeRef.viaPredicate}). Absent → rows aren't clickable.
@@ -260,18 +298,9 @@ export interface DetailSpec {
   subtitleProperty?: string;
   /** Curated property groups. Omit to show all own properties in one group. */
   propertyGroups?: { label: string; keys: string[] }[];
-  /** How to discover the Things involved in the root Thing — the traversal that finds them. */
-  involves?: {
-    /** Predicate names to traverse. Omit to follow every predicate. */
-    predicates?: string[];
-    /** Traverse outbound edges, inbound edges, or both. Default 'both'. */
-    direction?: 'out' | 'in' | 'both';
-    /** Hops from the root Thing. Default 2. */
-    depth?: number;
-  };
-  /** Predicate names whose edges are surfaced as "movements" in the timeline. */
-  movementPredicates?: string[];
-  /** Handling-history timeline options. */
+  /** Ordered relations to surface on the card, each optionally nesting further. */
+  relations?: RelationSpec[];
+  /** Handling history — the root Thing's own derived-state changes over time. */
   history?: { enabled?: boolean };
 }
 

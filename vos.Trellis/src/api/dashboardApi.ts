@@ -301,9 +301,16 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       const resp = await stateApi.getThingsInState(binding.state);
       const members = scopeMemberIds(binding.scope, ctx);
       const ofArchetype = binding.archetype ? thingIdsOfArchetype(binding.archetype, ctx.idx) : null;
+      // The derived statuses nest (a shipped order is also released/allocated/…), so a plain
+      // stateList for an early stage includes every later one. excludeState removes the things
+      // that advanced past this stage — leaving only those that reached it and no further.
+      const advanced = binding.excludeState
+        ? new Set((await stateApi.getThingsInState(binding.excludeState)).Things?.map((t) => t.Id) ?? [])
+        : null;
       let list = resp.Things ?? [];
       if (members) list = list.filter((t) => members.has(t.Id));
       if (ofArchetype) list = list.filter((t) => ofArchetype.has(t.Id));
+      if (advanced) list = list.filter((t) => !advanced.has(t.Id));
       if (binding.limit) list = list.slice(0, binding.limit);
       return list.map((ref) => {
         const full = ctx.idx.byId.get(ref.Id);

@@ -10,11 +10,15 @@ import { EntityDetailWindow } from './EntityDetailWindow';
 
 export function useDetailWindows(idx: ModelIndex, detail: DetailSpec | undefined, nonce?: number) {
   const [order, setOrder] = useState<string[]>([]);
+  // Bumped when a window's "spread" button is clicked; every window re-tiles on the change.
+  const [spreadTick, setSpreadTick] = useState(0);
 
   const openDetail = useCallback((thingId: string) => {
     if (!thingId) return;
     setOrder((prev) => [...prev.filter((id) => id !== thingId), thingId]);
   }, []);
+
+  const spread = useCallback(() => setSpreadTick((tick) => tick + 1), []);
 
   const focus = useCallback((thingId: string) => {
     setOrder((prev) => (prev[prev.length - 1] === thingId ? prev : [...prev.filter((id) => id !== thingId), thingId]));
@@ -33,9 +37,13 @@ export function useDetailWindows(idx: ModelIndex, detail: DetailSpec | undefined
           detail={detail}
           nonce={nonce}
           offset={i}
+          index={i}
+          total={order.length}
+          spreadTick={spreadTick}
           zIndex={40 + i}
           onClose={() => close(thingId)}
           onFocus={() => focus(thingId)}
+          onSpread={spread}
           openDetail={openDetail}
         />
       ))

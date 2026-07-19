@@ -3,25 +3,12 @@ import { renderHook, act } from '@testing-library/react';
 
 const mockGetThingStates = vi.fn();
 const mockGetStateTransitions = vi.fn();
-const mockGetThingMutations = vi.fn();
-const mockGetRelationshipMutations = vi.fn();
-const mockGetPropertyFacts = vi.fn();
 
 vi.mock('../../../api/stateApi', () => ({
   stateApi: {
     getThingStates: (id: string, signal?: AbortSignal) => mockGetThingStates(id, signal),
     getStateTransitions: (id: string, _from?: string, _to?: string, signal?: AbortSignal) =>
       mockGetStateTransitions(id, signal),
-  },
-}));
-vi.mock('../../../api/temporalApi', () => ({
-  temporalApi: {
-    getThingMutations: (id: string, _start?: string, _end?: string, signal?: AbortSignal) =>
-      mockGetThingMutations(id, signal),
-    getRelationshipMutations: (id: string, _start?: string, _end?: string, signal?: AbortSignal) =>
-      mockGetRelationshipMutations(id, signal),
-    getPropertyFacts: (id: string, property: string, signal?: AbortSignal) =>
-      mockGetPropertyFacts(id, property, signal),
   },
 }));
 
@@ -36,7 +23,7 @@ function rel(Id: string, SubjectId: string, PredicateId: string, TargetId: strin
   return { Id, Name: Id, SubjectId, PredicateId, TargetId, Properties: {} };
 }
 
-// root -has-> child. One involved Thing, so each round is a small, countable fan-out.
+// root -has-> child. One related Thing, so each round is a small, countable fan-out.
 function index() {
   return buildModelIndex(
     [thing('root', 'ROOT-1'), thing('child', 'CHILD-1'), thing('has', 'has')],
@@ -54,16 +41,13 @@ describe('useEntityDetail', () => {
       Coverage: { Source: 'in-memory', From: '2026-07-17T00:00:00Z', To: '2026-07-17T01:00:00Z' },
       Transitions: [],
     });
-    mockGetThingMutations.mockResolvedValue({ ObjectId: 'root', ObjectName: 'ROOT-1', Mutations: [] });
-    mockGetRelationshipMutations.mockResolvedValue({ Mutations: [] });
-    mockGetPropertyFacts.mockResolvedValue({ entries: [] });
     vi.useFakeTimers();
   });
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  const detail = { involves: { predicates: ['has'], depth: 1 } };
+  const detail = { relations: [{ predicate: 'has', direction: 'out' as const }] };
 
   async function settle() {
     await act(async () => {
@@ -75,10 +59,9 @@ describe('useEntityDetail', () => {
   const rounds = () => mockGetThingStates.mock.calls.length / 2;
 
   // The dashboard bumps `nonce` every 400 ms while a sim runs. A round costs a request per
-  // involved Thing plus its Fact lookups, so following every bump would put one open window
-  // into the hundreds of requests per second (#5961). The throttle is leading-edge — the
-  // first bump after a quiet period refreshes promptly — so what must not happen is a round
-  // per bump, not a round at all.
+  // related Thing, so following every bump would put one open window into the hundreds of
+  // requests per second. The throttle is leading-edge — the first bump after a quiet period
+  // refreshes promptly — so what must not happen is a round per bump, not a round at all.
   it('does not start a fetch round per nonce bump', async () => {
     const idx = index();
     const { rerender } = renderHook(({ nonce }) => useEntityDetail(idx, 'root', detail, nonce), {
@@ -120,7 +103,7 @@ describe('useEntityDetail', () => {
     expect(mockGetThingStates.mock.calls.length).toBeGreaterThan(afterFirstRound);
   });
 
-  it('fetches the root and its involved Things, and abandons a superseded round', async () => {
+  it('fetches the root and its related Things, and abandons a superseded round', async () => {
     const idx = index();
     const { rerender, unmount } = renderHook(({ nonce }) => useEntityDetail(idx, 'root', detail, nonce), {
       initialProps: { nonce: 0 },
@@ -136,7 +119,17 @@ describe('useEntityDetail', () => {
     expect(signal.aborted).toBe(true);
   });
 
-  it('fetches state history for the root only, not for involved Things', async () => {
+  it('resolves the configured relations against the model', async () => {
+    const idx = index();
+    const { result } = renderHook(() => useEntityDetail(idx, 'root', detail, 0));
+    await settle();
+
+    const edge = result.current.relations[0].edges[0];
+    expect(edge.thingId).toBe('child');
+    expect(edge.relatedName).toBe('CHILD-1');
+  });
+
+  it('fetches state history for the root only, not for related Things', async () => {
     const idx = index();
     renderHook(() => useEntityDetail(idx, 'root', detail, 0));
     await settle();
@@ -144,34 +137,34 @@ describe('useEntityDetail', () => {
     expect(mockGetStateTransitions.mock.calls.map((c) => c[0])).toEqual(['root']);
   });
 
-  it('exposes the root state history once resolved', async () => {
-    const transitions = [
-      { At: '2026-07-17T00:30:00Z', Entered: ['overheating'], Exited: [], States: ['overheating'], TriggeringProperty: 'temp', OldValue: 50, NewValue: 150 },
-    ];
+  it('exposes the root state changes and coverage once resolved', async () => {
     mockGetStateTransitions.mockResolvedValue({
       ThingId: 'root',
       ThingName: 'ROOT-1',
       Coverage: { Source: 'in-memory', From: '2026-07-17T00:00:00Z', To: '2026-07-17T01:00:00Z' },
-      Transitions: transitions,
+      Transitions: [
+        { At: '2026-07-17T00:30:00Z', Entered: ['allocated'], Exited: [], States: ['allocated'], TriggeringProperty: 'temp', OldValue: 50, NewValue: 150 },
+      ],
     });
     const idx = index();
     const { result } = renderHook(() => useEntityDetail(idx, 'root', detail, 0));
     await settle();
 
-    expect(result.current.stateHistory?.Transitions).toEqual(transitions);
-    expect(result.current.stateHistory?.Coverage.Source).toBe('in-memory');
+    expect(result.current.stateChanges).toEqual([{ at: '2026-07-17T00:30:00Z', entered: ['allocated'], exited: [] }]);
+    expect(result.current.coverage?.Source).toBe('in-memory');
   });
 
   // A model with no active reactive engine 503s on state history. The window must still render
-  // its states and timeline rather than losing the whole round to one rejected request.
-  it('leaves state history null and still resolves when the endpoint rejects', async () => {
+  // its states and relations rather than losing the whole round to one rejected request.
+  it('leaves coverage null and still resolves when the endpoint rejects', async () => {
     mockGetStateTransitions.mockRejectedValue(new Error('503'));
     const idx = index();
     const { result } = renderHook(() => useEntityDetail(idx, 'root', detail, 0));
     await settle();
 
-    expect(result.current.stateHistory).toBeNull();
+    expect(result.current.coverage).toBeNull();
+    expect(result.current.stateChanges).toEqual([]);
     expect(result.current.loading).toBe(false);
-    expect(result.current.involvedIds).toEqual(['child']);
+    expect(result.current.relations[0].edges[0].thingId).toBe('child');
   });
 });

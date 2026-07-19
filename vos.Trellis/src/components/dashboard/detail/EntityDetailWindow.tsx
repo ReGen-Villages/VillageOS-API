@@ -1,18 +1,19 @@
 /**
  * One floating, draggable, resizable detail window for a single Thing. Generic: what it shows
- * is driven by the model's {@link DetailSpec} (title/subtitle property, property groups,
- * involved-things traversal, movement predicates). Several can be open at once (see
- * DetailWindowManager). Clicking an involved Thing opens another window.
+ * is driven by the model's {@link DetailSpec} — title/subtitle property, property groups, the
+ * ordered relations to surface, and the state-change history. Several can be open at once (see
+ * DetailWindowManager). Clicking a related Thing opens another window.
  */
 import { useCallback, useRef, useState } from 'react';
-import { X, GripHorizontal } from 'lucide-react';
+import { X, GripHorizontal, LayoutGrid } from 'lucide-react';
 import type { ModelIndex } from '../../../api/dashboardApi';
 import { effectiveProperties } from '../../../utils/propertyMapper';
 import { formatDateTime, formatGuid, formatPropertyValue, formatTimestamp } from '../../../utils/formatters';
 import { badgeTone } from '../widgets/format';
 import type { DetailSpec } from '../../../types/dashboard';
-import type { StateHistoryCoverage, StateTransition } from '../../../types/vos';
+import type { StateHistoryCoverage } from '../../../types/vos';
 import { useEntityDetail } from './useEntityDetail';
+import type { ResolvedRelation } from './entityDetail';
 
 interface Props {
   idx: ModelIndex;
@@ -20,10 +21,29 @@ interface Props {
   detail: DetailSpec;
   nonce?: number;
   offset: number;
+  /** This window's position among the open set, and the total, for tiling on spread. */
+  index: number;
+  total: number;
+  /** Bumped by the manager when any window's spread button is clicked; re-tiles this window. */
+  spreadTick: number;
   zIndex: number;
   onClose: () => void;
   onFocus: () => void;
+  onSpread: () => void;
   openDetail: (thingId: string) => void;
+}
+
+const WINDOW_WIDTH = 460;
+const WINDOW_HEIGHT = 560;
+
+/** Tile the open windows edge-to-edge across the viewport: as many columns as fit, wrapping to rows. */
+function tiledPosition(index: number): { x: number; y: number } {
+  const gap = 16;
+  const top = 80;
+  const columns = Math.max(1, Math.floor((window.innerWidth - gap) / (WINDOW_WIDTH + gap)));
+  const column = index % columns;
+  const row = Math.floor(index / columns);
+  return { x: gap + column * (WINDOW_WIDTH + gap), y: top + row * (WINDOW_HEIGHT + gap) };
 }
 
 function StatePills({ states }: { states: string[] }) {
@@ -39,51 +59,80 @@ function StatePills({ states }: { states: string[] }) {
   );
 }
 
-/** How far back the history reaches. Shown so an empty or short timeline reads as "not retained"
+/** How far back the history reaches. Shown so an empty or short list reads as "not retained"
  *  rather than "never happened" — in-memory history only starts when the engine loaded the model. */
 function CoverageNote({ coverage }: { coverage: StateHistoryCoverage }) {
   if (coverage.Source !== 'in-memory') return null;
   return (
     <div className="mt-1.5 text-[10.5px] text-zinc-400 dark:text-zinc-500">
-      In-memory history — since {formatDateTime(coverage.From)}. Earlier transitions are not retained.
+      In-memory history — since {formatDateTime(coverage.From)}. Earlier changes are not retained.
     </div>
   );
 }
 
-function TransitionRow({ transition }: { transition: StateTransition }) {
+/** The configured relations, rendered as ordered groups; each edge names its subject and target,
+ *  shows the related Thing's chosen properties and derived states, and nests its own relations. */
+function RelationGroups({
+  relations,
+  statesById,
+  openDetail,
+}: {
+  relations: ResolvedRelation[];
+  statesById: Map<string, string[]>;
+  openDetail: (thingId: string) => void;
+}) {
   return (
-    <li className="flex gap-2 text-[11.5px]">
-      <span className="text-zinc-400 dark:text-zinc-500 font-mono whitespace-nowrap flex-shrink-0 w-[70px]">
-        {formatTimestamp(transition.At)}
-      </span>
-      <span className="min-w-0">
-        <span className="flex flex-wrap items-center gap-1">
-          {transition.Entered.map((s) => (
-            <span key={`entered-${s}`} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeTone(s)}`}>
-              + {s}
-            </span>
-          ))}
-          {transition.Exited.map((s) => (
-            <span
-              key={`exited-${s}`}
-              className="text-[10px] px-1.5 py-0.5 rounded-full line-through bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"
-            >
-              {s}
-            </span>
-          ))}
-        </span>
-        {transition.TriggeringProperty && (
-          <span className="block text-zinc-400 dark:text-zinc-500 font-mono">
-            {transition.TriggeringProperty}: {formatPropertyValue(transition.OldValue)} → {formatPropertyValue(transition.NewValue)}
-          </span>
-        )}
-      </span>
-    </li>
+    <div className="space-y-2.5">
+      {relations.map((group) => (
+        <div key={group.label}>
+          <div className="text-[10.5px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-1">
+            {group.label} ({group.edges.length})
+          </div>
+          {group.edges.length === 0 ? (
+            <div className="text-[11px] text-zinc-400">None.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {group.edges.map((edge) => (
+                <div key={edge.thingId} className="rounded-md border border-zinc-200 dark:border-zinc-700">
+                  <button
+                    onClick={() => openDetail(edge.thingId)}
+                    className="block w-full text-left px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    <div className="text-[10px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500 truncate">
+                      {edge.subjectName} <span className="mx-0.5">{group.predicate} →</span> {edge.targetName}
+                    </div>
+                    <div className="text-[12px] font-semibold text-blue-600 dark:text-blue-400 truncate">{edge.relatedName}</div>
+                    <div className="mt-1">
+                      <StatePills states={statesById.get(edge.thingId) ?? []} />
+                    </div>
+                    {edge.properties.length > 0 && (
+                      <div className="mt-1 grid grid-cols-[minmax(0,130px)_1fr] gap-x-2 gap-y-0.5">
+                        {edge.properties.map(([key, value]) => (
+                          <div key={key} className="contents">
+                            <div className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate" title={key}>{key}</div>
+                            <div className="text-[11px] font-mono text-zinc-700 dark:text-zinc-200 break-words">{formatPropertyValue(value)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                  {edge.children.length > 0 && (
+                    <div className="ml-3 mb-1.5 mr-1.5 pl-2 border-l border-zinc-200 dark:border-zinc-700">
+                      <RelationGroups relations={edge.children} statesById={statesById} openDetail={openDetail} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
-export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, zIndex, onClose, onFocus, openDetail }: Props) {
-  const { loading, root, involvedIds, statesById, timeline, stateHistory } = useEntityDetail(idx, thingId, detail, nonce);
+export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail }: Props) {
+  const { loading, root, relations, statesById, stateChanges, coverage } = useEntityDetail(idx, thingId, detail, nonce);
 
   const props = root ? effectiveProperties(root) : {};
   const title = (detail.titleProperty && (props[detail.titleProperty] as string)) || root?.Name || formatGuid(thingId);
@@ -93,8 +142,16 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, zIndex
     ? detail.propertyGroups.map((g) => ({ label: g.label, entries: g.keys.filter((k) => k in props).map((k) => [k, props[k]] as const) }))
     : [{ label: 'Properties', entries: Object.entries(props) }];
 
-  // ── Drag ────────────────────────────────────────────────────────────────
+  // ── Drag & layout ─────────────────────────────────────────────────────────
   const [pos, setPos] = useState({ x: 120 + offset * 28, y: 90 + offset * 28 });
+  // Re-tile when the spread button is clicked, using React's "adjust state during render"
+  // pattern (a guarded render-phase update) rather than an effect: spreadTick only advances on
+  // an explicit click, and starts at 0 so the initial cascade above is kept until then.
+  const [appliedSpread, setAppliedSpread] = useState(0);
+  if (spreadTick !== appliedSpread) {
+    setAppliedSpread(spreadTick);
+    if (spreadTick > 0) setPos(tiledPosition(index));
+  }
   const drag = useRef<{ dx: number; dy: number } | null>(null);
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -134,7 +191,22 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, zIndex
             {root?.Name ?? formatGuid(thingId)}
           </div>
         </div>
-        <button onClick={onClose} className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 flex-shrink-0" title="Close">
+        {total > 1 && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onSpread}
+            className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 flex-shrink-0"
+            title="Spread all panels out"
+          >
+            <LayoutGrid size={15} />
+          </button>
+        )}
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onClose}
+          className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 flex-shrink-0"
+          title="Close"
+        >
           <X size={16} />
         </button>
       </div>
@@ -144,27 +216,6 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, zIndex
         <section>
           <SectionTitle>Derived states</SectionTitle>
           <StatePills states={statesById.get(thingId) ?? []} />
-        </section>
-
-        {/* How the root reached those states, oldest-first like the handling history below */}
-        <section>
-          <SectionTitle>
-            State transitions {loading ? '· loading…' : stateHistory ? `· ${stateHistory.Transitions.length}` : ''}
-          </SectionTitle>
-          {!loading && !stateHistory && (
-            <div className="text-[11px] text-zinc-400">State history unavailable — no active reactive engine for this model.</div>
-          )}
-          {stateHistory && stateHistory.Transitions.length === 0 && (
-            <div className="text-[11px] text-zinc-400">No transitions recorded.</div>
-          )}
-          {stateHistory && stateHistory.Transitions.length > 0 && (
-            <ol className="mt-1 space-y-1.5">
-              {stateHistory.Transitions.map((transition, i) => (
-                <TransitionRow key={`${transition.At}-${i}`} transition={transition} />
-              ))}
-            </ol>
-          )}
-          {stateHistory && <CoverageNote coverage={stateHistory.Coverage} />}
         </section>
 
         {/* Details */}
@@ -188,53 +239,53 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, zIndex
           ))}
         </section>
 
-        {/* Involved things, each with its own derived states */}
-        <section className="space-y-1.5">
-          <SectionTitle>Things involved ({involvedIds.length})</SectionTitle>
-          {involvedIds.length === 0 && <div className="text-[11px] text-zinc-400">Nothing linked.</div>}
-          {involvedIds.map((id) => {
-            const t = idx.byId.get(id);
-            return (
-              <button
-                key={id}
-                onClick={() => openDetail(id)}
-                className="block w-full text-left rounded-md border border-zinc-200 dark:border-zinc-700 px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-              >
-                <div className="text-[12px] font-semibold text-blue-600 dark:text-blue-400 truncate">{t?.Name ?? formatGuid(id)}</div>
-                <div className="mt-1">
-                  <StatePills states={statesById.get(id) ?? []} />
-                </div>
-              </button>
-            );
-          })}
-        </section>
+        {/* Configured relations, in the model's declared order */}
+        {relations.length > 0 && (
+          <section>
+            <SectionTitle>Relations</SectionTitle>
+            <RelationGroups relations={relations} statesById={statesById} openDetail={openDetail} />
+          </section>
+        )}
 
-        {/* Handling history */}
+        {/* Handling history — the root's own derived-state changes, oldest first */}
         {detail.history?.enabled !== false && (
           <section>
-            <SectionTitle>Handling history {loading ? '· loading…' : `· ${timeline.length}`}</SectionTitle>
-            {!loading && timeline.length === 0 && <div className="text-[11px] text-zinc-400">No recorded history.</div>}
-            <ol className="mt-1 space-y-1.5">
-              {timeline.map((event, i) => (
-                <li key={i} className="flex gap-2 text-[11.5px]">
-                  <span className="text-zinc-400 dark:text-zinc-500 font-mono whitespace-nowrap flex-shrink-0 w-[70px]">
-                    {event.time ? formatTimestamp(event.time) : '—'}
-                  </span>
-                  <span
-                    className={`flex-shrink-0 w-1.5 rounded-full mt-1 mb-1 ${event.kind === 'movement' ? 'bg-blue-400' : 'bg-amber-400'}`}
-                    aria-hidden
-                  />
-                  <span className="min-w-0">
-                    <span className="text-zinc-700 dark:text-zinc-200">{event.label}</span>
-                    <span className="text-zinc-400 dark:text-zinc-500">
-                      {'  '}
-                      {event.thingName}
-                      {event.author ? ` · ${event.author}` : ''}
+            <SectionTitle>
+              Handling history {loading ? '· loading…' : coverage ? `· ${stateChanges.length}` : ''}
+            </SectionTitle>
+            {!loading && !coverage && (
+              <div className="text-[11px] text-zinc-400">State history unavailable — no active reactive engine for this model.</div>
+            )}
+            {coverage && stateChanges.length === 0 && (
+              <div className="text-[11px] text-zinc-400">No state changes recorded.</div>
+            )}
+            {stateChanges.length > 0 && (
+              <ol className="mt-1 space-y-1.5">
+                {stateChanges.map((change, i) => (
+                  <li key={`${change.at}-${i}`} className="flex gap-2 text-[11.5px]">
+                    <span className="text-zinc-400 dark:text-zinc-500 font-mono whitespace-nowrap flex-shrink-0 w-[62px]">
+                      {formatTimestamp(change.at)}
                     </span>
-                  </span>
-                </li>
-              ))}
-            </ol>
+                    <span className="min-w-0 flex flex-wrap items-center gap-1">
+                      {change.entered.map((s) => (
+                        <span key={`entered-${s}`} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeTone(s)}`}>
+                          + {s}
+                        </span>
+                      ))}
+                      {change.exited.map((s) => (
+                        <span
+                          key={`exited-${s}`}
+                          className="text-[10px] px-1.5 py-0.5 rounded-full line-through bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            {coverage && <CoverageNote coverage={coverage} />}
           </section>
         )}
       </div>

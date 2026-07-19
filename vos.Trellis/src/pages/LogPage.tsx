@@ -1,10 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Terminal, Pause, Play, Trash2 } from 'lucide-react';
 import { useLogTail } from '../hooks/useLogTail';
 
-/** Live tail of the Mycelium broker log, streamed over SSE. */
+/** Live tail of the Mycelium broker log — or a service daemon's log when ?service=<key> is set.
+ *  Keyed by service so switching sources remounts the view with fresh state. */
 export function LogPage() {
-  const { lines, connected, clear } = useLogTail();
+  const [params] = useSearchParams();
+  const service = params.get('service') ?? undefined;
+  return <LogView key={service ?? 'broker'} service={service} />;
+}
+
+function LogView({ service }: { service?: string }) {
+  const { lines, connected, clear } = useLogTail(service);
+  const title = service ? `${service} log` : 'Broker Log';
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -32,7 +41,7 @@ export function LogPage() {
       <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
           <Terminal className="w-6 h-6 text-zinc-500" />
-          <h2 className="text-xl font-bold">Broker Log</h2>
+          <h2 className="text-xl font-bold capitalize">{title}</h2>
           <span className="text-xs text-zinc-500">{lines.length} lines</span>
         </div>
         <div className="flex items-center gap-4 text-xs">

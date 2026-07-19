@@ -6,7 +6,7 @@ import { useUiStore } from '../stores/uiStore';
 import { useSse } from './useSse';
 import { useFlashTimer } from './useFlashTimer';
 import { toast } from '../components/common/Toast';
-import { isGraphAffectingProperty, isVisibleRelationship } from '../utils/propertyUpdates';
+import { isVisibleRelationship } from '../utils/propertyUpdates';
 
 /** How long to wait before a single hydrate retry (Bug #5940). */
 const HYDRATE_RETRY_MS = 400;
@@ -107,7 +107,7 @@ export function useModelData(): void {
       thingRemove: new Set<string>(),
       relHydrate: new Set<string>(),
       relRemove: new Set<string>(),
-      thingProps: new Map<string, { path: string; value: unknown }>(),
+      thingProps: new Map<string, Map<string, unknown>>(),
       relProps: new Map<string, { name: string; value: unknown }>(),
     };
     const isEmpty = () =>
@@ -128,7 +128,9 @@ export function useModelData(): void {
       const relIds = [...pending.relHydrate]; pending.relHydrate.clear();
       const thingRemovals = [...pending.thingRemove]; pending.thingRemove.clear();
       const relationshipRemovals = [...pending.relRemove]; pending.relRemove.clear();
-      const thingPropertyUpdates = [...pending.thingProps].map(([id, u]) => ({ id, path: u.path, value: u.value }));
+      const thingPropertyUpdates = [...pending.thingProps].flatMap(
+        ([id, props]) => [...props].map(([path, value]) => ({ id, path, value })),
+      );
       pending.thingProps.clear();
       const relationshipPropertyUpdates = [...pending.relProps].map(([id, u]) => ({ id, name: u.name, value: u.value }));
       pending.relProps.clear();
@@ -174,12 +176,15 @@ export function useModelData(): void {
         const newValue = args[2] as unknown;
         if (thingId && propertyPath !== undefined) {
           triggerFlashNode(thingId);
-          // Skip the store rebuild unless the property affects graph rendering;
-          // other changes are detail-panel concerns only.
-          if (isGraphAffectingProperty(propertyPath)) {
-            pending.thingProps.set(thingId, { path: propertyPath, value: newValue });
-            schedule();
-          }
+          // Every property update lands in the store, not just graph-rendering ones. The
+          // Operations dashboard reads live business properties (on-hand, reorder point,
+          // KPIs) straight from the store, so dropping their updates left it showing stale
+          // or blank cells for anything changed after the last full load. The debounced
+          // applyBatch coalesces the high PropertyChanged rate into one write per window.
+          const props = pending.thingProps.get(thingId) ?? new Map<string, unknown>();
+          props.set(propertyPath, newValue);
+          pending.thingProps.set(thingId, props);
+          schedule();
         }
       }),
       on('RelationshipPropertyChanged', (...args: unknown[]) => {

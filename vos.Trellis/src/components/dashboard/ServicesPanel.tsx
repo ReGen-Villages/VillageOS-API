@@ -1,7 +1,7 @@
 import type { RegisteredService, EndpointServiceInfo, HealthStatus } from '../../types/mycelium';
 import { Badge } from '../common/Badge';
 import { formatMs, formatRelativeTime } from '../../utils/formatters';
-import { Play, Square, Workflow, Globe, Trash2 } from 'lucide-react';
+import { Play, Square, Workflow, Globe, Trash2, ScrollText } from 'lucide-react';
 
 interface Props {
   services: RegisteredService[];
@@ -10,6 +10,8 @@ interface Props {
   onStop: (id: string) => void;
   /** Retract a connection from the model (only offered for rows with a model Thing id). */
   onDelete?: (thingId: string, name: string) => void;
+  /** Open the live tail of a daemon's log (its watch-<serviceKey>.log). */
+  onViewLogs?: (serviceKey: string) => void;
 }
 
 const healthColor: Record<HealthStatus, 'green' | 'yellow' | 'red' | 'gray'> = {
@@ -91,7 +93,7 @@ function statGridCols(row: ServiceRow): string {
   }
 }
 
-export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete }: Props) {
+export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, onViewLogs }: Props) {
   const rows = [...services.map(fromService), ...endpoints.map(fromEndpoint)];
 
   return (
@@ -117,6 +119,9 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete }
                   <Badge label={row.running ? 'Running' : 'Stopped'} color={row.running ? 'green' : 'red'} dot />
                 )}
                 {row.isExternal && <Badge label="External" color="purple" />}
+                {row.trigger === 'graph' && onViewLogs && (
+                  <button onClick={() => onViewLogs(row.name.toLowerCase())} className="p-1 text-zinc-400 hover:text-blue-400" title="View log"><ScrollText size={14} /></button>
+                )}
                 {row.controlId && (row.running
                   ? <button onClick={() => onStop(row.controlId!)} className="p-1 text-red-400 hover:text-red-300" title="Stop"><Square size={14} /></button>
                   : <button onClick={() => onStart(row.controlId!)} className="p-1 text-emerald-400 hover:text-emerald-300" title="Start"><Play size={14} /></button>

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isGraphAffectingProperty,
   applyThingPropertyUpdate,
   applyRelationshipPropertyUpdate,
   isVisibleRelationship,
@@ -22,20 +21,6 @@ const makeRel = (overrides?: Partial<VosRelationship>): VosRelationship => ({
   TargetId: 'node-B',
   Properties: { quantity: 5, unit: 'kWh' },
   ...overrides,
-});
-
-describe('isGraphAffectingProperty', () => {
-  it('returns true for geometry', () => {
-    expect(isGraphAffectingProperty('geometry')).toBe(true);
-  });
-
-  it('returns false for quantity', () => {
-    expect(isGraphAffectingProperty('quantity')).toBe(false);
-  });
-
-  it('returns false for water_level', () => {
-    expect(isGraphAffectingProperty('water_level')).toBe(false);
-  });
 });
 
 describe('applyThingPropertyUpdate', () => {

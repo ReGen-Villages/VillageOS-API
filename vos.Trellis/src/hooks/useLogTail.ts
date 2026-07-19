@@ -8,11 +8,13 @@ const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 const TAIL_LINES = 200;
 
 /**
- * Tails the broker log over SSE. Mirrors useSse's auth approach: EventSource can't set an
- * Authorization header, so the short-lived token is passed as ?access_token (the /api/logs/stream
- * path is whitelisted in Mycelium's BrowserStreamPaths). Reconnects with backoff on error.
+ * Tails a log over SSE — the Mycelium broker log by default, or a named service daemon's log when
+ * `service` is given (e.g. 'replenisher' → watch-replenisher.log). Mirrors useSse's auth approach:
+ * EventSource can't set an Authorization header, so the short-lived token is passed as ?access_token
+ * (the /api/logs/stream path is whitelisted in Mycelium's BrowserStreamPaths). Reconnects with
+ * backoff on error, and re-opens against the new source when `service` changes.
  */
-export function useLogTail(): { lines: string[]; connected: boolean; clear: () => void } {
+export function useLogTail(service?: string): { lines: string[]; connected: boolean; clear: () => void } {
   const [lines, setLines] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
 
@@ -42,7 +44,8 @@ export function useLogTail(): { lines: string[]; connected: boolean; clear: () =
       try {
         const token = await apiClient.ensureToken();
         if (released) return;
-        const url = `${BASE_URL}/api/logs/stream?tail=${TAIL_LINES}&access_token=${encodeURIComponent(token)}`;
+        const serviceParam = service ? `&service=${encodeURIComponent(service)}` : '';
+        const url = `${BASE_URL}/api/logs/stream?tail=${TAIL_LINES}${serviceParam}&access_token=${encodeURIComponent(token)}`;
         const es = new EventSource(url);
         es.onopen = () => {
           attemptRef.current = 0;
@@ -75,6 +78,9 @@ export function useLogTail(): { lines: string[]; connected: boolean; clear: () =
       sourceRef.current?.close();
       sourceRef.current = null;
     };
+    // `service` is fixed for this hook instance: LogPage keys the view by service, so a switch
+    // remounts rather than re-running this effect. Opening once on mount is correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { lines, connected, clear };
