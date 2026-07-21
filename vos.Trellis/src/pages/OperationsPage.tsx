@@ -8,6 +8,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useModelStore } from '../stores/modelStore';
 import { useSse } from '../hooks/useSse';
 import { useResolveContext } from '../hooks/useDashboard';
@@ -16,6 +17,7 @@ import {
   discoverDashboardsFromIndex,
   scopeEntities as computeScopeEntities,
 } from '../api/dashboardApi';
+import { localizeSpec } from '../api/dashboardLocalization';
 import type { DashboardSection } from '../types/dashboard';
 import { WidgetRenderer } from '../components/dashboard/widgets/WidgetRenderer';
 import { useDetailWindows } from '../components/dashboard/detail/DetailWindowManager';
@@ -59,7 +61,11 @@ export function OperationsPage() {
   const dashboards = useMemo(() => discoverDashboardsFromIndex(idx), [idx]);
   const [selected, setSelected] = useState(0);
   const dashboard = dashboards[Math.min(selected, Math.max(0, dashboards.length - 1))];
-  const spec = dashboard?.spec;
+  const { i18n } = useTranslation();
+  const spec = useMemo(
+    () => (dashboard ? localizeSpec(dashboard.spec, i18n.language) : undefined),
+    [dashboard, i18n.language],
+  );
 
   const entities = useMemo(() => (spec ? computeScopeEntities(spec, idx) : []), [spec, idx]);
 

@@ -1,4 +1,5 @@
 import { Moon, Sun } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useThemeStore } from '../../stores/themeStore';
 
 /**
@@ -9,15 +10,17 @@ import { useThemeStore } from '../../stores/themeStore';
 export function ThemeToggleButton() {
   const theme = useThemeStore((s) => s.theme);
   const toggle = useThemeStore((s) => s.toggle);
+  const { t } = useTranslation();
   const dark = theme === 'dark';
-  const next = dark ? 'light' : 'dark';
+  const targetMode = t(dark ? 'theme.light' : 'theme.dark');
+  const switchLabel = t('theme.switchTo', { mode: targetMode });
 
   return (
     <button
       type="button"
       onClick={toggle}
-      title={`Switch to ${next} mode`}
-      aria-label={`Switch to ${next} mode`}
+      title={switchLabel}
+      aria-label={switchLabel}
       data-testid="theme-toggle"
       className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
     >

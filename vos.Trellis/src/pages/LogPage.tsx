@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Terminal, Pause, Play, Trash2, Download, HardDriveDownload } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useLogTail } from '../hooks/useLogTail';
 import { fetchFullLog } from '../api/logsApi';
 import { snapshotBlob, snapshotFileName, triggerDownload } from '../utils/logDownload';
@@ -16,7 +17,8 @@ export function LogPage() {
 
 function LogView({ service }: { service?: string }) {
   const { lines, connected, clear } = useLogTail(service);
-  const title = service ? `${service} log` : 'Broker Log';
+  const { t } = useTranslation();
+  const title = service ? t('log.serviceTitle', { service }) : t('log.brokerTitle');
   const [autoScroll, setAutoScroll] = useState(true);
   const [downloadingFull, setDownloadingFull] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -30,7 +32,7 @@ function LogView({ service }: { service?: string }) {
       const { blob, fileName } = await fetchFullLog(service);
       triggerDownload(blob, fileName);
     } catch {
-      toast.error('Could not download the full log.');
+      toast.error(t('log.downloadFailed'));
     } finally {
       setDownloadingFull(false);
     }
@@ -61,46 +63,46 @@ function LogView({ service }: { service?: string }) {
         <div className="flex items-center gap-3">
           <Terminal className="w-6 h-6 text-zinc-500" />
           <h2 className="text-xl font-bold capitalize">{title}</h2>
-          <span className="text-xs text-zinc-500">{lines.length} lines</span>
+          <span className="text-xs text-zinc-500">{t('log.lineCount', { count: lines.length })}</span>
         </div>
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
-            <span className="text-zinc-500">{connected ? 'Streaming' : 'Reconnecting'}</span>
+            <span className="text-zinc-500">{connected ? t('log.streaming') : t('log.reconnecting')}</span>
           </div>
           <button
             onClick={() => setAutoScroll((v) => !v)}
-            title={autoScroll ? 'Pause auto-scroll' : 'Resume auto-scroll'}
+            title={autoScroll ? t('log.pauseAutoScroll') : t('log.resumeAutoScroll')}
             className="flex items-center gap-1.5 p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
           >
             {autoScroll ? <Pause size={14} /> : <Play size={14} />}
-            {autoScroll ? 'Pause' : 'Resume'}
+            {autoScroll ? t('log.pause') : t('log.resume')}
           </button>
           <button
             onClick={downloadSnapshot}
             disabled={lines.length === 0}
-            title="Download the lines currently in view"
+            title={t('log.snapshotTitle')}
             className="flex items-center gap-1.5 p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-500"
           >
             <Download size={14} />
-            Snapshot
+            {t('log.snapshot')}
           </button>
           <button
             onClick={downloadFullLog}
             disabled={downloadingFull}
-            title="Download the whole log file from the broker"
+            title={t('log.fullLogTitle')}
             className="flex items-center gap-1.5 p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-500"
           >
             <HardDriveDownload size={14} />
-            {downloadingFull ? 'Downloading…' : 'Full log'}
+            {downloadingFull ? t('log.downloadingFull') : t('log.fullLog')}
           </button>
           <button
             onClick={clear}
-            title="Clear the view"
+            title={t('log.clearTitle')}
             className="flex items-center gap-1.5 p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
           >
             <Trash2 size={14} />
-            Clear
+            {t('log.clear')}
           </button>
         </div>
       </div>
@@ -111,7 +113,7 @@ function LogView({ service }: { service?: string }) {
           className="h-full overflow-auto rounded-md bg-zinc-950 border border-zinc-800 p-3 font-mono text-xs leading-relaxed text-zinc-300"
         >
           {lines.length === 0 ? (
-            <div className="text-zinc-600">Waiting for log output…</div>
+            <div className="text-zinc-600">{t('log.waiting')}</div>
           ) : (
             lines.map((line, i) => (
               <div key={i} className="whitespace-pre-wrap break-all">

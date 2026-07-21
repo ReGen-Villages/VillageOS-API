@@ -1221,6 +1221,91 @@ Service health badges (Healthy/Unhealthy/Unreachable/Unknown) and the
 running/stopped pill follow the color scheme documented in
 [Section 7.2](#72-services).
 
+### Translating a dashboard spec (i18n)
+
+The config-driven operations dashboard (`OperationsPage`) renders every label
+in the GUI's active language when the model's `DashboardSpec` carries a
+`translations` block. Trellis owns the widgets and the translation lookup; the
+model owns the words — including their translations. Nothing about a domain is
+baked into Trellis.
+
+**What a model author writes.** Keep authoring the spec in one base language,
+exactly as before. Then add one optional top-level `translations` field:
+
+```jsonc
+{
+  "title": "Order Operations",
+  "subtitle": "Live fulfilment view",
+  "compare": { "label": "site", "archetype": "Site" },
+  "sections": [
+    {
+      "title": "Throughput",
+      "widgets": [
+        { "type": "kpi", "title": "Orders shipped",
+          "value": { "kind": "stateCount", "state": "Shipped" },
+          "unit": "orders", "targetLabel": "goal" }
+      ]
+    }
+  ],
+
+  "translations": {
+    "es": {
+      "Order Operations": "Operaciones de pedidos",
+      "Live fulfilment view": "Vista de cumplimiento en vivo",
+      "site": "sitio",
+      "Throughput": "Rendimiento",
+      "Orders shipped": "Pedidos enviados",
+      "orders": "pedidos",
+      "goal": "objetivo"
+    },
+    "nl": { "Order Operations": "Orderoperaties" }
+  }
+}
+```
+
+**The contract, precisely:**
+
+- `translations` is a two-level map: **locale code** (`es`, `nl`, `fr`, `de`,
+  `it`, …) → **base string** (the exact text as authored elsewhere in the spec)
+  → **translated string**.
+- The base string is the lookup key. There are no per-field key names and no
+  list of translatable fields to declare — you translate a label by adding an
+  entry whose key is that label's base text.
+- Resolution for any display string `s` in locale `L` is
+  `translations[L][s] ?? s`. So:
+  - a locale not present in `translations` → the whole dashboard shows base text;
+  - a base string with no entry in an otherwise-present locale → that one label
+    shows base text.
+  A missing translation never renders blank or a raw key.
+- One base string translates identically everywhere it appears. If the same word
+  is used as two labels that must differ per locale, make the base strings
+  distinct.
+
+**Which strings are looked up** (every human-facing label the spec supplies):
+dashboard `title` / `subtitle`; `compare.label`; each section `title` / `hint`;
+and per widget — KPI `title` / `unit` / `targetLabel` / `sparkBaselineLabel` /
+`footnote`; funnel `title` / `hint` / `searchNoun` and each stage `label` /
+`sublabel`; table & funnel-drill column `label`s and the table `title` / `hint`;
+bullet `title` and each row `label`; gantt `title` / `hint` / `ticks`;
+leaderboard `title` / `hint` and each metric `label`; exception-bar `title` /
+`hint` / `note` and each bucket `label`; and in `detail`, each property-group
+`label` and each relation `label` (nested relations included).
+
+**Which strings are never looked up** (model vocabulary and identifiers — a
+`translations` entry matching one of these is ignored, so it can never corrupt
+data resolution): any binding value (`state`, `archetype`, `property`, `thing`,
+`endpoint`, `select`, filter values), predicate names (`viaPredicate`,
+`relation.predicate`), row keys (`column.key`, `metric.key`, `computed.key`,
+`searchKeys`, `sortKey`), the `detail.titleProperty` / `subtitleProperty` and
+property-group `keys`, colours, number formats, and the `Dashboard` config
+Thing's own `Name`. Resolved **row data** — Thing names and property values that
+fill table cells, gantt bars, and leaderboard rows — is model content, not spec
+text, and is shown in the model's own language (see the seed-independence note
+in the i18n design).
+
+Implementation: `localizeSpec(spec, locale)` in
+`src/api/dashboardLocalization.ts`, applied once per render in `OperationsPage`.
+
 ---
 
 ## 22. Common Components

@@ -329,6 +329,18 @@ export interface DetailSpec {
   history?: { enabled?: boolean };
 }
 
+/**
+ * Per-locale translations of the spec's own display strings, keyed first by
+ * locale code (`es`, `nl`, …) then by the BASE (as-authored) string. Trellis
+ * renders a display string `s` as `translations[activeLocale]?.[s] ?? s`, so an
+ * absent locale or an untranslated string falls back to the base text — never a
+ * blank or a raw key. Only human-facing labels are looked up; model vocabulary
+ * (state names, property keys, predicate names, archetypes) is never translated.
+ * See `localizeSpec` in src/api/dashboardLocalization.ts and the authoring
+ * contract in docs/TRELLIS.md.
+ */
+export type SpecTranslations = Record<string, Record<string, string>>;
+
 export interface DashboardSpec {
   title: string;
   subtitle?: string;
@@ -340,6 +352,8 @@ export interface DashboardSpec {
   refreshSeconds?: number;
   /** Enables clickable rows that open a generic Thing detail window. */
   detail?: DetailSpec;
+  /** Optional per-locale translations of this spec's display strings. */
+  translations?: SpecTranslations;
 }
 
 /** A discovered, parsed dashboard: the source Thing + its validated spec. */
