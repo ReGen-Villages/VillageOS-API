@@ -24,8 +24,8 @@ const SPEC = {
       widgets: [
         {
           type: 'kpi',
-          title: 'Perfect order rate',
-          value: { kind: 'property', thing: '$scope', property: 'perfect_order_rate' },
+          title: 'Self-sufficiency rate',
+          value: { kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' },
           format: 'decimal1',
           unit: '%',
           target: 99,
@@ -38,8 +38,8 @@ const SPEC = {
       widgets: [
         {
           type: 'funnel',
-          title: 'Orders by stage',
-          stages: [{ label: 'Shipped', color: '#10b981', count: { kind: 'stateCount', state: 'shipped' } }],
+          title: 'Plots by stage',
+          stages: [{ label: 'Harvested', color: '#10b981', count: { kind: 'stateCount', state: 'harvested' } }],
         },
       ],
     },
@@ -51,9 +51,9 @@ const SPEC = {
           type: 'leaderboard',
           title: 'Site scorecard',
           labelKey: 'name',
-          entities: { kind: 'compareEntities', properties: ['perfect_order_rate'] },
+          entities: { kind: 'compareEntities', properties: ['self_sufficiency_rate'] },
           metrics: [
-            { key: 'perfect_order_rate', label: 'Perfect order', format: 'decimal1', direction: 'up-good', weight: 1, best: 100, worst: 90 },
+            { key: 'self_sufficiency_rate', label: 'Self-sufficiency', format: 'decimal1', direction: 'up-good', weight: 1, best: 100, worst: 90 },
           ],
         },
       ],
@@ -68,8 +68,8 @@ function seedStore() {
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
     t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPEC) }),
-    t('vil1', 'V-1', { perfect_order_rate: 98.9 }),
-    t('vil2', 'V-2', { perfect_order_rate: 94.1 }),
+    t('vil1', 'V-1', { self_sufficiency_rate: 98.9 }),
+    t('vil2', 'V-2', { self_sufficiency_rate: 94.1 }),
   ];
   const r = (s: string, tg: string): VosRelationship => ({
     Id: `${s}-is-${tg}`,
@@ -90,8 +90,8 @@ describe('OperationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-      StateName: 'shipped',
-      Things: [{ Id: 'o1', Name: 'ORD-1' }, { Id: 'o2', Name: 'ORD-2' }],
+      StateName: 'harvested',
+      Things: [{ Id: 'p1', Name: 'PLOT-1' }, { Id: 'p2', Name: 'PLOT-2' }],
     });
     seedStore();
   });
@@ -100,8 +100,8 @@ describe('OperationsPage', () => {
     render(<OperationsPage />);
     expect(screen.getByText('Ops')).toBeInTheDocument();
     expect(screen.getByText('Headline')).toBeInTheDocument();
-    expect(screen.getByText('Orders by stage')).toBeInTheDocument();
-    expect(screen.getByText('Shipped')).toBeInTheDocument();
+    expect(screen.getByText('Plots by stage')).toBeInTheDocument();
+    expect(screen.getByText('Harvested')).toBeInTheDocument();
   });
 
   it('offers a scope switcher for the compare archetype', () => {
@@ -126,7 +126,7 @@ describe('OperationsPage', () => {
   it('resolves a stateCount funnel bar from the state endpoint', async () => {
     render(<OperationsPage />);
     expect(await screen.findByText('2')).toBeInTheDocument();
-    expect(stateApi.getThingsInState).toHaveBeenCalledWith('shipped');
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested');
   });
 
   it('ranks sites in the leaderboard with the winner marked', async () => {

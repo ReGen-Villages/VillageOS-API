@@ -10,38 +10,38 @@ function rel(id: string, subjectId: string, predicateId: string, targetId: strin
   return { Id: id, Name: id, SubjectId: subjectId, PredicateId: predicateId, TargetId: targetId, Properties: {} };
 }
 
-// order -has-> line -has-> alloc, order -has-> customer, order -references-> wave -contains-> order.
-// `has` reaches both a line and a customer, so archetype filtering must tell them apart.
+// project -has-> task -has-> assignment, project -has-> steward, project -references-> phase -contains-> project.
+// `has` reaches both a task and a steward, so archetype filtering must tell them apart.
 function fixture() {
   const things = [
-    thing('order', 'ORD-1'),
-    thing('line', 'ORD-1-L1', { quantity: 5, sku: 'SKU-9' }),
-    thing('alloc', 'ORD-1-L1-A', { quantity: 5 }),
-    thing('item', 'ITEM-9', { sku: 'SKU-9', description: 'Widget' }),
-    thing('cust', 'CUST-1', { display_name: 'Acme' }),
-    thing('wave', 'WAVE-1', { wave_number: 'W-1' }),
-    thing('OrderLine', 'OrderLine'),
-    thing('Allocation', 'Allocation'),
-    thing('Item', 'Item'),
-    thing('Customer', 'Customer'),
-    thing('Wave', 'Wave'),
+    thing('project', 'PRJ-1'),
+    thing('task', 'PRJ-1-T1', { quantity: 5, code: 'RES-9' }),
+    thing('assignment', 'PRJ-1-T1-A', { quantity: 5 }),
+    thing('resource', 'RES-9', { code: 'RES-9', description: 'Compost' }),
+    thing('steward', 'STW-1', { display_name: 'Rowan' }),
+    thing('phase', 'PHS-1', { phase_number: 'P-1' }),
+    thing('ProjectTask', 'ProjectTask'),
+    thing('Assignment', 'Assignment'),
+    thing('Resource', 'Resource'),
+    thing('Steward', 'Steward'),
+    thing('Phase', 'Phase'),
     thing('has', 'has'),
     thing('references', 'references'),
     thing('contains', 'contains'),
     thing('is', 'is'),
   ];
   const relationships = [
-    rel('r1', 'order', 'has', 'line'),
-    rel('r2', 'line', 'has', 'alloc'),
-    rel('r3', 'order', 'has', 'cust'),
-    rel('r4', 'order', 'references', 'wave'),
-    rel('r5', 'wave', 'contains', 'order'),
-    rel('r6', 'line', 'references', 'item'),
-    rel('i1', 'line', 'is', 'OrderLine'),
-    rel('i2', 'alloc', 'is', 'Allocation'),
-    rel('i3', 'cust', 'is', 'Customer'),
-    rel('i4', 'wave', 'is', 'Wave'),
-    rel('i5', 'item', 'is', 'Item'),
+    rel('r1', 'project', 'has', 'task'),
+    rel('r2', 'task', 'has', 'assignment'),
+    rel('r3', 'project', 'has', 'steward'),
+    rel('r4', 'project', 'references', 'phase'),
+    rel('r5', 'phase', 'contains', 'project'),
+    rel('r6', 'task', 'references', 'resource'),
+    rel('i1', 'task', 'is', 'ProjectTask'),
+    rel('i2', 'assignment', 'is', 'Assignment'),
+    rel('i3', 'steward', 'is', 'Steward'),
+    rel('i4', 'phase', 'is', 'Phase'),
+    rel('i5', 'resource', 'is', 'Resource'),
   ];
   return buildModelIndex(things, relationships);
 }
@@ -49,95 +49,95 @@ function fixture() {
 describe('resolveRelations', () => {
   it('follows an outbound predicate and keeps only the configured archetype', () => {
     const idx = fixture();
-    const [group] = resolveRelations('order', idx, [
-      { predicate: 'has', direction: 'out', archetype: 'OrderLine', label: 'Order lines' },
+    const [group] = resolveRelations('project', idx, [
+      { predicate: 'has', direction: 'out', archetype: 'ProjectTask', label: 'Project tasks' },
     ]);
-    expect(group.label).toBe('Order lines');
-    expect(group.edges.map((e) => e.relatedName)).toEqual(['ORD-1-L1']);
-    // 'has' also reaches the customer, but the archetype filter excludes it.
-    expect(group.edges.some((e) => e.relatedName === 'CUST-1')).toBe(false);
+    expect(group.label).toBe('Project tasks');
+    expect(group.edges.map((e) => e.relatedName)).toEqual(['PRJ-1-T1']);
+    // 'has' also reaches the steward, but the archetype filter excludes it.
+    expect(group.edges.some((e) => e.relatedName === 'STW-1')).toBe(false);
   });
 
   it('names the subject and target of each edge by direction', () => {
     const idx = fixture();
-    const [out] = resolveRelations('order', idx, [{ predicate: 'has', direction: 'out', archetype: 'OrderLine' }]);
-    expect(out.edges[0]).toMatchObject({ subjectName: 'ORD-1', targetName: 'ORD-1-L1' });
-    const [inbound] = resolveRelations('order', idx, [{ predicate: 'contains', direction: 'in', archetype: 'Wave' }]);
-    expect(inbound.edges[0]).toMatchObject({ subjectName: 'WAVE-1', targetName: 'ORD-1' });
+    const [out] = resolveRelations('project', idx, [{ predicate: 'has', direction: 'out', archetype: 'ProjectTask' }]);
+    expect(out.edges[0]).toMatchObject({ subjectName: 'PRJ-1', targetName: 'PRJ-1-T1' });
+    const [inbound] = resolveRelations('project', idx, [{ predicate: 'contains', direction: 'in', archetype: 'Phase' }]);
+    expect(inbound.edges[0]).toMatchObject({ subjectName: 'PHS-1', targetName: 'PRJ-1' });
   });
 
   it('shows only the requested properties, or all with "*"', () => {
     const idx = fixture();
-    const [some] = resolveRelations('order', idx, [
-      { predicate: 'has', archetype: 'OrderLine', properties: ['quantity'] },
+    const [some] = resolveRelations('project', idx, [
+      { predicate: 'has', archetype: 'ProjectTask', properties: ['quantity'] },
     ]);
     expect(some.edges[0].properties).toEqual([['quantity', 5]]);
-    const [all] = resolveRelations('order', idx, [
-      { predicate: 'has', archetype: 'OrderLine', properties: '*' },
+    const [all] = resolveRelations('project', idx, [
+      { predicate: 'has', archetype: 'ProjectTask', properties: '*' },
     ]);
-    expect(all.edges[0].properties).toEqual(expect.arrayContaining([['quantity', 5], ['sku', 'SKU-9']]));
-    const [none] = resolveRelations('order', idx, [{ predicate: 'has', archetype: 'OrderLine' }]);
+    expect(all.edges[0].properties).toEqual(expect.arrayContaining([['quantity', 5], ['code', 'RES-9']]));
+    const [none] = resolveRelations('project', idx, [{ predicate: 'has', archetype: 'ProjectTask' }]);
     expect(none.edges[0].properties).toEqual([]);
   });
 
   it('nests child relations from each matched Thing', () => {
     const idx = fixture();
-    const [group] = resolveRelations('order', idx, [
+    const [group] = resolveRelations('project', idx, [
       {
         predicate: 'has',
-        archetype: 'OrderLine',
-        relations: [{ predicate: 'has', archetype: 'Allocation', label: 'Allocation', properties: ['quantity'] }],
+        archetype: 'ProjectTask',
+        relations: [{ predicate: 'has', archetype: 'Assignment', label: 'Assignment', properties: ['quantity'] }],
       },
     ]);
     const child = group.edges[0].children[0];
-    expect(child.label).toBe('Allocation');
-    expect(child.edges[0].relatedName).toBe('ORD-1-L1-A');
+    expect(child.label).toBe('Assignment');
+    expect(child.edges[0].relatedName).toBe('PRJ-1-T1-A');
     expect(child.edges[0].properties).toEqual([['quantity', 5]]);
   });
 
   it('folds an inline relation onto the parent row instead of nesting it', () => {
     const idx = fixture();
-    const [group] = resolveRelations('order', idx, [
+    const [group] = resolveRelations('project', idx, [
       {
         predicate: 'has',
-        archetype: 'OrderLine',
+        archetype: 'ProjectTask',
         properties: ['quantity'],
-        relations: [{ predicate: 'references', archetype: 'Item', properties: ['sku'], inline: true }],
+        relations: [{ predicate: 'references', archetype: 'Resource', properties: ['code'], inline: true }],
       },
     ]);
-    const line = group.edges[0];
-    // The item's sku is hoisted ahead of the line's own quantity; no nested Item card remains.
-    expect(line.properties).toEqual([['sku', 'SKU-9'], ['quantity', 5]]);
-    expect(line.children).toEqual([]);
+    const task = group.edges[0];
+    // The resource's code is hoisted ahead of the task's own quantity; no nested Resource card remains.
+    expect(task.properties).toEqual([['code', 'RES-9'], ['quantity', 5]]);
+    expect(task.children).toEqual([]);
   });
 
   it('preserves the configured order of relation groups', () => {
     const idx = fixture();
-    const groups = resolveRelations('order', idx, [
-      { predicate: 'references', archetype: 'Wave', label: 'Wave' },
-      { predicate: 'has', archetype: 'Customer', label: 'Customer' },
+    const groups = resolveRelations('project', idx, [
+      { predicate: 'references', archetype: 'Phase', label: 'Phase' },
+      { predicate: 'has', archetype: 'Steward', label: 'Steward' },
     ]);
-    expect(groups.map((g) => g.label)).toEqual(['Wave', 'Customer']);
+    expect(groups.map((g) => g.label)).toEqual(['Phase', 'Steward']);
   });
 
   it('is cycle-guarded when a relation loops back to the root', () => {
     const idx = fixture();
-    // order -references-> wave -contains-> order: the nested contains must not re-expand the root.
-    const [group] = resolveRelations('order', idx, [
-      { predicate: 'references', archetype: 'Wave', relations: [{ predicate: 'contains', direction: 'out' }] },
+    // project -references-> phase -contains-> project: the nested contains must not re-expand the root.
+    const [group] = resolveRelations('project', idx, [
+      { predicate: 'references', archetype: 'Phase', relations: [{ predicate: 'contains', direction: 'out' }] },
     ]);
-    const waveChildren = group.edges[0].children[0];
-    expect(waveChildren.edges.some((e) => e.thingId === 'order')).toBe(false);
+    const phaseChildren = group.edges[0].children[0];
+    expect(phaseChildren.edges.some((e) => e.thingId === 'project')).toBe(false);
   });
 });
 
 describe('flattenRelatedIds', () => {
   it('collects every related id across the nested tree', () => {
     const idx = fixture();
-    const relations = resolveRelations('order', idx, [
-      { predicate: 'has', archetype: 'OrderLine', relations: [{ predicate: 'has', archetype: 'Allocation' }] },
+    const relations = resolveRelations('project', idx, [
+      { predicate: 'has', archetype: 'ProjectTask', relations: [{ predicate: 'has', archetype: 'Assignment' }] },
     ]);
-    expect(new Set(flattenRelatedIds(relations))).toEqual(new Set(['line', 'alloc']));
+    expect(new Set(flattenRelatedIds(relations))).toEqual(new Set(['task', 'assignment']));
   });
 });
 
@@ -151,16 +151,16 @@ describe('buildStateChanges', () => {
 
   it('orders changes oldest first', () => {
     const changes = buildStateChanges([
-      transition('2026-07-14T09:31:00Z', ['allocated'], []),
-      transition('2026-07-14T09:14:00Z', ['released'], []),
+      transition('2026-07-14T09:31:00Z', ['growing'], []),
+      transition('2026-07-14T09:14:00Z', ['planted'], []),
     ]);
     expect(changes.map((c) => c.at)).toEqual(['2026-07-14T09:14:00Z', '2026-07-14T09:31:00Z']);
-    expect(changes[0].entered).toEqual(['released']);
+    expect(changes[0].entered).toEqual(['planted']);
   });
 
   it('drops transitions that neither enter nor exit a state', () => {
     const changes = buildStateChanges([
-      transition('2026-07-14T09:14:00Z', ['released'], []),
+      transition('2026-07-14T09:14:00Z', ['planted'], []),
       transition('2026-07-14T09:20:00Z', [], []),
     ]);
     expect(changes).toHaveLength(1);

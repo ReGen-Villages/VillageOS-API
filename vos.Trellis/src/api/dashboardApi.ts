@@ -338,7 +338,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       const resp = await stateApi.getThingsInState(binding.state);
       const members = scopeMemberIds(binding.scope, ctx);
       const ofArchetype = binding.archetype ? thingIdsOfArchetype(binding.archetype, ctx.idx) : null;
-      // The derived statuses nest (a shipped order is also released/allocated/…), so a plain
+      // The derived statuses nest (a harvested plot is also growing/planted/…), so a plain
       // stateList for an early stage includes every later one. excludeState removes the things
       // that advanced past this stage — leaving only those that reached it and no further.
       const advanced = binding.excludeState

@@ -25,12 +25,12 @@ describe('KpiCard trace summary', () => {
   it('reports the peak and trough of the series it is drawing', () => {
     const widget: KpiWidget = {
       type: 'kpi',
-      title: 'Throughput',
+      title: 'Yield',
       format: 'integer',
       unit: 'u/hr',
-      value: bind('throughput_per_hour', 240),
+      value: bind('yield_per_hour', 240),
       spark: bind('series', [120, 480, 300, 96]),
-      sparkBaseline: bind('average_throughput_per_hour', 210),
+      sparkBaseline: bind('average_yield_per_hour', 210),
       sparkBaselineLabel: '12-hour average',
     };
 
@@ -43,9 +43,9 @@ describe('KpiCard trace summary', () => {
   it('leaves the summary out when there is no series to summarise', () => {
     const widget: KpiWidget = {
       type: 'kpi',
-      title: 'Pick accuracy',
+      title: 'Forecast accuracy',
       format: 'decimal1',
-      value: bind('pick_accuracy', 99.4),
+      value: bind('forecast_accuracy', 99.4),
     };
 
     render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);

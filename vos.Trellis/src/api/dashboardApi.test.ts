@@ -40,8 +40,8 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
     t('arch-dash', 'Dashboard'),
     t('arch-vil', 'Village'),
     t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPEC) }),
-    t('vil1', 'V-1', { perfect_order_rate: 98.9, cube_utilization: 0.81 }),
-    t('vil2', 'V-2', { perfect_order_rate: 94.1, cube_utilization: 0.93 }),
+    t('vil1', 'V-1', { self_sufficiency_rate: 98.9, land_utilization: 0.81 }),
+    t('vil2', 'V-2', { self_sufficiency_rate: 94.1, land_utilization: 0.93 }),
   ];
   const r = (SubjectId: string, TargetId: string): VosRelationship => ({
     Id: `${SubjectId}-is-${TargetId}`,
@@ -83,7 +83,7 @@ describe('discovery', () => {
   });
 });
 
-// Bug #5942: archetypes are subtyped (Customer is Party, PickLocation is Location),
+// Bug #5942: archetypes are subtyped (Resident is Party, GardenPlot is Location),
 // so membership must be transitive over the is-chain and count instances only.
 describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
@@ -91,22 +91,22 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
     Id: `${SubjectId}-is-${TargetId}`, Name: `${SubjectId} is ${TargetId}`,
     SubjectId, PredicateId: 'is', TargetId, Properties: {},
   });
-  // Party <- Customer(sub-archetype) <- ACME(instance); Village(leaf) <- V-1;
-  // EquipmentClass <- EQC-REACH <- FORK-1, and FORK-1 also is-a Equipment (multi-parent).
+  // Party <- Resident(sub-archetype) <- ROWAN(instance); Village(leaf) <- V-1;
+  // AssetClass <- ASC-SOLAR <- PANEL-1, and PANEL-1 also is-a Asset (multi-parent).
   const idx = buildModelIndex(
-    [t('is', 'is'), t('Party', 'Party'), t('Customer', 'Customer'), t('c1', 'ACME'),
+    [t('is', 'is'), t('Party', 'Party'), t('Resident', 'Resident'), t('c1', 'ROWAN'),
      t('Village', 'Village'), t('vil1', 'V-1'),
-     t('EquipmentClass', 'EquipmentClass'), t('EQC', 'EQC-REACH'), t('Equipment', 'Equipment'), t('fork', 'FORK-1')],
-    [rel('Customer', 'Party'), rel('c1', 'Customer'), rel('vil1', 'Village'),
-     rel('EQC', 'EquipmentClass'), rel('fork', 'EQC'), rel('fork', 'Equipment')],
+     t('AssetClass', 'AssetClass'), t('ASC', 'ASC-SOLAR'), t('Asset', 'Asset'), t('panel', 'PANEL-1')],
+    [rel('Resident', 'Party'), rel('c1', 'Resident'), rel('vil1', 'Village'),
+     rel('ASC', 'AssetClass'), rel('panel', 'ASC'), rel('panel', 'Asset')],
   );
 
   it('includes instances under a sub-archetype and excludes the sub-archetype node', () => {
-    expect(thingIdsOfArchetype('Party', idx)).toEqual(new Set(['c1'])); // ACME, not the Customer type node
+    expect(thingIdsOfArchetype('Party', idx)).toEqual(new Set(['c1'])); // ROWAN, not the Resident type node
   });
 
   it('resolves a directly-typed instance', () => {
-    expect(thingIdsOfArchetype('Customer', idx)).toEqual(new Set(['c1']));
+    expect(thingIdsOfArchetype('Resident', idx)).toEqual(new Set(['c1']));
   });
 
   it('leaves a leaf archetype unchanged (transitive == direct)', () => {
@@ -114,8 +114,8 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   });
 
   it('descends multi-level and multi-parent chains to the instance', () => {
-    expect(thingIdsOfArchetype('EquipmentClass', idx)).toEqual(new Set(['fork']));
-    expect(thingIdsOfArchetype('Equipment', idx)).toEqual(new Set(['fork']));
+    expect(thingIdsOfArchetype('AssetClass', idx)).toEqual(new Set(['panel']));
+    expect(thingIdsOfArchetype('Asset', idx)).toEqual(new Set(['panel']));
   });
 
   it('terminates on an is-cycle without hanging', () => {
@@ -135,12 +135,12 @@ describe('resolveBinding', () => {
   });
 
   it('property $scope reads the selected entity', async () => {
-    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'perfect_order_rate' }, ctxFor('vil1'));
+    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, ctxFor('vil1'));
     expect(v).toBeCloseTo(98.9);
   });
 
   it('property $scope averages across entities when scope is All', async () => {
-    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'perfect_order_rate' }, ctxFor(null));
+    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, ctxFor(null));
     expect(v).toBeCloseTo((98.9 + 94.1) / 2);
   });
 
@@ -156,12 +156,12 @@ describe('resolveBinding', () => {
           SourceId: 'arch-vil',
           SourceName: 'Village',
           InheritedAt: '2024-01-01',
-          Properties: { perfect_order_rate: 88.5 },
+          Properties: { self_sufficiency_rate: 88.5 },
         },
       },
     };
     const ctx: ResolveContext = { idx: buildModelIndex([child], []), scopeId: 'vil3', compareArchetype: 'Village' };
-    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'perfect_order_rate' }, ctx);
+    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, ctx);
     expect(v).toBeCloseTo(88.5);
   });
 
@@ -172,7 +172,7 @@ describe('resolveBinding', () => {
 
   it('aggregate avg over a property', async () => {
     const v = await resolveBinding(
-      { kind: 'aggregate', archetype: 'Village', op: 'avg', property: 'cube_utilization' },
+      { kind: 'aggregate', archetype: 'Village', op: 'avg', property: 'land_utilization' },
       ctxFor(null),
     );
     expect(v).toBeCloseTo((0.81 + 0.93) / 2);
@@ -180,36 +180,36 @@ describe('resolveBinding', () => {
 
   it('compareEntities emits one row per entity with requested props', async () => {
     const rows = (await resolveBinding(
-      { kind: 'compareEntities', properties: ['perfect_order_rate'] },
+      { kind: 'compareEntities', properties: ['self_sufficiency_rate'] },
       ctxFor(null),
     )) as Record<string, unknown>[];
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ name: 'V-1', perfect_order_rate: 98.9 });
+    expect(rows[0]).toMatchObject({ name: 'V-1', self_sufficiency_rate: 98.9 });
   });
 
   it('stateCount counts Things returned by the state endpoint', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-      StateName: 'shipped',
+      StateName: 'harvested',
       Things: [{ Id: 'a', Name: 'A' }, { Id: 'b', Name: 'B' }, { Id: 'c', Name: 'C' }],
     });
-    const v = await resolveBinding({ kind: 'stateCount', state: 'shipped' }, ctxFor(null));
+    const v = await resolveBinding({ kind: 'stateCount', state: 'harvested' }, ctxFor(null));
     expect(v).toBe(3);
-    expect(stateApi.getThingsInState).toHaveBeenCalledWith('shipped');
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested');
   });
 
   it('stateList enriches state rows with the Thing properties', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-      StateName: 'below_reorder',
+      StateName: 'below_target',
       Things: [{ Id: 'vil1', Name: 'V-1' }],
     });
     const rows = (await resolveBinding(
-      { kind: 'stateList', state: 'below_reorder' },
+      { kind: 'stateList', state: 'below_target' },
       ctxFor(null),
     )) as Record<string, unknown>[];
-    expect(rows[0]).toMatchObject({ id: 'vil1', name: 'V-1', perfect_order_rate: 98.9 });
+    expect(rows[0]).toMatchObject({ id: 'vil1', name: 'V-1', self_sufficiency_rate: 98.9 });
   });
 
-  // Derived statuses nest (a shipped order is still released), so an early stage's list would
+  // Derived statuses nest (a harvested plot is still planted), so an early stage's list would
   // otherwise include every later one. excludeState drops the Things that advanced further.
   it('stateList excludeState keeps only Things that reached this state and no further', async () => {
     vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) => ({
@@ -358,7 +358,7 @@ describe('resolveBinding', () => {
   });
 
   // A utilization is a ratio of sums over the scope's members, which no single aggregate op
-  // yields: averaging per-location ratios weights a nearly-empty face the same as a full pallet.
+  // yields: averaging per-location ratios weights a nearly-empty plot the same as a full one.
   describe('ratio', () => {
     // V-A contains 2 locations (80 of 200 filled); V-B contains 1 (90 of 100).
     function siteCtx(scopeId: string | null): ResolveContext {
@@ -485,7 +485,7 @@ describe('service bindings carry the selected scope', () => {
   const binding = {
     kind: 'service' as const,
     endpoint: '/api/endpoints/metrics',
-    body: { view: 'throughput-series', scope: '$scope' },
+    body: { view: 'yield-series', scope: '$scope' },
     select: 'series',
   };
 
@@ -495,7 +495,7 @@ describe('service bindings carry the selected scope', () => {
     const v = await resolveBinding(binding, ctxFor('vil1'));
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', {
-      view: 'throughput-series',
+      view: 'yield-series',
       scope: 'vil1',
     });
     expect(v).toEqual([1, 2, 3]);
@@ -507,7 +507,7 @@ describe('service bindings carry the selected scope', () => {
     await resolveBinding(binding, ctxFor(null));
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', {
-      view: 'throughput-series',
+      view: 'yield-series',
       scope: null,
     });
   });
@@ -515,8 +515,8 @@ describe('service bindings carry the selected scope', () => {
   it('leaves a body with no placeholder untouched', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ rows: [] });
 
-    await resolveBinding({ ...binding, body: { view: 'dock-schedule' }, select: 'rows' }, ctxFor('vil1'));
+    await resolveBinding({ ...binding, body: { view: 'visit-schedule' }, select: 'rows' }, ctxFor('vil1'));
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', { view: 'dock-schedule' });
+    expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', { view: 'visit-schedule' });
   });
 });

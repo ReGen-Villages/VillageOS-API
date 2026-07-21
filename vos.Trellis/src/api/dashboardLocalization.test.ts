@@ -5,39 +5,39 @@ import type { DashboardSpec, FunnelWidget, KpiWidget, LeaderboardWidget, TableWi
 /** A spec exercising every widget type plus a detail card. The base strings are
  *  deliberately plain English; `translations.es` renders them in Spanish. One
  *  key (the exceptions section title) is left untranslated to prove key-level
- *  fallback, and the state name "Shipped" doubles as a KPI unit to prove that a
+ *  fallback, and the state name "Harvested" doubles as a KPI unit to prove that a
  *  binding value matching a translation entry is never rewritten. */
 function fixture(): DashboardSpec {
   return {
-    title: 'Order Operations',
+    title: 'Village Operations',
     subtitle: 'Live view',
     compare: { label: 'site', archetype: 'Site' },
     sections: [
       {
-        title: 'Throughput',
+        title: 'Yield',
         hint: 'last hour',
         widgets: [
           {
             type: 'kpi',
-            title: 'Orders shipped',
-            value: { kind: 'stateCount', state: 'Shipped' },
-            unit: 'Shipped',
+            title: 'Harvest logged',
+            value: { kind: 'stateCount', state: 'Harvested' },
+            unit: 'Harvested',
             targetLabel: 'goal',
             footnote: 'since midnight',
           } satisfies KpiWidget,
           {
             type: 'funnel',
-            title: 'Fulfilment',
+            title: 'Growth',
             hint: 'by stage',
-            searchNoun: 'orders',
-            stages: [{ label: 'Picked', sublabel: 'ready to pack', count: { kind: 'const', value: 1 } }],
-            drillColumns: [{ key: 'name', label: 'Order' }],
+            searchNoun: 'harvests',
+            stages: [{ label: 'Planted', sublabel: 'ready to grow', count: { kind: 'const', value: 1 } }],
+            drillColumns: [{ key: 'name', label: 'Plot' }],
           } satisfies FunnelWidget,
           {
             type: 'table',
             title: 'Backlog',
             hint: 'oldest first',
-            columns: [{ key: 'name', label: 'Order' }, { key: 'age', label: 'Age' }],
+            columns: [{ key: 'name', label: 'Plot' }, { key: 'age', label: 'Age' }],
             rows: { kind: 'stateList', state: 'Open' },
           } satisfies TableWidget,
           {
@@ -48,8 +48,8 @@ function fixture(): DashboardSpec {
           {
             type: 'leaderboard',
             title: 'Sites',
-            entities: { kind: 'compareEntities', properties: ['throughput'] },
-            metrics: [{ key: 'throughput', label: 'Throughput' }],
+            entities: { kind: 'compareEntities', properties: ['yield'] },
+            metrics: [{ key: 'yield', label: 'Yield' }],
           } satisfies LeaderboardWidget,
           {
             type: 'gantt',
@@ -73,29 +73,29 @@ function fixture(): DashboardSpec {
     ],
     detail: {
       propertyGroups: [{ label: 'Details', keys: ['status'] }],
-      relations: [{ predicate: 'has', label: 'Lines', relations: [{ predicate: 'for', label: 'Item' }] }],
+      relations: [{ predicate: 'has', label: 'Tasks', relations: [{ predicate: 'for', label: 'Resource' }] }],
     },
     translations: {
       es: {
-        'Order Operations': 'Operaciones de pedidos',
+        'Village Operations': 'Operaciones del pueblo',
         'Live view': 'Vista en vivo',
         site: 'sitio',
-        Throughput: 'Rendimiento',
+        Yield: 'Rendimiento',
         'last hour': 'última hora',
-        'Orders shipped': 'Pedidos enviados',
+        'Harvest logged': 'Cosecha registrada',
         goal: 'objetivo',
         'since midnight': 'desde medianoche',
-        Fulfilment: 'Cumplimiento',
+        Growth: 'Crecimiento',
         'by stage': 'por etapa',
-        orders: 'pedidos',
-        Picked: 'Recogido',
-        'ready to pack': 'listo para empacar',
-        Order: 'Pedido',
+        harvests: 'cosechas',
+        Planted: 'Plantado',
+        'ready to grow': 'listo para crecer',
+        Plot: 'Parcela',
         Backlog: 'Pendientes',
         'oldest first': 'más antiguos primero',
         Age: 'Antigüedad',
         Targets: 'Objetivos',
-        'Fill rate': 'Tasa de cumplimiento',
+        'Fill rate': 'Tasa de ocupación',
         Sites: 'Sitios',
         Schedule: 'Horario',
         Morning: 'Mañana',
@@ -104,10 +104,10 @@ function fixture(): DashboardSpec {
         'needs attention': 'requiere atención',
         Late: 'Retrasado',
         Details: 'Detalles',
-        Lines: 'Líneas',
-        Item: 'Artículo',
-        // "Throughput" (metric label) shares the section-title translation above.
-        // "Shipped" is intentionally absent: it is a state name / binding value,
+        Tasks: 'Tareas',
+        Resource: 'Recurso',
+        // "Yield" (metric label) shares the section-title translation above.
+        // "Harvested" is intentionally absent: it is a state name / binding value,
         // never a translatable label.
       },
     },
@@ -117,43 +117,43 @@ function fixture(): DashboardSpec {
 describe('localizeSpec', () => {
   it('renders display strings in the active locale', () => {
     const spec = localizeSpec(fixture(), 'es');
-    expect(spec.title).toBe('Operaciones de pedidos');
+    expect(spec.title).toBe('Operaciones del pueblo');
     expect(spec.subtitle).toBe('Vista en vivo');
     expect(spec.compare?.label).toBe('sitio');
 
-    const [throughput, exceptions] = spec.sections;
-    expect(throughput.title).toBe('Rendimiento');
-    expect(throughput.hint).toBe('última hora');
+    const [yieldSection, exceptions] = spec.sections;
+    expect(yieldSection.title).toBe('Rendimiento');
+    expect(yieldSection.hint).toBe('última hora');
 
-    const kpi = throughput.widgets[0] as KpiWidget;
-    expect(kpi.title).toBe('Pedidos enviados');
+    const kpi = yieldSection.widgets[0] as KpiWidget;
+    expect(kpi.title).toBe('Cosecha registrada');
     expect(kpi.targetLabel).toBe('objetivo');
     expect(kpi.footnote).toBe('desde medianoche');
 
-    const funnel = throughput.widgets[1] as FunnelWidget;
-    expect(funnel.title).toBe('Cumplimiento');
-    expect(funnel.searchNoun).toBe('pedidos');
-    expect(funnel.stages[0].label).toBe('Recogido');
-    expect(funnel.stages[0].sublabel).toBe('listo para empacar');
-    expect(funnel.drillColumns?.[0].label).toBe('Pedido');
+    const funnel = yieldSection.widgets[1] as FunnelWidget;
+    expect(funnel.title).toBe('Crecimiento');
+    expect(funnel.searchNoun).toBe('cosechas');
+    expect(funnel.stages[0].label).toBe('Plantado');
+    expect(funnel.stages[0].sublabel).toBe('listo para crecer');
+    expect(funnel.drillColumns?.[0].label).toBe('Parcela');
 
-    const table = throughput.widgets[2] as TableWidget;
-    expect(table.columns.map((c) => c.label)).toEqual(['Pedido', 'Antigüedad']);
+    const table = yieldSection.widgets[2] as TableWidget;
+    expect(table.columns.map((c) => c.label)).toEqual(['Parcela', 'Antigüedad']);
 
-    const leaderboard = throughput.widgets[4] as LeaderboardWidget;
+    const leaderboard = yieldSection.widgets[4] as LeaderboardWidget;
     expect(leaderboard.metrics[0].label).toBe('Rendimiento');
 
     expect(exceptions.widgets[0].title).toBe('Problemas');
     expect(spec.detail?.propertyGroups?.[0].label).toBe('Detalles');
-    expect(spec.detail?.relations?.[0].label).toBe('Líneas');
-    expect(spec.detail?.relations?.[0].relations?.[0].label).toBe('Artículo');
+    expect(spec.detail?.relations?.[0].label).toBe('Tareas');
+    expect(spec.detail?.relations?.[0].relations?.[0].label).toBe('Recurso');
   });
 
   it('never translates binding values or model-vocabulary keys', () => {
     const spec = localizeSpec(fixture(), 'es');
     const kpi = spec.sections[0].widgets[0] as KpiWidget;
-    // The state name stays "Shipped" even though the KPI unit "Shipped" was translatable.
-    expect(kpi.value).toEqual({ kind: 'stateCount', state: 'Shipped' });
+    // The state name stays "Harvested" even though the KPI unit "Harvested" was translatable.
+    expect(kpi.value).toEqual({ kind: 'stateCount', state: 'Harvested' });
     // Row keys are identifiers, not labels — untouched.
     const table = spec.sections[0].widgets[2] as TableWidget;
     expect(table.columns.map((c) => c.key)).toEqual(['name', 'age']);
@@ -162,8 +162,8 @@ describe('localizeSpec', () => {
 
   it('falls back to the base text when the active locale is absent', () => {
     const spec = localizeSpec(fixture(), 'de');
-    expect(spec.title).toBe('Order Operations');
-    expect(spec.sections[0].title).toBe('Throughput');
+    expect(spec.title).toBe('Village Operations');
+    expect(spec.sections[0].title).toBe('Yield');
   });
 
   it('falls back to the base text for a key missing within a present locale', () => {
