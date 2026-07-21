@@ -16,7 +16,7 @@ import { OperationsPage } from './OperationsPage';
 const SPEC = {
   title: 'Ops',
   subtitle: 'test',
-  compare: { label: 'site', archetype: 'Warehouse' },
+  compare: { label: 'site', archetype: 'Village' },
   sections: [
     {
       title: 'Headline',
@@ -66,10 +66,10 @@ function seedStore() {
   const things: VosThing[] = [
     t('is', 'is'),
     t('arch-dash', 'Dashboard'),
-    t('arch-wh', 'Warehouse'),
+    t('arch-vil', 'Village'),
     t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPEC) }),
-    t('wh1', 'WH-1', { perfect_order_rate: 98.9 }),
-    t('wh2', 'WH-2', { perfect_order_rate: 94.1 }),
+    t('vil1', 'V-1', { perfect_order_rate: 98.9 }),
+    t('vil2', 'V-2', { perfect_order_rate: 94.1 }),
   ];
   const r = (s: string, tg: string): VosRelationship => ({
     Id: `${s}-is-${tg}`,
@@ -81,7 +81,7 @@ function seedStore() {
   });
   useModelStore.setState({
     things,
-    relationships: [r('dash1', 'arch-dash'), r('wh1', 'arch-wh'), r('wh2', 'arch-wh')],
+    relationships: [r('dash1', 'arch-dash'), r('vil1', 'arch-vil'), r('vil2', 'arch-vil')],
     loaded: true,
   });
 }
@@ -107,8 +107,8 @@ describe('OperationsPage', () => {
   it('offers a scope switcher for the compare archetype', () => {
     render(<OperationsPage />);
     expect(screen.getByText('All sites')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'WH-1' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'WH-2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'V-1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'V-2' })).toBeInTheDocument();
   });
 
   it('resolves a $scope KPI (averaged across sites for "All")', async () => {
@@ -119,7 +119,7 @@ describe('OperationsPage', () => {
   it('re-resolves the KPI when a specific site is selected', async () => {
     render(<OperationsPage />);
     await screen.findByText('96.5');
-    fireEvent.click(screen.getByRole('button', { name: 'WH-1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'V-1' }));
     expect(await screen.findByText('98.9')).toBeInTheDocument();
   });
 
@@ -132,9 +132,9 @@ describe('OperationsPage', () => {
   it('ranks sites in the leaderboard with the winner marked', async () => {
     render(<OperationsPage />);
     expect(await screen.findByText('🏆')).toBeInTheDocument();
-    // WH-1 / WH-2 appear in both the scope switcher and the leaderboard row.
-    expect(screen.getAllByText('WH-1').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('WH-2').length).toBeGreaterThanOrEqual(1);
+    // V-1 / V-2 appear in both the scope switcher and the leaderboard row.
+    expect(screen.getAllByText('V-1').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('V-2').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows guidance when the model has no Dashboard config', () => {

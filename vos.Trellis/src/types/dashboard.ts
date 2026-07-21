@@ -5,7 +5,7 @@
  * mapping. A model declares one or more Things of archetype `Dashboard`, each
  * carrying a `spec` property (JSON) that conforms to {@link DashboardSpec}.
  *
- * Nothing in this file names a domain (no "order", "warehouse", "picking", …).
+ * Nothing in this file names a domain (no domain-specific nouns at all).
  * Every domain word lives in the model's spec — see the discovery + resolver in
  * `src/api/dashboardApi.ts`.
  */

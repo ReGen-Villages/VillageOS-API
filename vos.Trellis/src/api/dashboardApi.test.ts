@@ -22,10 +22,10 @@ import {
   type ResolveContext,
 } from './dashboardApi';
 
-// ---- a tiny synthetic model: 2 warehouses + a Dashboard config ----
+// ---- a tiny synthetic model: 2 villages + a Dashboard config ----
 const SPEC = {
   title: 'Ops',
-  compare: { label: 'site', archetype: 'Warehouse' },
+  compare: { label: 'site', archetype: 'Village' },
   sections: [{ widgets: [] }],
 };
 
@@ -38,10 +38,10 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
   const things: VosThing[] = [
     t('is', 'is'),
     t('arch-dash', 'Dashboard'),
-    t('arch-wh', 'Warehouse'),
+    t('arch-vil', 'Village'),
     t('dash1', 'Operations Dashboard', { spec: JSON.stringify(SPEC) }),
-    t('wh1', 'WH-1', { perfect_order_rate: 98.9, cube_utilization: 0.81 }),
-    t('wh2', 'WH-2', { perfect_order_rate: 94.1, cube_utilization: 0.93 }),
+    t('vil1', 'V-1', { perfect_order_rate: 98.9, cube_utilization: 0.81 }),
+    t('vil2', 'V-2', { perfect_order_rate: 94.1, cube_utilization: 0.93 }),
   ];
   const r = (SubjectId: string, TargetId: string): VosRelationship => ({
     Id: `${SubjectId}-is-${TargetId}`,
@@ -51,13 +51,13 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
     TargetId,
     Properties: {},
   });
-  const relationships: VosRelationship[] = [r('dash1', 'arch-dash'), r('wh1', 'arch-wh'), r('wh2', 'arch-wh')];
+  const relationships: VosRelationship[] = [r('dash1', 'arch-dash'), r('vil1', 'arch-vil'), r('vil2', 'arch-vil')];
   return { things, relationships };
 }
 
 function ctxFor(scopeId: string | null): ResolveContext {
   const { things, relationships } = model();
-  return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Warehouse' };
+  return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Village' };
 }
 
 describe('discovery', () => {
@@ -73,13 +73,13 @@ describe('discovery', () => {
     const { things, relationships } = model();
     const idx = buildModelIndex(things, relationships);
     const ents = scopeEntities(discoverDashboards(things, relationships)[0].spec, idx);
-    expect(ents.map((e) => e.name)).toEqual(['WH-1', 'WH-2']);
+    expect(ents.map((e) => e.name)).toEqual(['V-1', 'V-2']);
   });
 
   it('resolves archetype membership via is-edges', () => {
     const { things, relationships } = model();
     const idx = buildModelIndex(things, relationships);
-    expect(thingsOfArchetype('Warehouse', idx).map((x) => x.Name).sort()).toEqual(['WH-1', 'WH-2']);
+    expect(thingsOfArchetype('Village', idx).map((x) => x.Name).sort()).toEqual(['V-1', 'V-2']);
   });
 });
 
@@ -91,13 +91,13 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
     Id: `${SubjectId}-is-${TargetId}`, Name: `${SubjectId} is ${TargetId}`,
     SubjectId, PredicateId: 'is', TargetId, Properties: {},
   });
-  // Party <- Customer(sub-archetype) <- ACME(instance); Warehouse(leaf) <- WH-1;
+  // Party <- Customer(sub-archetype) <- ACME(instance); Village(leaf) <- V-1;
   // EquipmentClass <- EQC-REACH <- FORK-1, and FORK-1 also is-a Equipment (multi-parent).
   const idx = buildModelIndex(
     [t('is', 'is'), t('Party', 'Party'), t('Customer', 'Customer'), t('c1', 'ACME'),
-     t('Warehouse', 'Warehouse'), t('wh1', 'WH-1'),
+     t('Village', 'Village'), t('vil1', 'V-1'),
      t('EquipmentClass', 'EquipmentClass'), t('EQC', 'EQC-REACH'), t('Equipment', 'Equipment'), t('fork', 'FORK-1')],
-    [rel('Customer', 'Party'), rel('c1', 'Customer'), rel('wh1', 'Warehouse'),
+    [rel('Customer', 'Party'), rel('c1', 'Customer'), rel('vil1', 'Village'),
      rel('EQC', 'EquipmentClass'), rel('fork', 'EQC'), rel('fork', 'Equipment')],
   );
 
@@ -110,7 +110,7 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   });
 
   it('leaves a leaf archetype unchanged (transitive == direct)', () => {
-    expect(thingIdsOfArchetype('Warehouse', idx)).toEqual(new Set(['wh1']));
+    expect(thingIdsOfArchetype('Village', idx)).toEqual(new Set(['vil1']));
   });
 
   it('descends multi-level and multi-parent chains to the instance', () => {
@@ -135,7 +135,7 @@ describe('resolveBinding', () => {
   });
 
   it('property $scope reads the selected entity', async () => {
-    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'perfect_order_rate' }, ctxFor('wh1'));
+    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'perfect_order_rate' }, ctxFor('vil1'));
     expect(v).toBeCloseTo(98.9);
   });
 
@@ -148,31 +148,31 @@ describe('resolveBinding', () => {
   // InheritedProperties, not Properties. Bindings must read effective properties.
   it('property $scope resolves a value inherited from an archetype', async () => {
     const child: VosThing = {
-      Id: 'wh3',
-      Name: 'WH-3',
+      Id: 'vil3',
+      Name: 'V-3',
       Properties: {},
       InheritedProperties: {
-        Warehouse: {
-          SourceId: 'arch-wh',
-          SourceName: 'Warehouse',
+        Village: {
+          SourceId: 'arch-vil',
+          SourceName: 'Village',
           InheritedAt: '2024-01-01',
           Properties: { perfect_order_rate: 88.5 },
         },
       },
     };
-    const ctx: ResolveContext = { idx: buildModelIndex([child], []), scopeId: 'wh3', compareArchetype: 'Warehouse' };
+    const ctx: ResolveContext = { idx: buildModelIndex([child], []), scopeId: 'vil3', compareArchetype: 'Village' };
     const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'perfect_order_rate' }, ctx);
     expect(v).toBeCloseTo(88.5);
   });
 
   it('aggregate count over an archetype', async () => {
-    const v = await resolveBinding({ kind: 'aggregate', archetype: 'Warehouse', op: 'count' }, ctxFor(null));
+    const v = await resolveBinding({ kind: 'aggregate', archetype: 'Village', op: 'count' }, ctxFor(null));
     expect(v).toBe(2);
   });
 
   it('aggregate avg over a property', async () => {
     const v = await resolveBinding(
-      { kind: 'aggregate', archetype: 'Warehouse', op: 'avg', property: 'cube_utilization' },
+      { kind: 'aggregate', archetype: 'Village', op: 'avg', property: 'cube_utilization' },
       ctxFor(null),
     );
     expect(v).toBeCloseTo((0.81 + 0.93) / 2);
@@ -184,7 +184,7 @@ describe('resolveBinding', () => {
       ctxFor(null),
     )) as Record<string, unknown>[];
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ name: 'WH-1', perfect_order_rate: 98.9 });
+    expect(rows[0]).toMatchObject({ name: 'V-1', perfect_order_rate: 98.9 });
   });
 
   it('stateCount counts Things returned by the state endpoint', async () => {
@@ -200,13 +200,13 @@ describe('resolveBinding', () => {
   it('stateList enriches state rows with the Thing properties', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({
       StateName: 'below_reorder',
-      Things: [{ Id: 'wh1', Name: 'WH-1' }],
+      Things: [{ Id: 'vil1', Name: 'V-1' }],
     });
     const rows = (await resolveBinding(
       { kind: 'stateList', state: 'below_reorder' },
       ctxFor(null),
     )) as Record<string, unknown>[];
-    expect(rows[0]).toMatchObject({ id: 'wh1', name: 'WH-1', perfect_order_rate: 98.9 });
+    expect(rows[0]).toMatchObject({ id: 'vil1', name: 'V-1', perfect_order_rate: 98.9 });
   });
 
   // Derived statuses nest (a shipped order is still released), so an early stage's list would
@@ -360,15 +360,15 @@ describe('resolveBinding', () => {
   // A utilization is a ratio of sums over the scope's members, which no single aggregate op
   // yields: averaging per-location ratios weights a nearly-empty face the same as a full pallet.
   describe('ratio', () => {
-    // WH-A contains 2 locations (80 of 200 filled); WH-B contains 1 (90 of 100).
+    // V-A contains 2 locations (80 of 200 filled); V-B contains 1 (90 of 100).
     function siteCtx(scopeId: string | null): ResolveContext {
       const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({
         Id, Name, Properties,
       });
       const things: VosThing[] = [
         t('is', 'is'), t('contains', 'contains'),
-        t('arch-wh', 'Warehouse'), t('arch-loc', 'Location'),
-        t('whA', 'WH-A'), t('whB', 'WH-B'),
+        t('arch-vil', 'Village'), t('arch-loc', 'Location'),
+        t('vilA', 'V-A'), t('vilB', 'V-B'),
         t('znA', 'ZN-A'), t('znB', 'ZN-B'),
         t('locA1', 'LOC-A1', { contained_units: 60, capacity_units: 100 }),
         t('locA2', 'LOC-A2', { contained_units: 20, capacity_units: 100 }),
@@ -379,12 +379,12 @@ describe('resolveBinding', () => {
         SubjectId, PredicateId, TargetId, Properties: {},
       });
       const relationships = [
-        rel('whA', 'is', 'arch-wh'), rel('whB', 'is', 'arch-wh'),
+        rel('vilA', 'is', 'arch-vil'), rel('vilB', 'is', 'arch-vil'),
         rel('locA1', 'is', 'arch-loc'), rel('locA2', 'is', 'arch-loc'), rel('locB1', 'is', 'arch-loc'),
-        rel('whA', 'contains', 'znA'), rel('znA', 'contains', 'locA1'), rel('znA', 'contains', 'locA2'),
-        rel('whB', 'contains', 'znB'), rel('znB', 'contains', 'locB1'),
+        rel('vilA', 'contains', 'znA'), rel('znA', 'contains', 'locA1'), rel('znA', 'contains', 'locA2'),
+        rel('vilB', 'contains', 'znB'), rel('znB', 'contains', 'locB1'),
       ];
-      return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Warehouse' };
+      return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Village' };
     }
 
     const LOCATION_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
@@ -397,8 +397,8 @@ describe('resolveBinding', () => {
     };
 
     it('divides the scoped sums for the selected Thing', async () => {
-      expect(await resolveBinding(utilization, siteCtx('whA'))).toBeCloseTo(80 / 200);
-      expect(await resolveBinding(utilization, siteCtx('whB'))).toBeCloseTo(90 / 100);
+      expect(await resolveBinding(utilization, siteCtx('vilA'))).toBeCloseTo(80 / 200);
+      expect(await resolveBinding(utilization, siteCtx('vilB'))).toBeCloseTo(90 / 100);
     });
 
     it('sums across every Thing before dividing when scope is All', async () => {
@@ -420,7 +420,7 @@ describe('resolveBinding', () => {
       const v = await resolveBinding(
         {
           kind: 'ratio',
-          numerator: { kind: 'property', thing: 'whA', property: 'missing' },
+          numerator: { kind: 'property', thing: 'vilA', property: 'missing' },
           denominator: { kind: 'const', value: 10 },
         },
         siteCtx(null),
@@ -434,23 +434,23 @@ describe('resolveBinding', () => {
         siteCtx(null),
       )) as Record<string, unknown>[];
       expect(rows).toHaveLength(2);
-      expect(rows.find((r) => r.name === 'WH-A')!.utilization).toBeCloseTo(0.4);
-      expect(rows.find((r) => r.name === 'WH-B')!.utilization).toBeCloseTo(0.9);
+      expect(rows.find((r) => r.name === 'V-A')!.utilization).toBeCloseTo(0.4);
+      expect(rows.find((r) => r.name === 'V-B')!.utilization).toBeCloseTo(0.9);
     });
 
     it('leaves a computed column null for a Thing with no members to measure', async () => {
       const ctx = siteCtx(null);
-      const empty: VosThing = { Id: 'whC', Name: 'WH-C', Properties: {} };
+      const empty: VosThing = { Id: 'vilC', Name: 'V-C', Properties: {} };
       ctx.idx = buildModelIndex(
         [...ctx.idx.byId.values(), empty],
-        [...ctx.idx.relationships, { Id: 'whC-is', Name: 'whC is arch-wh',
-          SubjectId: 'whC', PredicateId: 'is', TargetId: 'arch-wh', Properties: {} }],
+        [...ctx.idx.relationships, { Id: 'vilC-is', Name: 'vilC is arch-vil',
+          SubjectId: 'vilC', PredicateId: 'is', TargetId: 'arch-vil', Properties: {} }],
       );
       const rows = (await resolveBinding(
         { kind: 'compareEntities', properties: [], computed: [{ key: 'utilization', value: utilization }] },
         ctx,
       )) as Record<string, unknown>[];
-      expect(rows.find((r) => r.name === 'WH-C')!.utilization).toBeNull();
+      expect(rows.find((r) => r.name === 'V-C')!.utilization).toBeNull();
     });
   });
 
@@ -492,11 +492,11 @@ describe('service bindings carry the selected scope', () => {
   it('replaces $scope with the selected entity id', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ series: [1, 2, 3] });
 
-    const v = await resolveBinding(binding, ctxFor('wh1'));
+    const v = await resolveBinding(binding, ctxFor('vil1'));
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', {
       view: 'throughput-series',
-      scope: 'wh1',
+      scope: 'vil1',
     });
     expect(v).toEqual([1, 2, 3]);
   });
@@ -515,7 +515,7 @@ describe('service bindings carry the selected scope', () => {
   it('leaves a body with no placeholder untouched', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ rows: [] });
 
-    await resolveBinding({ ...binding, body: { view: 'dock-schedule' }, select: 'rows' }, ctxFor('wh1'));
+    await resolveBinding({ ...binding, body: { view: 'dock-schedule' }, select: 'rows' }, ctxFor('vil1'));
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', { view: 'dock-schedule' });
   });
