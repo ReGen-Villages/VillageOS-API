@@ -1,11 +1,14 @@
-/** Tiny area+line sparkline with an emphasised endpoint. Pure SVG, theme-aware. */
+/** Tiny area+line sparkline with an emphasised endpoint, optionally read against a dashed
+ *  reference line. Pure SVG, theme-aware. */
 export function Sparkline({
   values,
+  baseline,
   width = 108,
   height = 40,
   stroke = 'var(--spark, #3b82f6)',
 }: {
   values: number[];
+  baseline?: number | null;
   width?: number;
   height?: number;
   stroke?: string;
@@ -14,8 +17,9 @@ export function Sparkline({
     return <div style={{ width, height }} className="opacity-40" aria-hidden />;
   }
   const pad = 3;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const domain = baseline === null || baseline === undefined ? values : [...values, baseline];
+  const min = Math.min(...domain);
+  const max = Math.max(...domain);
   const span = max - min || 1;
   const x = (i: number) => pad + (i * (width - 2 * pad)) / (values.length - 1);
   const y = (v: number) => height - pad - ((v - min) / span) * (height - 2 * pad);
@@ -31,6 +35,18 @@ export function Sparkline({
         </linearGradient>
       </defs>
       <path d={area} fill={`url(#${gid})`} />
+      {baseline !== null && baseline !== undefined && (
+        <line
+          x1={x(0)}
+          x2={x(values.length - 1)}
+          y1={y(baseline)}
+          y2={y(baseline)}
+          stroke="currentColor"
+          className="text-zinc-400 dark:text-zinc-500"
+          strokeWidth="1"
+          strokeDasharray="3 3"
+        />
+      )}
       <path d={line} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
       <circle
         cx={x(values.length - 1)}

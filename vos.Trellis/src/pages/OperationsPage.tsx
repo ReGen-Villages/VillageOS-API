@@ -80,6 +80,15 @@ export function OperationsPage() {
     return () => { if (timer) clearTimeout(timer); unsubs.forEach((u) => u()); };
   }, [on]);
 
+  // A trailing-window widget slides with the clock, so the page also refreshes on the cadence the
+  // spec asks for — not only when the model emits an event.
+  const refreshSeconds = spec?.refreshSeconds ?? 0;
+  useEffect(() => {
+    if (refreshSeconds <= 0) return;
+    const timer = setInterval(() => setNonce((n) => n + 1), refreshSeconds * 1000);
+    return () => clearInterval(timer);
+  }, [refreshSeconds]);
+
   const isWide = useIsWide();
   const { openDetail, windows } = useDetailWindows(idx, spec?.detail, nonce);
 

@@ -144,6 +144,24 @@ class MyceliumClient:
         p = quote(prop, safe="")
         return self._json("POST", f"/api/things/{thing_id}/properties/{p}/decrements", {"amount": amount})
 
+    def model_time(self):
+        """What time the model thinks it is: {now, rate, simulated} (GET /api/time)."""
+        return self._json("GET", "/api/time")
+
+    def anchor_model_time(self, now=None, rate=None):
+        """Move the model's clock, and set how fast it runs against real time.
+
+        A played timeline is compressed, so the platform and the handlers have to agree on the
+        compression or every elapsed measure in the model is the gap between two different clocks.
+        Anchoring once at the start is enough: the clock keeps running at `rate` on its own.
+        """
+        body = {}
+        if now is not None:
+            body["now"] = now
+        if rate is not None:
+            body["rate"] = rate
+        return self._json("POST", "/api/time", body)
+
     def load_model(self, document):
         """Bulk-load a {Things, Relationships} document in one shot (POST /api/model)."""
         return self._json("POST", "/api/model", document)

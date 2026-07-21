@@ -27,6 +27,8 @@ import { apiClient } from './client';
 import { effectiveProperties } from '../utils/propertyMapper';
 
 const IS_PREDICATE = 'is';
+/** The spec's reference to "the compare entity currently selected in the scope switcher". */
+const SCOPE_REF = '$scope';
 
 /** Row shape returned by stateList / aggregate-list / service table bindings. */
 export type Row = Record<string, unknown>;
@@ -230,6 +232,21 @@ function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined): 
   return true;
 }
 
+/** Substitute the `$scope` placeholder anywhere in a service binding's body with the selected
+ *  compare-entity id — the same reference a `property` binding uses, so a model-side service can be
+ *  asked for one entity's numbers. With "All" selected the placeholder resolves to null and the
+ *  service answers for everything. */
+function withScope(body: unknown, scopeId: string | null): unknown {
+  if (body === SCOPE_REF) return scopeId;
+  if (Array.isArray(body)) return body.map((item) => withScope(item, scopeId));
+  if (body && typeof body === 'object') {
+    return Object.fromEntries(
+      Object.entries(body as Record<string, unknown>).map(([key, value]) => [key, withScope(value, scopeId)]),
+    );
+  }
+  return body;
+}
+
 function selectPath(obj: unknown, path?: string): unknown {
   if (!path) return obj;
   return path.split('.').reduce<unknown>((acc, key) => {
@@ -244,7 +261,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       return binding.value;
 
     case 'property': {
-      if (binding.thing === '$scope') {
+      if (binding.thing === SCOPE_REF) {
         if (ctx.scopeId) {
           const t = ctx.idx.byId.get(ctx.scopeId);
           return t ? num(effectiveProperties(t)[binding.property]) : null;
@@ -343,7 +360,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
 
     case 'service': {
       try {
-        const resp = await apiClient.post<unknown>(binding.endpoint, binding.body ?? {});
+        const resp = await apiClient.post<unknown>(binding.endpoint, withScope(binding.body ?? {}, ctx.scopeId));
         const picked = selectPath(resp, binding.select);
         return (picked ?? null) as BindingResult;
       } catch {

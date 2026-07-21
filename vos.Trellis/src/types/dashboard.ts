@@ -74,7 +74,9 @@ export type Binding =
       buckets?: number;
     }
   /** Delegate to a model-side service via POST /api/endpoints/{subdomain}. The escape
-   *  hatch for model-specific aggregation. `select` is a dot-path into the JSON reply. */
+   *  hatch for model-specific aggregation. `select` is a dot-path into the JSON reply, and a
+   *  `$scope` anywhere in `body` is replaced with the selected compare-entity id (null for "All"),
+   *  so the service can answer for the same entity the rest of the page is showing. */
   | { kind: 'service'; endpoint: string; body?: unknown; select?: string };
 
 /**
@@ -120,6 +122,10 @@ export interface KpiWidget {
   delta?: Binding;
   /** Resolves to number[] for the trend sparkline. */
   spark?: Binding;
+  /** Resolves to the number the sparkline is read against — drawn as a dashed reference line. */
+  sparkBaseline?: Binding;
+  /** Label for that line, shown under the sparkline. */
+  sparkBaselineLabel?: string;
   footnote?: string;
 }
 
@@ -328,6 +334,10 @@ export interface DashboardSpec {
   subtitle?: string;
   compare?: CompareConfig;
   sections: DashboardSection[];
+  /** Re-resolve every binding on this cadence, on top of the live-event refresh. Time-anchored
+   *  widgets (a trailing-window trace) move even when nothing in the model changed. Omitted or 0
+   *  leaves the page purely event-driven. */
+  refreshSeconds?: number;
   /** Enables clickable rows that open a generic Thing detail window. */
   detail?: DetailSpec;
 }

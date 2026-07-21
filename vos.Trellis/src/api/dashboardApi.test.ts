@@ -5,7 +5,12 @@ vi.mock('./stateApi', () => ({
   stateApi: { getThingsInState: vi.fn() },
 }));
 
+vi.mock('./client', () => ({
+  apiClient: { post: vi.fn() },
+}));
+
 import { stateApi } from './stateApi';
+import { apiClient } from './client';
 import {
   discoverDashboards,
   scopeEntities,
@@ -471,5 +476,47 @@ describe('resolveBinding', () => {
       expect(filterRows(rows, '1', ['grouping'])).toEqual([]);
       expect(filterRows(rows, 'bet', ['grouping']).map((r) => r.id)).toEqual(['a2']);
     });
+  });
+});
+
+describe('service bindings carry the selected scope', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const binding = {
+    kind: 'service' as const,
+    endpoint: '/api/endpoints/metrics',
+    body: { view: 'throughput-series', scope: '$scope' },
+    select: 'series',
+  };
+
+  it('replaces $scope with the selected entity id', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ series: [1, 2, 3] });
+
+    const v = await resolveBinding(binding, ctxFor('wh1'));
+
+    expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', {
+      view: 'throughput-series',
+      scope: 'wh1',
+    });
+    expect(v).toEqual([1, 2, 3]);
+  });
+
+  it('sends a null scope when All is selected, so the service answers for everything', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ series: [] });
+
+    await resolveBinding(binding, ctxFor(null));
+
+    expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', {
+      view: 'throughput-series',
+      scope: null,
+    });
+  });
+
+  it('leaves a body with no placeholder untouched', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ rows: [] });
+
+    await resolveBinding({ ...binding, body: { view: 'dock-schedule' }, select: 'rows' }, ctxFor('wh1'));
+
+    expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', { view: 'dock-schedule' });
   });
 });
