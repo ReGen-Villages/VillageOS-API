@@ -18,13 +18,19 @@ describe('LanguageSwitcher', () => {
     await i18n.changeLanguage('en');
   });
 
-  it('lists the supported languages', () => {
+  it('offers a flag button per supported language', () => {
     render(<LanguageSwitcher />);
-    const options = screen.getAllByRole('option').map((o) => o.textContent);
-    expect(options).toEqual(['English', 'Deutsch', 'Español', 'Français', 'Italiano', 'Nederlands']);
+    const names = screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'));
+    expect(names).toEqual(['English', 'Deutsch', 'Español', 'Français', 'Italiano', 'Nederlands']);
   });
 
-  it('switching the control changes rendered text and persists the choice', () => {
+  it('marks the active language as pressed', () => {
+    render(<LanguageSwitcher />);
+    expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Español' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('clicking a flag changes rendered text and persists the choice', () => {
     render(
       <>
         <LanguageSwitcher />
@@ -34,7 +40,7 @@ describe('LanguageSwitcher', () => {
 
     expect(screen.getByTestId('nav-label').textContent).toBe('Logs');
 
-    fireEvent.change(screen.getByTestId('language-switcher'), { target: { value: 'es' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Español' }));
 
     expect(screen.getByTestId('nav-label').textContent).toBe('Registros');
     expect(localStorage.getItem('vos-language')).toBe('es');

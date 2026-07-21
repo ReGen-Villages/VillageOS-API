@@ -73,7 +73,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="p-2 border-t border-zinc-200 dark:border-zinc-700">
-        <LanguageSwitcher showIcon={!isCollapsed} />
+        <LanguageSwitcher />
       </div>
     </aside>
   );
