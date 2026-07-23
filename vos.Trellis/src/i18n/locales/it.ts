@@ -56,6 +56,7 @@ export const it: PartialResources = {
     stop: 'Arresta',
     delete: 'Elimina',
     cancel: 'Annulla',
+    confirm: 'Conferma',
     apply: 'Applica',
     saving: 'Salvataggio…',
     loading: 'Caricamento…',
