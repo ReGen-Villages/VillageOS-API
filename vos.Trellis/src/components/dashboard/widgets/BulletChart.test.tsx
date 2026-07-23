@@ -77,6 +77,25 @@ describe('BulletChart up-good self-sufficiency rows', () => {
     expect(bar('Water — days of supply').style.background).toContain('--crit');
   });
 
+  it('never lets a band whose upper bound exceeds max bleed past the track', () => {
+    const widget: BulletWidget = {
+      type: 'bullet',
+      rows: [
+        // A misconfigured/legacy row: default max=1 with a band that runs to 2.0.
+        { label: 'Water — resilience', value: bind('daysOfSupply', 0), target: 1, band: [1, 2] },
+      ],
+    };
+
+    render(<BulletChart widget={widget} ctx={{} as ResolveContext} />);
+
+    const row = screen.getByText('Water — resilience').closest('.grid') as HTMLElement;
+    const bandEl = Array.from(row.querySelectorAll<HTMLElement>('div[style*="color-mix"]'))[0];
+    const left = parseFloat(bandEl.style.left);
+    const width = parseFloat(bandEl.style.width);
+    // Right edge stays within the track — no overflow into the label column.
+    expect(left + width).toBeLessThanOrEqual(100);
+  });
+
   it('keeps utilization (down-good, default) semantics: past the band is critical', () => {
     const widget: BulletWidget = {
       type: 'bullet',
