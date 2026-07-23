@@ -1,5 +1,11 @@
 # VillageOS API
 
+> ⚠️ **Prerelease — work in progress. Not production ready.**
+> This is pre-1.0 software under active development. APIs, data shapes, seed formats, and behaviour can
+> change without notice or backward compatibility, and interfaces marked "Production" in the table below
+> describe intended scope, not a stability or support guarantee. Expect rough edges, incomplete features,
+> and breaking changes. Do not rely on it for production workloads.
+
 This repository holds the **client-facing tools** for [VillageOS](https://dev.azure.com/ReGenVillages/VillageOS), a *temporal graph platform* — a database that stores everything as connected "Things" and remembers how they change over time.
 
 Three kinds of tool live here:

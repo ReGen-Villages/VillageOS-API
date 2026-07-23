@@ -10,6 +10,7 @@ map below.
 |-----|-----|----------------|
 | [TRELLIS.md](TRELLIS.md) | GUI users **and** GUI developers | The web GUI. Part 1 is a click-around user guide; Part 2 is the technical spec (architecture, pages, state, API/SSE layer). |
 | [TAPROOT_USER_GUIDE.md](TAPROOT_USER_GUIDE.md) | CLI users | The command-line interface — commands, examples, and workflows. |
+| [PIPELINE_PLAYGROUND.md](PIPELINE_PLAYGROUND.md) | Anyone exploring the Pipelines page | How to load and use the ready-made example DAGs and services that exercise the Trellis Pipeline editor. |
 
 ## Platform concepts
 
