@@ -8,9 +8,8 @@ import source from './GraphPage.tsx?raw';
  * Bug: on the Graph page the bottom-right filter cluster (PredicateFilterPanel
  * + TypeFilterPanel) grows upward as the predicate list gets long. Its old
  * `max-h-[calc(100vh-1.5rem)]` let it reach `top-3`, right where the top-right
- * control surface lives (seed/model name, theme toggle, switch model, log out).
- * Sharing `z-10` and coming later in the DOM, the panel painted OVER those
- * controls and blocked log out / switch model.
+ * control surface lives (the import-fragment action). Sharing `z-10` and coming
+ * later in the DOM, the panel painted OVER that control and blocked it.
  *
  * The fix keeps the control surface reachable two independent ways:
  *   1. The control surface stacks above the filter cluster (higher z-index).

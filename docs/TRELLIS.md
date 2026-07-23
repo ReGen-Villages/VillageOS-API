@@ -95,11 +95,11 @@ After login, the **Dashboard** is the default landing page. The sidebar on the l
 
 The sidebar can be collapsed to icon-only mode by clicking the chevron button at the top-right of the sidebar panel.
 
-Both the Dashboard and Graph pages include **Logout** and **Switch Model** buttons in their headers, allowing you to sign out or change models without re-entering credentials.
+The sidebar footer holds a shared control panel visible on **every** page: a **light/dark theme** toggle, **Switch Model**, **Log Out**, and the **language** selector. This lets you change appearance, swap models, sign out, or switch language from anywhere without re-entering credentials. The panel collapses with the sidebar into a vertical icon strip.
 
 ### 1.2a Switching Seeds (Models)
 
-Click the **Switch Model** button in the Dashboard or Graph header to open the seed library picker. This shows all seed files available in Mycelium's `seeds/library/` folder.
+Click the **Switch Model** button in the sidebar footer to open the seed library picker. This shows all seed files available in Mycelium's `seeds/library/` folder.
 
 The seed picker provides:
 
@@ -198,12 +198,7 @@ The toolbar sits at the bottom-left of the graph canvas. From left to right:
 | 🔍 | Semantic Zoom | Auto-expand/collapse logical nodes based on zoom level |
 | ☰ | Layers | Open predicate selection menu (same as right-click) |
 
-**Top-right controls** (next to model name):
-
-| Icon | Name | What it does |
-|------|------|-------------|
-| ⇄ | Switch Model | Switch to a different seed/model |
-| ⎋ | Log Out | End the current session |
+**Top-right control** — an **import fragment** button (upload icon) for loading a fragment JSON into the graph. Session chrome (theme, Switch Model, Log Out, language) lives in the shared sidebar footer, not on the graph itself.
 
 When clustering is active, additional controls appear to the right: the active predicate name with edge count, and an X button to clear clustering.
 
@@ -470,8 +465,8 @@ The top-right controls include:
 - **Live** (green dot) — SSE streams connected and receiving events
 - **Swagger** (document icon) — Opens the Mycelium API documentation (Swagger UI) in a new tab
 - **Shutdown** (power icon) — Shuts down Mycelium (with confirmation dialog)
-- **Switch Model** (arrows icon) — Switch to a different seed/model
-- **Log Out** (exit icon) — End the current session
+
+(Switch Model and Log Out live in the shared sidebar footer — see §1.2.)
 
 If either status indicator turns red, Mycelium may be down or unreachable.
 
