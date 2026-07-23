@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Info, Expand, Unplug, Box, Copy, Trash2 } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { toast } from '../common/Toast';
@@ -21,6 +22,7 @@ interface Props {
  * absolutely positioned within the graph page's relative container.
  */
 export function NodeContextMenu({ things, relationships, onDeleteThing }: Props) {
+  const { t } = useTranslation();
   const open = useUiStore((s) => s.nodeContextMenuOpen);
   const position = useUiStore((s) => s.nodeContextMenuPosition);
   const nodeId = useUiStore((s) => s.nodeContextMenuNodeId);
@@ -75,12 +77,12 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
   const handleCopyId = useCallback(() => {
     if (nodeId) {
       navigator.clipboard.writeText(nodeId).then(
-        () => toast.success('Node ID copied'),
-        () => toast.error('Failed to copy'),
+        () => toast.success(t('graph.toast.idCopied')),
+        () => toast.error(t('graph.toast.copyFailed')),
       );
     }
     closeMenu();
-  }, [nodeId, closeMenu]);
+  }, [nodeId, closeMenu, t]);
 
   const handleDelete = useCallback(() => {
     if (!nodeId) return;
@@ -113,19 +115,19 @@ export function NodeContextMenu({ things, relationships, onDeleteThing }: Props)
         {nodeName}
       </div>
 
-      <MenuItem icon={Info} label="View Details" onClick={handleViewDetails} />
-      <MenuItem icon={Expand} label="Expand Relationships" onClick={handleExpandRelationships} />
+      <MenuItem icon={Info} label={t('graph.contextMenu.viewDetails')} onClick={handleViewDetails} />
+      <MenuItem icon={Expand} label={t('graph.contextMenu.expandRelationships')} onClick={handleExpandRelationships} />
       {showLogicalToggle && (
-        <MenuItem icon={Unplug} label="Toggle Logical Nodes" onClick={handleToggleLogical} />
+        <MenuItem icon={Unplug} label={t('graph.contextMenu.toggleLogical')} onClick={handleToggleLogical} />
       )}
       {showView3D && (
-        <MenuItem icon={Box} label="View in 3D" onClick={handleViewDetails} />
+        <MenuItem icon={Box} label={t('graph.contextMenu.view3D')} onClick={handleViewDetails} />
       )}
-      <MenuItem icon={Copy} label="Copy ID" onClick={handleCopyId} />
+      <MenuItem icon={Copy} label={t('graph.contextMenu.copyId')} onClick={handleCopyId} />
 
       {/* Divider before destructive action */}
       <div className="my-1 border-t border-zinc-700/50" />
-      <MenuItem icon={Trash2} label="Delete" onClick={handleDelete} danger />
+      <MenuItem icon={Trash2} label={t('graph.contextMenu.delete')} onClick={handleDelete} danger />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { configApi } from '../../api/configApi';
 import { toast } from '../common/Toast';
 import type { PropertyModeConfig } from '../../types/vos';
@@ -6,6 +7,7 @@ import type { PropertyModeConfig } from '../../types/vos';
 const MODES = ['CurrentOnly', 'RingBuffer', 'Sampled', 'FullHistory'] as const;
 
 export function PropertyModePanel() {
+  const { t } = useTranslation();
   const [config, setConfig] = useState<PropertyModeConfig | null>(null);
   const [mode, setMode] = useState('');
   const [ringBufferSize, setRingBufferSize] = useState('');
@@ -39,9 +41,9 @@ export function PropertyModePanel() {
         sampleRate ? parseInt(sampleRate, 10) : undefined,
       );
       setConfig(data);
-      toast.success('Property mode updated');
+      toast.success(t('dashboard.propertyMode.updated'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update property mode');
+      toast.error(err instanceof Error ? err.message : t('dashboard.propertyMode.updateFailed'));
     } finally {
       setSaving(false);
     }
@@ -55,15 +57,15 @@ export function PropertyModePanel() {
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
-      <h3 className="text-sm font-semibold mb-3">Property Storage Mode</h3>
+      <h3 className="text-sm font-semibold mb-3">{t('dashboard.propertyMode.title')}</h3>
       {loading ? (
-        <p className="text-xs text-zinc-500">Loading...</p>
+        <p className="text-xs text-zinc-500">{t('common.loading')}</p>
       ) : !config ? (
-        <p className="text-xs text-zinc-500 italic">Not available</p>
+        <p className="text-xs text-zinc-500 italic">{t('common.notAvailable')}</p>
       ) : (
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-zinc-500 mb-1">Default Mode</label>
+            <label className="block text-xs font-medium text-zinc-500 mb-1">{t('dashboard.propertyMode.defaultMode')}</label>
             <select
               value={mode}
               onChange={(e) => setMode(e.target.value)}
@@ -74,26 +76,26 @@ export function PropertyModePanel() {
           </div>
           {mode === 'RingBuffer' && (
             <div>
-              <label className="block text-xs font-medium text-zinc-500 mb-1">Ring Buffer Size</label>
+              <label className="block text-xs font-medium text-zinc-500 mb-1">{t('dashboard.propertyMode.ringBufferSize')}</label>
               <input
                 type="number"
                 min={1}
                 value={ringBufferSize}
                 onChange={(e) => setRingBufferSize(e.target.value)}
-                placeholder="e.g. 100"
+                placeholder={t('dashboard.propertyMode.ringExample')}
                 className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           )}
           {mode === 'Sampled' && (
             <div>
-              <label className="block text-xs font-medium text-zinc-500 mb-1">Sample Rate</label>
+              <label className="block text-xs font-medium text-zinc-500 mb-1">{t('dashboard.propertyMode.sampleRate')}</label>
               <input
                 type="number"
                 min={1}
                 value={sampleRate}
                 onChange={(e) => setSampleRate(e.target.value)}
-                placeholder="e.g. 10"
+                placeholder={t('dashboard.propertyMode.sampleExample')}
                 className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -103,7 +105,7 @@ export function PropertyModePanel() {
             disabled={saving || !dirty}
             className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {saving ? 'Saving...' : 'Apply'}
+            {saving ? t('common.saving') : t('common.apply')}
           </button>
         </div>
       )}

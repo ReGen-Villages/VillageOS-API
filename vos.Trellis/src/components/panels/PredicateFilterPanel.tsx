@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import type { PredicateStats } from '../../utils/predicateCluster';
@@ -19,6 +20,7 @@ import type { PredicateStats } from '../../utils/predicateCluster';
  * predicateId is in `hiddenPredicateIds`.
  */
 export function PredicateFilterPanel() {
+  const { t } = useTranslation();
   const predicateStats = useUiStore((s) => s.predicateStats);
   const hiddenPredicateIds = useUiStore((s) => s.hiddenPredicateIds);
   const toggleHiddenPredicate = useUiStore((s) => s.toggleHiddenPredicate);
@@ -69,7 +71,7 @@ export function PredicateFilterPanel() {
       >
         <div className="flex items-center gap-2 font-semibold">
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          <span>Filter by Predicate</span>
+          <span>{t('graph.predicateFilter.title')}</span>
         </div>
         <span className="text-zinc-400 font-mono">
           {visibleEdges.toLocaleString()}/{totalEdges.toLocaleString()}
@@ -83,7 +85,7 @@ export function PredicateFilterPanel() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search predicates…"
+              placeholder={t('graph.predicateFilter.search')}
               className="flex-1 bg-zinc-900/60 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
             />
             {search && (
@@ -91,7 +93,7 @@ export function PredicateFilterPanel() {
                 type="button"
                 onClick={() => setSearch('')}
                 className="text-zinc-400 hover:text-zinc-200"
-                aria-label="Clear search"
+                aria-label={t('graph.filter.clearSearch')}
               >
                 <X size={14} />
               </button>
@@ -104,25 +106,25 @@ export function PredicateFilterPanel() {
               onClick={showAll}
               className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200"
             >
-              <Eye size={12} /> All
+              <Eye size={12} /> {t('graph.filter.all')}
             </button>
             <button
               type="button"
               onClick={hideAll}
               className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200"
             >
-              <EyeOff size={12} /> None
+              <EyeOff size={12} /> {t('graph.filter.none')}
             </button>
             {hiddenEdges > 0 && (
               <span className="ml-auto text-zinc-400 text-[10px]">
-                {hiddenEdges.toLocaleString()} hidden
+                {t('graph.filter.hidden', { count: hiddenEdges })}
               </span>
             )}
           </div>
 
           <ul className="flex-1 min-h-0 overflow-y-auto border-t border-zinc-700/60 divide-y divide-zinc-700/40">
             {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-zinc-500 italic">No matching predicates.</li>
+              <li className="px-3 py-2 text-zinc-500 italic">{t('graph.predicateFilter.noMatch')}</li>
             ) : (
               filtered.map((s) => {
                 const visible = !hiddenPredicateIds.has(s.predicateId);

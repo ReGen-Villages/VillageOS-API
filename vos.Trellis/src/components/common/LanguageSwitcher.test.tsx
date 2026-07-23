@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import { LanguageSwitcher } from './LanguageSwitcher';
@@ -7,6 +7,11 @@ import { LanguageSwitcher } from './LanguageSwitcher';
 function NavLabel() {
   const { t } = useTranslation();
   return <span data-testid="nav-label">{t('nav.logs')}</span>;
+}
+
+function openMenu() {
+  fireEvent.click(screen.getByRole('button', { name: /select language/i }));
+  return screen.getByRole('listbox');
 }
 
 describe('LanguageSwitcher', () => {
@@ -18,9 +23,20 @@ describe('LanguageSwitcher', () => {
     await i18n.changeLanguage('en');
   });
 
-  it('offers a flag button per supported language', () => {
+  it('is a collapsed dropdown until opened', () => {
     render(<LanguageSwitcher />);
-    const names = screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'));
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByRole('button', { name: /select language/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+  });
+
+  it('opens to an option per supported language', () => {
+    render(<LanguageSwitcher />);
+    const names = within(openMenu())
+      .getAllByRole('option')
+      .map((option) => option.getAttribute('aria-label'));
     expect(names).toEqual([
       'English',
       'Deutsch',
@@ -33,13 +49,14 @@ describe('LanguageSwitcher', () => {
     ]);
   });
 
-  it('marks the active language as pressed', () => {
+  it('marks the active language as selected', () => {
     render(<LanguageSwitcher />);
-    expect(screen.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Español' })).toHaveAttribute('aria-pressed', 'false');
+    const menu = openMenu();
+    expect(within(menu).getByRole('option', { name: 'English' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(menu).getByRole('option', { name: 'Español' })).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('clicking a flag changes rendered text and persists the choice', () => {
+  it('choosing a language changes rendered text, closes the menu, and persists the choice', () => {
     render(
       <>
         <LanguageSwitcher />
@@ -49,10 +66,11 @@ describe('LanguageSwitcher', () => {
 
     expect(screen.getByTestId('nav-label').textContent).toBe('Logs');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Español' }));
+    fireEvent.click(within(openMenu()).getByRole('option', { name: 'Español' }));
 
     expect(screen.getByTestId('nav-label').textContent).toBe('Registros');
     expect(localStorage.getItem('vos-language')).toBe('es');
+    expect(screen.queryByRole('listbox')).toBeNull();
   });
 
   it('offers both Arabic locales, sharing one translation', () => {
@@ -63,7 +81,7 @@ describe('LanguageSwitcher', () => {
       </>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'العربية (الإمارات)' }));
+    fireEvent.click(within(openMenu()).getByRole('option', { name: 'العربية (الإمارات)' }));
 
     expect(screen.getByTestId('nav-label').textContent).toBe('السجلات');
     expect(localStorage.getItem('vos-language')).toBe('ar-AE');

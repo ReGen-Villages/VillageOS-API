@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { RegisteredService, EndpointServiceInfo, HealthStatus } from '../../types/mycelium';
 import { Badge } from '../common/Badge';
 import { formatMs, formatRelativeTime } from '../../utils/formatters';
@@ -96,12 +97,13 @@ function statGridCols(row: ServiceRow): string {
 }
 
 export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, onViewLogs, onDownloadLogs }: Props) {
+  const { t } = useTranslation();
   const rows = [...services.map(fromService), ...endpoints.map(fromEndpoint)];
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
-      <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-3">Services</h3>
-      {rows.length === 0 && <p className="text-xs text-zinc-500">No services registered</p>}
+      <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-3">{t('dashboard.services.title')}</h3>
+      {rows.length === 0 && <p className="text-xs text-zinc-500">{t('dashboard.services.none')}</p>}
       <div className="space-y-3">
         {rows.map((row) => (
           <div key={row.key} className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-md border border-zinc-200 dark:border-zinc-700">
@@ -115,61 +117,61 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {row.health && (
-                  <Badge label={row.health} color={healthColor[row.health as HealthStatus] || 'gray'} dot />
+                  <Badge label={t(`dashboard.services.health.${row.health}`, { defaultValue: row.health })} color={healthColor[row.health as HealthStatus] || 'gray'} dot />
                 )}
                 {row.running !== undefined && (
-                  <Badge label={row.running ? 'Running' : 'Stopped'} color={row.running ? 'green' : 'red'} dot />
+                  <Badge label={row.running ? t('dashboard.services.running') : t('dashboard.services.stopped')} color={row.running ? 'green' : 'red'} dot />
                 )}
-                {row.isExternal && <Badge label="External" color="purple" />}
+                {row.isExternal && <Badge label={t('dashboard.services.external')} color="purple" />}
                 {row.trigger === 'graph' && onViewLogs && (
-                  <button onClick={() => onViewLogs(row.name.toLowerCase())} className="p-1 text-zinc-400 hover:text-blue-400" title="View log"><ScrollText size={14} /></button>
+                  <button onClick={() => onViewLogs(row.name.toLowerCase())} className="p-1 text-zinc-400 hover:text-blue-400" title={t('dashboard.services.viewLog')}><ScrollText size={14} /></button>
                 )}
                 {row.trigger === 'graph' && onDownloadLogs && (
-                  <button onClick={() => onDownloadLogs(row.name.toLowerCase())} className="p-1 text-zinc-400 hover:text-blue-400" title="Download log"><HardDriveDownload size={14} /></button>
+                  <button onClick={() => onDownloadLogs(row.name.toLowerCase())} className="p-1 text-zinc-400 hover:text-blue-400" title={t('dashboard.services.downloadLog')}><HardDriveDownload size={14} /></button>
                 )}
                 {row.controlId && (row.running
-                  ? <button onClick={() => onStop(row.controlId!)} className="p-1 text-red-400 hover:text-red-300" title="Stop"><Square size={14} /></button>
-                  : <button onClick={() => onStart(row.controlId!)} className="p-1 text-emerald-400 hover:text-emerald-300" title="Start"><Play size={14} /></button>
+                  ? <button onClick={() => onStop(row.controlId!)} className="p-1 text-red-400 hover:text-red-300" title={t('common.stop')}><Square size={14} /></button>
+                  : <button onClick={() => onStart(row.controlId!)} className="p-1 text-emerald-400 hover:text-emerald-300" title={t('common.start')}><Play size={14} /></button>
                 )}
                 {row.deleteThingId && onDelete && (
-                  <button onClick={() => onDelete(row.deleteThingId!, row.name)} className="p-1 text-zinc-400 hover:text-red-400" title="Delete (retract from model)"><Trash2 size={14} /></button>
+                  <button onClick={() => onDelete(row.deleteThingId!, row.name)} className="p-1 text-zinc-400 hover:text-red-400" title={t('dashboard.services.deleteRetract')}><Trash2 size={14} /></button>
                 )}
               </div>
             </div>
             <div className={`grid ${statGridCols(row)} gap-2 text-xs text-zinc-500`}>
               <div>
-                <span className="block text-zinc-400">Requests</span>
+                <span className="block text-zinc-400">{t('dashboard.services.requests')}</span>
                 <span className="font-mono text-zinc-300">{row.requests}</span>
               </div>
               <div>
-                <span className="block text-zinc-400">Avg Time</span>
+                <span className="block text-zinc-400">{t('dashboard.services.avgTime')}</span>
                 <span className="font-mono text-zinc-300">{formatMs(row.avgMs)}</span>
               </div>
               {row.errors !== undefined && (
                 <div>
-                  <span className="block text-zinc-400">Errors</span>
+                  <span className="block text-zinc-400">{t('dashboard.services.errors')}</span>
                   <span className={`font-mono ${row.errors > 0 ? 'text-red-400' : 'text-zinc-300'}`}>{row.errors}</span>
                 </div>
               )}
               <div>
-                <span className="block text-zinc-400">Last Req</span>
+                <span className="block text-zinc-400">{t('dashboard.services.lastReq')}</span>
                 <span className="text-zinc-300">{row.lastReqUtc ? formatRelativeTime(row.lastReqUtc) : '—'}</span>
               </div>
               {row.lastContactTime && (
                 <div>
-                  <span className="block text-zinc-400">Last Contact</span>
+                  <span className="block text-zinc-400">{t('dashboard.services.lastContact')}</span>
                   <span className="text-zinc-300">{formatRelativeTime(row.lastContactTime)}</span>
                 </div>
               )}
               {row.processId && (
                 <div>
-                  <span className="block text-zinc-400">PID</span>
+                  <span className="block text-zinc-400">{t('dashboard.services.pid')}</span>
                   <span className="font-mono text-zinc-300">{row.processId}</span>
                 </div>
               )}
             </div>
             {row.failureCount !== undefined && row.failureCount > 0 && (
-              <div className="mt-1 text-xs text-amber-400">Failures: {row.failureCount}</div>
+              <div className="mt-1 text-xs text-amber-400">{t('dashboard.services.failures', { count: row.failureCount })}</div>
             )}
           </div>
         ))}

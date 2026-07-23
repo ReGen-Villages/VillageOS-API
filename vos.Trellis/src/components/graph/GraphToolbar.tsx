@@ -1,10 +1,12 @@
 import { useCallback } from 'react';
 import { useSigma } from '@react-sigma/core';
+import { useTranslation } from 'react-i18next';
 import { ZoomIn, ZoomOut, Maximize, RefreshCw, Expand, Pause, Play, ScanSearch, Unplug } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 
 /** Zoom/fit/re-layout/layout-mode controls. Child of <SigmaContainer>. */
 export function GraphToolbar() {
+  const { t } = useTranslation();
   const sigma = useSigma();
   const isLayoutFrozen = useUiStore((s) => s.isLayoutFrozen);
   const toggleLayoutFrozen = useUiStore((s) => s.toggleLayoutFrozen);
@@ -43,14 +45,14 @@ export function GraphToolbar() {
   return (
     <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1">
       <div className="flex gap-1 bg-zinc-800/80 backdrop-blur rounded-lg p-1">
-        <ToolButton icon={ZoomIn} label="Zoom in" onClick={handleZoomIn} />
-        <ToolButton icon={ZoomOut} label="Zoom out" onClick={handleZoomOut} />
-        <ToolButton icon={Maximize} label="Fit to viewport" onClick={handleFit} />
-        <ToolButton icon={RefreshCw} label="Re-layout" onClick={handleRelayout} />
+        <ToolButton icon={ZoomIn} label={t('graph.toolbar.zoomIn')} onClick={handleZoomIn} />
+        <ToolButton icon={ZoomOut} label={t('graph.toolbar.zoomOut')} onClick={handleZoomOut} />
+        <ToolButton icon={Maximize} label={t('graph.toolbar.fit')} onClick={handleFit} />
+        <ToolButton icon={RefreshCw} label={t('graph.toolbar.relayout')} onClick={handleRelayout} />
         <button
           onClick={toggleSpreadActive}
           disabled={isLayoutFrozen}
-          title={isSpreadActive ? 'Disable spread mode' : 'Spread nodes apart'}
+          title={isSpreadActive ? t('graph.toolbar.spreadOff') : t('graph.toolbar.spread')}
           className={`p-1.5 rounded transition-colors ${
             isLayoutFrozen
               ? 'text-zinc-600 cursor-not-allowed'
@@ -63,7 +65,7 @@ export function GraphToolbar() {
         </button>
         <button
           onClick={toggleLayoutFrozen}
-          title={isLayoutFrozen ? 'Resume layout' : 'Freeze layout'}
+          title={isLayoutFrozen ? t('graph.toolbar.resume') : t('graph.toolbar.freeze')}
           className={`p-1.5 rounded transition-colors ${
             isLayoutFrozen
               ? 'bg-blue-600/30 text-blue-400 hover:bg-blue-600/40'
@@ -74,7 +76,7 @@ export function GraphToolbar() {
         </button>
         <button
           onClick={() => setSemanticZoomEnabled(!semanticZoomEnabled)}
-          title={semanticZoomEnabled ? 'Disable semantic zoom' : 'Enable semantic zoom'}
+          title={semanticZoomEnabled ? t('graph.toolbar.semanticOff') : t('graph.toolbar.semanticOn')}
           className={`p-1.5 rounded transition-colors ${
             semanticZoomEnabled
               ? 'bg-blue-600/30 text-blue-400 hover:bg-blue-600/40'
@@ -86,7 +88,7 @@ export function GraphToolbar() {
         {expandedLogicalParents.size > 0 && (
           <button
             onClick={clearLogicalExpansions}
-            title="Collapse all logical nodes"
+            title={t('graph.toolbar.collapseLogical')}
             className="p-1.5 rounded hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors flex items-center gap-1"
           >
             <Unplug size={14} />
