@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   BASE_LANGUAGE,
   detectInitialLanguage,
+  directionFor,
+  isRightToLeft,
   loadStoredLanguage,
   persistLanguage,
 } from './languages';
@@ -45,5 +47,32 @@ describe('language helpers', () => {
   it('falls back to the base language for an unsupported browser language', () => {
     setNavigatorLanguage('ja-JP');
     expect(detectInitialLanguage()).toBe(BASE_LANGUAGE);
+  });
+
+  it('matches a region-coded browser language exactly', () => {
+    setNavigatorLanguage('ar-AE');
+    expect(detectInitialLanguage()).toBe('ar-AE');
+  });
+
+  it('routes another Arabic region to the first Arabic locale by primary subtag', () => {
+    setNavigatorLanguage('ar-BH');
+    expect(detectInitialLanguage()).toBe('ar-SA');
+  });
+
+  it('persists and reloads a region-coded language', () => {
+    persistLanguage('ar-SA');
+    expect(loadStoredLanguage()).toBe('ar-SA');
+  });
+});
+
+describe('text direction', () => {
+  it('reports Arabic locales as right-to-left', () => {
+    expect(isRightToLeft('ar-SA')).toBe(true);
+    expect(directionFor('ar-AE')).toBe('rtl');
+  });
+
+  it('reports Latin-script locales as left-to-right', () => {
+    expect(isRightToLeft('en')).toBe(false);
+    expect(directionFor('es')).toBe('ltr');
   });
 });

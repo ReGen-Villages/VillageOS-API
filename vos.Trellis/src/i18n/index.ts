@@ -6,6 +6,7 @@ import { es } from './locales/es';
 import { fr } from './locales/fr';
 import { it } from './locales/it';
 import { nl } from './locales/nl';
+import { ar } from './locales/ar';
 import { BASE_LANGUAGE, detectInitialLanguage, persistLanguage } from './languages';
 import type { LanguageCode } from './languages';
 
@@ -17,6 +18,8 @@ i18next.use(initReactI18next).init({
     fr: { translation: fr },
     it: { translation: it },
     nl: { translation: nl },
+    // Both `ar-SA` and `ar-AE` resolve here via i18next's `ar-XX → ar` fallback.
+    ar: { translation: ar },
   },
   lng: detectInitialLanguage(),
   fallbackLng: BASE_LANGUAGE,

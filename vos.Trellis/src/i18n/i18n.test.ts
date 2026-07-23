@@ -26,4 +26,16 @@ describe('i18n instance', () => {
       i18n.t('log.fullLogTitle', { lng: 'en' }),
     );
   });
+
+  it('resolves both Arabic regions through the shared ar translation', () => {
+    expect(i18n.t('nav.logs', { lng: 'ar-SA' })).toBe('السجلات');
+    expect(i18n.t('nav.logs', { lng: 'ar-AE' })).toBe('السجلات');
+  });
+
+  it('applies Arabic plural categories to counts', () => {
+    expect(i18n.t('log.lineCount', { lng: 'ar-SA', count: 1 })).toBe('سطر واحد');
+    expect(i18n.t('log.lineCount', { lng: 'ar-SA', count: 2 })).toBe('سطران');
+    expect(i18n.t('log.lineCount', { lng: 'ar-SA', count: 3 })).toBe('3 أسطر');
+    expect(i18n.t('log.lineCount', { lng: 'ar-SA', count: 11 })).toBe('11 سطرًا');
+  });
 });

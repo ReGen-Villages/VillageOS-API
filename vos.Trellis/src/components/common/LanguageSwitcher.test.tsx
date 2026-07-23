@@ -21,7 +21,16 @@ describe('LanguageSwitcher', () => {
   it('offers a flag button per supported language', () => {
     render(<LanguageSwitcher />);
     const names = screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'));
-    expect(names).toEqual(['English', 'Deutsch', 'Español', 'Français', 'Italiano', 'Nederlands']);
+    expect(names).toEqual([
+      'English',
+      'Deutsch',
+      'Español',
+      'Français',
+      'Italiano',
+      'Nederlands',
+      'العربية (السعودية)',
+      'العربية (الإمارات)',
+    ]);
   });
 
   it('marks the active language as pressed', () => {
@@ -44,5 +53,19 @@ describe('LanguageSwitcher', () => {
 
     expect(screen.getByTestId('nav-label').textContent).toBe('Registros');
     expect(localStorage.getItem('vos-language')).toBe('es');
+  });
+
+  it('offers both Arabic locales, sharing one translation', () => {
+    render(
+      <>
+        <LanguageSwitcher />
+        <NavLabel />
+      </>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'العربية (الإمارات)' }));
+
+    expect(screen.getByTestId('nav-label').textContent).toBe('السجلات');
+    expect(localStorage.getItem('vos-language')).toBe('ar-AE');
   });
 });
