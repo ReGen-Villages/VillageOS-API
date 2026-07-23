@@ -25,7 +25,10 @@ python3 generate.py --out PipelinePlayground.seed.json
 # drop the playground into any model seed, in place (idempotent; writes a .bak alongside)
 python3 generate.py --into /path/to/Some.seed.json
 
-# take it back out again (leaves the shared archetypes/predicates in place)
+# ...with per-model ids so the same DAGs in two seeds don't collide when both load into one broker
+python3 generate.py --into /path/to/Some.seed.json --namespace SomeModel
+
+# take it back out again (leaves the shared archetypes/predicates in place; pass the same --namespace)
 python3 generate.py --into /path/to/Some.seed.json --remove
 
 # check the output resolves the way Trellis and Phloem read it
@@ -39,6 +42,12 @@ duplicates — merging is idempotent. When merging, the built-in `is` / `has` / 
 pipeline archetypes (`Pipeline`, `PipelineNode`, `Port`, `Service`, `PlatformServiceConnection`,
 `PipelineWire`, …) are reconciled **by name** against the target: an existing `is` is reused, never doubled.
 Everything else is namespaced so it will not collide with a host model's own Things.
+
+Those ids are the same in every seed by default, which is what you want for a standalone fragment but not
+when two model seeds carrying the playground load into one broker together — they would collide. Pass
+`--namespace <ModelName>` when merging to derive a per-model id root, so each seed's copy of the DAGs gets
+its own ids. Reconciliation stays name-based, so the shared vocabulary still folds onto the target's own
+`is` / `has` / archetypes either way. Use the same `--namespace` with `--remove`.
 
 ## What's in the catalog
 
