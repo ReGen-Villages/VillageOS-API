@@ -172,6 +172,10 @@ export default function BuildingDetail3D({
     return meshes;
   }, [geometryValue, childElements]);
 
+  // Must precede the early return below: hooks have to run in the same order
+  // every render, so both memos stay above any conditional exit.
+  const canvasKey = useMemo(() => JSON.stringify(geometryValue), [geometryValue]);
+
   if (allMeshes.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
@@ -208,8 +212,6 @@ export default function BuildingDetail3D({
   const extentZ = maxZ - minZ;
   const maxDim = Math.max(maxHeight, extentX, extentZ, 2);
   const camDistance = maxDim * 2;
-
-  const canvasKey = useMemo(() => JSON.stringify(geometryValue), [geometryValue]);
 
   return (
     <div className="h-64 w-full rounded-lg overflow-hidden bg-zinc-950">
