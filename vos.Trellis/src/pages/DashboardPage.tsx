@@ -15,8 +15,7 @@ import { useActivityStore } from '../stores/activityStore';
 import { useModelStore } from '../stores/modelStore';
 import { toast } from '../components/common/Toast';
 import { PropertyModePanel } from '../components/dashboard/PropertyModePanel';
-import { Power, PanelRightOpen, LogOut, ArrowLeftRight, FileCode2, RefreshCw } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import { Power, PanelRightOpen, FileCode2, RefreshCw } from 'lucide-react';
 import { RegenLogo } from '../components/auth/RegenLogo';
 
 import type { RegisteredService, EndpointServiceInfo } from '../types/mycelium';
@@ -35,7 +34,6 @@ export function DashboardPage() {
   const [feedCollapsed, setFeedCollapsed] = useState(() => localStorage.getItem(FEED_COLLAPSED_KEY) === 'true');
   const events = useActivityStore((s) => s.events);
   const { on, connected } = useSse();
-  const { logout, switchModel } = useAuth();
   const { t } = useTranslation();
 
   const toggleFeedCollapsed = useCallback(() => {
@@ -186,20 +184,6 @@ export function DashboardPage() {
             className="p-1.5 rounded hover:bg-red-600/20 text-zinc-500 hover:text-red-400 transition-colors"
           >
             <Power size={14} />
-          </button>
-          <button
-            onClick={switchModel}
-            title={t('common.switchModel')}
-            className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
-          >
-            <ArrowLeftRight size={14} />
-          </button>
-          <button
-            onClick={logout}
-            title={t('common.logout')}
-            className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
-          >
-            <LogOut size={14} />
           </button>
           {feedCollapsed && (
             <button

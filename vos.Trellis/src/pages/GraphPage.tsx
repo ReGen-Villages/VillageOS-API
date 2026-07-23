@@ -19,9 +19,7 @@ import { useGraphData } from '../hooks/useGraphData';
 import { toast } from '../components/common/Toast';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import type { VosThing, VosRelationship } from '../types/vos';
-import { useAuth } from '../hooks/useAuth';
-import { LogOut, ArrowLeftRight, Upload } from 'lucide-react';
-import { ThemeToggleButton } from '../components/common/ThemeToggleButton';
+import { Upload } from 'lucide-react';
 import { applyTypeFilter } from '../utils/typeFilter';
 
 // Feature #5362 — SigmaCanvas is lazy-loaded so the page commits (search bar,
@@ -36,7 +34,6 @@ const SigmaCanvas = lazy(() =>
 
 export function GraphPage() {
   const { t } = useTranslation();
-  const { logout, switchModel, modelName } = useAuth();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   const [searchQuery, setSearchQuery] = useState('');
@@ -218,13 +215,12 @@ export function GraphPage() {
         creatingThing={creatingThing} onCreateThing={handleCreateThing}
       />
 
-      {/* Top-right: model name + theme toggle + switch / logout.
+      {/* Top-right: graph-specific import-fragment action. Session chrome
+          (theme, switch model, log out) lives in the shared sidebar footer.
           z-20 keeps this control surface above the filter cluster (z-10) so a
-          tall predicate list can never render over the seed name / switch /
-          logout controls (Bug: filter panel obscured the control surface). */}
+          tall predicate list can never render over it (Bug: filter panel
+          obscured the control surface). */}
       <div className="absolute top-3 right-3 z-20 flex items-center gap-2 bg-zinc-800/80 backdrop-blur rounded-lg px-3 py-1.5">
-        {modelName && <span className="text-xs text-zinc-400 mr-1">{modelName}</span>}
-        <ThemeToggleButton />
         <input
           ref={fragmentInputRef}
           type="file"
@@ -243,20 +239,6 @@ export function GraphPage() {
         >
           <Upload size={14} />
         </button>
-        <button
-          onClick={switchModel}
-          title={t('common.switchModel')}
-          className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
-        >
-          <ArrowLeftRight size={14} />
-        </button>
-        <button
-          onClick={logout}
-          title={t('common.logout')}
-          className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
-        >
-          <LogOut size={14} />
-        </button>
       </div>
 
       {/* Filter cluster (Feature #5362) — bottom-right, vertically aligned
@@ -270,9 +252,9 @@ export function GraphPage() {
           header out of the viewport.
 
           The max-h reserves the top band (~4rem) for the top-right control
-          surface so a tall predicate list can't grow up over the seed name /
-          switch / logout controls. Paired with z-20 on that control surface
-          as a belt-and-suspenders guard. */}
+          surface so a tall predicate list can't grow up over the import-
+          fragment control. Paired with z-20 on that control surface as a
+          belt-and-suspenders guard. */}
       <div className="absolute bottom-3 right-3 z-10 w-72 max-w-[80vw] flex flex-col gap-2 max-h-[calc(100vh-4rem)]">
         <PredicateFilterPanel />
         <TypeFilterPanel />

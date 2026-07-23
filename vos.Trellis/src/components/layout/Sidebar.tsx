@@ -4,7 +4,7 @@ import { Network, LayoutDashboard, Gauge, Clock, Search, Boxes, Box, Workflow, T
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
-import { LanguageSwitcher } from '../common/LanguageSwitcher';
+import { SessionControls } from './SessionControls';
 
 const links = [
   { to: '/', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
@@ -73,7 +73,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="p-2 border-t border-zinc-200 dark:border-zinc-700">
-        <LanguageSwitcher />
+        <SessionControls isCollapsed={isCollapsed} />
       </div>
     </aside>
   );

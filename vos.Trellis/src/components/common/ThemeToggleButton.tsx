@@ -22,9 +22,9 @@ export function ThemeToggleButton() {
       title={switchLabel}
       aria-label={switchLabel}
       data-testid="theme-toggle"
-      className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
+      className="flex items-center justify-center rounded p-1.5 text-zinc-600 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
     >
-      {dark ? <Sun size={14} /> : <Moon size={14} />}
+      {dark ? <Sun size={16} /> : <Moon size={16} />}
     </button>
   );
 }
