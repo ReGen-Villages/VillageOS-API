@@ -28,7 +28,7 @@ structure, state management, and the API and SSE (Server-Sent Events) layer.
 3. [Selecting and Inspecting Things](#3-selecting-and-inspecting-things)
 4. [Searching](#4-searching)
 5. [Predicate-Based Clustering](#5-predicate-based-clustering)
-6. [Single-Building 3D View](#6-single-building-3d-view)
+6. [3D Model Viewers](#6-3d-model-viewers)
 7. [Dashboard](#7-dashboard)
 8. [Creating and Modifying Data](#8-creating-and-modifying-data)
 9. [Keyboard and Mouse Reference](#9-keyboard-and-mouse-reference)
@@ -61,7 +61,7 @@ structure, state management, and the API and SSE (Server-Sent Events) layer.
 
 - **VillageOS Mycelium** running (provides the REST API and SSE streams)
 - **Node.js 20.19+** installed (for the Vite dev server; required by Vite 7)
-- A modern browser — Chrome, Firefox, or Safari (Safari has some WebGL limitations, see [Section 6](#6-single-building-3d-view))
+- A modern browser — Chrome, Firefox, or Safari (Safari has some WebGL limitations, see [Section 6](#6-3d-model-viewers))
 
 ### 1.2 Launching the GUI
 
@@ -379,19 +379,44 @@ Large clusters (e.g., "Home" with many instances) initially collapse to save spa
 
 ---
 
-## 6. Single-Building 3D View
+## 6. 3D Model Viewers
 
-Things with IFC mesh geometry can be viewed in an interactive 3D panel.
+Trellis has two IFC-based 3D viewers, both driven by OrbitControls:
 
-### 6.1 Opening the 3D View
+- **The Model page** — the full village. Every IFC element loaded from the Fragments artifact, in one scene.
+- **The single-building 3D tab** — one element (or one IFC container's children) inside a thing's detail panel on the Graph page.
+
+The mouse and trackpad gestures differ between them, so they are documented separately below.
+
+### 6.1 The Model Page (Full Village Viewer)
+
+Click **Model** in the sidebar to open the full-village viewer (`/model`). It renders the IFC-derived Fragments artifact — the whole village at once — and lets you select elements and filter by type.
+
+**Navigating the village:**
+
+| Gesture | Action |
+|---------|--------|
+| **Left-click + drag** | Orbit (rotate the camera around the village) |
+| **Right-click + drag** | Pan — slide the whole village left, right, up, or down |
+| **Shift / Cmd / Ctrl + left-click + drag** | Pan as well — a one-finger option for trackpad users, since right-click drag is awkward on a Mac trackpad |
+| **Scroll wheel** (or **middle-click + drag**) | Zoom in and out |
+
+Panning moves the village across the screen plane — the left/right/up/down are relative to your current view, not the village's ground plane. If you orbit first, "up" then pans along whatever direction is up on screen.
+
+**Selecting and filtering:** Click any element to select it — its detail panel slides in from the right, the same panel used on the Graph page. The type-filter panel in the top-left corner hides or shows whole categories of elements (it hides the same set of things as the Graph page's type filter).
+
+> **Note**: When the Model page is in overhead (plan) camera mode, orbiting is disabled — pan and zoom still work.
+
+### 6.2 Single-Building 3D View
 
 Select any thing with geometry (building, greenhouse, etc.) and click the **3D** tab in the detail panel. You can also right-click a geo node and choose **View in 3D**.
 
 The 3D view shows an auto-rotating model of just that element with OrbitControls:
 
-- **Zoom**: Scroll wheel to move closer or farther
 - **Orbit**: Click and drag to rotate around the model
-- **Pan**: Right-click and drag to shift the view
+- **Zoom**: Scroll wheel to move closer or farther
+
+Panning is intentionally disabled in this view — the element stays centered so it never drifts out of frame while you orbit. To pan and reposition geometry freely, use the Model page viewer (Section 6.1).
 
 For IFC containers (IfcBuilding, IfcStorey) that have child elements via `contains`/`aggregates`, all child geometry is rendered together, colored by IFC class. Containers don't have their own mesh — the 3D view assembles children's geometry on demand.
 
@@ -593,6 +618,8 @@ Model-level operations (import/export/clear) are available via the CLI or REST A
 | **Double-click node** | Toggle expanded state (shows all edges in cluster mode) |
 | **Hover over node** | Brightens edges connected to that node |
 | **Escape** | Close any open context or radial menu |
+
+The table above covers the **Graph** page. The 3D viewers use different gestures (orbit, pan, zoom) — see [Section 6](#6-3d-model-viewers).
 
 ---
 

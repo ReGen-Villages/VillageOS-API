@@ -9,8 +9,13 @@ vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children }: { children: ReactNode }) => <div data-testid="canvas">{children}</div>,
   useFrame: () => {},
 }));
+
+const orbitControlsProps: Record<string, unknown> = {};
 vi.mock('@react-three/drei', () => ({
-  OrbitControls: () => null,
+  OrbitControls: (props: Record<string, unknown>) => {
+    Object.assign(orbitControlsProps, props);
+    return null;
+  },
 }));
 
 // A sentinel geometry value that parses; anything else yields no mesh, driving
@@ -38,5 +43,13 @@ describe('BuildingDetail3D', () => {
     // fix this threw "Rendered more hooks than during the previous render".
     rerender(<BuildingDetail3D geometryValue="VALID" />);
     expect(queryByTestId('canvas')).toBeTruthy();
+  });
+
+  // The user guide (Section 6.2) states this view does not pan — the element
+  // stays centered while orbiting. Guard the flag so the docs can't silently
+  // go stale if OrbitControls config changes.
+  it('disables panning', () => {
+    render(<BuildingDetail3D geometryValue="VALID" />);
+    expect(orbitControlsProps.enablePan).toBe(false);
   });
 });
