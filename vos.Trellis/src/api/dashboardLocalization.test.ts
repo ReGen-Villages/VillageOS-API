@@ -172,6 +172,20 @@ describe('localizeSpec', () => {
     expect(spec.sections[1].title).toBe('Exceptions');
   });
 
+  it('reads a language-level block for a regional locale', () => {
+    const spec = localizeSpec(fixture(), 'es-MX');
+    expect(spec.title).toBe('Operaciones del pueblo');
+    expect(spec.sections[0].title).toBe('Rendimiento');
+  });
+
+  it('lets a regional block override single words without restating the language block', () => {
+    const base = fixture();
+    base.translations!['es-MX'] = { 'Village Operations': 'Operaciones del pueblito' };
+    const spec = localizeSpec(base, 'es-MX');
+    expect(spec.title).toBe('Operaciones del pueblito');
+    expect(spec.sections[0].title).toBe('Rendimiento');
+  });
+
   it('returns a spec with no translations block unchanged (no regression)', () => {
     const base = fixture();
     delete base.translations;

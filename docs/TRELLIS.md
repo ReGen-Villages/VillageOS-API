@@ -1290,11 +1290,15 @@ exactly as before. Then add one optional top-level `translations` field:
 - `translations` is a two-level map: **locale code** (`es`, `nl`, `fr`, `de`,
   `it`, …) → **base string** (the exact text as authored elsewhere in the spec)
   → **translated string**.
+- Key by **language**, not region. A regional locale reads its language block, so
+  one `ar` block serves both `ar-SA` and `ar-AE`. Add a regional block only for
+  words that genuinely differ — `ar-AE` is overlaid on `ar`, so it carries just
+  the differences and inherits the rest.
 - The base string is the lookup key. There are no per-field key names and no
   list of translatable fields to declare — you translate a label by adding an
   entry whose key is that label's base text.
 - Resolution for any display string `s` in locale `L` is
-  `translations[L][s] ?? s`. So:
+  `translations[L][s] ?? translations[language(L)][s] ?? s`. So:
   - a locale not present in `translations` → the whole dashboard shows base text;
   - a base string with no entry in an otherwise-present locale → that one label
     shows base text.
