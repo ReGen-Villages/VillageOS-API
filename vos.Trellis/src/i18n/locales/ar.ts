@@ -75,6 +75,7 @@ export const ar: PartialResources & ArabicPlurals = {
     stop: 'إيقاف',
     delete: 'حذف',
     cancel: 'إلغاء',
+    confirm: 'تأكيد',
     apply: 'تطبيق',
     saving: 'جارٍ الحفظ…',
     loading: 'جارٍ التحميل…',

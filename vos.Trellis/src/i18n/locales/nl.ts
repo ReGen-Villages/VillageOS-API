@@ -56,6 +56,7 @@ export const nl: PartialResources = {
     stop: 'Stoppen',
     delete: 'Verwijderen',
     cancel: 'Annuleren',
+    confirm: 'Bevestigen',
     apply: 'Toepassen',
     saving: 'Opslaan…',
     loading: 'Laden…',

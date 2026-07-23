@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   open: boolean;
@@ -11,8 +12,12 @@ interface Props {
   onCancel: () => void;
 }
 
-export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger, onConfirm, onCancel }: Props) {
+export function ConfirmDialog({ open, title, message, confirmLabel, cancelLabel, danger, onConfirm, onCancel }: Props) {
+  const { t } = useTranslation();
   if (!open) return null;
+
+  const confirm = confirmLabel ?? t('common.confirm');
+  const cancel = cancelLabel ?? t('common.cancel');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
@@ -21,7 +26,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', 
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{message}</p>
         <div className="mt-4 flex justify-end gap-2">
           <button onClick={onCancel} className="px-3 py-1.5 text-sm rounded-md bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-900 dark:text-zinc-100">
-            {cancelLabel}
+            {cancel}
           </button>
           <button
             onClick={onConfirm}
@@ -30,7 +35,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', 
               danger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700',
             )}
           >
-            {confirmLabel}
+            {confirm}
           </button>
         </div>
       </div>

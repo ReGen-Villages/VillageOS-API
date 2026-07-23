@@ -49,6 +49,7 @@ export const en = {
     stop: 'Stop',
     delete: 'Delete',
     cancel: 'Cancel',
+    confirm: 'Confirm',
     apply: 'Apply',
     saving: 'Saving…',
     loading: 'Loading…',
