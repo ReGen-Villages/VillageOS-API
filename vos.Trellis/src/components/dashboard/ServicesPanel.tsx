@@ -24,6 +24,15 @@ const healthColor: Record<HealthStatus, 'green' | 'yellow' | 'red' | 'gray'> = {
   Unknown: 'gray',
 };
 
+/** Literal i18n key per health status, so the key stays statically typed (dynamic template
+ *  keys widen to `string` and break i18next's typed `t`). */
+const healthKey = {
+  Healthy: 'dashboard.services.health.Healthy',
+  Unhealthy: 'dashboard.services.health.Unhealthy',
+  Unreachable: 'dashboard.services.health.Unreachable',
+  Unknown: 'dashboard.services.health.Unknown',
+} as const;
+
 // A connection of either trigger kind, normalized to one row shape so the panel
 // renders them uniformly — graph (predicate) and http (endpoint) are the same
 // kind of thing, distinguished only by how requests reach them.
@@ -117,7 +126,7 @@ export function ServicesPanel({ services, endpoints, onStart, onStop, onDelete, 
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {row.health && (
-                  <Badge label={t(`dashboard.services.health.${row.health}`, { defaultValue: row.health })} color={healthColor[row.health as HealthStatus] || 'gray'} dot />
+                  <Badge label={healthKey[row.health as HealthStatus] ? t(healthKey[row.health as HealthStatus]) : row.health} color={healthColor[row.health as HealthStatus] || 'gray'} dot />
                 )}
                 {row.running !== undefined && (
                   <Badge label={row.running ? t('dashboard.services.running') : t('dashboard.services.stopped')} color={row.running ? 'green' : 'red'} dot />

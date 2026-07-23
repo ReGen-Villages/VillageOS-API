@@ -29,6 +29,16 @@ const categories = [
 
 type CategoryLabel = (typeof categories)[number]['label'];
 
+/** Literal i18n key per category, so the key stays statically typed (dynamic template
+ *  keys widen to `string` and break i18next's typed `t`). */
+const CATEGORY_KEY = {
+  Model: 'dashboard.feed.category.model',
+  Things: 'dashboard.feed.category.things',
+  Rels: 'dashboard.feed.category.rels',
+  Props: 'dashboard.feed.category.props',
+  Services: 'dashboard.feed.category.services',
+} as const;
+
 const STORAGE_KEY_HEIGHT = 'vos-activity-feed-height';
 const MIN_HEIGHT = 120;
 
@@ -212,7 +222,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
                     : 'border-zinc-700 text-zinc-600 bg-transparent'
                 }`}
               >
-                {t(`dashboard.feed.category.${cat.label.toLowerCase()}`)}
+                {t(CATEGORY_KEY[cat.label])}
               </button>
             );
           })}
