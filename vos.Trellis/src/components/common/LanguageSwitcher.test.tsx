@@ -73,6 +73,13 @@ describe('LanguageSwitcher', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 
+  it('opens the menu inward (right-aligned) when align is right, so it stays on screen at a right-edge trigger', () => {
+    render(<LanguageSwitcher openDirection="down" align="right" />);
+    const menu = openMenu();
+    expect(menu).toHaveClass('right-0');
+    expect(menu).not.toHaveClass('left-0');
+  });
+
   it('offers both Arabic locales, sharing one translation', () => {
     render(
       <>

@@ -7,8 +7,15 @@ import { SUPPORTED_LANGUAGES } from '../../i18n/languages';
 
 /** A dropdown of language flags: the trigger shows the active flag, the menu lists every
  *  language (flag + name). Opens upward in the sidebar footer; pass `openDirection="down"`
- *  where it sits near the top of the viewport (e.g. the login page). */
-export function LanguageSwitcher({ openDirection = 'up' }: { openDirection?: 'up' | 'down' }) {
+ *  where it sits near the top of the viewport (e.g. the login page). Pass `align="right"`
+ *  when the trigger sits against the right edge so the menu opens inward instead of off-screen. */
+export function LanguageSwitcher({
+  openDirection = 'up',
+  align = 'left',
+}: {
+  openDirection?: 'up' | 'down';
+  align?: 'left' | 'right';
+}) {
   const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -57,7 +64,8 @@ export function LanguageSwitcher({ openDirection = 'up' }: { openDirection?: 'up
           role="listbox"
           aria-label={t('language.select')}
           className={clsx(
-            'absolute left-0 z-20 max-h-64 w-44 overflow-auto rounded-md border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800',
+            'absolute z-20 max-h-64 w-44 overflow-auto rounded-md border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800',
+            align === 'right' ? 'right-0' : 'left-0',
             openDirection === 'down' ? 'top-full mt-1' : 'bottom-full mb-1',
           )}
         >

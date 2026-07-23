@@ -98,7 +98,7 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="fixed top-3 right-3 z-10">
-          <LanguageSwitcher openDirection="down" />
+          <LanguageSwitcher openDirection="down" align="right" />
         </div>
         <div className="w-full max-w-lg bg-gray-800 rounded-lg shadow-lg p-8">
           <div className="flex justify-center mb-2">
@@ -207,6 +207,9 @@ export function LoginForm({ onLogin, onSelectModel, onSaveSeed, error, loading, 
   // Phase 1: Credentials
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="fixed top-3 right-3 z-10">
+        <LanguageSwitcher openDirection="down" align="right" />
+      </div>
       <div className="w-full max-w-sm bg-gray-800 rounded-lg shadow-lg p-8">
         <div className="flex justify-center mb-6">
           <RegenLogo className="w-40 h-40" />
