@@ -40,7 +40,11 @@ function BulletBar({ row, value }: { row: BulletRow; value: number | null }) {
   const band = row.band;
   const target = row.target;
   const color = row.direction === 'up-good' ? upGoodColor(v, target, band) : downGoodColor(v, target, band);
-  const pct = (x: number) => `${Math.max(0, Math.min(100, (x / max) * 100))}%`;
+  // Position on the 0..max track, clamped to the track edges. Deriving the band's width from two
+  // clamped positions (not a scaled delta) keeps it inside the track — a band whose upper bound
+  // exceeds max can never bleed past the right edge into the labels.
+  const pos = (x: number) => Math.max(0, Math.min(100, (x / max) * 100));
+  const pct = (x: number) => `${pos(x)}%`;
 
   return (
     <div className="grid items-center gap-3 my-2.5" style={{ gridTemplateColumns: '104px 1fr 56px' }}>
@@ -49,7 +53,7 @@ function BulletBar({ row, value }: { row: BulletRow; value: number | null }) {
         {band && (
           <div
             className="absolute top-0 h-[15px] rounded"
-            style={{ left: pct(band[0]), width: pct(band[1] - band[0]), background: 'color-mix(in srgb, var(--good) 14%, transparent)' }}
+            style={{ left: `${pos(band[0])}%`, width: `${pos(band[1]) - pos(band[0])}%`, background: 'color-mix(in srgb, var(--good) 14%, transparent)' }}
           />
         )}
         <div className="absolute top-0 left-0 h-[15px] rounded" style={{ width: pct(v), background: color }} />
