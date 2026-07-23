@@ -225,6 +225,33 @@ export const en = {
       noMatch: 'No matching predicates.',
     },
   },
+  auth: {
+    loadSeed: 'Load a seed',
+    searchSeeds: 'Search seeds…',
+    colName: 'Name',
+    colSize: 'Size',
+    noMatch: 'No seeds match your search',
+    noneAvailable: 'No seeds available',
+    seedCount: '{{shown}} of {{total}} seeds',
+    saveModel: 'Save current model',
+    seedNamePlaceholder: 'Seed name',
+    save: 'Save',
+    username: 'Username',
+    usernamePlaceholder: 'Enter username',
+    password: 'Password',
+    passwordPlaceholder: 'Enter password',
+    loadingSeed: 'Loading seed: {{file}}',
+    thingsLoaded: '{{n}} things',
+    relationshipsLoaded: '{{n}} relationships',
+    autoSignIn: 'Will sign in automatically when ready.',
+    waitingForSeed: 'Waiting for seed…',
+    signingIn: 'Signing in…',
+    signIn: 'Sign In',
+  },
+  widgets: {
+    bullet: { target: 'target', healthyBand: 'healthy band', warning: 'warning', critical: 'critical' },
+    kpi: { onTarget: 'on target', watch: 'watch', peak: 'peak', trough: 'trough' },
+  },
 };
 
 export type Resources = typeof en;

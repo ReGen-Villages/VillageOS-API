@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { KpiWidget } from '../../../types/dashboard';
 import type { ResolveContext } from '../../../api/dashboardApi';
 import { asNumber, asSeries } from '../../../api/dashboardApi';
@@ -11,6 +12,7 @@ import { formatNumber, formatDelta, deltaTone } from './format';
 const MINIMUM_SPARK_WIDTH = 108;
 
 export function KpiCard({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContext }) {
+  const { t } = useTranslation();
   const value = useBinding(widget.value, ctx);
   const delta = useBinding(widget.delta, ctx);
   const spark = useBinding(widget.spark, ctx);
@@ -46,7 +48,7 @@ export function KpiCard({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContex
                 : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
             }`}
           >
-            {onTarget ? 'on target' : 'watch'}
+            {onTarget ? t('widgets.kpi.onTarget') : t('widgets.kpi.watch')}
           </span>
         )
       }
@@ -76,7 +78,7 @@ export function KpiCard({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContex
             <Sparkline values={series} baseline={baseline} width={sparkWidth} height={48} />
             <div className="mt-0.5 flex items-center justify-between gap-3 flex-wrap text-[10px] text-zinc-400 dark:text-zinc-500 tabular-nums">
               <span>
-                peak {formatNumber(peak, widget.format)} · trough {formatNumber(trough, widget.format)}
+                {t('widgets.kpi.peak')} {formatNumber(peak, widget.format)} · {t('widgets.kpi.trough')} {formatNumber(trough, widget.format)}
                 {widget.unit && ` ${widget.unit}`}
               </span>
               {baseline !== null && widget.sparkBaselineLabel && (

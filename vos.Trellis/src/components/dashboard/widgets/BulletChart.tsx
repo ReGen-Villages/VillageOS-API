@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { BulletWidget, BulletRow } from '../../../types/dashboard';
 import type { ResolveContext } from '../../../api/dashboardApi';
 import { asNumber } from '../../../api/dashboardApi';
@@ -12,6 +13,7 @@ import { formatNumber } from './format';
  * overshooting the band as critical, 'up-good' treats falling below it as critical.
  */
 export function BulletChart({ widget, ctx }: { widget: BulletWidget; ctx: ResolveContext }) {
+  const { t } = useTranslation();
   const results = useBindings(
     widget.rows.map((r) => r.value),
     ctx,
@@ -25,10 +27,10 @@ export function BulletChart({ widget, ctx }: { widget: BulletWidget; ctx: Resolv
         ))}
       </div>
       <div className="flex flex-wrap gap-3 mt-3 text-[11px] text-zinc-500 dark:text-zinc-400">
-        <span className="inline-flex items-center gap-1.5"><i className="inline-block w-0.5 h-3.5 bg-zinc-800 dark:bg-zinc-200" />target</span>
-        <span className="inline-flex items-center gap-1.5"><i className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: 'color-mix(in srgb, var(--good) 28%, transparent)' }} />healthy band</span>
-        <span className="inline-flex items-center gap-1.5"><i className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: 'var(--warn)' }} />warning</span>
-        <span className="inline-flex items-center gap-1.5"><i className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: 'var(--crit)' }} />critical</span>
+        <span className="inline-flex items-center gap-1.5"><i className="inline-block w-0.5 h-3.5 bg-zinc-800 dark:bg-zinc-200" />{t('widgets.bullet.target')}</span>
+        <span className="inline-flex items-center gap-1.5"><i className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: 'color-mix(in srgb, var(--good) 28%, transparent)' }} />{t('widgets.bullet.healthyBand')}</span>
+        <span className="inline-flex items-center gap-1.5"><i className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: 'var(--warn)' }} />{t('widgets.bullet.warning')}</span>
+        <span className="inline-flex items-center gap-1.5"><i className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: 'var(--crit)' }} />{t('widgets.bullet.critical')}</span>
       </div>
     </WidgetCard>
   );
