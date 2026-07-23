@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { directionFor } from './i18n/languages';
 import { AppLayout } from './components/layout/AppLayout';
 import { AuthContext, useAuthState, useAuth } from './hooks/useAuth';
 import { LoginForm } from './components/auth/LoginForm';
@@ -55,6 +57,7 @@ function AuthenticatedApp() {
 export default function App() {
   const auth = useAuthState();
   const theme = useThemeStore((s) => s.theme);
+  const { i18n } = useTranslation();
 
   // Mirror theme to <html class="dark"> so Tailwind's class-based dark variant flips.
   useEffect(() => {
@@ -62,6 +65,13 @@ export default function App() {
     if (theme === 'dark') root.classList.add('dark');
     else root.classList.remove('dark');
   }, [theme]);
+
+  // Mirror the active language to <html lang/dir> so Arabic lays out right-to-left.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('lang', i18n.language);
+    root.setAttribute('dir', directionFor(i18n.language));
+  }, [i18n.language]);
 
   useEffect(() => attachThemeMediaListener(), []);
 
