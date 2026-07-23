@@ -11,6 +11,9 @@ seed fragment or merges it into an existing seed in place.
     # drop the playground into any model seed (idempotent; keeps a .bak)
     python3 generate.py --into ../../path/to/Some.seed.json
 
+    # ...with per-model ids so the same DAGs in two seeds don't collide in one broker
+    python3 generate.py --into ../../path/to/Some.seed.json --namespace SomeModel
+
     # take it back out again
     python3 generate.py --into ../../path/to/Some.seed.json --remove
 
@@ -29,9 +32,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from catalog import SERVICES, PIPELINES
 
-# Shared with tools/simulator so ids are consistent across the ecosystem.
-_NAMESPACE = uuid.UUID("6f9b1e2c-4a7d-5b8e-9c0f-1d2e3a4b5c6d")
+# Shared with tools/simulator so ids are consistent across the ecosystem. With no --namespace this root is
+# used directly, keeping the standalone fragment's ids stable. --namespace NAME derives a per-model root
+# (uuid5 of NAME under this root), so the same DAGs merged into two different model seeds get disjoint ids
+# and can coexist in one broker rather than colliding.
+_ROOT_NAMESPACE = uuid.UUID("6f9b1e2c-4a7d-5b8e-9c0f-1d2e3a4b5c6d")
+_id_namespace = _ROOT_NAMESPACE
 _TAG = "pipeline-playground"
+
+
+def set_namespace(name):
+    """Rebind the id namespace to a per-model root so merged DAG ids are distinct per seed. An empty or
+    absent name restores the shared root (the standalone identity)."""
+    global _id_namespace
+    _id_namespace = uuid.uuid5(_ROOT_NAMESPACE, name) if name else _ROOT_NAMESPACE
 
 # Canvas grid → pixel coordinates for a node's x/y (the Pipeline page round-trips these).
 _COL_WIDTH = 260
@@ -40,7 +54,7 @@ _ORIGIN = 60
 
 
 def stable_id(*parts):
-    return str(uuid.uuid5(_NAMESPACE, "/".join(str(p) for p in parts)))
+    return str(uuid.uuid5(_id_namespace, "/".join(str(p) for p in parts)))
 
 
 def typed(value, type_info):
@@ -331,8 +345,13 @@ def main():
     parser.add_argument("--into", metavar="SEED", help="merge the playground into an existing seed in place")
     parser.add_argument("--remove", action="store_true", help="with --into, strip the playground back out")
     parser.add_argument("--no-backup", action="store_true", help="with --into, do not write a .bak")
+    parser.add_argument("--namespace", metavar="NAME",
+                        help="derive per-model ids from NAME (pass the model/seed name) so the same DAGs "
+                             "merged into different seeds get disjoint ids and coexist in one broker; omit "
+                             "for the shared standalone identity. Use the same NAME with --remove.")
     args = parser.parse_args()
 
+    set_namespace(args.namespace)
     kit = build()
 
     if not args.out and not args.into:
