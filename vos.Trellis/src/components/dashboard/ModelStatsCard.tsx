@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { VosThing, VosRelationship } from '../../types/vos';
 
 interface Props {
@@ -6,6 +7,7 @@ interface Props {
 }
 
 export function ModelStatsCard({ things, relationships }: Props) {
+  const { t } = useTranslation();
   const predicateIds = new Set(relationships.map((r) => r.PredicateId));
   const totalProperties = things.reduce((sum, t) => sum + (t.Properties ? Object.keys(t.Properties).length : 0), 0);
   const handlers = things.filter((t) => t.Properties && 'ExecutablePath' in t.Properties);
@@ -21,17 +23,17 @@ export function ModelStatsCard({ things, relationships }: Props) {
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
-      <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-3">Model Statistics</h3>
+      <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-3">{t('dashboard.stats.title')}</h3>
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Things" value={things.length} />
-        <Stat label="Relationships" value={relationships.length} />
-        <Stat label="Predicates" value={predicateIds.size} />
-        <Stat label="Properties" value={totalProperties} />
-        <Stat label="Handlers" value={handlers.length} />
+        <Stat label={t('dashboard.stats.things')} value={things.length} />
+        <Stat label={t('dashboard.stats.relationships')} value={relationships.length} />
+        <Stat label={t('dashboard.stats.predicates')} value={predicateIds.size} />
+        <Stat label={t('dashboard.stats.properties')} value={totalProperties} />
+        <Stat label={t('dashboard.stats.handlers')} value={handlers.length} />
       </div>
       {topPredicates.length > 0 && (
         <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-          <h4 className="text-xs text-zinc-500 mb-1">Top Predicates</h4>
+          <h4 className="text-xs text-zinc-500 mb-1">{t('dashboard.stats.topPredicates')}</h4>
           {topPredicates.map(([name, count]) => (
             <div key={name} className="flex justify-between text-xs py-0.5">
               <span className="text-zinc-400">{name}</span>

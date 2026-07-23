@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Eye, EyeOff, X } from 'lucide-react';
 import { useModelStore } from '../../stores/modelStore';
 import { useUiStore } from '../../stores/uiStore';
@@ -27,6 +28,7 @@ import {
  * Domain-agnostic — no string-literal references to IFC class names.
  */
 export function TypeFilterPanel() {
+  const { t } = useTranslation();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   const hiddenTypeIds = useUiStore((s) => s.hiddenTypeIds);
@@ -114,7 +116,7 @@ export function TypeFilterPanel() {
       >
         <div className="flex items-center gap-2 font-semibold">
           {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          <span>Filter by Type</span>
+          <span>{t('graph.typeFilter.title')}</span>
         </div>
         <span className="text-zinc-400 font-mono">
           {totalInstances - hiddenInstances}/{totalInstances}
@@ -128,7 +130,7 @@ export function TypeFilterPanel() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search types…"
+              placeholder={t('graph.typeFilter.search')}
               className="flex-1 bg-zinc-900/60 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
             />
             {search && (
@@ -136,7 +138,7 @@ export function TypeFilterPanel() {
                 type="button"
                 onClick={() => setSearch('')}
                 className="text-zinc-400 hover:text-zinc-200"
-                aria-label="Clear search"
+                aria-label={t('graph.filter.clearSearch')}
               >
                 <X size={14} />
               </button>
@@ -149,18 +151,18 @@ export function TypeFilterPanel() {
               onClick={showAll}
               className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200"
             >
-              <Eye size={12} /> All
+              <Eye size={12} /> {t('graph.filter.all')}
             </button>
             <button
               type="button"
               onClick={hideAll}
               className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-700/50 hover:bg-zinc-600/50 text-zinc-200"
             >
-              <EyeOff size={12} /> None
+              <EyeOff size={12} /> {t('graph.filter.none')}
             </button>
             {hiddenInstances > 0 && (
               <span className="ml-auto text-zinc-400 text-[10px]">
-                {hiddenInstances.toLocaleString()} hidden
+                {t('graph.filter.hidden', { count: hiddenInstances })}
               </span>
             )}
           </div>
@@ -168,25 +170,25 @@ export function TypeFilterPanel() {
           {/* Feature #5386 — sort selector. Persisted per model via uiStore. */}
           <div className="px-3 pb-2 flex items-center gap-2 flex-shrink-0">
             <label htmlFor="type-filter-sort" className="text-[10px] text-zinc-400 uppercase tracking-wide">
-              Sort
+              {t('graph.typeFilter.sort')}
             </label>
             <select
               id="type-filter-sort"
-              aria-label="Sort types"
+              aria-label={t('graph.typeFilter.sortAria')}
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as SortOrder)}
               className="flex-1 bg-zinc-900/60 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
             >
-              <option value="count-desc">Count (high to low)</option>
-              <option value="count-asc">Count (low to high)</option>
-              <option value="name-asc">Name (A → Z)</option>
-              <option value="name-desc">Name (Z → A)</option>
+              <option value="count-desc">{t('graph.typeFilter.sortCountDesc')}</option>
+              <option value="count-asc">{t('graph.typeFilter.sortCountAsc')}</option>
+              <option value="name-asc">{t('graph.typeFilter.sortNameAsc')}</option>
+              <option value="name-desc">{t('graph.typeFilter.sortNameDesc')}</option>
             </select>
           </div>
 
           <ul className="flex-1 min-h-0 overflow-y-auto border-t border-zinc-700/60 divide-y divide-zinc-700/40">
             {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-zinc-500 italic">No matching types.</li>
+              <li className="px-3 py-2 text-zinc-500 italic">{t('graph.typeFilter.noMatch')}</li>
             ) : (
               filtered.map((g) => {
                 const hidden = hiddenCountByGroup.get(g.name) ?? 0;

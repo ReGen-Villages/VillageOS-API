@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pause, Play, PanelRightClose, Search, X } from 'lucide-react';
 import type { ActivityEvent } from '../../types/mycelium';
 import { formatTimestamp } from '../../utils/formatters';
@@ -46,6 +47,7 @@ interface Props {
 }
 
 export function ActivityFeed({ events, onCollapse }: Props) {
+  const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
   const snapshotRef = useRef<ActivityEvent[]>([]);
@@ -166,7 +168,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
       <div className="p-4 pt-2 flex flex-col flex-1 min-h-0 overflow-hidden">
         {/* Header row */}
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">Activity Feed</h3>
+          <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">{t('dashboard.feed.title')}</h3>
           <div className="flex items-center gap-1">
             <button
               onClick={togglePause}
@@ -175,14 +177,14 @@ export function ActivityFeed({ events, onCollapse }: Props) {
                   ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
               }`}
-              title={paused ? 'Resume' : 'Pause'}
+              title={paused ? t('dashboard.feed.resume') : t('dashboard.feed.pause')}
             >
               {paused ? <Play size={14} /> : <Pause size={14} />}
             </button>
             <button
               onClick={onCollapse}
               className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
-              title="Collapse panel"
+              title={t('dashboard.feed.collapse')}
             >
               <PanelRightClose size={14} />
             </button>
@@ -192,7 +194,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
         {/* Paused badge */}
         {paused && missedCount > 0 && (
           <div className="text-xs text-amber-400 mb-1">
-            Paused — {missedCount} new event{missedCount !== 1 ? 's' : ''} buffered
+            {t('dashboard.feed.pausedBuffered', { count: missedCount })}
           </div>
         )}
 
@@ -210,7 +212,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
                     : 'border-zinc-700 text-zinc-600 bg-transparent'
                 }`}
               >
-                {cat.label}
+                {t(`dashboard.feed.category.${cat.label.toLowerCase()}`)}
               </button>
             );
           })}
@@ -222,7 +224,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
           <input
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Filter events..."
+            placeholder={t('dashboard.feed.filterPlaceholder')}
             className="bg-transparent text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none flex-1 min-w-0"
           />
           {searchText && (
@@ -237,7 +239,7 @@ export function ActivityFeed({ events, onCollapse }: Props) {
 
         {/* Event list */}
         <div ref={listRef} className="flex-1 overflow-auto space-y-1 min-h-0">
-          {filteredEvents.length === 0 && <p className="text-xs text-zinc-500">No activity yet</p>}
+          {filteredEvents.length === 0 && <p className="text-xs text-zinc-500">{t('dashboard.feed.none')}</p>}
           {filteredEvents.map((e, i) => (
             <div key={i} className="flex gap-2 text-xs py-0.5">
               <span className="text-zinc-500 font-mono flex-shrink-0">{formatTimestamp(e.Timestamp)}</span>

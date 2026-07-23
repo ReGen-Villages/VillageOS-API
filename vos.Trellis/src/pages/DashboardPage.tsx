@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ModelStatsCard } from '../components/dashboard/ModelStatsCard';
 import { ServicesPanel } from '../components/dashboard/ServicesPanel';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed';
@@ -35,6 +36,7 @@ export function DashboardPage() {
   const events = useActivityStore((s) => s.events);
   const { on, connected } = useSse();
   const { logout, switchModel } = useAuth();
+  const { t } = useTranslation();
 
   const toggleFeedCollapsed = useCallback(() => {
     setFeedCollapsed((prev) => {
@@ -89,27 +91,27 @@ export function DashboardPage() {
       const { blob, fileName } = await fetchFullLog(serviceKey);
       triggerDownload(blob, fileName);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Log download failed');
+      toast.error(err instanceof Error ? err.message : t('dashboard.toast.logDownloadFailed'));
     }
   };
 
   const handleStartService = async (id: string) => {
     try {
       await myceliumApi.startService(id);
-      toast.success('Service started');
+      toast.success(t('dashboard.toast.serviceStarted'));
       setServices(await myceliumApi.getServices());
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Start failed');
+      toast.error(err instanceof Error ? err.message : t('dashboard.toast.startFailed'));
     }
   };
 
   const handleStopService = async (id: string) => {
     try {
       await myceliumApi.stopService(id);
-      toast.success('Stop requested');
+      toast.success(t('dashboard.toast.stopRequested'));
       setServices(await myceliumApi.getServices());
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Stop failed');
+      toast.error(err instanceof Error ? err.message : t('dashboard.toast.stopFailed'));
     }
   };
 
@@ -119,19 +121,19 @@ export function DashboardPage() {
     setDeleteTarget(null);
     try {
       await thingApi.remove(thingId);
-      toast.success('Service retracted from model');
+      toast.success(t('dashboard.toast.serviceRetracted'));
       await loadMyceliumData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed');
+      toast.error(err instanceof Error ? err.message : t('dashboard.toast.deleteFailed'));
     }
   };
 
   const handleReloadSeeds = async () => {
     try {
       await myceliumApi.reloadSeeds();
-      toast.success('Seeds reloaded from disk');
+      toast.success(t('dashboard.toast.seedsReloaded'));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Reload failed');
+      toast.error(err instanceof Error ? err.message : t('dashboard.toast.reloadFailed'));
     }
   };
 
@@ -139,10 +141,10 @@ export function DashboardPage() {
     setShowShutdown(false);
     try {
       await myceliumApi.shutdown();
-      toast.success('Mycelium shutdown initiated');
+      toast.success(t('dashboard.toast.shutdownInitiated'));
       setHttpOk(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Shutdown failed');
+      toast.error(err instanceof Error ? err.message : t('dashboard.toast.shutdownFailed'));
     }
   };
 
@@ -151,50 +153,50 @@ export function DashboardPage() {
       <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0">
         <div className="flex items-center gap-3">
           <RegenLogo className="w-8 h-8" />
-          <h2 className="text-xl font-bold">Mycelium Dashboard</h2>
+          <h2 className="text-xl font-bold">{t('dashboard.title')}</h2>
         </div>
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${httpOk ? 'bg-emerald-500' : 'bg-red-500'}`} />
-            <span className="text-zinc-500">Mycelium</span>
+            <span className="text-zinc-500">{t('dashboard.status.mycelium')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
-            <span className="text-zinc-500">Live</span>
+            <span className="text-zinc-500">{t('dashboard.status.live')}</span>
           </div>
           <a
             href={`${import.meta.env.VITE_BROKER_URL || ''}/swagger`}
             target="_blank"
             rel="noopener noreferrer"
-            title="Swagger API docs"
+            title={t('dashboard.actions.swagger')}
             className="ml-2 p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
           >
             <FileCode2 size={14} />
           </a>
           <button
             onClick={handleReloadSeeds}
-            title="Reload seeds from disk"
+            title={t('dashboard.actions.reloadSeeds')}
             className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
           >
             <RefreshCw size={14} />
           </button>
           <button
             onClick={() => setShowShutdown(true)}
-            title="Shutdown Mycelium"
+            title={t('dashboard.actions.shutdown')}
             className="p-1.5 rounded hover:bg-red-600/20 text-zinc-500 hover:text-red-400 transition-colors"
           >
             <Power size={14} />
           </button>
           <button
             onClick={switchModel}
-            title="Switch model"
+            title={t('common.switchModel')}
             className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
           >
             <ArrowLeftRight size={14} />
           </button>
           <button
             onClick={logout}
-            title="Log out"
+            title={t('common.logout')}
             className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
           >
             <LogOut size={14} />
@@ -202,7 +204,7 @@ export function DashboardPage() {
           {feedCollapsed && (
             <button
               onClick={toggleFeedCollapsed}
-              title="Show activity feed"
+              title={t('dashboard.actions.showActivityFeed')}
               className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
             >
               <PanelRightOpen size={14} />
@@ -228,9 +230,9 @@ export function DashboardPage() {
 
       <ConfirmDialog
         open={showShutdown}
-        title="Shutdown Mycelium"
-        message="Are you sure you want to shut down Mycelium? All services and daemons will be stopped. Trellis will lose its connection."
-        confirmLabel="Shutdown"
+        title={t('dashboard.shutdownDialog.title')}
+        message={t('dashboard.shutdownDialog.message')}
+        confirmLabel={t('dashboard.shutdownDialog.confirm')}
         danger
         onConfirm={handleShutdown}
         onCancel={() => setShowShutdown(false)}
@@ -238,9 +240,9 @@ export function DashboardPage() {
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title="Delete service"
-        message={`Retract "${deleteTarget?.name}" from the model? This removes the connection so Mycelium no longer routes to it. It stays in the seed, so a seed reload restores it. To only stop the process, use Stop instead.`}
-        confirmLabel="Delete"
+        title={t('dashboard.deleteDialog.title')}
+        message={t('dashboard.deleteDialog.message', { name: deleteTarget?.name ?? '' })}
+        confirmLabel={t('dashboard.deleteDialog.confirm')}
         danger
         onConfirm={handleDeleteService}
         onCancel={() => setDeleteTarget(null)}

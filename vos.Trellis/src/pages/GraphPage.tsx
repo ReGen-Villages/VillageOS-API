@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { GraphSearchBar } from '../components/graph/GraphSearchBar';
 import { NodeDetailPanel } from '../components/panels/NodeDetailPanel';
 import { EdgeDetailPanel } from '../components/panels/EdgeDetailPanel';
@@ -34,6 +35,7 @@ const SigmaCanvas = lazy(() =>
 );
 
 export function GraphPage() {
+  const { t } = useTranslation();
   const { logout, switchModel, modelName } = useAuth();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
@@ -119,11 +121,11 @@ export function GraphPage() {
     if (!deleteConfirm || deleteConfirm.type !== 'thing') return;
     try {
       await thingApi.remove(deleteConfirm.id);
-      toast.success(`Deleted: ${deleteConfirm.name}`);
+      toast.success(t('graph.toast.deleted', { name: deleteConfirm.name }));
       selectNode(null);
       reloadModelData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed');
+      toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }
     setDeleteConfirm(null);
   };
@@ -132,11 +134,11 @@ export function GraphPage() {
     if (!deleteConfirm || deleteConfirm.type !== 'relationship') return;
     try {
       await relationshipApi.remove(deleteConfirm.id);
-      toast.success('Relationship deleted');
+      toast.success(t('graph.toast.relationshipDeleted'));
       selectEdge(null);
       reloadModelData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed');
+      toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }
     setDeleteConfirm(null);
   };
@@ -144,20 +146,20 @@ export function GraphPage() {
   const handleDeleteProperty = async (thingId: string, propertyName: string) => {
     try {
       await thingApi.deleteProperty(thingId, propertyName);
-      toast.success(`Deleted property: ${propertyName}`);
+      toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
       reloadModelData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed');
+      toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }
   };
 
   const handleDeleteRelProperty = async (relationshipId: string, propertyName: string) => {
     try {
       await relationshipApi.deleteProperty(relationshipId, propertyName);
-      toast.success(`Deleted property: ${propertyName}`);
+      toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
       reloadModelData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed');
+      toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }
   };
 
@@ -166,12 +168,12 @@ export function GraphPage() {
     setCreatingThing(true);
     try {
       await thingApi.create(newThingName.trim());
-      toast.success(`Created thing: ${newThingName.trim()}`);
+      toast.success(t('graph.toast.thingCreated', { name: newThingName.trim() }));
       setNewThingName('');
       setShowCreateThing(false);
       reloadModelData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create thing');
+      toast.error(err instanceof Error ? err.message : t('graph.toast.createThingFailed'));
     } finally {
       setCreatingThing(false);
     }
@@ -184,12 +186,15 @@ export function GraphPage() {
     try {
       const result = await modelApi.applyFragment(await file.text());
       toast.success(
-        `Fragment applied: ${result.thingsCreated} created, ${result.thingsUpdated} updated, ` +
-        `${result.relationshipsCreated} relationship(s).`,
+        t('graph.toast.fragmentApplied', {
+          created: result.thingsCreated,
+          updated: result.thingsUpdated,
+          rels: result.relationshipsCreated,
+        }),
       );
       reloadModelData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to apply fragment');
+      toast.error(err instanceof Error ? err.message : t('graph.toast.fragmentFailed'));
     }
   };
 
@@ -233,21 +238,21 @@ export function GraphPage() {
         />
         <button
           onClick={() => fragmentInputRef.current?.click()}
-          title="Import fragment"
+          title={t('graph.actions.importFragment')}
           className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
         >
           <Upload size={14} />
         </button>
         <button
           onClick={switchModel}
-          title="Switch model"
+          title={t('common.switchModel')}
           className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
         >
           <ArrowLeftRight size={14} />
         </button>
         <button
           onClick={logout}
-          title="Log out"
+          title={t('common.logout')}
           className="p-1.5 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 transition-colors"
         >
           <LogOut size={14} />
@@ -333,9 +338,11 @@ export function GraphPage() {
 
       <ConfirmDialog
         open={deleteConfirm !== null}
-        title={`Delete ${deleteConfirm?.type || ''}`}
-        message={`Are you sure you want to delete "${deleteConfirm?.name}"? This cannot be undone.`}
-        confirmLabel="Delete"
+        title={t('graph.deleteDialog.title', {
+          entity: deleteConfirm ? t(`graph.entity.${deleteConfirm.type}`) : '',
+        })}
+        message={t('graph.deleteDialog.message', { name: deleteConfirm?.name ?? '' })}
+        confirmLabel={t('common.delete')}
         danger
         onConfirm={deleteConfirm?.type === 'thing' ? handleDeleteThing : handleDeleteRelationship}
         onCancel={() => setDeleteConfirm(null)}
@@ -350,7 +357,12 @@ export function GraphPage() {
 function SigmaPlaceholder() {
   return (
     <div className="absolute inset-0 flex items-center justify-center text-zinc-500 text-sm pointer-events-none">
-      Loading graph…
+      <LoadingGraphLabel />
     </div>
   );
+}
+
+function LoadingGraphLabel() {
+  const { t } = useTranslation();
+  return <>{t('graph.placeholder.loadingGraph')}</>;
 }

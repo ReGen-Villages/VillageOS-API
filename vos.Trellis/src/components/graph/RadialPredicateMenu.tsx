@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../stores/uiStore';
 
 /**
@@ -14,6 +15,7 @@ import { useUiStore } from '../../stores/uiStore';
  * positioned within the graph page's relative container.
  */
 export function RadialPredicateMenu() {
+  const { t } = useTranslation();
   const open = useUiStore((s) => s.radialMenuOpen);
   const position = useUiStore((s) => s.radialMenuPosition);
   const predicateStats = useUiStore((s) => s.predicateStats);
@@ -95,7 +97,7 @@ export function RadialPredicateMenu() {
           left: -22,
           top: -22,
         }}
-        title="Clear all predicates"
+        title={t('graph.radial.clearAll')}
       >
         {hasActive ? '\u2715' : '\u2022'}
       </button>
@@ -125,7 +127,7 @@ export function RadialPredicateMenu() {
               left: x - BUTTON_SIZE / 2,
               top: y - BUTTON_SIZE / 2,
             }}
-            title={`${stat.predicateName} (${stat.edgeCount} edges)`}
+            title={t('graph.radial.slice', { name: stat.predicateName, edges: stat.edgeCount })}
           >
             {/* Color stripe */}
             <div

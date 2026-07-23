@@ -160,10 +160,18 @@ export interface FunnelWidget {
 export interface BulletRow {
   label: string;
   value: Binding;
-  /** 0..1 target marker. */
+  /** Track ceiling in the row's own units; the bar, target marker and band are drawn as a
+   *  fraction of it. Default 1, so a 0..1 value fills the track — the utilization case. Set it
+   *  (e.g. 200 for a percentage that can run past 100) so a value beyond 1 isn't pinned to the edge. */
+  max?: number;
+  /** Target marker, in the row's own units (0..{@link max}). */
   target?: number;
-  /** 0..1 healthy band [lo, hi]. */
+  /** Healthy band [lo, hi], in the row's own units (0..{@link max}). */
   band?: [number, number];
+  /** Which way is "good". 'down-good' (default) keeps a value at or below target healthy, over the
+   *  band critical — utilization. 'up-good' inverts it: at or above target is healthy, below the band
+   *  is critical — a self-sufficiency / more-is-better metric. */
+  direction?: 'up-good' | 'down-good';
   format?: NumberFormat;
 }
 
