@@ -21,10 +21,13 @@ describe('i18n instance', () => {
   });
 
   it('falls back to the base locale for a key missing from the target locale', () => {
-    // es intentionally omits log.fullLogTitle (draft translation gap).
-    expect(i18n.t('log.fullLogTitle', { lng: 'es' })).toBe(
-      i18n.t('log.fullLogTitle', { lng: 'en' }),
-    );
+    // Every shipped locale is at full parity, so exercise fallback with an
+    // on-the-fly partial bundle: a locale that supplies one key falls back to
+    // the English base for every key it omits.
+    i18n.addResourceBundle('zz', 'translation', { nav: { logs: 'ZZ logs' } });
+    expect(i18n.t('nav.logs', { lng: 'zz' })).toBe('ZZ logs');
+    expect(i18n.t('nav.things', { lng: 'zz' })).toBe(i18n.t('nav.things', { lng: 'en' }));
+    i18n.removeResourceBundle('zz', 'translation');
   });
 
   it('resolves both Arabic regions through the shared ar translation', () => {
