@@ -27,12 +27,23 @@ import type {
   TableWidget,
   Widget,
 } from '../types/dashboard';
+import { primarySubtag } from '../i18n/languages';
 
 /** Translates a single base string into the active locale, or returns it unchanged. */
 export type SpecTranslator = <T extends string | undefined>(text: T) => T;
 
+/** The strings a locale reads: the primary-subtag block overlaid with the exact-tag
+ *  one, so a model that authors `ar` once serves both `ar-SA` and `ar-AE`, and an
+ *  `ar-AE` block need only carry the words that differ. */
+function translationsFor(spec: DashboardSpec, locale: string): Record<string, string> | undefined {
+  const regional = spec.translations?.[locale];
+  const language = spec.translations?.[primarySubtag(locale)];
+  if (!regional || !language || regional === language) return regional ?? language;
+  return { ...language, ...regional };
+}
+
 export function makeSpecTranslator(spec: DashboardSpec, locale: string): SpecTranslator {
-  const table = spec.translations?.[locale];
+  const table = translationsFor(spec, locale);
   return (<T extends string | undefined>(text: T): T => {
     if (text === undefined || table === undefined) return text;
     return (table[text] ?? text) as T;
@@ -146,7 +157,7 @@ function localizeDetail(detail: DetailSpec, tr: SpecTranslator): DetailSpec {
 
 /** Return a copy of the spec with every display string rendered in the active locale. */
 export function localizeSpec(spec: DashboardSpec, locale: string): DashboardSpec {
-  if (!spec.translations?.[locale]) return spec;
+  if (!translationsFor(spec, locale)) return spec;
   const tr = makeSpecTranslator(spec, locale);
   return {
     ...spec,
