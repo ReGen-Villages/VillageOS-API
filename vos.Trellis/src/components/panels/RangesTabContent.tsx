@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ThingRangesResponse, ThingStates, RangeDto, RangeEvaluation, InheritedRangeSetDto, PropertyBindingDto } from '../../types/vos';
 import { Badge } from '../common/Badge';
 import { WindmillSpinner } from '../common/WindmillSpinner';
@@ -33,13 +34,14 @@ interface Props {
 }
 
 export function RangesTabContent({ rangesData, statesData, loading, onSelectNode, relationshipRanges, entityId, editable, onRangeChanged }: Props) {
+  const { t } = useTranslation();
   if (loading) return (
     <div className="flex items-center justify-center py-4">
       <WindmillSpinner size={24} />
     </div>
   );
 
-  if (!statesData) return <p className="text-zinc-500 text-xs italic">No range data available</p>;
+  if (!statesData) return <p className="text-zinc-500 text-xs italic">{t('panels.ranges.noRangeData')}</p>;
 
   return (
     <>
@@ -51,17 +53,17 @@ export function RangesTabContent({ rangesData, statesData, loading, onSelectNode
         <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-red-500/10 border border-red-500/20">
           <span className="inline-block w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
           <span className="text-xs text-red-400">
-            {statesData.OutOfBoundsCount} binding{statesData.OutOfBoundsCount !== 1 ? 's' : ''} out of bounds
+            {t('panels.ranges.bindingsOutOfBounds', { count: statesData.OutOfBoundsCount })}
           </span>
         </div>
       )}
 
       <div>
         <h4 className="text-xs font-semibold text-zinc-500 mb-1">
-          Current States ({statesData.CurrentStates.length})
+          {t('panels.ranges.currentStates', { count: statesData.CurrentStates.length })}
         </h4>
         {statesData.CurrentStates.length === 0 ? (
-          <p className="text-zinc-500 text-xs italic">No active states</p>
+          <p className="text-zinc-500 text-xs italic">{t('panels.ranges.noActiveStates')}</p>
         ) : (
           <div className="flex flex-wrap gap-1">
             {statesData.CurrentStates.map((s) => (
@@ -74,10 +76,10 @@ export function RangesTabContent({ rangesData, statesData, loading, onSelectNode
       {rangesData && (
         <div>
           <h4 className="text-xs font-semibold text-zinc-500 mb-1">
-            Own Ranges ({rangesData.OwnRanges.length})
+            {t('panels.ranges.ownRanges', { count: rangesData.OwnRanges.length })}
           </h4>
           {rangesData.OwnRanges.length === 0 ? (
-            <p className="text-zinc-500 text-xs italic">No own ranges</p>
+            <p className="text-zinc-500 text-xs italic">{t('panels.ranges.noOwnRanges')}</p>
           ) : (
             <div className="space-y-1">
               {rangesData.OwnRanges.map((r) => (
@@ -88,10 +90,10 @@ export function RangesTabContent({ rangesData, statesData, loading, onSelectNode
                   onDelete={editable && entityId ? async () => {
                     try {
                       await rangeApi.delete(entityId, r.Name);
-                      toast.success(`Range "${r.Name}" deleted`);
+                      toast.success(t('panels.ranges.rangeDeleted', { name: r.Name }));
                       onRangeChanged?.();
                     } catch (err) {
-                      toast.error(err instanceof Error ? err.message : 'Delete failed');
+                      toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
                     }
                   } : undefined}
                 />
@@ -103,7 +105,7 @@ export function RangesTabContent({ rangesData, statesData, loading, onSelectNode
 
       {rangesData && rangesData.InheritedRanges.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold text-zinc-500 mb-1">Inherited Ranges</h4>
+          <h4 className="text-xs font-semibold text-zinc-500 mb-1">{t('panels.ranges.inheritedRanges')}</h4>
           {rangesData.InheritedRanges.map((irs) => (
             <InheritedRangeGroupView
               key={irs.SourceId}
@@ -118,7 +120,7 @@ export function RangesTabContent({ rangesData, statesData, loading, onSelectNode
       {relationshipRanges && relationshipRanges.length > 0 && (
         <div>
           <h4 className="text-xs font-semibold text-zinc-500 mb-1">
-            Relationship Ranges ({relationshipRanges.length})
+            {t('panels.ranges.relationshipRanges', { count: relationshipRanges.length })}
           </h4>
           <div className="space-y-2">
             {relationshipRanges.map((entry) => (
@@ -132,6 +134,7 @@ export function RangesTabContent({ rangesData, statesData, loading, onSelectNode
 }
 
 function RangeItem({ range, evaluation, onDelete }: { range: RangeDto; evaluation?: RangeEvaluation; onDelete?: () => void }) {
+  const { t } = useTranslation();
   const hasDeviations = range.Bindings?.some((b) => b.IsActive && b.IsInBounds === false);
   return (
     <div className="py-1 border-b border-zinc-800 last:border-0">
@@ -142,21 +145,21 @@ function RangeItem({ range, evaluation, onDelete }: { range: RangeDto; evaluatio
             <button
               onClick={onDelete}
               className="p-0.5 rounded text-zinc-600 hover:text-red-400 hover:bg-red-900/20 transition-colors"
-              title={`Delete range "${range.Name}"`}
+              title={t('panels.ranges.deleteRange', { name: range.Name })}
             >
               <Trash2 size={10} />
             </button>
           )}
-          {hasDeviations && <Badge label="out of bounds" color="red" dot />}
+          {hasDeviations && <Badge label={t('panels.ranges.outOfBounds')} color="red" dot />}
           {!hasDeviations && range.ActiveBindings > 0 && (
             <span className="text-[10px] text-zinc-500">
-              {range.ActiveBindings} binding{range.ActiveBindings !== 1 ? 's' : ''}
+              {t('panels.ranges.activeBindings', { count: range.ActiveBindings })}
             </span>
           )}
           {evaluation && (
             evaluation.Error
-              ? <Badge label="error" color="red" />
-              : <Badge label={evaluation.IsActive ? 'active' : 'inactive'} color={evaluation.IsActive ? 'green' : 'gray'} dot />
+              ? <Badge label={t('panels.ranges.error')} color="red" />
+              : <Badge label={evaluation.IsActive ? t('panels.ranges.active') : t('panels.ranges.inactive')} color={evaluation.IsActive ? 'green' : 'gray'} dot />
           )}
         </div>
       </div>
@@ -176,6 +179,7 @@ function RangeItem({ range, evaluation, onDelete }: { range: RangeDto; evaluatio
 }
 
 function BindingRow({ binding: b }: { binding: PropertyBindingDto }) {
+  const { t } = useTranslation();
   const outOfBounds = b.IsActive && b.IsInBounds === false;
   const dotColor = outOfBounds ? 'bg-red-500' : b.IsActive ? 'bg-green-500' : 'bg-zinc-600';
 
@@ -187,7 +191,7 @@ function BindingRow({ binding: b }: { binding: PropertyBindingDto }) {
           <span className="font-medium text-zinc-300">{b.PropertyName}</span>
           <span className="font-mono text-zinc-500">{b.BoundsDescription}</span>
           {b.GuardCriteria && (
-            <span className="text-zinc-600 italic">when {b.GuardCriteria}</span>
+            <span className="text-zinc-600 italic">{t('panels.ranges.when', { criteria: b.GuardCriteria })}</span>
           )}
         </div>
         {b.IsActive && b.CurrentValue !== undefined && b.CurrentValue !== null && (
@@ -197,7 +201,7 @@ function BindingRow({ binding: b }: { binding: PropertyBindingDto }) {
             </span>
             {outOfBounds && b.DeviationDelta != null && (
               <span className="text-red-400/70">
-                ({b.DeviationDelta > 0 ? '+' : ''}{Number(b.DeviationDelta).toFixed(1)} off)
+                {t('panels.ranges.off', { delta: `${b.DeviationDelta > 0 ? '+' : ''}${Number(b.DeviationDelta).toFixed(1)}` })}
               </span>
             )}
           </div>
@@ -212,13 +216,14 @@ function InheritedRangeGroupView({ set, evaluations, onSelectNode }: {
   evaluations: RangeEvaluation[];
   onSelectNode: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="pl-2 border-l-2 border-zinc-700 mb-2">
       <button
         onClick={() => onSelectNode(set.SourceId)}
         className="text-xs text-amber-400 hover:underline mb-1 block"
       >
-        from {set.SourceName}
+        {t('panels.ranges.from', { source: set.SourceName })}
       </button>
       {set.Ranges.map((r) => (
         <RangeItem key={r.Name} range={r} evaluation={evaluations.find((e) => e.RangeName === r.Name)} />
@@ -236,6 +241,7 @@ function InheritedRangeGroupView({ set, evaluations, onSelectNode }: {
 }
 
 function CreateRangeForm({ thingId, onCreated }: { thingId: string; onCreated?: () => void }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [criteria, setCriteria] = useState('');
@@ -249,18 +255,18 @@ function CreateRangeForm({ thingId, onCreated }: { thingId: string; onCreated?: 
     try {
       const result = await rangeApi.validateCriteria(criteria);
       if (!result.IsValid) {
-        setValidationError(result.Error || 'Invalid criteria syntax');
+        setValidationError(result.Error || t('panels.ranges.invalidCriteria'));
         setSaving(false);
         return;
       }
       await rangeApi.create(thingId, { Name: name.trim(), Criteria: criteria.trim() });
-      toast.success(`Range "${name}" created`);
+      toast.success(t('panels.ranges.rangeCreated', { name }));
       setName('');
       setCriteria('');
       setOpen(false);
       onCreated?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create range');
+      toast.error(err instanceof Error ? err.message : t('panels.ranges.createRangeFailed'));
     } finally {
       setSaving(false);
     }
@@ -272,7 +278,7 @@ function CreateRangeForm({ thingId, onCreated }: { thingId: string; onCreated?: 
         onClick={() => setOpen(true)}
         className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
       >
-        <Plus size={12} /> Add Range
+        <Plus size={12} /> {t('panels.ranges.addRange')}
       </button>
     );
   }
@@ -280,20 +286,20 @@ function CreateRangeForm({ thingId, onCreated }: { thingId: string; onCreated?: 
   return (
     <div className="space-y-2 p-2 rounded border border-zinc-700 bg-zinc-800/50">
       <div>
-        <label className="block text-[10px] font-medium text-zinc-500 mb-0.5">Name</label>
+        <label className="block text-[10px] font-medium text-zinc-500 mb-0.5">{t('panels.ranges.name')}</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. overheating"
+          placeholder={t('panels.ranges.namePlaceholder')}
           className="w-full px-2 py-1 text-xs rounded border border-zinc-600 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
       <div>
-        <label className="block text-[10px] font-medium text-zinc-500 mb-0.5">Criteria</label>
+        <label className="block text-[10px] font-medium text-zinc-500 mb-0.5">{t('panels.ranges.criteria')}</label>
         <input
           value={criteria}
           onChange={(e) => { setCriteria(e.target.value); setValidationError(null); }}
-          placeholder="e.g. temp > 100 AND rpm < 5000"
+          placeholder={t('panels.ranges.criteriaPlaceholder')}
           className="w-full px-2 py-1 text-xs font-mono rounded border border-zinc-600 bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         {validationError && (
@@ -306,13 +312,13 @@ function CreateRangeForm({ thingId, onCreated }: { thingId: string; onCreated?: 
           disabled={saving || !name.trim() || !criteria.trim()}
           className="flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          <Check size={10} /> {saving ? 'Saving...' : 'Create'}
+          <Check size={10} /> {saving ? t('common.saving') : t('panels.ranges.create')}
         </button>
         <button
           onClick={() => { setOpen(false); setName(''); setCriteria(''); setValidationError(null); }}
           className="flex items-center gap-1 px-2 py-0.5 text-xs rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700"
         >
-          <X size={10} /> Cancel
+          <X size={10} /> {t('common.cancel')}
         </button>
       </div>
     </div>
@@ -320,6 +326,7 @@ function CreateRangeForm({ thingId, onCreated }: { thingId: string; onCreated?: 
 }
 
 function RelationshipRangesGroup({ entry }: { entry: RelationshipRangesEntry }) {
+  const { t } = useTranslation();
   const { statesData, rangesData } = entry;
   const totalOob = statesData.OutOfBoundsCount;
 
@@ -327,7 +334,7 @@ function RelationshipRangesGroup({ entry }: { entry: RelationshipRangesEntry }) 
     <div className="pl-2 border-l-2 border-blue-500/30 mb-2">
       <div className="flex items-center gap-1 mb-1">
         <span className="text-xs text-blue-400 font-medium truncate">{entry.label}</span>
-        {totalOob > 0 && <Badge label={`${totalOob} oob`} color="red" dot />}
+        {totalOob > 0 && <Badge label={t('panels.ranges.oob', { count: totalOob })} color="red" dot />}
       </div>
 
       {statesData.CurrentStates.length > 0 && (

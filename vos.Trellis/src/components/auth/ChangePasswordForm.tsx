@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { RegenLogo } from './RegenLogo';
 
 interface ChangePasswordFormProps {
@@ -9,6 +10,7 @@ interface ChangePasswordFormProps {
 }
 
 export function ChangePasswordForm({ onChangePassword, error, loading, username }: ChangePasswordFormProps) {
+  const { t } = useTranslation();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,12 +23,12 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
     if (!currentPassword || !newPassword || !confirmPassword) return;
 
     if (newPassword !== confirmPassword) {
-      setValidationError('New passwords do not match');
+      setValidationError(t('changePassword.mismatch'));
       return;
     }
 
     if (newPassword.length < 4) {
-      setValidationError('New password must be at least 4 characters');
+      setValidationError(t('changePassword.tooShort'));
       return;
     }
 
@@ -46,9 +48,9 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
         <div className="flex justify-center mb-2">
           <RegenLogo className="w-40 h-40" />
         </div>
-        <p className="text-sm text-gray-400 text-center mb-1">Password change required</p>
+        <p className="text-sm text-gray-400 text-center mb-1">{t('changePassword.required')}</p>
         <p className="text-xs text-gray-500 text-center mb-6">
-          Logged in as <span className="text-gray-300 font-medium">{username}</span>
+          {t('changePassword.loggedInAs')} <span className="text-gray-300 font-medium">{username}</span>
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           {displayError && (
@@ -58,7 +60,7 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
           )}
           <div>
             <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-300 mb-1">
-              Current Password
+              {t('changePassword.currentPassword')}
             </label>
             <input
               id="currentPassword"
@@ -66,7 +68,7 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-              placeholder="Enter current password"
+              placeholder={t('changePassword.currentPlaceholder')}
               autoComplete="current-password"
               autoFocus
               disabled={loading}
@@ -74,7 +76,7 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
           </div>
           <div>
             <label htmlFor="newPassword" className="block text-sm font-medium text-gray-300 mb-1">
-              New Password
+              {t('changePassword.newPassword')}
             </label>
             <input
               id="newPassword"
@@ -82,14 +84,14 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-              placeholder="Enter new password"
+              placeholder={t('changePassword.newPlaceholder')}
               autoComplete="new-password"
               disabled={loading}
             />
           </div>
           <div>
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-1">
-              Confirm New Password
+              {t('changePassword.confirmPassword')}
             </label>
             <input
               id="confirmPassword"
@@ -97,7 +99,7 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-              placeholder="Confirm new password"
+              placeholder={t('changePassword.confirmPlaceholder')}
               autoComplete="new-password"
               disabled={loading}
             />
@@ -107,7 +109,7 @@ export function ChangePasswordForm({ onChangePassword, error, loading, username 
             disabled={!canSubmit}
             className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"
           >
-            {loading ? 'Changing...' : 'Change Password'}
+            {loading ? t('changePassword.changing') : t('changePassword.submit')}
           </button>
         </form>
       </div>

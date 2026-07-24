@@ -18,6 +18,70 @@ type ArabicPlurals = {
     lineCount_few?: string;
     lineCount_many?: string;
   };
+  common?: {
+    showMore_zero?: string;
+    showMore_two?: string;
+    showMore_few?: string;
+    showMore_many?: string;
+  };
+  temporal?: {
+    mutationCount_zero?: string;
+    mutationCount_two?: string;
+    mutationCount_few?: string;
+    mutationCount_many?: string;
+    versionCount_zero?: string;
+    versionCount_two?: string;
+    versionCount_few?: string;
+    versionCount_many?: string;
+    thingsCount_zero?: string;
+    thingsCount_two?: string;
+    thingsCount_few?: string;
+    thingsCount_many?: string;
+    relationshipsCount_zero?: string;
+    relationshipsCount_two?: string;
+    relationshipsCount_few?: string;
+    relationshipsCount_many?: string;
+  };
+  thingSearch?: {
+    foundCount_zero?: string;
+    foundCount_two?: string;
+    foundCount_few?: string;
+    foundCount_many?: string;
+  };
+  propertySearch?: {
+    matchCount_zero?: string;
+    matchCount_two?: string;
+    matchCount_few?: string;
+    matchCount_many?: string;
+    acrossNames_zero?: string;
+    acrossNames_two?: string;
+    acrossNames_few?: string;
+    acrossNames_many?: string;
+  };
+  panels?: {
+    ranges?: {
+      bindingsOutOfBounds_zero?: string;
+      bindingsOutOfBounds_two?: string;
+      bindingsOutOfBounds_few?: string;
+      bindingsOutOfBounds_many?: string;
+      activeBindings_zero?: string;
+      activeBindings_two?: string;
+      activeBindings_few?: string;
+      activeBindings_many?: string;
+    };
+  };
+  pipeline?: {
+    issues_zero?: string;
+    issues_two?: string;
+    issues_few?: string;
+    issues_many?: string;
+  };
+  palette?: {
+    portCount_zero?: string;
+    portCount_two?: string;
+    portCount_few?: string;
+    portCount_many?: string;
+  };
 };
 
 export const ar: PartialResources & ArabicPlurals = {
@@ -84,6 +148,19 @@ export const ar: PartialResources & ArabicPlurals = {
     logout: 'تسجيل الخروج',
     search: 'بحث',
     clear: 'مسح',
+    query: "استعلام",
+    copyAsMarkdown: "نسخ كـ Markdown",
+    downloadAsMarkdown: "تنزيل كـ Markdown",
+    copiedToClipboard: "تم النسخ إلى الحافظة",
+    copyFailed: "فشل النسخ",
+    showMore_one: "عرض المزيد (بقي {{count}})",
+    showMore_other: "عرض المزيد (بقي {{count}})",
+    showMore_zero: 'عرض المزيد (بقي {{count}})',
+    showMore_two: 'عرض المزيد (بقي {{count}})',
+    showMore_few: 'عرض المزيد (بقي {{count}})',
+    showMore_many: 'عرض المزيد (بقي {{count}})',
+    showingFirst: "عرض أول {{count}}",
+    noProperties: "لا توجد خصائص",
   },
   dashboard: {
     title: 'لوحة تحكم Mycelium',
@@ -271,5 +348,385 @@ export const ar: PartialResources & ArabicPlurals = {
   widgets: {
     bullet: { target: 'الهدف', healthyBand: 'النطاق الصحي', warning: 'تحذير', critical: 'حرج' },
     kpi: { onTarget: 'ضمن الهدف', watch: 'مراقبة', peak: 'الذروة', trough: 'القاع' },
+    leaderboard: {
+      none: "لا توجد كيانات للمقارنة.",
+    },
+    table: {
+      searchPlaceholder: "بحث…",
+    },
+    sparkline: {
+      trend: "الاتجاه",
+    },
+  },
+  errorBoundary: {
+    title: "حدث خطأ ما",
+    stackTrace: "تتبّع المكدس",
+    tryAgain: "أعد المحاولة",
+  },
+  changePassword: {
+    required: "يلزم تغيير كلمة المرور",
+    loggedInAs: "تسجيل الدخول باسم",
+    currentPassword: "كلمة المرور الحالية",
+    newPassword: "كلمة المرور الجديدة",
+    confirmPassword: "تأكيد كلمة المرور الجديدة",
+    currentPlaceholder: "أدخل كلمة المرور الحالية",
+    newPlaceholder: "أدخل كلمة المرور الجديدة",
+    confirmPlaceholder: "أكّد كلمة المرور الجديدة",
+    submit: "تغيير كلمة المرور",
+    changing: "جارٍ التغيير…",
+    mismatch: "كلمتا المرور الجديدتان غير متطابقتين",
+    tooShort: "يجب أن تتكوّن كلمة المرور الجديدة من 4 أحرف على الأقل",
+  },
+  modelPage: {
+    title: "النموذج",
+    subtitle: "عارض ثلاثي الأبعاد لعنصر Fragments المشتق من IFC. انقر على عنصر لفحصه.",
+    loading: "جارٍ تحميل النموذج…",
+    loadingAria: "جارٍ تحميل النموذج",
+    placeholderAria: "عنصر نائب لعارض Fragments",
+    noModelTitle: "لم يتم تحميل أي نموذج بعد.",
+    noModelBody: "استورد ملف IFC ‏(BIM) لبناء النموذج — تتم معالجته وتطبيقه نيابةً عنك.",
+    errorTitle: "تعذّر تحميل عنصر Fragments.",
+    loadFailed: "تعذّر تحميل النموذج",
+  },
+  temporal: {
+    title: "الاستعلامات الزمنية",
+    tabs: {
+      mutations: "التغييرات",
+      thingMutations: "تغييرات الشيء",
+      relationshipMutations: "تغييرات العلاقة",
+      snapshot: "لقطة",
+      propertyHistory: "سجل الخاصية",
+      stateQuery: "استعلام الحالة",
+    },
+    startTime: "وقت البدء",
+    endTime: "وقت الانتهاء",
+    timestamp: "الطابع الزمني",
+    mutationsIntro: "يعرض تغييرات قيم الخصائص عبر النموذج. يُسجَّل التغيير عندما تتغيّر قيمة خاصية من قيمة إلى أخرى. إنشاء شيء أو تعيين قيمة أولية ليس تغييرًا.",
+    totalMutations: "إجمالي التغييرات",
+    noMutations: "لا توجد تغييرات في هذا النطاق الزمني.",
+    thing: "شيء",
+    selectThing: "اختر شيئًا…",
+    thingMutationsIntro: "اعرض تغييرات خصائص شيء معيّن. اختر شيئًا وقيّد النتائج بنطاق زمني اختياريًا.",
+    relationship: "علاقة",
+    selectRelationship: "اختر علاقة…",
+    relationshipMutationsIntro: "اعرض تغييرات الخصائص على حافة علاقة معيّنة. اختر علاقة وقيّد النتائج بنطاق زمني اختياريًا.",
+    snapshotIntro: "اعرض النموذج بالكامل كما كان في لحظة زمنية محددة. اترك الطابع الزمني فارغًا لرؤية الحالة الحالية.",
+    snapshotButton: "لقطة",
+    snapshotAt: "لقطة عند:",
+    noProperties: "لا توجد خصائص",
+    noThingsAtTimestamp: "لم توجد أي أشياء عند هذا الطابع الزمني.",
+    propertyHistoryIntro: "اعرض سجل الإصدارات الكامل لخاصية معيّنة على شيء. يعرض كل إصدار القيمة ووقت تعيينها.",
+    property: "خاصية",
+    selectProperty: "اختر خاصية…",
+    on: "على",
+    noVersions: "لا توجد إصدارات في هذا النطاق الزمني.",
+    stateQueryIntro: "اعثر على جميع الأشياء المطابقة حاليًا لحالة معيّنة. تُحدَّد الحالات عبر تقييمات النطاقات — يكون الشيء \"في\" حالة عندما تُقيَّم معايير نطاقه على أنها نشطة.",
+    stateName: "اسم الحالة",
+    stateNamePlaceholder: "مثال: ارتفاع الحرارة",
+    inState: "في حالة",
+    noThingsInState: "لا توجد حاليًا أي أشياء في هذه الحالة.",
+    mutationCount_one: "{{count}} تغيير",
+    mutationCount_other: "{{count}} تغييرات",
+    mutationCount_zero: 'لا تغييرات',
+    mutationCount_two: 'تغييران',
+    mutationCount_few: '{{count}} تغييرات',
+    mutationCount_many: '{{count}} تغييرًا',
+    versionCount_one: "{{count}} إصدار",
+    versionCount_other: "{{count}} إصدارات",
+    versionCount_zero: 'لا إصدارات',
+    versionCount_two: 'إصداران',
+    versionCount_few: '{{count}} إصدارات',
+    versionCount_many: '{{count}} إصدارًا',
+    thingsCount_one: "{{count}} شيء",
+    thingsCount_other: "{{count}} أشياء",
+    thingsCount_zero: 'لا أشياء',
+    thingsCount_two: 'شيئان',
+    thingsCount_few: '{{count}} أشياء',
+    thingsCount_many: '{{count}} شيئًا',
+    relationshipsCount_one: "{{count}} علاقة",
+    relationshipsCount_other: "{{count}} علاقات",
+    relationshipsCount_zero: 'لا علاقات',
+    relationshipsCount_two: 'علاقتان',
+    relationshipsCount_few: '{{count}} علاقات',
+    relationshipsCount_many: '{{count}} علاقة',
+    toast: {
+      loadMutationsFailed: "تعذّر تحميل التغييرات",
+      loadThingMutationsFailed: "تعذّر تحميل تغييرات الشيء",
+      loadRelationshipMutationsFailed: "تعذّر تحميل تغييرات العلاقة",
+      loadSnapshotFailed: "تعذّر تحميل اللقطة",
+      loadVersionsFailed: "تعذّر تحميل الإصدارات",
+      queryStateFailed: "تعذّر الاستعلام عن الحالة",
+    },
+  },
+  thingSearch: {
+    title: "بحث الأشياء",
+    intro: "ابحث عن الأشياء بالاسم. تُرتَّب المطابقات التامة أولًا، ثم مطابقات البادئة، ثم السلاسل الجزئية. انقر على اسم لفتحه في الرسم البياني.",
+    placeholder: "اكتب اسم شيء (مثال: Patient-123، Building-A، MalePatient-Type)…",
+    openInGraph: "فتح في الرسم البياني",
+    ownProperties: "الخصائص الذاتية",
+    relationships: "العلاقات",
+    propsAbbrev: "خصائص",
+    relsAbbrev: "علاقات",
+    moreProps: "+{{count}} أخرى",
+    noMatch: "لا توجد أشياء تطابق \"{{query}}\".",
+    foundCount_one: "تم العثور على {{count}} شيء",
+    foundCount_other: "تم العثور على {{count}} أشياء",
+    foundCount_zero: 'لم يتم العثور على أشياء',
+    foundCount_two: 'تم العثور على شيئين',
+    foundCount_few: 'تم العثور على {{count}} أشياء',
+    foundCount_many: 'تم العثور على {{count}} شيئًا',
+    typeLabel: "النوع: {{type}}",
+  },
+  propertySearch: {
+    title: "بحث الخصائص",
+    introByName: "ابحث عن الخصائص بالاسم عبر جميع الأشياء والعلاقات. المطابقات الجزئية مدعومة.",
+    introByValue: "ابحث عن الخصائص بالقيمة عبر جميع الأشياء والعلاقات. المطابقات الجزئية مدعومة.",
+    byName: "بالاسم",
+    byValue: "بالقيمة",
+    namePlaceholder: "اكتب اسم خاصية (مثال: quantity، temperature، pool)…",
+    valuePlaceholder: "اكتب قيمة خاصية (مثال: 42، true، \"Building-A\")…",
+    openInGraph: "فتح في الرسم البياني",
+    viewHistory: "عرض السجل",
+    historyLink: "السجل",
+    via: "عبر {{source}}",
+    historyOf: "السجل:",
+    noHistory: "لا يوجد سجل إصدارات (لم تتغيّر الخاصية منذ إنشائها).",
+    noMatch: "لا توجد خصائص تطابق \"{{query}}\".",
+    loadHistoryFailed: "تعذّر تحميل السجل",
+    historyThingsOnly: "السجل الزمني متاح فقط لخصائص الأشياء",
+    matchCount_one: "{{count}} مطابقة",
+    matchCount_other: "{{count}} مطابقات",
+    matchCount_zero: 'لا مطابقات',
+    matchCount_two: 'مطابقتان',
+    matchCount_few: '{{count}} مطابقات',
+    matchCount_many: '{{count}} مطابقة',
+    acrossNames_one: "عبر {{count}} اسم خاصية",
+    acrossNames_other: "عبر {{count}} أسماء خصائص",
+    acrossNames_zero: 'عبر {{count}} اسم خاصية',
+    acrossNames_two: 'عبر اسمَي خاصية',
+    acrossNames_few: 'عبر {{count}} أسماء خصائص',
+    acrossNames_many: 'عبر {{count}} اسم خاصية',
+    inheritedFrom: "موروث من {{source}}",
+  },
+  entityDetail: {
+    noDerivedStates: "لا حالات مُشتقّة",
+    inMemoryHistory: "سجل في الذاكرة — منذ {{time}}. لا يتم الاحتفاظ بالتغييرات الأقدم.",
+    none: "لا شيء.",
+    spread: "توزيع كل اللوحات",
+    close: "إغلاق",
+    derivedStates: "الحالات المُشتقّة",
+    details: "التفاصيل",
+    properties: "الخصائص",
+    noProperties: "لا توجد خصائص.",
+    relations: "العلاقات",
+    handlingHistory: "سجل المعالجة",
+    loading: "جارٍ التحميل…",
+    stateHistoryUnavailable: "سجل الحالات غير متاح — لا يوجد محرك تفاعلي نشط لهذا النموذج.",
+    noStateChanges: "لم يُسجَّل أي تغيير في الحالة.",
+  },
+  panels: {
+    node: {
+      refreshRanges: "تحديث النطاقات",
+      tabRanges: "النطاقات",
+      tabProperties: "الخصائص",
+      tabRelationships: "العلاقات",
+      own: "الذاتية ({{count}})",
+      inherited: "الموروثة ({{count}})",
+      editProperties: "تحرير الخصائص",
+      exitEditMode: "الخروج من وضع التحرير",
+      editRelationshipProperties: "تحرير خصائص العلاقة",
+      logicalNodes: "العُقد المنطقية ({{count}})",
+      hideInGraph: "إخفاء في الرسم البياني",
+      showInGraph: "إظهار في الرسم البياني",
+      shown: "ظاهر",
+      hidden: "مخفي",
+      navigateTo: "الانتقال إلى {{name}}",
+      loading3D: "جارٍ تحميل النموذج ثلاثي الأبعاد…",
+      copyValue: "نسخ القيمة",
+      close: "إغلاق",
+      idCopied: "تم نسخ المعرّف",
+      valueCopied: "تم نسخ القيمة",
+    },
+    edge: {
+      subject: "الفاعل",
+      predicate: "المسند",
+      target: "الهدف",
+      openDetail: "فتح تفاصيل الحافة",
+      rangesTab: "النطاقات",
+      propertiesTab: "الخصائص ({{count}})",
+      deleteRelationship: "حذف العلاقة",
+    },
+    props: {
+      none: "لا توجد خصائص",
+      viewFullValue: "عرض القيمة الكاملة",
+      addProperty: "إضافة خاصية",
+      deleteProperty: "حذف الخاصية",
+      namePlaceholder: "الاسم",
+      valuePlaceholder: "القيمة",
+      setToast: "تم التعيين {{name}} = {{value}}",
+      savedToast: "{{name}} = {{value}}",
+      addFailed: "تعذّرت إضافة الخاصية",
+      saveFailed: "فشل الحفظ",
+    },
+    name: {
+      thingName: "اسم الشيء",
+      rename: "إعادة تسمية",
+      renamed: "تمت إعادة التسمية",
+      renameFailed: "تعذّرت إعادة التسمية",
+    },
+    rel: {
+      openEdgeDetail: "فتح تفاصيل الحافة",
+      outgoing: "صادرة",
+      incoming: "واردة",
+    },
+    retype: {
+      replaceWhich: "استبدال أي نوع…",
+      newArchetype: "نموذج أصلي جديد…",
+      retype: "إعادة التصنيف",
+      heading: "إعادة التصنيف — تغيير نوع (حافة is):",
+      retyped: "تمت إعادة التصنيف",
+      retypeFailed: "تعذّرت إعادة التصنيف",
+    },
+    addRel: {
+      predicatePlaceholder: "المسند…",
+      createRelationship: "إنشاء علاقة",
+      targetPlaceholder: "الهدف…",
+      subjectPlaceholder: "الفاعل…",
+      created: "تم إنشاء العلاقة",
+      createFailed: "تعذّر إنشاء العلاقة",
+    },
+    delete: {
+      deleteRetract: "حذف (سحب من النموذج)",
+    },
+    ranges: {
+      noRangeData: "لا تتوفّر بيانات نطاق",
+      currentStates: "الحالات الحالية ({{count}})",
+      noActiveStates: "لا حالات نشطة",
+      ownRanges: "النطاقات الذاتية ({{count}})",
+      noOwnRanges: "لا نطاقات ذاتية",
+      inheritedRanges: "النطاقات الموروثة",
+      relationshipRanges: "نطاقات العلاقة ({{count}})",
+      from: "من {{source}}",
+      outOfBounds: "خارج الحدود",
+      oob: "{{count}} خ.ح",
+      error: "خطأ",
+      active: "نشط",
+      inactive: "غير نشط",
+      when: "عندما {{criteria}}",
+      off: "(انحراف {{delta}})",
+      addRange: "إضافة نطاق",
+      name: "الاسم",
+      namePlaceholder: "مثال: ارتفاع الحرارة",
+      criteria: "المعايير",
+      criteriaPlaceholder: "مثال: temp > 100 AND rpm < 5000",
+      create: "إنشاء",
+      deleteRange: "حذف النطاق \"{{name}}\"",
+      rangeCreated: "تم إنشاء النطاق \"{{name}}\"",
+      rangeDeleted: "تم حذف النطاق \"{{name}}\"",
+      invalidCriteria: "صيغة المعايير غير صالحة",
+      createRangeFailed: "تعذّر إنشاء النطاق",
+      bindingsOutOfBounds_one: "{{count}} ربط خارج الحدود",
+      bindingsOutOfBounds_other: "{{count}} روابط خارج الحدود",
+      bindingsOutOfBounds_zero: 'لا روابط خارج الحدود',
+      bindingsOutOfBounds_two: 'رابطان خارج الحدود',
+      bindingsOutOfBounds_few: '{{count}} روابط خارج الحدود',
+      bindingsOutOfBounds_many: '{{count}} رابطًا خارج الحدود',
+      activeBindings_one: "{{count}} ربط",
+      activeBindings_other: "{{count}} روابط",
+      activeBindings_zero: 'لا روابط',
+      activeBindings_two: 'رابطان',
+      activeBindings_few: '{{count}} روابط',
+      activeBindings_many: '{{count}} رابطًا',
+    },
+  },
+  pipeline: {
+    new: "جديد",
+    undo: "تراجع",
+    undoTitle: "تراجع (Ctrl/Cmd+Z)",
+    name: "اسم خط المعالجة",
+    newPipelineName: "خط معالجة جديد",
+    save: "حفظ",
+    cancel: "إلغاء",
+    run: "تشغيل",
+    loadPipeline: "تحميل خط معالجة…",
+    history: "السجل…",
+    runHistory: "سجل التشغيل",
+    unsavedChanges: "تغييرات غير محفوظة",
+    saved: "محفوظ",
+    params: "المعاملات",
+    closeInspector: "إغلاق المفتّش",
+    ports: "المنافذ ({{direction}}):",
+    outputs: "المخرجات",
+    inputs: "المدخلات",
+    portName: "اسم المنفذ {{index}}",
+    removePort: "إزالة المنفذ {{name}}",
+    addPort: "+ إضافة منفذ",
+    noInputPorts: "لا توجد منافذ إدخال.",
+    bindInput: "اربط مدخلًا بمعامل تشغيل:",
+    wired: "موصول",
+    fromParam: "من معامل…",
+    wire: "توصيل",
+    mapField: "عيّن حقلًا (فارغ = الحمولة كاملة):",
+    fromPath: "المسار-المصدر",
+    toPath: "المسار-الهدف",
+    wireFromPath: "توصيل المسار-المصدر",
+    wireToPath: "توصيل المسار-الهدف",
+    wireTransform: "تحويل التوصيل",
+    transformLabel: "التحويل (JSONata، اختياري):",
+    startTitle: "ابدأ خط معالجة جديدًا",
+    noServicesTitle: "لا توجد خدمات متاحة",
+    starting: "جارٍ البدء",
+    pending: "قيد الانتظار",
+    runLabel: "تشغيل",
+    incompatibleWire: "توصيل غير متوافق: {{from}} ← {{to}}",
+    saveFailed: "فشل الحفظ.",
+    runFailed: "فشل التشغيل.",
+    cancelFailed: "فشل الإلغاء.",
+    issues_one: "{{count}} مشكلة",
+    issues_other: "{{count}} مشكلات",
+    issues_zero: 'لا مشكلات',
+    issues_two: 'مشكلتان',
+    issues_few: '{{count}} مشكلات',
+    issues_many: '{{count}} مشكلة',
+    runStatus: "التشغيل {{status}}",
+    nodeStatus: "{{label}}: {{status}}",
+    boundaryInput: "إدخال",
+    boundaryOutput: "إخراج",
+    wireLabel: "توصيل · {{from}} ← {{to}}",
+    startBody: "انقر على خدمة في لوحة الخدمات على اليسار لإسقاط أول عقدة، ثم اسحب بين المنافذ لتوصيلها.",
+    noServicesBody: "حمّل نموذجًا يحتوي على اتصالات مُسجّلة (مثل بذرة العرض التوضيحي لخط المعالجة) — تظهر في اللوحة كعُقد يمكنك إضافتها.",
+    servicesWord: "الخدمات",
+    connectionsWord: "الاتصالات",
+  },
+  viewerToolbar: {
+    sectionHeight: "ارتفاع المقطع",
+  },
+  operationsPage: {
+    noDashboard: "لا توجد لوحة معلومات مُهيّأة",
+    noDashboardBody: "لا يُعرّف هذا النموذج أي إعداد <0>Dashboard</0>. أضِف Thing من النموذج الأصلي <1>Dashboard</1> بخاصية <2>spec</2> لتشغيل هذه الصفحة.",
+  },
+  palette: {
+    inputTitle: "مدخل خط المعالجة — من البداية",
+    outputTitle: "مخرج خط المعالجة — في النهاية",
+    noConnections: "لا توجد اتصالات في النموذج. حمّل بذرة خط المعالجة.",
+    input: "إدخال",
+    output: "إخراج",
+    boundary: "الحدود",
+    services: "الخدمات",
+    portCount_one: "{{count}} منفذ",
+    portCount_other: "{{count}} منافذ",
+    portCount_zero: "لا منافذ",
+    portCount_two: "منفذان",
+    portCount_few: "{{count}} منافذ",
+    portCount_many: "{{count}} منفذًا",
+  },
+  ifcUpload: {
+    ingested: "تم استيراد {{file}}: {{created}} منشأة، {{updated}} محدّثة، {{rels}} علاقات.",
+    ingestFailed: "فشل الاستيراد.",
+    ingesting: "جارٍ الاستيراد…",
+    ingest: "استيراد ملف IFC",
+    replaceModel: "استبدال النموذج الحالي (نموذج جديد)",
+    dragHint: "…أو اسحب ملف ‎.ifc إلى هنا",
+    configureHint: "عيّن <0>VITE_INGEST_URL</0> لتفعيل استيراد IFC داخل التطبيق، أو استورد من واجهة الأوامر باستخدام <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
 };

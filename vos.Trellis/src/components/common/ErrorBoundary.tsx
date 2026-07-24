@@ -1,4 +1,5 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
+import i18n from '../../i18n';
 
 interface Props {
   children: ReactNode;
@@ -31,10 +32,10 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
       return (
         <div className="p-6 m-4 bg-red-950 border border-red-800 rounded-lg text-red-200 overflow-auto max-h-[80vh]">
-          <h2 className="text-lg font-bold text-red-400 mb-2">Something went wrong</h2>
+          <h2 className="text-lg font-bold text-red-400 mb-2">{i18n.t('errorBoundary.title')}</h2>
           <p className="mb-4 font-mono text-sm text-red-300">{this.state.error?.message}</p>
           <details className="text-xs">
-            <summary className="cursor-pointer text-red-400 hover:text-red-300 mb-2">Stack trace</summary>
+            <summary className="cursor-pointer text-red-400 hover:text-red-300 mb-2">{i18n.t('errorBoundary.stackTrace')}</summary>
             <pre className="whitespace-pre-wrap text-red-400/80">
               {this.state.error?.stack}
             </pre>
@@ -48,7 +49,7 @@ export class ErrorBoundary extends Component<Props, State> {
             onClick={() => this.setState({ hasError: false, error: null, errorInfo: null })}
             className="mt-4 px-3 py-1.5 bg-red-800 hover:bg-red-700 rounded text-sm text-red-200 transition-colors"
           >
-            Try again
+            {i18n.t('errorBoundary.tryAgain')}
           </button>
         </div>
       );

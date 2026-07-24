@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Copy, Pencil, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { EditablePropertyList } from './EditablePropertyList';
 import { RelationshipList } from './RelationshipList';
@@ -17,6 +18,12 @@ import { canSupport3D } from '../../utils/browserDetect';
 const BuildingDetail3D = lazy(() => import('../three/BuildingDetail3D'));
 import type { ChildElement } from '../three/BuildingDetail3D';
 
+const TAB_LABEL_KEYS = {
+  ranges: 'panels.node.tabRanges',
+  properties: 'panels.node.tabProperties',
+  relationships: 'panels.node.tabRelationships',
+} as const;
+
 interface Props {
   thing: VosThing;
   relationships: VosRelationship[];
@@ -31,6 +38,7 @@ interface Props {
 }
 
 export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSelectNode, onDeleteProperty, onDeleteThing, onPropertySet, onRenamed, statesVersion }: Props) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<'properties' | 'relationships' | 'ranges' | '3d'>('ranges');
   const [effectiveProps, setEffectiveProps] = useState<Record<string, EffectiveProperty> | null>(null);
   const [expandedValue, setExpandedValue] = useState<{ name: string; value: string } | null>(null);
@@ -108,7 +116,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
 
   const copyId = () => {
     navigator.clipboard.writeText(thing.Id);
-    toast.info('ID copied');
+    toast.info(t('panels.node.idCopied'));
   };
 
   return (
@@ -129,15 +137,15 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
       </div>
 
       <div className="flex items-center border-b border-zinc-200 dark:border-zinc-700">
-        {(['ranges', 'properties', 'relationships'] as const).map((t) => (
+        {(['ranges', 'properties', 'relationships'] as const).map((tabKey) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 px-2 py-1.5 text-xs font-medium capitalize ${
-              tab === t ? 'text-blue-500 border-b-2 border-blue-500' : 'text-zinc-500 hover:text-zinc-300'
+            key={tabKey}
+            onClick={() => setTab(tabKey)}
+            className={`flex-1 px-2 py-1.5 text-xs font-medium ${
+              tab === tabKey ? 'text-blue-500 border-b-2 border-blue-500' : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            {t}
+            {t(TAB_LABEL_KEYS[tabKey])}
           </button>
         ))}
         {show3DTab && (
@@ -154,7 +162,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
           <button
             onClick={refreshRanges}
             className="px-1.5 py-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 rounded transition-colors"
-            title="Refresh ranges"
+            title={t('panels.node.refreshRanges')}
           >
             <RefreshCw size={12} />
           </button>
@@ -166,7 +174,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
           <div className="space-y-3">
             <div className="space-y-1">
               <div className="flex items-center justify-between mb-1">
-                <h4 className="text-xs font-semibold text-zinc-500">Own ({props.length})</h4>
+                <h4 className="text-xs font-semibold text-zinc-500">{t('panels.node.own', { count: props.length })}</h4>
                 <button
                   onClick={() => setEditMode((v) => !v)}
                   className={`p-0.5 rounded transition-colors ${
@@ -174,7 +182,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
                       ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
                       : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
                   }`}
-                  title={editMode ? 'Exit edit mode' : 'Edit properties'}
+                  title={editMode ? t('panels.node.exitEditMode') : t('panels.node.editProperties')}
                 >
                   <Pencil size={12} />
                 </button>
@@ -212,7 +220,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
                     ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
                 }`}
-                title={relEditMode ? 'Exit edit mode' : 'Edit relationship properties'}
+                title={relEditMode ? t('panels.node.exitEditMode') : t('panels.node.editRelationshipProperties')}
               >
                 <Pencil size={12} />
               </button>
@@ -251,7 +259,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
           <Suspense
             fallback={
               <div className="h-64 flex items-center justify-center text-zinc-500 text-sm">
-                Loading 3D...
+                {t('panels.node.loading3D')}
               </div>
             }
           >
@@ -273,17 +281,17 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(expandedValue.value);
-                  toast.info('Value copied');
+                  toast.info(t('panels.node.valueCopied'));
                 }}
                 className="text-zinc-400 hover:text-zinc-200 p-1"
-                title="Copy value"
+                title={t('panels.node.copyValue')}
               >
                 <Copy size={14} />
               </button>
               <button
                 onClick={() => setExpandedValue(null)}
                 className="text-zinc-400 hover:text-zinc-200 p-1"
-                title="Close"
+                title={t('panels.node.close')}
               >
                 <X size={14} />
               </button>
@@ -316,6 +324,7 @@ function CollapsiblePropertyGroup({ label, count, onNavigate, expanded, onToggle
   onExpandValue: (name: string, value: string) => void;
   className?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div className={className}>
       <div className="flex items-center gap-1">
@@ -325,7 +334,7 @@ function CollapsiblePropertyGroup({ label, count, onNavigate, expanded, onToggle
         <button
           onClick={onNavigate}
           className="text-[11px] text-amber-400/80 hover:text-amber-400 hover:underline truncate"
-          title={`Navigate to ${label}`}
+          title={t('panels.node.navigateTo', { name: label })}
         >
           {label}
         </button>
@@ -359,6 +368,7 @@ function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, o
   entityId: string;
   onSaved?: () => void;
 }) {
+  const { t } = useTranslation();
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   // Every property resolved through an "is" chain is inherited, whether or not this thing overrode it.
   // The backend tags each effective property with its provenance; own properties are excluded here and
@@ -384,7 +394,7 @@ function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, o
 
   return (
     <div className="space-y-2">
-      <h4 className="text-xs font-semibold text-zinc-500 mb-1">Inherited ({inherited.length})</h4>
+      <h4 className="text-xs font-semibold text-zinc-500 mb-1">{t('panels.node.inherited', { count: inherited.length })}</h4>
       {[...bySource.entries()].map(([sourceId, { name: sourceName, props }]) => (
         <CollapsiblePropertyGroup
           key={sourceId}
@@ -414,6 +424,7 @@ function LogicalChildrenSection({ thingId, relationships, allThings, hasGeometry
   hasGeometry: boolean;
   onSelectNode: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   const expandedLogicalParents = useUiStore((s) => s.expandedLogicalParents);
   const toggleLogicalExpansion = useUiStore((s) => s.toggleLogicalExpansion);
 
@@ -444,7 +455,7 @@ function LogicalChildrenSection({ thingId, relationships, allThings, hasGeometry
     <div>
       <div className="flex items-center justify-between mb-1">
         <h4 className="text-xs font-semibold text-zinc-500">
-          Logical Nodes ({logicalChildren.length})
+          {t('panels.node.logicalNodes', { count: logicalChildren.length })}
         </h4>
         <button
           onClick={() => toggleLogicalExpansion(thingId)}
@@ -453,10 +464,10 @@ function LogicalChildrenSection({ thingId, relationships, allThings, hasGeometry
               ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30'
               : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
           }`}
-          title={expandedLogicalParents.has(thingId) ? 'Hide in graph' : 'Show in graph'}
+          title={expandedLogicalParents.has(thingId) ? t('panels.node.hideInGraph') : t('panels.node.showInGraph')}
         >
           {expandedLogicalParents.has(thingId) ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-          {expandedLogicalParents.has(thingId) ? 'Shown' : 'Hidden'}
+          {expandedLogicalParents.has(thingId) ? t('panels.node.shown') : t('panels.node.hidden')}
         </button>
       </div>
       {logicalChildren.map((child) => (

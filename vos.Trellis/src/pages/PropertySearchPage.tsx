@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
@@ -42,6 +43,7 @@ function highlightMatch(text: string, query: string) {
 type SearchMode = 'name' | 'value';
 
 export function PropertySearchPage() {
+  const { t } = useTranslation();
   const [inputValue, setInputValue] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -167,7 +169,7 @@ export function PropertySearchPage() {
 
   const loadHistory = useCallback(async (match: PropertyMatch) => {
     if (match.ownerType !== 'thing') {
-      toast.error('Temporal history is only available for thing properties');
+      toast.error(t('propertySearch.historyThingsOnly'));
       return;
     }
     setHistoryTarget(match);
@@ -177,11 +179,11 @@ export function PropertySearchPage() {
       const data = await temporalApi.getPropertyVersions(match.ownerId, match.propertyName);
       setVersions(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load history');
+      toast.error(err instanceof Error ? err.message : t('propertySearch.loadHistoryFailed'));
     } finally {
       setLoadingHistory(false);
     }
-  }, []);
+  }, [t]);
 
   const buildMarkdown = useCallback(() => {
     const g = new Map<string, PropertyMatch[]>();
@@ -209,10 +211,10 @@ export function PropertySearchPage() {
   const copyAsMarkdown = useCallback(() => {
     if (results.length === 0) return;
     navigator.clipboard.writeText(buildMarkdown()).then(
-      () => toast.success('Copied to clipboard'),
-      () => toast.error('Failed to copy'),
+      () => toast.success(t('common.copiedToClipboard')),
+      () => toast.error(t('common.copyFailed')),
     );
-  }, [results, buildMarkdown]);
+  }, [results, buildMarkdown, t]);
 
   const downloadAsMarkdown = useCallback(() => {
     if (results.length === 0) return;
@@ -234,11 +236,11 @@ export function PropertySearchPage() {
 
   return (
     <div className="h-full overflow-auto p-6">
-      <h2 className="text-xl font-bold mb-4">Property Search</h2>
+      <h2 className="text-xl font-bold mb-4">{t('propertySearch.title')}</h2>
 
       <div className="space-y-4">
         <p className="text-xs text-zinc-500">
-          Search for properties by {searchMode === 'name' ? 'name' : 'value'} across all things and relationships. Partial matches are supported.
+          {searchMode === 'name' ? t('propertySearch.introByName') : t('propertySearch.introByValue')}
         </p>
 
         {/* Search mode toggle */}
@@ -252,7 +254,7 @@ export function PropertySearchPage() {
                 : 'border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500',
             )}
           >
-            By Name
+            {t('propertySearch.byName')}
           </button>
           <button
             onClick={() => setSearchMode('value')}
@@ -263,7 +265,7 @@ export function PropertySearchPage() {
                 : 'border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500',
             )}
           >
-            By Value
+            {t('propertySearch.byValue')}
           </button>
         </div>
 
@@ -273,8 +275,8 @@ export function PropertySearchPage() {
           value={inputValue}
           onChange={(e) => onInputChange(e.target.value)}
           placeholder={searchMode === 'name'
-            ? 'Type a property name (e.g. quantity, temperature, pool)...'
-            : 'Type a property value (e.g. 42, true, "Building-A")...'}
+            ? t('propertySearch.namePlaceholder')
+            : t('propertySearch.valuePlaceholder')}
           autoFocus
           className="w-full px-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-zinc-400"
         />
@@ -283,8 +285,8 @@ export function PropertySearchPage() {
         {debouncedQuery.trim().length > 0 && (
           <div className="flex items-center justify-between">
             <p className="text-xs text-zinc-500">
-              {results.length} match{results.length !== 1 ? 'es' : ''} across {grouped.size} property name{grouped.size !== 1 ? 's' : ''}
-              {hasMore && ` (showing first ${shownTotal})`}
+              {t('propertySearch.matchCount', { count: results.length })} {t('propertySearch.acrossNames', { count: grouped.size })}
+              {hasMore && ` (${t('common.showingFirst', { count: shownTotal })})`}
             </p>
             {results.length > 0 && (
               <div className="flex gap-2">
@@ -292,13 +294,13 @@ export function PropertySearchPage() {
                   onClick={copyAsMarkdown}
                   className="px-3 py-1 text-xs rounded-md border border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
                 >
-                  Copy as Markdown
+                  {t('common.copyAsMarkdown')}
                 </button>
                 <button
                   onClick={downloadAsMarkdown}
                   className="px-3 py-1 text-xs rounded-md border border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
                 >
-                  Download as Markdown
+                  {t('common.downloadAsMarkdown')}
                 </button>
               </div>
             )}
@@ -337,7 +339,7 @@ export function PropertySearchPage() {
                         <button
                           onClick={() => goToGraph(m)}
                           className="text-blue-400 hover:underline flex-shrink-0"
-                          title="Open in Graph"
+                          title={t('propertySearch.openInGraph')}
                         >
                           {m.ownerName}
                         </button>
@@ -349,8 +351,8 @@ export function PropertySearchPage() {
 
                       {/* Inherited badge */}
                       {m.inheritedFrom && (
-                        <span className="text-[10px] text-emerald-500 flex-shrink-0" title={`Inherited from ${m.inheritedFrom}`}>
-                          via {m.inheritedFrom}
+                        <span className="text-[10px] text-emerald-500 flex-shrink-0" title={t('propertySearch.inheritedFrom', { source: m.inheritedFrom })}>
+                          {t('propertySearch.via', { source: m.inheritedFrom })}
                         </span>
                       )}
 
@@ -367,9 +369,9 @@ export function PropertySearchPage() {
                         <button
                           onClick={() => loadHistory(m)}
                           className="ml-auto text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                          title="View history"
+                          title={t('propertySearch.viewHistory')}
                         >
-                          history
+                          {t('propertySearch.historyLink')}
                         </button>
                       )}
                     </div>
@@ -379,7 +381,7 @@ export function PropertySearchPage() {
             ))}
 
             {results.length === 0 && (
-              <p className="text-sm text-zinc-500">No properties match "{debouncedQuery}".</p>
+              <p className="text-sm text-zinc-500">{t('propertySearch.noMatch', { query: debouncedQuery })}</p>
             )}
 
             {hasMore && (
@@ -387,7 +389,7 @@ export function PropertySearchPage() {
                 onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
                 className="w-full py-2 text-sm text-blue-400 hover:text-blue-300 border border-zinc-700 rounded-md"
               >
-                Show more ({results.length - shownTotal} remaining)
+                {t('common.showMore', { count: results.length - shownTotal })}
               </button>
             )}
           </div>
@@ -397,12 +399,12 @@ export function PropertySearchPage() {
         {historyTarget && (
           <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 mt-4">
             <h3 className="text-sm font-semibold mb-2">
-              History: <span className="text-amber-400 font-mono">{historyTarget.propertyName}</span>
-              {' on '}
+              {t('propertySearch.historyOf')} <span className="text-amber-400 font-mono">{historyTarget.propertyName}</span>
+              {' '}{t('temporal.on')}{' '}
               <span className="text-blue-400">{historyTarget.ownerName}</span>
             </h3>
             {loadingHistory ? (
-              <p className="text-xs text-zinc-500">Loading...</p>
+              <p className="text-xs text-zinc-500">{t('common.loading')}</p>
             ) : versions ? (
               <div className="space-y-1">
                 {versions.Versions.length > 0 ? (
@@ -415,7 +417,7 @@ export function PropertySearchPage() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-zinc-500">No version history (property has not changed since creation).</p>
+                  <p className="text-xs text-zinc-500">{t('propertySearch.noHistory')}</p>
                 )}
               </div>
             ) : null}

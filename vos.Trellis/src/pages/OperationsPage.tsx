@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { useModelStore } from '../stores/modelStore';
 import { useSse } from '../hooks/useSse';
 import { useResolveContext } from '../hooks/useDashboard';
@@ -61,7 +61,7 @@ export function OperationsPage() {
   const dashboards = useMemo(() => discoverDashboardsFromIndex(idx), [idx]);
   const [selected, setSelected] = useState(0);
   const dashboard = dashboards[Math.min(selected, Math.max(0, dashboards.length - 1))];
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const spec = useMemo(
     () => (dashboard ? localizeSpec(dashboard.spec, i18n.language) : undefined),
     [dashboard, i18n.language],
@@ -99,18 +99,23 @@ export function OperationsPage() {
   const { openDetail, windows } = useDetailWindows(idx, spec?.detail, nonce);
 
   if (!loaded) {
-    return <Centered>Loading model…</Centered>;
+    return <Centered>{t('modelPage.loading')}</Centered>;
   }
   if (!spec) {
     return (
       <Centered>
         <div className="max-w-md text-center">
           <LayoutDashboard className="mx-auto mb-3 text-zinc-300 dark:text-zinc-600" size={40} />
-          <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1">No dashboard configured</h2>
+          <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1">{t('operationsPage.noDashboard')}</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            This model defines no <code className="font-mono text-xs">Dashboard</code> config. Add a Thing of archetype{' '}
-            <code className="font-mono text-xs">Dashboard</code> with a <code className="font-mono text-xs">spec</code> property to
-            drive this page.
+            <Trans
+              i18nKey="operationsPage.noDashboardBody"
+              components={[
+                <code className="font-mono text-xs" />,
+                <code className="font-mono text-xs" />,
+                <code className="font-mono text-xs" />,
+              ]}
+            />
           </p>
         </div>
       </Centered>

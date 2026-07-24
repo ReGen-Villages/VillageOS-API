@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ReactFlow,
   Background,
@@ -56,6 +57,7 @@ function pathLabel(fromPath?: string, toPath?: string, transform?: string): stri
 }
 
 export function PipelinePage() {
+  const { t } = useTranslation();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   const model = useMemo(() => new PipelineModel(things, relationships), [things, relationships]);
@@ -67,7 +69,7 @@ export function PipelinePage() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [name, setName] = useState('New Pipeline');
+  const [name, setName] = useState(() => t('pipeline.newPipelineName'));
   const [savedId, setSavedId] = useState<string | null>(null);
   // The persistent id of the pipeline being edited — kept across edits (which clear savedId to mark the
   // canvas dirty) so a save UPDATES the loaded pipeline in place instead of forking a duplicate (#5826).
@@ -197,7 +199,7 @@ export function PipelinePage() {
     recordSnapshot();
     const direction = kind === 'input' ? 'out' : 'in';
     const data: PipelineNodeData = {
-      label: kind === 'input' ? 'Input' : 'Output',
+      label: kind === 'input' ? t('pipeline.boundaryInput') : t('pipeline.boundaryOutput'),
       kind,
       ports: [{ portName: 'value', direction, type: 'any', required: kind === 'output' }],
     };
@@ -211,7 +213,7 @@ export function PipelinePage() {
       },
     ]);
     setSavedId(null);
-  }, [setNodes, recordSnapshot]);
+  }, [setNodes, recordSnapshot, t]);
 
   // Add / rename / remove a port on a boundary node (its ports are user-declared). Direction is fixed by the
   // node kind (Input → output ports, Output → input ports).
@@ -229,14 +231,14 @@ export function PipelinePage() {
     const inPort = tgt?.ports.find((p) => p.portName === c.targetHandle && p.direction === 'in');
     if (!outPort || !inPort) return;
     if (!typesCompatible(outPort.type, inPort.type)) {
-      setError(`Incompatible wire: ${outPort.type || 'any'} → ${inPort.type || 'any'}`);
+      setError(t('pipeline.incompatibleWire', { from: outPort.type || 'any', to: inPort.type || 'any' }));
       return;
     }
     setError(null);
     recordSnapshot();
     setEdges((es) => addEdge(c, es));
     setSavedId(null);
-  }, [nodes, setEdges, recordSnapshot]);
+  }, [nodes, setEdges, recordSnapshot, t]);
 
   const toEditorNodes = (): EditorNode[] =>
     nodes.map((n) => {
@@ -271,7 +273,7 @@ export function PipelinePage() {
       setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined, progress: undefined } })));
       commitBaseline(attempt); // the saved canvas is the new baseline; undo history clears
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed.');
+      setError(e instanceof Error ? e.message : t('pipeline.saveFailed'));
       // Revert to the last server-confirmed state, if we have one (a never-saved canvas keeps the user's work).
       const target = historyRef.current.rollbackTarget();
       if (target) {
@@ -284,7 +286,7 @@ export function PipelinePage() {
       setBusy(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, nodes, edges, model, editingPipelineId, commitBaseline, applySnapshot]);
+  }, [name, nodes, edges, model, editingPipelineId, commitBaseline, applySnapshot, t]);
 
   const onLoad = useCallback((pipelineId: string) => {
     const loaded = loadPipeline(pipelineId, model);
@@ -310,14 +312,14 @@ export function PipelinePage() {
   const onNew = useCallback(() => {
     setNodes([]);
     setEdges([]);
-    setName('New Pipeline');
+    setName(t('pipeline.newPipelineName'));
     setSavedId(null);
     setEditingPipelineId(null);
     setRunId(null);
     setThingIdByCanvasId({});
     setError(null);
     commitBaseline({ nodes: [], edges: [] }); // empty canvas is the floor; nothing to undo/roll back to
-  }, [setNodes, setEdges, commitBaseline]);
+  }, [setNodes, setEdges, commitBaseline, t]);
 
   const onRun = useCallback(async () => {
     if (!savedId) return;
@@ -331,9 +333,9 @@ export function PipelinePage() {
       const accepted = await pipelineApi.spawnAsync(savedId, params);
       setRunId(accepted.runId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Run failed.');
+      setError(e instanceof Error ? e.message : t('pipeline.runFailed'));
     }
-  }, [savedId, setNodes, paramKeys, runParamValues]);
+  }, [savedId, setNodes, paramKeys, runParamValues, t]);
 
   // Bind (or clear) an input port of a node to a run-param key.
   const setBinding = useCallback((nodeId: string, port: string, paramKey: string) => {
@@ -354,9 +356,9 @@ export function PipelinePage() {
     try {
       await pipelineApi.cancel(runId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Cancel failed.');
+      setError(e instanceof Error ? e.message : t('pipeline.cancelFailed'));
     }
-  }, [runId]);
+  }, [runId, t]);
 
   // Record once at the start of a node drag (not per position tick), and before a delete — so undo restores
   // the pre-move / pre-delete canvas. Deletes also mark the canvas dirty relative to the last save.
@@ -403,29 +405,29 @@ export function PipelinePage() {
       <div className="flex-1 flex flex-col">
         <div className="flex items-center gap-2 p-2 border-b border-zinc-200 dark:border-zinc-700">
           <button onClick={onNew} className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400">
-            <FilePlus size={14} /> New
+            <FilePlus size={14} /> {t('pipeline.new')}
           </button>
           <button
             onClick={onUndo}
             disabled={!canUndo}
-            title="Undo (Ctrl/Cmd+Z)"
-            aria-label="Undo"
+            title={t('pipeline.undoTitle')}
+            aria-label={t('pipeline.undo')}
             className="flex items-center gap-1 px-3 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 hover:border-blue-400 disabled:opacity-40"
           >
-            <Undo2 size={14} /> Undo
+            <Undo2 size={14} /> {t('pipeline.undo')}
           </button>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            aria-label="Pipeline name"
+            aria-label={t('pipeline.name')}
             className="px-2 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
           />
           <button onClick={onSave} disabled={busy || nodes.length === 0} className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-50">
-            <Save size={14} /> Save
+            <Save size={14} /> {t('pipeline.save')}
           </button>
           {runActive ? (
             <button onClick={onCancel} className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-amber-600 text-white">
-              <Ban size={14} /> Cancel
+              <Ban size={14} /> {t('pipeline.cancel')}
             </button>
           ) : (
             <button
@@ -434,7 +436,7 @@ export function PipelinePage() {
               title={validationIssues.length > 0 ? validationIssues.map((i) => i.message).join('\n') : undefined}
               className="flex items-center gap-1 px-3 py-1 text-sm rounded bg-green-600 text-white disabled:opacity-50"
             >
-              <Play size={14} /> Run
+              <Play size={14} /> {t('pipeline.run')}
             </button>
           )}
           {validationIssues.length > 0 && (
@@ -442,7 +444,7 @@ export function PipelinePage() {
               className="flex items-center gap-1 text-xs text-amber-600"
               title={validationIssues.map((i) => i.message).join('\n')}
             >
-              <AlertTriangle size={12} /> {validationIssues.length} issue{validationIssues.length === 1 ? '' : 's'}
+              <AlertTriangle size={12} /> {t('pipeline.issues', { count: validationIssues.length })}
             </span>
           )}
           <div className="flex items-center gap-1 ml-2">
@@ -452,7 +454,7 @@ export function PipelinePage() {
               value={savedId ?? ''}
               className="px-2 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
             >
-              <option value="">Load pipeline…</option>
+              <option value="">{t('pipeline.loadPipeline')}</option>
               {pipelines.map((p) => <option key={p.Id} value={p.Id}>{p.Name}</option>)}
             </select>
           </div>
@@ -462,28 +464,28 @@ export function PipelinePage() {
               <select
                 onChange={(e) => onSelectRun(e.target.value)}
                 value={runId && runs.some((r) => r.runId === runId) ? runId : ''}
-                aria-label="Run history"
+                aria-label={t('pipeline.runHistory')}
                 className="px-2 py-1 text-sm rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
               >
-                <option value="">History…</option>
+                <option value="">{t('pipeline.history')}</option>
                 {runs.map((r) => (
                   <option key={r.runId} value={r.runId}>
-                    {r.status || 'run'}{r.startedUtc ? ` · ${r.startedUtc.slice(11, 19)}` : ''}
+                    {r.status || t('pipeline.runLabel')}{r.startedUtc ? ` · ${r.startedUtc.slice(11, 19)}` : ''}
                   </option>
                 ))}
               </select>
             </div>
           )}
           {dirty ? (
-            <span className="text-xs text-amber-600">unsaved changes</span>
+            <span className="text-xs text-amber-600">{t('pipeline.unsavedChanges')}</span>
           ) : savedId ? (
-            <span className="text-xs text-green-600">saved</span>
+            <span className="text-xs text-green-600">{t('pipeline.saved')}</span>
           ) : null}
           {error && <span className="text-xs text-red-500 ml-2">{error}</span>}
         </div>
         {paramKeys.length > 0 && (
           <div className="flex items-center gap-3 px-2 py-1 border-b border-zinc-200 dark:border-zinc-700 text-xs">
-            <span className="text-zinc-500 flex items-center gap-1"><SlidersHorizontal size={12} /> Params</span>
+            <span className="text-zinc-500 flex items-center gap-1"><SlidersHorizontal size={12} /> {t('pipeline.params')}</span>
             {paramKeys.map((k) => (
               <label key={k} className="flex items-center gap-1">
                 <span className="font-mono text-zinc-600 dark:text-zinc-300">{k}</span>
@@ -524,22 +526,22 @@ export function PipelinePage() {
               <div className="absolute top-2 right-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
                 <div className="font-semibold mb-1.5 flex items-center justify-between gap-2">
                   <span className="truncate">{d.label}</span>
-                  <button onClick={() => setSelectedNodeId(null)} aria-label="Close inspector" className="text-zinc-400 hover:text-zinc-600">×</button>
+                  <button onClick={() => setSelectedNodeId(null)} aria-label={t('pipeline.closeInspector')} className="text-zinc-400 hover:text-zinc-600">×</button>
                 </div>
                 {d.kind ? (
                   <div className="flex flex-col gap-1">
-                    <div className="text-zinc-400">Ports ({d.kind === 'input' ? 'outputs' : 'inputs'}):</div>
+                    <div className="text-zinc-400">{t('pipeline.ports', { direction: d.kind === 'input' ? t('pipeline.outputs') : t('pipeline.inputs') })}</div>
                     {d.ports.map((p, i) => (
                       <div key={i} className="flex items-center gap-1">
                         <input
-                          aria-label={`Port ${i + 1} name`}
+                          aria-label={t('pipeline.portName', { index: i + 1 })}
                           value={p.portName}
                           onChange={(e) => setBoundaryPorts(selectedNode.id, d.ports.map((q, j) => (j === i ? { ...q, portName: e.target.value } : q)))}
                           className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
                         />
                         <button
                           onClick={() => setBoundaryPorts(selectedNode.id, d.ports.filter((_, j) => j !== i))}
-                          aria-label={`Remove port ${p.portName}`}
+                          aria-label={t('pipeline.removePort', { name: p.portName })}
                           className="text-zinc-400 hover:text-red-400 px-1"
                         >×</button>
                       </div>
@@ -547,21 +549,21 @@ export function PipelinePage() {
                     <button
                       onClick={() => setBoundaryPorts(selectedNode.id, [...d.ports, { portName: `port${d.ports.length + 1}`, direction: d.kind === 'input' ? 'out' : 'in', type: 'any', required: d.kind === 'output' }])}
                       className="mt-1 text-blue-500 hover:text-blue-600 text-left"
-                    >+ add port</button>
+                    >{t('pipeline.addPort')}</button>
                   </div>
                 ) : inputs.length === 0 ? (
-                  <div className="text-zinc-400">No input ports.</div>
+                  <div className="text-zinc-400">{t('pipeline.noInputPorts')}</div>
                 ) : (
                   <div className="flex flex-col gap-1">
-                    <div className="text-zinc-400">Bind an input to a run parameter:</div>
+                    <div className="text-zinc-400">{t('pipeline.bindInput')}</div>
                     {inputs.map((p) => (
                       <label key={p.portName} className="flex items-center gap-1">
                         <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{p.portName}</span>
                         {wired.has(p.portName) ? (
-                          <span className="flex-1 italic text-zinc-400">wired</span>
+                          <span className="flex-1 italic text-zinc-400">{t('pipeline.wired')}</span>
                         ) : (
                           <input
-                            placeholder="from param…"
+                            placeholder={t('pipeline.fromParam')}
                             value={bindings[p.portName] ?? ''}
                             onChange={(e) => setBinding(selectedNode.id, p.portName, e.target.value)}
                             className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
@@ -579,14 +581,14 @@ export function PipelinePage() {
             return (
               <div className="absolute top-2 right-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded shadow-lg p-2 text-xs z-10">
                 <div className="font-semibold mb-1.5 flex items-center justify-between gap-2">
-                  <span className="truncate">Wire · {selectedEdge.sourceHandle} → {selectedEdge.targetHandle}</span>
-                  <button onClick={() => setSelectedEdgeId(null)} aria-label="Close inspector" className="text-zinc-400 hover:text-zinc-600">×</button>
+                  <span className="truncate">{t('pipeline.wireLabel', { from: selectedEdge.sourceHandle, to: selectedEdge.targetHandle })}</span>
+                  <button onClick={() => setSelectedEdgeId(null)} aria-label={t('pipeline.closeInspector')} className="text-zinc-400 hover:text-zinc-600">×</button>
                 </div>
-                <div className="text-zinc-400 mb-1">Map a field (blank = whole payload):</div>
+                <div className="text-zinc-400 mb-1">{t('pipeline.mapField')}</div>
                 <label className="flex items-center gap-1 mb-1">
-                  <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">from-path</span>
+                  <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{t('pipeline.fromPath')}</span>
                   <input
-                    aria-label="Wire from-path"
+                    aria-label={t('pipeline.wireFromPath')}
                     placeholder="e.g. user.id"
                     value={data.fromPath ?? ''}
                     onChange={(e) => setEdgePath(selectedEdge.id, 'fromPath', e.target.value)}
@@ -594,18 +596,18 @@ export function PipelinePage() {
                   />
                 </label>
                 <label className="flex items-center gap-1">
-                  <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">to-path</span>
+                  <span className="w-16 truncate text-zinc-600 dark:text-zinc-300">{t('pipeline.toPath')}</span>
                   <input
-                    aria-label="Wire to-path"
+                    aria-label={t('pipeline.wireToPath')}
                     placeholder="e.g. a"
                     value={data.toPath ?? ''}
                     onChange={(e) => setEdgePath(selectedEdge.id, 'toPath', e.target.value)}
                     className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
                   />
                 </label>
-                <div className="text-zinc-400 mt-2 mb-1">Transform (JSONata, optional):</div>
+                <div className="text-zinc-400 mt-2 mb-1">{t('pipeline.transformLabel')}</div>
                 <textarea
-                  aria-label="Wire transform"
+                  aria-label={t('pipeline.wireTransform')}
                   placeholder='e.g. {"name": firstName & " " & lastName}'
                   value={data.transform ?? ''}
                   onChange={(e) => setEdgePath(selectedEdge.id, 'transform', e.target.value)}
@@ -621,13 +623,13 @@ export function PipelinePage() {
                 {connections.length > 0 ? (
                   <>
                     <MousePointerClick className="mx-auto mb-2 text-zinc-400" size={28} />
-                    <p className="font-medium text-zinc-600 dark:text-zinc-300">Start a new pipeline</p>
-                    <p className="mt-1">Click a service in the <span className="font-medium">Services</span> palette on the left to drop your first node, then drag between ports to wire them.</p>
+                    <p className="font-medium text-zinc-600 dark:text-zinc-300">{t('pipeline.startTitle')}</p>
+                    <p className="mt-1">{t('pipeline.startBody')}</p>
                   </>
                 ) : (
                   <>
-                    <p className="font-medium text-zinc-600 dark:text-zinc-300">No services available</p>
-                    <p className="mt-1">Load a model that has registered <span className="font-medium">Connections</span> (e.g. the pipeline demo seed) — they appear in the palette as nodes you can add.</p>
+                    <p className="font-medium text-zinc-600 dark:text-zinc-300">{t('pipeline.noServicesTitle')}</p>
+                    <p className="mt-1">{t('pipeline.noServicesBody')}</p>
                   </>
                 )}
               </div>
@@ -637,13 +639,13 @@ export function PipelinePage() {
         {runId && (
           <div className="border-t border-zinc-200 dark:border-zinc-700 p-2 text-xs max-h-40 overflow-auto">
             <div className={clsx('font-semibold', RUN_STATUS_COLOR[liveRunStatus ?? 'running'] ?? 'text-blue-600')}>
-              Run {liveRunStatus ?? 'starting'}{runActive ? '…' : ''}
+              {t('pipeline.runStatus', { status: liveRunStatus ?? t('pipeline.starting') })}{runActive ? '…' : ''}
             </div>
             {nodes.map((n) => {
               const d = n.data as unknown as PipelineNodeData;
               return (
                 <div key={n.id} className="font-mono">
-                  {d.label}: {d.status ?? 'pending'}
+                  {t('pipeline.nodeStatus', { label: d.label, status: d.status ?? t('pipeline.pending') })}
                 </div>
               );
             })}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { temporalApi } from '../api/temporalApi';
 import { modelApi } from '../api/modelApi';
 import { thingApi } from '../api/thingApi';
@@ -9,39 +10,40 @@ import { stateApi } from '../api/stateApi';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import clsx from 'clsx';
 
-const tabs = ['Mutations', 'Thing Mutations', 'Relationship Mutations', 'Snapshot', 'Property History', 'State Query'] as const;
-type Tab = typeof tabs[number];
+const TABS = ['mutations', 'thingMutations', 'relationshipMutations', 'snapshot', 'propertyHistory', 'stateQuery'] as const;
+type Tab = typeof TABS[number];
 
 export function TemporalPage() {
-  const [tab, setTab] = useState<Tab>('Mutations');
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<Tab>('mutations');
 
   return (
     <div className="h-full overflow-auto p-6">
-      <h2 className="text-xl font-bold mb-4">Temporal Queries</h2>
+      <h2 className="text-xl font-bold mb-4">{t('temporal.title')}</h2>
 
       <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-700 mb-6">
-        {tabs.map((t) => (
+        {TABS.map((key) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={key}
+            onClick={() => setTab(key)}
             className={clsx(
               'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
-              tab === t
+              tab === key
                 ? 'border-blue-500 text-blue-500'
                 : 'border-transparent text-zinc-500 hover:text-zinc-300',
             )}
           >
-            {t}
+            {t(`temporal.tabs.${key}`)}
           </button>
         ))}
       </div>
 
-      {tab === 'Mutations' && <MutationsPanel />}
-      {tab === 'Thing Mutations' && <ThingMutationsPanel />}
-      {tab === 'Relationship Mutations' && <RelationshipMutationsPanel />}
-      {tab === 'Snapshot' && <SnapshotPanel />}
-      {tab === 'Property History' && <PropertyHistoryPanel />}
-      {tab === 'State Query' && <StateQueryPanel />}
+      {tab === 'mutations' && <MutationsPanel />}
+      {tab === 'thingMutations' && <ThingMutationsPanel />}
+      {tab === 'relationshipMutations' && <RelationshipMutationsPanel />}
+      {tab === 'snapshot' && <SnapshotPanel />}
+      {tab === 'propertyHistory' && <PropertyHistoryPanel />}
+      {tab === 'stateQuery' && <StateQueryPanel />}
     </div>
   );
 }
@@ -49,6 +51,7 @@ export function TemporalPage() {
 // ─── Mutations Panel ────────────────────────────────────────────────────────
 
 function MutationsPanel() {
+  const { t } = useTranslation();
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [mutations, setMutations] = useState<ModelMutations | null>(null);
@@ -63,7 +66,7 @@ function MutationsPanel() {
       );
       setMutations(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load mutations');
+      toast.error(err instanceof Error ? err.message : t('temporal.toast.loadMutationsFailed'));
     } finally {
       setLoading(false);
     }
@@ -72,12 +75,11 @@ function MutationsPanel() {
   return (
     <div className="max-w-3xl space-y-4">
       <p className="text-xs text-zinc-500">
-        Show property value changes across the model. A mutation is recorded when a property value changes from one value to another.
-        Creating a thing or setting an initial property value is not a mutation.
+        {t('temporal.mutationsIntro')}
       </p>
       <div className="flex gap-3 items-end">
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Start Time</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
           <input
             type="datetime-local"
             value={startTime}
@@ -86,7 +88,7 @@ function MutationsPanel() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">End Time</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.endTime')}</label>
           <input
             type="datetime-local"
             value={endTime}
@@ -99,14 +101,14 @@ function MutationsPanel() {
           disabled={loading}
           className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Loading...' : 'Query'}
+          {loading ? t('common.loading') : t('common.query')}
         </button>
       </div>
 
       {mutations && (
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex justify-between text-sm mb-3">
-            <span className="text-zinc-500">Total Mutations: <strong className="text-zinc-200">{mutations.TotalMutations}</strong></span>
+            <span className="text-zinc-500">{t('temporal.totalMutations')}: <strong className="text-zinc-200">{mutations.TotalMutations}</strong></span>
             <span className="text-zinc-500 text-xs">
               {formatDateTime(mutations.StartTime)} — {formatDateTime(mutations.EndTime)}
             </span>
@@ -131,7 +133,7 @@ function MutationsPanel() {
               </div>
             ))}
             {Object.keys(mutations.ThingMutations).length === 0 && (
-              <p className="text-sm text-zinc-500">No mutations in this time range.</p>
+              <p className="text-sm text-zinc-500">{t('temporal.noMutations')}</p>
             )}
           </div>
         </div>
@@ -143,6 +145,7 @@ function MutationsPanel() {
 // ─── Thing Mutations Panel ───────────────────────────────────────────────────
 
 function ThingMutationsPanel() {
+  const { t } = useTranslation();
   const [things, setThings] = useState<VosThing[]>([]);
   const [thingId, setThingId] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -163,7 +166,7 @@ function ThingMutationsPanel() {
       const data = await temporalApi.getThingMutations(thingId, startTime || undefined, endTime || undefined);
       setMutations(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load thing mutations');
+      toast.error(err instanceof Error ? err.message : t('temporal.toast.loadThingMutationsFailed'));
     } finally {
       setLoading(false);
     }
@@ -172,35 +175,35 @@ function ThingMutationsPanel() {
   return (
     <div className="max-w-3xl space-y-4">
       <p className="text-xs text-zinc-500">
-        View property mutations for a specific thing. Select a thing and optionally narrow by time range.
+        {t('temporal.thingMutationsIntro')}
       </p>
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Thing</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.thing')}</label>
           <select
             value={thingId}
             onChange={(e) => { setThingId(e.target.value); setMutations(null); }}
             className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">Select a thing...</option>
-            {things.map((t) => <option key={t.Id} value={t.Id}>{t.Name}</option>)}
+            <option value="">{t('temporal.selectThing')}</option>
+            {things.map((thing) => <option key={thing.Id} value={thing.Id}>{thing.Name}</option>)}
           </select>
         </div>
       </div>
       <div className="flex gap-3 items-end">
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Start Time</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
           <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)}
             className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">End Time</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.endTime')}</label>
           <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)}
             className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <button onClick={loadMutations} disabled={loading || !thingId}
           className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
-          {loading ? 'Loading...' : 'Query'}
+          {loading ? t('common.loading') : t('common.query')}
         </button>
       </div>
 
@@ -208,7 +211,7 @@ function ThingMutationsPanel() {
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex justify-between text-sm mb-3">
             <span className="text-zinc-500">
-              <strong className="text-zinc-200">{mutations.ObjectName}</strong> — {mutations.Mutations.length} mutation{mutations.Mutations.length !== 1 ? 's' : ''}
+              <strong className="text-zinc-200">{mutations.ObjectName}</strong> — {t('temporal.mutationCount', { count: mutations.Mutations.length })}
             </span>
             <span className="text-zinc-500 text-xs">
               {formatDateTime(mutations.StartTime)} — {formatDateTime(mutations.EndTime)}
@@ -227,7 +230,7 @@ function ThingMutationsPanel() {
               </div>
             ))}
             {mutations.Mutations.length === 0 && (
-              <p className="text-sm text-zinc-500">No mutations in this time range.</p>
+              <p className="text-sm text-zinc-500">{t('temporal.noMutations')}</p>
             )}
           </div>
         </div>
@@ -239,6 +242,7 @@ function ThingMutationsPanel() {
 // ─── Relationship Mutations Panel ───────────────────────────────────────────
 
 function RelationshipMutationsPanel() {
+  const { t } = useTranslation();
   const [relationships, setRelationships] = useState<VosRelationship[]>([]);
   const [relId, setRelId] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -259,7 +263,7 @@ function RelationshipMutationsPanel() {
       const data = await temporalApi.getRelationshipMutations(relId, startTime || undefined, endTime || undefined);
       setMutations(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load relationship mutations');
+      toast.error(err instanceof Error ? err.message : t('temporal.toast.loadRelationshipMutationsFailed'));
     } finally {
       setLoading(false);
     }
@@ -270,33 +274,33 @@ function RelationshipMutationsPanel() {
   return (
     <div className="max-w-3xl space-y-4">
       <p className="text-xs text-zinc-500">
-        View property mutations on a specific relationship edge. Select a relationship and optionally narrow by time range.
+        {t('temporal.relationshipMutationsIntro')}
       </p>
       <div>
-        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Relationship</label>
+        <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.relationship')}</label>
         <select
           value={relId}
           onChange={(e) => { setRelId(e.target.value); setMutations(null); }}
           className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">Select a relationship...</option>
+          <option value="">{t('temporal.selectRelationship')}</option>
           {relationships.map((r) => <option key={r.Id} value={r.Id}>{r.Name}</option>)}
         </select>
       </div>
       <div className="flex gap-3 items-end">
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Start Time</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
           <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)}
             className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">End Time</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.endTime')}</label>
           <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)}
             className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <button onClick={loadMutations} disabled={loading || !relId}
           className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
-          {loading ? 'Loading...' : 'Query'}
+          {loading ? t('common.loading') : t('common.query')}
         </button>
       </div>
 
@@ -304,7 +308,7 @@ function RelationshipMutationsPanel() {
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex justify-between text-sm mb-3">
             <span className="text-zinc-500">
-              <strong className="text-zinc-200">{mutations.RelationshipName || selectedRel?.Name}</strong> — {mutations.Mutations.length} mutation{mutations.Mutations.length !== 1 ? 's' : ''}
+              <strong className="text-zinc-200">{mutations.RelationshipName || selectedRel?.Name}</strong> — {t('temporal.mutationCount', { count: mutations.Mutations.length })}
             </span>
             <span className="text-zinc-500 text-xs">
               {formatDateTime(mutations.StartTime)} — {formatDateTime(mutations.EndTime)}
@@ -323,7 +327,7 @@ function RelationshipMutationsPanel() {
               </div>
             ))}
             {mutations.Mutations.length === 0 && (
-              <p className="text-sm text-zinc-500">No mutations in this time range.</p>
+              <p className="text-sm text-zinc-500">{t('temporal.noMutations')}</p>
             )}
           </div>
         </div>
@@ -335,6 +339,7 @@ function RelationshipMutationsPanel() {
 // ─── Snapshot Panel ──────────────────────────────────────────────────────────
 
 function SnapshotPanel() {
+  const { t } = useTranslation();
   const [timestamp, setTimestamp] = useState('');
   const [snapshot, setSnapshot] = useState<TemporalSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -346,7 +351,7 @@ function SnapshotPanel() {
       const data = await modelApi.getAtTime(ts);
       setSnapshot(data as TemporalSnapshot);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load snapshot');
+      toast.error(err instanceof Error ? err.message : t('temporal.toast.loadSnapshotFailed'));
     } finally {
       setLoading(false);
     }
@@ -355,11 +360,11 @@ function SnapshotPanel() {
   return (
     <div className="max-w-3xl space-y-4">
       <p className="text-xs text-zinc-500">
-        View the entire model as it existed at a specific point in time. Leave the timestamp empty to see the current state.
+        {t('temporal.snapshotIntro')}
       </p>
       <div className="flex gap-3 items-end">
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Timestamp</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.timestamp')}</label>
           <input
             type="datetime-local"
             value={timestamp}
@@ -372,24 +377,24 @@ function SnapshotPanel() {
           disabled={loading}
           className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Loading...' : 'Snapshot'}
+          {loading ? t('common.loading') : t('temporal.snapshotButton')}
         </button>
       </div>
 
       {snapshot && (
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="text-sm text-zinc-500 mb-3">
-            Snapshot at: <strong className="text-zinc-200">{formatDateTime(snapshot.Timestamp)}</strong>
+            {t('temporal.snapshotAt')} <strong className="text-zinc-200">{formatDateTime(snapshot.Timestamp)}</strong>
             {' — '}
-            {snapshot.Things.length} things, {snapshot.Relationships.length} relationships
+            {t('temporal.thingsCount', { count: snapshot.Things.length })}, {t('temporal.relationshipsCount', { count: snapshot.Relationships.length })}
           </div>
           <div className="space-y-3">
-            {snapshot.Things.map((t) => (
-              <div key={t.Id} className="border-l-2 border-emerald-500 pl-3">
-                <h4 className="text-sm font-medium">{t.Name}</h4>
-                {Object.keys(t.Properties).length > 0 ? (
+            {snapshot.Things.map((thing) => (
+              <div key={thing.Id} className="border-l-2 border-emerald-500 pl-3">
+                <h4 className="text-sm font-medium">{thing.Name}</h4>
+                {Object.keys(thing.Properties).length > 0 ? (
                   <div className="mt-1 space-y-0.5">
-                    {Object.entries(t.Properties).map(([k, v]) => (
+                    {Object.entries(thing.Properties).map(([k, v]) => (
                       <div key={k} className="text-xs text-zinc-400">
                         <span className="text-amber-400">{k}</span>
                         {': '}
@@ -398,12 +403,12 @@ function SnapshotPanel() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-zinc-600 mt-1">No properties</p>
+                  <p className="text-xs text-zinc-600 mt-1">{t('temporal.noProperties')}</p>
                 )}
               </div>
             ))}
             {snapshot.Things.length === 0 && (
-              <p className="text-sm text-zinc-500">No things existed at this timestamp.</p>
+              <p className="text-sm text-zinc-500">{t('temporal.noThingsAtTimestamp')}</p>
             )}
           </div>
         </div>
@@ -415,6 +420,7 @@ function SnapshotPanel() {
 // ─── Property History Panel ──────────────────────────────────────────────────
 
 function PropertyHistoryPanel() {
+  const { t } = useTranslation();
   const [things, setThings] = useState<VosThing[]>([]);
   const [thingId, setThingId] = useState('');
   const [propertyName, setPropertyName] = useState('');
@@ -450,7 +456,7 @@ function PropertyHistoryPanel() {
       );
       setVersions(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load versions');
+      toast.error(err instanceof Error ? err.message : t('temporal.toast.loadVersionsFailed'));
     } finally {
       setLoading(false);
     }
@@ -459,31 +465,31 @@ function PropertyHistoryPanel() {
   return (
     <div className="max-w-3xl space-y-4">
       <p className="text-xs text-zinc-500">
-        View the full version history of a specific property on a thing. Each version shows the value and when it was set.
+        {t('temporal.propertyHistoryIntro')}
       </p>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Thing</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.thing')}</label>
           <select
             value={thingId}
             onChange={(e) => { setThingId(e.target.value); setPropertyName(''); setVersions(null); }}
             className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">Select a thing...</option>
-            {things.map((t) => (
-              <option key={t.Id} value={t.Id}>{t.Name}</option>
+            <option value="">{t('temporal.selectThing')}</option>
+            {things.map((thing) => (
+              <option key={thing.Id} value={thing.Id}>{thing.Name}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Property</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.property')}</label>
           <select
             value={propertyName}
             onChange={(e) => { setPropertyName(e.target.value); setVersions(null); }}
             disabled={!thingId}
             className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            <option value="">Select a property...</option>
+            <option value="">{t('temporal.selectProperty')}</option>
             {propertyNames.map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
@@ -492,7 +498,7 @@ function PropertyHistoryPanel() {
       </div>
       <div className="flex gap-3 items-end">
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Start Time</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.startTime')}</label>
           <input
             type="datetime-local"
             value={startTime}
@@ -501,7 +507,7 @@ function PropertyHistoryPanel() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">End Time</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.endTime')}</label>
           <input
             type="datetime-local"
             value={endTime}
@@ -514,16 +520,16 @@ function PropertyHistoryPanel() {
           disabled={loading || !thingId || !propertyName}
           className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Loading...' : 'Query'}
+          {loading ? t('common.loading') : t('common.query')}
         </button>
       </div>
 
       {versions && (
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="text-sm text-zinc-500 mb-3">
-            <strong className="text-zinc-200">{versions.PropertyName}</strong> on {selectedThing?.Name}
+            <strong className="text-zinc-200">{versions.PropertyName}</strong> {t('temporal.on')} {selectedThing?.Name}
             {' — '}
-            {versions.Versions.length} version{versions.Versions.length !== 1 ? 's' : ''}
+            {t('temporal.versionCount', { count: versions.Versions.length })}
           </div>
           <div className="space-y-1">
             {versions.Versions.map((v, i) => (
@@ -533,7 +539,7 @@ function PropertyHistoryPanel() {
               </div>
             ))}
             {versions.Versions.length === 0 && (
-              <p className="text-sm text-zinc-500">No versions in this time range.</p>
+              <p className="text-sm text-zinc-500">{t('temporal.noVersions')}</p>
             )}
           </div>
         </div>
@@ -545,6 +551,7 @@ function PropertyHistoryPanel() {
 // ─── State Query Panel ──────────────────────────────────────────────────────
 
 function StateQueryPanel() {
+  const { t } = useTranslation();
   const [stateName, setStateName] = useState('');
   const [results, setResults] = useState<Array<{ Id: string; Name: string }> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -556,7 +563,7 @@ function StateQueryPanel() {
       const data = await stateApi.getThingsInState(stateName.trim());
       setResults(data.Things);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to query state');
+      toast.error(err instanceof Error ? err.message : t('temporal.toast.queryStateFailed'));
     } finally {
       setLoading(false);
     }
@@ -565,17 +572,17 @@ function StateQueryPanel() {
   return (
     <div className="max-w-3xl space-y-4">
       <p className="text-xs text-zinc-500">
-        Find all things currently matching a specific state. States are determined by range evaluations — a thing is "in" a state when its range criteria evaluate to active.
+        {t('temporal.stateQueryIntro')}
       </p>
       <div className="flex gap-3 items-end">
         <div className="flex-1">
-          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">State Name</label>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">{t('temporal.stateName')}</label>
           <input
             type="text"
             value={stateName}
             onChange={(e) => setStateName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && query()}
-            placeholder="e.g. overheating"
+            placeholder={t('temporal.stateNamePlaceholder')}
             className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -584,17 +591,17 @@ function StateQueryPanel() {
           disabled={loading || !stateName.trim()}
           className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Loading...' : 'Query'}
+          {loading ? t('common.loading') : t('common.query')}
         </button>
       </div>
 
       {results !== null && (
         <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="text-sm text-zinc-500 mb-3">
-            <strong className="text-zinc-200">{results.length}</strong> thing{results.length !== 1 ? 's' : ''} in state <strong className="text-amber-400">{stateName}</strong>
+            <strong className="text-zinc-200">{t('temporal.thingsCount', { count: results.length })}</strong> {t('temporal.inState')} <strong className="text-amber-400">{stateName}</strong>
           </div>
           {results.length === 0 ? (
-            <p className="text-sm text-zinc-500">No things are currently in this state.</p>
+            <p className="text-sm text-zinc-500">{t('temporal.noThingsInState')}</p>
           ) : (
             <div className="space-y-1">
               {results.map((t) => (

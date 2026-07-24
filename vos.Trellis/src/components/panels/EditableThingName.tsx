@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pencil } from 'lucide-react';
 import { thingApi } from '../../api/thingApi';
 import { toast } from '../common/Toast';
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function EditableThingName({ thingId, name, onRenamed }: Props) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
   const [saving, setSaving] = useState(false);
@@ -33,20 +35,20 @@ export function EditableThingName({ thingId, name, onRenamed }: Props) {
     setSaving(true);
     try {
       await thingApi.rename(thingId, next);
-      toast.success('Renamed');
+      toast.success(t('panels.name.renamed'));
       onRenamed?.(next);
       setEditing(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to rename');
+      toast.error(err instanceof Error ? err.message : t('panels.name.renameFailed'));
     } finally {
       setSaving(false);
     }
-  }, [draft, name, saving, thingId, onRenamed]);
+  }, [draft, name, saving, thingId, onRenamed, t]);
 
   if (editing) {
     return (
       <input
-        aria-label="Thing name"
+        aria-label={t('panels.name.thingName')}
         autoFocus
         value={draft}
         disabled={saving}
@@ -66,8 +68,8 @@ export function EditableThingName({ thingId, name, onRenamed }: Props) {
       <h3 className="font-semibold text-sm truncate">{name}</h3>
       <button
         onClick={begin}
-        title="Rename"
-        aria-label="Rename"
+        title={t('panels.name.rename')}
+        aria-label={t('panels.name.rename')}
         className="p-0.5 text-zinc-400 hover:text-blue-400 transition-colors shrink-0"
       >
         <Pencil size={12} />

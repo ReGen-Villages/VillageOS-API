@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { EditablePropertyList } from './EditablePropertyList';
 import { AddRelationshipRow } from './AddRelationshipRow';
@@ -19,12 +20,13 @@ interface Props {
 }
 
 export function RelationshipList({ relationships, direction, allThings, onSelectNode, onSelectEdge, editMode = false, onPropertySaved, fixedThingId, allRelationships, onRelationshipCreated }: Props) {
+  const { t } = useTranslation();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   return (
     <div>
       <h4 className="text-xs font-semibold text-zinc-500 mb-1">
-        {direction === 'outgoing' ? 'Outgoing' : 'Incoming'} ({relationships.length})
+        {direction === 'outgoing' ? t('panels.rel.outgoing') : t('panels.rel.incoming')} ({relationships.length})
       </h4>
       {relationships.map((r) => {
         const pred = allThings.get(r.PredicateId);
@@ -65,7 +67,7 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
                 <button
                   onClick={() => onSelectEdge(r.Id)}
                   className="ml-auto pl-1 text-zinc-500 hover:text-blue-400 shrink-0"
-                  title="Open edge detail"
+                  title={t('panels.rel.openEdgeDetail')}
                 >
                   <ExternalLink size={10} />
                 </button>

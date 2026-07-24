@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
@@ -14,6 +15,7 @@ import clsx from 'clsx';
 const PAGE_SIZE = 100;
 
 export function ThingSearchPage() {
+  const { t } = useTranslation();
   const [inputValue, setInputValue] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -59,10 +61,10 @@ export function ThingSearchPage() {
   const copyAsMarkdown = useCallback(() => {
     if (results.length === 0) return;
     navigator.clipboard.writeText(buildThingSearchMarkdown(debouncedQuery, results)).then(
-      () => toast.success('Copied to clipboard'),
-      () => toast.error('Failed to copy'),
+      () => toast.success(t('common.copiedToClipboard')),
+      () => toast.error(t('common.copyFailed')),
     );
-  }, [results, debouncedQuery]);
+  }, [results, debouncedQuery, t]);
 
   const downloadAsMarkdown = useCallback(() => {
     if (results.length === 0) return;
@@ -78,19 +80,18 @@ export function ThingSearchPage() {
 
   return (
     <div className="h-full overflow-auto p-6">
-      <h2 className="text-xl font-bold mb-4">Thing Search</h2>
+      <h2 className="text-xl font-bold mb-4">{t('thingSearch.title')}</h2>
 
       <div className="space-y-4">
         <p className="text-xs text-zinc-500">
-          Search for things by name. Exact matches are ranked first, then prefix matches, then
-          substrings. Click a name to open it in the Graph.
+          {t('thingSearch.intro')}
         </p>
 
         <input
           type="text"
           value={inputValue}
           onChange={(e) => onInputChange(e.target.value)}
-          placeholder="Type a thing name (e.g. Patient-123, Building-A, MalePatient-Type)..."
+          placeholder={t('thingSearch.placeholder')}
           autoFocus
           className="w-full px-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-zinc-400"
         />
@@ -98,8 +99,8 @@ export function ThingSearchPage() {
         {debouncedQuery.trim().length > 0 && (
           <div className="flex items-center justify-between">
             <p className="text-xs text-zinc-500">
-              {results.length} thing{results.length !== 1 ? 's' : ''} found
-              {hasMore && ` (showing first ${visibleCount})`}
+              {t('thingSearch.foundCount', { count: results.length })}
+              {hasMore && ` (${t('common.showingFirst', { count: visibleCount })})`}
             </p>
             {results.length > 0 && (
               <div className="flex gap-2">
@@ -107,13 +108,13 @@ export function ThingSearchPage() {
                   onClick={copyAsMarkdown}
                   className="px-3 py-1 text-xs rounded-md border border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
                 >
-                  Copy as Markdown
+                  {t('common.copyAsMarkdown')}
                 </button>
                 <button
                   onClick={downloadAsMarkdown}
                   className="px-3 py-1 text-xs rounded-md border border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
                 >
-                  Download as Markdown
+                  {t('common.downloadAsMarkdown')}
                 </button>
               </div>
             )}
@@ -132,7 +133,7 @@ export function ThingSearchPage() {
                     <button
                       onClick={() => goToGraph(m.id)}
                       className="text-sm font-medium text-blue-400 hover:underline"
-                      title="Open in Graph"
+                      title={t('thingSearch.openInGraph')}
                     >
                       {m.name}
                     </button>
@@ -142,7 +143,7 @@ export function ThingSearchPage() {
                           'flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
                           'bg-emerald-900/30 text-emerald-400',
                         )}
-                        title={`Type: ${m.typeName}`}
+                        title={t('thingSearch.typeLabel', { type: m.typeName })}
                       >
                         {m.typeName}
                       </span>
@@ -160,7 +161,7 @@ export function ThingSearchPage() {
                       ))}
                       {m.ownPropertyCount > PREVIEW_PROPS && (
                         <span className="text-xs text-zinc-600">
-                          +{m.ownPropertyCount - PREVIEW_PROPS} more
+                          {t('thingSearch.moreProps', { count: m.ownPropertyCount - PREVIEW_PROPS })}
                         </span>
                       )}
                     </div>
@@ -168,12 +169,12 @@ export function ThingSearchPage() {
                 </div>
 
                 <div className="flex-shrink-0 flex gap-3 text-xs text-zinc-500 pt-0.5">
-                  <span title="Own properties">
-                    <span className="text-zinc-600">props </span>
+                  <span title={t('thingSearch.ownProperties')}>
+                    <span className="text-zinc-600">{t('thingSearch.propsAbbrev')} </span>
                     <span className="text-zinc-400">{m.ownPropertyCount}</span>
                   </span>
-                  <span title="Relationships">
-                    <span className="text-zinc-600">rels </span>
+                  <span title={t('thingSearch.relationships')}>
+                    <span className="text-zinc-600">{t('thingSearch.relsAbbrev')} </span>
                     <span className="text-zinc-400">{m.relationshipCount}</span>
                   </span>
                 </div>
@@ -181,7 +182,7 @@ export function ThingSearchPage() {
             ))}
 
             {results.length === 0 && (
-              <p className="text-sm text-zinc-500">No things match "{debouncedQuery}".</p>
+              <p className="text-sm text-zinc-500">{t('thingSearch.noMatch', { query: debouncedQuery })}</p>
             )}
 
             {hasMore && (
@@ -189,7 +190,7 @@ export function ThingSearchPage() {
                 onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
                 className="w-full py-2 text-sm text-blue-400 hover:text-blue-300 border border-zinc-700 rounded-md"
               >
-                Show more ({results.length - visibleCount} remaining)
+                {t('common.showMore', { count: results.length - visibleCount })}
               </button>
             )}
           </div>
