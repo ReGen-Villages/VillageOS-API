@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { thingApi } from '../api/thingApi';
@@ -37,6 +38,7 @@ function buildMappingFromThings(things: VosThing[]): BimFragmentsMapping {
 }
 
 export function ModelPage() {
+  const { t } = useTranslation();
   const { modelId } = useAuth();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
@@ -84,13 +86,13 @@ export function ModelPage() {
         if (cancelled) return;
         setBimFragments({
           status: 'error',
-          message: err instanceof Error ? err.message : 'Failed to load model',
+          message: err instanceof Error ? err.message : t('modelPage.loadFailed'),
         });
       });
     return () => {
       cancelled = true;
     };
-  }, [modelId, selectNode]);
+  }, [modelId, selectNode, t]);
 
   // Fetch the full thing (with inherited properties) when selection changes —
   // matches the GraphPage pattern so NodeDetailPanel sees the same shape from both views.
@@ -120,19 +122,19 @@ export function ModelPage() {
   const handleDeleteProperty = useCallback(async (thingId: string, propertyName: string) => {
     try {
       await thingApi.deleteProperty(thingId, propertyName);
-      toast.success(`Deleted property: ${propertyName}`);
+      toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
       await reloadModelData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Delete failed');
+      toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }
-  }, []);
+  }, [t]);
 
   return (
     <div className="h-full flex flex-col p-6">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Model</h1>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{t('modelPage.title')}</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          3D viewer for the IFC-derived Fragments artifact. Click an element to inspect.
+          {t('modelPage.subtitle')}
         </p>
       </header>
 
@@ -181,31 +183,33 @@ export function ModelPage() {
 }
 
 function LoadingPlaceholder() {
+  const { t } = useTranslation();
   return (
     <div
       role="status"
-      aria-label="Loading model"
+      aria-label={t('modelPage.loadingAria')}
       data-testid="model-viewer-loading"
       className="flex-1 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-sm text-zinc-500 dark:text-zinc-400"
     >
-      Loading model…
+      {t('modelPage.loading')}
     </div>
   );
 }
 
 function EmptyPlaceholder() {
+  const { t } = useTranslation();
   return (
     <div
       role="region"
-      aria-label="Fragments viewer placeholder"
+      aria-label={t('modelPage.placeholderAria')}
       data-testid="model-viewer-placeholder"
       className="flex-1 rounded-lg border-2 border-dashed border-zinc-300 dark:border-zinc-700 flex flex-col items-center justify-center text-center p-8"
     >
       <p className="text-lg font-medium text-zinc-700 dark:text-zinc-300">
-        No model loaded yet.
+        {t('modelPage.noModelTitle')}
       </p>
       <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-2 max-w-md">
-        Ingest an IFC (BIM) file to build the model — it is parsed and applied for you.
+        {t('modelPage.noModelBody')}
       </p>
       <IfcUploadDropzone />
     </div>
@@ -213,6 +217,7 @@ function EmptyPlaceholder() {
 }
 
 function ErrorPlaceholder({ message }: { message: string }) {
+  const { t } = useTranslation();
   return (
     <div
       role="alert"
@@ -220,7 +225,7 @@ function ErrorPlaceholder({ message }: { message: string }) {
       className="flex-1 rounded-lg border-2 border-dashed border-red-400 dark:border-red-600 flex flex-col items-center justify-center text-center p-8"
     >
       <p className="text-lg font-medium text-red-700 dark:text-red-400">
-        Failed to load the Fragments artifact.
+        {t('modelPage.errorTitle')}
       </p>
       <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-md break-words">{message}</p>
     </div>

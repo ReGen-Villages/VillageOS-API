@@ -5,6 +5,7 @@
  * DetailWindowManager). Clicking a related Thing opens another window.
  */
 import { useCallback, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, GripHorizontal, LayoutGrid } from 'lucide-react';
 import type { ModelIndex } from '../../../api/dashboardApi';
 import { effectiveProperties } from '../../../utils/propertyMapper';
@@ -47,7 +48,8 @@ function tiledPosition(index: number): { x: number; y: number } {
 }
 
 function StatePills({ states }: { states: string[] }) {
-  if (!states.length) return <span className="text-[11px] text-zinc-400 dark:text-zinc-500">no derived states</span>;
+  const { t } = useTranslation();
+  if (!states.length) return <span className="text-[11px] text-zinc-400 dark:text-zinc-500">{t('entityDetail.noDerivedStates')}</span>;
   return (
     <div className="flex flex-wrap gap-1">
       {states.map((s) => (
@@ -62,10 +64,11 @@ function StatePills({ states }: { states: string[] }) {
 /** How far back the history reaches. Shown so an empty or short list reads as "not retained"
  *  rather than "never happened" — in-memory history only starts when the engine loaded the model. */
 function CoverageNote({ coverage }: { coverage: StateHistoryCoverage }) {
+  const { t } = useTranslation();
   if (coverage.Source !== 'in-memory') return null;
   return (
     <div className="mt-1.5 text-[10.5px] text-zinc-400 dark:text-zinc-500">
-      In-memory history — since {formatDateTime(coverage.From)}. Earlier changes are not retained.
+      {t('entityDetail.inMemoryHistory', { time: formatDateTime(coverage.From) })}
     </div>
   );
 }
@@ -81,6 +84,7 @@ function RelationGroups({
   statesById: Map<string, string[]>;
   openDetail: (thingId: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-2.5">
       {relations.map((group) => (
@@ -89,7 +93,7 @@ function RelationGroups({
             {group.label} ({group.edges.length})
           </div>
           {group.edges.length === 0 ? (
-            <div className="text-[11px] text-zinc-400">None.</div>
+            <div className="text-[11px] text-zinc-400">{t('entityDetail.none')}</div>
           ) : (
             <div className="space-y-1.5">
               {group.edges.map((edge) => (
@@ -132,6 +136,7 @@ function RelationGroups({
 }
 
 export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail }: Props) {
+  const { t } = useTranslation();
   const { loading, root, relations, statesById, stateChanges, coverage } = useEntityDetail(idx, thingId, detail, nonce);
 
   const props = root ? effectiveProperties(root) : {};
@@ -140,7 +145,7 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
 
   const groups = detail.propertyGroups?.length
     ? detail.propertyGroups.map((g) => ({ label: g.label, entries: g.keys.filter((k) => k in props).map((k) => [k, props[k]] as const) }))
-    : [{ label: 'Properties', entries: Object.entries(props) }];
+    : [{ label: t('entityDetail.properties'), entries: Object.entries(props) }];
 
   // ── Drag & layout ─────────────────────────────────────────────────────────
   const [pos, setPos] = useState({ x: 120 + offset * 28, y: 90 + offset * 28 });
@@ -196,7 +201,7 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
             onPointerDown={(e) => e.stopPropagation()}
             onClick={onSpread}
             className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 flex-shrink-0"
-            title="Spread all panels out"
+            title={t('entityDetail.spread')}
           >
             <LayoutGrid size={15} />
           </button>
@@ -205,7 +210,7 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
           onPointerDown={(e) => e.stopPropagation()}
           onClick={onClose}
           className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 flex-shrink-0"
-          title="Close"
+          title={t('entityDetail.close')}
         >
           <X size={16} />
         </button>
@@ -214,20 +219,20 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
       <div className="flex-1 overflow-auto p-3 space-y-4 text-sm">
         {/* Derived states of the root */}
         <section>
-          <SectionTitle>Derived states</SectionTitle>
+          <SectionTitle>{t('entityDetail.derivedStates')}</SectionTitle>
           <StatePills states={statesById.get(thingId) ?? []} />
         </section>
 
         {/* Details */}
         <section className="space-y-2">
-          <SectionTitle>Details</SectionTitle>
+          <SectionTitle>{t('entityDetail.details')}</SectionTitle>
           {groups.map((group) => (
             <div key={group.label}>
               {detail.propertyGroups?.length ? (
                 <div className="text-[10.5px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-1">{group.label}</div>
               ) : null}
               <div className="grid grid-cols-[minmax(0,140px)_1fr] gap-x-3 gap-y-0.5">
-                {group.entries.length === 0 && <div className="text-[11px] text-zinc-400 col-span-2">No properties.</div>}
+                {group.entries.length === 0 && <div className="text-[11px] text-zinc-400 col-span-2">{t('entityDetail.noProperties')}</div>}
                 {group.entries.map(([key, value]) => (
                   <div key={key} className="contents">
                     <div className="text-[11.5px] text-zinc-400 dark:text-zinc-500 truncate" title={key}>{key}</div>
@@ -242,7 +247,7 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
         {/* Configured relations, in the model's declared order */}
         {relations.length > 0 && (
           <section>
-            <SectionTitle>Relations</SectionTitle>
+            <SectionTitle>{t('entityDetail.relations')}</SectionTitle>
             <RelationGroups relations={relations} statesById={statesById} openDetail={openDetail} />
           </section>
         )}
@@ -251,13 +256,13 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
         {detail.history?.enabled !== false && (
           <section>
             <SectionTitle>
-              Handling history {loading ? '· loading…' : coverage ? `· ${stateChanges.length}` : ''}
+              {t('entityDetail.handlingHistory')} {loading ? `· ${t('entityDetail.loading')}` : coverage ? `· ${stateChanges.length}` : ''}
             </SectionTitle>
             {!loading && !coverage && (
-              <div className="text-[11px] text-zinc-400">State history unavailable — no active reactive engine for this model.</div>
+              <div className="text-[11px] text-zinc-400">{t('entityDetail.stateHistoryUnavailable')}</div>
             )}
             {coverage && stateChanges.length === 0 && (
-              <div className="text-[11px] text-zinc-400">No state changes recorded.</div>
+              <div className="text-[11px] text-zinc-400">{t('entityDetail.noStateChanges')}</div>
             )}
             {stateChanges.length > 0 && (
               <ol className="mt-1 space-y-1.5">
