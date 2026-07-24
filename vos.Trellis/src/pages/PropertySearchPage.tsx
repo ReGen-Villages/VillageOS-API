@@ -214,7 +214,7 @@ export function PropertySearchPage() {
       () => toast.success(t('common.copiedToClipboard')),
       () => toast.error(t('common.copyFailed')),
     );
-  }, [results, buildMarkdown]);
+  }, [results, buildMarkdown, t]);
 
   const downloadAsMarkdown = useCallback(() => {
     if (results.length === 0) return;

@@ -18,6 +18,12 @@ import { canSupport3D } from '../../utils/browserDetect';
 const BuildingDetail3D = lazy(() => import('../three/BuildingDetail3D'));
 import type { ChildElement } from '../three/BuildingDetail3D';
 
+const TAB_LABEL_KEYS = {
+  ranges: 'panels.node.tabRanges',
+  properties: 'panels.node.tabProperties',
+  relationships: 'panels.node.tabRelationships',
+} as const;
+
 interface Props {
   thing: VosThing;
   relationships: VosRelationship[];
@@ -139,7 +145,7 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               tab === tabKey ? 'text-blue-500 border-b-2 border-blue-500' : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            {t(`panels.node.tab${tabKey.charAt(0).toUpperCase()}${tabKey.slice(1)}`)}
+            {t(TAB_LABEL_KEYS[tabKey])}
           </button>
         ))}
         {show3DTab && (

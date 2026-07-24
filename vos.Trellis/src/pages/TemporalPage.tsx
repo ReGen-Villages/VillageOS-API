@@ -389,12 +389,12 @@ function SnapshotPanel() {
             {t('temporal.thingsCount', { count: snapshot.Things.length })}, {t('temporal.relationshipsCount', { count: snapshot.Relationships.length })}
           </div>
           <div className="space-y-3">
-            {snapshot.Things.map((t) => (
-              <div key={t.Id} className="border-l-2 border-emerald-500 pl-3">
-                <h4 className="text-sm font-medium">{t.Name}</h4>
-                {Object.keys(t.Properties).length > 0 ? (
+            {snapshot.Things.map((thing) => (
+              <div key={thing.Id} className="border-l-2 border-emerald-500 pl-3">
+                <h4 className="text-sm font-medium">{thing.Name}</h4>
+                {Object.keys(thing.Properties).length > 0 ? (
                   <div className="mt-1 space-y-0.5">
-                    {Object.entries(t.Properties).map(([k, v]) => (
+                    {Object.entries(thing.Properties).map(([k, v]) => (
                       <div key={k} className="text-xs text-zinc-400">
                         <span className="text-amber-400">{k}</span>
                         {': '}
