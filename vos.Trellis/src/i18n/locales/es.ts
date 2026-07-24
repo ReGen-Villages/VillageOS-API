@@ -574,6 +574,7 @@ export const es: PartialResources = {
   },
   operationsPage: {
     noDashboard: "No hay panel configurado",
+    noDashboardBody: "Este modelo no define ninguna configuración de <0>Dashboard</0>. Añade una Thing del arquetipo <1>Dashboard</1> con una propiedad <2>spec</2> para gestionar esta página.",
   },
   palette: {
     inputTitle: "Entrada de la canalización — desde el inicio",
@@ -585,5 +586,14 @@ export const es: PartialResources = {
     services: "Servicios",
     portCount_one: "{{count}} puerto",
     portCount_other: "{{count}} puertos",
+  },
+  ifcUpload: {
+    ingested: "{{file}} importado: {{created}} creados, {{updated}} actualizados, {{rels}} relaciones.",
+    ingestFailed: "Error al importar.",
+    ingesting: "Importando…",
+    ingest: "Importar un archivo IFC",
+    replaceModel: "Reemplazar el modelo actual (modelo nuevo)",
+    dragHint: "…o arrastra un archivo .ifc aquí",
+    configureHint: "Configura <0>VITE_INGEST_URL</0> para habilitar la importación de IFC en la app, o importa desde la CLI con <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
 };

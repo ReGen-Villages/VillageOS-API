@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { LeaderboardWidget, LeaderMetric } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
 import { asRows } from '../../../api/dashboardApi';
@@ -29,6 +30,7 @@ function score(row: Row, metrics: LeaderMetric[]): number {
 
 /** Site/entity scorecard: ranks compare-entities by a weighted score across metrics. */
 export function Leaderboard({ widget, ctx }: { widget: LeaderboardWidget; ctx: ResolveContext }) {
+  const { t } = useTranslation();
   const { loading, value } = useBinding(widget.entities, ctx);
   const rows = asRows(value);
   const labelKey = widget.labelKey ?? 'name';
@@ -43,9 +45,9 @@ export function Leaderboard({ widget, ctx }: { widget: LeaderboardWidget; ctx: R
   return (
     <WidgetCard title={widget.title} hint={widget.hint}>
       {loading ? (
-        <div className="py-6 text-center text-xs text-zinc-400">Loading…</div>
+        <div className="py-6 text-center text-xs text-zinc-400">{t('common.loading')}</div>
       ) : !ranked.length ? (
-        <div className="py-6 text-center text-xs text-zinc-400">No entities to compare.</div>
+        <div className="py-6 text-center text-xs text-zinc-400">{t('widgets.leaderboard.none')}</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[12.5px] mt-2">

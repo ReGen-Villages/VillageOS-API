@@ -700,6 +700,7 @@ export const ar: PartialResources & ArabicPlurals = {
   },
   operationsPage: {
     noDashboard: "لا توجد لوحة معلومات مُهيّأة",
+    noDashboardBody: "لا يُعرّف هذا النموذج أي إعداد <0>Dashboard</0>. أضِف Thing من النموذج الأصلي <1>Dashboard</1> بخاصية <2>spec</2> لتشغيل هذه الصفحة.",
   },
   palette: {
     inputTitle: "مدخل خط المعالجة — من البداية",
@@ -715,5 +716,14 @@ export const ar: PartialResources & ArabicPlurals = {
     portCount_two: "منفذان",
     portCount_few: "{{count}} منافذ",
     portCount_many: "{{count}} منفذًا",
+  },
+  ifcUpload: {
+    ingested: "تم استيراد {{file}}: {{created}} منشأة، {{updated}} محدّثة، {{rels}} علاقات.",
+    ingestFailed: "فشل الاستيراد.",
+    ingesting: "جارٍ الاستيراد…",
+    ingest: "استيراد ملف IFC",
+    replaceModel: "استبدال النموذج الحالي (نموذج جديد)",
+    dragHint: "…أو اسحب ملف ‎.ifc إلى هنا",
+    configureHint: "عيّن <0>VITE_INGEST_URL</0> لتفعيل استيراد IFC داخل التطبيق، أو استورد من واجهة الأوامر باستخدام <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
 };

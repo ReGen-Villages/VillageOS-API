@@ -1,4 +1,5 @@
 import { Box, Layers, Scissors } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export type CameraMode = '3d' | 'plan';
 
@@ -23,6 +24,7 @@ export function ViewerToolbar({
   minY,
   maxY,
 }: ViewerToolbarProps) {
+  const { t } = useTranslation();
   return (
     <div
       data-testid="fragments-toolbar"
@@ -66,7 +68,7 @@ export function ViewerToolbar({
           onChange={(e) => onSectionYChange(Number(e.target.value))}
           disabled={!sectionEnabled}
           data-testid="section-slider"
-          aria-label="Section height"
+          aria-label={t('viewerToolbar.sectionHeight')}
           className="flex-1 accent-blue-500 disabled:opacity-40"
         />
       </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, X } from 'lucide-react';
 import type { TableWidget, Widget } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
@@ -51,6 +52,7 @@ function TableWidgetView({
   ctx: ResolveContext;
   openDetail?: (thingId: string) => void;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const onRowClick = widget.rowDetail && openDetail ? (row: Row) => openDetail(String(row.id)) : undefined;
 
@@ -60,7 +62,7 @@ function TableWidgetView({
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search…"
+        placeholder={t('widgets.table.searchPlaceholder')}
         className="bg-transparent text-xs text-zinc-700 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none flex-1 min-w-0"
       />
       {query && (

@@ -574,6 +574,7 @@ export const fr: PartialResources = {
   },
   operationsPage: {
     noDashboard: "Aucun tableau de bord configuré",
+    noDashboardBody: "Ce modèle ne définit aucune configuration <0>Dashboard</0>. Ajoutez une Thing de l'archétype <1>Dashboard</1> avec une propriété <2>spec</2> pour piloter cette page.",
   },
   palette: {
     inputTitle: "Entrée du pipeline — dès le début",
@@ -585,5 +586,14 @@ export const fr: PartialResources = {
     services: "Services",
     portCount_one: "{{count}} port",
     portCount_other: "{{count}} ports",
+  },
+  ifcUpload: {
+    ingested: "{{file}} importé : {{created}} créés, {{updated}} mis à jour, {{rels}} relations.",
+    ingestFailed: "Échec de l'importation.",
+    ingesting: "Importation…",
+    ingest: "Importer un fichier IFC",
+    replaceModel: "Remplacer le modèle actuel (nouveau modèle)",
+    dragHint: "…ou glissez un fichier .ifc ici",
+    configureHint: "Définissez <0>VITE_INGEST_URL</0> pour activer l'import IFC dans l'application, ou importez depuis la CLI avec <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
 };

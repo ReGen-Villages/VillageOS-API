@@ -572,6 +572,7 @@ export const en = {
   },
   operationsPage: {
     noDashboard: "No dashboard configured",
+    noDashboardBody: "This model defines no <0>Dashboard</0> config. Add a Thing of archetype <1>Dashboard</1> with a <2>spec</2> property to drive this page.",
   },
   palette: {
     inputTitle: "Pipeline input — from the start",
@@ -583,6 +584,15 @@ export const en = {
     services: "Services",
     portCount_one: "{{count}} port",
     portCount_other: "{{count}} ports",
+  },
+  ifcUpload: {
+    ingested: "Ingested {{file}}: {{created}} created, {{updated}} updated, {{rels}} relationships.",
+    ingestFailed: "Ingest failed.",
+    ingesting: "Ingesting…",
+    ingest: "Ingest an IFC file",
+    replaceModel: "Replace the current model (new model)",
+    dragHint: "…or drag an .ifc file here",
+    configureHint: "Set <0>VITE_INGEST_URL</0> to enable in-app IFC ingestion, or ingest from the CLI with <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
 };
 

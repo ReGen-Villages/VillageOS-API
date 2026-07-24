@@ -574,6 +574,7 @@ export const it: PartialResources = {
   },
   operationsPage: {
     noDashboard: "Nessuna dashboard configurata",
+    noDashboardBody: "Questo modello non definisce alcuna configurazione <0>Dashboard</0>. Aggiungi una Thing dell'archetipo <1>Dashboard</1> con una proprietà <2>spec</2> per gestire questa pagina.",
   },
   palette: {
     inputTitle: "Ingresso della pipeline — dall'inizio",
@@ -585,5 +586,14 @@ export const it: PartialResources = {
     services: "Servizi",
     portCount_one: "{{count}} porta",
     portCount_other: "{{count}} porte",
+  },
+  ifcUpload: {
+    ingested: "{{file}} importato: {{created}} creati, {{updated}} aggiornati, {{rels}} relazioni.",
+    ingestFailed: "Importazione non riuscita.",
+    ingesting: "Importazione in corso…",
+    ingest: "Importa un file IFC",
+    replaceModel: "Sostituisci il modello attuale (nuovo modello)",
+    dragHint: "…oppure trascina qui un file .ifc",
+    configureHint: "Imposta <0>VITE_INGEST_URL</0> per abilitare l'import IFC nell'app, oppure importa dalla CLI con <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
 };

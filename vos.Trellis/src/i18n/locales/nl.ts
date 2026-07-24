@@ -574,6 +574,7 @@ export const nl: PartialResources = {
   },
   operationsPage: {
     noDashboard: "Geen dashboard geconfigureerd",
+    noDashboardBody: "Dit model definieert geen <0>Dashboard</0>-configuratie. Voeg een Thing van archetype <1>Dashboard</1> met een <2>spec</2>-eigenschap toe om deze pagina aan te sturen.",
   },
   palette: {
     inputTitle: "Pijplijn-invoer — vanaf het begin",
@@ -585,5 +586,14 @@ export const nl: PartialResources = {
     services: "Services",
     portCount_one: "{{count}} poort",
     portCount_other: "{{count}} poorten",
+  },
+  ifcUpload: {
+    ingested: "{{file}} geïmporteerd: {{created}} aangemaakt, {{updated}} bijgewerkt, {{rels}} relaties.",
+    ingestFailed: "Importeren mislukt.",
+    ingesting: "Bezig met importeren…",
+    ingest: "Een IFC-bestand importeren",
+    replaceModel: "Vervang het huidige model (nieuw model)",
+    dragHint: "…of sleep hier een .ifc-bestand naartoe",
+    configureHint: "Stel <0>VITE_INGEST_URL</0> in om IFC-import in de app in te schakelen, of importeer via de CLI met <1>vos.Taproot</1> (<2>ingest &lt;file.ifc&gt;</2>).",
   },
 };
