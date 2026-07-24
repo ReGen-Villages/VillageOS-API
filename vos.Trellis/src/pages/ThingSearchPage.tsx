@@ -143,7 +143,7 @@ export function ThingSearchPage() {
                           'flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
                           'bg-emerald-900/30 text-emerald-400',
                         )}
-                        title={`Type: ${m.typeName}`}
+                        title={t('thingSearch.typeLabel', { type: m.typeName })}
                       >
                         {m.typeName}
                       </span>

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Expand, Trash2, Loader2, Plus } from 'lucide-react';
 import { formatPropertyValue } from '../../utils/formatters';
 import { thingApi } from '../../api/thingApi';
@@ -50,10 +51,11 @@ export function EditablePropertyList({
   onExpandValue,
   showAddRow = true,
 }: Props) {
+  const { t } = useTranslation();
   return (
     <>
       {properties.length === 0 && !editMode && (
-        <p className="text-zinc-500 text-xs italic">No properties</p>
+        <p className="text-zinc-500 text-xs italic">{t('panels.props.none')}</p>
       )}
       {properties.map(([name, val]) =>
         editMode ? (
@@ -92,6 +94,7 @@ function DisplayRow({
   value: unknown;
   onExpand?: (formatted: string) => void;
 }) {
+  const { t } = useTranslation();
   const formatted = formatPropertyValue(value);
   const isLong = formatted.length > VALUE_TRUNCATE_LIMIT;
 
@@ -106,7 +109,7 @@ function DisplayRow({
           <button
             onClick={() => onExpand(formatted)}
             className="text-zinc-500 hover:text-zinc-300 shrink-0"
-            title="View full value"
+            title={t('panels.props.viewFullValue')}
           >
             <Expand size={12} />
           </button>
@@ -126,6 +129,7 @@ function AddPropertyRow({
   entityType: 'thing' | 'relationship';
   onSaved?: () => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [type, setType] = useState('string');
   const [value, setValue] = useState('');
@@ -140,7 +144,7 @@ function AddPropertyRow({
     try {
       const api = entityType === 'thing' ? thingApi : relationshipApi;
       await api.setProperty(entityId, name.trim(), type, value);
-      toast.success(`Set ${name.trim()} = ${value}`);
+      toast.success(t('panels.props.setToast', { name: name.trim(), value }));
       setName('');
       setType('string');
       setValue('');
@@ -148,11 +152,11 @@ function AddPropertyRow({
       // Re-focus the name input for quick successive adds
       nameRef.current?.focus();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to add property');
+      toast.error(err instanceof Error ? err.message : t('panels.props.addFailed'));
     } finally {
       setSaving(false);
     }
-  }, [canSubmit, entityType, entityId, name, type, value, onSaved]);
+  }, [canSubmit, entityType, entityId, name, type, value, onSaved, t]);
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -171,7 +175,7 @@ function AddPropertyRow({
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder="name"
+        placeholder={t('panels.props.namePlaceholder')}
         disabled={saving}
         className="w-[72px] px-1.5 py-0.5 text-xs rounded border border-zinc-600 bg-zinc-800 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
       />
@@ -189,7 +193,7 @@ function AddPropertyRow({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder="value"
+        placeholder={t('panels.props.valuePlaceholder')}
         disabled={saving}
         className="flex-1 min-w-0 px-1.5 py-0.5 text-xs font-mono rounded border border-zinc-600 bg-zinc-800 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
       />
@@ -197,7 +201,7 @@ function AddPropertyRow({
         onClick={submit}
         disabled={!canSubmit}
         className="p-0.5 rounded text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-30 disabled:cursor-default transition-colors flex-shrink-0"
-        title="Add property"
+        title={t('panels.props.addProperty')}
       >
         {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
       </button>
@@ -221,6 +225,7 @@ function EditableRow({
   onSaved?: () => void;
   onDelete?: () => void;
 }) {
+  const { t } = useTranslation();
   const formatted = formatPropertyValue(value);
   const [draft, setDraft] = useState(formatted === '(null)' ? '' : formatted);
   const [saving, setSaving] = useState(false);
@@ -252,15 +257,15 @@ function EditableRow({
       const type = inferTypeFromText(trimmed);
       const api = entityType === 'thing' ? thingApi : relationshipApi;
       await api.setProperty(entityId, name, type, trimmed);
-      toast.success(`${name} = ${trimmed}`);
+      toast.success(t('panels.props.savedToast', { name, value: trimmed }));
       setDirty(false);
       onSaved?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save');
+      toast.error(err instanceof Error ? err.message : t('panels.props.saveFailed'));
     } finally {
       setSaving(false);
     }
-  }, [saving, dirty, draft, formatted, entityType, entityId, name, onSaved]);
+  }, [saving, dirty, draft, formatted, entityType, entityId, name, onSaved, t]);
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -298,7 +303,7 @@ function EditableRow({
           <button
             onClick={onDelete}
             className="text-red-400 hover:text-red-300 shrink-0"
-            title="Delete property"
+            title={t('panels.props.deleteProperty')}
           >
             <Trash2 size={12} />
           </button>

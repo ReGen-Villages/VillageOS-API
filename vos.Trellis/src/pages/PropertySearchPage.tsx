@@ -351,7 +351,7 @@ export function PropertySearchPage() {
 
                       {/* Inherited badge */}
                       {m.inheritedFrom && (
-                        <span className="text-[10px] text-emerald-500 flex-shrink-0" title={`Inherited from ${m.inheritedFrom}`}>
+                        <span className="text-[10px] text-emerald-500 flex-shrink-0" title={t('propertySearch.inheritedFrom', { source: m.inheritedFrom })}>
                           {t('propertySearch.via', { source: m.inheritedFrom })}
                         </span>
                       )}
