@@ -907,6 +907,7 @@ Layout parameters are read from the model's `GUI_Settings` Thing (via `extractLa
 - Properties on the `GUI_Settings` Thing: `LayoutRepulsion`, `LayoutGravity`, `ClusterRepulsion`, `FlashEdgeSize`, `FlashNodeSizeFactor`, `FlashNodeBrighten`, `PredicateColors` (JSON string: `{"consumes":"#fb7185",...}`)
 - **Spread mode**: Toggle via toolbar — reduces gravity so nodes push apart while maintaining cluster structure. Toggling off restores normal parameters and nodes re-settle
 - Supervisor is recreated when clustering predicates change, spread mode toggles, or layout settings change (tracked via `JSON.stringify(layoutSettings)`)
+- No supervisor runs while the graph has no nodes. FA2's worker loop is paced only by how long an iteration takes, so an empty graph makes it ping-pong messages with the main thread as fast as the two can post, which starves rendering. An empty graph is reachable from the UI — hide every type in the type filter. The supervisor is killed when the graph empties and spawned again when nodes return.
 
 ### Search & Filtering
 
@@ -1164,7 +1165,9 @@ system stream.
     - `PropertyChanged` → only rebuilds the things array when `isGraphAffectingProperty()` returns true (currently only `geometry`). Triggers a visual flash on the node only (500ms duration).
     - `RelationshipPropertyChanged` → only rebuilds the relationships array when `isVisibleRelationship()` returns true (relationship touches the selected node). Triggers a visual flash on the specific edge (500ms duration).
   - **Counter bump**: StatesChanged → increments `statesVersion` (triggers Ranges tab re-fetch).
-- **GraphDataLoader** (renderer sync): mirrors the `modelStore` into the Sigma graph. The first load (empty graph) does a full `loadGraph()` and fits the camera; every later change — including creates and deletes — is applied by `reconcileGraph()`, which adds/drops/patches nodes and edges in place, skips existing nodes' `x`/`y` so the running force layout is undisturbed, and never resets the camera. Net effect: created and deleted Things and Relationships appear on the graph immediately, without a rebuild or camera jump.
+- **GraphDataLoader** (renderer sync): mirrors the `modelStore` into the Sigma graph. The first load (empty graph) does a full `loadGraph()` and fits the camera; every later change — including creates and deletes — is applied by `reconcileGraph()`, which adds/patches nodes and edges in place, skips existing nodes' `x`/`y` so the running force layout is undisturbed, and never resets the camera. Net effect: created and deleted Things and Relationships appear on the graph immediately, without a rebuild or camera jump.
+
+  Removals take a different route inside `reconcileGraph()`: it folds the live graph's settled positions and live-only attributes (such as clustering's `fixed` flags) into the freshly built target, then does one `clear()` + `import()`. Sigma re-indexes the entire graph synchronously on every `nodeDropped` / `edgeDropped` event, so dropping elements one at a time costs O(removed × graph size). Hiding a large share of a big model — the type filter's **None** button on a 30k-Thing seed — wedged the main thread long enough to look like a crash. One `cleared` event costs a single re-index, and the re-import rides Sigma's per-element add path, which is O(1) each.
 - **DashboardPage**: Subscribes to ServiceHealthChanged, DaemonStatusChanged, ServiceRequestCompleted → refetches `/api/mycelium/services`; EndpointServiceRequestCompleted → refetches `/api/endpoints` (this is what keeps each service row's "Last Req" current)
 - **AppLayout**: Subscribes to ActivityEvent → pushes to `activityStore`
 

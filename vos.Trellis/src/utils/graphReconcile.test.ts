@@ -112,7 +112,54 @@ describe('reconcileGraph', () => {
     expect(current.order).toBe(1);
     expect(current.size).toBe(0);
     expect(result.nodesRemoved).toBe(1);
-    // The incident edge is removed by dropNode, so it is not double-counted.
-    expect(result.edgesRemoved).toBe(0);
+    expect(result.edgesRemoved).toBe(1);
+  });
+
+  it('empties the graph without emitting a drop per element', () => {
+    const current = makeGraph();
+    for (let i = 0; i < 50; i++) current.addNode(`n${i}`, node(`n${i}`));
+    for (let i = 1; i < 50; i++) current.addDirectedEdgeWithKey(`e${i}`, 'n0', `n${i}`, { size: 1 });
+
+    // Sigma re-indexes the whole graph on every drop event, so an event count
+    // that scales with graph size is the freeze the type filter's "None" hit.
+    let dropEvents = 0;
+    current.on('nodeDropped', () => { dropEvents++; });
+    current.on('edgeDropped', () => { dropEvents++; });
+
+    const result = reconcileGraph(current, makeGraph());
+
+    expect(current.order).toBe(0);
+    expect(current.size).toBe(0);
+    expect(dropEvents).toBe(0);
+    expect(result).toMatchObject({ nodesRemoved: 50, edgesRemoved: 49 });
+  });
+
+  it('keeps settled positions for survivors when other nodes are removed', () => {
+    const current = makeGraph();
+    current.addNode('n1', node('n1', { x: 42, y: -17, size: 5 }));
+    current.addNode('n2', node('n2'));
+
+    const next = makeGraph();
+    next.addNode('n1', node('n1', { x: 0, y: 0, size: 12 }));
+
+    reconcileGraph(current, next);
+
+    expect(current.getNodeAttribute('n1', 'x')).toBe(42);
+    expect(current.getNodeAttribute('n1', 'y')).toBe(-17);
+    expect(current.getNodeAttribute('n1', 'size')).toBe(12);
+    expect(current.hasNode('n2')).toBe(false);
+  });
+
+  it('keeps a live-only node attribute through a removal', () => {
+    const current = makeGraph();
+    current.addNode('n1', node('n1', { fixed: true }));
+    current.addNode('n2', node('n2'));
+
+    const next = makeGraph();
+    next.addNode('n1', node('n1'));
+
+    reconcileGraph(current, next);
+
+    expect(current.getNodeAttribute('n1', 'fixed')).toBe(true);
   });
 });
