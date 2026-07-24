@@ -655,7 +655,7 @@ Check the connection indicators on the Dashboard page. If "Live" shows red, the 
 
 **Export before destructive changes.** Use the CLI `serialize` command or `GET /api/model` to export the model as JSON before clearing or deleting things. The exported file can be re-imported later.
 
-**Tune the force layout.** The force-directed layout reads parameters from the "GUI_Settings" thing in your model. You can modify these properties via the CLI or REST API to control how tightly or loosely nodes arrange: `LayoutAttraction` (edge pull, default 0.0005), `LayoutRepulsion` (node push, default 0.1), `LayoutGravity` (center pull, default 0.0001), `LayoutInertia` (momentum, default 0.6), `LayoutMaxMove` (max pixels/tick, default 200), `ClusterRepulsion` (push when clustering, default 0.4).
+**Tune the force layout.** The ForceAtlas2 layout reads parameters from the "GUI_Settings" thing in your model. You can modify these properties via the CLI or REST API to control how tightly or loosely nodes arrange: `LayoutRepulsion` (node push, default 0.1), `LayoutGravity` (center pull, default 0.0001), `ClusterRepulsion` (push among members when clustering, default 0.4).
 
 **Temporal exploration.** After making changes over time, use the Temporal page to view the model at any past timestamp, or see the version history of a specific property.
 
@@ -702,8 +702,7 @@ graph TB
 | **Graph renderer** | Sigma.js (WebGL) | 3.0.2 |
 | **Graph data** | graphology (multi-directed) | 0.26.0 |
 | **React graph bindings** | @react-sigma/core | 5.0.6 |
-| **Graph layout (small)** | graphology-layout-force (ForceSupervisor) | 0.2.4 |
-| **Graph layout (large)** | graphology-layout-forceatlas2 (FA2 worker) | 0.10 |
+| **Graph layout** | graphology-layout-forceatlas2 (FA2 worker) | 0.10 |
 | **Styling** | Tailwind CSS | 4.1 |
 | **State management** | Zustand | 5.0.11 |
 | **Real-time** | EventSource (SSE) | native |
@@ -787,7 +786,7 @@ vos.Trellis/
         │   ├── GraphDataLoader.tsx        # Loads graphology graph into Sigma
         │   ├── GraphSearchBar.tsx         # Search input with case-sensitive / exact-match / regex toggles + match count
         │   ├── GraphEvents.tsx            # Click/right-click events → Zustand store (incl. logical node expansion, context menu)
-        │   ├── LayoutController.tsx       # ForceSupervisor / FA2 lifecycle
+        │   ├── LayoutController.tsx       # FA2 worker lifecycle + cluster fixed/edge-weight setup
         │   ├── LogicalNodeController.tsx  # Radial positioning of logical children + semantic zoom
         │   ├── NodeReducer.tsx            # Visual filtering: search, clustering, selection reveal
         │   ├── ClusterComputer.tsx        # Computes predicate-based cluster map from graph topology
@@ -850,7 +849,7 @@ All graph components are children of `<SigmaContainer>` and access the Sigma ins
     <GraphDataLoader />           ← useLoadGraph: builds & imports graphology graph
     <ClusterComputer />            ← Predicate-based cluster computation
     <GraphEvents />                ← useRegisterEvents: click → Zustand store + logical expansion
-    <LayoutController />           ← ForceSupervisor / FA2: force-directed layout
+    <LayoutController />           ← FA2 worker: force-directed layout + clustering setup
     <LogicalNodeController />      ← Radial positioning of logical children + semantic zoom
     <WebGLContextGuard />          ← Safari WebGL context recovery (MutationObserver for dynamic canvases)
     <NodeReducer />                ← useSetSettings: search, clustering, selection reveal
@@ -893,16 +892,20 @@ GraphPage fetches the full thing list (`GET /api/things`) and the relationship l
 
 ### Force-Directed Layout (`LayoutController.tsx`)
 
-Two layout algorithms selected by graph size:
+Every graph, regardless of size, runs `graphology-layout-forceatlas2/worker` (`FA2Supervisor`) — Barnes-Hut optimization (O(N log N) vs O(N²)) in a **real Web Worker**, so the physics never blocks the main thread and panning/clicking stay responsive while the layout runs.
 
-- **Small graphs (< 2000 nodes)**: `graphology-layout-force/worker` — runs via `requestAnimationFrame` on the main thread. Simple spring-electric model, supports `isNodeFixed` callback
-- **Large graphs (≥ 2000 nodes)**: `graphology-layout-forceatlas2/worker` (`FA2Supervisor`) — runs in a **real Web Worker** using Barnes-Hut optimization (O(N log N) vs O(N²)). Provides ~70x speedup at 10K nodes
+Predicate clustering has no separate engine. FA2 lacks the `shouldSkipNode`/`shouldSkipEdge` callbacks the old main-thread engine used, so clustering is expressed through two primitives FA2 reads on the main thread at matrix-build time (helpers in `clusterLayout.ts`):
+
+- **Node `fixed` flag** — every node that is *not* an active-predicate member is pinned (`applyClusterFixedFlags`), so only cluster members move; `clearFixedFlags` releases them when clustering turns off.
+- **Edge-weight getter** — `makeActivePredicateWeightGetter` gives active-predicate edges weight 1 and all others weight 0, so only the active predicate pulls members together.
+
+Note: a `fixed` node still contributes repulsion, so clusters are gently pushed clear of the frozen background rather than ignoring it.
 
 Layout parameters are read from the model's `GUI_Settings` Thing (via `extractLayoutSettings()` in `guiSettings.ts`), stored in `uiStore.layoutSettings`. Defaults when no settings thing is present:
 
-- `attraction: 0.0005`, `repulsion: 0.1` (cluster mode: `clusterRepulsion: 0.4`), `gravity: 0.0001`, `inertia: 0.6`, `maxMove: 200`
-- Properties on the `GUI_Settings` Thing: `LayoutAttraction`, `LayoutRepulsion`, `LayoutGravity`, `LayoutInertia`, `LayoutMaxMove`, `ClusterRepulsion`, `FlashEdgeSize`, `FlashNodeSizeFactor`, `FlashNodeBrighten`, `PredicateColors` (JSON string: `{"consumes":"#fb7185",...}`)
-- **Spread mode**: Toggle via toolbar — boosts repulsion 5x and reduces gravity 10x, causing nodes to push apart while maintaining cluster structure. Toggling off restores normal parameters and nodes re-settle
+- `repulsion: 0.1` (cluster mode uses `clusterRepulsion: 0.4` as the FA2 scalingRatio base), `gravity: 0.0001`
+- Properties on the `GUI_Settings` Thing: `LayoutRepulsion`, `LayoutGravity`, `ClusterRepulsion`, `FlashEdgeSize`, `FlashNodeSizeFactor`, `FlashNodeBrighten`, `PredicateColors` (JSON string: `{"consumes":"#fb7185",...}`)
+- **Spread mode**: Toggle via toolbar — reduces gravity so nodes push apart while maintaining cluster structure. Toggling off restores normal parameters and nodes re-settle
 - Supervisor is recreated when clustering predicates change, spread mode toggles, or layout settings change (tracked via `JSON.stringify(layoutSettings)`)
 
 ### Search & Filtering

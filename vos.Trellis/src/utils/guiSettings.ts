@@ -8,23 +8,20 @@ export interface FlashSettings {
 }
 
 /**
- * Force-layout settings extracted from the GUI_Settings type Thing.
+ * ForceAtlas2 layout settings extracted from the GUI_Settings type Thing.
  *
  * Bug #5361 added the FA2 supervisor + node-size + edge-size knobs so the
  * perf-critical parameters that used to be hard-coded constants are now
- * runtime-tunable through GUI_Settings, the same way attraction / repulsion
- * / gravity already were. Feature #5362 added classifyingProperty so the
- * GUI can run against any domain ontology, not just IFC. Editing the
- * GUI_Settings Thing on Mycelium (or in the seed JSON) overrides any of
- * these without a rebuild.
+ * runtime-tunable through GUI_Settings, the same way repulsion / gravity
+ * already were. Feature #5362 added classifyingProperty so the GUI can run
+ * against any domain ontology, not just IFC. Editing the GUI_Settings Thing
+ * on Mycelium (or in the seed JSON) overrides any of these without a rebuild.
  */
 export interface LayoutSettings {
-  // Pre-existing user-tunable force coefficients
-  attraction: number;
+  // FA2 scalingRatio bases: repulsion for the whole graph, clusterRepulsion
+  // when a predicate cluster is active (members spread to show sub-structure).
   repulsion: number;
   gravity: number;
-  inertia: number;
-  maxMove: number;
   clusterRepulsion: number;
 
   // FA2 supervisor knobs (Bug #5361) — empirically validated against the
@@ -60,11 +57,8 @@ export interface LayoutSettings {
 }
 
 export const LAYOUT_DEFAULTS: LayoutSettings = {
-  attraction: 0.0005,
   repulsion: 0.1,
   gravity: 0.0001,
-  inertia: 0.6,
-  maxMove: 200,
   clusterRepulsion: 0.4,
   // FA2 — see fa2Settings.ts for the rationale on each value.
   scalingRatioMultiplier: 100,
@@ -135,7 +129,7 @@ export function extractFlashSettings(
 }
 
 /**
- * Extract force-layout settings from graph data.
+ * Extract ForceAtlas2 layout settings from graph data.
  * Finds the GUI_Settings type Thing via relationships.
  * Returns defaults for any missing or invalid values.
  */
@@ -156,11 +150,8 @@ export function extractLayoutSettings(
  */
 function readLayoutSettings(p: Record<string, unknown>): LayoutSettings {
   return {
-    attraction: toNumber(p['LayoutAttraction'], LAYOUT_DEFAULTS.attraction),
     repulsion: toNumber(p['LayoutRepulsion'], LAYOUT_DEFAULTS.repulsion),
     gravity: toNumber(p['LayoutGravity'], LAYOUT_DEFAULTS.gravity),
-    inertia: toNumber(p['LayoutInertia'], LAYOUT_DEFAULTS.inertia),
-    maxMove: toNumber(p['LayoutMaxMove'], LAYOUT_DEFAULTS.maxMove),
     clusterRepulsion: toNumber(p['ClusterRepulsion'], LAYOUT_DEFAULTS.clusterRepulsion),
     // Bug #5361 — formerly hardcoded constants, now runtime-tunable
     scalingRatioMultiplier: toNumber(p['LayoutScalingRatioMultiplier'], LAYOUT_DEFAULTS.scalingRatioMultiplier),

@@ -46,8 +46,7 @@ describe('resolveFA2Settings (Bug #5338 + Bug #5361)', () => {
     const normal = resolveFA2Settings(LAYOUT_DEFAULTS, false);
     const spread = resolveFA2Settings(LAYOUT_DEFAULTS, true);
     expect(spread.gravity).toBeCloseTo(normal.gravity * FA2_SPREAD_GRAVITY_FACTOR, 6);
-    // scalingRatio is NOT affected by spread mode — that knob is for the
-    // small-graph supervisor, not FA2.
+    // Spread mode changes gravity only, not scalingRatio.
     expect(spread.scalingRatio).toBe(normal.scalingRatio);
   });
 
@@ -59,5 +58,21 @@ describe('resolveFA2Settings (Bug #5338 + Bug #5361)', () => {
   it('honors a user override on layoutSettings.gravity (linear in the multiplier)', () => {
     const overridden = resolveFA2Settings({ ...LAYOUT_DEFAULTS, gravity: 0.0005 }, false);
     expect(overridden.gravity).toBeCloseTo(0.0005 * FA2_GRAVITY_MULTIPLIER, 6);
+  });
+
+  it('derives scalingRatio from clusterRepulsion when clustering is active', () => {
+    // Clustering spreads the active-predicate members apart so sub-structure is
+    // readable; clusterRepulsion (0.4) is higher than repulsion (0.1) for that
+    // reason. scalingRatio must switch its base accordingly.
+    const normal = resolveFA2Settings(LAYOUT_DEFAULTS, false, false);
+    const clustering = resolveFA2Settings(LAYOUT_DEFAULTS, false, true);
+    expect(normal.scalingRatio).toBe(LAYOUT_DEFAULTS.repulsion * FA2_SCALING_RATIO_MULTIPLIER);
+    expect(clustering.scalingRatio).toBe(LAYOUT_DEFAULTS.clusterRepulsion * FA2_SCALING_RATIO_MULTIPLIER);
+  });
+
+  it('leaves gravity untouched by the clustering flag', () => {
+    const normal = resolveFA2Settings(LAYOUT_DEFAULTS, false, false);
+    const clustering = resolveFA2Settings(LAYOUT_DEFAULTS, false, true);
+    expect(clustering.gravity).toBeCloseTo(normal.gravity, 6);
   });
 });
