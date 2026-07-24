@@ -266,6 +266,9 @@ export const en = {
     table: {
       searchPlaceholder: "Search…",
     },
+    sparkline: {
+      trend: "trend",
+    },
   },
   errorBoundary: {
     title: "Something went wrong",

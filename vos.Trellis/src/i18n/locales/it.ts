@@ -268,6 +268,9 @@ export const it: PartialResources = {
     table: {
       searchPlaceholder: "Cerca…",
     },
+    sparkline: {
+      trend: "tendenza",
+    },
   },
   errorBoundary: {
     title: "Qualcosa è andato storto",

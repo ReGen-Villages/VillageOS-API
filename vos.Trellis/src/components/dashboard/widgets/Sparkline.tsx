@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 /** Tiny area+line sparkline with an emphasised endpoint, optionally read against a dashed
  *  reference line. Pure SVG, theme-aware. */
 export function Sparkline({
@@ -13,6 +15,7 @@ export function Sparkline({
   height?: number;
   stroke?: string;
 }) {
+  const { t } = useTranslation();
   if (!values || values.length < 2) {
     return <div style={{ width, height }} className="opacity-40" aria-hidden />;
   }
@@ -27,7 +30,7 @@ export function Sparkline({
   const area = `${line} L${x(values.length - 1).toFixed(1)},${height} L${x(0).toFixed(1)},${height} Z`;
   const gid = `spark-${Math.abs(hashValues(values))}`;
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="trend">
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t('widgets.sparkline.trend')}>
       <defs>
         <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={stroke} stopOpacity="0.26" />

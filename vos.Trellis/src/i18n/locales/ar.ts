@@ -354,6 +354,9 @@ export const ar: PartialResources & ArabicPlurals = {
     table: {
       searchPlaceholder: "بحث…",
     },
+    sparkline: {
+      trend: "الاتجاه",
+    },
   },
   errorBoundary: {
     title: "حدث خطأ ما",
