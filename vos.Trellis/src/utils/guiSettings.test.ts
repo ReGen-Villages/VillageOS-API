@@ -154,19 +154,13 @@ describe('extractLayoutSettings', () => {
 
   it('extracts all settings from GUI_Settings type', () => {
     const { things, relationships } = buildGuiFixture({
-      LayoutAttraction: 0.001,
       LayoutRepulsion: 0.5,
       LayoutGravity: 0.01,
-      LayoutInertia: 0.8,
-      LayoutMaxMove: 100,
       ClusterRepulsion: 1.5,
     });
     expect(extractLayoutSettings(things, relationships)).toEqual({
-      attraction: 0.001,
       repulsion: 0.5,
       gravity: 0.01,
-      inertia: 0.8,
-      maxMove: 100,
       clusterRepulsion: 1.5,
       // Bug #5361 — perf knobs not present in this fixture, so defaults apply.
       scalingRatioMultiplier: LAYOUT_DEFAULTS.scalingRatioMultiplier,
@@ -227,25 +221,26 @@ describe('extractLayoutSettings', () => {
     });
     const result = extractLayoutSettings(things, relationships);
     expect(result.repulsion).toBe(0.5);
-    expect(result.attraction).toBe(LAYOUT_DEFAULTS.attraction);
     expect(result.gravity).toBe(LAYOUT_DEFAULTS.gravity);
-    expect(result.inertia).toBe(LAYOUT_DEFAULTS.inertia);
-    expect(result.maxMove).toBe(LAYOUT_DEFAULTS.maxMove);
     expect(result.clusterRepulsion).toBe(LAYOUT_DEFAULTS.clusterRepulsion);
   });
 
   it('falls back to defaults for invalid types', () => {
     const { things, relationships } = buildGuiFixture({
-      LayoutAttraction: 'bad',
       LayoutRepulsion: null,
       LayoutGravity: undefined,
-      LayoutInertia: NaN,
-      LayoutMaxMove: 'nope',
       ClusterRepulsion: false,
     });
     expect(extractLayoutSettings(things, relationships)).toEqual(
       LAYOUT_DEFAULTS,
     );
+  });
+
+  it('no longer exposes the retired force-engine knobs', () => {
+    const result = extractLayoutSettings([], []) as unknown as Record<string, unknown>;
+    expect('attraction' in result).toBe(false);
+    expect('inertia' in result).toBe(false);
+    expect('maxMove' in result).toBe(false);
   });
 });
 
