@@ -579,6 +579,10 @@ export const en = {
     noConnections: "No connections in the model. Load the pipeline seed.",
     input: "Input",
     output: "Output",
+    boundary: "Boundary",
+    services: "Services",
+    portCount_one: "{{count}} port",
+    portCount_other: "{{count}} ports",
   },
 };
 

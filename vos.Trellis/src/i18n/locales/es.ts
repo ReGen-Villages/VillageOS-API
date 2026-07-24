@@ -581,5 +581,9 @@ export const es: PartialResources = {
     noConnections: "No hay conexiones en el modelo. Carga la semilla de la canalización.",
     input: "Entrada",
     output: "Salida",
+    boundary: "Límite",
+    services: "Servicios",
+    portCount_one: "{{count}} puerto",
+    portCount_other: "{{count}} puertos",
   },
 };

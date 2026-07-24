@@ -581,5 +581,9 @@ export const fr: PartialResources = {
     noConnections: "Aucune connexion dans le modèle. Chargez la seed du pipeline.",
     input: "Entrée",
     output: "Sortie",
+    boundary: "Frontière",
+    services: "Services",
+    portCount_one: "{{count}} port",
+    portCount_other: "{{count}} ports",
   },
 };

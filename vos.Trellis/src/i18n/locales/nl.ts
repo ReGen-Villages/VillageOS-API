@@ -581,5 +581,9 @@ export const nl: PartialResources = {
     noConnections: "Geen verbindingen in het model. Laad de pijplijn-seed.",
     input: "Invoer",
     output: "Uitvoer",
+    boundary: "Grens",
+    services: "Services",
+    portCount_one: "{{count}} poort",
+    portCount_other: "{{count}} poorten",
   },
 };

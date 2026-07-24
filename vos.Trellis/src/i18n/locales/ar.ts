@@ -76,6 +76,12 @@ type ArabicPlurals = {
     issues_few?: string;
     issues_many?: string;
   };
+  palette?: {
+    portCount_zero?: string;
+    portCount_two?: string;
+    portCount_few?: string;
+    portCount_many?: string;
+  };
 };
 
 export const ar: PartialResources & ArabicPlurals = {
@@ -701,5 +707,13 @@ export const ar: PartialResources & ArabicPlurals = {
     noConnections: "لا توجد اتصالات في النموذج. حمّل بذرة خط المعالجة.",
     input: "إدخال",
     output: "إخراج",
+    boundary: "الحدود",
+    services: "الخدمات",
+    portCount_one: "{{count}} منفذ",
+    portCount_other: "{{count}} منافذ",
+    portCount_zero: "لا منافذ",
+    portCount_two: "منفذان",
+    portCount_few: "{{count}} منافذ",
+    portCount_many: "{{count}} منفذًا",
   },
 };
