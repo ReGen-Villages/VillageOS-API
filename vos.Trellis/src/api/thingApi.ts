@@ -37,4 +37,13 @@ export const thingApi = {
 
   getEffectiveProperties: (id: string) =>
     apiClient.get<Record<string, EffectiveProperty>>(`/api/things/${id}/properties`),
+
+  // Every thing's resolved properties in one call, keyed by thing id. scope: effective (default,
+  // own + inherited with own/overrides winning) | own | inherited. Each property carries its own
+  // provenance (IsInherited / InheritedFrom) regardless of scope. Used by bulk read-only surfaces
+  // (Property Search) that need the full inherited view without a request per thing.
+  getAllProperties: (scope: 'effective' | 'own' | 'inherited' = 'effective') =>
+    apiClient.get<Record<string, Record<string, EffectiveProperty>>>(
+      `/api/things/properties?scope=${scope}`,
+    ),
 };

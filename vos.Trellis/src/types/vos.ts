@@ -7,13 +7,6 @@ export interface VosThing {
   InheritedProperties?: Record<string, InheritedPropertySet>;
 }
 
-export interface PropertyValue {
-  Value: unknown;
-  Type?: string;
-  IsInherited?: boolean;
-  InheritedFrom?: string;
-}
-
 export interface InheritedPropertySet {
   SourceId: string;
   SourceName: string;

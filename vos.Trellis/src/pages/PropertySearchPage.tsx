@@ -4,25 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { temporalApi } from '../api/temporalApi';
+import { thingApi } from '../api/thingApi';
 import { toast } from '../components/common/Toast';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
-import type { PropertyVersionsResponse, InheritedPropertySet } from '../types/vos';
+import type { PropertyVersionsResponse, EffectiveProperty } from '../types/vos';
+import { searchProperties, type PropertyMatch } from './propertySearch';
 import clsx from 'clsx';
-
-interface PropertyMatch {
-  propertyName: string;
-  value: unknown;
-  ownerType: 'thing' | 'relationship';
-  ownerId: string;
-  ownerName: string;
-  /** For relationships: "subject --[predicate]--> target" */
-  ownerDetail?: string;
-  /** Non-null when property is inherited — shows the source thing name */
-  inheritedFrom?: string;
-}
-
-/** Skip large blob properties that clutter results. */
-const SKIP_KEYS = new Set(['geometry', 'footprint', '__geometry_envelope']);
 
 /** Max rows rendered at once to keep the DOM lightweight. */
 const PAGE_SIZE = 100;
@@ -58,6 +45,20 @@ export function PropertySearchPage() {
   const selectNode = useUiStore((s) => s.selectNode);
   const navigate = useNavigate();
 
+  // A Thing's inherited property values are resolved by the broker (walking the is-chain); the client
+  // store only carries own + stored overrides, so search must read the server-resolved effective set.
+  // This is a read-only snapshot fetched when the page opens — Property Search is not a live surface.
+  const [effectiveProps, setEffectiveProps] =
+    useState<Record<string, Record<string, EffectiveProperty>> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    thingApi.getAllProperties('effective').then(
+      (data) => { if (!cancelled) setEffectiveProps(data); },
+      () => { if (!cancelled) setEffectiveProps({}); },
+    );
+    return () => { cancelled = true; };
+  }, []);
+
   // Debounce: update the actual search query 250ms after the user stops typing
   const onInputChange = useCallback((value: string) => {
     setInputValue(value);
@@ -79,77 +80,11 @@ export function PropertySearchPage() {
     return map;
   }, [things]);
 
-  // Search — runs only when debouncedQuery or searchMode changes
-  const results = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
-    if (q.length === 0) return [];
-
-    const matchesKey = searchMode === 'name';
-    const matchFn = matchesKey
-      ? (key: string, _val: unknown) => key.toLowerCase().includes(q)
-      : (_key: string, val: unknown) => formatPropertyValue(val).toLowerCase().includes(q);
-
-    const matches: PropertyMatch[] = [];
-
-    for (const thing of things) {
-      // Own properties
-      for (const key of Object.keys(thing.Properties)) {
-        if (SKIP_KEYS.has(key)) continue;
-        if (matchFn(key, thing.Properties[key])) {
-          matches.push({
-            propertyName: key,
-            value: thing.Properties[key],
-            ownerType: 'thing',
-            ownerId: thing.Id,
-            ownerName: thing.Name,
-          });
-        }
-      }
-      // Inherited properties — walk the nested tree
-      if (thing.InheritedProperties) {
-        const walkInherited = (sets: Record<string, InheritedPropertySet>) => {
-          for (const set of Object.values(sets)) {
-            for (const key of Object.keys(set.Properties)) {
-              if (SKIP_KEYS.has(key)) continue;
-              if (matchFn(key, set.Properties[key])) {
-                matches.push({
-                  propertyName: key,
-                  value: set.Properties[key],
-                  ownerType: 'thing',
-                  ownerId: thing.Id,
-                  ownerName: thing.Name,
-                  inheritedFrom: set.SourceName,
-                });
-              }
-            }
-            if (set.Inherited) walkInherited(set.Inherited as unknown as Record<string, InheritedPropertySet>);
-          }
-        };
-        walkInherited(thing.InheritedProperties);
-      }
-    }
-
-    for (const rel of relationships) {
-      for (const key of Object.keys(rel.Properties)) {
-        if (SKIP_KEYS.has(key)) continue;
-        if (matchFn(key, rel.Properties[key])) {
-          const subj = thingNames.get(rel.SubjectId) ?? rel.SubjectId.substring(0, 8);
-          const pred = thingNames.get(rel.PredicateId) ?? rel.PredicateId.substring(0, 8);
-          const targ = thingNames.get(rel.TargetId) ?? rel.TargetId.substring(0, 8);
-          matches.push({
-            propertyName: key,
-            value: rel.Properties[key],
-            ownerType: 'relationship',
-            ownerId: rel.Id,
-            ownerName: rel.Name,
-            ownerDetail: `${subj} --[${pred}]--> ${targ}`,
-          });
-        }
-      }
-    }
-
-    return matches;
-  }, [debouncedQuery, searchMode, things, relationships, thingNames]);
+  // Search — runs only when the query, mode, resolved properties, or relationships change
+  const results = useMemo(
+    () => searchProperties({ effectiveProps, relationships, thingNames, query: debouncedQuery, mode: searchMode }),
+    [debouncedQuery, searchMode, effectiveProps, relationships, thingNames],
+  );
 
   // Group results by property name, but only materialize what we'll render
   const { grouped, shownTotal } = useMemo(() => {
