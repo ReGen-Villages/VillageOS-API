@@ -1,0 +1,23 @@
+flowchart TB
+  subgraph P1["① INTAKE — a person answers questions"]
+    direction LR
+    W["Trellis wizard<br/>project · contact<br/>location · size · programme"] --> MAP["Map +<br/>parcel drawing"]
+  end
+
+  subgraph P2["② DISCOVERY — the platform looks the place up"]
+    direction LR
+    SEL["Select sources<br/>covering this site"] --> FETCH["Tributary calls each<br/>with the site's coordinates"]
+  end
+
+  subgraph P3["③ ANALYSIS — a pipeline does the arithmetic"]
+    direction LR
+    READ["Read values<br/>from the model"] --> CALC["Land split →<br/>energy · food · water"] --> WRITE["Write<br/>results back"]
+  end
+
+  DASH["Operations dashboard<br/>reads it all back"]
+  MODEL[("<b>The model</b><br/>Site · Parcel · Programme<br/>discovered values · results")]
+
+  P1 --> P2 --> P3 --> DASH --> MODEL
+  P1 -.->|"writes the submission"| MODEL
+  P2 -.->|"writes observations"| MODEL
+  P3 -.->|"writes results"| MODEL

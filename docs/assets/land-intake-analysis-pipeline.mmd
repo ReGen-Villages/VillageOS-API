@@ -1,0 +1,15 @@
+flowchart TB
+  R["<b>Read from the model</b><br/>area · programme split · population · household size<br/>solar resource · rainfall <i>(discovered)</i>"]
+  LA["<b>Land allocation</b><br/>shares → areas, plus the built and productive footprints"]
+  EB["<b>Energy<br/>balance</b>"]
+  FB["<b>Food<br/>balance</b>"]
+  RH["<b>Rainwater<br/>harvest</b>"]
+  W["<b>Merge and write the results onto the Site</b>"]
+
+  R --> LA
+  LA -->|"residential ha"| EB
+  LA -->|"productive ha"| FB
+  LA -->|"built + productive ha"| RH
+  EB --> W
+  FB --> W
+  RH --> W

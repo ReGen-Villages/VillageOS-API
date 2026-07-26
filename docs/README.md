@@ -23,6 +23,7 @@ Approachable for a general reader as well as an engineer.
 | [TRIBUTARY.md](TRIBUTARY.md) | Pulling data in from external HTTP APIs (with JSONata response transforms) as configuration, not code. |
 | [DELTA.md](DELTA.md) | The endpoint-registration service that provisions and validates data-source endpoints. |
 | [MODELBRIDGE.md](MODELBRIDGE.md) | The generic bridge between a pipeline DAG and the model (read a property, or write a computed result back). |
+| [LAND_INTAKE.md](LAND_INTAKE.md) | **Design, not yet built.** Taking in a piece of land and analysing it — the intake wizard, open-data discovery, and the site-analysis pipeline. Written for a general reader; render to a print-ready PDF with [tools/docs-pdf](../tools/docs-pdf/). |
 
 ## Authoring microservices
 

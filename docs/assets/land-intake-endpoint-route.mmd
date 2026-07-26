@@ -1,0 +1,10 @@
+sequenceDiagram
+  participant Trellis
+  participant Mycelium
+  participant Service
+  Trellis->>Mycelium: POST /api/endpoints/phloem<br/>Authorization: Bearer …
+  Mycelium->>Mycelium: check token · check policy<br/>resolve the model from the token
+  Mycelium->>Mycelium: find the service by its routing label<br/>(read live from the model)
+  Mycelium->>Service: start it if not running,<br/>then forward the body to /handle
+  Service-->>Mycelium: result
+  Mycelium-->>Trellis: result

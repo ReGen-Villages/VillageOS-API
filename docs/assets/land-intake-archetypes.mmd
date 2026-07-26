@@ -1,0 +1,15 @@
+flowchart LR
+  PR["<b>Project</b><br/>name · country · city"]
+  CO["<b>Contact</b><br/>name · role<br/>email · phone"]
+  SI["<b>Site</b><br/>lat · lng · elevation<br/>climate zone<br/>stated area · population<br/>household size<br/><i>+ discovered values</i><br/><i>+ results</i>"]
+  PA["<b>Parcel</b><br/>boundary · measured area<br/>how it was obtained"]
+  AL["<b>ProgrammeAllocation</b><br/>category · share · area"]
+  HA["<b>HazardAssessment</b><br/>type · level<br/>source · date"]
+  DS["<b>DataSource</b><br/>which source · coverage<br/>last resolved"]
+
+  PR -->|hasContact| CO
+  PR -->|hasSite| SI
+  SI -->|hasParcel| PA
+  SI -->|hasAllocation| AL
+  SI -->|hasHazard| HA
+  SI -->|resolvedFrom| DS
