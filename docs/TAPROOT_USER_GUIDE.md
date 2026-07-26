@@ -1070,7 +1070,7 @@ Exported models include full inheritance metadata:
       "Id": "thing-guid",
       "Name": "Habitat",
       "Properties": { "size": 100 },
-      "InheritedProperties": {
+      "InheritedOverrides": {
         "parent-guid": {
           "SourceId": "parent-guid",
           "SourceName": "Biome",
@@ -1088,7 +1088,7 @@ Exported models include full inheritance metadata:
 **Key points:**
 
 - `Properties` contains only own properties (directly set on the thing)
-- `InheritedProperties` contains property sets copied via "is" relationships
+- `InheritedOverrides` contains property sets copied via "is" relationships
 - When deserializing, relationship services do NOT re-run (inheritance is restored from JSON)
 - This ensures models survive round-trips without re-triggering handler side effects
 

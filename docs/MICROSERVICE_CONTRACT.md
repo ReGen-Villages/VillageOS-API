@@ -78,7 +78,7 @@ Body is a selector:
 ```
 
 Returns `{ subscriptionId, watermark, snapshot }`. The snapshot lists `things` and
-`relationships`, each with own `Properties` and `InheritedProperties` (kept separate), `States`,
+`relationships`, each with own `Properties` and `InheritedOverrides` (kept separate), `States`,
 and incident relationship ids. `watermark` is the commit sequence the snapshot was taken at.
 
 ### Selecting a slice (the startup-template replacement)
