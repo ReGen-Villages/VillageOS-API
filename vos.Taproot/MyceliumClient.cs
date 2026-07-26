@@ -107,6 +107,18 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    // Every Thing's resolved properties in one call, keyed by Thing id. scope: effective (own +
+    // inherited with own/overrides winning) | own | inherited. Each property carries IsInherited /
+    // InheritedFrom; inherited ones are keyed by qualified path ("Device.serialNumber"). Lets snapshot
+    // read commands surface the full inherited view without a per-Thing request.
+    public virtual async Task<JsonElement> GetAllPropertiesAsync(string scope = "effective")
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/things/properties?scope={scope}");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<JsonElement?> GetThingAsync(Guid id)
     {
         await SetAuthHeaderAsync();

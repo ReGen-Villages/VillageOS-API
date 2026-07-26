@@ -89,7 +89,11 @@ namespace vos.Taproot
                 return;
             }
 
-            var matches = CollectPropertyMatches(allThings, propertyName, propertyValue);
+            // Match against the server-resolved effective properties (own + all inherited), so inherited
+            // values — including archetype defaults the instance never overrode — are searchable.
+            var effective = await _mycelium.GetAllPropertiesAsync();
+            var idToName = BuildIdToName(allThings);
+            var matches = CollectPropertyMatches(effective, idToName, propertyName, propertyValue);
 
             if (matches.Count == 0)
             {
@@ -100,55 +104,68 @@ namespace vos.Taproot
             WritePropertyMatches(matches, propertyName, propertyValue);
         }
 
-        private List<(string Id, string Name, bool IsInherited, string? InheritedFrom)> CollectPropertyMatches(
-            JsonElement allThings, string propertyName, string propertyValue)
+        private static Dictionary<string, string> BuildIdToName(JsonElement allThings)
         {
-            var matches = new List<(string Id, string Name, bool IsInherited, string? InheritedFrom)>();
-
+            var map = new Dictionary<string, string>();
             foreach (var thing in allThings.EnumerateArray())
             {
-                var id = GetStringProperty(thing, "Id") ?? "";
-                var name = GetStringProperty(thing, "Name") ?? "";
+                var id = GetStringProperty(thing, "Id");
+                if (id != null) map[id] = GetStringProperty(thing, "Name") ?? id;
+            }
+            return map;
+        }
 
-                var match = FindPropertyMatch(thing, propertyName, propertyValue);
+        private static List<(string Id, string Name, bool IsInherited, string? InheritedFrom)> CollectPropertyMatches(
+            JsonElement effective, Dictionary<string, string> idToName, string propertyName, string propertyValue)
+        {
+            var matches = new List<(string Id, string Name, bool IsInherited, string? InheritedFrom)>();
+            if (effective.ValueKind != JsonValueKind.Object) return matches;
+
+            foreach (var thingEntry in effective.EnumerateObject())
+            {
+                var match = FindPropertyMatch(thingEntry.Value, propertyName, propertyValue);
                 if (match.HasValue)
-                    matches.Add((id, name, match.Value.IsInherited, match.Value.Source));
+                    matches.Add((thingEntry.Name, idToName.GetValueOrDefault(thingEntry.Name, thingEntry.Name),
+                        match.Value.IsInherited, match.Value.Source));
             }
 
             return matches;
         }
 
+        // The effective map keys own properties by plain name and inherited ones by qualified path
+        // ("Device.serialNumber"). Own wins over inherited for the same name (naming rules make that
+        // the norm anyway); the source label is the key's path prefix.
         private static (bool IsInherited, string? Source)? FindPropertyMatch(
-            JsonElement thing, string propertyName, string propertyValue)
+            JsonElement thingProps, string propertyName, string propertyValue)
         {
-            if (TryMatchProperty(thing, "Properties", propertyName, propertyValue))
-                return (false, null);
+            if (thingProps.ValueKind != JsonValueKind.Object) return null;
 
-            if (!thing.TryGetProperty("InheritedProperties", out var inherited) ||
-                inherited.ValueKind != JsonValueKind.Object)
-                return null;
-
-            foreach (var source in inherited.EnumerateObject())
+            (bool IsInherited, string? Source)? inheritedMatch = null;
+            foreach (var prop in thingProps.EnumerateObject())
             {
-                if (!TryMatchProperty(source.Value, "Properties", propertyName, propertyValue))
-                    continue;
+                var isInherited = prop.Value.TryGetProperty("IsInherited", out var ii) && ii.ValueKind == JsonValueKind.True;
+                var leaf = isInherited ? LeafName(prop.Name) : prop.Name;
+                if (leaf != propertyName) continue;
+                if (!prop.Value.TryGetProperty("Value", out var val) || GetPropertyValueAsString(val) != propertyValue) continue;
 
-                var sourceName = source.Value.TryGetProperty("SourceName", out var sn)
-                    ? sn.GetString() : source.Name;
-                return (true, sourceName);
+                if (!isInherited) return (false, null);
+                inheritedMatch ??= (true, SourcePrefix(prop.Name));
             }
-
-            return null;
+            return inheritedMatch;
         }
 
-        private static bool TryMatchProperty(JsonElement element, string containerName, string propertyName, string expectedValue)
+        /// <summary>Leaf name of a qualified inherited key: "Device.serialNumber" → "serialNumber".</summary>
+        private static string LeafName(string key)
         {
-            if (!element.TryGetProperty(containerName, out var container) ||
-                !container.TryGetProperty(propertyName, out var propValue))
-                return false;
+            var dot = key.LastIndexOf('.');
+            return dot >= 0 ? key[(dot + 1)..] : key;
+        }
 
-            var valueStr = GetPropertyValueAsString(propValue);
-            return valueStr == expectedValue;
+        /// <summary>Source path of a qualified inherited key: "Device.serialNumber" → "Device".</summary>
+        private static string SourcePrefix(string key)
+        {
+            var dot = key.LastIndexOf('.');
+            return dot >= 0 ? key[..dot] : key;
         }
 
         private static string? GetPropertyValueAsString(JsonElement value)

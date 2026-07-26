@@ -22,6 +22,11 @@ public class ListCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
+    // Mock the bulk effective-properties endpoint `list` reads inherited properties from.
+    private void SetupEffective(string effectiveJson) =>
+        _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>()))
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(effectiveJson));
+
     [Fact]
     public async Task ListThings_WithNoThings_ShowsNoThings()
     {
@@ -448,18 +453,24 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListThings_WithInheritedProperties_ShowsInheritedSource()
     {
+        // Regression for #6058: serialNumber is inherited (never overridden) so it comes from the
+        // effective endpoint, keyed by qualified path — the removed InheritedProperties key is gone.
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>(
-            $"[{{\"Id\":\"{thingId}\",\"Name\":\"Motor\",\"Properties\":{{\"temp\":50}},\"InheritedProperties\":{{\"Device\":{{\"SourceName\":\"Device\",\"Properties\":{{\"serialNumber\":\"SN-1234\"}}}}}}}}]");
+            $"[{{\"Id\":\"{thingId}\",\"Name\":\"Motor\",\"Properties\":{{\"temp\":50}}}}]");
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        SetupEffective($@"{{""{thingId}"":{{
+            ""temp"":{{""Value"":50,""IsInherited"":false}},
+            ""Device.serialNumber"":{{""Value"":""SN-1234"",""IsInherited"":true,""InheritedFrom"":""{Guid.NewGuid()}""}}
+        }}}}");
 
         await ExecuteHandler("things");
 
         var output = _writer.ToString();
         Assert.Contains("Motor", output);
         Assert.Contains("temp", output);
-        Assert.Contains("serialNumber", output);
-        Assert.Contains("Device", output);
+        Assert.Contains("Device.serialNumber", output);
+        Assert.Contains("(inherited)", output);
     }
 
     [Fact]
@@ -481,35 +492,21 @@ public class ListCommandHandlerTests
     [Fact]
     public async Task ListThings_NestedInheritedProperties_TraversesAllLevels()
     {
-        // A thing with nested InheritedProperties.<sourceId>.Inherited.<deeperId>.Properties
-        // exercises PushNestedInheritance + GetSourceName recursion. The assertion pins that
-        // both the immediate parent and the nested grandparent surface in the rendered output.
-        var json = """
-        [{
-          "Id": "00000000-0000-0000-0000-000000000001",
-          "Name": "child",
-          "Properties": {},
-          "InheritedProperties": {
-            "00000000-0000-0000-0000-000000000002": {
-              "SourceName": "parent",
-              "Properties": { "p1": { "value": "v1" } },
-              "Inherited": {
-                "00000000-0000-0000-0000-000000000003": {
-                  "SourceName": "grandparent",
-                  "Properties": { "g1": { "value": "v2" } }
-                }
-              }
-            }
-          }
-        }]
-        """;
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(JsonDocument.Parse(json).RootElement);
+        // A transitively-inherited value is keyed by its full source path (parent.grandparent.leaf),
+        // so both the immediate parent and the nested grandparent surface in the rendered output.
+        var thingId = "00000000-0000-0000-0000-000000000001";
+        var things = JsonDocument.Parse($@"[{{""Id"":""{thingId}"",""Name"":""child"",""Properties"":{{}}}}]").RootElement;
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
+        SetupEffective($@"{{""{thingId}"":{{
+            ""parent.p1"":{{""Value"":""v1"",""IsInherited"":true,""InheritedFrom"":""00000000-0000-0000-0000-000000000002""}},
+            ""parent.grandparent.g1"":{{""Value"":""v2"",""IsInherited"":true,""InheritedFrom"":""00000000-0000-0000-0000-000000000003""}}
+        }}}}");
 
         await ExecuteHandler("things");
 
         var output = _writer.ToString();
-        Assert.Contains("parent", output);
-        Assert.Contains("grandparent", output);
+        Assert.Contains("parent.p1", output);
+        Assert.Contains("parent.grandparent.g1", output);
     }
 
     #endregion

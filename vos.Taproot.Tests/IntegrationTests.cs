@@ -194,10 +194,17 @@ public class IntegrationTests : IDisposable
             {{""Id"":""{Guid.NewGuid()}"",""Name"":""likes"",""SubjectId"":""{aliceId}"",""TargetId"":""{bobId}""}}
         ]";
 
+        var effectiveJson = $@"{{
+            ""{aliceId}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}},
+            ""{bobId}"":{{""Status"":{{""Value"":""Inactive"",""IsInherited"":false}}}}
+        }}";
+
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(thingsJson));
         _myceliumMock.Setup(b => b.GetAllRelationshipsAsync()).ReturnsAsync(
             JsonSerializer.Deserialize<JsonElement>(relationshipsJson));
+        _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(
+            JsonSerializer.Deserialize<JsonElement>(effectiveJson));
 
         // Test query stats
         var writer = new StringWriter();
