@@ -48,6 +48,9 @@ export interface ModelIndex {
   isChildren: Map<string, string[]>;
   /** ids that are the target of any `is`-edge — i.e. Things acting as an archetype. */
   isTargets: Set<string>;
+  /** Thing id → ids of the archetypes it is directly `is`-linked to (its parents). Used to
+   *  resolve inherited property defaults up the `is`-chain (Bug #6048). */
+  isParents: Map<string, string[]>;
 }
 
 export function buildModelIndex(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
@@ -73,6 +76,7 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
   const isId = predicateNameToId.get(IS_PREDICATE);
   const isChildren = new Map<string, string[]>();
   const isTargets = new Set<string>();
+  const isParents = new Map<string, string[]>();
   if (isId) {
     for (const r of relationships) {
       if (r.PredicateId !== isId) continue;
@@ -80,9 +84,12 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
       const kids = isChildren.get(r.TargetId);
       if (kids) kids.push(r.SubjectId);
       else isChildren.set(r.TargetId, [r.SubjectId]);
+      const parents = isParents.get(r.SubjectId);
+      if (parents) parents.push(r.TargetId);
+      else isParents.set(r.SubjectId, [r.TargetId]);
     }
   }
-  return { byId, byName, relationships, predicateNameToId, predicateIdToName, isChildren, isTargets };
+  return { byId, byName, relationships, predicateNameToId, predicateIdToName, isChildren, isTargets, isParents };
 }
 
 /**
@@ -128,7 +135,7 @@ export function thingsOfArchetype(archetype: string, idx: ModelIndex): VosThing[
 export function discoverDashboardsFromIndex(idx: ModelIndex): DashboardDescriptor[] {
   const out: DashboardDescriptor[] = [];
   for (const t of thingsOfArchetype(DASHBOARD_ARCHETYPE, idx)) {
-    const raw = effectiveProperties(t)[DASHBOARD_SPEC_PROPERTY];
+    const raw = effectiveProperties(t, idx)[DASHBOARD_SPEC_PROPERTY];
     const spec = parseSpec(raw);
     if (spec) out.push({ id: t.Id, name: t.Name, spec });
   }
@@ -215,10 +222,10 @@ function num(v: unknown): number {
   return NaN;
 }
 
-function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined): boolean {
+function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, idx: ModelIndex): boolean {
   if (!filters) return true;
   for (const f of filters) {
-    const v = effectiveProperties(thing)[f.property];
+    const v = effectiveProperties(thing, idx)[f.property];
     switch (f.op) {
       case '=': if (v !== f.value) return false; break;
       case '!=': if (v === f.value) return false; break;
@@ -264,26 +271,26 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       if (binding.thing === SCOPE_REF) {
         if (ctx.scopeId) {
           const t = ctx.idx.byId.get(ctx.scopeId);
-          return t ? num(effectiveProperties(t)[binding.property]) : null;
+          return t ? num(effectiveProperties(t, ctx.idx)[binding.property]) : null;
         }
         // "All" → average across compare entities.
         const ents = ctx.compareArchetype ? thingsOfArchetype(ctx.compareArchetype, ctx.idx) : [];
-        const vals = ents.map((t) => num(effectiveProperties(t)[binding.property])).filter((n) => !isNaN(n));
+        const vals = ents.map((t) => num(effectiveProperties(t, ctx.idx)[binding.property])).filter((n) => !isNaN(n));
         return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
       }
       const t = ctx.idx.byId.get(binding.thing) ?? ctx.idx.byName.get(binding.thing);
-      return t ? num(effectiveProperties(t)[binding.property]) : null;
+      return t ? num(effectiveProperties(t, ctx.idx)[binding.property]) : null;
     }
 
     case 'aggregate': {
       let items = thingsOfArchetype(binding.archetype, ctx.idx).filter((t) =>
-        passesFilters(t, binding.where),
+        passesFilters(t, binding.where, ctx.idx),
       );
       const members = scopeMemberIds(binding.scope, ctx);
       if (members) items = items.filter((t) => members.has(t.Id));
       if (binding.op === 'count') return items.length;
       const vals = items
-        .map((t) => num(effectiveProperties(t)[binding.property ?? '']))
+        .map((t) => num(effectiveProperties(t, ctx.idx)[binding.property ?? '']))
         .filter((n) => !isNaN(n));
       if (!vals.length) return 0;
       switch (binding.op) {
@@ -312,7 +319,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       return Promise.all(
         ents.map(async (t) => {
           const row: Row = { id: t.Id, name: t.Name };
-          for (const p of binding.properties) row[p] = num(effectiveProperties(t)[p]);
+          for (const p of binding.properties) row[p] = num(effectiveProperties(t, ctx.idx)[p]);
           // Each computed column resolves with the Thing as the scope, so the same binding a
           // $scope-driven widget uses yields that Thing's own value here.
           const values = await Promise.all(
@@ -351,7 +358,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       if (binding.limit) list = list.slice(0, binding.limit);
       return list.map((ref) => {
         const full = ctx.idx.byId.get(ref.Id);
-        return { id: ref.Id, name: ref.Name, ...(full ? effectiveProperties(full) : {}) } as Row;
+        return { id: ref.Id, name: ref.Name, ...(full ? effectiveProperties(full, ctx.idx) : {}) } as Row;
       });
     }
 

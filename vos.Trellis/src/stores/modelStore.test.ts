@@ -3,12 +3,12 @@ import { useModelStore } from './modelStore';
 import type { VosThing, VosRelationship } from '../types/vos';
 
 const thing = (id: string, name: string) => ({
-  Id: id, Name: name, Properties: {}, OwnProperties: {}, InheritedProperties: {},
+  Id: id, Name: name, Properties: {}, InheritedOverrides: {},
 }) as unknown as VosThing;
 
 const rel = (id: string, name: string) => ({
   Id: id, Name: name, SubjectId: 's', PredicateId: 'p', TargetId: 't',
-  SubjectName: 'S', PredicateName: 'P', TargetName: 'T', Properties: {}, OwnProperties: {},
+  SubjectName: 'S', PredicateName: 'P', TargetName: 'T', Properties: {},
 }) as unknown as VosRelationship;
 
 beforeEach(() => {

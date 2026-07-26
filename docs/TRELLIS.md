@@ -955,6 +955,16 @@ Right-clicking on the graph opens a **RadialPredicateMenu** showing all predicat
 
 Double-clicking a node in clustering mode toggles its expanded state, revealing all its edges at reduced opacity.
 
+### The property model (client view)
+
+The platform's property model — own vs. inherited vs. override, resolved on read by walking the `is` chain — is documented in [RELATIONSHIP_SERVICES.md](RELATIONSHIP_SERVICES.md#reading-properties-own-inherited-effective). This is how Trellis consumes it:
+
+- **The model store** (`modelStore`) holds each thing's **own** properties plus its **stored overrides** — the shape `GET /api/things` returns (`Properties` + `InheritedOverrides`, which the client unwraps to `InheritedProperties`). It does **not** hold inherited defaults the instance never overrode; those are resolved server-side.
+- **Live dashboards** read `effectiveProperties(thing)` (`propertyMapper.ts`) — a synchronous client-side merge of own + overrides, memoized per thing. It suits per-frame binding resolution across many things and is the only property source that stays live with SSE without a fetch.
+- **Detail panel and property search** need the *complete* resolved view (including inherited defaults), so they read it from the server: `NodeDetailPanel` fetches `GET /api/things/{id}/properties` for the selected thing; `PropertySearchPage` fetches the bulk `GET /api/things/properties?scope=effective` once when it opens. Both key inherited properties by qualified path and carry `IsInherited` / `InheritedFrom`.
+
+**Gotcha:** never treat `thing.InheritedProperties` (the client's override-only tree) as the full inherited view — it omits non-overridden archetype defaults. Bugs #5908 and #5909 were exactly that mistake. Read the resolved view from the endpoints above.
+
 ### Property Inheritance Display
 
 When a node is selected, **NodeDetailPanel** fetches the full thing detail (including `InheritedProperties`) and displays:
