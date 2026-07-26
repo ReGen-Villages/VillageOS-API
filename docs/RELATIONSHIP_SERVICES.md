@@ -149,6 +149,24 @@ The `is` predicate is VillageOS's type system. Linking a thing to a type with an
 - **Transitive.** Resolution follows the whole chain (`Dog is Mammal is Animal`), and type-membership tests walk it too.
 - **Classification.** The GUI uses `is` relationships to determine node types and colors.
 
+### Reading properties: own, inherited, effective
+
+Every property a thing exposes falls into one view. To a consumer a thing simply **has properties** — the distinction is provenance carried on each one, not a separate list:
+
+- **Own** — stored directly on the thing.
+- **Inherited** — resolved from an ancestor via the `is` chain; a live default the thing never set.
+- **Override** — an inherited *name* the thing set its own value for. On read it wins and reads back as own; write isolation keeps the ancestor's default flowing to every other instance.
+- **Effective** — the resolved set a read returns: own + inherited, own/overrides winning. This is what a consumer should read.
+
+Two endpoints serve the resolved (effective) view. Both tag each property with `IsInherited` and `InheritedFrom` (the source id), and key inherited properties by qualified path (`Home.energy_rating`) so the lineage is visible:
+
+| Endpoint | Scope | Use |
+|----------|-------|-----|
+| `GET /api/things/{id}/properties` | one thing | a selected thing's full resolved view (e.g. a detail panel) |
+| `GET /api/things/properties?scope={effective\|own\|inherited}` | all things, one call | bulk read-only surfaces (property search) that need the full inherited view without a request per thing. `effective` (default) includes overrides as the winning value. |
+
+Do **not** reconstruct the effective view from a thing's raw stored own + overrides — that misses inherited defaults the instance never set. Read it from these endpoints, which resolve the `is` chain server-side.
+
 ### Naming rules (checked on write)
 
 A name resolves to one property, so three rules keep resolution unambiguous. A live API write that would break one is rejected:
