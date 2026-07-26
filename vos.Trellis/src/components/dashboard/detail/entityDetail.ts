@@ -43,9 +43,9 @@ function archetypeNames(idx: ModelIndex): Map<string, string> {
   return names;
 }
 
-function selectProperties(thing: VosThing, which: RelationSpec['properties']): [string, unknown][] {
+function selectProperties(thing: VosThing, which: RelationSpec['properties'], idx: ModelIndex): [string, unknown][] {
   if (!which) return [];
-  const props = effectiveProperties(thing);
+  const props = effectiveProperties(thing, idx);
   if (which === '*') return Object.entries(props);
   return which.filter((key) => key in props).map((key) => [key, props[key]] as const);
 }
@@ -102,7 +102,7 @@ export function resolveRelations(
             subjectName: direction === 'out' ? anchorName : relatedName,
             targetName: direction === 'out' ? relatedName : anchorName,
             relatedName,
-            properties: [...hoisted, ...(related ? selectProperties(related, spec.properties) : [])],
+            properties: [...hoisted, ...(related ? selectProperties(related, spec.properties, idx) : [])],
             children: nestedSpecs.length ? walk(relatedId, nestedSpecs, nextVisited) : [],
           });
         }

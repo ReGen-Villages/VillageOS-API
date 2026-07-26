@@ -139,7 +139,7 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
   const { t } = useTranslation();
   const { loading, root, relations, statesById, stateChanges, coverage } = useEntityDetail(idx, thingId, detail, nonce);
 
-  const props = root ? effectiveProperties(root) : {};
+  const props = root ? effectiveProperties(root, idx) : {};
   const title = (detail.titleProperty && (props[detail.titleProperty] as string)) || root?.Name || formatGuid(thingId);
   const subtitle = detail.subtitleProperty ? (props[detail.subtitleProperty] as string) : undefined;
 

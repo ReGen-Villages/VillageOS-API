@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unwrapProperties, unwrapThing, unwrapRelationship, effectiveProperties } from './propertyMapper';
+import { unwrapProperties, unwrapThing, unwrapRelationship, effectiveProperties, type IsChainLookup } from './propertyMapper';
 import type { VosThing, VosRelationship, InheritedPropertySet } from '../types/vos';
 
 const inheritedSet = (
@@ -124,11 +124,22 @@ describe('unwrapThing', () => {
 // inherited name is relocated out of Properties into InheritedOverrides, so
 // reading Properties alone misses it and dashboard widgets render blank/0.
 describe('effectiveProperties', () => {
-  it('returns an inherited value when the own Properties are empty', () => {
+  // A lookup with no `is`-chain: exercises the override + own layers in isolation.
+  const noAncestors: IsChainLookup = { byId: new Map(), isParents: new Map() };
+
+  // Build an is-chain lookup from archetype Things and a child→parents map.
+  const chain = (things: VosThing[], parents: Record<string, string[]>): IsChainLookup => ({
+    byId: new Map(things.map((t) => [t.Id, t])),
+    isParents: new Map(Object.entries(parents)),
+  });
+  const archetype = (id: string, name: string, props: Record<string, unknown>): VosThing =>
+    ({ Id: id, Name: name, Properties: props });
+
+  it('returns an override value when the own Properties are empty', () => {
     const merged = effectiveProperties({
       Properties: {},
       InheritedOverrides: { Home: inheritedSet('Home', { energy_rating: 'A+' }) },
-    });
+    }, noAncestors);
     expect(merged).toEqual({ energy_rating: 'A+' });
   });
 
@@ -136,63 +147,90 @@ describe('effectiveProperties', () => {
     const merged = effectiveProperties({
       Properties: { energy_rating: 'B' },
       InheritedOverrides: { Home: inheritedSet('Home', { energy_rating: 'A+' }) },
-    });
+    }, noAncestors);
     expect(merged.energy_rating).toBe('B');
   });
 
-  it('resolves a multi-level ancestor chain with nearer ancestors winning', () => {
+  it('resolves a multi-level override chain with nearer sources winning', () => {
     const merged = effectiveProperties({
       Properties: {},
       InheritedOverrides: {
         // Home overrides x=2; its ancestor Building sets x=1 and y=9.
         Home: inheritedSet('Home', { x: 2 }, { Building: inheritedSet('Building', { x: 1, y: 9 }) }),
       },
-    });
+    }, noAncestors);
     expect(merged).toEqual({ x: 2, y: 9 });
   });
 
   it('returns own properties unchanged when there are no inherited overrides', () => {
-    const merged = effectiveProperties({ Properties: { a: 1 }, InheritedOverrides: undefined });
+    const merged = effectiveProperties({ Properties: { a: 1 }, InheritedOverrides: undefined }, noAncestors);
     expect(merged).toEqual({ a: 1 });
   });
 
-  // Bug #5941: resolve sibling ancestors deterministically (by SourceName) instead of
-  // relying on server JSON key order. Two siblings define `x`; the alphabetically-last
-  // SourceName wins, whatever order the keys arrive in.
-  it('resolves sibling ancestor conflicts deterministically by SourceName', () => {
-    const thing = {
-      Properties: {},
-      InheritedOverrides: {
-        Beta: inheritedSet('Beta', { x: 'from-beta' }),
-        Alpha: inheritedSet('Alpha', { x: 'from-alpha' }),
-      },
-    };
-    // Reversed key order must not change the outcome.
-    const reversed = {
-      Properties: {},
-      InheritedOverrides: {
-        Alpha: inheritedSet('Alpha', { x: 'from-alpha' }),
-        Beta: inheritedSet('Beta', { x: 'from-beta' }),
-      },
-    };
-    expect(effectiveProperties(thing).x).toBe('from-beta');
-    expect(effectiveProperties(reversed).x).toBe('from-beta');
+  // Bug #6048: resolve a non-overridden inherited default from the archetype up the is-chain — the
+  // exact value that was invisible before, since it lives on the archetype, not in the instance.
+  it('resolves a non-overridden inherited default from the archetype', () => {
+    const home = archetype('h', 'Home', { energy_rating: 'A+' });
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    const merged = effectiveProperties(instance, chain([home], { i: ['h'] }));
+    expect(merged).toEqual({ energy_rating: 'A+' });
   });
 
-  // Bug #5941: memoized per Thing identity — a repeat call returns the very same
-  // (frozen) object, and the result cannot be mutated.
-  it('memoizes by Thing identity and freezes the result', () => {
-    const thing = {
-      Properties: { a: 1 },
-      InheritedOverrides: { Home: inheritedSet('Home', { b: 2 }) },
-    };
-    const first = effectiveProperties(thing);
-    const second = effectiveProperties(thing);
+  it('lets an instance override win over the archetype default', () => {
+    const home = archetype('h', 'Home', { energy_rating: 'A+' });
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: { Home: inheritedSet('Home', { energy_rating: 'B' }) } };
+    expect(effectiveProperties(instance, chain([home], { i: ['h'] })).energy_rating).toBe('B');
+  });
+
+  it('lets an own value win over the archetype default', () => {
+    const home = archetype('h', 'Home', { x: 'default' });
+    const instance = { Id: 'i', Properties: { x: 'own' }, InheritedOverrides: undefined };
+    expect(effectiveProperties(instance, chain([home], { i: ['h'] })).x).toBe('own');
+  });
+
+  it('lets a nearer archetype default win over a farther one', () => {
+    const building = archetype('b', 'Building', { x: 'building', y: 'shared' });
+    const home = archetype('h', 'Home', { x: 'home' });
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    const merged = effectiveProperties(instance, chain([home, building], { i: ['h'], h: ['b'] }));
+    expect(merged).toEqual({ x: 'home', y: 'shared' });
+  });
+
+  it('resolves sibling archetype conflicts deterministically by Name', () => {
+    const alpha = archetype('a', 'Alpha', { x: 'alpha' });
+    const beta = archetype('b', 'Beta', { x: 'beta' });
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    // Alphabetically-last Name (Beta) wins, whatever order the parent ids arrive in.
+    expect(effectiveProperties(instance, chain([alpha, beta], { i: ['a', 'b'] })).x).toBe('beta');
+    expect(effectiveProperties(instance, chain([alpha, beta], { i: ['b', 'a'] })).x).toBe('beta');
+  });
+
+  it('survives a malformed is-cycle without infinite recursion', () => {
+    const a = archetype('a', 'A', { x: 1 });
+    const b = archetype('b', 'B', { y: 2 });
+    const merged = effectiveProperties(a, chain([a, b], { a: ['b'], b: ['a'] }));
+    expect(merged).toEqual({ x: 1, y: 2 });
+  });
+
+  // Bug #5941: within a stable model (same index) a repeat call returns the very same frozen object.
+  it('memoizes per model index and freezes the result', () => {
+    const thing = { Id: 'i', Properties: { a: 1 }, InheritedOverrides: { Home: inheritedSet('Home', { b: 2 }) } };
+    const first = effectiveProperties(thing, noAncestors);
+    const second = effectiveProperties(thing, noAncestors);
     expect(second).toBe(first); // same reference — computed once
     expect(Object.isFrozen(first)).toBe(true);
-    expect(() => {
-      (first as Record<string, unknown>).a = 99;
-    }).toThrow();
+    expect(() => { (first as Record<string, unknown>).a = 99; }).toThrow();
+  });
+
+  // Bug #6048: the cache is keyed on the model index, so when an archetype default changes the
+  // instance's effective value updates — a Thing-only cache (Bug #5941) would have gone stale.
+  it('invalidates when the model index changes (archetype default updated)', () => {
+    const instance = { Id: 'i', Properties: {}, InheritedOverrides: undefined };
+    const before = effectiveProperties(instance, chain([archetype('h', 'Home', { rate: 'A+' })], { i: ['h'] }));
+    expect(before.rate).toBe('A+');
+    // A new index (as buildModelIndex produces on any model change) carries the updated archetype.
+    const after = effectiveProperties(instance, chain([archetype('h', 'Home', { rate: 'A-' })], { i: ['h'] }));
+    expect(after.rate).toBe('A-');
   });
 });
 

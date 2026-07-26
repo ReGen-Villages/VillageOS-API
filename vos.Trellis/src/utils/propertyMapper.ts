@@ -56,48 +56,83 @@ export function unwrapThing(thing: VosThing): VosThing {
   };
 }
 
-// Memoize the flattened result per Thing identity (Bug #5941). effectiveProperties is
-// called per-Thing per-property across aggregate/compareEntities/stateList, and each call
-// walks the whole ancestor chain and allocates a merged object. The store never mutates a
-// Thing in place — setThings/upsertThing/applyThingPropertyUpdate all produce new objects —
-// so a stale entry is impossible: a changed Thing is a new key, and the old key is GC'd.
-const effectivePropertiesCache = new WeakMap<object, Readonly<Record<string, unknown>>>();
+/** Minimal is-chain lookup effectiveProperties needs to resolve inherited defaults up the `is`-chain. */
+export interface IsChainLookup {
+  byId: Map<string, VosThing>;
+  /** Thing id → the ids of the archetypes it is directly `is`-linked to. */
+  isParents: Map<string, string[]>;
+}
+
+// Memoize per (model-index identity, Thing identity). The index is rebuilt whenever the model
+// changes (buildModelIndex is memoized on things+relationships), so a fresh index correctly
+// invalidates every entry — including instances whose inherited defaults changed because an
+// *archetype* changed, which a Thing-only key (Bug #5941) cannot see (Bug #6048). Within a stable
+// model the index identity holds, preserving the per-Thing memoization.
+const effectivePropertiesCache = new WeakMap<object, WeakMap<object, Readonly<Record<string, unknown>>>>();
+
+type ResolvableThing = { Id?: string; Properties: Record<string, unknown>; InheritedOverrides?: Record<string, InheritedPropertySet> };
+
+/** Flatten an override tree onto `merged`, farther override-sources first, alphabetically-last SourceName winning. */
+function collectOverrides(sets: Record<string, InheritedPropertySet> | undefined, merged: Record<string, unknown>): void {
+  if (!sets) return;
+  const ordered = Object.values(sets).sort((a, b) => a.SourceName.localeCompare(b.SourceName));
+  for (const set of ordered) {
+    collectOverrides(set.Inherited as unknown as Record<string, InheritedPropertySet>, merged);
+    Object.assign(merged, set.Properties);
+  }
+}
 
 /**
- * A Thing's effective properties: own + inherited overrides, own winning, flattened and unwrapped.
- * Under lazy inheritance an instance's value for an inherited name is relocated out of Properties into
- * InheritedOverrides, so reading Properties alone misses it. Call unwrapThing first (values raw here).
+ * A Thing's effective properties: inherited defaults + stored overrides + own, own winning, flattened
+ * and unwrapped. Resolution walks the `is`-chain via `lookup`: each ancestor archetype contributes its
+ * OWN effective properties (its defaults and overrides already resolved), so inherited values the
+ * instance never overrode are included — mirroring the server's resolve-on-read. Call unwrapThing first.
  *
- * This resolves own + stored overrides only. It does NOT include archetype defaults the instance never
- * overrode — those are resolved server-side (GET /api/things/{id}/properties). See Bug #6048.
- *
- * Precedence is deterministic: own > nearer ancestor > farther ancestor, and among same-distance
- * sibling ancestors the one whose `SourceName` sorts last wins — so a property defined by two sibling
- * archetypes always resolves the same way regardless of server JSON key order. The returned object is
- * frozen (it is a shared cache entry); callers read or spread it but must not mutate it.
+ * Precedence is deterministic: own > override > nearer archetype > farther archetype; among same-distance
+ * siblings the one whose `Name`/`SourceName` sorts last wins, so a value defined by two sibling archetypes
+ * always resolves the same way regardless of key order. The result is frozen (a shared cache entry);
+ * callers read or spread it but must not mutate it.
  */
 export function effectiveProperties(
-  thing: Pick<VosThing, 'Properties' | 'InheritedOverrides'>,
+  thing: ResolvableThing,
+  lookup: IsChainLookup,
 ): Readonly<Record<string, unknown>> {
-  const cached = effectivePropertiesCache.get(thing);
+  return resolveEffective(thing, lookup, new Set());
+}
+
+function resolveEffective(
+  thing: ResolvableThing,
+  lookup: IsChainLookup,
+  visiting: Set<string>,
+): Readonly<Record<string, unknown>> {
+  let perModel = effectivePropertiesCache.get(lookup);
+  if (!perModel) { perModel = new WeakMap(); effectivePropertiesCache.set(lookup, perModel); }
+  const cached = perModel.get(thing);
   if (cached) return cached;
 
   const merged: Record<string, unknown> = {};
-  const collect = (sets?: Record<string, InheritedPropertySet>): void => {
-    if (!sets) return;
-    // Fixed order (by SourceName) makes sibling resolution deterministic; assigning in
-    // ascending order means the alphabetically-last sibling wins a same-distance conflict.
-    const ordered = Object.values(sets).sort((a, b) => a.SourceName.localeCompare(b.SourceName));
-    for (const set of ordered) {
-      collect(set.Inherited as unknown as Record<string, InheritedPropertySet>);  // farther ancestors first
-      Object.assign(merged, set.Properties);
-    }
-  };
-  collect(thing.InheritedOverrides);
-  Object.assign(merged, thing.Properties);  // own wins
+
+  // 1. Inherited defaults from ancestors — farthest first so a nearer archetype overwrites a farther
+  //    one; each ancestor's own effective view is folded in, so its overrides and deeper defaults are
+  //    already resolved. `visiting` guards against a malformed `is`-cycle.
+  const parents = (thing.Id ? lookup.isParents.get(thing.Id) ?? [] : [])
+    .map((id) => lookup.byId.get(id))
+    .filter((p): p is VosThing => !!p && !visiting.has(p.Id))
+    .sort((a, b) => a.Name.localeCompare(b.Name));
+  if (parents.length && thing.Id) {
+    visiting.add(thing.Id);
+    for (const parent of parents) Object.assign(merged, resolveEffective(parent, lookup, visiting));
+    visiting.delete(thing.Id);
+  }
+
+  // 2. This instance's stored overrides win over inherited defaults.
+  collectOverrides(thing.InheritedOverrides, merged);
+
+  // 3. Own properties win over everything.
+  Object.assign(merged, thing.Properties);
 
   const frozen = Object.freeze(merged);
-  effectivePropertiesCache.set(thing, frozen);
+  perModel.set(thing, frozen);
   return frozen;
 }
 
