@@ -1,0 +1,6 @@
+{
+  "theme": "default",
+  "themeVariables": { "fontSize": "26px", "fontFamily": "Inter, Helvetica, Arial, sans-serif" },
+  "flowchart": { "nodeSpacing": 45, "rankSpacing": 55, "padding": 14, "wrappingWidth": 460, "htmlLabels": true },
+  "sequence": { "actorFontSize": 24, "noteFontSize": 22, "messageFontSize": 22, "width": 220 }
+}

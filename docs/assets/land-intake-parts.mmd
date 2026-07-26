@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph client["What people use"]
+    T["<b>Trellis</b><br/>the web GUI"]
+    TR["<b>Taproot</b><br/>the command line"]
+  end
+  M["<b>Mycelium</b><br/>the broker — holds the model,<br/>serves the API, runs the services"]
+  subgraph svc["Services (each a small program)"]
+    TB["<b>Tributary</b><br/>fetches outside data"]
+    D["<b>Delta</b><br/>registers data sources"]
+    P["<b>Phloem</b><br/>runs pipelines"]
+    MB["<b>ModelBridge</b><br/>moves a value between<br/>the model and a pipeline"]
+    C["<b>Compute services</b><br/>energy, water, food"]
+  end
+  T --> M
+  TR --> M
+  M --> TB & D & P & MB & C
