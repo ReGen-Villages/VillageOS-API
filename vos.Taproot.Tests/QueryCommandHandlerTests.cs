@@ -21,6 +21,11 @@ public class QueryCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
+    // Mock the bulk effective-properties endpoint the handler resolves matches against.
+    private void SetupEffective(string effectiveJson) =>
+        _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>()))
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(effectiveJson));
+
     // ========== Execute Tests ==========
 
     [Fact]
@@ -69,9 +74,10 @@ public class QueryCommandHandlerTests
     public async Task QueryProperty_WithMatches_ShowsResults()
     {
         var thingId = Guid.NewGuid();
-        var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing"",""Properties"":{{""Status"":""Active""}}}}]";
+        var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing""}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        SetupEffective($@"{{""{thingId}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}}}}");
 
         await ExecuteHandler("property Status Active");
 
@@ -86,11 +92,15 @@ public class QueryCommandHandlerTests
         var thing1Id = Guid.NewGuid();
         var thing2Id = Guid.NewGuid();
         var json = $@"[
-            {{""Id"":""{thing1Id}"",""Name"":""Alice"",""Properties"":{{""Status"":""Active""}}}},
-            {{""Id"":""{thing2Id}"",""Name"":""Bob"",""Properties"":{{""Status"":""Active""}}}}
+            {{""Id"":""{thing1Id}"",""Name"":""Alice""}},
+            {{""Id"":""{thing2Id}"",""Name"":""Bob""}}
         ]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        SetupEffective($@"{{
+            ""{thing1Id}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}},
+            ""{thing2Id}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}}
+        }}");
 
         await ExecuteHandler("property Status Active");
 
@@ -294,9 +304,10 @@ public class QueryCommandHandlerTests
     public async Task QueryProperty_WithShowGuidsFlag_ShowsGuids()
     {
         var thingId = Guid.NewGuid();
-        var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing"",""Properties"":{{""Status"":""Active""}}}}]";
+        var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing""}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        SetupEffective($@"{{""{thingId}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}}}}");
 
         await ExecuteHandler("property Status Active --showguids");
 
@@ -309,9 +320,10 @@ public class QueryCommandHandlerTests
     public async Task QueryProperty_WithoutShowGuidsFlag_HidesGuids()
     {
         var thingId = Guid.NewGuid();
-        var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing"",""Properties"":{{""Status"":""Active""}}}}]";
+        var json = $@"[{{""Id"":""{thingId}"",""Name"":""TestThing""}}]";
         var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        SetupEffective($@"{{""{thingId}"":{{""Status"":{{""Value"":""Active"",""IsInherited"":false}}}}}}");
 
         await ExecuteHandler("property Status Active");
 
@@ -368,20 +380,15 @@ public class QueryCommandHandlerTests
     [Fact]
     public async Task QueryProperty_InheritedProperty_ShowsInheritedSource()
     {
+        // Regression for #6058: the value lives only on the archetype (inherited, never overridden),
+        // so it comes from the effective endpoint keyed by qualified path — not the removed key.
         var thingId = Guid.NewGuid();
-        var json = $@"[{{
-            ""Id"":""{thingId}"",
-            ""Name"":""Motor"",
-            ""Properties"":{{""localProp"":""localValue""}},
-            ""InheritedProperties"":{{
-                ""Device"":{{
-                    ""SourceName"":""Device"",
-                    ""Properties"":{{""serialNumber"":""SN-1234""}}
-                }}
-            }}
-        }}]";
-        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>($@"[{{""Id"":""{thingId}"",""Name"":""Motor""}}]"));
+        SetupEffective($@"{{""{thingId}"":{{
+            ""localProp"":{{""Value"":""localValue"",""IsInherited"":false}},
+            ""Device.serialNumber"":{{""Value"":""SN-1234"",""IsInherited"":true,""InheritedFrom"":""{Guid.NewGuid()}""}}
+        }}}}");
 
         await ExecuteHandler("property serialNumber SN-1234");
 
@@ -395,72 +402,53 @@ public class QueryCommandHandlerTests
     public async Task QueryProperty_OwnPropertyPreferredOverInherited()
     {
         var thingId = Guid.NewGuid();
-        var json = $@"[{{
-            ""Id"":""{thingId}"",
-            ""Name"":""Motor"",
-            ""Properties"":{{""status"":""active""}},
-            ""InheritedProperties"":{{
-                ""Device"":{{
-                    ""SourceName"":""Device"",
-                    ""Properties"":{{""status"":""inactive""}}
-                }}
-            }}
-        }}]";
-        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>($@"[{{""Id"":""{thingId}"",""Name"":""Motor""}}]"));
+        SetupEffective($@"{{""{thingId}"":{{
+            ""status"":{{""Value"":""active"",""IsInherited"":false}},
+            ""Device.status"":{{""Value"":""inactive"",""IsInherited"":true,""InheritedFrom"":""{Guid.NewGuid()}""}}
+        }}}}");
 
         await ExecuteHandler("property status active");
 
         var output = _writer.ToString();
         Assert.Contains("Found 1 thing(s)", output);
         Assert.Contains("Motor", output);
-        // Own property should be found (not inherited)
+        // Own value matches, so no inheritance suffix.
         Assert.DoesNotContain("inherited from", output);
     }
 
     [Fact]
-    public async Task QueryProperty_InheritedWithoutSourceName_UsesSectionKey()
+    public async Task QueryProperty_NestedInheritance_ReportsSourceChain()
     {
+        // A transitively-inherited value is keyed by its full source path; the source label is that path.
         var thingId = Guid.NewGuid();
-        var json = $@"[{{
-            ""Id"":""{thingId}"",
-            ""Name"":""Motor"",
-            ""Properties"":{{""localProp"":""localValue""}},
-            ""InheritedProperties"":{{
-                ""Device"":{{
-                    ""Properties"":{{""serialNumber"":""SN-1234""}}
-                }}
-            }}
-        }}]";
-        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>($@"[{{""Id"":""{thingId}"",""Name"":""Motor""}}]"));
+        SetupEffective($@"{{""{thingId}"":{{
+            ""Device.Component.serialNumber"":{{""Value"":""SN-1234"",""IsInherited"":true,""InheritedFrom"":""{Guid.NewGuid()}""}}
+        }}}}");
 
         await ExecuteHandler("property serialNumber SN-1234");
 
         var output = _writer.ToString();
         Assert.Contains("Found 1 thing(s)", output);
-        Assert.Contains("Motor", output);
-        // Uses section key "Device" as fallback source name
-        Assert.Contains("inherited from Device", output);
+        Assert.Contains("inherited from Device.Component", output);
     }
 
     [Fact]
-    public async Task QueryProperty_InheritedPropertiesNotObject_SkipsInherited()
+    public async Task QueryProperty_OwnOnly_MatchesWithNoSource()
     {
         var thingId = Guid.NewGuid();
-        var json = $@"[{{
-            ""Id"":""{thingId}"",
-            ""Name"":""Motor"",
-            ""Properties"":{{""status"":""active""}},
-            ""InheritedProperties"":null
-        }}]";
-        var thingsArray = JsonSerializer.Deserialize<JsonElement>(json);
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(thingsArray);
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>($@"[{{""Id"":""{thingId}"",""Name"":""Motor""}}]"));
+        SetupEffective($@"{{""{thingId}"":{{""status"":{{""Value"":""active"",""IsInherited"":false}}}}}}");
 
         await ExecuteHandler("property status active");
 
         var output = _writer.ToString();
         Assert.Contains("Found 1 thing(s)", output);
+        Assert.DoesNotContain("inherited from", output);
     }
 
     #endregion

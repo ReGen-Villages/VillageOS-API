@@ -85,17 +85,20 @@ namespace vos.Taproot
                 return;
             }
 
+            // Inherited properties are resolved server-side; the per-Thing map is keyed by id and each
+            // inherited entry carries a qualified path key ("Device.serialNumber") and IsInherited.
+            var effective = await _mycelium.GetAllPropertiesAsync();
             var modelName = await GetModelNameAsync();
             _writer.WriteLine($"Model: {modelName}");
             _writer.WriteLine($"Things ({things.GetArrayLength()}):");
 
             foreach (var thing in things.EnumerateArray())
             {
-                WriteThingEntry(thing);
+                WriteThingEntry(thing, effective);
             }
         }
 
-        private void WriteThingEntry(JsonElement thing)
+        private void WriteThingEntry(JsonElement thing, JsonElement effective)
         {
             var id = thing.GetStringOrDefault("Id");
             var name = thing.GetStringOrDefault("Name");
@@ -103,59 +106,18 @@ namespace vos.Taproot
 
             WriteProperties(thing, "    ");
 
-            if (!thing.HasObjectProperty("InheritedProperties")) return;
-
-            var inherited = thing.GetProperty("InheritedProperties");
-            foreach (var sourceEntry in inherited.EnumerateObject())
-            {
-                var sourceName = sourceEntry.Value.GetStringOrDefault("SourceName", "unknown");
-                WriteInheritedProperties(sourceEntry.Value, sourceName, "    ");
-            }
-        }
-
-        private void WriteInheritedProperties(JsonElement inheritedSet, string sourceName, string indent)
-        {
-            var stack = new Stack<(JsonElement Element, string Source)>();
-            stack.Push((inheritedSet, sourceName));
-
-            while (stack.Count > 0)
-            {
-                var (element, source) = stack.Pop();
-
-                WritePropertiesFromElement(element, source, indent);
-                PushNestedInheritance(stack, element, source);
-            }
-        }
-
-        private void WritePropertiesFromElement(JsonElement element, string source, string indent)
-        {
-            if (!element.TryGetProperty("Properties", out var props) || props.ValueKind != JsonValueKind.Object)
+            if (effective.ValueKind != JsonValueKind.Object || id == null ||
+                !effective.TryGetProperty(id, out var props) || props.ValueKind != JsonValueKind.Object)
                 return;
 
             foreach (var prop in props.EnumerateObject())
             {
-                var valueStr = prop.Value.FormatPropertyValue();
-                _writer.WriteLine($"{indent}{source}.{prop.Name}: {valueStr} (inherited)");
+                if (!(prop.Value.TryGetProperty("IsInherited", out var ii) && ii.ValueKind == JsonValueKind.True))
+                    continue;
+                if (!prop.Value.TryGetProperty("Value", out var val)) continue;
+                // The key is already the qualified path (source chain + leaf), matching the prior format.
+                _writer.WriteLine($"    {prop.Name}: {val.FormatPropertyValue()} (inherited)");
             }
-        }
-
-        private static void PushNestedInheritance(Stack<(JsonElement Element, string Source)> stack, JsonElement element, string source)
-        {
-            if (!element.TryGetProperty("Inherited", out var nested) || nested.ValueKind != JsonValueKind.Object)
-                return;
-
-            foreach (var nestedEntry in nested.EnumerateObject())
-            {
-                var nestedSource = GetSourceName(nestedEntry.Value, nestedEntry.Name);
-                stack.Push((nestedEntry.Value, $"{source}.{nestedSource}"));
-            }
-        }
-
-        private static string GetSourceName(JsonElement element, string fallback)
-        {
-            return element.TryGetProperty("SourceName", out var nameProp)
-                ? nameProp.GetString() ?? fallback
-                : fallback;
         }
 
         private async Task<string> GetModelNameAsync()
