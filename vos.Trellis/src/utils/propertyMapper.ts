@@ -49,13 +49,10 @@ function unwrapInheritedPropertySet(
  * into the GUI format (with raw property values).
  */
 export function unwrapThing(thing: VosThing): VosThing {
-  // The platform renamed the inherited-value field InheritedProperties -> InheritedOverrides; read either.
-  const inherited = thing.InheritedProperties
-    ?? (thing as unknown as { InheritedOverrides?: Record<string, InheritedPropertySet> }).InheritedOverrides;
   return {
     ...thing,
     Properties: unwrapProperties(thing.Properties),
-    InheritedProperties: unwrapInheritedPropertySet(inherited),
+    InheritedOverrides: unwrapInheritedPropertySet(thing.InheritedOverrides),
   };
 }
 
@@ -69,7 +66,10 @@ const effectivePropertiesCache = new WeakMap<object, Readonly<Record<string, unk
 /**
  * A Thing's effective properties: own + inherited overrides, own winning, flattened and unwrapped.
  * Under lazy inheritance an instance's value for an inherited name is relocated out of Properties into
- * InheritedProperties, so reading Properties alone misses it. Call unwrapThing first (values raw here).
+ * InheritedOverrides, so reading Properties alone misses it. Call unwrapThing first (values raw here).
+ *
+ * This resolves own + stored overrides only. It does NOT include archetype defaults the instance never
+ * overrode — those are resolved server-side (GET /api/things/{id}/properties). See Bug #6048.
  *
  * Precedence is deterministic: own > nearer ancestor > farther ancestor, and among same-distance
  * sibling ancestors the one whose `SourceName` sorts last wins — so a property defined by two sibling
@@ -77,7 +77,7 @@ const effectivePropertiesCache = new WeakMap<object, Readonly<Record<string, unk
  * frozen (it is a shared cache entry); callers read or spread it but must not mutate it.
  */
 export function effectiveProperties(
-  thing: Pick<VosThing, 'Properties' | 'InheritedProperties'>,
+  thing: Pick<VosThing, 'Properties' | 'InheritedOverrides'>,
 ): Readonly<Record<string, unknown>> {
   const cached = effectivePropertiesCache.get(thing);
   if (cached) return cached;
@@ -93,7 +93,7 @@ export function effectiveProperties(
       Object.assign(merged, set.Properties);
     }
   };
-  collect(thing.InheritedProperties);
+  collect(thing.InheritedOverrides);
   Object.assign(merged, thing.Properties);  // own wins
 
   const frozen = Object.freeze(merged);

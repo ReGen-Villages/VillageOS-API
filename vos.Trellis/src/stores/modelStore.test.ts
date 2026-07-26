@@ -3,7 +3,7 @@ import { useModelStore } from './modelStore';
 import type { VosThing, VosRelationship } from '../types/vos';
 
 const thing = (id: string, name: string) => ({
-  Id: id, Name: name, Properties: {}, InheritedProperties: {},
+  Id: id, Name: name, Properties: {}, InheritedOverrides: {},
 }) as unknown as VosThing;
 
 const rel = (id: string, name: string) => ({

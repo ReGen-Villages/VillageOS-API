@@ -77,7 +77,7 @@ describe('unwrapThing', () => {
   it('unwraps inherited properties recursively', () => {
     const thing: VosThing = {
       ...baseThing,
-      InheritedProperties: {
+      InheritedOverrides: {
         ParentType: {
           SourceId: 'p1',
           SourceName: 'Parent',
@@ -87,7 +87,7 @@ describe('unwrapThing', () => {
       },
     };
     const result = unwrapThing(thing);
-    expect(result.InheritedProperties?.ParentType.Properties).toEqual({ inherited: 99 });
+    expect(result.InheritedOverrides?.ParentType.Properties).toEqual({ inherited: 99 });
   });
 
   it('handles null Properties', () => {
@@ -96,15 +96,14 @@ describe('unwrapThing', () => {
     expect(result.Properties).toEqual({});
   });
 
-  it('handles missing InheritedProperties', () => {
+  it('handles missing InheritedOverrides', () => {
     const result = unwrapThing(baseThing);
-    expect(result.InheritedProperties).toBeUndefined();
+    expect(result.InheritedOverrides).toBeUndefined();
   });
 
-  // Regression (Bug #5932): the platform renamed the inherited-value field
-  // InheritedProperties -> InheritedOverrides. unwrapThing must read either, or
-  // inherited values silently vanish from the GUI.
-  it('reads inherited values from the renamed InheritedOverrides field', () => {
+  // Regression (Bug #5932 / #6048): the wire field is InheritedOverrides (override-only).
+  // unwrapThing must read it, or inherited override values silently vanish from the GUI.
+  it('reads inherited override values from the InheritedOverrides field', () => {
     const thing = {
       ...baseThing,
       InheritedOverrides: {
@@ -117,18 +116,18 @@ describe('unwrapThing', () => {
       },
     } as unknown as VosThing;
     const result = unwrapThing(thing);
-    expect(result.InheritedProperties?.Parent.Properties).toEqual({ inherited: 99 });
+    expect(result.InheritedOverrides?.Parent.Properties).toEqual({ inherited: 99 });
   });
 });
 
 // Regression (Bug #5932): under lazy inheritance an instance's value for an
-// inherited name is relocated out of Properties into InheritedProperties, so
+// inherited name is relocated out of Properties into InheritedOverrides, so
 // reading Properties alone misses it and dashboard widgets render blank/0.
 describe('effectiveProperties', () => {
   it('returns an inherited value when the own Properties are empty', () => {
     const merged = effectiveProperties({
       Properties: {},
-      InheritedProperties: { Home: inheritedSet('Home', { energy_rating: 'A+' }) },
+      InheritedOverrides: { Home: inheritedSet('Home', { energy_rating: 'A+' }) },
     });
     expect(merged).toEqual({ energy_rating: 'A+' });
   });
@@ -136,7 +135,7 @@ describe('effectiveProperties', () => {
   it('lets an own value win over an inherited one of the same name', () => {
     const merged = effectiveProperties({
       Properties: { energy_rating: 'B' },
-      InheritedProperties: { Home: inheritedSet('Home', { energy_rating: 'A+' }) },
+      InheritedOverrides: { Home: inheritedSet('Home', { energy_rating: 'A+' }) },
     });
     expect(merged.energy_rating).toBe('B');
   });
@@ -144,7 +143,7 @@ describe('effectiveProperties', () => {
   it('resolves a multi-level ancestor chain with nearer ancestors winning', () => {
     const merged = effectiveProperties({
       Properties: {},
-      InheritedProperties: {
+      InheritedOverrides: {
         // Home overrides x=2; its ancestor Building sets x=1 and y=9.
         Home: inheritedSet('Home', { x: 2 }, { Building: inheritedSet('Building', { x: 1, y: 9 }) }),
       },
@@ -153,7 +152,7 @@ describe('effectiveProperties', () => {
   });
 
   it('returns own properties unchanged when there are no inherited overrides', () => {
-    const merged = effectiveProperties({ Properties: { a: 1 }, InheritedProperties: undefined });
+    const merged = effectiveProperties({ Properties: { a: 1 }, InheritedOverrides: undefined });
     expect(merged).toEqual({ a: 1 });
   });
 
@@ -163,7 +162,7 @@ describe('effectiveProperties', () => {
   it('resolves sibling ancestor conflicts deterministically by SourceName', () => {
     const thing = {
       Properties: {},
-      InheritedProperties: {
+      InheritedOverrides: {
         Beta: inheritedSet('Beta', { x: 'from-beta' }),
         Alpha: inheritedSet('Alpha', { x: 'from-alpha' }),
       },
@@ -171,7 +170,7 @@ describe('effectiveProperties', () => {
     // Reversed key order must not change the outcome.
     const reversed = {
       Properties: {},
-      InheritedProperties: {
+      InheritedOverrides: {
         Alpha: inheritedSet('Alpha', { x: 'from-alpha' }),
         Beta: inheritedSet('Beta', { x: 'from-beta' }),
       },
@@ -185,7 +184,7 @@ describe('effectiveProperties', () => {
   it('memoizes by Thing identity and freezes the result', () => {
     const thing = {
       Properties: { a: 1 },
-      InheritedProperties: { Home: inheritedSet('Home', { b: 2 }) },
+      InheritedOverrides: { Home: inheritedSet('Home', { b: 2 }) },
     };
     const first = effectiveProperties(thing);
     const second = effectiveProperties(thing);

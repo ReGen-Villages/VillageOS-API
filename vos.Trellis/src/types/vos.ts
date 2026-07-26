@@ -4,7 +4,10 @@ export interface VosThing {
   Id: string;
   Name: string;
   Properties: Record<string, unknown>;
-  InheritedProperties?: Record<string, InheritedPropertySet>;
+  /** Stored per-instance overrides of inherited names, keyed by source (the wire field
+   *  `InheritedOverrides`). Override-only — NOT the full inherited view; for that read the
+   *  server-resolved effective properties (GET /api/things/{id}/properties). */
+  InheritedOverrides?: Record<string, InheritedPropertySet>;
 }
 
 export interface InheritedPropertySet {

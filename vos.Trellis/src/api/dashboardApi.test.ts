@@ -144,14 +144,14 @@ describe('resolveBinding', () => {
     expect(v).toBeCloseTo((98.9 + 94.1) / 2);
   });
 
-  // Regression (Bug #5932): under lazy inheritance the value lives in
-  // InheritedProperties, not Properties. Bindings must read effective properties.
+  // Regression (Bug #5932): under lazy inheritance an overridden value lives in
+  // InheritedOverrides, not Properties. Bindings must read effective properties.
   it('property $scope resolves a value inherited from an archetype', async () => {
     const child: VosThing = {
       Id: 'vil3',
       Name: 'V-3',
       Properties: {},
-      InheritedProperties: {
+      InheritedOverrides: {
         Village: {
           SourceId: 'arch-vil',
           SourceName: 'Village',
