@@ -169,8 +169,9 @@ Do **not** reconstruct the effective view from a thing's raw stored own + overri
 
 ### Naming rules (checked on write)
 
-A name resolves to one property, so three rules keep resolution unambiguous. A live API write that would break one is rejected:
+A name resolves to one property, so a few rules keep resolution unambiguous. A live API write that would break one is rejected:
 
+- A property name may contain **letters, digits and underscore only**. Every other character is read as structure by the criteria language, so a name containing one would be stored where no criteria, roll-up or reference path could name it. A dot is the sharpest case: it separates the parts of a qualified `Type.property` path, so a dotted name and a dotted path would be indistinguishable. Producers that build a name out of source data (the IFC importer, for one) sanitize it — `Dimensions` + `Area` is stored as `Dimensions_Area`.
 - A thing may not **own** a property whose name it already **inherits** — set a value instead, which creates an override.
 - Establishing `is` may not pull in an inherited property whose name the thing already owns.
 - A property name may not equal the name of a type it inherits from (that would make a qualified `Type.property` path ambiguous).
