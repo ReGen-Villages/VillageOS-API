@@ -31,8 +31,8 @@ generation vs consumption → % of consumption and net-positive. Besides the DAG
 both also run **reactively** (#5839) — a graph `/handle` whose subject is the SiteStudy makes the service
 read its inputs off the study's effective properties, compute, and write its outputs back as Facts, so the
 study's judge ranges re-evaluate (no pipeline). `ModelBridge` (#5866) is a generic
-**model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET
-effective-properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
+**model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET the
+Thing's properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
 It lets a compute node read a roll-up / SiteStudy param and write its result back over ordinary node→node
 wires — the source/target Thing id is baked into the node params (`thingId`, `property`). See
 [`MODELBRIDGE.md`](MODELBRIDGE.md) for the full read/write contract and a worked example. **Echo is
@@ -776,11 +776,14 @@ A request is a node invocation **iff it carries both `runId` and `nodeId`** — 
 graph/http body the service handles exactly as before; the two never collide.
 
 - **Reference inputs.** Large values aren't shipped in-band: an input may be `{ "ref": { "thingId",
-  "property" } }`, which the node resolves via `GET /api/things/{id}/effective-properties` before running.
+  "property" } }`, which the node resolves via `GET /api/things/{id}/properties` before running.
   Return the same shape to hand a large value downstream. The referenced property may be a **roll-up
   property** — a value computed live from an aggregate reduction over related Things (e.g. total PV area
   summed over every element that `is SolarArray`). It resolves as an ordinary effective property, so a
-  compute node reads a model-wide roll-up with no special handling.
+  compute node reads a model-wide roll-up with no special handling. Such a property can be **null**: when a
+  related Thing cannot contribute a number, the model decides whether the roll-up skips it or yields no
+  value at all, and yielding no value is the default. Handle a null reference input rather than assuming
+  a number.
 - **Param-bound inputs.** An input port can be filled from the **run's params** instead of a wire: a
   node's `paramBindings` property maps `inputPort → paramKey`, and Phloem fills that input from the spawn's
   `params` before dispatch (an explicit wire into the same port wins). Lets a source node be parameterized

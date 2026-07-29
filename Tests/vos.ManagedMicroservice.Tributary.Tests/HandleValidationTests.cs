@@ -31,7 +31,7 @@ public class HandleValidationTests
             if (req.RequestUri!.AbsolutePath == "/api/things"
                 && req.RequestUri.Query.Contains("name=EP"))
                 return Json($$"""{"Id":"{{thingId}}","Name":"EP"}""");
-            if (req.RequestUri.AbsolutePath == $"/api/things/{thingId}/effective-properties")
+            if (req.RequestUri.AbsolutePath == $"/api/things/{thingId}/properties")
                 return Json(props);
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         };
@@ -60,7 +60,7 @@ public class HandleValidationTests
             if (req.RequestUri!.AbsolutePath == "/api/things"
                 && req.RequestUri.Query.Contains("name=EP"))
                 return Json($$"""{"Id":"{{thingId}}","Name":"EP"}""");
-            if (req.RequestUri.AbsolutePath == $"/api/things/{thingId}/effective-properties")
+            if (req.RequestUri.AbsolutePath == $"/api/things/{thingId}/properties")
                 return Json(props);
             if (req.RequestUri.Host == "api.test")
                 return Json("{\"value\":1}");

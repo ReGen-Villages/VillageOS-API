@@ -65,7 +65,7 @@ public class DagNodeServiceTests
         response.Success.Should().BeTrue();
         response.Outputs["echo"].Should().Be("resolved-from-graph");
         captured!.Method.Should().Be(HttpMethod.Get);
-        captured.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/things/{Source}/effective-properties");
+        captured.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/things/{Source}/properties");
     }
 
     [Fact]

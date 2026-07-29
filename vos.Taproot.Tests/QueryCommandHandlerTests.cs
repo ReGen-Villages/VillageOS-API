@@ -21,7 +21,7 @@ public class QueryCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    // Mock the bulk effective-properties endpoint the handler resolves matches against.
+    // Mock the bulk properties endpoint the handler resolves matches against.
     private void SetupEffective(string effectiveJson) =>
         _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>()))
             .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(effectiveJson));

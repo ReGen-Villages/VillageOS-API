@@ -44,7 +44,7 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
 
     private async Task<JsonElement> FetchEffectivePropertiesAsync(HttpClient client, Guid thingId, CancellationToken cancellationToken)
     {
-        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{thingId}/effective-properties", cancellationToken);
+        var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}", cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException($"EnergyBalance could not read the study {thingId} ({(int)response.StatusCode} {response.StatusCode})");
         return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
@@ -67,7 +67,7 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
         throw new KeyNotFoundException($"EnergyBalance input '{name}' is not on the study.");
     }
 
-    // effective-properties returns each property as { "Value": <v>, ... } (case-insensitive key).
+    // The route returns each property as { "Value": <v>, ... } (case-insensitive key).
     private static double ExtractDouble(JsonElement envelope)
     {
         var value = envelope;

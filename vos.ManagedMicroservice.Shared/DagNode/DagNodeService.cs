@@ -102,7 +102,7 @@ public abstract class DagNodeService : MyceliumClientBase
     private async Task<JsonElement> FetchRefAsync(Guid thingId, string property, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{thingId}/effective-properties", cancellationToken);
+        var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}", cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException(
                 $"Failed to resolve input ref {thingId}.{property} ({(int)response.StatusCode} {response.StatusCode})",
@@ -117,7 +117,7 @@ public abstract class DagNodeService : MyceliumClientBase
         throw new KeyNotFoundException($"Property '{property}' not found on thing {thingId}");
     }
 
-    // effective-properties returns each property as { "Value": <v>, ... } (case-insensitive key).
+    // The route returns each property as { "Value": <v>, ... } (case-insensitive key).
     private static JsonElement ExtractValue(JsonElement propertyEnvelope)
     {
         if (propertyEnvelope.ValueKind == JsonValueKind.Object)

@@ -108,7 +108,7 @@ def main(argv) -> int:
     own = thing.get("Properties") or {}
     inh = thing.get("InheritedProperties") or {}
     override = next(iter(inh.values()), {}).get("Properties", {}) if inh else {}
-    _, eff = get(f"/api/things/{X}/effective-properties")
+    _, eff = get(f"/api/things/{X}/properties")
 
     def eff_val(suffix):
         return next((v.get("Value") for k, v in (eff or {}).items() if k.endswith(suffix)), None)

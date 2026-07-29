@@ -41,7 +41,7 @@ The shape:
   chain that declares a non-blank value for the key. A blank value is *structural* — it
   makes the key admissible without supplying an inherited default.
 - Tributary never walks the template graph itself. It reads Mycelium's
-  **effective-properties** for the endpoint Thing (Mycelium merges the `is`-chain) and
+  the **resolved properties** for the endpoint Thing (Mycelium merges the `is`-chain) and
   resolves each property by suffix-aware name match (`EffectivePropertyResolver`, so a
   Mycelium key like `Esri.itemsPath` matches a lookup for `itemsPath`).
 
