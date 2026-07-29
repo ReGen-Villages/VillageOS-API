@@ -53,7 +53,7 @@ public class ModelBridgeNodeTests
         Assert.True(response.Success);
         Assert.Equal(13842.0, Assert.IsType<double>(response.Outputs["value"]));
         Assert.Equal(HttpMethod.Get, handler.LastRequest!.Method);
-        Assert.Contains($"/api/things/{ThingId}/effective-properties", handler.LastRequest.RequestUri!.ToString());
+        Assert.Contains($"/api/things/{ThingId}/properties", handler.LastRequest.RequestUri!.ToString());
     }
 
     [Fact]

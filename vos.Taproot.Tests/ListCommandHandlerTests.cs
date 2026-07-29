@@ -22,7 +22,7 @@ public class ListCommandHandlerTests
         await handler.ExecuteAsync();
     }
 
-    // Mock the bulk effective-properties endpoint `list` reads inherited properties from.
+    // Mock the bulk properties endpoint `list` reads inherited properties from.
     private void SetupEffective(string effectiveJson) =>
         _myceliumMock.Setup(b => b.GetAllPropertiesAsync(It.IsAny<string>()))
             .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(effectiveJson));

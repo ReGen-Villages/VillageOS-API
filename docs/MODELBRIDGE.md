@@ -55,7 +55,7 @@ halts dependents.
 
 ## `mode: "read"`
 
-1. `GET {myceliumUrl}/api/things/{thingId}/effective-properties`.
+1. `GET {myceliumUrl}/api/things/{thingId}/properties` — the Thing's resolved properties, own plus inherited.
 2. Find `property` on the returned object (case-insensitive).
 3. Unwrap its `Value` envelope to a native value (number → `long`/`double`, string, bool, null;
    anything else passes through as JSON).
@@ -65,6 +65,11 @@ Because it reads **effective** properties, the value may be an inherited propert
 **roll-up** — a value computed live from an aggregate over related Things (e.g. total PV area
 summed across everything that `is SolarArray`). ModelBridge needs no special handling for that;
 it resolves as an ordinary effective property.
+
+A roll-up can resolve to **null**. When a related Thing cannot contribute a number — its property is
+missing, unreadable, or not a number — the model decides whether the roll-up skips that Thing or yields
+no value at all, and yielding no value is the default. The property is still present, so this emits
+`null` on the `value` output rather than failing.
 
 A non-2xx response fails the node with an `HttpRequestException`; a property that isn't present
 fails with `KeyNotFoundException`.

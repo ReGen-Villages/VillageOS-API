@@ -59,7 +59,7 @@ public class HandleEndpointTests
         {
             if (req.RequestUri!.AbsolutePath == "/api/things")
                 return Json($$"""{"Id":"{{thingId}}","Name":"Endpoint1"}""");
-            if (req.RequestUri.AbsolutePath == $"/api/things/{thingId}/effective-properties")
+            if (req.RequestUri.AbsolutePath == $"/api/things/{thingId}/properties")
                 return new HttpResponseMessage(HttpStatusCode.InternalServerError);
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         };
@@ -788,7 +788,7 @@ public class HandleEndpointTests
     private static HttpResponseMessage? RouteEffectiveProps(HttpRequestMessage req, Guid id, string jsonObject)
     {
         if (req.Method == HttpMethod.Get
-            && req.RequestUri!.AbsolutePath == $"/api/things/{id}/effective-properties")
+            && req.RequestUri!.AbsolutePath == $"/api/things/{id}/properties")
             return Json(jsonObject);
         return null;
     }

@@ -292,7 +292,7 @@ public class EsriHandleTests
     private static HttpResponseMessage? RouteEffectiveProps(HttpRequestMessage req, Guid id, string jsonObject)
     {
         if (req.Method == HttpMethod.Get
-            && req.RequestUri!.AbsolutePath == $"/api/things/{id}/effective-properties")
+            && req.RequestUri!.AbsolutePath == $"/api/things/{id}/properties")
             return Json(jsonObject);
         return null;
     }

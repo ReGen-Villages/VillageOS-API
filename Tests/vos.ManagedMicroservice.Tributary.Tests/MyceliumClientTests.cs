@@ -114,7 +114,7 @@ public class MyceliumClientTests
         var thingId = Guid.NewGuid();
         var handler = new MockHttpMessageHandler(request =>
         {
-            if (request.RequestUri!.AbsolutePath == $"/api/things/{thingId}/effective-properties")
+            if (request.RequestUri!.AbsolutePath == $"/api/things/{thingId}/properties")
             {
                 var json = """
                 {
@@ -496,7 +496,7 @@ public class MyceliumClientTests
         if (req.RequestUri!.AbsolutePath == "/api/things"
             && req.RequestUri.Query.Contains("name=EP"))
             return JsonResponse($$"""{"Id":"{{thingId}}","Name":"EP"}""");
-        if (req.RequestUri.AbsolutePath == $"/api/things/{thingId}/effective-properties")
+        if (req.RequestUri.AbsolutePath == $"/api/things/{thingId}/properties")
             return JsonResponse(effectiveProps);
         return null;
     }

@@ -357,7 +357,7 @@ function CollapsiblePropertyGroup({ label, count, onNavigate, expanded, onToggle
   );
 }
 
-// ── Inherited properties from effective-properties API ──────────────────
+// ── Inherited properties from the Thing properties API ──────────────────
 
 function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, onExpandValue, editMode, entityId, onSaved }: {
   effectiveProps: Record<string, EffectiveProperty>;

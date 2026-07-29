@@ -46,7 +46,7 @@ public class WaterReserveReactiveHandlerTests
         var outputs = await NewHandler(handler).RecomputeAsync(Anchor);
 
         Assert.Equal(21.9, outputs.DaysOfSupply, 1);
-        Assert.Contains(handler.Requests, r => r.Method == HttpMethod.Get && r.Uri.Contains($"/api/things/{Anchor}/effective-properties"));
+        Assert.Contains(handler.Requests, r => r.Method == HttpMethod.Get && r.Uri.Contains($"/api/things/{Anchor}/properties"));
         Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post && r.Uri.Contains("/properties/daysOfSupply/facts"));
     }
 

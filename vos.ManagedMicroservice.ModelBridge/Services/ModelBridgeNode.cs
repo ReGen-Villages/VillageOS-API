@@ -1,12 +1,13 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using vos.ManagedMicroservice.Shared;
 using vos.ManagedMicroservice.Shared.DagNode;
 
 namespace vos.ManagedMicroservice.ModelBridge.Services;
 
 // A generic bridge between a pipeline DAG and the model (User Story #5866). It closes the gap that Phloem assembles a
 // node's inputs only from wires and run params — with no path to read a model property or write one back. With
-// mode = "read" it outputs the value of a Thing's property (GET effective-properties); with mode = "write"
+// mode = "read" it outputs the value of a Thing's property (GET the Thing's properties); with mode = "write"
 // it writes its value input onto a Thing's property (a Fact). So a compute node can read a roll-up / anchor
 // param and write its result back, using ordinary node→node wires — no orchestrator change. The Thing id is baked into
 // the node params at seed-build time (deterministic under --name), so no runtime lookup is needed.
@@ -52,7 +53,7 @@ public sealed class ModelBridgeNode : DagNodeService
     private async Task<object?> ReadAsync(Guid thingId, string property, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{thingId}/effective-properties", cancellationToken);
+        var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}", cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException(
                 $"ModelBridge read {thingId}.{property} failed ({(int)response.StatusCode} {response.StatusCode})");
@@ -81,7 +82,7 @@ public sealed class ModelBridgeNode : DagNodeService
         return NodeResult.Ok(("value", Unwrap(value)));
     }
 
-    // effective-properties returns each property as { "Value": <v>, ... } (case-insensitive key).
+    // The route returns each property as { "Value": <v>, ... } (case-insensitive key).
     private static object? ExtractValue(JsonElement propertyEnvelope)
     {
         if (propertyEnvelope.ValueKind == JsonValueKind.Object)

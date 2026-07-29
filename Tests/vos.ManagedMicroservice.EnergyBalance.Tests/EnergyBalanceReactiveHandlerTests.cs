@@ -50,7 +50,7 @@ public class EnergyBalanceReactiveHandlerTests
         Assert.True(outputs.NetPositive);
 
         // It read the anchor and wrote pctOfConsumption back onto it.
-        Assert.Contains(handler.Requests, r => r.Method == HttpMethod.Get && r.Uri.Contains($"/api/things/{Anchor}/effective-properties"));
+        Assert.Contains(handler.Requests, r => r.Method == HttpMethod.Get && r.Uri.Contains($"/api/things/{Anchor}/properties"));
         var pctWrite = Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post && r.Uri.Contains("/properties/pctOfConsumption/facts"));
         Assert.Contains("110.5", pctWrite.Body);
     }

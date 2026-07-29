@@ -177,7 +177,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-            var response = await client.GetAsync($"{MyceliumUrl}/api/things/{thingId}/effective-properties");
+            var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}");
             if (!response.IsSuccessStatusCode)
             {
                 Logger.LogWarning("Failed to get effective properties for thing {ThingId}. Status: {StatusCode}",
