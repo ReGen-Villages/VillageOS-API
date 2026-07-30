@@ -29,7 +29,7 @@ Passive predicates are created as regular predicate things without `ExecutablePa
 A dispatched predicate is a **PlatformServiceConnection** that **has** a **Service**; the Service carries the launch config. Both are ordinary model Things related by the generic `is`/`has` predicates — Mycelium resolves them by walking the `is`-chain and never hardcodes type names (the archetype names come from config: `PrototypeConnectionThingName` / `PrototypeServiceThingName`).
 
 ```text
-PlatformServiceConnection {trigger}                        ← archetype: a routed connection (graph or http)
+PlatformServiceConnection {trigger}                        ← archetype: a routed connection (graph, http, or state)
   ← is ─ consumes {trigger: graph} ─has→ consumes service ─is→ Metabolism prototype
   ← is ─ produces {trigger: graph} ─has→ produces service ─is→ Metabolism prototype
 
@@ -42,7 +42,7 @@ is                                          ← built-in; in-process, not a Plat
 has, feeds, powers, ...                     ← passive predicates (not PlatformServiceConnections)
 ```
 
-- **PlatformServiceConnection** (archetype): a Thing that routes to a service. `trigger` is `graph` (a predicate, fired when a relationship is created) or `http` (a subdomain, reached via `POST /api/endpoints/{subdomain}`). A dispatched predicate like `consumes` `is PlatformServiceConnection`.
+- **PlatformServiceConnection** (archetype): a Thing that routes to a service. `trigger` is `graph` (a predicate, fired when a relationship is created), `http` (a subdomain, reached via `POST /api/endpoints/{subdomain}`), or `state` (fired when a Thing enters a state: the connection carries a `state` property naming the range and an edge to the watched archetype whose predicate has the `__IsStateWatchPredicate` flag; subtypes inherit the trigger through the `is` chain). A dispatched predicate like `consumes` `is PlatformServiceConnection`.
 - **Service** (archetype): the microservice process. Carries `ExecutablePath`, `ServicePort`, `ServiceArgs`, `AutoStart` (was `onLoad`), `RunMode`, and `TokenScope`.
 - **Shared prototype** (e.g. `Metabolism prototype`): a Service holding one binary's shared values (`ExecutablePath`, `RunMode`, `TokenScope`); concrete services `is` it and override only per-instance values (`ServicePort`, `ServiceArgs`, `AutoStart`). So `consumes` and `produces` share one binary definition but bind two distinct services.
 - **PlatformServiceConnection `has` Service**: the generic `has` relation; the service is identified as the related Thing that is (transitively) a `Service`, never by predicate name.
