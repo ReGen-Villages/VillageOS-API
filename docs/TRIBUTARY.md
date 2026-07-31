@@ -10,14 +10,14 @@ It is deliberately **source-agnostic** — there is no per-API code. A specific 
 endpoint *template* plus a registration, never as a branch in Tributary. This page is
 the canonical reference for the token-exchange and offset-paging *mechanics* and the
 `EsriEndpoint` template, alongside the model the service sits on and the boundary it
-respects. `MICROSERVICES.md` section 14 summarizes how Mycelium hosts Tributary as an
+respects. `SERVICES.md` section 14 summarizes how Mycelium hosts Tributary as an
 endpoint service and points back here.
 
 ## The endpoint-template graph
 
 Endpoints are not free-form. Delta provisions a **single-rooted template hierarchy**
 into Mycelium at boot and validates every registration against it (see
-[`DELTA.md`](DELTA.md) and `MICROSERVICES.md`). A registration `is` a template, which `is` the
+[`DELTA.md`](DELTA.md) and `SERVICES.md`). A registration `is` a template, which `is` the
 root — admissible properties are the union of keys along that chain, and a value
 resolves to the closest ancestor that declares it:
 
@@ -190,7 +190,7 @@ feed the same compute node.
 
 ## Pointers
 
-- `MICROSERVICES.md` section 14 — how Mycelium hosts Tributary as an endpoint service
+- `SERVICES.md` section 14 — how Mycelium hosts Tributary as an endpoint service
   (auto-discovery, daemon lifecycle, pass-through proxying).
 - [`DELTA.md`](DELTA.md) — how the template catalog is provisioned and how
   registrations are validated against it.

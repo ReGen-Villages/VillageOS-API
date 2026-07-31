@@ -5,9 +5,9 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{748745C8-73FC-4AAC-BA17-45F26C78988F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Tributary.Tests", "Tests\vos.ManagedMicroservice.Tributary.Tests\vos.ManagedMicroservice.Tributary.Tests.csproj", "{F240CB05-815F-403C-9675-5CE8D8C4E453}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Tributary.Tests", "Tests\vos.Service.Tributary.Tests\vos.Service.Tributary.Tests.csproj", "{F240CB05-815F-403C-9675-5CE8D8C4E453}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Delta.Tests", "Tests\vos.ManagedMicroservice.Delta.Tests\vos.ManagedMicroservice.Delta.Tests.csproj", "{D617BFB1-752C-47FF-BA32-5E59E143BCBF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Delta.Tests", "Tests\vos.Service.Delta.Tests\vos.Service.Delta.Tests.csproj", "{D617BFB1-752C-47FF-BA32-5E59E143BCBF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Auth.Shared", "vos.Auth.Shared\vos.Auth.Shared.csproj", "{A1AC1C9F-596B-43A8-B5AF-0C95266C3668}"
 EndProject
@@ -15,47 +15,47 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Taproot.Tests", "vos.Ta
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Taproot", "vos.Taproot\vos.Taproot.csproj", "{A965EFA3-B25D-4C60-B0CA-B1CEEF39D1D0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.CSharp.Echo", "vos.ManagedMicroservice.CSharp.Echo\vos.ManagedMicroservice.CSharp.Echo.csproj", "{E2D2EFDE-4310-42FD-9F53-F2497958FDB2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.CSharp.Echo", "vos.Service.CSharp.Echo\vos.Service.CSharp.Echo.csproj", "{E2D2EFDE-4310-42FD-9F53-F2497958FDB2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Tributary", "vos.ManagedMicroservice.Tributary\vos.ManagedMicroservice.Tributary.csproj", "{0E12CE73-0C74-45ED-B992-0DAA73C20F9B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Tributary", "vos.Service.Tributary\vos.Service.Tributary.csproj", "{0E12CE73-0C74-45ED-B992-0DAA73C20F9B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Delta", "vos.ManagedMicroservice.Delta\vos.ManagedMicroservice.Delta.csproj", "{7815A567-304B-4F06-80D6-6D4CBE28C597}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Delta", "vos.Service.Delta\vos.Service.Delta.csproj", "{7815A567-304B-4F06-80D6-6D4CBE28C597}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Shared", "vos.ManagedMicroservice.Shared\vos.ManagedMicroservice.Shared.csproj", "{65ED47C1-2B5D-47CB-8755-2B011BA36680}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Shared", "vos.Service.Shared\vos.Service.Shared.csproj", "{65ED47C1-2B5D-47CB-8755-2B011BA36680}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Metabolism", "vos.ManagedMicroservice.Metabolism\vos.ManagedMicroservice.Metabolism.csproj", "{451779A4-AFA8-48E2-9343-3009919331ED}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Metabolism", "vos.Service.Metabolism\vos.Service.Metabolism.csproj", "{451779A4-AFA8-48E2-9343-3009919331ED}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Metabolism.Tests", "Tests\vos.ManagedMicroservice.Metabolism.Tests\vos.ManagedMicroservice.Metabolism.Tests.csproj", "{06A09038-B5BC-4F2F-83F6-FAF7327BA2A2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Metabolism.Tests", "Tests\vos.Service.Metabolism.Tests\vos.Service.Metabolism.Tests.csproj", "{06A09038-B5BC-4F2F-83F6-FAF7327BA2A2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Tests.Shared", "Tests\vos.Tests.Shared\vos.Tests.Shared.csproj", "{CAC180D0-F60C-4DE5-8227-C2496D746F49}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Auth.Shared.Tests", "Tests\vos.Auth.Shared.Tests\vos.Auth.Shared.Tests.csproj", "{6D281360-FE67-41D2-AE81-332CA1E415CE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Shared.Tests", "Tests\vos.ManagedMicroservice.Shared.Tests\vos.ManagedMicroservice.Shared.Tests.csproj", "{806216F3-A0EA-4A1D-8D46-21CB73979E1B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Shared.Tests", "Tests\vos.Service.Shared.Tests\vos.Service.Shared.Tests.csproj", "{806216F3-A0EA-4A1D-8D46-21CB73979E1B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.CSharp.Echo.Tests", "Tests\vos.ManagedMicroservice.CSharp.Echo.Tests\vos.ManagedMicroservice.CSharp.Echo.Tests.csproj", "{DA70415D-E939-412B-9991-3AB3528BE5CF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.CSharp.Echo.Tests", "Tests\vos.Service.CSharp.Echo.Tests\vos.Service.CSharp.Echo.Tests.csproj", "{DA70415D-E939-412B-9991-3AB3528BE5CF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Shared.Contracts.Tests", "Tests\vos.ManagedMicroservice.Shared.Contracts.Tests\vos.ManagedMicroservice.Shared.Contracts.Tests.csproj", "{32A5DBCC-F9D2-42F8-8771-2A4E21EB79F0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Shared.Contracts.Tests", "Tests\vos.Service.Shared.Contracts.Tests\vos.Service.Shared.Contracts.Tests.csproj", "{32A5DBCC-F9D2-42F8-8771-2A4E21EB79F0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Phloem", "vos.ManagedMicroservice.Phloem\vos.ManagedMicroservice.Phloem.csproj", "{C01877D8-5500-4D8C-8281-33C054623140}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Phloem", "vos.Service.Phloem\vos.Service.Phloem.csproj", "{C01877D8-5500-4D8C-8281-33C054623140}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Phloem.Tests", "Tests\vos.ManagedMicroservice.Phloem.Tests\vos.ManagedMicroservice.Phloem.Tests.csproj", "{B91EE4A9-BDCD-4B05-A053-BF8D0EB0EC32}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Phloem.Tests", "Tests\vos.Service.Phloem.Tests\vos.Service.Phloem.Tests.csproj", "{B91EE4A9-BDCD-4B05-A053-BF8D0EB0EC32}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.WaterReserve", "vos.ManagedMicroservice.WaterReserve\vos.ManagedMicroservice.WaterReserve.csproj", "{F39B4B83-D1B2-4FB9-A60F-DB42A1B8D163}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.WaterReserve", "vos.Service.WaterReserve\vos.Service.WaterReserve.csproj", "{F39B4B83-D1B2-4FB9-A60F-DB42A1B8D163}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.WaterReserve.Tests", "Tests\vos.ManagedMicroservice.WaterReserve.Tests\vos.ManagedMicroservice.WaterReserve.Tests.csproj", "{97AE4641-7185-4947-87AE-3782AB315859}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.WaterReserve.Tests", "Tests\vos.Service.WaterReserve.Tests\vos.Service.WaterReserve.Tests.csproj", "{97AE4641-7185-4947-87AE-3782AB315859}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.EnergyBalance", "vos.ManagedMicroservice.EnergyBalance\vos.ManagedMicroservice.EnergyBalance.csproj", "{7DE42474-3537-4A02-B9F8-DAE32CB7150D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.EnergyBalance", "vos.Service.EnergyBalance\vos.Service.EnergyBalance.csproj", "{7DE42474-3537-4A02-B9F8-DAE32CB7150D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.EnergyBalance.Tests", "Tests\vos.ManagedMicroservice.EnergyBalance.Tests\vos.ManagedMicroservice.EnergyBalance.Tests.csproj", "{AF389604-9A88-4BCC-9753-BCB2F51322D1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.EnergyBalance.Tests", "Tests\vos.Service.EnergyBalance.Tests\vos.Service.EnergyBalance.Tests.csproj", "{AF389604-9A88-4BCC-9753-BCB2F51322D1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Xylem", "vos.ManagedMicroservice.Xylem\vos.ManagedMicroservice.Xylem.csproj", "{A84B35A2-E388-45D6-A284-0EA1BA406C2E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Xylem", "vos.Service.Xylem\vos.Service.Xylem.csproj", "{A84B35A2-E388-45D6-A284-0EA1BA406C2E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.Xylem.Tests", "Tests\vos.ManagedMicroservice.Xylem.Tests\vos.ManagedMicroservice.Xylem.Tests.csproj", "{CEE13368-90CE-4E3A-82E6-EF142BF8E3C2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Xylem.Tests", "Tests\vos.Service.Xylem.Tests\vos.Service.Xylem.Tests.csproj", "{CEE13368-90CE-4E3A-82E6-EF142BF8E3C2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.ModelBridge", "vos.ManagedMicroservice.ModelBridge\vos.ManagedMicroservice.ModelBridge.csproj", "{28C9BCAA-899F-4EEC-8156-CDB7AC4F60A3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.ModelBridge", "vos.Service.ModelBridge\vos.Service.ModelBridge.csproj", "{28C9BCAA-899F-4EEC-8156-CDB7AC4F60A3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ManagedMicroservice.ModelBridge.Tests", "Tests\vos.ManagedMicroservice.ModelBridge.Tests\vos.ManagedMicroservice.ModelBridge.Tests.csproj", "{8809C3D8-1062-41CE-A8D1-AEAD0A3AB7C7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.ModelBridge.Tests", "Tests\vos.Service.ModelBridge.Tests\vos.Service.ModelBridge.Tests.csproj", "{8809C3D8-1062-41CE-A8D1-AEAD0A3AB7C7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

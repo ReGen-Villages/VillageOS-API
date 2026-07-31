@@ -1,6 +1,6 @@
 import type { VosThing, VosRelationship } from '../types/vos';
 
-// Client-side mirror of Phloem's graph reads (vos.ManagedMicroservice.Phloem): resolve a node's dispatch
+// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve a node's dispatch
 // PlatformServiceConnection, its ports (via the bound service's is-chain), and identify wires by the PipelineWire archetype.
 // `is`/`has` are the built-in predicates (matched by name); wires are matched by archetype, never by "feeds".
 

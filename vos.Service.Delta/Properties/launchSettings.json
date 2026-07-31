@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "vos.Service.Delta": {
+      "commandName": "Project",
+      "commandLineArgs": "--port=7247 --myceliumUrl=https://localhost:7243",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": true
+    }
+  }
+}

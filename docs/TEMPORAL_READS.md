@@ -104,5 +104,5 @@ so storage growth is bounded at the source.
 
 - [`TRIBUTARY.md`](TRIBUTARY.md) — the outbound fetcher that ingests readings as observations into
   these tiers.
-- [`MICROSERVICES.md`](MICROSERVICES.md) — bulk historical backfill (Sediment) that writes sealed
+- [`SERVICES.md`](SERVICES.md) — bulk historical backfill (Sediment) that writes sealed
   Sapwood buckets directly.

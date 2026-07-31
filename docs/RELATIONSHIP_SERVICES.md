@@ -10,10 +10,10 @@ The **active** relationship services currently in the seed are:
 
 | Predicate | Handler | Behavior |
 |-----------|---------|----------|
-| `consumes` | `vos.ManagedMicroservice.Metabolism --mode=consumes` | Continuous resource decrement simulation |
-| `produces` | `vos.ManagedMicroservice.Metabolism --mode=produces` | Continuous resource increment simulation |
+| `consumes` | `vos.Service.Metabolism --mode=consumes` | Continuous resource decrement simulation |
+| `produces` | `vos.Service.Metabolism --mode=produces` | Continuous resource increment simulation |
 
-> **Built-in: `is`.** Type inheritance (property + range **resolution**) is handled in-process by Mycelium, not by a microservice. See [Built-in `is` inheritance](#built-in-is-inheritance) below. Previously this was a microservice (`vos.ManagedMicroservice.IsHandler`); the round-trip added latency and complexity for what is purely an in-memory graph operation, so it was inlined.
+> **Built-in: `is`.** Type inheritance (property + range **resolution**) is handled in-process by Mycelium, not by a microservice. See [Built-in `is` inheritance](#built-in-is-inheritance) below. Previously this was a microservice (`vos.Service.IsHandler`); the round-trip added latency and complexity for what is purely an in-memory graph operation, so it was inlined.
 
 Additionally, VillageOS has **passive (structural) predicates** that have no handler daemon:
 
@@ -130,7 +130,7 @@ flowchart TB
 
 `ServiceArgs` carries plain CLI flags (e.g. `--mode=consumes`) passed verbatim to the daemon.
 A handler obtains the objects it operates on by **subscribing** — snapshot + live SSE stream
-(see [`MICROSERVICE_CONTRACT.md`](MICROSERVICE_CONTRACT.md) § Subscriptions) — rather than receiving resolved IDs
+(see [`SERVICE_CONTRACT.md`](SERVICE_CONTRACT.md) § Subscriptions) — rather than receiving resolved IDs
 at launch. (An earlier `{{…}}` template mechanism for injecting startup IDs was never adopted
 and was removed once subscriptions superseded it.)
 
@@ -203,7 +203,7 @@ A seed stores only **overrides** in each thing's inherited-property set; unset d
 
 ## `consumes` / `produces` Handlers -- Resource Simulation
 
-**Location**: `vos.ManagedMicroservice.Metabolism/` in the **VillageOS-API** repo (unified handler). Implementation details live in that repo's `docs/METABOLISM.md`.
+**Location**: `vos.Service.Metabolism/` in the **VillageOS-API** repo (unified handler). Implementation details live in that repo's `docs/METABOLISM.md`.
 **Default Ports**: 7102 (`consumes`), 7103 (`produces`)
 
 Both `consumes` and `produces` are handled by a single `Metabolism` binary, differentiated by the `--mode=consumes` or `--mode=produces` CLI argument. The predicate thing's `ServiceArgs` property passes this mode to Mycelium, which appends it when launching the daemon.
@@ -246,7 +246,7 @@ One shared prototype carries the binary + token scope (both services `is` it):
 {
   "Name": "Metabolism prototype",
   "Properties": {
-    "ExecutablePath": "../vos.ManagedMicroservice.Metabolism/bin/Debug/net10.0/vos.ManagedMicroservice.Metabolism.dll",
+    "ExecutablePath": "../vos.Service.Metabolism/bin/Debug/net10.0/vos.Service.Metabolism.dll",
     "RunMode": "daemon",
     "TokenScope": "metabolism:quantity,read"
   }
@@ -330,7 +330,7 @@ POST https://localhost:7243/api/things
 {
   "Name": "consumes",
   "Properties": {
-    "ExecutablePath": "vos.ManagedMicroservice.Metabolism",
+    "ExecutablePath": "vos.Service.Metabolism",
     "ServicePort": 7102,
     "ServiceArgs": "--mode=consumes"
   }
@@ -340,7 +340,7 @@ POST https://localhost:7243/api/things
 {
   "Name": "produces",
   "Properties": {
-    "ExecutablePath": "vos.ManagedMicroservice.Metabolism",
+    "ExecutablePath": "vos.Service.Metabolism",
     "ServicePort": 7103,
     "ServiceArgs": "--mode=produces"
   }
@@ -480,10 +480,10 @@ This prevents circular dependencies: a binding guard can reference a state produ
 
 ## Adding New Relationship Services
 
-Relationship behaviors are a **platform extension point**, not a fixed set. This section explains the platform-side machinery — why it exists and how Mycelium dispatches to a handler. For the actual handler **authoring contract** (project layout, required endpoints, `MyceliumClient`, startup registration), see the API repo's MICROSERVICE_AUTHORING.md:
+Relationship behaviors are a **platform extension point**, not a fixed set. This section explains the platform-side machinery — why it exists and how Mycelium dispatches to a handler. For the actual handler **authoring contract** (project layout, required endpoints, `MyceliumClient`, startup registration), see the API repo's SERVICE_AUTHORING.md:
 
-- **DevOps:** <https://dev.azure.com/ReGenVillages/VillageOS-API/_git/VillageOS-API?path=/docs/MICROSERVICE_AUTHORING.md>
-- **Wiki:** <https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FMICROSERVICE_AUTHORING>
+- **DevOps:** <https://dev.azure.com/ReGenVillages/VillageOS-API/_git/VillageOS-API?path=/docs/SERVICE_AUTHORING.md>
+- **Wiki:** <https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FSERVICE_AUTHORING>
 
 ### Why the handled-predicate machinery exists
 
@@ -497,7 +497,7 @@ The platform side of adding a relationship service is purely declarative — you
 2. **Discovery.** At seed load, Mycelium discovers connections by walking the `is`-chain and registers them with the service broker; those whose Service has `AutoStart: true` are invoked for existing relationships immediately.
 3. **Dispatch.** When a relationship using the predicate is created, the service broker delegates to the shared daemon lifecycle manager, which lazily launches the daemon (if needed), waits for health, and POSTs the relationship to the handler's `/handle` endpoint. (The daemon register/deregister/health lifecycle is documented in the broker's service-lifecycle flow — see the note below.)
 
-The handler's own obligations — implementing `/handle`, `/health`, `/shutdown`, and the register/deregister handshake — are the authoring contract documented in the API repo's MICROSERVICE_AUTHORING.md linked above. The register/deregister/health lifecycle itself is documented in the broker's service registration & lifecycle flow (private Mycelium docs).
+The handler's own obligations — implementing `/handle`, `/health`, `/shutdown`, and the register/deregister handshake — are the authoring contract documented in the API repo's SERVICE_AUTHORING.md linked above. The register/deregister/health lifecycle itself is documented in the broker's service registration & lifecycle flow (private Mycelium docs).
 
 ---
 
@@ -617,7 +617,7 @@ TOKEN=$(curl -s -X POST "https://localhost:7243/api/auth/token" \
 #### Example: Start Metabolism (consumes)
 
 ```bash
-dotnet run --project vos.ManagedMicroservice.Metabolism -- \
+dotnet run --project vos.Service.Metabolism -- \
   --port=7102 \
   --myceliumUrl=https://localhost:7243 \
   --mode=consumes \
@@ -628,7 +628,7 @@ dotnet run --project vos.ManagedMicroservice.Metabolism -- \
 #### Example: Start Metabolism (produces)
 
 ```bash
-dotnet run --project vos.ManagedMicroservice.Metabolism -- \
+dotnet run --project vos.Service.Metabolism -- \
   --port=7103 \
   --myceliumUrl=https://localhost:7243 \
   --mode=produces \
@@ -639,7 +639,7 @@ dotnet run --project vos.ManagedMicroservice.Metabolism -- \
 #### Example: Start Echo Endpoint Service
 
 ```bash
-dotnet run --project vos.ManagedMicroservice.CSharp.Echo -- \
+dotnet run --project vos.Service.CSharp.Echo -- \
   --port=7200 \
   --myceliumUrl=https://localhost:7243 \
   --token=$TOKEN \
@@ -651,7 +651,7 @@ dotnet run --project vos.ManagedMicroservice.CSharp.Echo -- \
 For local development where security is not a concern, you can start with just the required arguments. The service will attempt to bootstrap authentication automatically:
 
 ```bash
-dotnet run --project vos.ManagedMicroservice.Metabolism -- \
+dotnet run --project vos.Service.Metabolism -- \
   --port=7102 --myceliumUrl=https://localhost:7243 --mode=consumes
 ```
 

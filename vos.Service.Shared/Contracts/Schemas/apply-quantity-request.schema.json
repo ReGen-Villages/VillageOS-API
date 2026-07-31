@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://villageos/contracts/apply-quantity-request.schema.json",
+  "title": "ApplyQuantityRequest",
+  "description": "Payload Metabolism POSTs to {mycelium}/api/things/{thingId}/properties/{propertyPath}/{decrements|increments} on each simulation tick. Shape derived from vos.Service.Metabolism.Services.MyceliumClient.ApplyQuantityAsync.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["amount", "subjectName", "unit"],
+  "properties": {
+    "amount":      { "type": "number", "description": "Quantity to apply; sign is determined by the URL path segment (decrements vs increments)." },
+    "subjectName": { "type": "string", "description": "Name of the subject thing performing the action; may be empty when unknown." },
+    "unit":        { "type": "string", "description": "Unit of the amount (e.g. 'kWh', 'litres'); may be empty when unset." }
+  }
+}

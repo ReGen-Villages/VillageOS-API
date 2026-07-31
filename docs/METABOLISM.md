@@ -19,7 +19,7 @@ When a relationship like `Chemistry-Test --[consumes]--> Reagent-Pool` is create
 ```
 
 > `ServiceArgs` is plain CLI text passed verbatim to the daemon at launch. (A handler that
-> needs startup context subscribes for it over SSE — see `MICROSERVICE_CONTRACT.md` — rather
+> needs startup context subscribes for it over SSE — see `SERVICE_CONTRACT.md` — rather
 > than receiving injected IDs; an earlier `{{...}}` template mechanism was retired.)
 
 This means there are two running processes (on ports 7102 and 7103), but built from the same source.
@@ -123,7 +123,7 @@ The `Metabolism.UpdateProperty` method uses a lock to prevent race conditions wh
 ## Code Structure
 
 ```text
-vos.ManagedMicroservice.Metabolism/
+vos.Service.Metabolism/
 ├── Program.cs                          # Entry point, wiring
 ├── Configuration/
 │   └── CliArgs.cs                      # CLI argument parsing
@@ -188,7 +188,7 @@ Mycelium needs predicate things with handler configuration:
 {
   "Name": "consumes",
   "Properties": {
-    "ExecutablePath": "../vos.ManagedMicroservice.Metabolism/bin/Debug/net10.0/vos.ManagedMicroservice.Metabolism.dll",
+    "ExecutablePath": "../vos.Service.Metabolism/bin/Debug/net10.0/vos.Service.Metabolism.dll",
     "ServicePort": 7102,
     "ServiceArgs": "--mode=consumes",
     "onLoad": true
@@ -200,7 +200,7 @@ Mycelium needs predicate things with handler configuration:
 {
   "Name": "produces",
   "Properties": {
-    "ExecutablePath": "../vos.ManagedMicroservice.Metabolism/bin/Debug/net10.0/vos.ManagedMicroservice.Metabolism.dll",
+    "ExecutablePath": "../vos.Service.Metabolism/bin/Debug/net10.0/vos.Service.Metabolism.dll",
     "ServicePort": 7103,
     "ServiceArgs": "--mode=produces",
     "onLoad": true
@@ -241,7 +241,7 @@ Mycelium will auto-start the Metabolism service (if not already running), call `
 ### 4. Run manually (for development/debugging)
 
 ```bash
-dotnet run --project vos.ManagedMicroservice.Metabolism -- \
+dotnet run --project vos.Service.Metabolism -- \
   --port=7102 --myceliumUrl=https://localhost:7243 --mode=consumes
 ```
 

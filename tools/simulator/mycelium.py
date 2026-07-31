@@ -6,7 +6,7 @@ small and dependency-free so the simulator drops into any environment with a sto
 domain-agnostic — it knows Things, Relationships, Facts, quantity adjustments, and subscriptions,
 nothing about any particular model.
 
-Reference: docs/MICROSERVICE_CONTRACT.md.
+Reference: docs/SERVICE_CONTRACT.md.
 """
 
 from __future__ import annotations

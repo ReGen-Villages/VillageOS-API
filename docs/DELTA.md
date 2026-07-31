@@ -12,7 +12,7 @@ endpoint-template catalog that [Tributary](TRIBUTARY.md) fetches against:
 Delta is the **write/validate** side of the endpoint story; Tributary is the **runtime fetch**
 side. Delta decides *what a valid endpoint is and provisions it*; Tributary later *resolves that
 endpoint's effective properties and calls it*. Neither contains per-source (ESRI/OAuth/…) code —
-a source is expressed entirely as template + registration data. `MICROSERVICES.md` §1 lists
+a source is expressed entirely as template + registration data. `SERVICES.md` §1 lists
 Delta as one of the .NET services; this page is its canonical reference.
 
 ## The endpoint-template graph
@@ -127,11 +127,11 @@ to remove the orphaned Thing, so a partial registration never lingers. Success r
 
 When `--signingKey` is supplied, `/handle`, `/register`, and `/shutdown` require a valid Mycelium
 JWT; `/health` stays open. Delta does not expose a `/stats` endpoint today (noted in
-[`MICROSERVICE_HOST_ROADMAP.md`](MICROSERVICE_HOST_ROADMAP.md)).
+[`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md)).
 
 ## CLI & configuration
 
-Delta takes the **standard six flags** (see [`MICROSERVICES.md`](MICROSERVICES.md) §4):
+Delta takes the **standard six flags** (see [`SERVICES.md`](SERVICES.md) §4):
 
 ```bash
 dotnet run -- --port=<port> --myceliumUrl=<url> \
@@ -152,13 +152,13 @@ A parse failure or a graph-validation failure aborts boot.
 
 ## Source & tests
 
-- Registration handler + lifecycle: `vos.ManagedMicroservice.Delta/Program.cs`.
-- Graph model + validation: `vos.ManagedMicroservice.Delta/Models/EndpointSeedGraph.cs`.
-- Startup provisioning: `vos.ManagedMicroservice.Delta/Services/TemplateCatalogProvisioner.cs`.
-- Mycelium client (Thing/relationship CRUD): `vos.ManagedMicroservice.Delta/Services/MyceliumClient.cs`.
-- Seed loading: `vos.ManagedMicroservice.Delta/Helpers/EndpointSeedLoader.cs`,
+- Registration handler + lifecycle: `vos.Service.Delta/Program.cs`.
+- Graph model + validation: `vos.Service.Delta/Models/EndpointSeedGraph.cs`.
+- Startup provisioning: `vos.Service.Delta/Services/TemplateCatalogProvisioner.cs`.
+- Mycelium client (Thing/relationship CRUD): `vos.Service.Delta/Services/MyceliumClient.cs`.
+- Seed loading: `vos.Service.Delta/Helpers/EndpointSeedLoader.cs`,
   `Services/FileEndpointSeedProvider.cs`.
-- CLI: `vos.ManagedMicroservice.Delta/Configuration/CliArgs.cs`.
-- Tests: `Tests/vos.ManagedMicroservice.Delta.Tests/` (`RegisterEndpointTests`,
+- CLI: `vos.Service.Delta/Configuration/CliArgs.cs`.
+- Tests: `Tests/vos.Service.Delta.Tests/` (`RegisterEndpointTests`,
   `TemplateCatalogProvisionerTests`, `EndpointSeedGraph*Tests`, `EsriEndpointTemplateTests`,
   `CompensateAsyncTests`, …).
