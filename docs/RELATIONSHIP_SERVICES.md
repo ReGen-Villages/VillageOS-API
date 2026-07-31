@@ -483,7 +483,7 @@ This prevents circular dependencies: a binding guard can reference a state produ
 Relationship behaviors are a **platform extension point**, not a fixed set. This section explains the platform-side machinery — why it exists and how Mycelium dispatches to a handler. For the actual handler **authoring contract** (project layout, required endpoints, `MyceliumClient`, startup registration), see the API repo's SERVICE_AUTHORING.md:
 
 - **DevOps:** <https://dev.azure.com/ReGenVillages/VillageOS-API/_git/VillageOS-API?path=/docs/SERVICE_AUTHORING.md>
-- **Wiki:** <https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FSERVICE_AUTHORING>
+- **Wiki:** <https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FServices%2FAuthoring>
 
 ### Why the handled-predicate machinery exists
 
