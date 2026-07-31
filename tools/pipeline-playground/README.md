@@ -78,7 +78,7 @@ Run against a live platform; the rest are dispatch-only stand-ins that still dri
 ## The graph shape it writes
 
 Mirrors `vos.Infrastructure.Tests/Fixtures/pipeline-demo.seed.json` and the contract read by
-`vos.Trellis/src/pipeline/model.ts` and `vos.ManagedMicroservice.Phloem`:
+`vos.Trellis/src/pipeline/model.ts` and `vos.Service.Phloem`:
 
 - A **pipeline** `is Pipeline` and `has` its nodes.
 - A **node** `is PipelineNode` and `has` a `PlatformServiceConnection` (a boundary node instead `is`

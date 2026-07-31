@@ -31,10 +31,10 @@ Reference material for engineers building or hosting services. Denser by design.
 
 | Doc | What it covers |
 |-----|----------------|
-| [MICROSERVICE_AUTHORING.md](MICROSERVICE_AUTHORING.md) | The language-agnostic contract for writing your own handler (HTTP + one HS256 JWT), with reference implementations in five languages. |
-| [MICROSERVICE_CONTRACT.md](MICROSERVICE_CONTRACT.md) | The precise wire contract — endpoints, subscribe/SSE, and write-back kinds. |
-| [MICROSERVICES.md](MICROSERVICES.md) | The canonical reference for the C# managed-microservice host and the services built on it. |
-| [MICROSERVICE_HOST_ROADMAP.md](MICROSERVICE_HOST_ROADMAP.md) | Roadmap for consolidating the shared host across services. |
+| [SERVICE_AUTHORING.md](SERVICE_AUTHORING.md) | The language-agnostic contract for writing your own handler (HTTP + one HS256 JWT), with reference implementations in five languages. |
+| [SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) | The precise wire contract — endpoints, subscribe/SSE, and write-back kinds. |
+| [SERVICES.md](SERVICES.md) | The canonical reference for the C# managed-microservice host and the services built on it. |
+| [SERVICE_HOST_ROADMAP.md](SERVICE_HOST_ROADMAP.md) | Roadmap for consolidating the shared host across services. |
 
 > The full published documentation also lives in the
 > [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki).

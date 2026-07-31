@@ -7,12 +7,12 @@ property into the DAG, in the other it **writes** a DAG value back onto a Thing.
 
 It is deliberately generic — there is no per-domain code. The Thing and property it touches
 are supplied as node params at seed-build time, so the same binary serves any read/write the
-pipeline needs. `MICROSERVICES.md` §1 and §16 introduce ModelBridge as one of the .NET
+pipeline needs. `SERVICES.md` §1 and §16 introduce ModelBridge as one of the .NET
 services and a pipeline node; this page is the canonical reference for how it behaves.
 
 ## The gap it fills
 
-Phloem (the pipeline orchestrator, see [`MICROSERVICES.md`](MICROSERVICES.md) §16) assembles
+Phloem (the pipeline orchestrator, see [`SERVICES.md`](SERVICES.md) §16) assembles
 each node's inputs from just two sources: **wires** from upstream nodes and the run's
 **params**. There is no built-in path for a node to reach into the model — to read a property
 off a Thing, or to write a computed result back. ModelBridge is that path, packaged as an
@@ -82,7 +82,7 @@ fails with `KeyNotFoundException`.
 
 The write is a **Fact** — structural, synchronous truth that survives replay — which is the
 right kind for a computed result being committed to the model (see
-[`MICROSERVICES.md`](MICROSERVICES.md) §15 for Facts vs Observations vs Sediment). The
+[`SERVICES.md`](SERVICES.md) §15 for Facts vs Observations vs Sediment). The
 target property's `AllowedWriteKinds` gating still applies: a property that only accepts
 Observations returns 405, and an unknown thing/property returns 404 — both surface as an
 `HttpRequestException` carrying the status code.
@@ -115,7 +115,7 @@ estimate).
 ## CLI & registration
 
 ModelBridge takes only the **standard six flags** — no service-specific args (see
-[`MICROSERVICES.md`](MICROSERVICES.md) §4):
+[`SERVICES.md`](SERVICES.md) §4):
 
 ```bash
 dotnet run -- --port=<port> --myceliumUrl=<url> \
@@ -126,9 +126,9 @@ It registers with Mycelium as service name `ModelBridge`, start command `endpoin
 
 ## Source & tests
 
-- Node logic: `vos.ManagedMicroservice.ModelBridge/Services/ModelBridgeNode.cs`
-  (a `DagNodeService` subclass — see [`MICROSERVICES.md`](MICROSERVICES.md) §16.2 for the
+- Node logic: `vos.Service.ModelBridge/Services/ModelBridgeNode.cs`
+  (a `DagNodeService` subclass — see [`SERVICES.md`](SERVICES.md) §16.2 for the
   node envelope and SDK base).
-- CLI: `vos.ManagedMicroservice.ModelBridge/Configuration/CliArgs.cs`.
-- Mycelium client: `vos.ManagedMicroservice.ModelBridge/Services/MyceliumClient.cs`.
-- Tests: `Tests/vos.ManagedMicroservice.ModelBridge.Tests/ModelBridgeNodeTests.cs`.
+- CLI: `vos.Service.ModelBridge/Configuration/CliArgs.cs`.
+- Mycelium client: `vos.Service.ModelBridge/Services/MyceliumClient.cs`.
+- Tests: `Tests/vos.Service.ModelBridge.Tests/ModelBridgeNodeTests.cs`.

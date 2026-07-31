@@ -668,9 +668,9 @@ debugging session otherwise.
 |---|---|
 | [TRIBUTARY.md](TRIBUTARY.md) | The fetcher — templates, auth modes, paging, and the proven site-ingest examples |
 | [DELTA.md](DELTA.md) | How registrations are validated and provisioned |
-| [MICROSERVICES.md](MICROSERVICES.md) | Section 14 for endpoint services, section 16 for pipelines and the node envelope |
+| [SERVICES.md](SERVICES.md) | Section 14 for endpoint services, section 16 for pipelines and the node envelope |
 | [MODELBRIDGE.md](MODELBRIDGE.md) | Moving a value between the model and a pipeline |
-| [MICROSERVICE_CONTRACT.md](MICROSERVICE_CONTRACT.md) | The wire contract, and the fact / observation / fragment write kinds |
+| [SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) | The wire contract, and the fact / observation / fragment write kinds |
 | [TRELLIS.md](TRELLIS.md) | The GUI — pipeline editor in section 7.4, operations dashboard in section 16 |
 | [PIPELINE_PLAYGROUND.md](PIPELINE_PLAYGROUND.md) | Worked example DAGs, including the existing combined site analysis |
 

@@ -43,21 +43,21 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 
 | Service | Type | Description |
 |---------|------|-------------|
-| vos.ManagedMicroservice.Delta | Production | Registers data sources against a single-rooted endpoint-template graph (`is`-inheritance), with schema discovery and saga compensation |
-| vos.ManagedMicroservice.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
-| vos.ManagedMicroservice.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
-| vos.ManagedMicroservice.Phloem | Production | Pipeline/DAG orchestrator — runs a user-authored DAG of microservice nodes; spawned synchronously through Mycelium, dispatches each node via endpoint-forward (see [MICROSERVICES.md §16](docs/MICROSERVICES.md)) |
-| vos.ManagedMicroservice.Xylem | Production | IFC ingestion — accepts an `.ifc` upload (`POST /ingest`, merge or new-model), runs the `vos.Tools.IfcIngest` tool, and applies the graph to Mycelium; frees clients from a local ingest toolchain. Large files: `?async=true` returns a job id (poll `GET /ingest/jobs/{id}`) and the upload is streamed with a configurable cap |
-| vos.ManagedMicroservice.EnergyBalance | Production | Site energy-balance simulation — sums generation (e.g. solar: PV area × resource × efficiency) against demand; a Handled-Predicate service in the same family as Metabolism |
-| vos.ManagedMicroservice.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure) |
-| vos.ManagedMicroservice.ModelBridge | Production | Generic bridge between a pipeline DAG and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
-| vos.ManagedMicroservice.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline DAG node |
-| vos.ManagedMicroservice.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
-| vos.ManagedMicroservice.Node.Echo | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |
-| vos.ManagedMicroservice.Python.Echo | Example (Python) | The same handler in FastAPI |
-| vos.ManagedMicroservice.Rust.Echo | Example (Rust) | The same handler in Axum |
+| vos.Service.Delta | Production | Registers data sources against a single-rooted endpoint-template graph (`is`-inheritance), with schema discovery and saga compensation |
+| vos.Service.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
+| vos.Service.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
+| vos.Service.Phloem | Production | Pipeline/DAG orchestrator — runs a user-authored DAG of microservice nodes; spawned synchronously through Mycelium, dispatches each node via endpoint-forward (see [SERVICES.md §16](docs/SERVICES.md)) |
+| vos.Service.Xylem | Production | IFC ingestion — accepts an `.ifc` upload (`POST /ingest`, merge or new-model), runs the `vos.Tools.IfcIngest` tool, and applies the graph to Mycelium; frees clients from a local ingest toolchain. Large files: `?async=true` returns a job id (poll `GET /ingest/jobs/{id}`) and the upload is streamed with a configurable cap |
+| vos.Service.EnergyBalance | Production | Site energy-balance simulation — sums generation (e.g. solar: PV area × resource × efficiency) against demand; a Handled-Predicate service in the same family as Metabolism |
+| vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure) |
+| vos.Service.ModelBridge | Production | Generic bridge between a pipeline DAG and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
+| vos.Service.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline DAG node |
+| vos.Service.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
+| vos.Service.Node.Echo | Example (Node/TS) | The same handler in TypeScript (Node built-ins, zero runtime deps) |
+| vos.Service.Python.Echo | Example (Python) | The same handler in FastAPI |
+| vos.Service.Rust.Echo | Example (Rust) | The same handler in Axum |
 
-Writing your own handler in any language? See **[docs/MICROSERVICE_AUTHORING.md](docs/MICROSERVICE_AUTHORING.md)** — the language-agnostic contract (HTTP + one HS256 JWT) that every example above implements.
+Writing your own handler in any language? See **[docs/SERVICE_AUTHORING.md](docs/SERVICE_AUTHORING.md)** — the language-agnostic contract (HTTP + one HS256 JWT) that every example above implements.
 
 ## Prerequisites
 
@@ -108,7 +108,7 @@ Key pages:
 
 - [Trellis](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTrellis) — visualization stack, tech spec, user guide
 - [Taproot](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTaproot) — command reference
-- [Services](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FServices) — microservice documentation
+- [Services](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FServices) — service documentation
 - [API Reference](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FAPI-Reference) — REST endpoints, SSE streams, authentication
 
 ## License
