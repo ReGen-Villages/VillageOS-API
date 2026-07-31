@@ -9,7 +9,7 @@ const TAIL_LINES = 200;
 
 /**
  * Tails a log over SSE — the Mycelium broker log by default, or a named service daemon's log when
- * `service` is given (e.g. 'replenisher' → watch-replenisher.log). Mirrors useSse's auth approach:
+ * `service` is given (e.g. 'irrigator' → watch-irrigator.log). Mirrors useSse's auth approach:
  * EventSource can't set an Authorization header, so the short-lived token is passed as ?access_token
  * (the /api/logs/stream path is whitelisted in Mycelium's BrowserStreamPaths). Reconnects with
  * backoff on error, and re-opens against the new source when `service` changes.
