@@ -8,8 +8,8 @@ import {
 
 describe('snapshotFileName', () => {
   it('names the service and stamps the time so repeat downloads do not collide', () => {
-    const name = snapshotFileName('replenisher', new Date('2026-07-19T19:53:10.123Z'));
-    expect(name).toBe('replenisher-snapshot-2026-07-19_19-53-10.log');
+    const name = snapshotFileName('irrigator', new Date('2026-07-19T19:53:10.123Z'));
+    expect(name).toBe('irrigator-snapshot-2026-07-19_19-53-10.log');
   });
 
   it('falls back to the broker when no service is given', () => {
@@ -21,7 +21,7 @@ describe('snapshotFileName', () => {
 
 describe('fullLogFallbackName', () => {
   it('uses the service key, or the broker when absent', () => {
-    expect(fullLogFallbackName('replenisher')).toBe('replenisher.log');
+    expect(fullLogFallbackName('irrigator')).toBe('irrigator.log');
     expect(fullLogFallbackName(undefined)).toBe('broker.log');
   });
 });
@@ -38,8 +38,8 @@ describe('fileNameFromContentDisposition', () => {
   });
 
   it('strips surrounding quotes', () => {
-    expect(fileNameFromContentDisposition('attachment; filename="watch-replenisher.log"', 'broker.log')).toBe(
-      'watch-replenisher.log',
+    expect(fileNameFromContentDisposition('attachment; filename="watch-irrigator.log"', 'broker.log')).toBe(
+      'watch-irrigator.log',
     );
   });
 
