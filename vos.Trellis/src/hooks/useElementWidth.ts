@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 
-/** Measures the width of whatever element the returned ref is attached to.
+/** Measures the content width — padding and border excluded — of whatever element the returned
+ *  ref is attached to. Its sibling `useElementHeight` reports the full box instead, because a
+ *  chart draws inside the padding while a row's height includes it.
  *
  *  The ref is a callback rather than a `useRef` object on purpose: the element a widget wants
  *  measured usually appears only once its data arrives, and an effect keyed on a ref object runs

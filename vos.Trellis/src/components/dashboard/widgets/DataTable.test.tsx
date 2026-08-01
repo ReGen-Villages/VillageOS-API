@@ -2,31 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
 import type { TableColumn } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
+import { installResizeObserverDouble } from '../../../testResizeObserver';
 
 vi.mock('../../../hooks/useDashboard', () => ({
   useBinding: () => ({ loading: false, error: false, value: null }),
 }));
-
-const observed: HTMLElement[] = [];
-let reportHeight: ((height: number) => void) | null = null;
-
-class RecordingResizeObserver {
-  private callback: ResizeObserverCallback;
-  constructor(callback: ResizeObserverCallback) {
-    this.callback = callback;
-  }
-  observe(element: HTMLElement) {
-    observed.push(element);
-    reportHeight = (height) => {
-      element.getBoundingClientRect = () => ({ height }) as DOMRect;
-      this.callback([{ target: element } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
-    };
-  }
-  unobserve() {}
-  disconnect() {
-    reportHeight = null;
-  }
-}
 
 const { DataTable } = await import('./DataTable');
 
@@ -48,15 +28,14 @@ function renderTable({ visibleRows, rowCount = 8 }: { visibleRows?: number; rowC
 }
 
 describe('DataTable visibleRows cap (Test Case 6123)', () => {
-  const originalObserver = globalThis.ResizeObserver;
+  let observer: ReturnType<typeof installResizeObserverDouble>;
 
   beforeEach(() => {
-    observed.length = 0;
-    globalThis.ResizeObserver = RecordingResizeObserver as unknown as typeof ResizeObserver;
+    observer = installResizeObserverDouble();
   });
 
   afterEach(() => {
-    globalThis.ResizeObserver = originalObserver;
+    observer.restore();
   });
 
   it('caps a table at the requested row count with a vertical scroll container', () => {
@@ -71,10 +50,10 @@ describe('DataTable visibleRows cap (Test Case 6123)', () => {
   it('adds the measured header height so the capped rows are not clipped by it', () => {
     const scroller = renderTable({ visibleRows: 3 });
 
-    expect(observed).toHaveLength(1);
-    expect(observed[0].tagName).toBe('TR');
+    expect(observer.observed).toHaveLength(1);
+    expect(observer.observed[0].tagName).toBe('TR');
 
-    act(() => reportHeight!(48));
+    act(() => observer.report({ height: 48 }));
 
     expect(scroller.style.maxHeight).toContain('48px');
   });
@@ -98,6 +77,6 @@ describe('DataTable visibleRows cap (Test Case 6123)', () => {
 
     expect(scroller.style.maxHeight).toBe('');
     expect(scroller.className).not.toContain('overflow-y-auto');
-    expect(observed).toHaveLength(0);
+    expect(observer.observed).toHaveLength(0);
   });
 });
