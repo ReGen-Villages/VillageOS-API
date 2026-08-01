@@ -49,6 +49,11 @@ EventSource and other browser/streaming clients that can't set headers pass the 
 | `GET` | `/health` | `200` `{ "status": "Healthy" }` |
 | `POST` | `/shutdown` | Begin graceful shutdown (stop work, deregister) |
 
+**Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
+batch, `/handle` is called only after the whole fragment is applied — every Thing, edge, and
+property value in the batch is readable, and roll-ups are recomputed. A handler never observes a
+half-applied fragment. Multiple handled edges in one fragment are dispatched in creation order.
+
 ## Registration
 
 - `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`
