@@ -3,7 +3,15 @@ import type { Binding, TableColumn } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
 import { asRows, filterRows } from '../../../api/dashboardApi';
 import { useBinding } from '../../../hooks/useDashboard';
+import { useElementHeight } from '../../../hooks/useElementHeight';
 import { formatNumber, badgeTone } from './format';
+
+/* One body row of the visibleRows cap: the 1.5 line box at the table font, plus the py-2 padding
+   and bottom border of the cells below. In em, so the cap follows the font size — which is why
+   `text-[12.5px]` sits on the scroll container the cap applies to rather than on the table. The
+   header is measured rather than derived: its labels wrap in narrow columns, and column widths
+   depend on the data, so no constant is right for every table. */
+const BODY_ROW_HEIGHT = '(1.5em + 1rem + 1px)';
 
 /** Sortable, generic data table driven by a rows binding + column spec.
  *  Rows can come from a `rowsBinding` (resolved here) or be passed in directly
@@ -16,6 +24,7 @@ export function DataTable({
   minWidth = 520,
   sortKey,
   sortDir = 'desc',
+  visibleRows,
   emptyLabel = 'No rows.',
   footnote,
   query,
@@ -29,6 +38,7 @@ export function DataTable({
   minWidth?: number;
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
+  visibleRows?: number;
   emptyLabel?: string;
   footnote?: string;
   query?: string;
@@ -36,6 +46,7 @@ export function DataTable({
   onRowClick?: (row: Row) => void;
 }) {
   const { loading, value } = useBinding(rowsBinding, ctx);
+  const [headerRef, headerHeight] = useElementHeight();
   const resolved = rowsProp ?? asRows(value);
   const rows = useMemo(() => filterRows(resolved, query, searchKeys), [resolved, query, searchKeys]);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({
@@ -83,10 +94,13 @@ export function DataTable({
 
   return (
     <div>
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-[12.5px]" style={{ minWidth }}>
+      <div
+        className={`overflow-x-auto text-[12.5px] ${visibleRows ? 'overflow-y-auto' : ''}`}
+        style={visibleRows ? { maxHeight: `calc(${headerHeight}px + ${visibleRows} * ${BODY_ROW_HEIGHT})` } : undefined}
+      >
+        <table className="w-full border-collapse" style={{ minWidth }}>
           <thead>
-            <tr>
+            <tr ref={visibleRows ? headerRef : undefined}>
               {columns.map((c) => (
                 <th
                   key={c.key}
