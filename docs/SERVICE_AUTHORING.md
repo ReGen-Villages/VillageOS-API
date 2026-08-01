@@ -78,6 +78,11 @@ A 2xx means you're registered.
 
 \* Auth enforced only when `--signingKey` was supplied.
 
+**Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
+batch, `/handle` is called only after the whole fragment is applied — every Thing, edge, and
+property value in the batch is readable, and roll-ups are recomputed. A handler never observes a
+half-applied fragment. Multiple handled edges in one fragment are dispatched in creation order.
+
 **`POST /handle`** receives (camelCase JSON):
 
 ```json
