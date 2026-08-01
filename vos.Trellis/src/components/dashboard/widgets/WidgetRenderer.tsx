@@ -82,6 +82,7 @@ function TableWidgetView({
         minWidth={widget.minWidth}
         sortKey={widget.sortKey}
         sortDir={widget.sortDir}
+        visibleRows={widget.visibleRows}
         query={widget.searchable ? query : undefined}
         searchKeys={widget.searchKeys}
         onRowClick={onRowClick}

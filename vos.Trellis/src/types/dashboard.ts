@@ -200,6 +200,8 @@ export interface TableWidget {
   /** Column key to sort by initially. */
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
+  /** Cap the table body at this many rows; further rows scroll vertically under the pinned header. */
+  visibleRows?: number;
   /** Show a search box above the table that filters its rows. */
   searchable?: boolean;
   /** Row keys the search matches against. Default: every string-valued cell. */
