@@ -304,6 +304,42 @@ see [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) §1.8.
 | Mycelium calling `TryStopAsync()` | POSTs to the registered `stopEndpoint` |
 | Liveness failure (3× `/health` timeout) | Mycelium auto-deregisters |
 
+### A busy service is not a dead one
+
+Before Mycelium launches a daemon it probes the health endpoint, and reads the
+answer three ways rather than two:
+
+| Probe result | What it means | What Mycelium does |
+|---|---|---|
+| Success status | The service is up | Nothing — it is already running |
+| Connection refused | Nothing is bound to the port | Launch the daemon |
+| Timeout, or an error status | Something holds the port but will not answer | Leave it alone |
+
+This matters when your handler is slow. A service saturated with work can miss
+its probe deadline while still holding its port, and a second process launched
+there could only fail to bind — while adding the load that makes the next probe
+time out too. Your service will not be duplicated for being busy.
+
+Note the difference from the liveness table above: `LivenessMonitor` still
+deregisters a service that misses three polls in a row. The probe described
+here only decides whether to *launch* a process, never whether to retire one.
+
+### Launched daemons run with a memory ceiling
+
+A daemon Mycelium launches gets a bounded managed heap — `DOTNET_GCHeapHardLimit`
+in its environment, set from Mycelium's `DaemonLauncher:MemoryCeilingMegabytes`
+(4096 by default, zero to switch it off). A service not on the .NET runtime
+ignores it.
+
+**What this means for you.** A handler that allocates without end now raises an
+out-of-memory error in your own process, with a stack trace pointing at the
+allocation, instead of quietly growing until the host has nothing left for
+anything else. If your service dies this way, the fix is in the handler, not the
+ceiling. The usual cause is reading more of the model than the work needs — for
+example fetching a whole entity type on every dispatch when only a few things
+are being acted on. Ask for the slice you need, keep reference data that rarely
+changes between calls, and collapse a burst of triggers into one pass.
+
 ## 9. Contract validation
 
 JSON Schema artifacts + a runtime that loads and validates against them.
