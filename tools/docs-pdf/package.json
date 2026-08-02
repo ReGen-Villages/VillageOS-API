@@ -4,5 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Render a documentation Markdown file to a print-ready PDF",
-  "dependencies": { "marked": "^18.0.0" }
+  "dependencies": {
+    "marked": "^18.0.0",
+    "mermaid": "^11.16.0"
+  }
 }

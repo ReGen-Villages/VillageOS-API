@@ -1,11 +1,37 @@
 import { marked } from 'marked';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 
 const src = readFileSync(process.argv[2], 'utf8');
 const out = process.argv[3];
 
+const title = (src.match(/^#\s+(.+)$/m)?.[1] ?? out)
+  .replace(/[`*_]/g, '')
+  .trim();
+
+// Mermaid fences become <pre class="mermaid"> for the browser to draw; everything else
+// goes through the normal code path.
+marked.use({
+  renderer: {
+    code({ text, lang }) {
+      if (lang !== 'mermaid') return false;
+      const escaped = text.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+      return `<pre class="mermaid">${escaped}</pre>`;
+    },
+  },
+});
 marked.setOptions({ gfm: true, breaks: false });
 const body = marked.parse(src);
+
+const hasDiagrams = body.includes('<pre class="mermaid">');
+const require = createRequire(import.meta.url);
+const mermaidScript = hasDiagrams
+  ? `<script>${readFileSync(require.resolve('mermaid/dist/mermaid.min.js'), 'utf8')}</script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose',
+                       flowchart: { useMaxWidth: true }, sequence: { useMaxWidth: true } });
+</script>`
+  : '';
 
 const css = `
 @page { size: A4; margin: 18mm 20mm 20mm 20mm; }
@@ -67,13 +93,20 @@ img {
 hr { border: none; border-top: 1px solid var(--line); margin: 7mm 0; }
 a { color: var(--accent); text-decoration: none; }
 h2 + p > a { word-break: break-word; }
+
+/* Mermaid draws into these; keep a diagram whole and inside the text column. */
+pre.mermaid {
+  background: none; color: inherit; padding: 0;
+  margin: 4mm auto 5mm; text-align: center; break-inside: avoid;
+}
+pre.mermaid svg { max-width: 100%; max-height: 200mm; height: auto; }
 `;
 
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Land Intake and Site Analysis — Design</title>
+<title>${title}</title>
 <style>${css}</style>
-</head><body>${body}</body></html>`;
+</head><body>${body}${mermaidScript}</body></html>`;
 
 writeFileSync(out, html);
 console.log(`wrote ${out} (${(html.length / 1024).toFixed(0)} KB)`);
