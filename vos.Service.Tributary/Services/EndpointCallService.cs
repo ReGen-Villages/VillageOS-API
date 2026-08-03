@@ -158,6 +158,11 @@ public sealed class EndpointCallService
         if (ctConflicts != null)
             return EndpointCallResult.Failure(AmbiguousProperty("requestContentType", ctConflicts));
 
+        // Optional Accept for content-negotiating upstreams (e.g. image/tiff from an ImageServer);
+        // a dedicated structural key like requestContentType, not an entry in the headers map.
+        if (!TryResolveOptionalString(effective, "acceptHeader", out var acceptHeader, out var acceptHeaderError))
+            return EndpointCallResult.Failure(acceptHeaderError!);
+
         var timeout = OutboundRequest.DefaultTimeout;
         if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, "timeout", out var timeoutElement, out var timeoutConflicts))
             timeout = OutboundRequest.ResolveTimeout(timeoutElement);
@@ -310,7 +315,7 @@ public sealed class EndpointCallService
                 // sequences with U+FFFD, which is lossy and irreversible. The envelope stays
                 // application/json so the result flows through existing proxying unchanged.
                 var (_, bytes, upstreamContentType) = await CallEndpointBinaryAsync(
-                    _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, timeout, cancellationToken);
+                    _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, cancellationToken);
 
                 var envelope = JsonSerializer.Serialize(new
                 {
@@ -340,7 +345,7 @@ public sealed class EndpointCallService
                             pageParams[paging.PageSizeParam] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
 
                         var (pageStatus, pageBody, _) = await CallEndpointAsync(
-                            _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, pageParams, requestContentType, timeout, ct);
+                            _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, pageParams, requestContentType, acceptHeader, timeout, ct);
                         if (pageStatus is < 200 or >= 300)
                             throw new HttpRequestException($"Paged request failed with status {pageStatus} at {paging.OffsetParam}={offset}.");
                         return pageBody;
@@ -352,7 +357,7 @@ public sealed class EndpointCallService
             else
             {
                 (status, body, contentType) = await CallEndpointAsync(
-                    _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, timeout, cancellationToken);
+                    _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, cancellationToken);
             }
 
             if (hasOverrideTransform && overrideQuery != null && status is >= 200 and < 300)
@@ -443,13 +448,14 @@ public sealed class EndpointCallService
         IReadOnlyDictionary<string, string>? headers,
         IReadOnlyDictionary<string, string>? queryParameters,
         string requestContentType,
+        string? acceptHeader,
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
         var client = httpClientFactory.CreateClient();
         client.Timeout = timeout;
 
-        using var request = OutboundRequest.Build(method, endpointUri, body, headers, queryParameters, requestContentType);
+        using var request = OutboundRequest.Build(method, endpointUri, body, headers, queryParameters, requestContentType, acceptHeader);
 
         using var response = await client.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -465,13 +471,14 @@ public sealed class EndpointCallService
         IReadOnlyDictionary<string, string>? headers,
         IReadOnlyDictionary<string, string>? queryParameters,
         string requestContentType,
+        string? acceptHeader,
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
         var client = httpClientFactory.CreateClient();
         client.Timeout = timeout;
 
-        using var request = OutboundRequest.Build(method, endpointUri, body, headers, queryParameters, requestContentType);
+        using var request = OutboundRequest.Build(method, endpointUri, body, headers, queryParameters, requestContentType, acceptHeader);
 
         using var response = await client.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);

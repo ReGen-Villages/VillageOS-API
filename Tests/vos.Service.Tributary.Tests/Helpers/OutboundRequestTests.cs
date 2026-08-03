@@ -236,4 +236,56 @@ public class OutboundRequestTests
         map!["obj"].Should().Be("{\"k\":\"v\"}");
         map["arr"].Should().Be("[1,2]");
     }
+
+    // ---------- Accept header (Task #5913) ----------
+
+    [Fact]
+    public void Build_AcceptHeader_SetsAcceptOnRequest()
+    {
+        var req = OutboundRequest.Build("GET", new Uri("https://api.test/x"), default, null, null,
+            OutboundRequest.DefaultContentType, acceptHeader: "image/tiff");
+
+        req.Headers.GetValues("Accept").Should().ContainSingle().Which.Should().Be("image/tiff");
+    }
+
+    [Fact]
+    public void Build_NoAcceptHeader_LeavesAcceptUnset()
+    {
+        var req = OutboundRequest.Build("GET", new Uri("https://api.test/x"), default, null, null,
+            OutboundRequest.DefaultContentType);
+
+        req.Headers.Contains("Accept").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Build_WhitespaceAcceptHeader_Ignored()
+    {
+        var req = OutboundRequest.Build("GET", new Uri("https://api.test/x"), default, null, null,
+            OutboundRequest.DefaultContentType, acceptHeader: "   ");
+
+        req.Headers.Contains("Accept").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Build_AcceptHeader_WinsOverHeadersMapAccept()
+    {
+        // The dedicated structural key is the more specific intent; a stray Accept in the generic
+        // headers map must not survive alongside it — exactly one value goes on the wire.
+        var headers = new Dictionary<string, string> { ["Accept"] = "application/json" };
+        var req = OutboundRequest.Build("GET", new Uri("https://api.test/x"), default, headers, null,
+            OutboundRequest.DefaultContentType, acceptHeader: "image/tiff");
+
+        req.Headers.GetValues("Accept").Should().ContainSingle().Which.Should().Be("image/tiff");
+    }
+
+    [Fact]
+    public void Build_AcceptHeaderList_CarriesAllMediaTypes()
+    {
+        // Stored as one Accept header line; HttpHeaders.GetValues parses the comma list back into
+        // members (with canonical "; q=" spacing) — assert the members, not the raw string.
+        var req = OutboundRequest.Build("GET", new Uri("https://api.test/x"), default, null, null,
+            OutboundRequest.DefaultContentType, acceptHeader: "image/tiff, image/png;q=0.8");
+
+        string.Join(", ", req.Headers.GetValues("Accept")).Should().Be("image/tiff, image/png; q=0.8");
+    }
 }

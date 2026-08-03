@@ -70,7 +70,8 @@ public static class OutboundRequest
         JsonElement body,
         IReadOnlyDictionary<string, string>? headers,
         IReadOnlyDictionary<string, string>? queryParameters,
-        string contentType)
+        string contentType,
+        string? acceptHeader = null)
     {
         var request = new HttpRequestMessage(new HttpMethod(method), ApplyQueryParameters(url, queryParameters));
 
@@ -89,6 +90,14 @@ public static class OutboundRequest
                 // content header in the map is dropped rather than throwing.
                 request.Headers.TryAddWithoutValidation(name, value);
             }
+        }
+
+        // The dedicated key wins over any Accept the generic headers map set — one value on the wire.
+        // TryAddWithoutValidation keeps q-value lists ("image/tiff, image/png;q=0.8") verbatim.
+        if (!string.IsNullOrWhiteSpace(acceptHeader))
+        {
+            request.Headers.Remove("Accept");
+            request.Headers.TryAddWithoutValidation("Accept", acceptHeader.Trim());
         }
 
         return request;
