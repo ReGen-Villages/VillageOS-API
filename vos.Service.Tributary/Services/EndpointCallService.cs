@@ -9,9 +9,9 @@ using vos.Service.Shared.Validation;
 namespace vos.Service.Tributary.Services;
 
 // Resolves an endpoint Thing's effective properties and performs the outbound HTTP call — auth-kinds,
-// offset paging, and optional JSONata response transform / observation ingest. Extracted verbatim from
-// the original /handle lambda so both the HTTP endpoint and the pipeline DAG node
-// (TributaryNode, Feature #5628) run the identical path. Returns a framework-free
+// offset paging, binary response envelopes, and optional JSONata response transform / observation
+// ingest. Extracted verbatim from the original /handle lambda so both the HTTP endpoint and the
+// pipeline DAG node (TributaryNode, Feature #5628) run the identical path. Returns a framework-free
 // EndpointCallResult; callers map it to their own response type.
 public sealed class EndpointCallService
 {
@@ -48,7 +48,31 @@ public sealed class EndpointCallService
         if (effective == null)
             return Problem(500, "Endpoint resolution failed", "Failed to resolve effective properties for endpoint thing.");
 
+        // ---- responseKind resolution ----
+        // json/absent -> the existing string path. binary -> a byte-level read wrapped in a base64
+        // envelope; combos that presuppose a decodable string body (transforms, offset paging) are
+        // rejected before any side effect below.
+        if (!TryResolveOptionalString(effective, "responseKind", out var responseKind, out var responseKindError))
+            return EndpointCallResult.Failure(responseKindError!);
+
+        var binaryResponse = false;
+        switch (responseKind?.Trim().ToLowerInvariant())
+        {
+            case null:
+            case "":
+            case "json":
+                break;
+            case "binary":
+                binaryResponse = true;
+                break;
+            default:
+                return Json(400, new { error = $"Unsupported responseKind: {responseKind}" }, $"Unsupported responseKind: {responseKind}");
+        }
+
         var hasOverrideTransform = !string.IsNullOrWhiteSpace(request.ResponseTransform);
+        if (binaryResponse && hasOverrideTransform)
+            return Json(400, new { error = "responseKind 'binary' cannot be combined with responseTransform." },
+                "responseKind 'binary' cannot be combined with responseTransform.");
         JsonataTransform? overrideQuery = null;
         if (hasOverrideTransform)
         {
@@ -101,6 +125,10 @@ public sealed class EndpointCallService
                 error = "Endpoint thing has ambiguous properties for responseTransform.",
                 conflicts = new { responseTransform = transformConflicts }
             }, "Endpoint thing has ambiguous properties for responseTransform.");
+
+        if (binaryResponse && !string.IsNullOrWhiteSpace(responseTransform))
+            return Json(400, new { error = "responseKind 'binary' cannot be combined with responseTransform." },
+                "responseKind 'binary' cannot be combined with responseTransform.");
 
         var url = urlElement.ValueKind == JsonValueKind.String ? urlElement.GetString() : urlElement.ToString();
         var method = methodElement.ValueKind == JsonValueKind.String ? methodElement.GetString() : methodElement.ToString();
@@ -240,6 +268,10 @@ public sealed class EndpointCallService
                 return Json(400, new { error = $"Unsupported pagingKind: {pagingKind}" }, $"Unsupported pagingKind: {pagingKind}");
         }
 
+        if (binaryResponse && pageConfig != null)
+            return Json(400, new { error = $"responseKind 'binary' cannot be combined with pagingKind '{pagingKind}'." },
+                $"responseKind 'binary' cannot be combined with pagingKind '{pagingKind}'.");
+
         try
         {
             // Mint the token now (deferred network call). Its own catch returns a generic 502 — the
@@ -270,6 +302,23 @@ public sealed class EndpointCallService
                     effectiveHeaders[tokenHeader] = string.IsNullOrEmpty(tokenScheme) ? credential : $"{tokenScheme} {credential}";
                 else
                     effectiveQueryParams[tokenParam] = credential;
+            }
+
+            if (binaryResponse)
+            {
+                // Bytes must be read before any string decode: ReadAsStringAsync replaces non-UTF-8
+                // sequences with U+FFFD, which is lossy and irreversible. The envelope stays
+                // application/json so the result flows through existing proxying unchanged.
+                var (_, bytes, upstreamContentType) = await CallEndpointBinaryAsync(
+                    _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, timeout, cancellationToken);
+
+                var envelope = JsonSerializer.Serialize(new
+                {
+                    contentType = string.IsNullOrWhiteSpace(upstreamContentType) ? "application/octet-stream" : upstreamContentType,
+                    dataBase64 = Convert.ToBase64String(bytes),
+                    byteLength = bytes.Length
+                });
+                return EndpointCallResult.Body(envelope, "application/json");
             }
 
             int status;
@@ -404,6 +453,28 @@ public sealed class EndpointCallService
 
         using var response = await client.SendAsync(request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        var contentType = response.Content.Headers.ContentType?.ToString();
+        return ((int)response.StatusCode, content, contentType);
+    }
+
+    private static async Task<(int StatusCode, byte[] Body, string? ContentType)> CallEndpointBinaryAsync(
+        IHttpClientFactory httpClientFactory,
+        Uri endpointUri,
+        string method,
+        JsonElement body,
+        IReadOnlyDictionary<string, string>? headers,
+        IReadOnlyDictionary<string, string>? queryParameters,
+        string requestContentType,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var client = httpClientFactory.CreateClient();
+        client.Timeout = timeout;
+
+        using var request = OutboundRequest.Build(method, endpointUri, body, headers, queryParameters, requestContentType);
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        var content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         var contentType = response.Content.Headers.ContentType?.ToString();
         return ((int)response.StatusCode, content, contentType);
     }
