@@ -108,6 +108,30 @@ reference handler ships a runnable example at `POST /demo/subscribe { "type": "B
 "powers" }` that subscribes for that slice, reports the resolved closure (counts + names), and
 unsubscribes.
 
+#### What a slice costs
+
+A snapshot carries every relationship **incident to what it selects** — an edge arrives if either of
+its endpoints is in the closure. What resolving a selector costs follows from that:
+
+| Selector | What it costs |
+|---|---|
+| `ids` | the objects named, and their own edges |
+| `traverse` | the same again for each object the walk reaches |
+| `names`, `types` | a search of every Thing in the model |
+| `all` | the whole model, by definition |
+
+Two consequences are worth designing around:
+
+- **Selecting a Thing selects everything pointing at it.** Naming an archetype in a slice that
+  carries relationships brings back an `is` edge for every instance of that archetype — a cost that
+  keeps growing for as long as the model does. When a handler needs an archetype's *identity* rather
+  than its members, ask for it by name with `"includeRelationships": false`.
+- **Read by id wherever the id is known.** A handler that is handed a subject and asks for that
+  subject's *type* pays for every other object of the type, on every dispatch. Ask for the subject.
+
+Both are easy to write by accident, and neither shows up in a small model: the slice is correct, the
+handler works, and the cost only becomes visible once the model has run for a while.
+
 #### Reference: select a slice, per language
 
 ```csharp
