@@ -20,6 +20,7 @@ import {
   thingIdsOfArchetype,
   resolveBinding,
   filterRows,
+  asNumber,
   type ResolveContext,
 } from './dashboardApi';
 
@@ -549,6 +550,76 @@ describe('resolveBinding', () => {
       expect(filterRows(rows, '1', ['grouping'])).toEqual([]);
       expect(filterRows(rows, 'bet', ['grouping']).map((r) => r.id)).toEqual(['a2']);
     });
+  });
+});
+
+// Bug (#6142): a numeric binding took a number from a text property whenever the text happened to
+// read like one, so an identifier stored as text — an order number, a door number, a part code —
+// was summed and ranked as though it were a measurement. The platform already answers the question
+// the parse was guessing at: a text property arrives as text, every numeric type as a number.
+describe('a text property is not a number', () => {
+  // GATE-3 stores its door number as text; GATE-7 has a real reading.
+  function gateCtx(): ResolveContext {
+    const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({
+      Id, Name, Properties,
+    });
+    const things: VosThing[] = [
+      t('is', 'is'), t('arch-gate', 'Gate'),
+      t('gate3', 'GATE-3', { door_number: '4711', open_ratio: 0.25, powered: true }),
+      t('gate7', 'GATE-7', { door_number: '0815', open_ratio: 0.75, powered: false }),
+    ];
+    const rel = (SubjectId: string, TargetId: string): VosRelationship => ({
+      Id: `${SubjectId}-is-${TargetId}`, Name: `${SubjectId} is ${TargetId}`,
+      SubjectId, PredicateId: 'is', TargetId, Properties: {},
+    });
+    return {
+      idx: buildModelIndex(things, [rel('gate3', 'arch-gate'), rel('gate7', 'arch-gate')]),
+      scopeId: null,
+      compareArchetype: 'Gate',
+    };
+  }
+
+  it('a property binding on a text property gives a widget no number to show', async () => {
+    const ctx = { ...gateCtx(), scopeId: 'gate3' };
+    const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'door_number' }, ctx);
+    expect(asNumber(v)).toBeNull();
+  });
+
+  it('an aggregate over a text property averages nothing, not the parsed codes', async () => {
+    const v = await resolveBinding(
+      { kind: 'aggregate', archetype: 'Gate', op: 'avg', property: 'door_number' },
+      gateCtx(),
+    );
+    expect(v).toBe(0);
+  });
+
+  it('a compareEntities column over a text property holds no number', async () => {
+    const rows = (await resolveBinding(
+      { kind: 'compareEntities', properties: ['door_number'] },
+      gateCtx(),
+    )) as Record<string, unknown>[];
+    expect(rows.every((r) => Number.isNaN(r.door_number))).toBe(true);
+  });
+
+  it('an ordered filter on a text property matches nothing', async () => {
+    const v = await resolveBinding(
+      { kind: 'aggregate', archetype: 'Gate', op: 'count', where: [{ property: 'door_number', op: '>', value: 1000 }] },
+      gateCtx(),
+    );
+    expect(v).toBe(0);
+  });
+
+  it('still reads a number, and still counts a boolean as one or nothing', async () => {
+    const avg = await resolveBinding(
+      { kind: 'aggregate', archetype: 'Gate', op: 'avg', property: 'open_ratio' },
+      gateCtx(),
+    );
+    expect(avg).toBeCloseTo(0.5);
+    const powered = await resolveBinding(
+      { kind: 'aggregate', archetype: 'Gate', op: 'sum', property: 'powered' },
+      gateCtx(),
+    );
+    expect(powered).toBe(1);
   });
 });
 
