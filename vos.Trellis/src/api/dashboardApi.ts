@@ -10,13 +10,15 @@
  * temporalApi / a model-side service). The binding *values* — state names,
  * archetypes, properties — come from the model, never from this file.
  */
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing, VosRelationship, ThingsInStateResponse } from '../types/vos';
 import {
   DASHBOARD_ARCHETYPE,
   DASHBOARD_SPEC_PROPERTY,
   type Binding,
+  type ComputedColumn,
   type DashboardDescriptor,
   type DashboardSpec,
+  type RelationStep,
   type ScopeEntity,
   type ScopeRef,
   type PropertyFilter,
@@ -33,7 +35,7 @@ const SCOPE_REF = '$scope';
 /** Row shape returned by stateList / aggregate-list / service table bindings. */
 export type Row = Record<string, unknown>;
 /** A resolved binding value: a scalar, a table, or a series. */
-export type BindingResult = number | Row[] | number[] | null;
+export type BindingResult = number | string | Row[] | number[] | null;
 
 // ---- model-store indexes ------------------------------------------------
 
@@ -182,6 +184,23 @@ export interface ResolveContext {
   compareArchetype?: string;
   /** Bumped on live events to force re-resolution of server-side bindings. Part of identity only. */
   nonce?: number;
+  /** State reads shared by the rows of one resolution, so a per-row state binding asks the broker
+   *  once per state name rather than once per row. Held in flight, not as a value, so rows
+   *  resolving in parallel share the same request. Created per row set and discarded with it —
+   *  a cache that outlived the resolution would serve a stale membership on the next refresh. */
+  stateMembers?: Map<string, Promise<ThingsInStateResponse>>;
+}
+
+function thingsInState(state: string, ctx: ResolveContext): Promise<ThingsInStateResponse> {
+  const inFlight = ctx.stateMembers?.get(state);
+  if (inFlight) return inFlight;
+  const request = stateApi.getThingsInState(state);
+  ctx.stateMembers?.set(state, request);
+  return request;
+}
+
+async function stateMemberIds(state: string, ctx: ResolveContext): Promise<Set<string>> {
+  return new Set((await thingsInState(state, ctx)).Things?.map((t) => t.Id) ?? []);
 }
 
 /** Members reachable from the scope entity by following a predicate transitively.
@@ -237,6 +256,62 @@ function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, i
     }
   }
   return true;
+}
+
+/** The Thing a binding starts from: the one it names by id or name, or — absent a name, or for the
+ *  `$scope` reference — the selected compare entity, which inside a computed column is the row's
+ *  own Thing. */
+function referencedThing(ref: string | undefined, ctx: ResolveContext): VosThing | null {
+  if (!ref || ref === SCOPE_REF) return ctx.scopeId ? (ctx.idx.byId.get(ctx.scopeId) ?? null) : null;
+  return ctx.idx.byId.get(ref) ?? ctx.idx.byName.get(ref) ?? null;
+}
+
+/** The Things one step of a `related` path reaches from the Things reached so far. */
+async function followStep(fromIds: string[], step: RelationStep, ctx: ResolveContext): Promise<string[]> {
+  const pid = ctx.idx.predicateNameToId.get(step.predicate);
+  if (!pid) return [];
+  const inbound = step.direction === 'in';
+  const from = new Set(fromIds);
+  const reached = new Set<string>();
+  for (const r of ctx.idx.relationships) {
+    if (r.PredicateId !== pid) continue;
+    const [subject, target] = inbound ? [r.TargetId, r.SubjectId] : [r.SubjectId, r.TargetId];
+    if (from.has(subject)) reached.add(target);
+  }
+  let ids = [...reached];
+  if (step.archetype) {
+    const ofArchetype = thingIdsOfArchetype(step.archetype, ctx.idx);
+    ids = ids.filter((id) => ofArchetype.has(id));
+  }
+  if (step.inState && ids.length) {
+    const inState = await stateMemberIds(step.inState, ctx);
+    ids = ids.filter((id) => inState.has(id));
+  }
+  if (step.notInState && ids.length) {
+    const excluded = await stateMemberIds(step.notInState, ctx);
+    ids = ids.filter((id) => !excluded.has(id));
+  }
+  return ids;
+}
+
+/** Resolve each computed column once per row, with that row's Thing as the scope — so the binding
+ *  a `$scope`-driven widget uses yields this row's own value here. The rows share one set of state
+ *  reads, which is what keeps a state-reading column at one request per state rather than per row. */
+async function withComputedColumns(
+  rows: Row[],
+  computed: ComputedColumn[] | undefined,
+  ctx: ResolveContext,
+): Promise<Row[]> {
+  if (!computed?.length) return rows;
+  const stateMembers = ctx.stateMembers ?? new Map<string, Promise<ThingsInStateResponse>>();
+  return Promise.all(
+    rows.map(async (row) => {
+      const rowCtx: ResolveContext = { ...ctx, scopeId: (row.id as string) ?? null, stateMembers };
+      const values = await Promise.all(computed.map((column) => resolveBinding(column.value, rowCtx)));
+      computed.forEach((column, i) => (row[column.key] = asCell(values[i])));
+      return row;
+    }),
+  );
 }
 
 /** Substitute the `$scope` placeholder anywhere in a service binding's body with the selected
@@ -313,26 +388,49 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       return top / bottom;
     }
 
+    case 'related': {
+      const start = referencedThing(binding.thing, ctx);
+      if (!start) return null;
+      let reached = [start.Id];
+      for (const step of binding.via) {
+        reached = await followStep(reached, step, ctx);
+        if (!reached.length) return null;
+      }
+      const values = reached
+        .map((id) => {
+          const t = ctx.idx.byId.get(id);
+          if (!t) return null;
+          return binding.property ? effectiveProperties(t, ctx.idx)[binding.property] : t.Name;
+        })
+        .filter((v) => v != null && v !== '');
+      if (!values.length) return null;
+      if (values.length === 1 && typeof values[0] === 'number') return values[0];
+      // Sorted so a cell that names several Things reads the same on every refresh, whatever
+      // order the relationship list happened to be in.
+      return [...new Set(values.map(String))].sort((a, b) => a.localeCompare(b)).join(', ');
+    }
+
+    case 'stateOf': {
+      const t = referencedThing(binding.thing, ctx);
+      if (!t) return null;
+      for (const state of binding.states) {
+        if ((await stateMemberIds(state, ctx)).has(t.Id)) return state;
+      }
+      return null;
+    }
+
     case 'compareEntities': {
       const ents = ctx.compareArchetype ? thingsOfArchetype(ctx.compareArchetype, ctx.idx) : [];
-      const computed = binding.computed ?? [];
-      return Promise.all(
-        ents.map(async (t) => {
-          const row: Row = { id: t.Id, name: t.Name };
-          for (const p of binding.properties) row[p] = num(effectiveProperties(t, ctx.idx)[p]);
-          // Each computed column resolves with the Thing as the scope, so the same binding a
-          // $scope-driven widget uses yields that Thing's own value here.
-          const values = await Promise.all(
-            computed.map((column) => resolveBinding(column.value, { ...ctx, scopeId: t.Id })),
-          );
-          computed.forEach((column, i) => (row[column.key] = asNumber(values[i])));
-          return row;
-        }),
-      );
+      const rows = ents.map((t) => {
+        const row: Row = { id: t.Id, name: t.Name };
+        for (const p of binding.properties) row[p] = num(effectiveProperties(t, ctx.idx)[p]);
+        return row;
+      });
+      return withComputedColumns(rows, binding.computed, ctx);
     }
 
     case 'stateCount': {
-      const resp = await stateApi.getThingsInState(binding.state);
+      const resp = await thingsInState(binding.state, ctx);
       const members = scopeMemberIds(binding.scope, ctx);
       const ofArchetype = binding.archetype ? thingIdsOfArchetype(binding.archetype, ctx.idx) : null;
       let list = resp.Things ?? [];
@@ -342,24 +440,23 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     }
 
     case 'stateList': {
-      const resp = await stateApi.getThingsInState(binding.state);
+      const resp = await thingsInState(binding.state, ctx);
       const members = scopeMemberIds(binding.scope, ctx);
       const ofArchetype = binding.archetype ? thingIdsOfArchetype(binding.archetype, ctx.idx) : null;
       // The derived statuses nest (a harvested plot is also growing/planted/…), so a plain
       // stateList for an early stage includes every later one. excludeState removes the things
       // that advanced past this stage — leaving only those that reached it and no further.
-      const advanced = binding.excludeState
-        ? new Set((await stateApi.getThingsInState(binding.excludeState)).Things?.map((t) => t.Id) ?? [])
-        : null;
+      const advanced = binding.excludeState ? await stateMemberIds(binding.excludeState, ctx) : null;
       let list = resp.Things ?? [];
       if (members) list = list.filter((t) => members.has(t.Id));
       if (ofArchetype) list = list.filter((t) => ofArchetype.has(t.Id));
       if (advanced) list = list.filter((t) => !advanced.has(t.Id));
       if (binding.limit) list = list.slice(0, binding.limit);
-      return list.map((ref) => {
+      const rows = list.map((ref) => {
         const full = ctx.idx.byId.get(ref.Id);
         return { id: ref.Id, name: ref.Name, ...(full ? effectiveProperties(full, ctx.idx) : {}) } as Row;
       });
+      return withComputedColumns(rows, binding.computed, ctx);
     }
 
     case 'thingList': {
@@ -368,7 +465,8 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       if (members) list = list.filter((t) => members.has(t.Id));
       list.sort((a, b) => a.Name.localeCompare(b.Name));
       if (binding.limit) list = list.slice(0, binding.limit);
-      return list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, ctx.idx) }) as Row);
+      const rows = list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, ctx.idx) }) as Row);
+      return withComputedColumns(rows, binding.computed, ctx);
     }
 
     case 'timeseries':
@@ -411,6 +509,13 @@ async function resolveTimeseries(
 
 export function asNumber(r: BindingResult): number | null {
   return typeof r === 'number' && !isNaN(r) ? r : null;
+}
+/** A resolved binding narrowed to what one table cell can hold. A number stays a number so the
+ *  column can format and sort it as one; text stays text; a table or a series is not a cell value
+ *  and lands empty rather than as its stringified self. */
+export function asCell(r: BindingResult): number | string | null {
+  if (typeof r === 'string') return r;
+  return asNumber(r);
 }
 export function asRows(r: BindingResult): Row[] {
   return Array.isArray(r) && (r.length === 0 || typeof r[0] === 'object') ? (r as Row[]) : [];
