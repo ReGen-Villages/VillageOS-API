@@ -1,0 +1,24 @@
+{
+  "pages": [
+    { "doc": "docs/README.md", "page": "/Home" },
+    { "doc": "README.md", "page": "/Project Guide" },
+    { "doc": "docs/TRELLIS.md", "page": "/Trellis" },
+    { "doc": "docs/TAPROOT_USER_GUIDE.md", "page": "/Taproot" },
+    { "doc": "docs/PIPELINE_PLAYGROUND.md", "page": "/Pipeline Playground" },
+    { "doc": "docs/TEMPORAL_READS.md", "page": "/Temporal Reads" },
+    { "doc": "docs/LAND_INTAKE.md", "page": "/Land Intake" },
+    { "doc": "docs/SERVICES.md", "page": "/Services" },
+    { "doc": "docs/RELATIONSHIP_SERVICES.md", "page": "/Services/Relationship Services" },
+    { "doc": "docs/SERVICE_AUTHORING.md", "page": "/Services/Authoring" },
+    { "doc": "docs/SERVICE_CONTRACT.md", "page": "/Services/Contract" },
+    { "doc": "docs/DELTA.md", "page": "/Services/Delta" },
+    { "doc": "docs/TRIBUTARY.md", "page": "/Services/Tributary" },
+    { "doc": "docs/METABOLISM.md", "page": "/Services/Metabolism" },
+    { "doc": "docs/MODELBRIDGE.md", "page": "/Services/ModelBridge" }
+  ],
+  "excluded": [
+    { "doc": "docs/SERVICE_HOST_ROADMAP.md", "why": "Planned work, not reference material. Plans change faster than the wiki should." },
+    { "doc": "docs/trellis-performance-handoff.md", "why": "A handoff between working sessions, not documentation of shipped behaviour." },
+    { "doc": "LICENSE-COMMERCIAL.md", "why": "Licence text. It belongs with the source, not on the wiki." }
+  ]
+}
