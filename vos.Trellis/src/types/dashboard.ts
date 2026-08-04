@@ -44,6 +44,11 @@ export type Binding =
    *  `excludeState` drops Things also in that state — for a funnel stage, set it to the next
    *  stage's state so the list shows only Things that reached this stage and no further. */
   | { kind: 'stateList'; state: string; excludeState?: string; scope?: ScopeRef; limit?: number; archetype?: string }
+  /** Rows of every Thing of an archetype, whatever state each is in — the roster a `stateList`
+   *  cannot express, since a Thing in no derived state appears in no state's list. Read from the
+   *  client-side model index, so instances only: a sub-archetype is descended into, never listed.
+   *  Rows are ordered by name, which is what makes a `limit`ed list the same list every time. */
+  | { kind: 'thingList'; archetype: string; scope?: ScopeRef; limit?: number }
   /** Aggregate over Things of an archetype held in the model store (client-side). */
   | {
       kind: 'aggregate';
