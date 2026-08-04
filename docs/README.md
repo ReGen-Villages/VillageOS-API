@@ -37,5 +37,7 @@ Reference material for engineers building or hosting services. Denser by design.
 | [SERVICES.md](SERVICES.md) | The canonical reference for the shared C# service host and the services built on it. |
 | [SERVICE_HOST_ROADMAP.md](SERVICE_HOST_ROADMAP.md) | Planned work for consolidating the shared host across services. |
 
-> The full published documentation also lives in the
-> [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki).
+> These files are also published to the
+> [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is
+> generated from them on every merge to develop. Edit the file here; a page edited in the wiki
+> browser is overwritten by the next build. See [tools/docs-to-wiki](../tools/docs-to-wiki/).
