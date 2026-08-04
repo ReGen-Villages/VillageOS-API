@@ -187,9 +187,11 @@ steps:
     node tools/docs-to-wiki/docs-to-wiki.js "$(Build.SourcesDirectory)" "$OUT"
 
     rm -rf "$WIKI"
-    AZDO_AUTH=$(printf ':%s' "$AZURE_DEVOPS_PAT" | base64 | tr -d '\n')
-    git -c http.extraheader="Authorization: Basic ${AZDO_AUTH}" \
-      clone "https://dev.azure.com/ReGenVillages/VillageOS-API/_git/$(wikiRepoId)" "$WIKI"
+    # The token goes in the remote URL, as the GitHub steps above already do. An
+    # http.extraheader carries a clone but is not re-sent on the redirect that git push follows,
+    # so the push arrives unauthenticated and the agent fails asking for a username.
+    WIKI_URL="https://pat:${AZURE_DEVOPS_PAT}@dev.azure.com/ReGenVillages/VillageOS-API/_git/$(wikiRepoId)"
+    git clone "$WIKI_URL" "$WIKI"
 
     # Not -prune: -delete turns on -depth, which makes -prune do nothing, so the clone's own
     # .git contents would be walked into and deleted. GNU find rejects the combination outright.
@@ -200,7 +202,7 @@ steps:
     git -C "$WIKI" -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
       commit -m "docs: publish wiki from $(Build.SourceVersion)" || { echo "No wiki changes."; exit 0; }
     # A project wiki lives on wikiMaster, not master.
-    git -C "$WIKI" -c http.extraheader="Authorization: Basic ${AZDO_AUTH}" push origin HEAD:wikiMaster
+    git -C "$WIKI" push origin HEAD:wikiMaster
   displayName: 'Publish Docs to Wiki'
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
   env:
