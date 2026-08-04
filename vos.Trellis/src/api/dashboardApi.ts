@@ -362,6 +362,15 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       });
     }
 
+    case 'thingList': {
+      let list = thingsOfArchetype(binding.archetype, ctx.idx);
+      const members = scopeMemberIds(binding.scope, ctx);
+      if (members) list = list.filter((t) => members.has(t.Id));
+      list.sort((a, b) => a.Name.localeCompare(b.Name));
+      if (binding.limit) list = list.slice(0, binding.limit);
+      return list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, ctx.idx) }) as Row);
+    }
+
     case 'timeseries':
       return resolveTimeseries(binding, ctx);
 
