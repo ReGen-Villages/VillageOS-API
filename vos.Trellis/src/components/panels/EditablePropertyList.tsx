@@ -1,36 +1,15 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Expand, Trash2, Loader2, Plus } from 'lucide-react';
 import { formatPropertyValue } from '../../utils/formatters';
 import { thingApi } from '../../api/thingApi';
 import { relationshipApi } from '../../api/relationshipApi';
-import { toast } from '../common/Toast';
+import { toast } from '../common/toastStore';
 import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE } from '../../utils/constants';
-import type { EffectiveProperty } from '../../types/vos';
+import type { EditableProperty } from './editableProperties';
 
 /** Max characters before truncating a property value and showing an expand button. */
 const VALUE_TRUNCATE_LIMIT = 60;
-
-/** One property as this list shows it: what it is called, what it holds, and what the platform
- *  says it holds. The type comes from the platform's own reading of the property — a save states
- *  it rather than deriving it from how the typed text happens to look. */
-export interface EditableProperty {
-  name: string;
-  value: unknown;
-  type: string;
-}
-
-/** Pair each property with the type the platform reports for it, dropping any the resolved set
- *  does not know — a property this list cannot name the type of is one it cannot save. */
-export function withDeclaredTypes(
-  properties: [string, unknown][],
-  resolved: Record<string, EffectiveProperty> | null,
-): EditableProperty[] {
-  if (!resolved) return [];
-  return properties
-    .filter(([name]) => resolved[name])
-    .map(([name, value]) => ({ name, value, type: resolved[name].Type }));
-}
 
 interface Props {
   properties: EditableProperty[];
@@ -232,17 +211,21 @@ function EditableRow({
 }) {
   const { t } = useTranslation();
   const formatted = formatPropertyValue(value);
-  const [draft, setDraft] = useState(formatted === '(null)' ? '' : formatted);
+  const asDraft = formatted === '(null)' ? '' : formatted;
+  const [draft, setDraft] = useState(asDraft);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Reset draft when the external value changes (e.g. after a save + reload)
-  useEffect(() => {
-    const f = formatted === '(null)' ? '' : formatted;
-    setDraft(f);
+  // The row starts over when the stored value changes underneath it — after this save, or someone
+  // else's. Adjusted while rendering rather than in an effect: React re-runs the component before
+  // painting, so the old draft is never shown, where an effect would paint it and then correct it.
+  const [renderedValue, setRenderedValue] = useState(asDraft);
+  if (renderedValue !== asDraft) {
+    setRenderedValue(asDraft);
+    setDraft(asDraft);
     setDirty(false);
-  }, [formatted]);
+  }
 
   const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setDraft(e.target.value);

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Copy, Pencil, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
-import { EditablePropertyList, withDeclaredTypes, type EditableProperty } from './EditablePropertyList';
+import { EditablePropertyList } from './EditablePropertyList';
+import { withDeclaredTypes, type EditableProperty } from './editableProperties';
 import { RelationshipList } from './RelationshipList';
 import { RetypeRow } from './RetypeRow';
 import { EditableThingName } from './EditableThingName';
@@ -12,7 +13,7 @@ import { formatGuid } from '../../utils/formatters';
 import { thingApi } from '../../api/thingApi';
 import { useNodeRangesData } from '../../hooks/useNodeRangesData';
 import { useUiStore } from '../../stores/uiStore';
-import { toast } from '../common/Toast';
+import { toast } from '../common/toastStore';
 import { canSupport3D } from '../../utils/browserDetect';
 
 const BuildingDetail3D = lazy(() => import('../three/BuildingDetail3D'));

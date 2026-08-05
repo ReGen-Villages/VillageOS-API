@@ -13,7 +13,7 @@ import { triggerDownload } from '../utils/logDownload';
 import { useSse } from '../hooks/useSse';
 import { useActivityStore } from '../stores/activityStore';
 import { useModelStore } from '../stores/modelStore';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import { PropertyModePanel } from '../components/dashboard/PropertyModePanel';
 import { Power, PanelRightOpen, FileCode2, RefreshCw } from 'lucide-react';
 import { RegenLogo } from '../components/auth/RegenLogo';
@@ -63,14 +63,11 @@ export function DashboardPage() {
     loadMyceliumData();
   }, [loadMyceliumData]);
 
-  // On connection drop, mark services offline so no stale "running" state shows.
-  useEffect(() => {
-    if (!connected) {
-      setServices((prev) =>
-        prev.map((s) => ({ ...s, IsRunning: false, ProcessId: undefined, HealthStatus: 'Unreachable' })),
-      );
-    }
-  }, [connected]);
+  // With the connection down, every service reads as unreachable — derived rather than written into
+  // state, so a reconnect shows what was last loaded instead of the offline values overwriting it.
+  const displayedServices = connected
+    ? services
+    : services.map((s) => ({ ...s, IsRunning: false, ProcessId: undefined, HealthStatus: 'Unreachable' }));
 
   // Mycelium-specific live updates only; model data is handled at app level.
   useEffect(() => {
@@ -201,7 +198,7 @@ export function DashboardPage() {
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
             <ModelStatsCard things={things} relationships={relationships} />
-            <ServicesPanel services={services} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} onDownloadLogs={handleDownloadServiceLog} />
+            <ServicesPanel services={displayedServices} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} onDownloadLogs={handleDownloadServiceLog} />
             <PropertyModePanel />
           </div>
           {!feedCollapsed && (

@@ -16,11 +16,17 @@ export function useNodeRangesData(
 ) {
   const [rangesData, setRangesData] = useState<ThingRangesResponse | null>(null);
   const [statesData, setStatesData] = useState<ThingStates | null>(null);
-  const [rangesLoading, setRangesLoading] = useState(false);
   const [relRangesEntries, setRelRangesEntries] = useState<RelationshipRangesEntry[]>([]);
 
   const [snapshot, setSnapshot] = useState<number | undefined>(undefined);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Which request the tab is showing an answer for. Loading is read off that rather than stored:
+  // raising a flag from inside the effect renders once without it and once with it, so the tab
+  // paints "nothing to show" for a frame before the spinner appears.
+  const request = `${thingId}:${snapshot ?? ''}:${refreshKey}`;
+  const [answeredRequest, setAnsweredRequest] = useState<string | null>(null);
+  const rangesLoading = tab === 'ranges' && snapshot !== undefined && answeredRequest !== request;
   const prevThingId = useRef('');
   const prevTab = useRef('');
 
@@ -38,7 +44,6 @@ export function useNodeRangesData(
   useEffect(() => {
     if (tab !== 'ranges' || snapshot === undefined) return;
     let cancelled = false;
-    setRangesLoading(true);
     (async () => {
       try {
         const summary = await rangeApi.getSummary(thingId);
@@ -82,11 +87,11 @@ export function useNodeRangesData(
           setRelRangesEntries([]);
         }
       } finally {
-        if (!cancelled) setRangesLoading(false);
+        if (!cancelled) setAnsweredRequest(request);
       }
     })();
     return () => { cancelled = true; };
-  }, [thingId, tab, snapshot, refreshKey]);
+  }, [thingId, tab, snapshot, refreshKey, request]);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 

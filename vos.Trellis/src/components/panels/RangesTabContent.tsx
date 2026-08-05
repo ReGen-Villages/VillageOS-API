@@ -5,7 +5,7 @@ import { Badge } from '../common/Badge';
 import { WindmillSpinner } from '../common/WindmillSpinner';
 import { stateColor, rangeBindingColor } from '../../utils/rangeHelpers';
 import { rangeApi } from '../../api/rangeApi';
-import { toast } from '../common/Toast';
+import { toast } from '../common/toastStore';
 import { Trash2, Plus, Check, X } from 'lucide-react';
 
 /** A relationship's ranges + states, bundled for display in the thing's Ranges tab. */

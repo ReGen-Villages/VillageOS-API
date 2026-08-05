@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseParamValue } from './PipelinePage';
+import { parseParamValue } from './parseParamValue';
 
 // The Params bar (#5647/#5648) parses values as JSON when valid so lists drive fan-out and numbers stay numbers.
 describe('parseParamValue', () => {

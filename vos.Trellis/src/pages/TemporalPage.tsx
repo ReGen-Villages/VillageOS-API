@@ -4,7 +4,7 @@ import { temporalApi } from '../api/temporalApi';
 import { modelApi } from '../api/modelApi';
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import type { ModelMutations, ThingMutations, RelationshipMutations, PropertyVersionsResponse, VosThing, VosRelationship, TemporalSnapshot } from '../types/vos';
 import { stateApi } from '../api/stateApi';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';

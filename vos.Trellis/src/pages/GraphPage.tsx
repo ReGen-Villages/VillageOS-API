@@ -16,9 +16,9 @@ import { modelApi } from '../api/modelApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { reloadModelData } from '../hooks/useModelData';
 import { useGraphData } from '../hooks/useGraphData';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing } from '../types/vos';
 import { Upload } from 'lucide-react';
 import { applyTypeFilter } from '../utils/typeFilter';
 
@@ -61,11 +61,16 @@ export function GraphPage() {
     [things, relationships, hiddenTypeIds],
   );
 
-  const [detailThing, setDetailThing] = useState<VosThing | null>(null);
-  const [detailRelationship, setDetailRelationship] = useState<VosRelationship | null>(null);
+  const [fetchedThing, setFetchedThing] = useState<VosThing | null>(null);
   const thingMap = useMemo(() => new Map(things.map((t) => [t.Id, t])), [things]);
-  const thingMapRef = useRef(thingMap);
-  thingMapRef.current = thingMap;
+
+  // Both follow the selection, so neither is state: nothing to hold that the selection and the
+  // loaded model do not already say.
+  const detailThing = selectedNodeId ? fetchedThing : null;
+  const detailRelationship = useMemo(
+    () => (selectedEdgeId ? relationships.find((r) => r.Id === selectedEdgeId) ?? null : null),
+    [selectedEdgeId, relationships],
+  );
 
   useEffect(() => {
     useUiStore.getState().clearPredicateIds();
@@ -85,34 +90,21 @@ export function GraphPage() {
   // Fetch full thing detail (including inherited properties) when a node is selected.
   // Re-runs when the underlying things array refreshes so live edits surface in the panel.
   useEffect(() => {
-    if (!selectedNodeId) {
-      setDetailThing(null);
-      return;
-    }
+    if (!selectedNodeId) return;
     let cancelled = false;
     (async () => {
       try {
         const thing = await thingApi.get(selectedNodeId);
         if (cancelled) return;
-        setDetailThing(thing);
+        setFetchedThing(thing);
       } catch {
         if (!cancelled) {
-          setDetailThing(thingMapRef.current.get(selectedNodeId) || null);
+          setFetchedThing(thingMap.get(selectedNodeId) ?? null);
         }
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedNodeId, things]);
-
-  // Sync detailRelationship to the latest relationships array when either
-  // the selection or the underlying data changes.
-  useEffect(() => {
-    if (!selectedEdgeId) {
-      setDetailRelationship(null);
-      return;
-    }
-    setDetailRelationship(relationships.find((r) => r.Id === selectedEdgeId) || null);
-  }, [selectedEdgeId, relationships]);
+  }, [selectedNodeId, thingMap]);
 
   const handleDeleteThing = async () => {
     if (!deleteConfirm || deleteConfirm.type !== 'thing') return;

@@ -5,7 +5,7 @@ import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { temporalApi } from '../api/temporalApi';
 import { thingApi } from '../api/thingApi';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import type { PropertyVersionsResponse, EffectiveProperty } from '../types/vos';
 import { searchProperties, type PropertyMatch } from './propertySearch';

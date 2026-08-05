@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useLogTail } from '../hooks/useLogTail';
 import { fetchFullLog } from '../api/logsApi';
 import { snapshotBlob, snapshotFileName, triggerDownload } from '../utils/logDownload';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 
 /** Live tail of the Mycelium broker log — or a service daemon's log when ?service=<key> is set.
  *  Keyed by service so switching sources remounts the view with fresh state. */

@@ -34,14 +34,14 @@ vi.mock('./useFlashTimer', () => ({
 }));
 
 // Toast is fire-and-forget; silence it.
-vi.mock('../components/common/Toast', () => ({
+vi.mock('../components/common/toastStore', () => ({
   toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
 
 import { useModelData, reloadModelData } from './useModelData';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 
 describe('useModelData', () => {
   beforeEach(() => {

@@ -1,3 +1,4 @@
+import { parseParamValue } from './parseParamValue';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -35,18 +36,6 @@ const RUN_STATUS_COLOR: Record<string, string> = {
 };
 
 let nodeSeq = 0;
-
-/** Parse a Params-bar value as JSON when it is valid JSON (lists, numbers, booleans, objects); otherwise keep
- * it as the raw string. Lets a user type `["a","b","c"]` to drive a fan-out, or `42` for a number param. */
-export function parseParamValue(raw: string): unknown {
-  const trimmed = raw.trim();
-  if (trimmed === '') return '';
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    return raw;
-  }
-}
 
 /** A short edge label for a mapped wire (#5874/#5875), e.g. `user.id → a` with a trailing `ƒ` when the wire
  * carries a JSONata transform; undefined when the wire is a plain whole-payload pass-through. */

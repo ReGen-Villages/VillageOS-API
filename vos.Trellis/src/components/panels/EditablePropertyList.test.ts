@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withDeclaredTypes } from './EditablePropertyList';
+import { withDeclaredTypes } from './editableProperties';
 import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE } from '../../utils/constants';
 import type { EffectiveProperty } from '../../types/vos';
 

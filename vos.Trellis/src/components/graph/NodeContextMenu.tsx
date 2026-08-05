@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Info, Expand, Unplug, Box, Copy, Trash2 } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
-import { toast } from '../common/Toast';
+import { toast } from '../common/toastStore';
 import { canSupport3D } from '../../utils/browserDetect';
 import type { VosThing, VosRelationship } from '../../types/vos';
 

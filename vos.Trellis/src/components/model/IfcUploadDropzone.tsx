@@ -3,7 +3,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { Upload } from 'lucide-react';
 import { ingestApi } from '../../api/ingestApi';
 import { reloadModelData } from '../../hooks/useModelData';
-import { toast } from '../common/Toast';
+import { toast } from '../common/toastStore';
 
 // In-app IFC ingestion (#5844): drop or pick an .ifc, upload it to the Xylem service, and let the model
 // reload over SSE — replacing the old "go run vos.Tools.IfcIngest" empty state. Falls back to a hint when

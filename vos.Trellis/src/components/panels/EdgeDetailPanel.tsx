@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { X, Copy, Trash2, Pencil } from 'lucide-react';
 import type { VosRelationship, VosThing, ThingRangesResponse, ThingStates } from '../../types/vos';
 import { formatGuid } from '../../utils/formatters';
-import { toast } from '../common/Toast';
-import { EditablePropertyList, withDeclaredTypes } from './EditablePropertyList';
+import { toast } from '../common/toastStore';
+import { EditablePropertyList } from './EditablePropertyList';
+import { withDeclaredTypes } from './editableProperties';
 import { RangesTabContent } from './RangesTabContent';
 import { relationshipRangeApi } from '../../api/rangeApi';
 import { useResolvedRelationshipProperties } from '../../hooks/useResolvedRelationshipProperties';
@@ -28,8 +29,14 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
   const [tab, setTab] = useState<'properties' | 'ranges'>('ranges');
   const [rangesData, setRangesData] = useState<ThingRangesResponse | null>(null);
   const [statesData, setStatesData] = useState<ThingStates | null>(null);
-  const [rangesLoading, setRangesLoading] = useState(false);
   const [propertiesVersion, setPropertiesVersion] = useState(0);
+
+  // Which request the ranges tab is showing an answer for. Loading is read off that rather than
+  // stored: raising a flag from inside the effect renders once without it and once with it, so the
+  // panel paints "nothing to show" for a frame before the spinner appears.
+  const rangesRequest = `${rel.Id}:${statesVersion ?? 0}`;
+  const [answeredRangesRequest, setAnsweredRangesRequest] = useState<string | null>(null);
+  const rangesLoading = tab === 'ranges' && answeredRangesRequest !== rangesRequest;
   const resolvedProperties = useResolvedRelationshipProperties(rel.Id, {
     version: propertiesVersion,
     enabled: tab === 'properties',
@@ -46,7 +53,6 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
   useEffect(() => {
     if (tab !== 'ranges') return;
     let cancelled = false;
-    setRangesLoading(true);
     (async () => {
       try {
         const [rangesResp, statesResp] = await Promise.all([
@@ -72,11 +78,11 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
       } catch {
         if (!cancelled) { setRangesData(null); setStatesData(null); }
       } finally {
-        if (!cancelled) setRangesLoading(false);
+        if (!cancelled) setAnsweredRangesRequest(rangesRequest);
       }
     })();
     return () => { cancelled = true; };
-  }, [rel.Id, tab, statesVersion]);
+  }, [rel.Id, tab, statesVersion, rangesRequest]);
 
   const copyId = () => {
     navigator.clipboard.writeText(rel.Id);

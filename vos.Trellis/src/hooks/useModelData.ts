@@ -5,7 +5,7 @@ import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { useSse } from './useSse';
 import { useFlashTimer } from './useFlashTimer';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import { isVisibleRelationship } from '../utils/propertyUpdates';
 
 /** How long to wait before a single hydrate retry (Bug #5940). */
