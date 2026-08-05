@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Copy, Pencil, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
-import { EditablePropertyList } from './EditablePropertyList';
+import { EditablePropertyList, withDeclaredTypes, type EditableProperty } from './EditablePropertyList';
 import { RelationshipList } from './RelationshipList';
 import { RetypeRow } from './RetypeRow';
 import { EditableThingName } from './EditableThingName';
@@ -90,8 +90,10 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
     thing.Id, tab, statesVersion,
   );
 
-  const props = thing.Properties ? Object.entries(thing.Properties) : [];
   const [propsVersion, setPropsVersion] = useState(0);
+  const ownProperties = thing.Properties ? Object.entries(thing.Properties) : [];
+  const ownPropertyCount = ownProperties.length;
+  const props = withDeclaredTypes(ownProperties, effectiveProps);
 
   // Fetch effective properties (own + inherited with source info)
   useEffect(() => {
@@ -174,10 +176,11 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
           <div className="space-y-3">
             <div className="space-y-1">
               <div className="flex items-center justify-between mb-1">
-                <h4 className="text-xs font-semibold text-zinc-500">{t('panels.node.own', { count: props.length })}</h4>
+                <h4 className="text-xs font-semibold text-zinc-500">{t('panels.node.own', { count: ownPropertyCount })}</h4>
                 <button
                   onClick={() => setEditMode((v) => !v)}
-                  className={`p-0.5 rounded transition-colors ${
+                  disabled={!effectiveProps}
+                  className={`p-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-default ${
                     editMode
                       ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
                       : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
@@ -319,7 +322,7 @@ function CollapsiblePropertyGroup({ label, count, onNavigate, expanded, onToggle
   onToggle: () => void;
   editMode: boolean;
   entityId: string;
-  properties: [string, unknown][];
+  properties: EditableProperty[];
   onSaved?: () => void;
   onExpandValue: (name: string, value: string) => void;
   className?: string;
@@ -377,13 +380,13 @@ function InheritedPropertiesSection({ effectiveProps, allThings, onSelectNode, o
   if (inherited.length === 0) return null;
 
   // Group by source thing
-  const bySource = new Map<string, { name: string; props: [string, unknown][] }>();
+  const bySource = new Map<string, { name: string; props: EditableProperty[] }>();
   for (const [name, ep] of inherited) {
     const sourceId = ep.InheritedFrom || 'unknown';
     if (!bySource.has(sourceId)) {
       bySource.set(sourceId, { name: allThings.get(sourceId)?.Name || formatGuid(sourceId), props: [] });
     }
-    bySource.get(sourceId)!.props.push([name, ep.Value]);
+    bySource.get(sourceId)!.props.push({ name, value: ep.Value, type: ep.Type });
   }
 
   const toggleSource = (id: string) => setExpandedSources((prev) => {
