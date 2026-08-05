@@ -6,8 +6,16 @@
         <Configuration>
           <Format>cobertura</Format>
           <!-- Source-file exclusions. coverlet's XPlat data collector expects a single
-               comma-separated string here, NOT nested <File> elements. -->
-          <ExcludeByFile>**/vos.Service.CSharp.Echo/Program.cs,**/vos.Service.Delta/Program.cs,**/vos.Service.Tributary/Program.cs,**/vos.Service.Metabolism/Program.cs,**/Tests/vos.Tests.Shared/**/*.cs</ExcludeByFile>
+               comma-separated string here, NOT nested <File> elements.
+
+               A service entry point is excluded once it holds nothing but wiring — the decisions it
+               used to make live in vos.Service.Shared (HandleRequestRouter, ServiceHost) and are
+               covered there, or the endpoints are driven end to end through WebApplicationFactory.
+
+               Xylem and Phloem are deliberately absent: their entry points still hold request
+               handling of their own with no tests behind it. Excluding them would hide that rather
+               than close it, so they stay counted until the handling is extracted and covered. -->
+          <ExcludeByFile>**/vos.Service.CSharp.Echo/Program.cs,**/vos.Service.Delta/Program.cs,**/vos.Service.Tributary/Program.cs,**/vos.Service.Metabolism/Program.cs,**/vos.Service.EnergyBalance/Program.cs,**/vos.Service.WaterReserve/Program.cs,**/vos.Service.ModelBridge/Program.cs,**/Tests/vos.Tests.Shared/**/*.cs</ExcludeByFile>
           <ExcludeByAttribute>
             <!-- Auto-generated / compiler synthesised code. -->
             <Attribute>System.CodeDom.Compiler.GeneratedCodeAttribute</Attribute>
