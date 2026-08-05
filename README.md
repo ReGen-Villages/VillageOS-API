@@ -82,7 +82,15 @@ npm ci
 npm run dev      # Development server on :5173 (proxies /api to https://localhost:7243)
 npm run build    # Production build into ./dist
 npm test         # Run tests
+npm run test:integration   # Tests that need a running Mycelium (see below)
 ```
+
+`npm test` runs offline. `npm run test:integration` covers what only a live
+platform can answer — currently that the property type names Trellis holds are
+the ones the platform's write routes accept, so a type added on one side and not
+the other is caught rather than surfacing later as a property the GUI
+mishandles. Point it elsewhere with `VOS_INTEGRATION_URL`,
+`VOS_INTEGRATION_USERNAME` and `VOS_INTEGRATION_PASSWORD`.
 
 Trellis connects to the Mycelium at `https://localhost:7243` by default.
 

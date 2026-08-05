@@ -34,6 +34,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/setupTests.ts',
+    // test/integration needs a running Mycelium, so it runs from its own config (npm run
+    // test:integration) rather than failing every offline run of this one.
+    exclude: ['node_modules/**', 'test/integration/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'cobertura'],
