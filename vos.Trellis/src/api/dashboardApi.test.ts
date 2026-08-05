@@ -61,6 +61,10 @@ function ctxFor(scopeId: string | null): ResolveContext {
   return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Village' };
 }
 
+async function rowsOf(binding: Binding, ctx: ResolveContext): Promise<Record<string, unknown>[]> {
+  return (await resolveBinding(binding, ctx)) as Record<string, unknown>[];
+}
+
 describe('discovery', () => {
   it('finds Dashboard config Things and parses their spec', () => {
     const { things, relationships } = model();
@@ -387,10 +391,6 @@ describe('resolveBinding', () => {
       return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Site' };
     }
 
-    async function rowsOf(binding: Binding, ctx: ResolveContext): Promise<Record<string, unknown>[]> {
-      return (await resolveBinding(binding, ctx)) as Record<string, unknown>[];
-    }
-
     it('lists every Thing of the archetype, in no state and with no scope selected', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetCtx(null));
       expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1', 'RBT-2']);
@@ -427,6 +427,273 @@ describe('resolveBinding', () => {
     it('resolves an unknown archetype to an empty list', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Spaceship' }, fleetCtx(null));
       expect(rows).toEqual([]);
+    });
+  });
+
+  // Feature (#6140): a row carried only what the row's own Thing stores, so a column whose value
+  // sits on an edge (the archetype a Thing is, where it stands, what an open command points at)
+  // or in the platform's derived condition could not be expressed at all.
+  describe('columns an edge or a derived state answers', () => {
+    // Machine <- Robot <- RBT-1, RBT-2. RBT-1 is at LOC-A and operates_in ZN-1; RBT-2 is at LOC-B.
+    // MOVE-1 targets RBT-1 and references LOC-C and ZN-1; MOVE-0 targets RBT-1 and references LOC-D.
+    // Only MOVE-1 is in the 'open' state, so only its destination is the one still being moved to.
+    function fleet(scopeId: string | null): ResolveContext {
+      const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing => ({
+        Id, Name, Properties,
+      });
+      const things: VosThing[] = [
+        t('is', 'is'), t('at', 'at'), t('operates_in', 'operates_in'),
+        t('targets', 'targets'), t('references', 'references'),
+        t('arch-machine', 'Machine'), t('arch-robot', 'Robot'),
+        t('arch-loc', 'Location'), t('arch-zone', 'Zone'), t('arch-cmd', 'Command'),
+        t('rbt1', 'RBT-1'), t('rbt2', 'RBT-2'),
+        t('locA', 'LOC-A', { bay_count: 12 }), t('locB', 'LOC-B'), t('locC', 'LOC-C'), t('locD', 'LOC-D'),
+        t('zn1', 'ZN-1'), t('cmd1', 'MOVE-1'), t('cmd0', 'MOVE-0'),
+      ];
+      const rel = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
+        Id: `${SubjectId}-${PredicateId}-${TargetId}`, Name: `${SubjectId} ${PredicateId} ${TargetId}`,
+        SubjectId, PredicateId, TargetId, Properties: {},
+      });
+      const relationships = [
+        rel('arch-robot', 'is', 'arch-machine'),
+        rel('rbt1', 'is', 'arch-robot'), rel('rbt2', 'is', 'arch-robot'),
+        rel('locA', 'is', 'arch-loc'), rel('locB', 'is', 'arch-loc'),
+        rel('locC', 'is', 'arch-loc'), rel('locD', 'is', 'arch-loc'),
+        rel('zn1', 'is', 'arch-zone'), rel('cmd1', 'is', 'arch-cmd'), rel('cmd0', 'is', 'arch-cmd'),
+        rel('rbt1', 'at', 'locA'), rel('rbt2', 'at', 'locB'),
+        rel('rbt1', 'operates_in', 'zn1'),
+        rel('cmd1', 'targets', 'rbt1'), rel('cmd1', 'references', 'locC'), rel('cmd1', 'references', 'zn1'),
+        rel('cmd0', 'targets', 'rbt1'), rel('cmd0', 'references', 'locD'),
+      ];
+      return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Machine' };
+    }
+
+    const MEMBERS: Record<string, string[]> = {
+      open: ['cmd1'],
+      blocked: ['rbt1'],
+      reachable: ['rbt1', 'rbt2'],
+      offline: [],
+    };
+
+    beforeEach(() => {
+      vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) => ({
+        StateName: state,
+        Things: (MEMBERS[state] ?? []).map((id) => ({ Id: id, Name: id })),
+      }));
+    });
+
+    const DESTINATION_OF_OPEN_COMMAND: Binding = {
+      kind: 'related',
+      via: [
+        { predicate: 'targets', direction: 'in', inState: 'open' },
+        { predicate: 'references', archetype: 'Location' },
+      ],
+    };
+
+    describe('related', () => {
+      it('names the Thing one step out', async () => {
+        expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'at' }] }, fleet('rbt1'))).toBe('LOC-A');
+      });
+
+      // The is-edge answers what kind of machine this is — the sub-archetype it was typed with,
+      // which is the word an operator reads, not the parent archetype the roster was listed by.
+      it('names the archetype a Thing is, not the archetype it was listed under', async () => {
+        expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'is' }] }, fleet('rbt1'))).toBe('Robot');
+      });
+
+      it('follows an inbound step and then an outbound one to reach a value two edges away', async () => {
+        expect(await resolveBinding(DESTINATION_OF_OPEN_COMMAND, fleet('rbt1'))).toBe('LOC-C');
+      });
+
+      // Without the state filter the walk reaches every command ever issued to the machine, so
+      // the cell would name a destination that was reached and left long ago.
+      it('keeps only the neighbour still in the given state', async () => {
+        const everyCommand: Binding = {
+          kind: 'related',
+          via: [{ predicate: 'targets', direction: 'in' }, { predicate: 'references', archetype: 'Location' }],
+        };
+        expect(await resolveBinding(everyCommand, fleet('rbt1'))).toBe('LOC-C, LOC-D');
+      });
+
+      it('drops the neighbour that is in the given state', async () => {
+        const notOpen: Binding = {
+          kind: 'related',
+          via: [
+            { predicate: 'targets', direction: 'in', notInState: 'open' },
+            { predicate: 'references', archetype: 'Location' },
+          ],
+        };
+        expect(await resolveBinding(notOpen, fleet('rbt1'))).toBe('LOC-D');
+      });
+
+      it('narrows a predicate that reaches several archetypes to the one asked for', async () => {
+        const zoneOfCommand: Binding = {
+          kind: 'related', thing: 'MOVE-1', via: [{ predicate: 'references', archetype: 'Zone' }],
+        };
+        expect(await resolveBinding(zoneOfCommand, fleet(null))).toBe('ZN-1');
+      });
+
+      // Alphabetical rather than relationship order, so a cell naming several Things reads the
+      // same on every refresh.
+      it('joins several matches in a stable order, starting from a Thing named in the binding', async () => {
+        const references: Binding = { kind: 'related', thing: 'MOVE-1', via: [{ predicate: 'references' }] };
+        expect(await resolveBinding(references, fleet(null))).toBe('LOC-C, ZN-1');
+      });
+
+      it('reads a property of the reached Thing, keeping a lone number a number', async () => {
+        const bays: Binding = { kind: 'related', via: [{ predicate: 'at' }], property: 'bay_count' };
+        expect(await resolveBinding(bays, fleet('rbt1'))).toBe(12);
+      });
+
+      it('resolves to null when the reached Thing does not carry the property', async () => {
+        const bays: Binding = { kind: 'related', via: [{ predicate: 'at' }], property: 'bay_count' };
+        expect(await resolveBinding(bays, fleet('rbt2'))).toBeNull();
+      });
+
+      // A relationship can name an id the loaded model has no Thing for; the cell drops it rather
+      // than showing a gap among the names.
+      it('skips an edge pointing at a Thing the model does not hold', async () => {
+        const ctx = fleet('rbt1');
+        ctx.idx = buildModelIndex(
+          [...ctx.idx.byId.values()],
+          [...ctx.idx.relationships, { Id: 'rbt1-at-ghost', Name: 'rbt1 at ghost',
+            SubjectId: 'rbt1', PredicateId: 'at', TargetId: 'ghost', Properties: {} }],
+        );
+        expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'at' }] }, ctx)).toBe('LOC-A');
+      });
+
+      it('resolves to null when the path reaches nothing', async () => {
+        expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'operates_in' }] }, fleet('rbt2'))).toBeNull();
+      });
+
+      it('resolves to null when the model has no such predicate', async () => {
+        expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'orbits' }] }, fleet('rbt1'))).toBeNull();
+      });
+
+      it('resolves to null with nothing selected to start from', async () => {
+        expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'at' }] }, fleet(null))).toBeNull();
+      });
+    });
+
+    describe('stateOf', () => {
+      // Derived states nest, so a Thing usually holds several at once; the listed order is what
+      // decides which one the cell shows.
+      it('returns the first listed state the Thing holds', async () => {
+        const ctx = fleet('rbt1');
+        expect(await resolveBinding({ kind: 'stateOf', states: ['blocked', 'reachable'] }, ctx)).toBe('blocked');
+        expect(await resolveBinding({ kind: 'stateOf', states: ['reachable', 'blocked'] }, ctx)).toBe('reachable');
+      });
+
+      it('returns null when the Thing holds none of them', async () => {
+        expect(await resolveBinding({ kind: 'stateOf', states: ['blocked'] }, fleet('rbt2'))).toBeNull();
+      });
+
+      it('resolves to null with nothing selected to read the states of', async () => {
+        expect(await resolveBinding({ kind: 'stateOf', states: ['blocked'] }, fleet(null))).toBeNull();
+        expect(stateApi.getThingsInState).not.toHaveBeenCalled();
+      });
+
+      it('reads the states of a Thing named in the binding', async () => {
+        const ctx = fleet(null);
+        expect(await resolveBinding({ kind: 'stateOf', states: ['blocked'], thing: 'RBT-1' }, ctx)).toBe('blocked');
+      });
+    });
+
+    // Every widget resolves its own bindings, so the same state wanted by a count, a funnel stage
+    // and a table used to be three requests per refresh.
+    describe('state reads shared across a refresh generation', () => {
+      it('asks once for a state that several bindings of one generation want', async () => {
+        const ctx: ResolveContext = { ...fleet(null), stateMembers: new Map() };
+        await Promise.all([
+          resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx),
+          resolveBinding({ kind: 'stateList', state: 'reachable' }, ctx),
+          resolveBinding({ kind: 'thingList', archetype: 'Machine',
+            computed: [{ key: 'condition', value: { kind: 'stateOf', states: ['reachable'] } }] }, ctx),
+        ]);
+        expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
+      });
+
+      // A shared read must not share a failure: one hiccup would otherwise stick to every later
+      // reader of the generation, with nothing to retry it.
+      it('retries a state read that failed instead of sharing the failure', async () => {
+        const ctx: ResolveContext = { ...fleet(null), stateMembers: new Map() };
+        vi.mocked(stateApi.getThingsInState)
+          .mockRejectedValueOnce(new Error('broker unreachable'))
+          .mockResolvedValueOnce({ StateName: 'reachable', Things: [{ Id: 'rbt1', Name: 'RBT-1' }] });
+        await expect(resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx)).rejects.toThrow();
+        expect(await resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx)).toBe(1);
+      });
+    });
+
+    describe('computed columns on a row-producing binding', () => {
+      const roster: Binding = {
+        kind: 'thingList',
+        archetype: 'Machine',
+        computed: [
+          { key: 'machine_class', value: { kind: 'related', via: [{ predicate: 'is' }] } },
+          { key: 'current_location', value: { kind: 'related', via: [{ predicate: 'at' }] } },
+          { key: 'destination', value: DESTINATION_OF_OPEN_COMMAND },
+          { key: 'condition', value: { kind: 'stateOf', states: ['blocked', 'reachable'] } },
+        ],
+      };
+
+      it('fills each row from that row own Thing', async () => {
+        const rows = await rowsOf(roster, fleet(null));
+        expect(rows.find((r) => r.name === 'RBT-1')).toMatchObject({
+          machine_class: 'Robot', current_location: 'LOC-A', destination: 'LOC-C', condition: 'blocked',
+        });
+        expect(rows.find((r) => r.name === 'RBT-2')).toMatchObject({
+          machine_class: 'Robot', current_location: 'LOC-B', destination: null, condition: 'reachable',
+        });
+      });
+
+      // The values used to pass through a number coercion, which emptied every column carrying
+      // a name or a status word.
+      it('keeps a text value as text', async () => {
+        const rows = await rowsOf(roster, fleet(null));
+        expect(rows.every((r) => typeof r.current_location === 'string')).toBe(true);
+      });
+
+      it('leaves a column empty when its binding resolves to something no cell can hold', async () => {
+        const rows = await rowsOf(
+          {
+            kind: 'thingList',
+            archetype: 'Machine',
+            computed: [{ key: 'nested', value: { kind: 'thingList', archetype: 'Location' } }],
+          },
+          fleet(null),
+        );
+        expect(rows.map((r) => r.nested)).toEqual([null, null]);
+      });
+
+      // The trap a per-row binding sets: one request per row per refresh. State reads are shared
+      // across the rows of one resolution, so the count follows the listed states, not the roster.
+      it('asks each state once for the whole table, not once per row', async () => {
+        await rowsOf(
+          {
+            kind: 'thingList',
+            archetype: 'Machine',
+            computed: [{ key: 'condition', value: { kind: 'stateOf', states: ['offline', 'reachable'] } }],
+          },
+          fleet(null),
+        );
+        expect(vi.mocked(stateApi.getThingsInState).mock.calls.map((c) => c[0]).sort()).toEqual([
+          'offline',
+          'reachable',
+        ]);
+      });
+
+      it('adds the same columns to a state-driven list', async () => {
+        const rows = await rowsOf(
+          {
+            kind: 'stateList',
+            state: 'blocked',
+            computed: [{ key: 'current_location', value: { kind: 'related', via: [{ predicate: 'at' }] } }],
+          },
+          fleet(null),
+        );
+        expect(rows).toEqual([expect.objectContaining({ id: 'rbt1', current_location: 'LOC-A' })]);
+      });
     });
   });
 

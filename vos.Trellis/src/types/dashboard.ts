@@ -43,12 +43,20 @@ export type Binding =
   /** Rows of Things currently in a State, enriched with their properties for a table.
    *  `excludeState` drops Things also in that state — for a funnel stage, set it to the next
    *  stage's state so the list shows only Things that reached this stage and no further. */
-  | { kind: 'stateList'; state: string; excludeState?: string; scope?: ScopeRef; limit?: number; archetype?: string }
+  | {
+      kind: 'stateList';
+      state: string;
+      excludeState?: string;
+      scope?: ScopeRef;
+      limit?: number;
+      archetype?: string;
+      computed?: ComputedColumn[];
+    }
   /** Rows of every Thing of an archetype, whatever state each is in — the roster a `stateList`
    *  cannot express, since a Thing in no derived state appears in no state's list. Read from the
    *  client-side model index, so instances only: a sub-archetype is descended into, never listed.
    *  Rows are ordered by name, which is what makes a `limit`ed list the same list every time. */
-  | { kind: 'thingList'; archetype: string; scope?: ScopeRef; limit?: number }
+  | { kind: 'thingList'; archetype: string; scope?: ScopeRef; limit?: number; computed?: ComputedColumn[] }
   /** Aggregate over Things of an archetype held in the model store (client-side). */
   | {
       kind: 'aggregate';
@@ -60,13 +68,27 @@ export type Binding =
     }
   /** A single property of a named/id'd Thing, or of the selected scope entity (`$scope`). */
   | { kind: 'property'; thing: string; property: string }
+  /** What a Thing's edges say rather than what its own properties store: follow `via` from the
+   *  starting Thing and read the name of what that reaches, or the named `property` of it. The
+   *  archetype a Thing `is`, the location it is `at`, the zone it `operates_in` — each is one
+   *  step; a value two edges away is two. `thing` names the starting Thing and defaults to the
+   *  selected scope entity (`$scope`), which inside a computed column is the row's own Thing.
+   *  A lone numeric value resolves as a number so it can feed a numeric column or a KPI;
+   *  several matches resolve as their names in alphabetical order, joined with ", "; none
+   *  resolves to null. */
+  | { kind: 'related'; via: RelationStep[]; thing?: string; property?: string }
+  /** The derived state a Thing currently holds, as a word for a status cell. `states` lists the
+   *  candidates in priority order and the first one the Thing holds wins — derived states nest
+   *  (a harvested plot is also planted), so a single-valued cell needs the model to say which
+   *  state answers the question. Holding none of them resolves to null.
+   *  Asks each listed state who is in it rather than asking each Thing which states it holds:
+   *  the rows of one table share those answers, so a status column over a roster costs one
+   *  request per listed state per refresh, not one request per row. */
+  | { kind: 'stateOf'; states: string[]; thing?: string }
   /** One binding divided by another — a rate the aggregate ops cannot express, because a ratio of
    *  sums is not a sum of ratios. Resolves to null when the denominator is zero or non-numeric. */
   | { kind: 'ratio'; numerator: Binding; denominator: Binding }
-  /** One row per compared Thing, carrying the listed numeric properties (leaderboard source).
-   *  `computed` adds columns whose value is a Binding resolved once per Thing, with that Thing
-   *  as the scope — so a column can hold a live aggregate over the Thing's members, not just a
-   *  property stored on the Thing itself. */
+  /** One row per compared Thing, carrying the listed numeric properties (leaderboard source). */
   | { kind: 'compareEntities'; properties: string[]; computed?: ComputedColumn[] }
   /** A bucketed time series from the temporal API. Degrades to [] when history is absent. */
   | {
@@ -85,16 +107,43 @@ export type Binding =
   | { kind: 'service'; endpoint: string; body?: unknown; select?: string };
 
 /**
- * A `compareEntities` column derived per Thing rather than read from a stored property.
- * The binding resolves once per compared Thing, so prefer one that reads the model store
- * (`aggregate`, `property`, or a `ratio` over those). A binding that calls the broker —
- * `stateCount`, `stateList`, `timeseries`, `service` — costs one request per Thing on every
- * dashboard refresh.
+ * A column of a row-producing binding (`thingList`, `stateList`, `compareEntities`) derived per
+ * row rather than read from a stored property. The binding resolves once per row with that row's
+ * Thing as the scope, so `$scope` in it means "this row's Thing" — which is how a column holds
+ * a live aggregate over the Thing's members (`aggregate`, `ratio`), what its edges reach
+ * (`related`), or the condition the platform derives for it (`stateOf`).
+ *
+ * The value lands on the row as it resolves: a number stays a number, text stays text. A binding
+ * that resolves to a table or a series has nothing a cell can show and lands empty.
+ *
+ * Cost: the rows of one resolution share their state reads, so `stateOf`, `stateCount` and
+ * `stateList` columns cost one request per state name however many rows there are. A `timeseries`
+ * or `service` column has no such sharing and costs one request per row on every refresh.
  */
 export interface ComputedColumn {
   /** Row key the column lands on — what a LeaderMetric/TableColumn references. */
   key: string;
   value: Binding;
+}
+
+/**
+ * One step of a `related` binding's path: which edge to follow from the Things reached so far,
+ * and which of the Things it reaches to keep. Unlike {@link RelationSpec}, which describes how to
+ * render a related Thing on a detail card, a step only narrows a walk down to the one neighbour
+ * whose name a cell wants.
+ */
+export interface RelationStep {
+  /** Predicate name to follow. */
+  predicate: string;
+  /** 'out': the current Thing is the subject, follow to the targets. 'in': the reverse. Default 'out'. */
+  direction?: 'out' | 'in';
+  /** Keep only reached Things of this archetype — the filter for a predicate that reaches several. */
+  archetype?: string;
+  /** Keep only reached Things currently in this derived state. */
+  inState?: string;
+  /** Drop reached Things currently in this derived state — how a walk skips the work already
+   *  finished and keeps only what is still open. */
+  notInState?: string;
 }
 
 export interface PropertyFilter {

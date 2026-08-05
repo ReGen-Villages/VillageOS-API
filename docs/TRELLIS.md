@@ -1030,7 +1030,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations` | `OperationsPage` | Config-driven operations dashboard. Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/operations` | `OperationsPage` | Config-driven operations dashboard. Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
@@ -1259,6 +1259,80 @@ Service health badges (Healthy/Unhealthy/Unreachable/Unknown) and the
 running/stopped pill follow the color scheme documented in
 [Section 7.2](#72-services).
 
+### Columns beyond a Thing's own properties
+
+A row from `thingList`, `stateList` or `compareEntities` is
+`{ id, name, ...effective properties }`, so a column can only show what the
+row's own Thing stores. Three parts of the contract lift that limit.
+
+**`computed` columns.** Every row-producing binding takes `computed`, a list of
+`{ key, value }` where `value` is any Binding. It resolves once per row with
+that row's Thing as the scope, so `$scope` inside it means "this row's Thing".
+The resolved value lands on the row as it is — a number stays a number, text
+stays text. A binding resolving to a table or a series has nothing a cell can
+show and lands empty.
+
+**`related` — what an edge says.** Follows `via`, a path of steps, from the
+starting Thing (`thing`, defaulting to `$scope`) and reads the name of what it
+reaches, or that Thing's `property`. One match that is a number resolves as a
+number; several matches resolve as their names in alphabetical order, joined
+with `", "`; none resolves to null. Each step narrows the walk:
+
+| Step field | Effect |
+| --- | --- |
+| `predicate` | The edge to follow. |
+| `direction` | `out` (default) follows to the targets; `in` follows back to the subjects. |
+| `archetype` | Keep only reached Things of that archetype — for a predicate reaching several. |
+| `inState` | Keep only reached Things currently in that derived state. |
+| `notInState` | Drop reached Things currently in that derived state. |
+
+**`stateOf` — what the platform derives.** Returns the first of `states` the
+Thing currently holds. The list is in priority order because derived states
+nest, so a Thing usually holds several at once and a status cell has to be
+single-valued. Holding none of them resolves to null.
+
+A roster whose columns are almost all edges and conditions:
+
+```jsonc
+{
+  "type": "table",
+  "columns": [
+    { "key": "name", "label": "Unit" },
+    { "key": "machine_class", "label": "Class" },
+    { "key": "current_location", "label": "At" },
+    { "key": "destination", "label": "Heading to" },
+    { "key": "condition", "label": "Condition", "render": "badge" }
+  ],
+  "rows": {
+    "kind": "thingList",
+    "archetype": "Machine",
+    "computed": [
+      { "key": "machine_class",
+        "value": { "kind": "related", "via": [{ "predicate": "is" }] } },
+      { "key": "current_location",
+        "value": { "kind": "related", "via": [{ "predicate": "at" }] } },
+      // Two edges away: the command still open that names where this unit is headed.
+      { "key": "destination",
+        "value": { "kind": "related", "via": [
+          { "predicate": "targets", "direction": "in", "inState": "open" },
+          { "predicate": "references", "archetype": "Location" }
+        ] } },
+      { "key": "condition",
+        "value": { "kind": "stateOf", "states": ["blocked", "charging", "idle"] } }
+    ]
+  }
+}
+```
+
+**Cost.** A computed column resolves per row, so a binding that calls the broker
+is the one to watch. State reads are shared for a whole refresh generation:
+every row, and every other widget on the page, asks about a given state once
+between them. So the roster above costs one request per listed state per
+refresh, whatever the row count. `timeseries` and `service` columns have no such
+sharing and do cost one request per row. Everything else — `related`,
+`property`, `aggregate`, `ratio` — reads the client-side model index and calls
+nothing.
+
 ### Translating a dashboard spec (i18n)
 
 The config-driven operations dashboard (`OperationsPage`) renders every label
@@ -1335,13 +1409,14 @@ leaderboard `title` / `hint` and each metric `label`; exception-bar `title` /
 
 **Which strings are never looked up** (model vocabulary and identifiers — a
 `translations` entry matching one of these is ignored, so it can never corrupt
-data resolution): any binding value (`state`, `archetype`, `property`, `thing`,
-`endpoint`, `select`, filter values), predicate names (`viaPredicate`,
-`relation.predicate`), row keys (`column.key`, `metric.key`, `computed.key`,
+data resolution): any binding value (`state`, `states`, `archetype`, `property`,
+`thing`, `endpoint`, `select`, filter values), predicate names (`viaPredicate`,
+`relation.predicate`, a `related` step's `predicate`), row keys (`column.key`, `metric.key`, `computed.key`,
 `searchKeys`, `sortKey`), the `detail.titleProperty` / `subtitleProperty` and
 property-group `keys`, colours, number formats, and the `Dashboard` config
-Thing's own `Name`. Resolved **row data** — Thing names and property values that
-fill table cells, gantt bars, and leaderboard rows — is model content, not spec
+Thing's own `Name`. Resolved **row data** — the Thing names, property values,
+related-Thing names and derived state words that fill table cells, gantt bars,
+and leaderboard rows — is model content, not spec
 text, and is shown in the model's own language (see the seed-independence note
 in the i18n design).
 
