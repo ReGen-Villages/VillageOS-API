@@ -5,6 +5,7 @@
 # - Triggers on all branch updates and pull requests
 # - Builds the .NET solution
 # - Runs the .NET test suite and the wiki-mirror converter tests
+# - Lints, tests and builds Trellis, the GUI
 # - Publishes test results and code coverage to Azure DevOps
 # - Packages and publishes to NuGet (main branch only)
 # - Mirrors the repo and the wiki to GitHub (develop and main only)
@@ -58,10 +59,13 @@ steps:
     packageType: 'sdk'
     version: '10.x'
 
+# Serves the wiki converters and the Trellis checks below. 22 rather than 20 because Vite asks for
+# ^20.19 || >=22.12 — a 20.x line that resolved below 20.19 would fail the GUI build, and 22 is the
+# version both Vite and Vitest name.
 - task: NodeTool@0
-  displayName: 'Install Node.js (for wiki-mirror converter)'
+  displayName: 'Install Node.js'
   inputs:
-    versionSpec: '20.x'
+    versionSpec: '22.x'
 
 - script: dotnet restore
   displayName: 'Restore NuGet Packages'
@@ -105,6 +109,47 @@ steps:
 - script: node --test
   displayName: 'Test docs-to-wiki converter'
   workingDirectory: tools/docs-to-wiki
+  condition: always()
+
+# The GUI's own checks. Nothing here ran them until now, and both halves of that had been paying:
+# lint errors accumulated across the pages, panels and hooks with nothing to fail (#6150), and the
+# GUI test suite — the guard for the binding resolver, the property panels and the live-update path
+# — had never gated a merge. Each step runs even when an earlier one failed, so one run reports
+# every problem rather than one per push. They sit ahead of the mirror and the wiki publish, whose
+# succeeded() conditions then stop a red GUI from being published.
+- script: npm ci
+  displayName: 'Install Trellis dependencies'
+  workingDirectory: vos.Trellis
+  condition: always()
+
+- script: npm run lint
+  displayName: 'Lint Trellis'
+  workingDirectory: vos.Trellis
+  condition: always()
+
+# Both reporters: junit alone replaces the console output, which leaves a failing build's log
+# saying only that the run exited 1, with the failures readable exclusively in the Tests tab.
+- script: npm run test -- --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/trellis-junit.xml
+  displayName: 'Test Trellis'
+  workingDirectory: vos.Trellis
+  condition: always()
+
+- task: PublishTestResults@2
+  displayName: 'Publish Trellis Test Results'
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '$(testResultsDirectory)/trellis-junit.xml'
+    testRunTitle: 'Trellis'
+    mergeTestResults: true
+    failTaskOnFailedTests: true
+  condition: always()
+
+# Covers the type-check too — `npm run build` is `tsc -b` then the bundle, and nothing else in this
+# pipeline type-checks the GUI. Emits to vos.Trellis/dist here: the output directory resolves to a
+# sibling vos.Mycelium/wwwroot when one exists, and to dist when it does not.
+- script: npm run build
+  displayName: 'Build Trellis'
+  workingDirectory: vos.Trellis
   condition: always()
 
 - script: |
