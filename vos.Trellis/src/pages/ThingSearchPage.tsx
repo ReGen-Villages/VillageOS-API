@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import {
   buildThingSearchIndex,
   searchThings,

@@ -4,7 +4,7 @@ import { temporalApi } from '../api/temporalApi';
 import { modelApi } from '../api/modelApi';
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import type { ModelMutations, ThingMutations, RelationshipMutations, PropertyVersionsResponse, VosThing, VosRelationship, TemporalSnapshot } from '../types/vos';
 import { stateApi } from '../api/stateApi';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
@@ -157,6 +157,7 @@ function ThingMutationsPanel() {
     try { setThings(await thingApi.getAll()); } catch { /* ignore */ }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { loadThings(); }, [loadThings]);
 
   const loadMutations = async () => {
@@ -254,6 +255,7 @@ function RelationshipMutationsPanel() {
     try { setRelationships(await relationshipApi.getAll()); } catch { /* ignore */ }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { loadRels(); }, [loadRels]);
 
   const loadMutations = async () => {
@@ -438,6 +440,7 @@ function PropertyHistoryPanel() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
     loadThings();
   }, [loadThings]);
 

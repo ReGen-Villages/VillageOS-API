@@ -9,7 +9,7 @@ import { reloadModelData } from '../hooks/useModelData';
 import { NodeDetailPanel } from '../components/panels/NodeDetailPanel';
 import { ResizablePanel } from '../components/panels/ResizablePanel';
 import { TypeFilterPanel } from '../components/panels/TypeFilterPanel';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import { IfcUploadDropzone } from '../components/model/IfcUploadDropzone';
 import type { VosThing } from '../types/vos';
 import type { BimFragmentsMapping } from '../components/model/BimFragmentsViewer';
@@ -42,8 +42,14 @@ export function ModelPage() {
   const { modelId } = useAuth();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
-  const [bimFragments, setBimFragments] = useState<BimFragmentsState>({ status: 'loading' });
-  const [detailThing, setDetailThing] = useState<VosThing | null>(null);
+  // Tagged with the model it answers for, so switching models reads as loading without an effect
+  // having to write that first — which would render the old model's fragments for a frame.
+  const [loadedFragments, setLoadedFragments] = useState<{ modelId: string | null; state: BimFragmentsState }>(
+    { modelId: null, state: { status: 'loading' } },
+  );
+  const bimFragments: BimFragmentsState =
+    loadedFragments.modelId === modelId ? loadedFragments.state : { status: 'loading' };
+  const [fetchedThing, setFetchedThing] = useState<VosThing | null>(null);
 
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
   const selectNode = useUiStore((s) => s.selectNode);
@@ -74,19 +80,18 @@ export function ModelPage() {
   // app-shell-level useModelData hook (Feature #5329).
   useEffect(() => {
     let cancelled = false;
-    setBimFragments({ status: 'loading' });
     selectNode(null);
 
     apiClient.getBytes('/api/model/bim/fragments')
       .then((bytes) => {
         if (cancelled) return;
-        setBimFragments(bytes === null ? { status: 'empty' } : { status: 'ready', bytes });
+        setLoadedFragments({ modelId, state: bytes === null ? { status: 'empty' } : { status: 'ready', bytes } });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setBimFragments({
-          status: 'error',
-          message: err instanceof Error ? err.message : t('modelPage.loadFailed'),
+        setLoadedFragments({
+          modelId,
+          state: { status: 'error', message: err instanceof Error ? err.message : t('modelPage.loadFailed') },
         });
       });
     return () => {
@@ -97,23 +102,23 @@ export function ModelPage() {
   // Fetch the full thing (with inherited properties) when selection changes —
   // matches the GraphPage pattern so NodeDetailPanel sees the same shape from both views.
   useEffect(() => {
-    if (!selectedNodeId) {
-      setDetailThing(null);
-      return;
-    }
+    if (!selectedNodeId) return;
     let cancelled = false;
     (async () => {
       try {
         const thing = await thingApi.get(selectedNodeId);
-        if (!cancelled) setDetailThing(thing);
+        if (!cancelled) setFetchedThing(thing);
       } catch {
-        if (!cancelled) setDetailThing(things.find((t) => t.Id === selectedNodeId) ?? null);
+        if (!cancelled) setFetchedThing(things.find((t) => t.Id === selectedNodeId) ?? null);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [selectedNodeId, things]);
+
+  // Follows the selection, so it is not state: nothing to hold that the selection does not say.
+  const detailThing = selectedNodeId ? fetchedThing : null;
 
   const mapping = useMemo(() => buildMappingFromThings(things), [things]);
   const thingMap = useMemo(() => new Map(things.map((t) => [t.Id, t])), [things]);
