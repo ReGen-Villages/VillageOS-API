@@ -4,6 +4,7 @@ using vos.Service.Shared.Configuration;
 using vos.Service.Metabolism.Endpoints;
 using vos.Service.Metabolism.Services;
 using vos.Service.Shared;
+using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Middleware;
 using vos.Service.Shared.Subscriptions;
 using Serilog;
@@ -25,26 +26,8 @@ var mode = launchSettings.Mode;
 var serviceToken = launchSettings.Service.Token;
 var signingKey = launchSettings.Service.SigningKey;
 
-// Skip the file sink under WebApplicationFactory<Program> tests — file I/O invites flakiness on shared CI agents.
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-
-var loggerConfig = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", $"Metabolism-{mode}");
-
-if (!isTestingEnv)
-{
-    var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", $"metabolism-{mode}-.log");
-    loggerConfig = loggerConfig.WriteTo.File(
-        path: logPath,
-        rollingInterval: RollingInterval.Day,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true);
-}
-
-Log.Logger = loggerConfig.CreateLogger();
+ServiceHost.ConfigureLogging("Metabolism", $"metabolism-{mode}-.log", writeToFile: !isTestingEnv);
 
 try
 {

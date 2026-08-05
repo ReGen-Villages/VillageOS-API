@@ -23,9 +23,7 @@ public class WriteKindsDemoTests
     public async Task RunAsync_DrivesAllThreeWriteKinds_AndAggregates()
     {
         var handler = new MockHttpMessageHandler(Respond);
-        // The demo performs four writes; the real IHttpClientFactory hands out a fresh client per
-        // call, so model that here (a singleton client can't have its Timeout reset after first use).
-        var client = new EndpointServiceMyceliumClient(new PerCallClientFactory(handler),
+        var client = new EndpointServiceMyceliumClient(new PerCallHttpClientFactory(handler),
             NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, ServiceToken);
 
         var result = await new WriteKindsDemo(client).RunAsync(Thing, new DateTime(2026, 6, 20, 12, 0, 0, DateTimeKind.Utc));
@@ -60,11 +58,4 @@ public class WriteKindsDemoTests
 
     private static HttpResponseMessage Json(HttpStatusCode code, string json) =>
         new(code) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
-
-    // Returns a fresh HttpClient over the same recording handler on every call, matching how the
-    // production IHttpClientFactory behaves (each CreateAuthenticatedClientAsync gets a new client).
-    private sealed class PerCallClientFactory(HttpMessageHandler handler) : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
-    }
 }

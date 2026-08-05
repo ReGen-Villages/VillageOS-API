@@ -3,6 +3,7 @@ using vos.Service.Delta.Helpers;
 using vos.Service.Delta.Models;
 using vos.Service.Delta.Services;
 using vos.Service.Shared;
+using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
 using vos.Service.Shared.Validation;
 using Serilog;
@@ -23,26 +24,8 @@ var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
 var signingKey = launchSettings.SigningKey;
 
-// Skip the file sink under tests: file I/O on shared CI agents invites flakiness.
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-
-var loggerConfig = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", "Delta");
-
-if (!isTestingEnv)
-{
-    var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "delta-.log");
-    loggerConfig = loggerConfig.WriteTo.File(
-        path: logPath,
-        rollingInterval: RollingInterval.Day,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true);
-}
-
-Log.Logger = loggerConfig.CreateLogger();
+ServiceHost.ConfigureLogging("Delta", "delta-.log", writeToFile: !isTestingEnv);
 
 try
 {

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using vos.Auth.Shared;
 using vos.Service.Shared;
+using vos.Service.Shared.Hosting;
 using vos.Service.Phloem.Configuration;
 using vos.Service.Shared.Configuration;
 using vos.Service.Phloem.Execution;
@@ -23,24 +24,7 @@ var serviceToken = launchSettings.Service.Token;
 var signingKey = launchSettings.Service.SigningKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-
-var loggerConfig = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", "Phloem");
-
-if (!isTestingEnv)
-{
-    var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "phloem-.log");
-    loggerConfig = loggerConfig.WriteTo.File(
-        path: logPath,
-        rollingInterval: RollingInterval.Day,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true);
-}
-
-Log.Logger = loggerConfig.CreateLogger();
+ServiceHost.ConfigureLogging("Phloem", "phloem-.log", writeToFile: !isTestingEnv);
 
 try
 {

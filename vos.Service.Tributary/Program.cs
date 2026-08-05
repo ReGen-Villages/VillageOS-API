@@ -5,6 +5,7 @@ using vos.Service.Tributary.Helpers;
 using vos.Service.Tributary.Models;
 using vos.Service.Tributary.Services;
 using vos.Service.Shared;
+using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
 using vos.Service.Shared.Validation;
 using Serilog;
@@ -25,27 +26,8 @@ var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
 var signingKey = launchSettings.SigningKey;
 
-// Skip the file sink when running under WebApplicationFactory<Program> tests. Same
-// rationale as Metabolism — file I/O under the test host has no value and invites flakiness.
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-
-var loggerConfig = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", "Tributary");
-
-if (!isTestingEnv)
-{
-    var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "tributary-.log");
-    loggerConfig = loggerConfig.WriteTo.File(
-        path: logPath,
-        rollingInterval: RollingInterval.Day,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true);
-}
-
-Log.Logger = loggerConfig.CreateLogger();
+ServiceHost.ConfigureLogging("Tributary", "tributary-.log", writeToFile: !isTestingEnv);
 
 try
 {
