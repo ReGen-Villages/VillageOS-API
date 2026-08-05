@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import type { VosThing, VosRelationship } from '../types/vos';
-import { applyThingPropertyUpdate, applyRelationshipPropertyUpdate } from '../utils/propertyUpdates';
+import {
+  applyThingPropertyUpdate,
+  applyRelationshipPropertyUpdate,
+  applyThingPropertyRemoval,
+  applyRelationshipPropertyRemoval,
+} from '../utils/propertyUpdates';
 
 /** A coalesced batch of live-model changes applied in a single store write. */
 export interface ModelBatch {
@@ -10,6 +15,8 @@ export interface ModelBatch {
   relationshipRemovals?: string[];
   thingPropertyUpdates?: { id: string; path: string; value: unknown }[];
   relationshipPropertyUpdates?: { id: string; name: string; value: unknown }[];
+  thingPropertyRemovals?: { id: string; path: string }[];
+  relationshipPropertyRemovals?: { id: string; name: string }[];
 }
 
 interface ModelState {
@@ -24,14 +31,8 @@ interface ModelState {
   updateThings: (updater: (prev: VosThing[]) => VosThing[]) => void;
   /** Update relationships via a mapper function. */
   updateRelationships: (updater: (prev: VosRelationship[]) => VosRelationship[]) => void;
-  /** Insert a thing, replacing any existing one with the same Id (idempotent). */
-  upsertThing: (thing: VosThing) => void;
   /** Remove the thing with this Id, if present (no-op otherwise). */
-  removeThing: (id: string) => void;
-  /** Insert a relationship, replacing any existing one with the same Id (idempotent). */
-  upsertRelationship: (relationship: VosRelationship) => void;
   /** Remove the relationship with this Id, if present (no-op otherwise). */
-  removeRelationship: (id: string) => void;
   /** Apply a coalesced batch of live changes in a single write (one array rebuild
    *  per collection instead of one per event). Used by the debounced SSE flush so a
    *  burst of hundreds of structural events costs O(N + batch), not O(N) per event. */
@@ -51,23 +52,12 @@ export const useModelStore = create<ModelState>((set) => ({
   setRelationships: (relationships) => set({ relationships }),
   updateThings: (updater) => set((s) => ({ things: updater(s.things) })),
   updateRelationships: (updater) => set((s) => ({ relationships: updater(s.relationships) })),
-  upsertThing: (thing) => set((s) => ({
-    things: s.things.some((t) => t.Id === thing.Id)
-      ? s.things.map((t) => (t.Id === thing.Id ? thing : t))
-      : [...s.things, thing],
-  })),
-  removeThing: (id) => set((s) => ({ things: s.things.filter((t) => t.Id !== id) })),
-  upsertRelationship: (relationship) => set((s) => ({
-    relationships: s.relationships.some((r) => r.Id === relationship.Id)
-      ? s.relationships.map((r) => (r.Id === relationship.Id ? relationship : r))
-      : [...s.relationships, relationship],
-  })),
-  removeRelationship: (id) => set((s) => ({ relationships: s.relationships.filter((r) => r.Id !== id) })),
   applyBatch: (batch) => set((s) => {
     const next: Partial<ModelState> = {};
 
     const touchThings =
-      batch.thingUpserts?.length || batch.thingRemovals?.length || batch.thingPropertyUpdates?.length;
+      batch.thingUpserts?.length || batch.thingRemovals?.length ||
+      batch.thingPropertyUpdates?.length || batch.thingPropertyRemovals?.length;
     if (touchThings) {
       const map = new Map(s.things.map((t) => [t.Id, t]));
       for (const id of batch.thingRemovals ?? []) map.delete(id);
@@ -76,13 +66,18 @@ export const useModelStore = create<ModelState>((set) => ({
         const current = map.get(u.id);
         if (current) map.set(u.id, applyThingPropertyUpdate(current, u.path, u.value));
       }
+      for (const r of batch.thingPropertyRemovals ?? []) {
+        const current = map.get(r.id);
+        if (current) map.set(r.id, applyThingPropertyRemoval(current, r.path));
+      }
       next.things = Array.from(map.values());
     }
 
     const touchRels =
       batch.relationshipUpserts?.length ||
       batch.relationshipRemovals?.length ||
-      batch.relationshipPropertyUpdates?.length;
+      batch.relationshipPropertyUpdates?.length ||
+      batch.relationshipPropertyRemovals?.length;
     if (touchRels) {
       const map = new Map(s.relationships.map((r) => [r.Id, r]));
       for (const id of batch.relationshipRemovals ?? []) map.delete(id);
@@ -90,6 +85,10 @@ export const useModelStore = create<ModelState>((set) => ({
       for (const u of batch.relationshipPropertyUpdates ?? []) {
         const current = map.get(u.id);
         if (current) map.set(u.id, applyRelationshipPropertyUpdate(current, u.name, u.value));
+      }
+      for (const r of batch.relationshipPropertyRemovals ?? []) {
+        const current = map.get(r.id);
+        if (current) map.set(r.id, applyRelationshipPropertyRemoval(current, r.name));
       }
       next.relationships = Array.from(map.values());
     }

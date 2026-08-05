@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   applyThingPropertyUpdate,
   applyRelationshipPropertyUpdate,
+  applyThingPropertyRemoval,
+  applyRelationshipPropertyRemoval,
   isVisibleRelationship,
 } from './propertyUpdates';
 import type { VosThing, VosRelationship } from '../types/vos';
@@ -74,6 +76,33 @@ describe('applyRelationshipPropertyUpdate', () => {
   });
 });
 
+// Bug #6143 — retracting a property emitted no store change at all, so a deleted property kept
+// showing until something reloaded the whole model.
+describe('property removal', () => {
+  it('drops the named property from a Thing', () => {
+    const updated = applyThingPropertyRemoval(makeThing(), 'water_level');
+    expect(updated.Properties).toEqual({ unit: 'litres' });
+  });
+
+  it('drops the named property from a relationship', () => {
+    const updated = applyRelationshipPropertyRemoval(makeRel(), 'quantity');
+    expect('quantity' in updated.Properties).toBe(false);
+  });
+
+  it('does not mutate the original', () => {
+    const thing = makeThing();
+    applyThingPropertyRemoval(thing, 'water_level');
+    expect(thing.Properties.water_level).toBe(50);
+  });
+
+  it('returns the same object when the property is not there, so no render is triggered', () => {
+    const thing = makeThing();
+    expect(applyThingPropertyRemoval(thing, 'never_existed')).toBe(thing);
+    const rel = makeRel();
+    expect(applyRelationshipPropertyRemoval(rel, 'never_existed')).toBe(rel);
+  });
+});
+
 describe('isVisibleRelationship', () => {
   const rels = [
     makeRel({ Id: 'rel-1', SubjectId: 'node-A', TargetId: 'node-B' }),
@@ -82,22 +111,37 @@ describe('isVisibleRelationship', () => {
   ];
 
   it('returns true when rel subject matches selected node', () => {
-    expect(isVisibleRelationship('rel-1', 'node-A', rels)).toBe(true);
+    expect(isVisibleRelationship('rel-1', 'node-A', null, rels)).toBe(true);
   });
 
   it('returns true when rel target matches selected node', () => {
-    expect(isVisibleRelationship('rel-3', 'node-A', rels)).toBe(true);
+    expect(isVisibleRelationship('rel-3', 'node-A', null, rels)).toBe(true);
   });
 
   it('returns false when rel is not connected to selected node', () => {
-    expect(isVisibleRelationship('rel-2', 'node-A', rels)).toBe(false);
+    expect(isVisibleRelationship('rel-2', 'node-A', null, rels)).toBe(false);
   });
 
-  it('returns false when no node is selected', () => {
-    expect(isVisibleRelationship('rel-1', null, rels)).toBe(false);
+  it('returns false when nothing is selected', () => {
+    expect(isVisibleRelationship('rel-1', null, null, rels)).toBe(false);
   });
 
   it('returns false when relId does not exist', () => {
-    expect(isVisibleRelationship('nonexistent', 'node-A', rels)).toBe(false);
+    expect(isVisibleRelationship('nonexistent', 'node-A', null, rels)).toBe(false);
+  });
+
+  // Bug #6143 — selecting an edge clears the node selection, so asking about the node alone said
+  // "not visible" for the very edge whose detail panel was open, and every live change to it was
+  // dropped. The full model reload on save was hiding that.
+  it('returns true for the selected edge, with no node selected', () => {
+    expect(isVisibleRelationship('rel-2', null, 'rel-2', rels)).toBe(true);
+  });
+
+  it('returns false for an edge that is neither selected nor on the selected node', () => {
+    expect(isVisibleRelationship('rel-2', null, 'rel-1', rels)).toBe(false);
+  });
+
+  it('does not need the relationship to be loaded to recognise the selected edge', () => {
+    expect(isVisibleRelationship('rel-not-yet-loaded', null, 'rel-not-yet-loaded', [])).toBe(true);
   });
 });

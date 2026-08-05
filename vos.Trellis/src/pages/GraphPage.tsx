@@ -144,17 +144,22 @@ export function GraphPage() {
     try {
       await thingApi.deleteProperty(thingId, propertyName);
       toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
-      reloadModelData();
+      useModelStore.getState().applyBatch({ thingPropertyRemovals: [{ id: thingId, path: propertyName }] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }
   };
 
+  // Applied here rather than left to the stream: a retracted relationship property arrives as a
+  // change to null, which is what a property genuinely set to null looks like. The client that did
+  // the deleting is the one place that knows which of the two it was.
   const handleDeleteRelProperty = async (relationshipId: string, propertyName: string) => {
     try {
       await relationshipApi.deleteProperty(relationshipId, propertyName);
       toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
-      reloadModelData();
+      useModelStore.getState().applyBatch({
+        relationshipPropertyRemovals: [{ id: relationshipId, name: propertyName }],
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }
@@ -291,7 +296,6 @@ export function GraphPage() {
             onSelectNode={selectNode}
             onDeleteProperty={handleDeleteProperty}
             onDeleteThing={(id, name) => setDeleteConfirm({ type: 'thing', id, name })}
-            onPropertySet={() => reloadModelData()}
             onRenamed={() => reloadModelData()}
             statesVersion={statesVersion}
           />
@@ -312,7 +316,6 @@ export function GraphPage() {
               setDeleteConfirm({ type: 'relationship', id, name: detailRelationship.Name })
             }
             onDeleteProperty={handleDeleteRelProperty}
-            onPropertySet={() => reloadModelData()}
             statesVersion={statesVersion}
           />
         </ResizablePanel>

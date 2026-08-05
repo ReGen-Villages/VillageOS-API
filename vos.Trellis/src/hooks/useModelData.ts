@@ -20,6 +20,9 @@ const FLUSH_DEBOUNCE_MS = 150;
 /** Max hydrate fetches in flight per flush — bounds the request fan-out on a big burst. */
 const HYDRATE_CONCURRENCY = 8;
 
+/** What happened to one property in a flush window: it was given a value, or it was retracted. */
+type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
+
 /**
  * Single source of truth for the model fetch. Exported so mutation handlers can
  * refresh after their action without going through the hook.
@@ -102,18 +105,31 @@ export function useModelData(): void {
   useEffect(() => {
     // Buffered live updates: SSE events accumulate here and flush together, so a burst
     // of structural changes becomes one store write instead of one O(N) rebuild each.
+    // Property buffers are keyed by entity AND property name: keying by entity alone kept only the
+    // last change in a window, which the full model reload on save used to hide (#6143).
     const pending = {
       thingHydrate: new Set<string>(),
       thingRemove: new Set<string>(),
       relHydrate: new Set<string>(),
       relRemove: new Set<string>(),
-      thingProps: new Map<string, Map<string, unknown>>(),
-      relProps: new Map<string, { name: string; value: unknown }>(),
+      thingProps: new Map<string, Map<string, PropertyChange>>(),
+      relProps: new Map<string, Map<string, PropertyChange>>(),
     };
     const isEmpty = () =>
       pending.thingHydrate.size === 0 && pending.thingRemove.size === 0 &&
       pending.relHydrate.size === 0 && pending.relRemove.size === 0 &&
       pending.thingProps.size === 0 && pending.relProps.size === 0;
+
+    const recordProperty = (
+      buffer: Map<string, Map<string, PropertyChange>>,
+      entityId: string,
+      propertyName: string,
+      change: PropertyChange,
+    ) => {
+      const properties = buffer.get(entityId) ?? new Map<string, PropertyChange>();
+      properties.set(propertyName, change);
+      buffer.set(entityId, properties);
+    };
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     let flushing = false;
@@ -128,11 +144,20 @@ export function useModelData(): void {
       const relIds = [...pending.relHydrate]; pending.relHydrate.clear();
       const thingRemovals = [...pending.thingRemove]; pending.thingRemove.clear();
       const relationshipRemovals = [...pending.relRemove]; pending.relRemove.clear();
-      const thingPropertyUpdates = [...pending.thingProps].flatMap(
-        ([id, props]) => [...props].map(([path, value]) => ({ id, path, value })),
-      );
+      const thingPropertyUpdates: { id: string; path: string; value: unknown }[] = [];
+      const thingPropertyRemovals: { id: string; path: string }[] = [];
+      for (const [id, properties] of pending.thingProps)
+        for (const [path, change] of properties)
+          if (change.deleted) thingPropertyRemovals.push({ id, path });
+          else thingPropertyUpdates.push({ id, path, value: change.value });
       pending.thingProps.clear();
-      const relationshipPropertyUpdates = [...pending.relProps].map(([id, u]) => ({ id, name: u.name, value: u.value }));
+
+      const relationshipPropertyUpdates: { id: string; name: string; value: unknown }[] = [];
+      const relationshipPropertyRemovals: { id: string; name: string }[] = [];
+      for (const [id, properties] of pending.relProps)
+        for (const [name, change] of properties)
+          if (change.deleted) relationshipPropertyRemovals.push({ id, name });
+          else relationshipPropertyUpdates.push({ id, name, value: change.value });
       pending.relProps.clear();
 
       const [thingUpserts, relationshipUpserts] = await Promise.all([
@@ -147,6 +172,8 @@ export function useModelData(): void {
         relationshipRemovals,
         thingPropertyUpdates,
         relationshipPropertyUpdates,
+        thingPropertyRemovals,
+        relationshipPropertyRemovals,
       });
 
       flushing = false;
@@ -181,9 +208,17 @@ export function useModelData(): void {
           // KPIs) straight from the store, so dropping their updates left it showing stale
           // or blank cells for anything changed after the last full load. The debounced
           // applyBatch coalesces the high PropertyChanged rate into one write per window.
-          const props = pending.thingProps.get(thingId) ?? new Map<string, unknown>();
-          props.set(propertyPath, newValue);
-          pending.thingProps.set(thingId, props);
+          recordProperty(pending.thingProps, thingId, propertyPath, { deleted: false, value: newValue });
+          schedule();
+        }
+      }),
+      // Unhandled before #6143: a deleted property stayed in the store and kept showing.
+      on('PropertyDeleted', (...args: unknown[]) => {
+        const thingId = args[0] as string;
+        const propertyPath = args[1] as string | undefined;
+        if (thingId && propertyPath !== undefined) {
+          triggerFlashNode(thingId);
+          recordProperty(pending.thingProps, thingId, propertyPath, { deleted: true });
           schedule();
         }
       }),
@@ -193,11 +228,18 @@ export function useModelData(): void {
         const newValue = args[2] as unknown;
         if (relId && propertyName !== undefined) {
           triggerFlashEdge(relId);
-          // Only rebuild if this rel is currently visible on the selected node.
-          const selNode = useUiStore.getState().selectedNodeId;
+          // Only rebuild if this relationship is on screen — as the opened edge, or hanging off the
+          // opened node. Asking about the node alone dropped every change to the edge whose own
+          // panel was in front of the user, because selecting an edge clears the node selection.
+          const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
           const rels = useModelStore.getState().relationships;
-          if (isVisibleRelationship(relId, selNode, rels)) {
-            pending.relProps.set(relId, { name: propertyName, value: newValue });
+          if (isVisibleRelationship(relId, selectedNodeId, selectedEdgeId, rels)) {
+            // A retraction on a relationship is reported as a change to null, indistinguishable
+            // from a property genuinely set to null. Null for a property the store no longer holds
+            // is the echo of a deletion already applied; writing it back would resurrect the row.
+            const held = rels.find((r) => r.Id === relId)?.Properties ?? {};
+            if (newValue === null && !(propertyName in held)) return;
+            recordProperty(pending.relProps, relId, propertyName, { deleted: false, value: newValue });
             schedule();
           }
         }
