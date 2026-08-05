@@ -80,7 +80,9 @@ export function PipelinePage() {
   type EditorSnapshot = { nodes: Node[]; edges: Edge[] };
   const historyRef = useRef(new EditorHistory<EditorSnapshot>({ nodes: [], edges: [] }));
   const stateRef = useRef<EditorSnapshot>({ nodes, edges });
-  stateRef.current = { nodes, edges };
+  // Mirrored after each commit rather than during render, so a handler that snapshots for undo
+  // reads what is on screen — never values from a render React went on to discard.
+  useEffect(() => { stateRef.current = { nodes, edges }; }, [nodes, edges]);
   const [canUndo, setCanUndo] = useState(false);
   const [dirty, setDirty] = useState(false);
 

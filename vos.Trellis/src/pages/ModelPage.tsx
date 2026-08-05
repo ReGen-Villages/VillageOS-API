@@ -42,7 +42,13 @@ export function ModelPage() {
   const { modelId } = useAuth();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
-  const [bimFragments, setBimFragments] = useState<BimFragmentsState>({ status: 'loading' });
+  // Tagged with the model it answers for, so switching models reads as loading without an effect
+  // having to write that first — which would render the old model's fragments for a frame.
+  const [loadedFragments, setLoadedFragments] = useState<{ modelId: string | null; state: BimFragmentsState }>(
+    { modelId: null, state: { status: 'loading' } },
+  );
+  const bimFragments: BimFragmentsState =
+    loadedFragments.modelId === modelId ? loadedFragments.state : { status: 'loading' };
   const [fetchedThing, setFetchedThing] = useState<VosThing | null>(null);
 
   const selectedNodeId = useUiStore((s) => s.selectedNodeId);
@@ -74,19 +80,18 @@ export function ModelPage() {
   // app-shell-level useModelData hook (Feature #5329).
   useEffect(() => {
     let cancelled = false;
-    setBimFragments({ status: 'loading' });
     selectNode(null);
 
     apiClient.getBytes('/api/model/bim/fragments')
       .then((bytes) => {
         if (cancelled) return;
-        setBimFragments(bytes === null ? { status: 'empty' } : { status: 'ready', bytes });
+        setLoadedFragments({ modelId, state: bytes === null ? { status: 'empty' } : { status: 'ready', bytes } });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setBimFragments({
-          status: 'error',
-          message: err instanceof Error ? err.message : t('modelPage.loadFailed'),
+        setLoadedFragments({
+          modelId,
+          state: { status: 'error', message: err instanceof Error ? err.message : t('modelPage.loadFailed') },
         });
       });
     return () => {
