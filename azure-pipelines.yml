@@ -127,7 +127,9 @@ steps:
   workingDirectory: vos.Trellis
   condition: always()
 
-- script: npm run test -- --reporter=junit --outputFile=$(testResultsDirectory)/trellis-junit.xml
+# Both reporters: junit alone replaces the console output, which leaves a failing build's log
+# saying only that the run exited 1, with the failures readable exclusively in the Tests tab.
+- script: npm run test -- --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/trellis-junit.xml
   displayName: 'Test Trellis'
   workingDirectory: vos.Trellis
   condition: always()
