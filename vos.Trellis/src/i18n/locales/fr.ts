@@ -453,6 +453,7 @@ export const fr: PartialResources = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "Échec de l'ajout de la propriété",
       saveFailed: "Échec de l'enregistrement",
+      unknownType: "Impossible d'enregistrer {{name}} : la plateforme signale le type {{type}}, que cette version ne connaît pas",
     },
     name: {
       thingName: "Nom de l'objet",

@@ -453,6 +453,7 @@ export const de: PartialResources = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "Eigenschaft konnte nicht hinzugefügt werden",
       saveFailed: "Speichern fehlgeschlagen",
+      unknownType: "{{name}} kann nicht gespeichert werden: Die Plattform meldet den Typ {{type}}, den diese Version nicht kennt",
     },
     name: {
       thingName: "Ding-Name",

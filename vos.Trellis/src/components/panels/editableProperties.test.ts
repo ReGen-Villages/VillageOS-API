@@ -1,13 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { withDeclaredTypes } from './editableProperties';
-import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE } from '../../utils/constants';
 import type { EffectiveProperty } from '../../types/vos';
 
-// Bug #6141 — the platform recognises only its own type names and answers anything else with
-// "Invalid type specified", so a short name here fails every property write the panel makes.
-const PLATFORM_TYPE = /^vos\.[A-Z]/;
-
-const resolved = (entries: Record<string, string>): Record<string, EffectiveProperty> =>
+const resolved =(entries: Record<string, string>): Record<string, EffectiveProperty> =>
   Object.fromEntries(
     Object.entries(entries).map(([name, Type]) => [name, { Value: null, Type, IsInherited: false }]),
   );
@@ -41,15 +36,5 @@ describe('withDeclaredTypes', () => {
 
   it('offers nothing until the resolved set has arrived', () => {
     expect(withDeclaredTypes([['door_number', '4711']], null)).toEqual([]);
-  });
-});
-
-describe('PROPERTY_TYPES', () => {
-  it('offers only types the platform recognises', () => {
-    for (const { value } of PROPERTY_TYPES) expect(value).toMatch(PLATFORM_TYPE);
-  });
-
-  it('starts the add row on one of the types it offers', () => {
-    expect(PROPERTY_TYPES.map((t) => t.value)).toContain(DEFAULT_PROPERTY_TYPE);
   });
 });

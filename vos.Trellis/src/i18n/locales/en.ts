@@ -451,6 +451,7 @@ export const en = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "Failed to add property",
       saveFailed: "Failed to save",
+      unknownType: "Cannot save {{name}}: the platform reports type {{type}}, which this version does not know",
     },
     name: {
       thingName: "Thing name",

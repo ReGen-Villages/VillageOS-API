@@ -1,8 +1,9 @@
 import { apiClient } from './client';
 import type { VosRelationship, EffectiveProperty } from '../types/vos';
+import type { VosTypeName } from '../utils/constants';
 import { unwrapRelationship } from '../utils/propertyMapper';
 
-async function writeProperty(id: string, name: string, type: string, value: unknown) {
+async function writeProperty(id: string, name: string, type: VosTypeName, value: unknown) {
   const rel = await apiClient.put<VosRelationship>(`/api/relationships/${id}/properties`, { Name: name, Type: type, Value: value });
   return unwrapRelationship(rel);
 }
