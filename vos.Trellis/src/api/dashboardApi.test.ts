@@ -61,6 +61,10 @@ function ctxFor(scopeId: string | null): ResolveContext {
   return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Village' };
 }
 
+async function rowsOf(binding: Binding, ctx: ResolveContext): Promise<Record<string, unknown>[]> {
+  return (await resolveBinding(binding, ctx)) as Record<string, unknown>[];
+}
+
 describe('discovery', () => {
   it('finds Dashboard config Things and parses their spec', () => {
     const { things, relationships } = model();
@@ -387,10 +391,6 @@ describe('resolveBinding', () => {
       return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Site' };
     }
 
-    async function rowsOf(binding: Binding, ctx: ResolveContext): Promise<Record<string, unknown>[]> {
-      return (await resolveBinding(binding, ctx)) as Record<string, unknown>[];
-    }
-
     it('lists every Thing of the archetype, in no state and with no scope selected', async () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine' }, fleetCtx(null));
       expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1', 'RBT-2']);
@@ -550,6 +550,18 @@ describe('resolveBinding', () => {
         expect(await resolveBinding(bays, fleet('rbt2'))).toBeNull();
       });
 
+      // A relationship can name an id the loaded model has no Thing for; the cell drops it rather
+      // than showing a gap among the names.
+      it('skips an edge pointing at a Thing the model does not hold', async () => {
+        const ctx = fleet('rbt1');
+        ctx.idx = buildModelIndex(
+          [...ctx.idx.byId.values()],
+          [...ctx.idx.relationships, { Id: 'rbt1-at-ghost', Name: 'rbt1 at ghost',
+            SubjectId: 'rbt1', PredicateId: 'at', TargetId: 'ghost', Properties: {} }],
+        );
+        expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'at' }] }, ctx)).toBe('LOC-A');
+      });
+
       it('resolves to null when the path reaches nothing', async () => {
         expect(await resolveBinding({ kind: 'related', via: [{ predicate: 'operates_in' }] }, fleet('rbt2'))).toBeNull();
       });
@@ -587,11 +599,33 @@ describe('resolveBinding', () => {
       });
     });
 
-    describe('computed columns on a row-producing binding', () => {
-      async function rowsOf(binding: Binding, ctx: ResolveContext): Promise<Record<string, unknown>[]> {
-        return (await resolveBinding(binding, ctx)) as Record<string, unknown>[];
-      }
+    // Every widget resolves its own bindings, so the same state wanted by a count, a funnel stage
+    // and a table used to be three requests per refresh.
+    describe('state reads shared across a refresh generation', () => {
+      it('asks once for a state that several bindings of one generation want', async () => {
+        const ctx: ResolveContext = { ...fleet(null), stateMembers: new Map() };
+        await Promise.all([
+          resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx),
+          resolveBinding({ kind: 'stateList', state: 'reachable' }, ctx),
+          resolveBinding({ kind: 'thingList', archetype: 'Machine',
+            computed: [{ key: 'condition', value: { kind: 'stateOf', states: ['reachable'] } }] }, ctx),
+        ]);
+        expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
+      });
 
+      // A shared read must not share a failure: one hiccup would otherwise stick to every later
+      // reader of the generation, with nothing to retry it.
+      it('retries a state read that failed instead of sharing the failure', async () => {
+        const ctx: ResolveContext = { ...fleet(null), stateMembers: new Map() };
+        vi.mocked(stateApi.getThingsInState)
+          .mockRejectedValueOnce(new Error('broker unreachable'))
+          .mockResolvedValueOnce({ StateName: 'reachable', Things: [{ Id: 'rbt1', Name: 'RBT-1' }] });
+        await expect(resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx)).rejects.toThrow();
+        expect(await resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx)).toBe(1);
+      });
+    });
+
+    describe('computed columns on a row-producing binding', () => {
       const roster: Binding = {
         kind: 'thingList',
         archetype: 'Machine',

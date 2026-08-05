@@ -43,6 +43,14 @@ export interface ModelIndex {
   byId: Map<string, VosThing>;
   byName: Map<string, VosThing>;
   relationships: VosRelationship[];
+  /** predicate id → the relationships asserting it, so following one predicate reads its own
+   *  edges instead of scanning every edge in the model. */
+  relationshipsByPredicate: Map<string, VosRelationship[]>;
+  /** `predicate id:direction` → Thing id → the ids that predicate reaches from it. Built the
+   *  first time a walk asks for it and discarded with the index. A per-row binding walks the same
+   *  predicate once per row, so grouping its edges per row would make a page cost grow with the
+   *  square of the row count. */
+  adjacencyByPredicate: Map<string, Map<string, string[]>>;
   /** predicate name → id, and id → name */
   predicateNameToId: Map<string, string>;
   predicateIdToName: Map<string, string>;
@@ -53,6 +61,10 @@ export interface ModelIndex {
   /** Thing id → ids of the archetypes it is directly `is`-linked to (its parents). Used to
    *  resolve inherited property defaults up the `is`-chain (Bug #6048). */
   isParents: Map<string, string[]>;
+  /** Archetype name → its instance ids, filled the first time each archetype is asked for and
+   *  discarded with the index it belongs to. The walk is over a hierarchy that cannot change
+   *  without a new index, and a per-row binding repeats the same question once per row. */
+  archetypeMembers: Map<string, Set<string>>;
 }
 
 export function buildModelIndex(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
@@ -65,7 +77,11 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
   }
   const predicateNameToId = new Map<string, string>();
   const predicateIdToName = new Map<string, string>();
+  const relationshipsByPredicate = new Map<string, VosRelationship[]>();
   for (const r of relationships) {
+    const asserted = relationshipsByPredicate.get(r.PredicateId);
+    if (asserted) asserted.push(r);
+    else relationshipsByPredicate.set(r.PredicateId, [r]);
     const p = byId.get(r.PredicateId);
     if (p) {
       predicateIdToName.set(r.PredicateId, p.Name);
@@ -91,7 +107,28 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
       else isParents.set(r.SubjectId, [r.TargetId]);
     }
   }
-  return { byId, byName, relationships, predicateNameToId, predicateIdToName, isChildren, isTargets, isParents };
+  return {
+    byId, byName, relationships, relationshipsByPredicate,
+    predicateNameToId, predicateIdToName, isChildren, isTargets, isParents,
+    archetypeMembers: new Map(),
+    adjacencyByPredicate: new Map(),
+  };
+}
+
+/** Thing id → the ids one predicate reaches from it, in the asked-for direction. */
+function adjacency(predicateId: string, inbound: boolean, idx: ModelIndex): Map<string, string[]> {
+  const key = `${predicateId}:${inbound ? 'in' : 'out'}`;
+  const built = idx.adjacencyByPredicate.get(key);
+  if (built) return built;
+  const edges = new Map<string, string[]>();
+  for (const r of idx.relationshipsByPredicate.get(predicateId) ?? []) {
+    const [from, to] = inbound ? [r.TargetId, r.SubjectId] : [r.SubjectId, r.TargetId];
+    const next = edges.get(from);
+    if (next) next.push(to);
+    else edges.set(from, [to]);
+  }
+  idx.adjacencyByPredicate.set(key, edges);
+  return edges;
 }
 
 /**
@@ -100,10 +137,16 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
  * PickLocation is Location), so a direct-edge match would miss every real instance under a
  * parent archetype. We descend the is-chain; a Thing that is itself an `is`-target is treated
  * as an archetype/sub-type and descended into, not counted. Cycle-guarded.
+ *
+ * The answer is remembered on the index and handed out by reference, so callers read it and
+ * never write to it.
  */
 export function thingIdsOfArchetype(archetype: string, idx: ModelIndex): Set<string> {
+  const answered = idx.archetypeMembers.get(archetype);
+  if (answered) return answered;
   const archThing = idx.byName.get(archetype);
   const out = new Set<string>();
+  idx.archetypeMembers.set(archetype, out);
   if (!archThing) return out;
   const seen = new Set<string>();          // archetype nodes already descended (cycle guard)
   const frontier = [archThing.Id];
@@ -184,10 +227,11 @@ export interface ResolveContext {
   compareArchetype?: string;
   /** Bumped on live events to force re-resolution of server-side bindings. Part of identity only. */
   nonce?: number;
-  /** State reads shared by the rows of one resolution, so a per-row state binding asks the broker
-   *  once per state name rather than once per row. Held in flight, not as a value, so rows
-   *  resolving in parallel share the same request. Created per row set and discarded with it —
-   *  a cache that outlived the resolution would serve a stale membership on the next refresh. */
+  /** The state reads of one refresh generation: everything resolved with this context asks the
+   *  broker once per state name, however many rows and widgets want that state. Held in flight
+   *  rather than as a value, so readers running in parallel share one request. Its lifetime is
+   *  the context's own — a map outliving the generation would serve a membership the model has
+   *  since moved past. */
   stateMembers?: Map<string, Promise<ThingsInStateResponse>>;
 }
 
@@ -196,6 +240,9 @@ function thingsInState(state: string, ctx: ResolveContext): Promise<ThingsInStat
   if (inFlight) return inFlight;
   const request = stateApi.getThingsInState(state);
   ctx.stateMembers?.set(state, request);
+  // A failed read is dropped rather than shared: one broker hiccup would otherwise stick to
+  // every later reader of this generation, with nothing to retry it until the next refresh.
+  request.catch(() => ctx.stateMembers?.delete(state));
   return request;
 }
 
@@ -211,20 +258,12 @@ function scopeMemberIds(scope: ScopeRef | undefined, ctx: ResolveContext): Set<s
   if (!scope || !ctx.scopeId) return null;
   const pid = ctx.idx.predicateNameToId.get(scope.viaPredicate);
   if (!pid) return new Set();
-  const inbound = scope.direction === 'in';
-  const adjacency = new Map<string, string[]>();
-  for (const r of ctx.idx.relationships) {
-    if (r.PredicateId !== pid) continue;
-    const [from, to] = inbound ? [r.TargetId, r.SubjectId] : [r.SubjectId, r.TargetId];
-    const next = adjacency.get(from);
-    if (next) next.push(to);
-    else adjacency.set(from, [to]);
-  }
+  const edges = adjacency(pid, scope.direction === 'in', ctx.idx);
   const members = new Set<string>();
   const walked = new Set<string>([ctx.scopeId]);   // seeded so a cycle back to the scope re-adds nothing
   const frontier = [ctx.scopeId];
   while (frontier.length) {
-    for (const next of adjacency.get(frontier.pop()!) ?? []) {
+    for (const next of edges.get(frontier.pop()!) ?? []) {
       if (walked.has(next)) continue;
       walked.add(next);
       members.add(next);
@@ -270,13 +309,10 @@ function referencedThing(ref: string | undefined, ctx: ResolveContext): VosThing
 async function followStep(fromIds: string[], step: RelationStep, ctx: ResolveContext): Promise<string[]> {
   const pid = ctx.idx.predicateNameToId.get(step.predicate);
   if (!pid) return [];
-  const inbound = step.direction === 'in';
-  const from = new Set(fromIds);
+  const edges = adjacency(pid, step.direction === 'in', ctx.idx);
   const reached = new Set<string>();
-  for (const r of ctx.idx.relationships) {
-    if (r.PredicateId !== pid) continue;
-    const [subject, target] = inbound ? [r.TargetId, r.SubjectId] : [r.SubjectId, r.TargetId];
-    if (from.has(subject)) reached.add(target);
+  for (const id of fromIds) {
+    for (const target of edges.get(id) ?? []) reached.add(target);
   }
   let ids = [...reached];
   if (step.archetype) {
@@ -295,8 +331,9 @@ async function followStep(fromIds: string[], step: RelationStep, ctx: ResolveCon
 }
 
 /** Resolve each computed column once per row, with that row's Thing as the scope — so the binding
- *  a `$scope`-driven widget uses yields this row's own value here. The rows share one set of state
- *  reads, which is what keeps a state-reading column at one request per state rather than per row. */
+ *  a `$scope`-driven widget uses yields this row's own value here. The rows share their state
+ *  reads, which is what keeps a state-reading column at one request per state rather than per row
+ *  even when the caller gave no context to share through. */
 async function withComputedColumns(
   rows: Row[],
   computed: ComputedColumn[] | undefined,
@@ -358,11 +395,15 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     }
 
     case 'aggregate': {
-      let items = thingsOfArchetype(binding.archetype, ctx.idx).filter((t) =>
-        passesFilters(t, binding.where, ctx.idx),
-      );
       const members = scopeMemberIds(binding.scope, ctx);
-      if (members) items = items.filter((t) => members.has(t.Id));
+      const ofArchetype = thingIdsOfArchetype(binding.archetype, ctx.idx);
+      // Start from the scope's members when there is a scope, not from the archetype: as a
+      // per-row column this asks about one row's handful of members, while the archetype can
+      // hold every Thing the page lists.
+      const candidates = members ? [...members].filter((id) => ofArchetype.has(id)) : [...ofArchetype];
+      const items = candidates
+        .map((id) => ctx.idx.byId.get(id))
+        .filter((t): t is VosThing => !!t && passesFilters(t, binding.where, ctx.idx));
       if (binding.op === 'count') return items.length;
       const vals = items
         .map((t) => num(effectiveProperties(t, ctx.idx)[binding.property ?? '']))
@@ -513,7 +554,7 @@ export function asNumber(r: BindingResult): number | null {
 /** A resolved binding narrowed to what one table cell can hold. A number stays a number so the
  *  column can format and sort it as one; text stays text; a table or a series is not a cell value
  *  and lands empty rather than as its stringified self. */
-export function asCell(r: BindingResult): number | string | null {
+function asCell(r: BindingResult): number | string | null {
   if (typeof r === 'string') return r;
   return asNumber(r);
 }
