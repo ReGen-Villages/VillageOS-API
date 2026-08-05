@@ -11,10 +11,8 @@ const {
   devopsSlug,
   anchorMap,
   pageFileName,
-  orderEntry,
   rewriteLinks,
   convertPage,
-  buildOrders,
 } = require('./docs-to-wiki');
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
@@ -143,18 +141,6 @@ test('a page path becomes the file name the wiki expects', () => {
   assert.equal(pageFileName('/Services/Relationship Services'), 'Services/Relationship-Services.md');
   // A hyphen the name really contains is encoded, so it survives the round trip to a page name.
   assert.equal(pageFileName('/API-Reference'), 'API%2DReference.md');
-  assert.equal(orderEntry('/Services/Relationship Services'), 'Relationship-Services');
-});
-
-test('ordering files list each folder in manifest order', () => {
-  const orders = buildOrders([
-    { page: '/Home' },
-    { page: '/Services' },
-    { page: '/Services/Delta' },
-    { page: '/Services/Relationship Services' },
-  ]);
-  assert.deepEqual(orders.get(''), ['Home', 'Services']);
-  assert.deepEqual(orders.get('Services'), ['Delta', 'Relationship-Services']);
 });
 
 test('a generated page names its source so an editor knows edits are overwritten', () => {
