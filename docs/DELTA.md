@@ -139,9 +139,10 @@ dotnet run -- --port=<port> --myceliumUrl=<url> \
 ```
 
 `--issuer` / `--audience` must match what Mycelium signed with, or `/handle` auth rejects valid
-tokens (Bug #5391). Unlike the other services, `CliArgs.Parse` also accepts an `IConfiguration`
-fallback: any flag absent from the command line falls back to `config[Key]` (flat keys: `Port`,
-`MyceliumUrl`, `Token`, `SigningKey`, `Issuer`, `Audience`); CLI args always win.
+tokens. Any flag absent from the command line falls back to configuration and the environment under
+its Pascal-case name — `Port`, `MyceliumUrl`, `Token`, `SigningKey`, `Issuer`, `Audience` — so Delta
+can be launched with no flags at all. A flag always wins over configuration. This is the shared
+behaviour every service now has; see `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs`.
 
 ## Seed loading
 
@@ -158,7 +159,7 @@ A parse failure or a graph-validation failure aborts boot.
 - Mycelium client (Thing/relationship CRUD): `vos.Service.Delta/Services/MyceliumClient.cs`.
 - Seed loading: `vos.Service.Delta/Helpers/EndpointSeedLoader.cs`,
   `Services/FileEndpointSeedProvider.cs`.
-- CLI: `vos.Service.Delta/Configuration/CliArgs.cs`.
+- Launch settings: `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs` (shared).
 - Tests: `Tests/vos.Service.Delta.Tests/` (`RegisterEndpointTests`,
   `TemplateCatalogProvisionerTests`, `EndpointSeedGraph*Tests`, `EsriEndpointTemplateTests`,
   `CompensateAsyncTests`, …).

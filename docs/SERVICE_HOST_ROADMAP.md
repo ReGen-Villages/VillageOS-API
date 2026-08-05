@@ -14,7 +14,28 @@ the entry here.
 
 ## 1. Delivery contract — shared host bootstrap + idempotent receive
 
-> **Status:** `PROPOSED`. Needs a Feature work item before any code lands.
+> **Status:** `PARTLY SHIPPED`. The host-bootstrap half landed under Feature
+> #6167; the delivery-contract half is still `PROPOSED` and needs its own
+> Feature before any code lands.
+>
+> **What shipped**, with the names actually used — the sketch below proposed
+> different ones:
+>
+> | Concern | Shipped as |
+> |---|---|
+> | Launch settings | `vos.Service.Shared.Configuration.ServiceLaunchSettings`, plus a per-service record for a service's own settings |
+> | Serilog file sink | `ServiceHost.ConfigureLogging(serviceName, logFileName, writeToFile)` |
+> | `/health`, `/stats`, `/shutdown` | `app.MapHealthAndStats(...)` and `app.MapShutdown(...)` |
+> | Registration lifecycle | `builder.Services.AddMyceliumRegistration(serviceName, port)` |
+> | `/handle` request routing | `vos.Service.Shared.DagNode.HandleRequestRouter` |
+>
+> The launch settings also gained something the sketch did not name: every
+> setting reads from configuration and the environment, not just the command
+> line. Six of the nine services could not do that, which was Bug #6168.
+>
+> **What has not shipped:** the shared auth extension, in-flight request
+> draining on shutdown, `X-Delivery-Id` dedup, the common response envelope,
+> and the outbox. Those are what the rest of this section is about.
 
 Every microservice in `VillageOS-API` today (`vos.Service.CSharp.Echo`,
 `.Tributary`, `.Delta`, `.Metabolism`) re-implements ~80 lines of host
@@ -51,11 +72,11 @@ the shared assembly — zero migration friction.
 
 | Concern | Today (per-service) | After |
 |---|---|---|
-| CLI parsing (`--port` / `--myceliumUrl` / `--token` / `--signingKey`) | 4× duplicated `Configuration/CliArgs.cs` | `MicroserviceCliArgs` base record + `CliArgsParser.Parse<T>(args)`; services extend for service-specific flags |
-| Serilog file sink + enrichment | 4× duplicated 12-line block | `builder.AddMicroserviceLogging("ServiceName")` |
+| ~~CLI parsing~~ | ~~duplicated `Configuration/CliArgs.cs`~~ | **Shipped** as `ServiceLaunchSettings` — see the status note above |
+| ~~Serilog file sink + enrichment~~ | ~~duplicated 12-line block~~ | **Shipped** as `ServiceHost.ConfigureLogging` |
 | JWT auth (`AddMyceliumTokenAuth` + `UseAuthentication` + `RequireAuthorization` gating) | 4× duplicated 20-line block | `builder.AddMicroserviceAuth(signingKey)` + `endpoint.RequireMyceliumAuth()` (no-op when signingKey absent) |
-| `/health`, `/shutdown` endpoints | Each service hand-rolls; shapes drift | `app.MapStandardEndpoints(serviceName, healthExtras: …)` |
-| `RegisterAsync` / `DeregisterAsync` lifecycle | Echo only; pattern hand-rolled | `app.UseMyceliumLifecycle(serviceName, startCommand)` |
+| ~~`/health`, `/shutdown` endpoints~~ | ~~each service hand-rolls; shapes drift~~ | **Shipped** as `MapHealthAndStats` and `MapShutdown` |
+| ~~`RegisterAsync` / `DeregisterAsync` lifecycle~~ | ~~Echo only; pattern hand-rolled~~ | **Shipped** as `AddMyceliumRegistration` |
 | In-flight request draining on shutdown | Not implemented anywhere | Built into `UseMyceliumLifecycle`'s stopping hook |
 | Idempotent `X-Delivery-Id` dedup | Not implemented anywhere | `app.UseDeliveryReceive()` middleware + `IDeliveryReceiveCache` |
 | ACK status semantics (200/202/409/429/500/501) | Returned ad-hoc as 200/400/500 | `Ack.Ok / Accepted / Duplicate / TooBusy / Failed / Refused` helpers |
