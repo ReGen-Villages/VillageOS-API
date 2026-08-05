@@ -29,6 +29,7 @@ export function PropertyModePanel() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { load(); }, [load]);
 
   const save = async () => {

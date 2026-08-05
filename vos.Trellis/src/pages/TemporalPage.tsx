@@ -157,6 +157,7 @@ function ThingMutationsPanel() {
     try { setThings(await thingApi.getAll()); } catch { /* ignore */ }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { loadThings(); }, [loadThings]);
 
   const loadMutations = async () => {
@@ -254,6 +255,7 @@ function RelationshipMutationsPanel() {
     try { setRelationships(await relationshipApi.getAll()); } catch { /* ignore */ }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { loadRels(); }, [loadRels]);
 
   const loadMutations = async () => {
@@ -438,6 +440,7 @@ function PropertyHistoryPanel() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
     loadThings();
   }, [loadThings]);
 

@@ -527,7 +527,10 @@ export function PipelinePage() {
                         <input
                           aria-label={t('pipeline.portName', { index: i + 1 })}
                           value={p.portName}
-                          onChange={(e) => setBoundaryPorts(selectedNode.id, d.ports.map((q, j) => (j === i ? { ...q, portName: e.target.value } : q)))}
+                          onChange={
+                            // eslint-disable-next-line react-hooks/refs -- an event handler, which the rule's own guidance names as the right place to read a ref; it cannot tell one written inline in JSX from code running during render
+                            (e) => setBoundaryPorts(selectedNode.id, d.ports.map((q, j) => (j === i ? { ...q, portName: e.target.value } : q)))
+                          }
                           className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
                         />
                         <button
@@ -556,7 +559,10 @@ export function PipelinePage() {
                           <input
                             placeholder={t('pipeline.fromParam')}
                             value={bindings[p.portName] ?? ''}
-                            onChange={(e) => setBinding(selectedNode.id, p.portName, e.target.value)}
+                            onChange={
+                              // eslint-disable-next-line react-hooks/refs -- an event handler, which the rule's own guidance names as the right place to read a ref; it cannot tell one written inline in JSX from code running during render
+                              (e) => setBinding(selectedNode.id, p.portName, e.target.value)
+                            }
                             className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
                           />
                         )}
@@ -582,7 +588,10 @@ export function PipelinePage() {
                     aria-label={t('pipeline.wireFromPath')}
                     placeholder="e.g. user.id"
                     value={data.fromPath ?? ''}
-                    onChange={(e) => setEdgePath(selectedEdge.id, 'fromPath', e.target.value)}
+                    onChange={
+                      // eslint-disable-next-line react-hooks/refs -- an event handler, which the rule's own guidance names as the right place to read a ref; it cannot tell one written inline in JSX from code running during render
+                      (e) => setEdgePath(selectedEdge.id, 'fromPath', e.target.value)
+                    }
                     className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
                   />
                 </label>
