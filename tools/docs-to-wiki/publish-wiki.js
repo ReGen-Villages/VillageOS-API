@@ -58,6 +58,13 @@ function markdownFiles(directory, base = directory) {
   return found;
 }
 
+/** The attachments API takes the content base64-encoded. A raw body is rejected with "The input
+ *  is not a valid Base-64 string", which reads like a problem with the file rather than with how
+ *  it was sent — so this stays a named step rather than an inline call nobody questions. */
+function attachmentBody(bytes) {
+  return bytes.toString('base64');
+}
+
 function flattenPages(page, into = []) {
   into.push(page.path || '/');
   for (const child of page.subPages ?? []) flattenPages(child, into);
@@ -91,7 +98,7 @@ async function main() {
       const response = await fetch(`${wikiUrl}/attachments?name=${encodeURIComponent(name)}&${API_VERSION}`, {
         method: 'PUT',
         headers: { Authorization: authorization, 'Content-Type': 'application/octet-stream' },
-        body: fs.readFileSync(path.join(attachmentDirectory, name)),
+        body: attachmentBody(fs.readFileSync(path.join(attachmentDirectory, name))),
       });
       if (!response.ok && response.status !== 409) {
         throw new Error(`attachment ${name} -> ${response.status} ${await response.text()}`);
@@ -132,7 +139,7 @@ async function main() {
   console.log(`${written} written, ${unchanged} already current, ${generated.size} pages total`);
 }
 
-module.exports = { pagePathOf, parentsFirst, pagesToRemove, flattenPages, markdownFiles };
+module.exports = { pagePathOf, parentsFirst, pagesToRemove, flattenPages, markdownFiles, attachmentBody };
 
 if (require.main === module) {
   main().catch((error) => {
