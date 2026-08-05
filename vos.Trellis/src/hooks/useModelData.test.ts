@@ -375,29 +375,43 @@ describe('useModelData', () => {
       });
     });
 
-    // The client applies its own relationship-property deletion locally, because the platform
-    // reports a retraction as a change to null and nothing on the wire tells the two apart. The
-    // echo that follows must not put the property back as an empty row.
-    it('does not resurrect a deleted relationship property when the null echo arrives', async () => {
+    // Bug #6149 — a retraction used to arrive as a change to null, which is also what setting a
+    // property to null looks like, so a property another user deleted stayed on screen as an empty
+    // row. It now says so, and the two are handled apart.
+    it('takes a deleted relationship property out of the store', async () => {
       mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });
       renderHook(() => useModelData());
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
 
-      useModelStore.getState().applyBatch({ relationshipPropertyRemovals: [{ id: 'r1', name: 'quantity' }] });
-      await act(async () => handlers.get('RelationshipPropertyChanged')!('r1', 'quantity', null));
-
-      expect('quantity' in (useModelStore.getState().relationships[0].Properties ?? {})).toBe(false);
+      await act(async () => handlers.get('RelationshipPropertyDeleted')!('r1', 'quantity'));
+      await waitFor(() =>
+        expect('quantity' in (useModelStore.getState().relationships[0].Properties ?? {})).toBe(false),
+      );
     });
 
-    it('still applies a null to a property the relationship holds', async () => {
+    it('keeps a relationship property that was genuinely set to null', async () => {
       mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });
       renderHook(() => useModelData());
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
 
       await act(async () => handlers.get('RelationshipPropertyChanged')!('r1', 'quantity', null));
-      await waitFor(() => expect(useModelStore.getState().relationships[0].Properties?.quantity).toBeNull());
+      await waitFor(() => {
+        const properties = useModelStore.getState().relationships[0].Properties ?? {};
+        expect('quantity' in properties).toBe(true);
+        expect(properties.quantity).toBeNull();
+      });
+    });
+
+    it('ignores a deletion on a relationship that is neither open nor on the open node', async () => {
+      mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
+      useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null });
+      renderHook(() => useModelData());
+      await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
+
+      await act(async () => handlers.get('RelationshipPropertyDeleted')!('r1', 'quantity'));
+      expect(useModelStore.getState().relationships[0].Properties?.quantity).toBe(5);
     });
 
     it('ignores a change to a relationship that is neither open nor on the open node', async () => {
