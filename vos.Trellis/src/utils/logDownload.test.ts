@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   snapshotFileName,
   fullLogFallbackName,
   fileNameFromContentDisposition,
   snapshotBlob,
+  triggerDownload,
 } from './logDownload';
 
 describe('snapshotFileName', () => {
@@ -69,5 +70,54 @@ describe('snapshotBlob', () => {
 
   it('produces an empty blob for an empty buffer', async () => {
     expect(await snapshotBlob([]).text()).toBe('');
+  });
+});
+
+describe('fileNameFromContentDisposition, when the extended form is damaged', () => {
+  // A stray percent is not valid escaping, so decoding throws. The raw text is still a better
+  // answer than dropping the server's name and falling back.
+  it('keeps the undecodable name rather than discarding it', () => {
+    expect(fileNameFromContentDisposition("attachment; filename*=UTF-8''broker%.log", 'fallback.log'))
+      .toBe('broker%.log');
+  });
+});
+
+describe('triggerDownload', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('saves the blob under the given name and cleans up after itself', () => {
+    const createObjectURL = vi.fn(() => 'blob:fake-url');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    triggerDownload(new Blob(['a line']), 'broker.log');
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(click).toHaveBeenCalledOnce();
+
+    // The object URL is released and the link removed, so repeated downloads do not leak either.
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake-url');
+    expect(document.querySelectorAll('a[download]')).toHaveLength(0);
+
+    vi.unstubAllGlobals();
+  });
+
+  it('names the saved file', () => {
+    vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:fake-url', revokeObjectURL: () => {} });
+
+    let downloadName: string | undefined;
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      downloadName = this.download;
+    });
+
+    triggerDownload(new Blob(['x']), 'broker-snapshot-2026-08-05_12-00-00.log');
+
+    expect(downloadName).toBe('broker-snapshot-2026-08-05_12-00-00.log');
+
+    vi.unstubAllGlobals();
   });
 });
