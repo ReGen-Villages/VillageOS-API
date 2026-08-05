@@ -15,6 +15,21 @@ how data is addressed across tiers, and why current-state reads stay fast.
 This split is what keeps high-frequency, long-lived observation streams sustainable: the
 in-memory footprint stays bounded by the size of the graph, not by the length of its history.
 
+## Which clock T is measured against
+
+**Model time** — the clock `GET /api/time` serves. An instant you pass to an as-of read is read in
+that clock, the timestamps you get back are recorded in it, and it is the clock the platform judges
+by when it evaluates a criterion or a range.
+
+Left alone, model time *is* wall time, so the distinction never shows. A deployment that **anchors**
+the clock — setting a start instant, a rate, or both — moves the two apart by however much it
+chooses, and from then on the difference decides whether a read lands on the history at all. Ask in
+wall time against an anchored model and you are asking about an interval nothing was recorded in.
+
+So a client that reasons about time should read the current instant from `/api/time` rather than from
+its own clock, and stamp any timestamp of its own from the same place. One clock, one base, whether
+or not anything ever anchors it.
+
 ## Derived-state history is the exception
 
 A Thing's derived states (the ranges whose criteria hold) are computed, never stored — there is no
