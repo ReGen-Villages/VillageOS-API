@@ -335,11 +335,13 @@ describe('searchThings', () => {
       expect(keys).toContain('realProp');
     });
 
-    it('includes formatted string for each previewProp', () => {
+    // Left unformatted on purpose: how a value should read depends on the type the platform
+    // declares for it, which this index does not carry. The page resolves that and formats.
+    it('carries each previewProp value as it stands', () => {
       const thing = makeThing('t1', 'Thing', { count: 42 });
       const localIndex = buildThingSearchIndex([thing], []);
       const results = searchThings('Thing', [thing], localIndex);
-      expect(typeof results[0].previewProps[0].formatted).toBe('string');
+      expect(results[0].previewProps[0]).toEqual({ key: 'count', value: 42 });
     });
   });
 });

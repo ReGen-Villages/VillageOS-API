@@ -2,6 +2,9 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
+import { formatPropertyValue } from '../utils/formatters';
+import { useNumberDisplaySettings } from '../hooks/useNumberDisplaySettings';
+import { useDeclaredPropertyTypes } from '../hooks/useDeclaredPropertyTypes';
 import { useUiStore } from '../stores/uiStore';
 import { toast } from '../components/common/toastStore';
 import {
@@ -25,6 +28,9 @@ export function ThingSearchPage() {
   const relationships = useModelStore((s) => s.relationships);
   const selectNode = useUiStore((s) => s.selectNode);
   const navigate = useNavigate();
+  const numbers = useNumberDisplaySettings();
+
+  const declaredTypes = useDeclaredPropertyTypes(true);
 
   const onInputChange = useCallback((value: string) => {
     setInputValue(value);
@@ -156,7 +162,9 @@ export function ThingSearchPage() {
                         <span key={p.key} className="text-xs text-zinc-500">
                           <span className="text-amber-400 font-mono">{p.key}</span>
                           <span className="mx-1 text-zinc-600">=</span>
-                          <span className="text-zinc-400">{p.formatted}</span>
+                          <span className="text-zinc-400">
+                            {formatPropertyValue(p.value, declaredTypes?.[m.id]?.[p.key]?.Type, numbers)}
+                          </span>
                         </span>
                       ))}
                       {m.ownPropertyCount > PREVIEW_PROPS && (

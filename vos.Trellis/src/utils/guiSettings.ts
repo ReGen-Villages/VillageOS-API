@@ -76,6 +76,26 @@ export const LAYOUT_DEFAULTS: LayoutSettings = {
   classifyingProperty: 'ifcClass',
 };
 
+/**
+ * How many decimal places a number shows, read from the GUI_Settings type Thing (#6163).
+ *
+ * There is no digit count that suits every model — a model of geometry, a model of money and a
+ * model of sensor readings each want a different one, and the client cannot know which it is
+ * looking at. The model that knows says so. The floating-point types and the decimal type are
+ * separate settings because they exist for different reasons: one is a measurement with limited
+ * significant digits, the other an exact quantity of the kind money is counted in. The whole-number
+ * types take no setting, having no decimal places to show.
+ */
+export interface NumberDisplaySettings {
+  floatingPointPrecision: number;
+  decimalPrecision: number;
+}
+
+export const NUMBER_DISPLAY_DEFAULTS: NumberDisplaySettings = {
+  floatingPointPrecision: 5,
+  decimalPrecision: 5,
+};
+
 export const FLASH_DEFAULTS: FlashSettings = {
   flashEdgeSize: 1.5,
   flashNodeSizeFactor: 1.4,
@@ -240,6 +260,28 @@ export function extractAllGuiSettings(
   }
 
   return { flash, layout, predicateColors };
+}
+
+export function extractNumberDisplaySettings(
+  things: VosThing[],
+  relationships: VosRelationship[],
+): NumberDisplaySettings {
+  const p = findGuiSettingsProperties(things, relationships);
+  return p ? readNumberDisplaySettings(p) : { ...NUMBER_DISPLAY_DEFAULTS };
+}
+
+function readNumberDisplaySettings(p: Record<string, unknown>): NumberDisplaySettings {
+  return {
+    floatingPointPrecision: toDecimalPlaces(p['FloatingPointDisplayPrecision'], NUMBER_DISPLAY_DEFAULTS.floatingPointPrecision),
+    decimalPrecision: toDecimalPlaces(p['DecimalDisplayPrecision'], NUMBER_DISPLAY_DEFAULTS.decimalPrecision),
+  };
+}
+
+/** A count of decimal places has to be a whole number no smaller than zero, and toFixed rejects
+ *  anything past twenty. A setting outside that says nothing usable, so the default stands. */
+function toDecimalPlaces(v: unknown, fallback: number): number {
+  if (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 20) return v;
+  return fallback;
 }
 
 function toNumber(v: unknown, fallback: number): number {

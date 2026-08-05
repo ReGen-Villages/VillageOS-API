@@ -10,6 +10,9 @@ import { X, GripHorizontal, LayoutGrid } from 'lucide-react';
 import type { ModelIndex } from '../../../api/dashboardApi';
 import { effectiveProperties } from '../../../utils/propertyMapper';
 import { formatDateTime, formatGuid, formatPropertyValue, formatTimestamp } from '../../../utils/formatters';
+import { useNumberDisplaySettings } from '../../../hooks/useNumberDisplaySettings';
+import type { DeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyTypes';
+import type { NumberDisplaySettings } from '../../../utils/guiSettings';
 import { badgeTone } from '../widgets/format';
 import type { DetailSpec } from '../../../types/dashboard';
 import type { StateHistoryCoverage } from '../../../types/vos';
@@ -32,6 +35,9 @@ interface Props {
   onFocus: () => void;
   onSpread: () => void;
   openDetail: (thingId: string) => void;
+  /** Resolved properties per Thing id, for formatting a value to what the platform says it holds
+   *  (#6163). Null while the read is in flight — values format by shape until it lands. */
+  declaredTypes: DeclaredPropertyTypes | null;
 }
 
 const WINDOW_WIDTH = 460;
@@ -79,10 +85,14 @@ function RelationGroups({
   relations,
   statesById,
   openDetail,
+  declaredTypes,
+  numbers,
 }: {
   relations: ResolvedRelation[];
   statesById: Map<string, string[]>;
   openDetail: (thingId: string) => void;
+  declaredTypes: DeclaredPropertyTypes | null;
+  numbers: NumberDisplaySettings;
 }) {
   const { t } = useTranslation();
   return (
@@ -114,7 +124,9 @@ function RelationGroups({
                         {edge.properties.map(([key, value]) => (
                           <div key={key} className="contents">
                             <div className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate" title={key}>{key}</div>
-                            <div className="text-[11px] font-mono text-zinc-700 dark:text-zinc-200 break-words">{formatPropertyValue(value)}</div>
+                            <div className="text-[11px] font-mono text-zinc-700 dark:text-zinc-200 break-words">
+                              {formatPropertyValue(value, declaredTypes?.[edge.thingId]?.[key]?.Type, numbers)}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -122,7 +134,7 @@ function RelationGroups({
                   </button>
                   {edge.children.length > 0 && (
                     <div className="ml-3 mb-1.5 mr-1.5 pl-2 border-l border-zinc-200 dark:border-zinc-700">
-                      <RelationGroups relations={edge.children} statesById={statesById} openDetail={openDetail} />
+                      <RelationGroups relations={edge.children} statesById={statesById} openDetail={openDetail} declaredTypes={declaredTypes} numbers={numbers} />
                     </div>
                   )}
                 </div>
@@ -135,9 +147,10 @@ function RelationGroups({
   );
 }
 
-export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail }: Props) {
+export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail, declaredTypes }: Props) {
   const { t } = useTranslation();
   const { loading, root, relations, statesById, stateChanges, coverage } = useEntityDetail(idx, thingId, detail, nonce);
+  const numbers = useNumberDisplaySettings();
 
   const props = root ? effectiveProperties(root, idx) : {};
   const title = (detail.titleProperty && (props[detail.titleProperty] as string)) || root?.Name || formatGuid(thingId);
@@ -236,7 +249,9 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
                 {group.entries.map(([key, value]) => (
                   <div key={key} className="contents">
                     <div className="text-[11.5px] text-zinc-400 dark:text-zinc-500 truncate" title={key}>{key}</div>
-                    <div className="text-[11.5px] text-zinc-700 dark:text-zinc-200 font-mono break-words">{String(value ?? '—')}</div>
+                    <div className="text-[11.5px] text-zinc-700 dark:text-zinc-200 font-mono break-words">
+                      {value === null || value === undefined ? '—' : formatPropertyValue(value, declaredTypes?.[thingId]?.[key]?.Type, numbers)}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -248,7 +263,7 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
         {relations.length > 0 && (
           <section>
             <SectionTitle>{t('entityDetail.relations')}</SectionTitle>
-            <RelationGroups relations={relations} statesById={statesById} openDetail={openDetail} />
+            <RelationGroups relations={relations} statesById={statesById} openDetail={openDetail} declaredTypes={declaredTypes} numbers={numbers} />
           </section>
         )}
 
