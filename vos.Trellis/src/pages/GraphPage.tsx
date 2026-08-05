@@ -132,26 +132,21 @@ export function GraphPage() {
     setDeleteConfirm(null);
   };
 
+  // Neither delete touches the store: the retraction arrives on the stream, the way it reaches
+  // every other client. One path, so the one other people depend on is exercised by ordinary use.
   const handleDeleteProperty = async (thingId: string, propertyName: string) => {
     try {
       await thingApi.deleteProperty(thingId, propertyName);
       toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
-      useModelStore.getState().applyBatch({ thingPropertyRemovals: [{ id: thingId, path: propertyName }] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }
   };
 
-  // Applied here rather than left to the stream: a retracted relationship property arrives as a
-  // change to null, which is what a property genuinely set to null looks like. The client that did
-  // the deleting is the one place that knows which of the two it was.
   const handleDeleteRelProperty = async (relationshipId: string, propertyName: string) => {
     try {
       await relationshipApi.deleteProperty(relationshipId, propertyName);
       toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
-      useModelStore.getState().applyBatch({
-        relationshipPropertyRemovals: [{ id: relationshipId, name: propertyName }],
-      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }

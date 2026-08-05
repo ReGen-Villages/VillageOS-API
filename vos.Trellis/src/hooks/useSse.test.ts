@@ -50,6 +50,28 @@ describe('useSse', () => {
     unmount();
   });
 
+  // Every property event has to reach a handler as (id, name, value), retractions included. An
+  // event missing from that set arrives as a raw object instead, and the handler quietly does
+  // nothing — no error, no update, the change simply never lands.
+  it.each([
+    ['PropertyChanged', { EntityId: 't1', PropertyName: 'temp', Value: 5 }, ['t1', 'temp', 5]],
+    ['PropertyDeleted', { EntityId: 't1', PropertyName: 'temp' }, ['t1', 'temp', undefined]],
+    ['RelationshipPropertyChanged', { EntityId: 'r1', PropertyName: 'total', Value: 9 }, ['r1', 'total', 9]],
+    ['RelationshipPropertyDeleted', { EntityId: 'r1', PropertyName: 'total' }, ['r1', 'total', undefined]],
+  ])('maps %s to positional args', async (event, payload, expected) => {
+    const { result, unmount } = renderHook(() => useSse());
+    const handler = vi.fn();
+    let off: () => void = () => {};
+    act(() => { off = result.current.on(event as string, handler); });
+
+    await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
+    act(() => FakeEventSource.instances[0].emit(event as string, payload));
+
+    expect(handler).toHaveBeenCalledWith(...(expected as unknown[]));
+    act(() => off());
+    unmount();
+  });
+
   it('passes operational event data through as a single object', async () => {
     const { result, unmount } = renderHook(() => useSse());
     const handler = vi.fn();
