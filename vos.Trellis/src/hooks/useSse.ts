@@ -42,11 +42,17 @@ let consumedWatermark: number | null = null;
 function notify() { listeners.forEach((l) => l()); }
 function setConnected(v: boolean) { if (connectedState !== v) { connectedState = v; notify(); } }
 
+/** The events whose payload is a property rather than an entity. Listed rather than matched on the
+ *  name, so adding one is a decision about its shape instead of an accident of what it is called. */
+const PROPERTY_EVENTS = new Set([
+  'PropertyChanged', 'PropertyDeleted', 'RelationshipPropertyChanged', 'RelationshipPropertyDeleted',
+]);
+
 // Map an SSE event's data object to the positional args the handlers expect.
-// Every property event — set or retracted, on a Thing or a relationship — is (id, name, value);
-// a retraction carries no value. Everything else passes the data object through.
+// A property event is (id, name, value), with no value on a retraction; everything else passes the
+// data object through.
 function toArgs(kind: string, data: { EntityId?: string; PropertyName?: string; Value?: unknown } | unknown): unknown[] {
-  if (kind.endsWith('PropertyChanged') || kind.endsWith('PropertyDeleted')) {
+  if (PROPERTY_EVENTS.has(kind)) {
     const d = (data ?? {}) as { EntityId?: string; PropertyName?: string; Value?: unknown };
     return [d.EntityId, d.PropertyName, d.Value];
   }

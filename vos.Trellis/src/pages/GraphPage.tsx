@@ -132,9 +132,8 @@ export function GraphPage() {
     setDeleteConfirm(null);
   };
 
-  // Neither delete applies anything locally: the retraction comes back on the stream, the same way
-  // it reaches every other client. One path rather than two, and the one that matters is exercised
-  // by ordinary use instead of only when someone else is watching.
+  // Neither delete touches the store: the retraction arrives on the stream, the way it reaches
+  // every other client. One path, so the one other people depend on is exercised by ordinary use.
   const handleDeleteProperty = async (thingId: string, propertyName: string) => {
     try {
       await thingApi.deleteProperty(thingId, propertyName);

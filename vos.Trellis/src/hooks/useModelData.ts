@@ -131,6 +131,28 @@ export function useModelData(): void {
       buffer.set(entityId, properties);
     };
 
+    // Each property event is (entity id, property name, value); a retraction carries no value.
+    const onThingProperty = (args: unknown[], change: PropertyChange) => {
+      const [thingId, propertyPath] = args as [string, string | undefined];
+      if (!thingId || propertyPath === undefined) return;
+      triggerFlashNode(thingId);
+      recordProperty(pending.thingProps, thingId, propertyPath, change);
+      schedule();
+    };
+
+    // Applied only while the relationship is on screen — as the opened edge, or hanging off the
+    // opened node. Asking about the node alone dropped every change to the edge whose own panel was
+    // in front of the user, because selecting an edge clears the node selection.
+    const onRelationshipProperty = (args: unknown[], change: PropertyChange) => {
+      const [relId, propertyName] = args as [string, string | undefined];
+      if (!relId || propertyName === undefined) return;
+      triggerFlashEdge(relId);
+      const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
+      if (!isVisibleRelationship(relId, selectedNodeId, selectedEdgeId, useModelStore.getState().relationships)) return;
+      recordProperty(pending.relProps, relId, propertyName, change);
+      schedule();
+    };
+
     let timer: ReturnType<typeof setTimeout> | null = null;
     let flushing = false;
     const schedule = () => { if (!timer && !flushing) timer = setTimeout(() => void flush(), FLUSH_DEBOUNCE_MS); };
@@ -197,63 +219,15 @@ export function useModelData(): void {
         const id = entityId(data);
         if (id) { pending.relHydrate.delete(id); pending.relRemove.add(id); schedule(); }
       }),
-      on('PropertyChanged', (...args: unknown[]) => {
-        const thingId = args[0] as string;
-        const propertyPath = args[1] as string | undefined;
-        const newValue = args[2] as unknown;
-        if (thingId && propertyPath !== undefined) {
-          triggerFlashNode(thingId);
-          // Every property update lands in the store, not just graph-rendering ones. The
-          // Operations dashboard reads live business properties (on-hand, reorder point,
-          // KPIs) straight from the store, so dropping their updates left it showing stale
-          // or blank cells for anything changed after the last full load. The debounced
-          // applyBatch coalesces the high PropertyChanged rate into one write per window.
-          recordProperty(pending.thingProps, thingId, propertyPath, { deleted: false, value: newValue });
-          schedule();
-        }
-      }),
-      // Unhandled before #6143: a deleted property stayed in the store and kept showing.
-      on('PropertyDeleted', (...args: unknown[]) => {
-        const thingId = args[0] as string;
-        const propertyPath = args[1] as string | undefined;
-        if (thingId && propertyPath !== undefined) {
-          triggerFlashNode(thingId);
-          recordProperty(pending.thingProps, thingId, propertyPath, { deleted: true });
-          schedule();
-        }
-      }),
-      on('RelationshipPropertyChanged', (...args: unknown[]) => {
-        const relId = args[0] as string;
-        const propertyName = args[1] as string | undefined;
-        const newValue = args[2] as unknown;
-        if (relId && propertyName !== undefined) {
-          triggerFlashEdge(relId);
-          // Only rebuild if this relationship is on screen — as the opened edge, or hanging off the
-          // opened node. Asking about the node alone dropped every change to the edge whose own
-          // panel was in front of the user, because selecting an edge clears the node selection.
-          const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
-          const rels = useModelStore.getState().relationships;
-          if (isVisibleRelationship(relId, selectedNodeId, selectedEdgeId, rels)) {
-            recordProperty(pending.relProps, relId, propertyName, { deleted: false, value: newValue });
-            schedule();
-          }
-        }
-      }),
-      // Retracting a relationship property, now that it says so rather than arriving as a change to
-      // null (#6149). A property another client deleted used to sit on screen as an empty row.
-      on('RelationshipPropertyDeleted', (...args: unknown[]) => {
-        const relId = args[0] as string;
-        const propertyName = args[1] as string | undefined;
-        if (relId && propertyName !== undefined) {
-          triggerFlashEdge(relId);
-          const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
-          const rels = useModelStore.getState().relationships;
-          if (isVisibleRelationship(relId, selectedNodeId, selectedEdgeId, rels)) {
-            recordProperty(pending.relProps, relId, propertyName, { deleted: true });
-            schedule();
-          }
-        }
-      }),
+      // Every property update lands in the store, not just graph-rendering ones. The Operations
+      // dashboard reads live business properties (on-hand, reorder point, KPIs) straight from the
+      // store, so dropping their updates left it showing stale or blank cells for anything changed
+      // after the last full load. The debounced applyBatch coalesces the high rate into one write
+      // per window.
+      on('PropertyChanged', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
+      on('PropertyDeleted', (...args) => onThingProperty(args, { deleted: true })),
+      on('RelationshipPropertyChanged', (...args) => onRelationshipProperty(args, { deleted: false, value: args[2] })),
+      on('RelationshipPropertyDeleted', (...args) => onRelationshipProperty(args, { deleted: true })),
       on('ModelChanged', () => reloadModelData()),
       on('ModelCleared', () => useModelStore.getState().clear()),
       on('StatesChanged', () => useUiStore.getState().bumpStatesVersion()),
