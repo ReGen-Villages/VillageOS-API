@@ -112,4 +112,93 @@ public class EffectivePropertyResolverTests
         found.Should().BeTrue();
         value.GetString().Should().Be("alice");
     }
+
+    // ---------- closest-ancestor-wins on a single chain (Bug #6152) ----------
+    // The broker reports a key declared at N chain levels N times under qualified names
+    // (e.g. "EsriEndpoint.requestContentType" and "EsriEndpoint.Endpoint.requestContentType").
+    // Matches on ONE `is` chain are shadowing, not ambiguity: the closest ancestor (shortest
+    // qualifier path) wins. Conflicts remain reserved for divergent branches.
+
+    [Fact]
+    public void TryGetEffectiveProperty_SingleChainTwoLevels_ClosestAncestorWins()
+    {
+        // The exact shape observed live: child override + root default of the same key.
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["EsriEndpoint.requestContentType"]          = El("\"application/x-www-form-urlencoded\""),
+            ["EsriEndpoint.Endpoint.requestContentType"] = El("\"application/json\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "requestContentType", out var value, out var conflicts);
+
+        found.Should().BeTrue();
+        value.GetString().Should().Be("application/x-www-form-urlencoded");
+        conflicts.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_SingleChainThreeLevels_ClosestAncestorWins()
+    {
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["A.B.C.x"] = El("\"root\""),
+            ["A.x"]     = El("\"closest\""),
+            ["A.B.x"]   = El("\"middle\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "x", out var value, out var conflicts);
+
+        found.Should().BeTrue();
+        value.GetString().Should().Be("closest");
+        conflicts.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_SingleChainCaseInsensitivePrefix_ClosestAncestorWins()
+    {
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["esriendpoint.responseKind"]          = El("\"binary\""),
+            ["EsriEndpoint.Endpoint.responseKind"] = El("\"json\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "responseKind", out var value, out var conflicts);
+
+        found.Should().BeTrue();
+        value.GetString().Should().Be("binary");
+        conflicts.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_MixedChainAndDivergentBranch_StillConflicts()
+    {
+        // A.x/A.B.x form a chain, but C.x diverges — no single closest ancestor exists.
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["A.x"]   = El("\"a\""),
+            ["A.B.x"] = El("\"ab\""),
+            ["C.x"]   = El("\"c\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "x", out _, out var conflicts);
+
+        found.Should().BeFalse();
+        conflicts.Should().BeEquivalentTo(new[] { "A.x", "A.B.x", "C.x" });
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_StringPrefixButNotSegmentPrefix_StillConflicts()
+    {
+        // "Esri" is a string prefix of "EsriEndpoint" but NOT a segment prefix — divergent types.
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["Esri.url"]         = El("\"https://a\""),
+            ["EsriEndpoint.url"] = El("\"https://b\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "url", out _, out var conflicts);
+
+        found.Should().BeFalse();
+        conflicts.Should().BeEquivalentTo(new[] { "Esri.url", "EsriEndpoint.url" });
+    }
 }
