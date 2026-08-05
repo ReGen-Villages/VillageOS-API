@@ -144,6 +144,31 @@ describe('formatPropertyValue by declared type', () => {
     expect(formatPropertyValue({ shapeless: true }, 'vos.IfcGeometry')).toBe('mesh');
   });
 
+  it('names a shape it cannot read, rather than throwing on it', () => {
+    expect(formatPropertyValue({ Json: 'not json at all' }, 'vos.GeoJson')).toBe('GeoJson');
+    expect(formatPropertyValue({ Json: '{"coordinates":[]}' }, 'vos.GeoJson')).toBe('GeoJson');
+  });
+
+  it('takes a type only from the value, never from the type name alone', () => {
+    expect(formatPropertyValue(20260805, 'vos.DateTime')).toBe('20260805');
+    expect(formatPropertyValue(42, 'vos.Guid')).toBe('42');
+  });
+
+  it('shows a mesh with no triangles as the vertices it has', () => {
+    expect(formatPropertyValue({ positions: new Array(9).fill(0) }, 'vos.IfcGeometry')).toBe('mesh (3 vertices)');
+  });
+
+  it('rounds to whole numbers when the model asks for no places at all', () => {
+    const noPlaces = { floatingPointPrecision: 0, decimalPrecision: 0 };
+    expect(formatPropertyValue(12.7, 'vos.Double', noPlaces)).toBe('13');
+    expect(formatPropertyValue(12.2, 'vos.Decimal', noPlaces)).toBe('12');
+  });
+
+  it('leaves a number it cannot hold to the places setting alone', () => {
+    expect(formatPropertyValue(Infinity, 'vos.Double', numbers)).toBe('Infinity');
+    expect(formatPropertyValue(NaN, 'vos.Decimal', numbers)).toBe('NaN');
+  });
+
   it('says (null) whatever the type', () => {
     expect(formatPropertyValue(null, 'vos.Double', numbers)).toBe('(null)');
   });

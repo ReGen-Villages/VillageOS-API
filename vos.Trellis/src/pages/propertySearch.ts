@@ -38,6 +38,9 @@ export function searchProperties({ effectiveProps, relationships, thingNames, qu
   const q = query.trim().toLowerCase();
   if (q.length === 0) return [];
 
+  // Value search deliberately reads the stored value rather than how it is displayed: a date
+  // matches the timestamp it is stored as, and a shape matches its coordinates rather than the one
+  // word a cell has room for. Searching the presentation would find less, not more.
   const matchFn = mode === 'name'
     ? (key: string, _val: unknown) => key.toLowerCase().includes(q)
     : (_key: string, val: unknown) => formatPropertyValue(val).toLowerCase().includes(q);

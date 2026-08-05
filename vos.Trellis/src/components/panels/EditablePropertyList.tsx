@@ -14,7 +14,7 @@ import { editorForType, rejectionKeyForType, type EditorKind } from './propertyE
 /** Max characters before truncating a property value and showing an expand button. */
 const VALUE_TRUNCATE_LIMIT = 60;
 
-const TYPE_LABELS = new Map(PROPERTY_TYPES.map((option) => [option.value as string, option.label]));
+const TYPE_LABELS = new Map<string, string>(PROPERTY_TYPES.map((option) => [option.value, option.label]));
 
 /** The dropdown's short word for a type, falling back to the name without its prefix so a type the
  *  dropdown does not offer still reads as something rather than as nothing. */
@@ -22,12 +22,20 @@ function shortTypeLabel(type: string): string {
   return TYPE_LABELS.get(type) ?? type.replace(/^vos\./, '');
 }
 
-/** A date keeps its seconds; the picker's default drops them, which would quietly shorten a
- *  timestamp a user only meant to nudge. */
-function inputTypeFor(editor: EditorKind): string {
-  if (editor === 'dateTime') return 'datetime-local';
-  if (editor === 'wholeNumber' || editor === 'number') return 'number';
-  return 'text';
+/** The HTML control an editor kind is spelled with. A date picker states its step in seconds
+ *  because the default is a minute, which would quietly drop the seconds off a timestamp a user
+ *  only meant to nudge; a whole-number field steps by one so its arrows cannot produce a fraction. */
+function inputAttributesFor(editor: EditorKind): { type: string; step?: number | 'any' } {
+  switch (editor) {
+    case 'dateTime':
+      return { type: 'datetime-local', step: 1 };
+    case 'wholeNumber':
+      return { type: 'number', step: 1 };
+    case 'number':
+      return { type: 'number', step: 'any' };
+    default:
+      return { type: 'text' };
+  }
 }
 
 interface Props {
@@ -228,8 +236,7 @@ function AddPropertyRow({
         />
       ) : (
         <input
-          type={inputTypeFor(editor)}
-          step={editor === 'wholeNumber' ? 1 : editor === 'number' ? 'any' : undefined}
+          {...inputAttributesFor(editor)}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={onKeyDown}
@@ -370,8 +377,7 @@ function EditableRow({
         ) : (
           <input
             ref={inputRef}
-            type={inputTypeFor(editor)}
-            step={editor === 'wholeNumber' ? 1 : editor === 'number' ? 'any' : undefined}
+            {...inputAttributesFor(editor)}
             value={draft}
             onChange={onChange}
             onKeyDown={onKeyDown}

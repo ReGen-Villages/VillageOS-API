@@ -30,7 +30,7 @@ export function ThingSearchPage() {
   const navigate = useNavigate();
   const numbers = useNumberDisplaySettings();
 
-  const declaredTypes = useDeclaredPropertyTypes(true);
+  const declaredTypes = useDeclaredPropertyTypes();
 
   const onInputChange = useCallback((value: string) => {
     setInputValue(value);

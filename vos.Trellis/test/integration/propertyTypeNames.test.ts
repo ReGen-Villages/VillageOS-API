@@ -48,6 +48,9 @@ async function login(): Promise<string> {
   return ((await response.json()) as TokenResponse).token;
 }
 
+// Widened from the literal tuple so both comparisons below read the same way round.
+const clientNames: readonly string[] = VOS_TYPES;
+
 describe('the client set and the names the platform accepts', () => {
   let served: string[];
 
@@ -63,14 +66,14 @@ describe('the client set and the names the platform accepts', () => {
   });
 
   it('has every name the platform accepts', () => {
-    const missingFromClient = served.filter((name) => !(VOS_TYPES as readonly string[]).includes(name));
+    const missingFromClient = served.filter((name) => !clientNames.includes(name));
     expect(missingFromClient, 'the platform accepts these types and the client does not name them').toEqual([]);
   });
 
   // The worse direction of the two: a name the client offers that no write route accepts reaches a
   // user as a type they can pick and then cannot save.
   it('names nothing the platform would reject', () => {
-    const unknownToPlatform = VOS_TYPES.filter((name) => !served.includes(name));
+    const unknownToPlatform = clientNames.filter((name) => !served.includes(name));
     expect(unknownToPlatform, 'the client names these types and the platform rejects them').toEqual([]);
   });
 });

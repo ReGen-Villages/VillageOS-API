@@ -109,8 +109,12 @@ describe('the control offered for editing', () => {
     expect(rowFor('vos.Boolean', true)?.type).toBe('checkbox');
   });
 
-  it('is a picker for a date', () => {
-    expect(rowFor('vos.DateTime', '2026-08-05T09:20:14Z')?.type).toBe('datetime-local');
+  // The picker's default step is a minute, which would drop the seconds off a timestamp a user only
+  // meant to nudge.
+  it('is a picker for a date, keeping its seconds', () => {
+    const picker = rowFor('vos.DateTime', '2026-08-05T09:20:14Z');
+    expect(picker?.type).toBe('datetime-local');
+    expect(picker?.step).toBe('1');
   });
 
   it('is a numeric field for the number types, whole numbers stepping by one', () => {

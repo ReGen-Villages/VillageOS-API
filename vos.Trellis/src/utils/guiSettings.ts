@@ -267,10 +267,8 @@ export function extractNumberDisplaySettings(
   relationships: VosRelationship[],
 ): NumberDisplaySettings {
   const p = findGuiSettingsProperties(things, relationships);
-  return p ? readNumberDisplaySettings(p) : { ...NUMBER_DISPLAY_DEFAULTS };
-}
+  if (!p) return { ...NUMBER_DISPLAY_DEFAULTS };
 
-function readNumberDisplaySettings(p: Record<string, unknown>): NumberDisplaySettings {
   return {
     floatingPointPrecision: toDecimalPlaces(p['FloatingPointDisplayPrecision'], NUMBER_DISPLAY_DEFAULTS.floatingPointPrecision),
     decimalPrecision: toDecimalPlaces(p['DecimalDisplayPrecision'], NUMBER_DISPLAY_DEFAULTS.decimalPrecision),

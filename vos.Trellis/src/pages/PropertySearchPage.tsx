@@ -4,11 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { temporalApi } from '../api/temporalApi';
-import { thingApi } from '../api/thingApi';
 import { toast } from '../components/common/toastStore';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import { useNumberDisplaySettings } from '../hooks/useNumberDisplaySettings';
-import type { PropertyVersionsResponse, EffectiveProperty } from '../types/vos';
+import { useDeclaredPropertyTypes } from '../hooks/useDeclaredPropertyTypes';
+import type { PropertyVersionsResponse } from '../types/vos';
 import { searchProperties, type PropertyMatch } from './propertySearch';
 import clsx from 'clsx';
 
@@ -49,17 +49,9 @@ export function PropertySearchPage() {
 
   // A Thing's inherited property values are resolved by the broker (walking the is-chain); the client
   // store only carries own + stored overrides, so search must read the server-resolved effective set.
-  // This is a read-only snapshot fetched when the page opens — Property Search is not a live surface.
-  const [effectiveProps, setEffectiveProps] =
-    useState<Record<string, Record<string, EffectiveProperty>> | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    thingApi.getAllProperties('effective').then(
-      (data) => { if (!cancelled) setEffectiveProps(data); },
-      () => { if (!cancelled) setEffectiveProps({}); },
-    );
-    return () => { cancelled = true; };
-  }, []);
+  // A read-only snapshot — Property Search is not a live surface — and the same read the panels make
+  // for the declared types, which is why it comes from the one hook rather than a second fetch.
+  const effectiveProps = useDeclaredPropertyTypes();
 
   // Debounce: update the actual search query 250ms after the user stops typing
   const onInputChange = useCallback((value: string) => {
