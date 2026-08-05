@@ -11,10 +11,9 @@ interface Props {
   fixedThingId: string;
   things: VosThing[];
   relationships: VosRelationship[];
-  onCreated?: () => void;
 }
 
-export function AddRelationshipRow({ direction, fixedThingId, things, relationships, onCreated }: Props) {
+export function AddRelationshipRow({ direction, fixedThingId, things, relationships }: Props) {
   const { t } = useTranslation();
   const [predicateId, setPredicateId] = useState('');
   const [otherId, setOtherId] = useState('');
@@ -42,13 +41,12 @@ export function AddRelationshipRow({ direction, fixedThingId, things, relationsh
       toast.success(t('panels.addRel.created'));
       setPredicateId('');
       setOtherId('');
-      onCreated?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('panels.addRel.createFailed'));
     } finally {
       setSaving(false);
     }
-  }, [canSubmit, direction, fixedThingId, otherId, predicateId, onCreated, t]);
+  }, [canSubmit, direction, fixedThingId, otherId, predicateId, t]);
 
   return (
     <div className="border-t border-zinc-700/50 mt-2 pt-2 space-y-1.5">

@@ -32,12 +32,11 @@ interface Props {
   onSelectNode: (id: string) => void;
   onDeleteProperty: (thingId: string, propertyName: string) => void;
   onDeleteThing?: (thingId: string, name: string) => void;
-  onPropertySet?: () => void;
   onRenamed?: (newName: string) => void;
   statesVersion?: number;
 }
 
-export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSelectNode, onDeleteProperty, onDeleteThing, onPropertySet, onRenamed, statesVersion }: Props) {
+export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSelectNode, onDeleteProperty, onDeleteThing, onRenamed, statesVersion }: Props) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<'properties' | 'relationships' | 'ranges' | '3d'>('ranges');
   const [effectiveProps, setEffectiveProps] = useState<Record<string, EffectiveProperty> | null>(null);
@@ -111,7 +110,6 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
 
   const handlePropertySaved = () => {
     setPropsVersion((v) => v + 1);
-    onPropertySet?.();
   };
 
   const handleExpandValue = (name: string, value: string) => setExpandedValue({ name, value });
@@ -235,10 +233,10 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
               hasGeometry={hasGeometry}
               onSelectNode={onSelectNode}
             />
-            <RelationshipList relationships={outgoing} direction="outgoing" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relEditMode} onPropertySaved={onPropertySet} fixedThingId={thing.Id} allRelationships={relationships} onRelationshipCreated={onPropertySet} />
-            <RelationshipList relationships={incoming} direction="incoming" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relEditMode} onPropertySaved={onPropertySet} fixedThingId={thing.Id} allRelationships={relationships} onRelationshipCreated={onPropertySet} />
+            <RelationshipList relationships={outgoing} direction="outgoing" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relEditMode} fixedThingId={thing.Id} allRelationships={relationships} />
+            <RelationshipList relationships={incoming} direction="incoming" allThings={allThings} onSelectNode={onSelectNode} onSelectEdge={selectEdge} editMode={relEditMode} fixedThingId={thing.Id} allRelationships={relationships} />
             {relEditMode && (
-              <RetypeRow thingId={thing.Id} things={[...allThings.values()]} relationships={relationships} onDone={onPropertySet} />
+              <RetypeRow thingId={thing.Id} things={[...allThings.values()]} relationships={relationships} />
             )}
           </div>
         )}

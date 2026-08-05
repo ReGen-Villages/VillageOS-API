@@ -16,11 +16,10 @@ interface Props {
   onSelectNode: (id: string) => void;
   onDeleteRelationship: (id: string) => void;
   onDeleteProperty?: (relationshipId: string, propertyName: string) => void;
-  onPropertySet?: () => void;
   statesVersion?: number;
 }
 
-export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelectNode, onDeleteRelationship, onDeleteProperty, onPropertySet, statesVersion }: Props) {
+export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelectNode, onDeleteRelationship, onDeleteProperty, statesVersion }: Props) {
   const { t } = useTranslation();
   const subject = allThings.get(rel.SubjectId);
   const predicate = allThings.get(rel.PredicateId);
@@ -41,7 +40,6 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
 
   const handlePropertySaved = () => {
     setPropertiesVersion((v) => v + 1);
-    onPropertySet?.();
   };
 
   // Fetch ranges and states lazily when ranges tab is active

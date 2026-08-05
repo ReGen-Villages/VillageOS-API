@@ -1134,7 +1134,8 @@ system stream.
 | `RelationshipCreated` | `{ EntityId }` (id only — client hydrates via `GET /api/relationships/{id}`) | `POST /api/relationships` |
 | `RelationshipDeleted` | `{ EntityId }` | `DELETE /api/relationships/{id}` |
 | `PropertyChanged` | `thingId, name, value` | `POST /api/things/{id}/properties` |
-| `RelationshipPropertyChanged` | `relId, name, value` | `PUT /api/relationships/{id}/properties` |
+| `PropertyDeleted` | `thingId, name` | `DELETE /api/things/{id}/properties/{name}` |
+| `RelationshipPropertyChanged` | `relId, name, value` | `PUT /api/relationships/{id}/properties`, and a relationship property retraction, which arrives as a `null` value |
 | `StatesChanged` | `thingId` | Range/state evaluation changes |
 | `ModelChanged` | `model` | `POST /api/model` |
 | `ModelCleared` | — | `DELETE /api/model` |
@@ -1167,13 +1168,15 @@ system stream.
 ### Integration
 
 - **useModelData** (app-shell hook): Subscribes to structural and property events and keeps the `modelStore` current with an incremental strategy — individual events do not trigger a full-model refetch (a reconnect reconcile backstops the stream, see below):
-  - **Delete → local removal** (zero network): ThingDeleted / RelationshipDeleted read the event's `EntityId` and drop that element from the store via `removeThing` / `removeRelationship`. Unknown ids are a no-op.
+  - **Delete → local removal** (zero network): ThingDeleted / RelationshipDeleted read the event's `EntityId` and drop that element from the store in the same batch as everything else in the window. Unknown ids are a no-op.
   - **Create → single-object hydrate**: ThingCreated / RelationshipCreated carry only an id (the broker deliberately does not stream a new object's properties), so the handler fetches just that one object (`GET /api/things/{id}` or `/api/relationships/{id}`) and `upsert`s it. Upsert is idempotent, so duplicate events don't double-add. A failed hydrate is **retried once** after a short delay (covers a transient fetch error); a genuine create/delete race 404s again and is correctly abandoned (the delete event removes it).
   - **Full reload** (`reloadModelData(opts?)`): on mount, on `ModelChanged`, and **once when the SSE stream reconnects** (`connected` false→true, after a prior connect — the first connect is skipped since mount already loads). The reconnect reconcile is now the **backstop**, not the primary recovery: the stream itself resumes from the consumed sequence and the broker replays the missed Facts (Bug #5943), so the reconcile only matters when the client's watermark predates the broker's retained commit log (post snapshot eviction), where a full re-snapshot is the only recovery. It passes `{ silent: true }` (error toasts don't auto-dismiss, so a background refresh must not surface one). Retiring this belt-and-suspenders reconcile in favour of a broker `SnapshotRequired` signal is tracked as future work (Bug #5940 replaced an earlier 15s poll; #5943 added the resume).
   - **Clear**: ModelCleared → empties things and relationships arrays.
-  - **Incremental O(1) property updates** (no reload):
-    - `PropertyChanged` → only rebuilds the things array when `isGraphAffectingProperty()` returns true (currently only `geometry`). Triggers a visual flash on the node only (500ms duration).
-    - `RelationshipPropertyChanged` → only rebuilds the relationships array when `isVisibleRelationship()` returns true (relationship touches the selected node). Triggers a visual flash on the specific edge (500ms duration).
+  - **Incremental O(1) property updates** (no reload): writing a property never reloads the model. The panels used to call `reloadModelData()` after every save — the whole graph re-downloaded for one changed value — and the stream now carries it instead (#6143). Each buffered entry is keyed by entity **and** property name and records whether the property was set or retracted, so two changes to one entity in a window both land, in order.
+    - `PropertyChanged` → sets the property on the thing, creating the key if the property is new. Triggers a visual flash on the node only (500ms duration).
+    - `PropertyDeleted` → takes the property off the thing. Without it a deleted property kept showing until something reloaded the model.
+    - `RelationshipPropertyChanged` → sets the property when `isVisibleRelationship()` says the relationship is on screen: it **is** the opened edge, or it hangs off the opened node. Both have to be asked, because selecting an edge clears the node selection — a node-only test dropped every change to the very edge whose panel was open. Triggers a visual flash on the specific edge (500ms duration).
+  - **Relationship property deletion is applied by the client that did it.** The platform reports a retraction on a relationship as a change to `null`, which is exactly what a property genuinely set to `null` looks like, so the wire cannot tell them apart. The deleting client applies the removal to the store directly, and the handler ignores a `null` for a property the relationship no longer holds so the echo cannot resurrect it as an empty row. A `null` on a property still held is a real value and is applied.
   - **Counter bump**: StatesChanged → increments `statesVersion` (triggers Ranges tab re-fetch).
 - **GraphDataLoader** (renderer sync): mirrors the `modelStore` into the Sigma graph. The first load (empty graph) does a full `loadGraph()` and fits the camera; every later change — including creates and deletes — is applied by `reconcileGraph()`, which adds/patches nodes and edges in place, skips existing nodes' `x`/`y` so the running force layout is undisturbed, and never resets the camera. Net effect: created and deleted Things and Relationships appear on the graph immediately, without a rebuild or camera jump.
 

@@ -12,10 +12,9 @@ interface Props {
   thingId: string;
   things: VosThing[];
   relationships: VosRelationship[];
-  onDone?: () => void;
 }
 
-export function RetypeRow({ thingId, things, relationships, onDone }: Props) {
+export function RetypeRow({ thingId, things, relationships }: Props) {
   const { t } = useTranslation();
   const [toId, setToId] = useState('');
   const [fromId, setFromId] = useState('');
@@ -47,13 +46,12 @@ export function RetypeRow({ thingId, things, relationships, onDone }: Props) {
       toast.success(t('panels.retype.retyped'));
       setToId('');
       setFromId('');
-      onDone?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('panels.retype.retypeFailed'));
     } finally {
       setSaving(false);
     }
-  }, [toId, isPredicateId, needsFrom, fromId, saving, thingId, relationships, onDone, t]);
+  }, [toId, isPredicateId, needsFrom, fromId, saving, thingId, relationships, t]);
 
   // Nothing to retype against if the model has no `is` predicate Thing.
   if (!isPredicateId) return null;

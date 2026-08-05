@@ -72,6 +72,21 @@ describe('modelStore', () => {
     expect(useModelStore.getState().relationships.map((r) => r.Id)).toEqual(['r2']);
   });
 
+  // Bug #6143 — a batch could set a property but never take one away, so a deleted property stayed
+  // in the store until the whole model was reloaded.
+  it('applyBatch removes a property from a thing and a relationship', () => {
+    useModelStore.getState().setThings([{ ...thing('1', 'A'), Properties: { keep: 1, drop: 2 } }]);
+    useModelStore.getState().setRelationships([{ ...rel('r1', 'X'), Properties: { keep: 1, drop: 2 } }]);
+
+    useModelStore.getState().applyBatch({
+      thingPropertyRemovals: [{ id: '1', path: 'drop' }],
+      relationshipPropertyRemovals: [{ id: 'r1', name: 'drop' }],
+    });
+
+    expect(useModelStore.getState().things[0].Properties).toEqual({ keep: 1 });
+    expect(useModelStore.getState().relationships[0].Properties).toEqual({ keep: 1 });
+  });
+
   it('applyBatch upsert of an existing id replaces in place (idempotent)', () => {
     useModelStore.getState().setThings([thing('1', 'A')]);
     useModelStore.getState().applyBatch({ thingUpserts: [thing('1', 'A-renamed')] });

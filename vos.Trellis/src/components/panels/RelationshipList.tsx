@@ -14,13 +14,11 @@ interface Props {
   onSelectNode: (id: string) => void;
   onSelectEdge?: (id: string) => void;
   editMode?: boolean;
-  onPropertySaved?: () => void;
   fixedThingId?: string;
   allRelationships?: VosRelationship[];
-  onRelationshipCreated?: () => void;
 }
 
-export function RelationshipList({ relationships, direction, allThings, onSelectNode, onSelectEdge, editMode = false, onPropertySaved, fixedThingId, allRelationships, onRelationshipCreated }: Props) {
+export function RelationshipList({ relationships, direction, allThings, onSelectNode, onSelectEdge, editMode = false, fixedThingId, allRelationships }: Props) {
   const { t } = useTranslation();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -80,7 +78,6 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
                   relationshipId={r.Id}
                   storedProperties={relProps}
                   editMode={editMode}
-                  onSaved={onPropertySaved}
                 />
               </div>
             )}
@@ -93,7 +90,6 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
           fixedThingId={fixedThingId}
           things={Array.from(allThings.values())}
           relationships={allRelationships ?? relationships}
-          onCreated={onRelationshipCreated}
         />
       )}
     </div>
@@ -105,19 +101,13 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
  * property's declared type, and it is asked for only when a row is opened — a node with many
  * edges would otherwise read every one of them to show a list nobody expanded.
  */
-function ExpandedRelationshipProperties({ relationshipId, storedProperties, editMode, onSaved }: {
+function ExpandedRelationshipProperties({ relationshipId, storedProperties, editMode }: {
   relationshipId: string;
   storedProperties: [string, unknown][];
   editMode: boolean;
-  onSaved?: () => void;
 }) {
   const [version, setVersion] = useState(0);
   const resolved = useResolvedRelationshipProperties(relationshipId, { version });
-
-  const handleSaved = () => {
-    setVersion((v) => v + 1);
-    onSaved?.();
-  };
 
   return (
     <EditablePropertyList
@@ -125,7 +115,7 @@ function ExpandedRelationshipProperties({ relationshipId, storedProperties, edit
       entityId={relationshipId}
       entityType="relationship"
       editMode={editMode && resolved !== null}
-      onSaved={handleSaved}
+      onSaved={() => setVersion((v) => v + 1)}
     />
   );
 }
