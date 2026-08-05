@@ -1,5 +1,4 @@
-/// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
+import { defineConfig, configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { resolveOutDir } from './build/resolveOutDir'
@@ -35,8 +34,9 @@ export default defineConfig({
     globals: true,
     setupFiles: './src/setupTests.ts',
     // test/integration needs a running Mycelium, so it runs from its own config (npm run
-    // test:integration) rather than failing every offline run of this one.
-    exclude: ['node_modules/**', 'test/integration/**'],
+    // test:integration) rather than failing every offline run of this one. Added to the defaults
+    // rather than replacing them, which would drop the exclusions for dist and the config files.
+    exclude: [...configDefaults.exclude, 'test/integration/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'cobertura'],
