@@ -232,8 +232,9 @@ function num(v: unknown): number {
 
 function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, idx: ModelIndex): boolean {
   if (!filters) return true;
+  const properties = effectiveProperties(thing, idx);
   for (const f of filters) {
-    const v = effectiveProperties(thing, idx)[f.property];
+    const v = properties[f.property];
     switch (f.op) {
       case '=': if (v !== f.value) return false; break;
       case '!=': if (v === f.value) return false; break;
