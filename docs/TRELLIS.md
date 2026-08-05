@@ -1135,7 +1135,8 @@ system stream.
 | `RelationshipDeleted` | `{ EntityId }` | `DELETE /api/relationships/{id}` |
 | `PropertyChanged` | `thingId, name, value` | `POST /api/things/{id}/properties` |
 | `PropertyDeleted` | `thingId, name` | `DELETE /api/things/{id}/properties/{name}` |
-| `RelationshipPropertyChanged` | `relId, name, value` | `PUT /api/relationships/{id}/properties`, and a relationship property retraction, which arrives as a `null` value |
+| `RelationshipPropertyChanged` | `relId, name, value` | `PUT /api/relationships/{id}/properties` |
+| `RelationshipPropertyDeleted` | `relId, name` | `DELETE /api/relationships/{id}/properties/{name}` |
 | `StatesChanged` | `thingId` | Range/state evaluation changes |
 | `ModelChanged` | `model` | `POST /api/model` |
 | `ModelCleared` | — | `DELETE /api/model` |
@@ -1176,7 +1177,8 @@ system stream.
     - `PropertyChanged` → sets the property on the thing, creating the key if the property is new. Triggers a visual flash on the node only (500ms duration).
     - `PropertyDeleted` → takes the property off the thing. Without it a deleted property kept showing until something reloaded the model.
     - `RelationshipPropertyChanged` → sets the property when `isVisibleRelationship()` says the relationship is on screen: it **is** the opened edge, or it hangs off the opened node. Both have to be asked, because selecting an edge clears the node selection — a node-only test dropped every change to the very edge whose panel was open. Triggers a visual flash on the specific edge (500ms duration).
-  - **Relationship property deletion is applied by the client that did it.** The platform reports a retraction on a relationship as a change to `null`, which is exactly what a property genuinely set to `null` looks like, so the wire cannot tell them apart. The deleting client applies the removal to the store directly, and the handler ignores a `null` for a property the relationship no longer holds so the echo cannot resurrect it as an empty row. A `null` on a property still held is a real value and is applied.
+    - `RelationshipPropertyDeleted` → takes the property off the relationship, behind the same on-screen test. Retracting a relationship property used to arrive as a change to `null` — indistinguishable from setting it to `null` — so a property one user deleted stayed on everyone else's screen as an empty row until a reload (#6149). Deleting is now its own event on both sides, and a `null` value means a real `null`.
+  - **A deletion is not applied locally by the client that made it.** It comes back on the stream, the same way it reaches every other client, so the path that matters is exercised by ordinary use rather than only when someone else is watching.
   - **Counter bump**: StatesChanged → increments `statesVersion` (triggers Ranges tab re-fetch).
 - **GraphDataLoader** (renderer sync): mirrors the `modelStore` into the Sigma graph. The first load (empty graph) does a full `loadGraph()` and fits the camera; every later change — including creates and deletes — is applied by `reconcileGraph()`, which adds/patches nodes and edges in place, skips existing nodes' `x`/`y` so the running force layout is undisturbed, and never resets the camera. Net effect: created and deleted Things and Relationships appear on the graph immediately, without a rebuild or camera jump.
 

@@ -1,10 +1,18 @@
 import { describe, it, expect } from 'vitest';
+import { resolve, sep } from 'node:path';
 import { resolveOutDir } from './resolveOutDir';
 
-const GUI = '/repos/VillageOS-API/vos.Trellis';
-const SIBLING_WWWROOT = '/repos/VillageOS/vos.Mycelium/wwwroot';
+// Resolved rather than written out, so these say which directory is meant instead of how a path is
+// spelled: on Windows the same place is drive-qualified and separated by backslashes, and a literal
+// POSIX string matched nothing there — the sibling case failed on the agent and nowhere else (#6166).
+const GUI = resolve('/repos/VillageOS-API/vos.Trellis');
+const SIBLING_WWWROOT = resolve(GUI, '..', '..', 'VillageOS', 'vos.Mycelium', 'wwwroot');
 
 describe('resolveOutDir', () => {
+  it('names the sibling wwwroot the build is meant to reach', () => {
+    expect(SIBLING_WWWROOT.endsWith(['VillageOS', 'vos.Mycelium', 'wwwroot'].join(sep))).toBe(true);
+  });
+
   it('returns the env override when set, ignoring the sibling check', () => {
     expect(
       resolveOutDir({ guiRoot: GUI, envOverride: '/custom/out', pathExists: () => true }),
