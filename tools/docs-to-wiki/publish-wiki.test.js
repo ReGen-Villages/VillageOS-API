@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { pagePathOf, parentsFirst, pagesToRemove, flattenPages, attachmentBody } = require('./publish-wiki');
+const { pagePathOf, parentsFirst, pagesToRemove, flattenPages, attachmentBody, isAlreadyAttached } = require('./publish-wiki');
 const { pageFileName } = require('./docs-to-wiki');
 
 test('a generated file name maps back to its wiki page path', () => {
@@ -64,4 +64,33 @@ test('a page tree flattens to every path it contains', () => {
     ],
   };
   assert.deepEqual(flattenPages(tree), ['/', '/Home', '/Services', '/Services/Delta']);
+});
+
+// Bug #6151 — every develop build failed here. The step expected an attachment that is already on
+// the wiki to answer 409; the wiki answers 500 with this body, so the one case the step was written
+// to tolerate was the one it died on. Verbatim from the failing run.
+const ALREADY_THERE = JSON.stringify({
+  $id: '1',
+  innerException: null,
+  message: "The wiki attachment creation failed with message : The path '/.attachments/land-intake-analysis-pipeline.png' specified in the add operation already exists. Please specify a new path.",
+  typeName: 'Microsoft.TeamFoundation.Wiki.Server.WikiCreateAttachmentFailedException, Microsoft.TeamFoundation.Wiki.Server',
+  typeKey: 'WikiCreateAttachmentFailedException',
+  errorCode: 0,
+  eventId: 3000,
+});
+
+test('an attachment already on the wiki is the desired state, however the wiki words it', () => {
+  assert.equal(isAlreadyAttached(500, ALREADY_THERE), true);
+  assert.equal(isAlreadyAttached(409, ''), true);
+});
+
+test('a real attachment failure still fails the run', () => {
+  assert.equal(isAlreadyAttached(401, 'unauthorised'), false);
+  assert.equal(isAlreadyAttached(400, 'The input is not a valid Base-64 string'), false);
+  assert.equal(
+    isAlreadyAttached(500, JSON.stringify({ typeKey: 'WikiCreateAttachmentFailedException', message: 'storage unavailable' })),
+    false,
+    'a create that failed for another reason must not be read as already there',
+  );
+  assert.equal(isAlreadyAttached(500, 'already exists'), false, 'the message alone is not enough — the wiki has to name the failure');
 });

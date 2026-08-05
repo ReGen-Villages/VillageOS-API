@@ -65,6 +65,22 @@ function attachmentBody(bytes) {
   return bytes.toString('base64');
 }
 
+/**
+ * Whether an attachment upload was refused only because that name is already on the wiki.
+ *
+ * Every run uploads every attachment, so this is the ordinary answer once the first run has been.
+ * The wiki does not report it as a conflict: it answers 500 with a WikiCreateAttachmentFailedException
+ * whose message says the path already exists. Both are read here, so whichever the wiki chooses,
+ * the run treats an attachment that is already there as the desired state.
+ *
+ * The API creates, it does not replace — re-running with different bytes under a name that exists
+ * cannot update it. Changing an image means giving it a new file name.
+ */
+function isAlreadyAttached(status, body) {
+  if (status === 409) return true;
+  return status === 500 && /already exists/i.test(body) && /WikiCreateAttachmentFailedException/.test(body);
+}
+
 function flattenPages(page, into = []) {
   into.push(page.path || '/');
   for (const child of page.subPages ?? []) flattenPages(child, into);
@@ -94,16 +110,17 @@ async function main() {
   const attachmentDirectory = path.join(generatedDirectory, ATTACHMENTS);
   if (fs.existsSync(attachmentDirectory)) {
     for (const name of fs.readdirSync(attachmentDirectory)) {
-      // An attachment that is already there answers 409. That is the desired state, not a failure.
       const response = await fetch(`${wikiUrl}/attachments?name=${encodeURIComponent(name)}&${API_VERSION}`, {
         method: 'PUT',
         headers: { Authorization: authorization, 'Content-Type': 'application/octet-stream' },
         body: attachmentBody(fs.readFileSync(path.join(attachmentDirectory, name))),
       });
-      if (!response.ok && response.status !== 409) {
-        throw new Error(`attachment ${name} -> ${response.status} ${await response.text()}`);
+      const failure = response.ok ? '' : await response.text();
+      const alreadyThere = !response.ok && isAlreadyAttached(response.status, failure);
+      if (!response.ok && !alreadyThere) {
+        throw new Error(`attachment ${name} -> ${response.status} ${failure}`);
       }
-      console.log(`attachment ${name}${response.status === 409 ? ' (already present)' : ''}`);
+      console.log(`attachment ${name}${alreadyThere ? ' (already there)' : ''}`);
     }
   }
 
@@ -139,7 +156,7 @@ async function main() {
   console.log(`${written} written, ${unchanged} already current, ${generated.size} pages total`);
 }
 
-module.exports = { pagePathOf, parentsFirst, pagesToRemove, flattenPages, markdownFiles, attachmentBody };
+module.exports = { pagePathOf, parentsFirst, pagesToRemove, flattenPages, markdownFiles, attachmentBody, isAlreadyAttached };
 
 if (require.main === module) {
   main().catch((error) => {
