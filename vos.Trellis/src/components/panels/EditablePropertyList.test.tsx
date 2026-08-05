@@ -60,3 +60,47 @@ describe('a property reporting a type the platform accepts', () => {
     expect(errors()).toHaveLength(0);
   });
 });
+
+// The display row rounds a reading to the places the model asks for. An edit box holding that
+// rounded text would save the rounding back over the stored value as soon as anything else on the
+// row changed — editing works on the value, not on how the value is presented (#6163).
+describe('editing a reading', () => {
+  function editableReading() {
+    render(
+      <EditablePropertyList
+        properties={[{ name: 'open_ratio', value: 0.123456789, type: 'vos.Double' }]}
+        entityId="thing-1"
+        entityType="thing"
+        editMode
+        showAddRow={false}
+      />,
+    );
+    return screen.getByRole('textbox') as HTMLInputElement;
+  }
+
+  it('starts from the stored value, not from the rounded one on show', () => {
+    expect(editableReading().value).toBe('0.123456789');
+  });
+
+  it('sends the stored value untouched when something else on the row is saved', () => {
+    const input = editableReading();
+    fireEvent.change(input, { target: { value: '0.987654321' } });
+    fireEvent.blur(input);
+    expect(setProperty).toHaveBeenCalledWith('thing-1', 'open_ratio', 'vos.Double', '0.987654321');
+  });
+});
+
+describe('a displayed property', () => {
+  it('names the type it holds', () => {
+    render(
+      <EditablePropertyList
+        properties={[{ name: 'open_ratio', value: 0.123456789, type: 'vos.Double' }]}
+        entityId="thing-1"
+        entityType="thing"
+        editMode={false}
+      />,
+    );
+    expect(screen.getByTitle('vos.Double')).toBeInTheDocument();
+    expect(screen.getByText('0.12346')).toBeInTheDocument();
+  });
+});

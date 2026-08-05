@@ -6,10 +6,20 @@ import { thingApi } from '../../api/thingApi';
 import { relationshipApi } from '../../api/relationshipApi';
 import { toast } from '../common/toastStore';
 import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE, asVosTypeName } from '../../utils/constants';
+import { useNumberDisplaySettings } from '../../hooks/useNumberDisplaySettings';
+import type { NumberDisplaySettings } from '../../utils/guiSettings';
 import type { EditableProperty } from './editableProperties';
 
 /** Max characters before truncating a property value and showing an expand button. */
 const VALUE_TRUNCATE_LIMIT = 60;
+
+const TYPE_LABELS = new Map(PROPERTY_TYPES.map((option) => [option.value as string, option.label]));
+
+/** The dropdown's short word for a type, falling back to the name without its prefix so a type the
+ *  dropdown does not offer still reads as something rather than as nothing. */
+function shortTypeLabel(type: string): string {
+  return TYPE_LABELS.get(type) ?? type.replace(/^vos\./, '');
+}
 
 interface Props {
   properties: EditableProperty[];
@@ -33,6 +43,7 @@ export function EditablePropertyList({
   showAddRow = true,
 }: Props) {
   const { t } = useTranslation();
+  const numbers = useNumberDisplaySettings();
   return (
     <>
       {properties.length === 0 && !editMode && (
@@ -55,6 +66,8 @@ export function EditablePropertyList({
             key={name}
             name={name}
             value={value}
+            declaredType={type}
+            numbers={numbers}
             onExpand={onExpandValue ? (formatted) => onExpandValue(name, formatted) : undefined}
           />
         ),
@@ -66,24 +79,31 @@ export function EditablePropertyList({
   );
 }
 
-/** Read-only display row — same as the original pattern. */
+/** Read-only display row, formatted to what the platform says the property holds. */
 function DisplayRow({
   name,
   value,
+  declaredType,
+  numbers,
   onExpand,
 }: {
   name: string;
   value: unknown;
+  declaredType: string;
+  numbers: NumberDisplaySettings;
   onExpand?: (formatted: string) => void;
 }) {
   const { t } = useTranslation();
-  const formatted = formatPropertyValue(value);
+  const formatted = formatPropertyValue(value, declaredType, numbers);
   const isLong = formatted.length > VALUE_TRUNCATE_LIMIT;
 
   return (
     <div className="flex items-baseline gap-2 py-1 min-w-0">
       <span className="text-zinc-400 text-xs truncate shrink min-w-[60px]" title={name}>{name}</span>
       <div className="flex items-center gap-1 min-w-0 ml-auto shrink-0">
+        <span className="text-[10px] text-zinc-600 dark:text-zinc-500 shrink-0" title={declaredType}>
+          {shortTypeLabel(declaredType)}
+        </span>
         <span className="text-xs font-mono truncate max-w-[180px]" title={isLong ? undefined : formatted}>
           {isLong ? formatted.slice(0, VALUE_TRUNCATE_LIMIT) + '…' : formatted}
         </span>
@@ -213,6 +233,10 @@ function EditableRow({
   onDelete?: () => void;
 }) {
   const { t } = useTranslation();
+  // Deliberately unformatted, unlike the display row. A reading shown to five decimal places is
+  // rounded, and an edit box holding the rounded text would save that rounding back over the stored
+  // value the moment anything else on the row changed. Editing works on the value, not on its
+  // presentation — which is also why a date here is the timestamp the platform stores.
   const formatted = formatPropertyValue(value);
   const asDraft = formatted === '(null)' ? '' : formatted;
   const [draft, setDraft] = useState(asDraft);

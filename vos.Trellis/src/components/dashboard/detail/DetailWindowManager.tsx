@@ -7,6 +7,7 @@ import { useCallback, useState } from 'react';
 import type { ModelIndex } from '../../../api/dashboardApi';
 import type { DetailSpec } from '../../../types/dashboard';
 import { EntityDetailWindow } from './EntityDetailWindow';
+import { useDeclaredPropertyTypes } from '../../../hooks/useDeclaredPropertyTypes';
 
 export function useDetailWindows(idx: ModelIndex, detail: DetailSpec | undefined, nonce?: number) {
   const [order, setOrder] = useState<string[]>([]);
@@ -28,6 +29,10 @@ export function useDetailWindows(idx: ModelIndex, detail: DetailSpec | undefined
     setOrder((prev) => prev.filter((id) => id !== thingId));
   }, []);
 
+  // Read once for every window rather than once per window, and only after one is opened — a
+  // dashboard nobody has clicked into should not pay for a model-wide read.
+  const declaredTypes = useDeclaredPropertyTypes(order.length > 0);
+
   const windows = detail
     ? order.map((thingId, i) => (
         <EntityDetailWindow
@@ -45,6 +50,7 @@ export function useDetailWindows(idx: ModelIndex, detail: DetailSpec | undefined
           onFocus={() => focus(thingId)}
           onSpread={spread}
           openDetail={openDetail}
+          declaredTypes={declaredTypes}
         />
       ))
     : null;

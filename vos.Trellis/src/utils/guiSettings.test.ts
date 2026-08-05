@@ -6,6 +6,8 @@ import {
   findGuiSettingsProperties,
   LAYOUT_DEFAULTS,
   FLASH_DEFAULTS,
+  extractNumberDisplaySettings,
+  NUMBER_DISPLAY_DEFAULTS,
 } from './guiSettings';
 import type { VosThing, VosRelationship } from '../types/vos';
 
@@ -312,5 +314,57 @@ describe('extractPredicateColors', () => {
       consumes: '#ff0000',
       produces: '#00ff00',
     });
+  });
+});
+
+// How many decimal places a number shows belongs to the model being looked at, not to the client
+// looking at it — a model of geometry, a model of money and a model of readings each want a
+// different one, and only the model knows which it is (#6163).
+describe('extractNumberDisplaySettings', () => {
+  it('shows five places for both when no GUI_Settings type exists', () => {
+    expect(extractNumberDisplaySettings([makeThing('SomeOtherThing')], [])).toEqual(NUMBER_DISPLAY_DEFAULTS);
+    expect(NUMBER_DISPLAY_DEFAULTS).toEqual({ floatingPointPrecision: 5, decimalPrecision: 5 });
+  });
+
+  it('takes each setting from the GUI_Settings type', () => {
+    const { things, relationships } = buildGuiFixture({
+      FloatingPointDisplayPrecision: 3,
+      DecimalDisplayPrecision: 2,
+    });
+    expect(extractNumberDisplaySettings(things, relationships)).toEqual({
+      floatingPointPrecision: 3,
+      decimalPrecision: 2,
+    });
+  });
+
+  it('lets an instance override the type', () => {
+    const { things, relationships } = buildGuiFixture(
+      { FloatingPointDisplayPrecision: 3 },
+      { FloatingPointDisplayPrecision: 8 },
+    );
+    expect(extractNumberDisplaySettings(things, relationships).floatingPointPrecision).toBe(8);
+  });
+
+  it('sets each independently, so one stated value does not move the other', () => {
+    const { things, relationships } = buildGuiFixture({ DecimalDisplayPrecision: 2 });
+    expect(extractNumberDisplaySettings(things, relationships)).toEqual({
+      floatingPointPrecision: 5,
+      decimalPrecision: 2,
+    });
+  });
+
+  // A count of places has to be a whole number no smaller than zero, and toFixed rejects anything
+  // past twenty. A setting outside that says nothing usable, so the default stands rather than the
+  // panel throwing on a number somebody typed into the model.
+  it('falls back on a value that cannot be a count of places', () => {
+    for (const stated of [-1, 2.5, 21, NaN, '3', null, true]) {
+      const { things, relationships } = buildGuiFixture({ FloatingPointDisplayPrecision: stated });
+      expect(extractNumberDisplaySettings(things, relationships).floatingPointPrecision).toBe(5);
+    }
+  });
+
+  it('accepts nought places, which is a real answer and not a missing one', () => {
+    const { things, relationships } = buildGuiFixture({ FloatingPointDisplayPrecision: 0 });
+    expect(extractNumberDisplaySettings(things, relationships).floatingPointPrecision).toBe(0);
   });
 });

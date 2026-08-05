@@ -7,6 +7,7 @@ import { temporalApi } from '../api/temporalApi';
 import { thingApi } from '../api/thingApi';
 import { toast } from '../components/common/toastStore';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
+import { useNumberDisplaySettings } from '../hooks/useNumberDisplaySettings';
 import type { PropertyVersionsResponse, EffectiveProperty } from '../types/vos';
 import { searchProperties, type PropertyMatch } from './propertySearch';
 import clsx from 'clsx';
@@ -40,6 +41,7 @@ export function PropertySearchPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const numbers = useNumberDisplaySettings();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);
   const selectNode = useUiStore((s) => s.selectNode);
@@ -135,13 +137,13 @@ export function PropertySearchPage() {
         const type = m.ownerType === 'thing' ? 'Thing' : 'Rel';
         const owner = m.ownerType === 'thing' ? m.ownerName : (m.ownerDetail ?? m.ownerName);
         const via = m.inheritedFrom ?? '';
-        const val = formatPropertyValue(m.value).replace(/\|/g, '\\|');
+        const val = formatPropertyValue(m.value, m.declaredType, numbers).replace(/\|/g, '\\|');
         lines.push(`| ${type} | ${owner} | ${via} | ${val} |`);
       }
       lines.push('');
     }
     return lines.join('\n');
-  }, [results, debouncedQuery, searchMode]);
+  }, [results, debouncedQuery, searchMode, numbers]);
 
   const copyAsMarkdown = useCallback(() => {
     if (results.length === 0) return;
@@ -293,10 +295,10 @@ export function PropertySearchPage() {
 
                       {/* Value */}
                       <span className="text-zinc-400 mx-1">=</span>
-                      <span className="text-zinc-300 truncate" title={formatPropertyValue(m.value)}>
+                      <span className="text-zinc-300 truncate" title={formatPropertyValue(m.value, m.declaredType, numbers)}>
                         {searchMode === 'value' && debouncedQuery.trim().length > 0
-                          ? highlightMatch(formatPropertyValue(m.value), debouncedQuery.trim())
-                          : formatPropertyValue(m.value)}
+                          ? highlightMatch(formatPropertyValue(m.value, m.declaredType, numbers), debouncedQuery.trim())
+                          : formatPropertyValue(m.value, m.declaredType, numbers)}
                       </span>
 
                       {/* History button (things only) */}
@@ -348,7 +350,7 @@ export function PropertySearchPage() {
                       <span className="font-mono text-zinc-500 flex-shrink-0">
                         {formatDateTime(v.Timestamp)}
                       </span>
-                      <span className="text-zinc-300">{formatPropertyValue(v.Value)}</span>
+                      <span className="text-zinc-300">{formatPropertyValue(v.Value, historyTarget?.declaredType, numbers)}</span>
                     </div>
                   ))
                 ) : (
