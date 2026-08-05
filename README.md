@@ -80,9 +80,14 @@ dotnet test
 cd vos.Trellis
 npm ci
 npm run dev      # Development server on :5173 (proxies /api to https://localhost:7243)
-npm run build    # Production build into ./dist
+npm run build    # Production build into ./dist (type-checks first)
 npm test         # Run tests
+npm run lint     # Lint
 ```
+
+The build runs `npm run lint`, `npm test` and `npm run build` on every branch and pull request, so
+a failure in any of them fails the build — and on `develop` stops the wiki publish and the GitHub
+mirror. Run them before pushing rather than finding out from the build.
 
 Trellis connects to the Mycelium at `https://localhost:7243` by default.
 
