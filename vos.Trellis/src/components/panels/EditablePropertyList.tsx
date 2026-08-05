@@ -5,7 +5,7 @@ import { formatPropertyValue } from '../../utils/formatters';
 import { thingApi } from '../../api/thingApi';
 import { relationshipApi } from '../../api/relationshipApi';
 import { toast } from '../common/toastStore';
-import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE } from '../../utils/constants';
+import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE, asVosTypeName } from '../../utils/constants';
 import type { EditableProperty } from './editableProperties';
 
 /** Max characters before truncating a property value and showing an expand button. */
@@ -163,7 +163,10 @@ function AddPropertyRow({
       />
       <select
         value={type}
-        onChange={(e) => setType(e.target.value)}
+        onChange={(e) => {
+          const chosen = asVosTypeName(e.target.value);
+          if (chosen) setType(chosen);
+        }}
         disabled={saving}
         className="px-1 py-0.5 text-xs rounded border border-zinc-600 bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
       >
@@ -240,10 +243,15 @@ function EditableRow({
       setDirty(false);
       return;
     }
+    const type = asVosTypeName(declaredType);
+    if (!type) {
+      toast.error(t('panels.props.unknownType', { name, type: declaredType }));
+      return;
+    }
     setSaving(true);
     try {
       const api = entityType === 'thing' ? thingApi : relationshipApi;
-      await api.setProperty(entityId, name, declaredType, trimmed);
+      await api.setProperty(entityId, name, type, trimmed);
       toast.success(t('panels.props.savedToast', { name, value: trimmed }));
       setDirty(false);
       onSaved?.();

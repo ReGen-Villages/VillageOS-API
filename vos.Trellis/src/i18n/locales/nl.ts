@@ -453,6 +453,7 @@ export const nl: PartialResources = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "Kan eigenschap niet toevoegen",
       saveFailed: "Opslaan mislukt",
+      unknownType: "Kan {{name}} niet opslaan: het platform meldt type {{type}}, dat deze versie niet kent",
     },
     name: {
       thingName: "Dingnaam",

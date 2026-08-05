@@ -567,6 +567,7 @@ export const ar: PartialResources & ArabicPlurals = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "تعذّرت إضافة الخاصية",
       saveFailed: "فشل الحفظ",
+      unknownType: "تعذر حفظ {{name}}: تُبلغ المنصة عن النوع {{type}} وهو غير معروف لهذا الإصدار",
     },
     name: {
       thingName: "اسم الشيء",

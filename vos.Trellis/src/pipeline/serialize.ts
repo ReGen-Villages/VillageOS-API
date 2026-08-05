@@ -2,14 +2,15 @@ import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
 import { PipelineModel, ARCHETYPE, type PortInfo } from './model';
+import type { VosTypeName } from '../utils/constants';
 
 // Persist / read a pipeline as Things + relationships (the lean-on-model bet): the editor is just CRUD over
 // thingApi / relationshipApi. Save shape mirrors the seed — node -has-> Connection, wires by the PipelineWire
 // predicate carrying fromPort/toPort. Node canvas position round-trips as x/y properties on the node Thing.
 
-const DOUBLE = 'vos.Double';
-const STRING = 'vos.String';
-const env = (typeInfo: string, value: unknown) => ({ typeInfo, value });
+const DOUBLE: VosTypeName = 'vos.Double';
+const STRING: VosTypeName = 'vos.String';
+const env = (typeInfo: VosTypeName, value: unknown) => ({ typeInfo, value });
 
 export interface EditorNode {
   id: string;

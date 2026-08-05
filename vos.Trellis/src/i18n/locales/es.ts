@@ -453,6 +453,7 @@ export const es: PartialResources = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "Error al añadir la propiedad",
       saveFailed: "Error al guardar",
+      unknownType: "No se puede guardar {{name}}: la plataforma informa del tipo {{type}}, que esta versión no conoce",
     },
     name: {
       thingName: "Nombre de la cosa",
