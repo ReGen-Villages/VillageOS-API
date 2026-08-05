@@ -77,11 +77,6 @@ function pageFileName(pagePath) {
     .join('/')}.md`;
 }
 
-/** The name a page contributes to its folder's .order file. */
-function orderEntry(pagePath) {
-  return pageFileName(pagePath).split('/').pop().replace(/\.md$/, '');
-}
-
 function repoFileUrl(repoRelativePath) {
   return `https://dev.azure.com/ReGenVillages/VillageOS-API/_git/VillageOS-API?path=/${repoRelativePath}`;
 }
@@ -133,18 +128,6 @@ function convertPage(markdown, options) {
   return banner(options.docPath) + body.replace(/\s*$/, '\n');
 }
 
-/** .order contents for every folder the pages occupy, parents before their children. */
-function buildOrders(pages) {
-  const orders = new Map();
-  for (const { page } of pages) {
-    const folder = path.posix.dirname(pageFileName(page));
-    const key = folder === '.' ? '' : folder;
-    if (!orders.has(key)) orders.set(key, []);
-    orders.get(key).push(orderEntry(page));
-  }
-  return orders;
-}
-
 function generate(repoRoot, outputDirectory) {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'wiki-map.json'), 'utf8'));
   const byDoc = new Map(manifest.pages.map((entry) => [entry.doc, entry.page]));
@@ -172,10 +155,6 @@ function generate(repoRoot, outputDirectory) {
     console.log(`${doc} -> ${page}`);
   }
 
-  for (const [folder, entries] of buildOrders(manifest.pages)) {
-    fs.writeFileSync(path.join(outputDirectory, folder, '.order'), `${entries.join('\n')}\n`);
-  }
-
   for (const image of imagesSeen) {
     const destination = path.join(outputDirectory, ATTACHMENTS, path.basename(image));
     fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -191,10 +170,8 @@ module.exports = {
   devopsSlug,
   anchorMap,
   pageFileName,
-  orderEntry,
   rewriteLinks,
   convertPage,
-  buildOrders,
   banner,
 };
 
