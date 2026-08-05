@@ -11,7 +11,7 @@ const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 const KNOWN_EVENTS = [
   'ModelChanged', 'ModelCleared',
   'ThingCreated', 'ThingDeleted', 'RelationshipCreated', 'RelationshipDeleted',
-  'PropertyChanged', 'PropertyDeleted', 'RelationshipPropertyChanged',
+  'PropertyChanged', 'PropertyDeleted', 'RelationshipPropertyChanged', 'RelationshipPropertyDeleted',
   'ServiceHealthChanged', 'DaemonStatusChanged', 'EndpointServiceRequestCompleted', 'ServiceRequestCompleted',
   'StatesChanged', 'RelationshipStatesChanged', 'ActivityEvent',
 ];
@@ -43,9 +43,10 @@ function notify() { listeners.forEach((l) => l()); }
 function setConnected(v: boolean) { if (connectedState !== v) { connectedState = v; notify(); } }
 
 // Map an SSE event's data object to the positional args the handlers expect.
-// Property changes are (id, name, value); everything else passes the data object through.
+// Every property event — set or retracted, on a Thing or a relationship — is (id, name, value);
+// a retraction carries no value. Everything else passes the data object through.
 function toArgs(kind: string, data: { EntityId?: string; PropertyName?: string; Value?: unknown } | unknown): unknown[] {
-  if (kind === 'PropertyChanged' || kind === 'RelationshipPropertyChanged') {
+  if (kind.endsWith('PropertyChanged') || kind.endsWith('PropertyDeleted')) {
     const d = (data ?? {}) as { EntityId?: string; PropertyName?: string; Value?: unknown };
     return [d.EntityId, d.PropertyName, d.Value];
   }

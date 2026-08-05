@@ -234,12 +234,22 @@ export function useModelData(): void {
           const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
           const rels = useModelStore.getState().relationships;
           if (isVisibleRelationship(relId, selectedNodeId, selectedEdgeId, rels)) {
-            // A retraction on a relationship is reported as a change to null, indistinguishable
-            // from a property genuinely set to null. Null for a property the store no longer holds
-            // is the echo of a deletion already applied; writing it back would resurrect the row.
-            const held = rels.find((r) => r.Id === relId)?.Properties ?? {};
-            if (newValue === null && !(propertyName in held)) return;
             recordProperty(pending.relProps, relId, propertyName, { deleted: false, value: newValue });
+            schedule();
+          }
+        }
+      }),
+      // Retracting a relationship property, now that it says so rather than arriving as a change to
+      // null (#6149). A property another client deleted used to sit on screen as an empty row.
+      on('RelationshipPropertyDeleted', (...args: unknown[]) => {
+        const relId = args[0] as string;
+        const propertyName = args[1] as string | undefined;
+        if (relId && propertyName !== undefined) {
+          triggerFlashEdge(relId);
+          const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
+          const rels = useModelStore.getState().relationships;
+          if (isVisibleRelationship(relId, selectedNodeId, selectedEdgeId, rels)) {
+            recordProperty(pending.relProps, relId, propertyName, { deleted: true });
             schedule();
           }
         }
