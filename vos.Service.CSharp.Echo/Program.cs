@@ -58,11 +58,12 @@ if (authEnabled)
 var requestCount = 0;
 
 builder.Services.AddSingleton(sp =>
-    new MyceliumClient(
-        sp.GetRequiredService<IHttpClientFactory>(),
-        sp.GetRequiredService<ILogger<MyceliumClient>>(),
-        myceliumUrl,
-        serviceToken));
+    new EndpointServiceMyceliumClient(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
+            "Echo",
+            myceliumUrl,
+            serviceToken));
 
 builder.Services.AddSingleton(sp =>
     new EchoNode(
@@ -84,7 +85,7 @@ app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
 {
     try
     {
-        var myceliumClient = app.Services.GetRequiredService<MyceliumClient>();
+        var myceliumClient = app.Services.GetRequiredService<EndpointServiceMyceliumClient>();
         var registered = await myceliumClient.RegisterAsync(servicePort);
         Log.Information("Echo endpoint service {Status} with mycelium",
             registered ? "registered" : "failed to register");
@@ -100,7 +101,7 @@ app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
     try
     {
         Log.Information("Shutting down Echo endpoint service — processed {Count} request(s)", requestCount);
-        var myceliumClient = app.Services.GetRequiredService<MyceliumClient>();
+        var myceliumClient = app.Services.GetRequiredService<EndpointServiceMyceliumClient>();
         await myceliumClient.DeregisterAsync();
     }
     catch (Exception ex)
@@ -148,7 +149,7 @@ app.MapGet("/health", () => new
     requestsProcessed = requestCount
 });
 
-app.MapGet("/stats", (MyceliumClient myceliumClient) => new
+app.MapGet("/stats", (EndpointServiceMyceliumClient myceliumClient) => new
 {
     service = "Echo",
     version = "1.0.0",
@@ -158,7 +159,7 @@ app.MapGet("/stats", (MyceliumClient myceliumClient) => new
 });
 
 // Write-kinds demo — POST { "thingId": "..." } (see WriteKindsDemo for prerequisites).
-var writeKindsEndpoint = app.MapPost("/demo/write-kinds", async (WriteKindsDemoRequest req, MyceliumClient myceliumClient) =>
+var writeKindsEndpoint = app.MapPost("/demo/write-kinds", async (WriteKindsDemoRequest req, EndpointServiceMyceliumClient myceliumClient) =>
 {
     var result = await new WriteKindsDemo(myceliumClient).RunAsync(req.ThingId, DateTime.UtcNow);
     return Results.Ok(result);

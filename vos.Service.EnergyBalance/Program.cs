@@ -1,4 +1,5 @@
 using vos.Auth.Shared;
+using vos.Service.Shared;
 using vos.Service.Shared.Configuration;
 using vos.Service.EnergyBalance.Services;
 using vos.Service.Shared.DagNode;
@@ -48,8 +49,12 @@ try
     }
 
     builder.Services.AddSingleton(sp =>
-        new MyceliumClient(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<MyceliumClient>>(), myceliumUrl, serviceToken));
+        new EndpointServiceMyceliumClient(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
+            "EnergyBalance",
+            myceliumUrl,
+            serviceToken));
 
     builder.Services.AddSingleton(sp =>
         new EnergyBalanceNode(sp.GetRequiredService<IHttpClientFactory>(),
@@ -71,7 +76,7 @@ try
     {
         try
         {
-            var registered = await app.Services.GetRequiredService<MyceliumClient>().RegisterAsync(servicePort);
+            var registered = await app.Services.GetRequiredService<EndpointServiceMyceliumClient>().RegisterAsync(servicePort);
             Log.Information("EnergyBalance service {Status} with mycelium", registered ? "registered" : "failed to register");
         }
         catch (Exception ex)
@@ -82,7 +87,7 @@ try
 
     app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
     {
-        try { await app.Services.GetRequiredService<MyceliumClient>().DeregisterAsync(); }
+        try { await app.Services.GetRequiredService<EndpointServiceMyceliumClient>().DeregisterAsync(); }
         catch (Exception ex) { Log.Error(ex, "Error during EnergyBalance shutdown deregistration"); }
     }));
 
@@ -119,7 +124,7 @@ try
     if (authEnabled) manifest.RequireAuthorization();
 
     app.MapGet("/health", () => new { status = "Healthy", service = "EnergyBalance" });
-    app.MapGet("/stats", (MyceliumClient client) => new { service = "EnergyBalance", version = "1.0.0", handlerId = client.HandlerId.ToString(), myceliumUrl });
+    app.MapGet("/stats", (EndpointServiceMyceliumClient client) => new { service = "EnergyBalance", version = "1.0.0", handlerId = client.HandlerId.ToString(), myceliumUrl });
 
     var shutdown = app.MapPost("/shutdown", (IHostApplicationLifetime lifetime) =>
     {

@@ -6,6 +6,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.CSharp.Echo.Services;
+using vos.Service.Shared;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -24,8 +25,8 @@ public class WriteKindsDemoTests
         var handler = new MockHttpMessageHandler(Respond);
         // The demo performs four writes; the real IHttpClientFactory hands out a fresh client per
         // call, so model that here (a singleton client can't have its Timeout reset after first use).
-        var client = new MyceliumClient(new PerCallClientFactory(handler),
-            NullLogger<MyceliumClient>.Instance, MyceliumUrl, ServiceToken);
+        var client = new EndpointServiceMyceliumClient(new PerCallClientFactory(handler),
+            NullLogger<EndpointServiceMyceliumClient>.Instance, "Echo", MyceliumUrl, ServiceToken);
 
         var result = await new WriteKindsDemo(client).RunAsync(Thing, new DateTime(2026, 6, 20, 12, 0, 0, DateTimeKind.Utc));
 
