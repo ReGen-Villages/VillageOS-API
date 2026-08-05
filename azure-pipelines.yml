@@ -174,35 +174,20 @@ steps:
 # from a document listed in its manifest. This runs before the GitHub mirror below, so a single
 # build carries a documentation change from the merge all the way to the public GitHub wiki.
 #
-# Prerequisite: AZURE_DEVOPS_PAT needs Code: Read & Write. The mirror step below only reads the
-# wiki, so before this existed the PAT needed Read alone.
+# Prerequisite: AZURE_DEVOPS_PAT needs the Wiki scope, Read & Write. Publishing goes through the
+# wiki REST API rather than git precisely so that is enough: a project wiki is a git repository,
+# so pushing to it needs the Code scope, which on a classic token means write access to every
+# repository in the organisation — far more than publishing a wiki should carry. The mirror step
+# below still clones the wiki, which is what its Code: Read covers.
 #
-# Pages are replaced wholesale rather than updated in place, so a page whose document was
-# removed from the manifest disappears instead of lingering. Wiki history keeps every version.
+# Pages absent from the manifest are removed rather than left behind. Wiki history keeps every
+# version, and a page whose content already matches is left untouched so a build that changes no
+# documentation adds no revisions.
 - bash: |
     set -euo pipefail
     OUT="$AGENT_TEMPDIRECTORY/wiki-generated"
-    WIKI="$AGENT_TEMPDIRECTORY/project-wiki"
-
     node tools/docs-to-wiki/docs-to-wiki.js "$(Build.SourcesDirectory)" "$OUT"
-
-    rm -rf "$WIKI"
-    # The token goes in the remote URL, as the GitHub steps above already do. An
-    # http.extraheader carries a clone but is not re-sent on the redirect that git push follows,
-    # so the push arrives unauthenticated and the agent fails asking for a username.
-    WIKI_URL="https://pat:${AZURE_DEVOPS_PAT}@dev.azure.com/ReGenVillages/VillageOS-API/_git/$(wikiRepoId)"
-    git clone "$WIKI_URL" "$WIKI"
-
-    # Not -prune: -delete turns on -depth, which makes -prune do nothing, so the clone's own
-    # .git contents would be walked into and deleted. GNU find rejects the combination outright.
-    find "$WIKI" \( -name '*.md' -o -name '.order' \) -not -path "*/.git/*" -print -delete
-    cp -R "$OUT"/. "$WIKI"/
-
-    git -C "$WIKI" add -A
-    git -C "$WIKI" -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
-      commit -m "docs: publish wiki from $(Build.SourceVersion)" || { echo "No wiki changes."; exit 0; }
-    # A project wiki lives on wikiMaster, not master.
-    git -C "$WIKI" push origin HEAD:wikiMaster
+    node tools/docs-to-wiki/publish-wiki.js "$OUT"
   displayName: 'Publish Docs to Wiki'
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
   env:

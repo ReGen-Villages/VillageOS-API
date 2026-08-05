@@ -26,7 +26,6 @@ and each generated page says so at the top. Edit the document in `docs/` instead
   Anchors are translated from the target document's real headings, and an anchor that matches
   no heading is left alone rather than guessed at.
 - **Copies images** into the wiki's `.attachments` folder and repoints them.
-- **Writes `.order` files** so pages appear in the order the manifest lists them.
 
 ## The manifest
 
@@ -50,13 +49,27 @@ The transforms are pure functions and are unit-tested; CI runs this on every bui
 
 ## How it is published
 
-The `Publish Docs to Wiki` step in [`azure-pipelines.yml`](../../azure-pipelines.yml) runs on
-`develop`: it generates the tree, clones the wiki repository, replaces the pages, and pushes.
-It runs **before** the `Mirror Wiki to GitHub` step, so one build carries a documentation
-change from a merge all the way to the public GitHub wiki.
+`publish-wiki.js <generated-dir>` writes the tree to the wiki through its REST API: it uploads
+the attachments, writes each page (parents before children), and removes pages no document
+produces (deepest first, so a parent never goes while a child hangs off it). A page whose
+content already matches is left alone, so a build that changes no documentation adds no
+revisions.
 
-Publishing needs `AZURE_DEVOPS_PAT` to have **Code: Read & Write** (the mirror step alone only
-needed read).
+The `Publish Docs to Wiki` step in [`azure-pipelines.yml`](../../azure-pipelines.yml) runs both
+scripts on `develop`, **before** the `Mirror Wiki to GitHub` step, so one build carries a
+documentation change from a merge all the way to the public GitHub wiki.
+
+### Why the API and not git
+
+A project wiki *is* a git repository, so pushing to it needs a token with the **Code** scope —
+which on a classic personal access token means write access to every repository in the
+organisation, in order to publish one wiki. The REST API needs only **Wiki: Read & Write**,
+which grants exactly what its name says. `AZURE_DEVOPS_PAT` therefore needs the Wiki scope;
+the mirror step's clone is covered by its existing Code: Read.
+
+The trade is page ordering: the wiki keeps that in `.order` files that only the git path can
+write, so the wiki orders pages itself and this tool does not generate them. Content, images
+and removals are unaffected.
 
 ## Related
 
