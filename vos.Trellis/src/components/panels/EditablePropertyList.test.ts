@@ -1,66 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { inferType, inferTypeFromText } from './EditablePropertyList';
+import { inferTypeFromText } from './EditablePropertyList';
+import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE } from '../../utils/constants';
 
-describe('inferType', () => {
-  it('returns "int" for integer numbers', () => {
-    expect(inferType(0)).toBe('int');
-    expect(inferType(1)).toBe('int');
-    expect(inferType(-42)).toBe('int');
-    expect(inferType(100)).toBe('int');
+// Bug #6141 — the platform recognises only its own type names and answers anything else with
+// "Invalid type specified", so a short name here fails every property write the panel makes.
+const PLATFORM_TYPE = /^vos\.[A-Z]/;
+
+describe('inferTypeFromText', () => {
+  it('names a platform type for every kind of text', () => {
+    expect(inferTypeFromText('42')).toMatch(PLATFORM_TYPE);
+    expect(inferTypeFromText('true')).toMatch(PLATFORM_TYPE);
+    expect(inferTypeFromText('hello')).toMatch(PLATFORM_TYPE);
   });
 
-  it('returns "double" for floating-point numbers', () => {
-    expect(inferType(1.5)).toBe('double');
-    expect(inferType(0.001)).toBe('double');
-    expect(inferType(-3.14)).toBe('double');
-    expect(inferType(99.99)).toBe('double');
+  it('reads numeric text as the widest numeric type', () => {
+    expect(inferTypeFromText('0')).toBe('vos.Double');
+    expect(inferTypeFromText('-42')).toBe('vos.Double');
+    expect(inferTypeFromText('1.5')).toBe('vos.Double');
+    expect(inferTypeFromText('-3.14')).toBe('vos.Double');
   });
 
-  it('returns "bool" for booleans', () => {
-    expect(inferType(true)).toBe('bool');
-    expect(inferType(false)).toBe('bool');
+  it('reads boolean text as a boolean', () => {
+    expect(inferTypeFromText('true')).toBe('vos.Boolean');
+    expect(inferTypeFromText('false')).toBe('vos.Boolean');
   });
 
-  it('returns "string" for strings', () => {
-    expect(inferType('')).toBe('string');
-    expect(inferType('hello')).toBe('string');
-    expect(inferType('123')).toBe('string');
-  });
-
-  it('returns "string" for null and undefined', () => {
-    expect(inferType(null)).toBe('string');
-    expect(inferType(undefined)).toBe('string');
-  });
-
-  it('returns "string" for objects and arrays', () => {
-    expect(inferType({})).toBe('string');
-    expect(inferType([])).toBe('string');
-    expect(inferType({ key: 'value' })).toBe('string');
+  it('reads anything else as text', () => {
+    expect(inferTypeFromText('hello')).toBe('vos.String');
+    expect(inferTypeFromText('')).toBe('vos.String');
+    expect(inferTypeFromText('abc123')).toBe('vos.String');
   });
 });
 
-describe('inferTypeFromText', () => {
-  it('returns "double" for integer text', () => {
-    expect(inferTypeFromText('0')).toBe('double');
-    expect(inferTypeFromText('1')).toBe('double');
-    expect(inferTypeFromText('-42')).toBe('double');
-    expect(inferTypeFromText('100')).toBe('double');
+describe('PROPERTY_TYPES', () => {
+  it('offers only types the platform recognises', () => {
+    for (const { value } of PROPERTY_TYPES) expect(value).toMatch(PLATFORM_TYPE);
   });
 
-  it('returns "double" for floating-point text', () => {
-    expect(inferTypeFromText('1.5')).toBe('double');
-    expect(inferTypeFromText('0.001')).toBe('double');
-    expect(inferTypeFromText('-3.14')).toBe('double');
-  });
-
-  it('returns "bool" for boolean text', () => {
-    expect(inferTypeFromText('true')).toBe('bool');
-    expect(inferTypeFromText('false')).toBe('bool');
-  });
-
-  it('returns "string" for non-numeric text', () => {
-    expect(inferTypeFromText('hello')).toBe('string');
-    expect(inferTypeFromText('')).toBe('string');
-    expect(inferTypeFromText('abc123')).toBe('string');
+  it('starts the add row on one of the types it offers', () => {
+    expect(PROPERTY_TYPES.map((t) => t.value)).toContain(DEFAULT_PROPERTY_TYPE);
   });
 });

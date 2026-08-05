@@ -27,8 +27,16 @@ export const thingApi = {
     return unwrapThing(thing);
   },
 
+  // Update only: the platform answers "Property does not exist on the thing" when the property is
+  // absent, and keeps the type the property already has whatever `type` says. Use addProperty to
+  // create one — that is the call whose `type` decides what the property will hold.
   setProperty: async (id: string, name: string, type: string, value: unknown) => {
     const thing = await apiClient.put<VosThing>(`/api/things/${id}/properties`, { Name: name, Type: type, Value: value });
+    return unwrapThing(thing);
+  },
+
+  addProperty: async (id: string, name: string, type: string, value: unknown) => {
+    const thing = await apiClient.post<VosThing>(`/api/things/${id}/properties`, { Name: name, Type: type, Value: value });
     return unwrapThing(thing);
   },
 

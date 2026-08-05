@@ -273,17 +273,26 @@ function scopeMemberIds(scope: ScopeRef | undefined, ctx: ResolveContext): Set<s
   return members;
 }
 
+/**
+ * A value's number, or NaN when it has none.
+ *
+ * Text is never parsed, however numeric it looks. The platform states a type for every property
+ * and the value it sends already carries that answer — a text property arrives as text, and every
+ * numeric type arrives as a number — so parsing would replace an answer with a guess about how the
+ * characters look, and read an order number or a door number as a measurement. A spec that
+ * compares against a number must therefore write it as one, not as quoted text.
+ */
 function num(v: unknown): number {
   if (typeof v === 'number') return v;
-  if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) return Number(v);
   if (typeof v === 'boolean') return v ? 1 : 0;
   return NaN;
 }
 
 function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, idx: ModelIndex): boolean {
   if (!filters) return true;
+  const properties = effectiveProperties(thing, idx);
   for (const f of filters) {
-    const v = effectiveProperties(thing, idx)[f.property];
+    const v = properties[f.property];
     switch (f.op) {
       case '=': if (v !== f.value) return false; break;
       case '!=': if (v === f.value) return false; break;

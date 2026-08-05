@@ -2,6 +2,11 @@ import { apiClient } from './client';
 import type { VosRelationship } from '../types/vos';
 import { unwrapRelationship } from '../utils/propertyMapper';
 
+async function writeProperty(id: string, name: string, type: string, value: unknown) {
+  const rel = await apiClient.put<VosRelationship>(`/api/relationships/${id}/properties`, { Name: name, Type: type, Value: value });
+  return unwrapRelationship(rel);
+}
+
 export const relationshipApi = {
   getAll: async () => {
     const rels = await apiClient.get<VosRelationship[]>('/api/relationships');
@@ -24,10 +29,12 @@ export const relationshipApi = {
 
   remove: (id: string) => apiClient.del<{ message: string }>(`/api/relationships/${id}`),
 
-  setProperty: async (id: string, name: string, type: string, value: unknown) => {
-    const rel = await apiClient.put<VosRelationship>(`/api/relationships/${id}/properties`, { Name: name, Type: type, Value: value });
-    return unwrapRelationship(rel);
-  },
+  setProperty: writeProperty,
+
+  // A relationship has no separate create route: the one call creates the property when it is
+  // absent and updates it when it is not. Named alongside thingApi.addProperty so a caller adding
+  // a property makes the same call whichever of the two it is holding.
+  addProperty: writeProperty,
 
   deleteProperty: (id: string, name: string) =>
     apiClient.del<{ message: string }>(`/api/relationships/${id}/properties/${encodeURIComponent(name)}`),

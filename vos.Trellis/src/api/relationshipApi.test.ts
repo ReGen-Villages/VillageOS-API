@@ -60,21 +60,33 @@ describe('relationshipApi.remove', () => {
 
 describe('relationshipApi.setProperty', () => {
   it('puts to correct URL with Name, Type, Value body', async () => {
-    mockPut.mockResolvedValue({ Id: 'r1', Name: 'test', Properties: { qty: 1.0 } });
-    await relationshipApi.setProperty('rel-123', 'qty', 'double', 1.0);
+    mockPut.mockResolvedValue({ Id: 'r1', Name: 'test', Properties: { quantity: 1.0 } });
+    await relationshipApi.setProperty('rel-123', 'quantity', 'vos.Double', 1.0);
     expect(mockPut).toHaveBeenCalledWith('/api/relationships/rel-123/properties', {
-      Name: 'qty',
-      Type: 'double',
+      Name: 'quantity',
+      Type: 'vos.Double',
       Value: 1.0,
     });
   });
 
   it('handles string property values', async () => {
     mockPut.mockResolvedValue({});
-    await relationshipApi.setProperty('r1', 'label', 'string', 'hello');
+    await relationshipApi.setProperty('r1', 'label', 'vos.String', 'hello');
     expect(mockPut).toHaveBeenCalledWith('/api/relationships/r1/properties', {
       Name: 'label',
-      Type: 'string',
+      Type: 'vos.String',
+      Value: 'hello',
+    });
+  });
+
+  // Bug #6141 — a relationship has one property route that both creates and updates, unlike a
+  // Thing. Adding must reach it, so a caller can add to either without knowing which it holds.
+  it('adds through that same route', async () => {
+    mockPut.mockResolvedValue({});
+    await relationshipApi.addProperty('r1', 'label', 'vos.String', 'hello');
+    expect(mockPut).toHaveBeenCalledWith('/api/relationships/r1/properties', {
+      Name: 'label',
+      Type: 'vos.String',
       Value: 'hello',
     });
   });

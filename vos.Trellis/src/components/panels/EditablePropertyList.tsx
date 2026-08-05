@@ -5,29 +5,23 @@ import { formatPropertyValue } from '../../utils/formatters';
 import { thingApi } from '../../api/thingApi';
 import { relationshipApi } from '../../api/relationshipApi';
 import { toast } from '../common/Toast';
-import { PROPERTY_TYPES } from '../../utils/constants';
+import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE } from '../../utils/constants';
 
 /** Max characters before truncating a property value and showing an expand button. */
 const VALUE_TRUNCATE_LIMIT = 60;
 
-/** Infer Mycelium type string from a JS runtime value. */
-export function inferType(val: unknown): string {
-  if (typeof val === 'number') return Number.isInteger(val) ? 'int' : 'double';
-  if (typeof val === 'boolean') return 'bool';
-  return 'string';
-}
-
 /**
- * Infer Mycelium type string from user-entered text.
- * Always uses 'double' for numeric text so that decimal values are never
- * rejected when the previous value happened to be a whole number
- * (e.g. vos.Decimal 1.0 → JS integer 1 → inferType returns "int" →
- * Mycelium rejects "0.5" as invalid int).
+ * The platform type that best matches text the user typed.
+ *
+ * Editing an existing property does not change its type — the platform keeps the one the property
+ * already has and converts the text to it — so this only has to name a type the platform knows.
+ * The widest numeric type is the safe guess, because a whole number typed into a decimal property
+ * must not read as an integer.
  */
 export function inferTypeFromText(text: string): string {
-  if (text === 'true' || text === 'false') return 'bool';
-  if (text.trim() !== '' && !isNaN(Number(text))) return 'double';
-  return 'string';
+  if (text === 'true' || text === 'false') return 'vos.Boolean';
+  if (text.trim() !== '' && !isNaN(Number(text))) return 'vos.Double';
+  return 'vos.String';
 }
 
 interface Props {
@@ -131,7 +125,7 @@ function AddPropertyRow({
 }) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
-  const [type, setType] = useState('string');
+  const [type, setType] = useState(DEFAULT_PROPERTY_TYPE);
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -143,10 +137,10 @@ function AddPropertyRow({
     setSaving(true);
     try {
       const api = entityType === 'thing' ? thingApi : relationshipApi;
-      await api.setProperty(entityId, name.trim(), type, value);
+      await api.addProperty(entityId, name.trim(), type, value);
       toast.success(t('panels.props.setToast', { name: name.trim(), value }));
       setName('');
-      setType('string');
+      setType(DEFAULT_PROPERTY_TYPE);
       setValue('');
       onSaved?.();
       // Re-focus the name input for quick successive adds
