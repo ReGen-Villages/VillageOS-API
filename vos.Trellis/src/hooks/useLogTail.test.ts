@@ -13,7 +13,10 @@ class FakeEventSource {
 
   private readonly listeners = new Map<string, ((event: MessageEvent) => void)[]>();
 
-  constructor(public readonly url: string) {
+  readonly url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.instances.push(this);
   }
 
