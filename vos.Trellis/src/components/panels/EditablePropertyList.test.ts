@@ -1,34 +1,46 @@
 import { describe, it, expect } from 'vitest';
-import { inferTypeFromText } from './EditablePropertyList';
+import { withDeclaredTypes } from './EditablePropertyList';
 import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE } from '../../utils/constants';
+import type { EffectiveProperty } from '../../types/vos';
 
 // Bug #6141 — the platform recognises only its own type names and answers anything else with
 // "Invalid type specified", so a short name here fails every property write the panel makes.
 const PLATFORM_TYPE = /^vos\.[A-Z]/;
 
-describe('inferTypeFromText', () => {
-  it('names a platform type for every kind of text', () => {
-    expect(inferTypeFromText('42')).toMatch(PLATFORM_TYPE);
-    expect(inferTypeFromText('true')).toMatch(PLATFORM_TYPE);
-    expect(inferTypeFromText('hello')).toMatch(PLATFORM_TYPE);
+const resolved = (entries: Record<string, string>): Record<string, EffectiveProperty> =>
+  Object.fromEntries(
+    Object.entries(entries).map(([name, Type]) => [name, { Value: null, Type, IsInherited: false }]),
+  );
+
+// Feature #6146 — a save states the type the platform reports for the property. It was inferred
+// from the typed text before, so a code stored as text was announced as a number.
+describe('withDeclaredTypes', () => {
+  it('carries the platform type alongside each value', () => {
+    const paired = withDeclaredTypes(
+      [['door_number', '4711'], ['open_ratio', 0.25]],
+      resolved({ door_number: 'vos.String', open_ratio: 'vos.Decimal' }),
+    );
+    expect(paired).toEqual([
+      { name: 'door_number', value: '4711', type: 'vos.String' },
+      { name: 'open_ratio', value: 0.25, type: 'vos.Decimal' },
+    ]);
   });
 
-  it('reads numeric text as the widest numeric type', () => {
-    expect(inferTypeFromText('0')).toBe('vos.Double');
-    expect(inferTypeFromText('-42')).toBe('vos.Double');
-    expect(inferTypeFromText('1.5')).toBe('vos.Double');
-    expect(inferTypeFromText('-3.14')).toBe('vos.Double');
+  it('keeps the declared type even when the value reads like another one', () => {
+    const [property] = withDeclaredTypes([['door_number', '4711']], resolved({ door_number: 'vos.String' }));
+    expect(property.type).toBe('vos.String');
   });
 
-  it('reads boolean text as a boolean', () => {
-    expect(inferTypeFromText('true')).toBe('vos.Boolean');
-    expect(inferTypeFromText('false')).toBe('vos.Boolean');
+  it('drops a property the resolved set does not name a type for', () => {
+    const paired = withDeclaredTypes(
+      [['known', 1], ['unknown', 2]],
+      resolved({ known: 'vos.LongInteger' }),
+    );
+    expect(paired.map((p) => p.name)).toEqual(['known']);
   });
 
-  it('reads anything else as text', () => {
-    expect(inferTypeFromText('hello')).toBe('vos.String');
-    expect(inferTypeFromText('')).toBe('vos.String');
-    expect(inferTypeFromText('abc123')).toBe('vos.String');
+  it('offers nothing until the resolved set has arrived', () => {
+    expect(withDeclaredTypes([['door_number', '4711']], null)).toEqual([]);
   });
 });
 

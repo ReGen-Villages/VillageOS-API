@@ -4,9 +4,10 @@ import { X, Copy, Trash2, Pencil } from 'lucide-react';
 import type { VosRelationship, VosThing, ThingRangesResponse, ThingStates } from '../../types/vos';
 import { formatGuid } from '../../utils/formatters';
 import { toast } from '../common/Toast';
-import { EditablePropertyList } from './EditablePropertyList';
+import { EditablePropertyList, withDeclaredTypes } from './EditablePropertyList';
 import { RangesTabContent } from './RangesTabContent';
 import { relationshipRangeApi } from '../../api/rangeApi';
+import { useResolvedRelationshipProperties } from '../../hooks/useResolvedRelationshipProperties';
 
 interface Props {
   relationship: VosRelationship;
@@ -24,12 +25,24 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
   const subject = allThings.get(rel.SubjectId);
   const predicate = allThings.get(rel.PredicateId);
   const target = allThings.get(rel.TargetId);
-  const props = rel.Properties ? Object.entries(rel.Properties) : [];
   const [editMode, setEditMode] = useState(false);
   const [tab, setTab] = useState<'properties' | 'ranges'>('ranges');
   const [rangesData, setRangesData] = useState<ThingRangesResponse | null>(null);
   const [statesData, setStatesData] = useState<ThingStates | null>(null);
   const [rangesLoading, setRangesLoading] = useState(false);
+  const [propertiesVersion, setPropertiesVersion] = useState(0);
+  const resolvedProperties = useResolvedRelationshipProperties(rel.Id, {
+    version: propertiesVersion,
+    enabled: tab === 'properties',
+  });
+  const ownProperties = rel.Properties ? Object.entries(rel.Properties) : [];
+  const ownPropertyCount = ownProperties.length;
+  const props = withDeclaredTypes(ownProperties, resolvedProperties);
+
+  const handlePropertySaved = () => {
+    setPropertiesVersion((v) => v + 1);
+    onPropertySet?.();
+  };
 
   // Fetch ranges and states lazily when ranges tab is active
   useEffect(() => {
@@ -74,7 +87,7 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
 
   const tabs: Array<{ key: typeof tab; label: string }> = [
     { key: 'ranges', label: t('panels.edge.rangesTab') },
-    { key: 'properties', label: t('panels.edge.propertiesTab', { count: props.length }) },
+    { key: 'properties', label: t('panels.edge.propertiesTab', { count: ownPropertyCount }) },
   ];
 
   return (
@@ -134,7 +147,8 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
             <div className="flex items-center justify-end mb-1">
               <button
                 onClick={() => setEditMode((v) => !v)}
-                className={`p-0.5 rounded transition-colors ${
+                disabled={!resolvedProperties}
+                className={`p-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-default ${
                   editMode
                     ? 'text-blue-400 bg-blue-500/20 hover:bg-blue-500/30'
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
@@ -149,7 +163,7 @@ export function EdgeDetailPanel({ relationship: rel, allThings, onClose, onSelec
               entityId={rel.Id}
               entityType="relationship"
               editMode={editMode}
-              onSaved={onPropertySet}
+              onSaved={handlePropertySaved}
               onDeleteProperty={onDeleteProperty ? (name) => onDeleteProperty(rel.Id, name) : undefined}
             />
           </div>

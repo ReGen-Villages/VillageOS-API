@@ -6,26 +6,34 @@ import { thingApi } from '../../api/thingApi';
 import { relationshipApi } from '../../api/relationshipApi';
 import { toast } from '../common/Toast';
 import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE } from '../../utils/constants';
+import type { EffectiveProperty } from '../../types/vos';
 
 /** Max characters before truncating a property value and showing an expand button. */
 const VALUE_TRUNCATE_LIMIT = 60;
 
-/**
- * The platform type that best matches text the user typed.
- *
- * Editing an existing property does not change its type — the platform keeps the one the property
- * already has and converts the text to it — so this only has to name a type the platform knows.
- * The widest numeric type is the safe guess, because a whole number typed into a decimal property
- * must not read as an integer.
- */
-export function inferTypeFromText(text: string): string {
-  if (text === 'true' || text === 'false') return 'vos.Boolean';
-  if (text.trim() !== '' && !isNaN(Number(text))) return 'vos.Double';
-  return 'vos.String';
+/** One property as this list shows it: what it is called, what it holds, and what the platform
+ *  says it holds. The type comes from the platform's own reading of the property — a save states
+ *  it rather than deriving it from how the typed text happens to look. */
+export interface EditableProperty {
+  name: string;
+  value: unknown;
+  type: string;
+}
+
+/** Pair each property with the type the platform reports for it, dropping any the resolved set
+ *  does not know — a property this list cannot name the type of is one it cannot save. */
+export function withDeclaredTypes(
+  properties: [string, unknown][],
+  resolved: Record<string, EffectiveProperty> | null,
+): EditableProperty[] {
+  if (!resolved) return [];
+  return properties
+    .filter(([name]) => resolved[name])
+    .map(([name, value]) => ({ name, value, type: resolved[name].Type }));
 }
 
 interface Props {
-  properties: [string, unknown][];
+  properties: EditableProperty[];
   entityId: string;
   entityType: 'thing' | 'relationship';
   editMode: boolean;
@@ -51,12 +59,13 @@ export function EditablePropertyList({
       {properties.length === 0 && !editMode && (
         <p className="text-zinc-500 text-xs italic">{t('panels.props.none')}</p>
       )}
-      {properties.map(([name, val]) =>
+      {properties.map(({ name, value, type }) =>
         editMode ? (
           <EditableRow
             key={name}
             name={name}
-            value={val}
+            value={value}
+            declaredType={type}
             entityId={entityId}
             entityType={entityType}
             onSaved={onSaved}
@@ -66,7 +75,7 @@ export function EditablePropertyList({
           <DisplayRow
             key={name}
             name={name}
-            value={val}
+            value={value}
             onExpand={onExpandValue ? (formatted) => onExpandValue(name, formatted) : undefined}
           />
         ),
@@ -207,6 +216,7 @@ function AddPropertyRow({
 function EditableRow({
   name,
   value,
+  declaredType,
   entityId,
   entityType,
   onSaved,
@@ -214,6 +224,7 @@ function EditableRow({
 }: {
   name: string;
   value: unknown;
+  declaredType: string;
   entityId: string;
   entityType: 'thing' | 'relationship';
   onSaved?: () => void;
@@ -248,9 +259,8 @@ function EditableRow({
     }
     setSaving(true);
     try {
-      const type = inferTypeFromText(trimmed);
       const api = entityType === 'thing' ? thingApi : relationshipApi;
-      await api.setProperty(entityId, name, type, trimmed);
+      await api.setProperty(entityId, name, declaredType, trimmed);
       toast.success(t('panels.props.savedToast', { name, value: trimmed }));
       setDirty(false);
       onSaved?.();
@@ -259,7 +269,7 @@ function EditableRow({
     } finally {
       setSaving(false);
     }
-  }, [saving, dirty, draft, formatted, entityType, entityId, name, onSaved, t]);
+  }, [saving, dirty, draft, formatted, entityType, entityId, name, declaredType, onSaved, t]);
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

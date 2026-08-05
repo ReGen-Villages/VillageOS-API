@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { VosRelationship } from '../types/vos';
+import type { VosRelationship, EffectiveProperty } from '../types/vos';
 import { unwrapRelationship } from '../utils/propertyMapper';
 
 async function writeProperty(id: string, name: string, type: string, value: unknown) {
@@ -38,4 +38,9 @@ export const relationshipApi = {
 
   deleteProperty: (id: string, name: string) =>
     apiClient.del<{ message: string }>(`/api/relationships/${id}/properties/${encodeURIComponent(name)}`),
+
+  // Own and inherited resolved together, each carrying its declared type and where it came from —
+  // the same shape, served by the same handler, as the Thing route of the same name.
+  getEffectiveProperties: (id: string) =>
+    apiClient.get<Record<string, EffectiveProperty>>(`/api/relationships/${id}/properties`),
 };

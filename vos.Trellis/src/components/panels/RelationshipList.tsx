@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
-import { EditablePropertyList } from './EditablePropertyList';
+import { EditablePropertyList, withDeclaredTypes } from './EditablePropertyList';
+import { useResolvedRelationshipProperties } from '../../hooks/useResolvedRelationshipProperties';
 import { AddRelationshipRow } from './AddRelationshipRow';
 import type { VosRelationship, VosThing } from '../../types/vos';
 import { formatGuid } from '../../utils/formatters';
@@ -75,10 +76,9 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
             </div>
             {isExpanded && relProps.length > 0 && (
               <div className="ml-5 mb-1 pl-2 border-l-2 border-zinc-700">
-                <EditablePropertyList
-                  properties={relProps}
-                  entityId={r.Id}
-                  entityType="relationship"
+                <ExpandedRelationshipProperties
+                  relationshipId={r.Id}
+                  storedProperties={relProps}
                   editMode={editMode}
                   onSaved={onPropertySaved}
                 />
@@ -97,5 +97,35 @@ export function RelationshipList({ relationships, direction, allThings, onSelect
         />
       )}
     </div>
+  );
+}
+
+/**
+ * One expanded relationship's properties. Reading the resolved view is what supplies each
+ * property's declared type, and it is asked for only when a row is opened — a node with many
+ * edges would otherwise read every one of them to show a list nobody expanded.
+ */
+function ExpandedRelationshipProperties({ relationshipId, storedProperties, editMode, onSaved }: {
+  relationshipId: string;
+  storedProperties: [string, unknown][];
+  editMode: boolean;
+  onSaved?: () => void;
+}) {
+  const [version, setVersion] = useState(0);
+  const resolved = useResolvedRelationshipProperties(relationshipId, { version });
+
+  const handleSaved = () => {
+    setVersion((v) => v + 1);
+    onSaved?.();
+  };
+
+  return (
+    <EditablePropertyList
+      properties={withDeclaredTypes(storedProperties, resolved)}
+      entityId={relationshipId}
+      entityType="relationship"
+      editMode={editMode && resolved !== null}
+      onSaved={handleSaved}
+    />
   );
 }

@@ -21,6 +21,16 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+// Feature #6146 — the route is the same one the Thing side reads, served by the same handler, and
+// is what tells a relationship panel a property's declared type and where an inherited one came from.
+describe('relationshipApi.getEffectiveProperties', () => {
+  it('reads the relationship properties route', async () => {
+    mockGet.mockResolvedValue({});
+    await relationshipApi.getEffectiveProperties('rel-1');
+    expect(mockGet).toHaveBeenCalledWith('/api/relationships/rel-1/properties');
+  });
+});
+
 describe('relationshipApi.getAll', () => {
   it('gets from correct URL', async () => {
     mockGet.mockResolvedValue([]);
