@@ -14,8 +14,8 @@ namespace vos.Service.Tributary.Tests;
 // VillageOS repo, including the IAsyncLifetime workaround for the sync-over-async
 // deadlock in CreateHost under the XPlat Code Coverage collector on Windows CI
 // (VillageOS Bug #5260).
-// Config is injected via UseSetting on the host builder; CliArgs.Parse reads
-// these as a fallback when CLI args are absent (always the case under WebApplicationFactory).
+// Settings are injected via UseSetting on the host builder; ServiceLaunchSettings.Parse
+// falls back to those when no command-line flags are present, which is always the case here.
 // Tests that need a per-test signing key set SigningKey / Issuer /
 // Audience on the factory instance before creating a client.
 // IHttpClientFactory is replaced with one that wraps a per-test

@@ -1,22 +1,24 @@
 using vos.Auth.Shared;
-using vos.Service.ModelBridge.Configuration;
 using vos.Service.ModelBridge.Services;
 using vos.Service.Shared;
+using vos.Service.Shared.Configuration;
 using vos.Service.Shared.DagNode;
 using Serilog;
 
-var cliArgs = CliArgs.Parse(args);
-if (cliArgs == null)
+var builder = WebApplication.CreateBuilder(args);
+
+var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
+if (launchSettings == null)
 {
-    Console.WriteLine(CliArgs.UsageMessage);
+    Console.WriteLine(ServiceLaunchSettings.UsageMessage);
     Environment.Exit(1);
     return;
 }
 
-var servicePort = cliArgs.Port;
-var myceliumUrl = cliArgs.MyceliumUrl;
-var serviceToken = cliArgs.Token;
-var signingKey = cliArgs.SigningKey;
+var servicePort = launchSettings.Port;
+var myceliumUrl = launchSettings.MyceliumUrl;
+var serviceToken = launchSettings.Token;
+var signingKey = launchSettings.SigningKey;
 
 var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "model-bridge-.log");
 Log.Logger = new LoggerConfiguration()
@@ -35,7 +37,6 @@ try
 {
     Log.Information("VillageOS ModelBridge Service — Port: {Port}, Mycelium: {MyceliumUrl}", servicePort, myceliumUrl);
 
-    var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
@@ -43,8 +44,8 @@ try
     var authEnabled = !string.IsNullOrEmpty(signingKey);
     if (authEnabled)
     {
-        builder.AddMyceliumTokenAuth(signingKey!, issuer: cliArgs.Issuer, audience: cliArgs.Audience);
-        Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", cliArgs.Issuer, cliArgs.Audience);
+        builder.AddMyceliumTokenAuth(signingKey!, issuer: launchSettings.Issuer, audience: launchSettings.Audience);
+        Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", launchSettings.Issuer, launchSettings.Audience);
     }
 
     builder.Services.AddSingleton(sp =>

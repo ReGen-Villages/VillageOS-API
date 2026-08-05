@@ -1,5 +1,6 @@
 using vos.Auth.Shared;
 using vos.Service.Metabolism.Configuration;
+using vos.Service.Shared.Configuration;
 using vos.Service.Metabolism.Endpoints;
 using vos.Service.Metabolism.Services;
 using vos.Service.Shared;
@@ -7,21 +8,22 @@ using vos.Service.Shared.Middleware;
 using vos.Service.Shared.Subscriptions;
 using Serilog;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
-var cliArgs = CliArgs.Parse(args, builder.Configuration);
-if (cliArgs == null)
+var launchSettings = MetabolismLaunchSettings.Parse(args, builder.Configuration);
+if (launchSettings == null)
 {
-    Console.WriteLine(CliArgs.UsageMessage);
+    Console.WriteLine(MetabolismLaunchSettings.UsageMessage);
     Environment.Exit(1);
     return;
 }
 
-var servicePort = cliArgs.Port;
-var myceliumUrl = cliArgs.MyceliumUrl;
-var mode = cliArgs.Mode;
-var serviceToken = cliArgs.Token;
-var signingKey = cliArgs.SigningKey;
+var servicePort = launchSettings.Service.Port;
+var myceliumUrl = launchSettings.Service.MyceliumUrl;
+var mode = launchSettings.Mode;
+var serviceToken = launchSettings.Service.Token;
+var signingKey = launchSettings.Service.SigningKey;
 
 // Skip the file sink under WebApplicationFactory<Program> tests — file I/O invites flakiness on shared CI agents.
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
@@ -60,10 +62,10 @@ try
     {
         builder.AddMyceliumTokenAuth(
             signingKey,
-            issuer: cliArgs.Issuer,
-            audience: cliArgs.Audience);
+            issuer: launchSettings.Service.Issuer,
+            audience: launchSettings.Service.Audience);
         Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            cliArgs.Issuer, cliArgs.Audience);
+            launchSettings.Service.Issuer, launchSettings.Service.Audience);
     }
 
     builder.Services.AddSingleton(sp =>
