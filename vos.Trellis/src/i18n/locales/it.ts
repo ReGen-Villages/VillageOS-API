@@ -453,6 +453,16 @@ export const it: PartialResources = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "Impossibile aggiungere la proprietà",
       saveFailed: "Salvataggio non riuscito",
+      typeLabel: "Tipo di proprietà",
+      writtenByIngest: "scritto dall'importazione",
+      rejected: {
+        wholeNumber: "{{name}} contiene un numero intero — {{value}} non lo è",
+        number: "{{name}} contiene un numero — {{value}} non lo è",
+        dateTime: "{{name}} contiene una data — {{value}} non lo è",
+        identifier: "{{name}} contiene un identificatore — {{value}} non lo è",
+        boolean: "{{name}} contiene vero o falso — {{value}} non è nessuno dei due",
+        readOnly: "{{name}} contiene dati scritti dall'importazione e non può essere modificato qui",
+      },
       unknownType: "Impossibile salvare {{name}}: la piattaforma segnala il tipo {{type}}, che questa versione non conosce",
     },
     name: {

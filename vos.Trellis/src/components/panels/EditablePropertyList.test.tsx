@@ -20,7 +20,7 @@ function editableRow(type: string) {
       showAddRow={false}
     />,
   );
-  return screen.getByDisplayValue('4711');
+  return screen.getByLabelText('door_number') as HTMLInputElement;
 }
 
 const errors = () => useToastStore.getState().toasts.filter((t) => t.type === 'error');
@@ -75,7 +75,7 @@ describe('editing a reading', () => {
         showAddRow={false}
       />,
     );
-    return screen.getByRole('textbox') as HTMLInputElement;
+    return screen.getByLabelText('open_ratio') as HTMLInputElement;
   }
 
   it('starts from the stored value, not from the rounded one on show', () => {
@@ -87,6 +87,127 @@ describe('editing a reading', () => {
     fireEvent.change(input, { target: { value: '0.987654321' } });
     fireEvent.blur(input);
     expect(setProperty).toHaveBeenCalledWith('thing-1', 'open_ratio', 'vos.Double', '0.987654321');
+  });
+});
+
+// The control a property is edited with follows the type the platform declares for it (#6164).
+describe('the control offered for editing', () => {
+  function rowFor(type: string, value: unknown) {
+    render(
+      <EditablePropertyList
+        properties={[{ name: 'field', value, type }]}
+        entityId="thing-1"
+        entityType="thing"
+        editMode
+        showAddRow={false}
+      />,
+    );
+    return screen.queryByLabelText('field') as HTMLInputElement | null;
+  }
+
+  it('is a checkbox for true/false, not a box to type the words into', () => {
+    expect(rowFor('vos.Boolean', true)?.type).toBe('checkbox');
+  });
+
+  it('is a picker for a date', () => {
+    expect(rowFor('vos.DateTime', '2026-08-05T09:20:14Z')?.type).toBe('datetime-local');
+  });
+
+  it('is a numeric field for the number types, whole numbers stepping by one', () => {
+    expect(rowFor('vos.Integer', 3)?.step).toBe('1');
+  });
+
+  it('is a numeric field for a reading, stepping by any amount', () => {
+    expect(rowFor('vos.Double', 0.5)?.step).toBe('any');
+  });
+
+  it('is a text box for text', () => {
+    expect(rowFor('vos.String', 'hello')?.type).toBe('text');
+  });
+
+  // A JSON body typed into a narrow panel field is not editing. Saying so beats a disabled box,
+  // which reads as broken rather than deliberate.
+  it('is absent for the types written by ingest, which say so instead', () => {
+    expect(rowFor('vos.GeoJson', { Json: '{}' })).toBeNull();
+    expect(screen.getByText('written by ingest')).toBeInTheDocument();
+  });
+});
+
+describe('a value the declared type cannot hold', () => {
+  function editRow(type: string, value: unknown) {
+    render(
+      <EditablePropertyList
+        properties={[{ name: 'field', value, type }]}
+        entityId="thing-1"
+        entityType="thing"
+        editMode
+        showAddRow={false}
+      />,
+    );
+    return screen.getByLabelText('field') as HTMLInputElement;
+  }
+
+  it('never reaches the platform', () => {
+    const input = editRow('vos.Integer', 3);
+    fireEvent.change(input, { target: { value: '3.7' } });
+    fireEvent.blur(input);
+    expect(setProperty).not.toHaveBeenCalled();
+  });
+
+  it('says what the property holds and what was typed', () => {
+    const input = editRow('vos.Integer', 3);
+    fireEvent.change(input, { target: { value: '3.7' } });
+    fireEvent.blur(input);
+    expect(errors()[0].message).toContain('whole number');
+    expect(errors()[0].message).toContain('3.7');
+  });
+
+  it('lets a value the type can hold through', () => {
+    const input = editRow('vos.Integer', 3);
+    fireEvent.change(input, { target: { value: '4' } });
+    fireEvent.blur(input);
+    expect(setProperty).toHaveBeenCalledWith('thing-1', 'field', 'vos.Integer', '4');
+  });
+});
+
+// Choosing "bool" and then typing the word "true" into a text box is the same guess this work
+// removes, just made by the user rather than by the code.
+describe('the add-property row', () => {
+  function addRow() {
+    render(
+      <EditablePropertyList
+        properties={[]}
+        entityId="thing-1"
+        entityType="thing"
+        editMode
+      />,
+    );
+    return {
+      type: screen.getByLabelText('Property type'),
+      value: () => screen.getByLabelText('value') as HTMLInputElement,
+    };
+  }
+
+  it('starts on a text box, matching the type it starts on', () => {
+    expect(addRow().value().type).toBe('text');
+  });
+
+  it('swaps the value control when the type changes', () => {
+    const row = addRow();
+    fireEvent.change(row.type, { target: { value: 'vos.Boolean' } });
+    expect(row.value().type).toBe('checkbox');
+    fireEvent.change(row.type, { target: { value: 'vos.DateTime' } });
+    expect(row.value().type).toBe('datetime-local');
+  });
+
+  it('refuses a value the chosen type cannot hold, without a request', () => {
+    const row = addRow();
+    fireEvent.change(screen.getByPlaceholderText('name'), { target: { value: 'count' } });
+    fireEvent.change(row.type, { target: { value: 'vos.Integer' } });
+    fireEvent.change(row.value(), { target: { value: '3.7' } });
+    fireEvent.click(screen.getByTitle('Add property'));
+    expect(thingApi.addProperty).not.toHaveBeenCalled();
+    expect(errors()[0].message).toContain('whole number');
   });
 });
 

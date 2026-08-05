@@ -9,6 +9,7 @@ import { PROPERTY_TYPES, DEFAULT_PROPERTY_TYPE, asVosTypeName } from '../../util
 import { useNumberDisplaySettings } from '../../hooks/useNumberDisplaySettings';
 import type { NumberDisplaySettings } from '../../utils/guiSettings';
 import type { EditableProperty } from './editableProperties';
+import { editorForType, rejectionKeyForType, type EditorKind } from './propertyEditing';
 
 /** Max characters before truncating a property value and showing an expand button. */
 const VALUE_TRUNCATE_LIMIT = 60;
@@ -19,6 +20,14 @@ const TYPE_LABELS = new Map(PROPERTY_TYPES.map((option) => [option.value as stri
  *  dropdown does not offer still reads as something rather than as nothing. */
 function shortTypeLabel(type: string): string {
   return TYPE_LABELS.get(type) ?? type.replace(/^vos\./, '');
+}
+
+/** A date keeps its seconds; the picker's default drops them, which would quietly shorten a
+ *  timestamp a user only meant to nudge. */
+function inputTypeFor(editor: EditorKind): string {
+  if (editor === 'dateTime') return 'datetime-local';
+  if (editor === 'wholeNumber' || editor === 'number') return 'number';
+  return 'text';
 }
 
 interface Props {
@@ -138,10 +147,16 @@ function AddPropertyRow({
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
+  const editor = editorForType(type);
   const canSubmit = name.trim().length > 0 && !saving;
 
   const submit = useCallback(async () => {
     if (!canSubmit) return;
+    const rejection = rejectionKeyForType(value, type);
+    if (rejection) {
+      toast.error(t(rejection, { name: name.trim(), value }));
+      return;
+    }
     setSaving(true);
     try {
       const api = entityType === 'thing' ? thingApi : relationshipApi;
@@ -159,6 +174,15 @@ function AddPropertyRow({
       setSaving(false);
     }
   }, [canSubmit, entityType, entityId, name, type, value, onSaved, t]);
+
+  // Choosing a type swaps what the value is entered with, and resets the value: text typed for one
+  // type is rarely a value of the next, and carrying it over just fails the check on submit.
+  const onTypeChange = useCallback((chosenName: string) => {
+    const chosen = asVosTypeName(chosenName);
+    if (!chosen) return;
+    setType(chosen);
+    setValue(editorForType(chosen) === 'checkbox' ? 'false' : '');
+  }, []);
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -183,25 +207,38 @@ function AddPropertyRow({
       />
       <select
         value={type}
-        onChange={(e) => {
-          const chosen = asVosTypeName(e.target.value);
-          if (chosen) setType(chosen);
-        }}
+        onChange={(e) => onTypeChange(e.target.value)}
         disabled={saving}
+        aria-label={t('panels.props.typeLabel')}
         className="px-1 py-0.5 text-xs rounded border border-zinc-600 bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
       >
         {PROPERTY_TYPES.map((t) => (
           <option key={t.value} value={t.value}>{t.label}</option>
         ))}
       </select>
-      <input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder={t('panels.props.valuePlaceholder')}
-        disabled={saving}
-        className="flex-1 min-w-0 px-1.5 py-0.5 text-xs font-mono rounded border border-zinc-600 bg-zinc-800 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-      />
+      {editor === 'checkbox' ? (
+        <input
+          type="checkbox"
+          checked={value === 'true'}
+          onChange={(e) => setValue(String(e.target.checked))}
+          onKeyDown={onKeyDown}
+          disabled={saving}
+          aria-label={t('panels.props.valuePlaceholder')}
+          className="flex-1 min-w-0 accent-blue-500"
+        />
+      ) : (
+        <input
+          type={inputTypeFor(editor)}
+          step={editor === 'wholeNumber' ? 1 : editor === 'number' ? 'any' : undefined}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder={t('panels.props.valuePlaceholder')}
+          aria-label={t('panels.props.valuePlaceholder')}
+          disabled={saving}
+          className="flex-1 min-w-0 px-1.5 py-0.5 text-xs font-mono rounded border border-zinc-600 bg-zinc-800 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      )}
       <button
         onClick={submit}
         disabled={!canSubmit}
@@ -233,6 +270,7 @@ function EditableRow({
   onDelete?: () => void;
 }) {
   const { t } = useTranslation();
+  const editor = editorForType(declaredType);
   // Deliberately unformatted, unlike the display row. A reading shown to five decimal places is
   // rounded, and an edit box holding the rounded text would save that rounding back over the stored
   // value the moment anything else on the row changed. Editing works on the value, not on its
@@ -255,9 +293,9 @@ function EditableRow({
   }
 
   const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setDraft(e.target.value);
+    setDraft(editor === 'checkbox' ? String(e.target.checked) : e.target.value);
     setDirty(true);
-  }, []);
+  }, [editor]);
 
   const save = useCallback(async () => {
     if (saving || !dirty) return;
@@ -270,6 +308,13 @@ function EditableRow({
     const type = asVosTypeName(declaredType);
     if (!type) {
       toast.error(t('panels.props.unknownType', { name, type: declaredType }));
+      return;
+    }
+    // Refused here rather than sent for the platform to reject, so the message reaches the user
+    // while the field that caused it is still in front of them.
+    const rejection = rejectionKeyForType(trimmed, type);
+    if (rejection) {
+      toast.error(t(rejection, { name, value: trimmed }));
       return;
     }
     setSaving(true);
@@ -306,17 +351,38 @@ function EditableRow({
     <div className="flex items-center justify-between py-1 gap-2">
       <span className="text-zinc-400 text-xs shrink-0">{name}</span>
       <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          onBlur={save}
-          disabled={saving}
-          className={`w-full max-w-[180px] px-1.5 py-0.5 text-xs font-mono rounded border bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-            dirty ? 'border-blue-500' : 'border-zinc-600'
-          }`}
-        />
+        {editor === 'readOnly' ? (
+          <span className="text-[11px] text-zinc-500 italic truncate" title={t('panels.props.writtenByIngest')}>
+            {t('panels.props.writtenByIngest')}
+          </span>
+        ) : editor === 'checkbox' ? (
+          <input
+            ref={inputRef}
+            type="checkbox"
+            checked={draft === 'true'}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            onBlur={save}
+            disabled={saving}
+            aria-label={name}
+            className="accent-blue-500"
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            type={inputTypeFor(editor)}
+            step={editor === 'wholeNumber' ? 1 : editor === 'number' ? 'any' : undefined}
+            value={draft}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            onBlur={save}
+            disabled={saving}
+            aria-label={name}
+            className={`w-full max-w-[180px] px-1.5 py-0.5 text-xs font-mono rounded border bg-zinc-800 text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              dirty ? 'border-blue-500' : 'border-zinc-600'
+            }`}
+          />
+        )}
         {saving && <Loader2 size={12} className="text-zinc-500 animate-spin shrink-0" />}
         {onDelete && (
           <button

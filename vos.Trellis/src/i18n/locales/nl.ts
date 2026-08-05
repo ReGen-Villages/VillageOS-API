@@ -453,6 +453,16 @@ export const nl: PartialResources = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "Kan eigenschap niet toevoegen",
       saveFailed: "Opslaan mislukt",
+      typeLabel: "Eigenschapstype",
+      writtenByIngest: "geschreven door het inlezen",
+      rejected: {
+        wholeNumber: "{{name}} bevat een heel getal — {{value}} is dat niet",
+        number: "{{name}} bevat een getal — {{value}} is dat niet",
+        dateTime: "{{name}} bevat een datum — {{value}} is dat niet",
+        identifier: "{{name}} bevat een kenmerk — {{value}} is dat niet",
+        boolean: "{{name}} bevat waar of onwaar — {{value}} is geen van beide",
+        readOnly: "{{name}} bevat gegevens uit het inlezen en kan hier niet worden bewerkt",
+      },
       unknownType: "Kan {{name}} niet opslaan: het platform meldt type {{type}}, dat deze versie niet kent",
     },
     name: {
