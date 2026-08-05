@@ -82,12 +82,22 @@ npm ci
 npm run dev      # Development server on :5173 (proxies /api to https://localhost:7243)
 npm run build    # Production build into ./dist (type-checks first)
 npm test         # Run tests
+npm run test:integration   # Tests that need a running Mycelium (see below)
 npm run lint     # Lint
 ```
 
 The build runs `npm run lint`, `npm test` and `npm run build` on every branch and pull request, so
 a failure in any of them fails the build — and on `develop` stops the wiki publish and the GitHub
 mirror. Run them before pushing rather than finding out from the build.
+
+`npm test` runs offline. `npm run test:integration` covers what only a live
+platform can answer — currently that the property type names Trellis holds are
+the ones the platform's write routes accept, so a type added on one side and not
+the other is caught rather than surfacing later as a property the GUI
+mishandles. It needs a Mycelium running, so it is not part of the build above;
+the VillageOS pipeline runs it on develop, where it can start one. Point it
+elsewhere with `VOS_INTEGRATION_URL`, `VOS_INTEGRATION_USERNAME` and
+`VOS_INTEGRATION_PASSWORD`.
 
 Trellis connects to the Mycelium at `https://localhost:7243` by default.
 
