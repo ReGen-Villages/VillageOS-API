@@ -91,12 +91,49 @@ steps:
     testRunTitle: 'VillageOS Tests - $(Build.SourceBranchName)'
   condition: always()
 
-- task: PublishCodeCoverageResults@2
-  displayName: 'Publish Code Coverage'
+# Coverage for both stacks is published together, after the GUI tests have run. See the publish
+# step below the Trellis steps.
+
+# The four echo services are the worked examples of the managed-microservice contract in Go, Node,
+# Python and Rust. Each ships a test suite, and until now the pipeline ran none of them, so all four
+# could rot without anything reporting it. Each step runs even when an earlier one failed, so one
+# build reports every broken example rather than one per push.
+- script: go test ./...
+  displayName: 'Test Go echo service'
+  workingDirectory: vos.Service.Go.Echo
+  condition: always()
+
+# Only devDependencies (TypeScript and the Node types); `npm test` compiles and then runs.
+- script: |
+    npm ci
+    npm test
+  displayName: 'Test Node echo service'
+  workingDirectory: vos.Service.Node.Echo
+  condition: always()
+
+- script: |
+    python -m pip install --upgrade pip
+    python -m pip install -r requirements.txt
+    python -m pytest
+  displayName: 'Test Python echo service'
+  workingDirectory: vos.Service.Python.Echo
+  condition: always()
+
+# Cargo builds axum, tokio and reqwest from source, which is the slowest step in the build. The
+# cache keys on the lock file, so only a dependency change pays that cost again.
+- task: Cache@2
+  displayName: 'Cache Rust dependencies'
   inputs:
-    codecoverageTool: 'Cobertura'
-    summaryFileLocation: '$(testResultsDirectory)/**/coverage.cobertura.xml'
-  condition: succeededOrFailed()
+    key: 'cargo | "$(Agent.OS)" | vos.Service.Rust.Echo/Cargo.lock'
+    restoreKeys: |
+      cargo | "$(Agent.OS)"
+    path: '$(UserProfile)/.cargo/registry'
+  condition: always()
+
+- script: cargo test
+  displayName: 'Test Rust echo service'
+  workingDirectory: vos.Service.Rust.Echo
+  condition: always()
 
 - script: node --test
   displayName: 'Test wiki-mirror converter'
@@ -129,7 +166,10 @@ steps:
 
 # Both reporters: junit alone replaces the console output, which leaves a failing build's log
 # saying only that the run exited 1, with the failures readable exclusively in the Tests tab.
-- script: npm run test -- --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/trellis-junit.xml
+# --coverage writes a cobertura report to vos.Trellis/coverage (configured in vite.config.ts).
+# Without it the GUI figure was never measured, so it could fall a long way unnoticed while the
+# platform figure looked healthy.
+- script: npm run test -- --coverage --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/trellis-junit.xml
   displayName: 'Test Trellis'
   workingDirectory: vos.Trellis
   condition: always()
@@ -143,6 +183,16 @@ steps:
     mergeTestResults: true
     failTaskOnFailedTests: true
   condition: always()
+
+# Both stacks in one report, so the GUI figure sits next to the platform figure instead of being
+# invisible. Runs after the GUI tests because its report is one of the two being published.
+- task: PublishCodeCoverageResults@2
+  displayName: 'Publish Code Coverage'
+  inputs:
+    summaryFileLocation: |
+      $(testResultsDirectory)/**/coverage.cobertura.xml
+      $(Build.SourcesDirectory)/vos.Trellis/coverage/cobertura-coverage.xml
+  condition: succeededOrFailed()
 
 # Covers the type-check too — `npm run build` is `tsc -b` then the bundle, and nothing else in this
 # pipeline type-checks the GUI. Emits to vos.Trellis/dist here: the output directory resolves to a

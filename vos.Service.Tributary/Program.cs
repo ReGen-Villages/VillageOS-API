@@ -1,50 +1,33 @@
 using System.Globalization;
 using System.Text.Json;
 using vos.Auth.Shared;
-using vos.Service.Tributary.Configuration;
 using vos.Service.Tributary.Helpers;
 using vos.Service.Tributary.Models;
 using vos.Service.Tributary.Services;
 using vos.Service.Shared;
+using vos.Service.Shared.Hosting;
+using vos.Service.Shared.Configuration;
 using vos.Service.Shared.Validation;
 using Serilog;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
-var cliArgs = CliArgs.Parse(args, builder.Configuration);
-if (cliArgs == null)
+var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
+if (launchSettings == null)
 {
-    Console.WriteLine(CliArgs.UsageMessage);
+    Console.WriteLine(ServiceLaunchSettings.UsageMessage);
     Environment.Exit(1);
     return;
 }
 
-var servicePort = cliArgs.Port;
-var myceliumUrl = cliArgs.MyceliumUrl;
-var serviceToken = cliArgs.Token;
-var signingKey = cliArgs.SigningKey;
+var servicePort = launchSettings.Port;
+var myceliumUrl = launchSettings.MyceliumUrl;
+var serviceToken = launchSettings.Token;
+var signingKey = launchSettings.SigningKey;
 
-// Skip the file sink when running under WebApplicationFactory<Program> tests. Same
-// rationale as Metabolism — file I/O under the test host has no value and invites flakiness.
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-
-var loggerConfig = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", "Tributary");
-
-if (!isTestingEnv)
-{
-    var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "tributary-.log");
-    loggerConfig = loggerConfig.WriteTo.File(
-        path: logPath,
-        rollingInterval: RollingInterval.Day,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true);
-}
-
-Log.Logger = loggerConfig.CreateLogger();
+ServiceHost.ConfigureLogging("Tributary", "tributary-.log", writeToFile: !isTestingEnv);
 
 try
 {
@@ -62,10 +45,10 @@ try
     {
         builder.AddMyceliumTokenAuth(
             signingKey!,
-            issuer: cliArgs.Issuer,
-            audience: cliArgs.Audience);
+            issuer: launchSettings.Issuer,
+            audience: launchSettings.Audience);
         Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            cliArgs.Issuer, cliArgs.Audience);
+            launchSettings.Issuer, launchSettings.Audience);
     }
 
     builder.Services.AddSingleton(sp =>

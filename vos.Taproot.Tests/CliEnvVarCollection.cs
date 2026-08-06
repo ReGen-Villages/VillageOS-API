@@ -7,6 +7,6 @@ namespace vos.Taproot.Tests;
 // windows in one test race with reads in another and fail intermittently (e.g. under
 // `dotnet test` from the solution root). These env vars are part of vos.Taproot's actual
 // production interface (set by users to configure the CLI), so they can't be replaced
-// with IConfiguration injection the way the microservice CliArgs were.
+// with IConfiguration injection the way the microservice launch settings were.
 [CollectionDefinition(nameof(CliEnvVarCollection), DisableParallelization = true)]
 public class CliEnvVarCollection { }

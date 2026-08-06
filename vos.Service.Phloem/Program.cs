@@ -1,44 +1,30 @@
 using System.Text.Json;
 using vos.Auth.Shared;
 using vos.Service.Shared;
+using vos.Service.Shared.Hosting;
 using vos.Service.Phloem.Configuration;
+using vos.Service.Shared.Configuration;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Services;
 using Serilog;
 
-var cliArgs = CliArgs.Parse(args);
-if (cliArgs == null)
+var builder = WebApplication.CreateBuilder(args);
+
+var launchSettings = PhloemLaunchSettings.Parse(args, builder.Configuration);
+if (launchSettings == null)
 {
-    Console.WriteLine(CliArgs.UsageMessage);
+    Console.WriteLine(PhloemLaunchSettings.UsageMessage);
     Environment.Exit(1);
     return;
 }
 
-var servicePort = cliArgs.Port;
-var myceliumUrl = cliArgs.MyceliumUrl;
-var serviceToken = cliArgs.Token;
-var signingKey = cliArgs.SigningKey;
+var servicePort = launchSettings.Service.Port;
+var myceliumUrl = launchSettings.Service.MyceliumUrl;
+var serviceToken = launchSettings.Service.Token;
+var signingKey = launchSettings.Service.SigningKey;
 
-var builder = WebApplication.CreateBuilder(args);
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-
-var loggerConfig = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .Enrich.WithProperty("Service", "Phloem");
-
-if (!isTestingEnv)
-{
-    var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "phloem-.log");
-    loggerConfig = loggerConfig.WriteTo.File(
-        path: logPath,
-        rollingInterval: RollingInterval.Day,
-        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}",
-        shared: true);
-}
-
-Log.Logger = loggerConfig.CreateLogger();
+ServiceHost.ConfigureLogging("Phloem", "phloem-.log", writeToFile: !isTestingEnv);
 
 try
 {
@@ -51,13 +37,13 @@ try
     var authEnabled = !string.IsNullOrEmpty(signingKey);
     if (authEnabled)
     {
-        builder.AddMyceliumTokenAuth(signingKey!, issuer: cliArgs.Issuer, audience: cliArgs.Audience);
+        builder.AddMyceliumTokenAuth(signingKey!, issuer: launchSettings.Service.Issuer, audience: launchSettings.Service.Audience);
         Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            cliArgs.Issuer, cliArgs.Audience);
+            launchSettings.Service.Issuer, launchSettings.Service.Audience);
     }
 
     // Archetype vocabulary pushed by Mycelium at launch (defaults when an arg is absent).
-    builder.Services.AddSingleton(cliArgs.Model);
+    builder.Services.AddSingleton(launchSettings.Model);
     builder.Services.AddSingleton(sp =>
         new MyceliumGateway(
             sp.GetRequiredService<IHttpClientFactory>(),

@@ -11,8 +11,8 @@ namespace vos.Service.Metabolism.Tests;
 // VillageOS repo, including the IAsyncLifetime workaround for the sync-over-async
 // deadlock in CreateHost under the XPlat Code Coverage collector on Windows CI
 // (VillageOS Bug #5260).
-// Config is injected via UseSetting on the host builder; CliArgs.Parse reads
-// these as a fallback when CLI args are absent (always the case under WebApplicationFactory).
+// Settings are injected via UseSetting on the host builder; MetabolismLaunchSettings.Parse
+// falls back to those when no command-line flags are present, which is always the case here.
 // The Testing environment guard in Program.cs already skips Serilog file logging,
 // SSE subscription, and mycelium deregister.
 // The test still hits a real MyceliumClient instance inside Program.cs, but no method on it
