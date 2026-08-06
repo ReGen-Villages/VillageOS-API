@@ -34,7 +34,7 @@ public static class HandleRequestRouter
             : HandleRequestKind.Unrecognised;
     }
 
-    public static bool TryReadSubjectId(JsonElement root, out Guid subjectId)
+    private static bool TryReadSubjectId(JsonElement root, out Guid subjectId)
     {
         subjectId = Guid.Empty;
 
@@ -48,11 +48,13 @@ public static class HandleRequestRouter
 
             // TryGetGuid throws rather than returning false unless the value is a string, so a body
             // carrying a number or null here would fail the request instead of being refused.
-            if (property.Value.ValueKind == JsonValueKind.String && property.Value.TryGetGuid(out subjectId))
+            if (property.Value.ValueKind == JsonValueKind.String && property.Value.TryGetGuid(out var candidate))
+            {
+                subjectId = candidate;
                 return true;
+            }
         }
 
-        subjectId = Guid.Empty;
         return false;
     }
 

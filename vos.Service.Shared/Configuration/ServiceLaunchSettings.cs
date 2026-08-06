@@ -18,8 +18,7 @@ public record ServiceLaunchSettings(
     public static ServiceLaunchSettings? Parse(string[]? arguments, IConfiguration? configuration = null) =>
         Parse(new LaunchSettingReader(arguments, configuration));
 
-    // Returns null when a required setting is missing or the port is not a usable number, which is
-    // the signal for the caller to print the usage message and stop.
+    // Null is the caller's signal to print the usage message and stop.
     public static ServiceLaunchSettings? Parse(LaunchSettingReader reader)
     {
         var myceliumUrl = reader.Read("myceliumUrl");
@@ -38,7 +37,7 @@ public record ServiceLaunchSettings(
             reader.Read("audience"));
     }
 
-    public static bool TryReadPort(LaunchSettingReader reader, out int port)
+    private static bool TryReadPort(LaunchSettingReader reader, out int port)
     {
         port = 0;
         var raw = reader.Read("port");
@@ -47,11 +46,11 @@ public record ServiceLaunchSettings(
             && port is >= LowestPort and <= HighestPort;
     }
 
-    public const string CommonFlagSummary =
+    private const string CommonFlagSummary =
         "--port=<port> --myceliumUrl=<url> [--token=<jwt>] [--signingKey=<base64>] " +
         "[--issuer=<issuer>] [--audience=<audience>]";
 
-    public const string CommonFlagDescriptions =
+    private const string CommonFlagDescriptions =
         "  --port         Port number for the service to listen on\n" +
         "  --myceliumUrl  URL of the VOS Mycelium\n" +
         "  --token        Service JWT token for authenticating with Mycelium (optional)\n" +
@@ -61,8 +60,8 @@ public record ServiceLaunchSettings(
 
     public static string UsageMessage => BuildUsageMessage();
 
-    // Every setting also reads from configuration and the environment under its Pascal-case name,
-    // so a service can be launched with no flags at all.
+    // A service with settings of its own passes them here rather than writing its own usage message,
+    // so every service names the standard flags the same way.
     public static string BuildUsageMessage(
         string extraFlagSummary = "",
         string extraFlagDescriptions = "") =>

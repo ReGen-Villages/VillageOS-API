@@ -29,6 +29,8 @@ internal sealed class MyceliumRegistration : IHostedService
                 Log.Information("{Service} service {Status} with mycelium",
                     _serviceName, registered ? "registered" : "failed to register");
             }
+            // RegisterAsync handles its own network failures but validates the payload outside that
+            // guard, so a schema violation still reaches here. Unhandled, it would abort startup.
             catch (Exception exception)
             {
                 Log.Error(exception, "Error during {Service} startup registration", _serviceName);
@@ -40,15 +42,6 @@ internal sealed class MyceliumRegistration : IHostedService
 
     // Withdrawal is awaited, unlike registration: the host waits for this to finish, so the broker
     // learns the service is gone instead of being left with a handler that no longer answers.
-    public async Task StopAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _client.DeregisterAsync();
-        }
-        catch (Exception exception)
-        {
-            Log.Error(exception, "Error during {Service} shutdown deregistration", _serviceName);
-        }
-    }
+    // DeregisterAsync logs and swallows its own failures, so there is nothing to guard against here.
+    public Task StopAsync(CancellationToken cancellationToken) => _client.DeregisterAsync();
 }

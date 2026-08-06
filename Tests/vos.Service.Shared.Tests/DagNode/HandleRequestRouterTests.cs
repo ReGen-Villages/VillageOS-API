@@ -95,13 +95,13 @@ public class HandleRequestRouterTests
     }
 
     [Fact]
-    public void TryReadSubjectId_TakesTheFirstPropertyThatCarriesAnIdentifier()
+    public void Classify_FindsTheSubjectIdAmongOtherProperties()
     {
-        var found = HandleRequestRouter.TryReadSubjectId(
-            Body("""{"other":"x","subjectId":"6f9619ff-8b86-d011-b42d-00cf4fc964ff"}"""),
+        var kind = HandleRequestRouter.Classify(
+            Body("""{"other":"x","subjectId":"6f9619ff-8b86-d011-b42d-00cf4fc964ff","more":1}"""),
             out var subjectId);
 
-        found.Should().BeTrue();
+        kind.Should().Be(HandleRequestKind.RelationshipSubject);
         subjectId.Should().Be(Guid.Parse("6f9619ff-8b86-d011-b42d-00cf4fc964ff"));
     }
 

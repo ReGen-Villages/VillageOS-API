@@ -3,8 +3,9 @@ using vos.Service.Shared.Configuration;
 
 namespace vos.Service.Xylem.Configuration;
 
-// Xylem draws external IFC models inward: it accepts an uploaded .ifc, runs the vos.Tools.IfcIngest
-// tool, and applies the graph to Mycelium — so no client needs the ingest toolchain locally.
+// The common service settings plus where the ingest tool lives and how large an upload Xylem will
+// take. Xylem runs that tool over an uploaded .ifc and applies the result to Mycelium, so no client
+// needs the ingest toolchain locally.
 public sealed record XylemLaunchSettings(
     ServiceLaunchSettings Service,
     // Path to the built IfcIngest entry assembly (invoked via `dotnet <dll>`); lives in the private repo.

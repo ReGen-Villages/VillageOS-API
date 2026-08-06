@@ -59,11 +59,11 @@ var requestCount = 0;
 
 builder.Services.AddSingleton(sp =>
     new EndpointServiceMyceliumClient(
-            sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
-            "Echo",
-            myceliumUrl,
-            serviceToken));
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
+        "Echo",
+        myceliumUrl,
+        serviceToken));
 
 builder.Services.AddSingleton(sp =>
     new EchoNode(

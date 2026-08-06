@@ -43,6 +43,8 @@ public static class ServiceHost
         services.AddHostedService(provider => new MyceliumRegistration(
             provider.GetRequiredService<EndpointServiceMyceliumClient>(), serviceName, port));
 
+    // Returns nothing to gate on, unlike MapShutdown: the broker polls /health to decide whether the
+    // service is alive, and it cannot do that behind authentication.
     public static void MapHealthAndStats(
         this WebApplication app, string serviceName, string myceliumUrl)
     {

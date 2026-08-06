@@ -153,22 +153,48 @@ public class ServiceHostTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    // Mirrors the path ConfigureLogging builds — a shared folder four levels above the binary.
+    private static DirectoryInfo LogDirectory() => new(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs"));
+
+    private static FileInfo[] LogFilesNamed(string prefix)
+    {
+        var directory = LogDirectory();
+        return directory.Exists ? directory.GetFiles($"{prefix}*.log") : [];
+    }
+
     [Fact]
     public void ConfigureLogging_WithoutTheFileSink_WritesNoLogFile()
     {
-        var logDirectory = new DirectoryInfo(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs"));
-        var before = logDirectory.Exists
-            ? logDirectory.GetFiles("service-host-test-*.log").Length
-            : 0;
+        const string prefix = "service-host-no-file-test-";
+        var before = LogFilesNamed(prefix).Length;
 
-        ServiceHost.ConfigureLogging("ServiceHostTest", "service-host-test-.log", writeToFile: false);
+        ServiceHost.ConfigureLogging("ServiceHostTest", $"{prefix}.log", writeToFile: false);
         Serilog.Log.Information("a message that must not reach a file");
         Serilog.Log.CloseAndFlush();
 
-        var after = logDirectory.Exists
-            ? logDirectory.GetFiles("service-host-test-*.log").Length
-            : 0;
-        after.Should().Be(before);
+        LogFilesNamed(prefix).Should().HaveCount(before);
+    }
+
+    [Fact]
+    public void ConfigureLogging_WithTheFileSink_WritesTheMessageAndNamesTheService()
+    {
+        const string prefix = "service-host-file-test-";
+        foreach (var stale in LogFilesNamed(prefix)) stale.Delete();
+
+        try
+        {
+            ServiceHost.ConfigureLogging("ServiceHostFileTest", $"{prefix}.log");
+            Serilog.Log.Information("a message that must reach the file");
+            Serilog.Log.CloseAndFlush();
+
+            var written = LogFilesNamed(prefix);
+            written.Should().ContainSingle();
+            File.ReadAllText(written[0].FullName).Should().Contain("a message that must reach the file");
+        }
+        finally
+        {
+            foreach (var file in LogFilesNamed(prefix)) file.Delete();
+        }
     }
 }
