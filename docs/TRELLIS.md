@@ -400,6 +400,8 @@ Panning moves the village across the screen plane — the left/right/up/down are
 
 **Selecting and filtering:** Click any element to select it — its detail panel slides in from the right, the same panel used on the Graph page. The type-filter panel in the top-left corner hides or shows whole categories of elements (it hides the same set of things as the Graph page's type filter).
 
+Unchecking every type empties the viewport. That case is handled apart from the rest: the panel lists the types the model has Things for, while the Fragments artifact holds every element the IFC had — usually far more. Naming the elements to hide therefore reaches only the ones the model knows, so "no types selected" tells the viewer to show nothing at all rather than handing it a list.
+
 > **Note**: When the Model page is in overhead (plan) camera mode, orbiting is disabled — pan and zoom still work.
 
 ### 6.2 Single-Building 3D View
