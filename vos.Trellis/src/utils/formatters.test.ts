@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatGuid, formatTimestamp, formatDateTime, formatRelativeTime, formatMs, formatPropertyValue } from './formatters';
+import { formatGuid, formatTimestamp, formatDateTime, formatRelativeTime, formatMs, formatBytes, formatPropertyValue } from './formatters';
 
 describe('formatGuid', () => {
   it('truncates a GUID to first 8 chars with ellipsis', () => {
@@ -176,5 +176,15 @@ describe('formatPropertyValue by declared type', () => {
   it('defaults to five places when the model states none', () => {
     expect(formatPropertyValue(0.123456789, 'vos.Double')).toBe('0.12346');
     expect(formatPropertyValue(0.123456789, 'vos.Decimal')).toBe('0.12346');
+  });
+});
+
+describe('formatBytes', () => {
+  it('renders each magnitude with its unit', () => {
+    expect(formatBytes(0)).toBe('0 B');
+    expect(formatBytes(512)).toBe('512 B');
+    expect(formatBytes(17088)).toBe('16.7 KB');
+    expect(formatBytes(5 * 1024 * 1024)).toBe('5.0 MB');
+    expect(formatBytes(3 * 1024 * 1024 * 1024)).toBe('3.0 GB');
   });
 });

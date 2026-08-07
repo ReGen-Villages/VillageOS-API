@@ -437,6 +437,23 @@ The top-left card shows at-a-glance counts for your model:
 
 Below the counts, a **Top Predicates** list shows the most-used relationship types ranked by count.
 
+### 7.1a Reactive engines
+
+Below the model statistics, the **Reactive engines** card shows what the platform's two reactive
+engines are carrying for the current model, read from `GET /api/engines/metrics`:
+
+- **Range evaluation** — registered ranges, their dependency edges, and estimated memory
+- **Reactive computation** — roll-up definitions, their member edges, and estimated memory
+- **Total est. memory** — the combined footprint
+
+The numbers refresh when the model changes and on a short poll (range and roll-up definition
+writes publish no model-change event, so polling keeps the card honest). While the connection is
+down or before the first load, the card reads "Metrics unavailable" rather than zeros. Per-reactor
+drill-in belongs to Taproot (#5856), not this card.
+
+Manual check: create a range or post a fragment carrying `RollupProperties`, and the counts move
+within one poll interval.
+
 ### 7.2 Services
 
 Shows every service the model routes to — both **graph** connections (predicate handlers, reached when a relationship is created) and **http** connections (endpoint services, reached via `POST /api/endpoints/{subdomain}`) — in one unified list. They are the same kind of thing, distinguished only by how requests reach them, so each card carries a trigger icon (a workflow glyph for graph, a globe for http) and a route label (`predicate`, or the `/api/endpoints/{subdomain}` path).

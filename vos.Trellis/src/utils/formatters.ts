@@ -29,6 +29,18 @@ export function formatRelativeTime(iso: string): string {
   }
 }
 
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  let value = bytes;
+  let unit = 'B';
+  for (const next of ['KB', 'MB', 'GB', 'TB']) {
+    if (value < 1024) break;
+    value /= 1024;
+    unit = next;
+  }
+  return `${value.toFixed(1)} ${unit}`;
+}
+
 export function formatMs(ms: number): string {
   if (ms < 1) return '<1ms';
   if (ms < 1000) return `${Math.round(ms)}ms`;
