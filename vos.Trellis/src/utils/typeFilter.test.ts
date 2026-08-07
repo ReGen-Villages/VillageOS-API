@@ -4,6 +4,7 @@ import {
   groupTypesByName,
   buildInstanceTypeIndex,
   applyTypeFilter,
+  everyTypeHidden,
   sortTypeGroups,
   NO_TYPE_ID,
   NO_TYPE_NAME,
@@ -302,5 +303,33 @@ describe('sortTypeGroups (Feature #5386)', () => {
 
   it('handles an empty list', () => {
     expect(sortTypeGroups([], 'count-desc')).toEqual([]);
+  });
+});
+
+describe('everyTypeHidden (Bug #5366)', () => {
+  const allTypeIds = new Set(discoverTypes(things, rels).map((t) => t.typeId));
+
+  it('is true when every discovered bucket is hidden — what the panel produces on None', () => {
+    expect(everyTypeHidden(things, rels, allTypeIds)).toBe(true);
+  });
+
+  it('is false when nothing is hidden', () => {
+    expect(everyTypeHidden(things, rels, new Set())).toBe(false);
+  });
+
+  it('is false while any bucket is still showing, including the synthetic one', () => {
+    const allButNoType = new Set([...allTypeIds].filter((id) => id !== NO_TYPE_ID));
+    expect(everyTypeHidden(things, rels, allButNoType)).toBe(false);
+    expect(everyTypeHidden(things, rels, new Set(['t-wall']))).toBe(false);
+  });
+
+  it('ignores hidden ids that name no bucket, so a stale id cannot fake a full hide', () => {
+    const staleOnly = new Set(['t-wall', 't-door', NO_TYPE_ID, 't-removed-since']);
+    expect(everyTypeHidden(things, rels, staleOnly)).toBe(true);
+    expect(everyTypeHidden(things, rels, new Set(['t-removed-since']))).toBe(false);
+  });
+
+  it('is false for an empty model, where hiding everything means nothing', () => {
+    expect(everyTypeHidden([], [], new Set())).toBe(false);
   });
 });

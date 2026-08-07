@@ -7,6 +7,7 @@ import { FragmentsModels as BimFragmentsModels, type FragmentsModel as BimFragme
 import { LoadingOverlay } from './LoadingOverlay';
 import { ViewerToolbar, type CameraMode } from './ViewerToolbar';
 import { orbitMouseButtonsFor } from '../../utils/orbitMouseButtons';
+import type { SceneVisibility } from './sceneVisibility';
 
 /** Map of IFC GlobalId → VosThing GUID, served by Mycelium at /api/model/mapping. */
 export type BimFragmentsMapping = Record<string, string>;
@@ -28,11 +29,20 @@ interface BimFragmentsViewerProps {
   mapping: BimFragmentsMapping;
   /** Fires with the VosThing GUID of the clicked element, or null when the click missed geometry. */
   onPick: (vosGuid: string | null) => void;
-  /** IFC GlobalIds whose Fragments instances should be hidden. Empty → everything visible. */
-  hiddenIfcGuids?: readonly string[];
+  /**
+   * What the type filter says the scene should show. Required, and the caller
+   * must hold it stable across renders — a fresh object every render re-runs
+   * the whole visibility pass over the model.
+   */
+  visibility: SceneVisibility;
 }
 
-export function BimFragmentsViewer({ bimFragmentsBytes, mapping, onPick, hiddenIfcGuids = [] }: BimFragmentsViewerProps) {
+export function BimFragmentsViewer({
+  bimFragmentsBytes,
+  mapping,
+  onPick,
+  visibility,
+}: BimFragmentsViewerProps) {
   const orbitRef = useRef<OrbitControlsImpl | null>(null);
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading', stage: 'fetching worker', progress: 0 });
   const [cameraMode, setCameraMode] = useState<CameraMode>('3d');
@@ -114,7 +124,7 @@ export function BimFragmentsViewer({ bimFragmentsBytes, mapping, onPick, hiddenI
           onReady={onReady}
           cameraMode={cameraMode}
           clipPlanesRef={clipPlanesRef}
-          hiddenIfcGuids={hiddenIfcGuids}
+          visibility={visibility}
         />
       </Canvas>
 
@@ -145,7 +155,7 @@ interface BimFragmentsSceneProps {
   onReady: (bounds: ModelBounds) => void;
   cameraMode: CameraMode;
   clipPlanesRef: React.MutableRefObject<THREE.Plane[]>;
-  hiddenIfcGuids: readonly string[];
+  visibility: SceneVisibility;
 }
 
 const CLICK_MAX_DRAG_PX = 4;
@@ -166,7 +176,7 @@ function BimFragmentsScene({
   onReady,
   cameraMode,
   clipPlanesRef,
-  hiddenIfcGuids,
+  visibility,
 }: BimFragmentsSceneProps) {
   const { camera, gl, invalidate } = useThree();
   const [model, setModel] = useState<BimFragmentsModel | null>(null);
@@ -256,8 +266,16 @@ function BimFragmentsScene({
     (async () => {
       await model.resetVisible();
       if (cancelled) { invalidate(); return; }
-      if (hiddenIfcGuids.length > 0) {
-        const localIds = (await model.getLocalIdsByGuids([...hiddenIfcGuids]))
+      if (visibility.kind === 'nothing') {
+        // Ask the scene what it is showing and hide that, rather than naming
+        // the guids the model knows: a .frag holds elements the model has no
+        // Thing for, and those would stay on screen (Bug #5366). Passing no ids
+        // to setVisible does not mean "all" — it leaves most of them showing.
+        const shown = await model.getItemsByVisibility(true);
+        if (cancelled) { invalidate(); return; }
+        if (shown.length > 0) await model.setVisible(shown, false);
+      } else if (visibility.kind === 'everythingExcept' && visibility.hiddenIfcGuids.length > 0) {
+        const localIds = (await model.getLocalIdsByGuids([...visibility.hiddenIfcGuids]))
           .filter((id): id is number => typeof id === 'number');
         if (cancelled) { invalidate(); return; }
         if (localIds.length > 0) await model.setVisible(localIds, false);
@@ -267,7 +285,7 @@ function BimFragmentsScene({
       invalidate();
     })().catch((err) => console.error('Failed to apply type-filter visibility', err));
     return () => { cancelled = true; };
-  }, [model, hiddenIfcGuids, invalidate]);
+  }, [model, visibility, invalidate]);
 
   useEffect(() => {
     if (!model) return;
