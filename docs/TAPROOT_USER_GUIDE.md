@@ -197,7 +197,7 @@ production** — it disables protection against man-in-the-middle attacks.
 | `range delete <thing> <name>` | Delete a range |
 | `range validate <criteria>` | Validate criteria syntax |
 | `state <thing>` | Get current states for a thing |
-| `state query <state-name>` | Find all things in a state |
+| `state query <state-name>` | Find the things in a state (the kinds they `is` are left out) |
 | `serialize [file]` | Export model to JSON |
 | `seed [file]` | Alias for serialize |
 | `deserialize <file>` | Import model from JSON |

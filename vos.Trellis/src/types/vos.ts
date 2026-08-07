@@ -230,9 +230,12 @@ export interface CriteriaValidationResult {
 
 // State query
 
+/** Response of GET /api/states/{state}/things. The kinds Things `is` are left out unless the
+ *  request asks for them, and `Properties` is present only on the entries of a request that named
+ *  properties — a name the Thing does not hold is absent from it rather than null. */
 export interface ThingsInStateResponse {
   StateName: string;
-  Things: Array<{ Id: string; Name: string }>;
+  Things: Array<{ Id: string; Name: string; Properties?: Record<string, unknown> }>;
 }
 
 /** Window the returned state history covers. `Source` is "in-memory" while history comes from the

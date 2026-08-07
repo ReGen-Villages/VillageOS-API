@@ -79,7 +79,8 @@ public class StateCommandHandler
         {
             _writer.WriteLine("Usage: state query <state-name>");
             _writer.WriteLine();
-            _writer.WriteLine("Find all things currently in the specified state.");
+            _writer.WriteLine("Find the things currently in the specified state.");
+            _writer.WriteLine("The kinds those things are — the archetypes — are left out.");
             return;
         }
 
@@ -100,7 +101,8 @@ public class StateCommandHandler
         _writer.WriteLine();
         _writer.WriteLine("  state query <state-name>");
         _writer.WriteLine("  state find <state-name>");
-        _writer.WriteLine("    Find all things currently in the specified state.");
+        _writer.WriteLine("    Find the things currently in the specified state.");
+        _writer.WriteLine("    The kinds those things are — the archetypes — are left out.");
         _writer.WriteLine();
         _writer.WriteLine("Note: <thing> can be a GUID or a unique name.");
     }
