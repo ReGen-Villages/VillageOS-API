@@ -3,6 +3,9 @@
 export interface VosThing {
   Id: string;
   Name: string;
+  /** Declared when the Thing was created, because nothing can re-derive it: a type and a member are
+   *  the same shape, and a type whose members do not exist yet has no `is` edge to give it away. */
+  IsArchetype?: boolean;
   Properties: Record<string, unknown>;
   /** Stored per-instance overrides of inherited names, keyed by source (the wire field
    *  `InheritedOverrides`). Override-only — NOT the full inherited view; for that read the

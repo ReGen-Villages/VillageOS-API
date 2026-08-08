@@ -7,7 +7,7 @@ import { FragmentsModels as BimFragmentsModels, type FragmentsModel as BimFragme
 import { LoadingOverlay } from './LoadingOverlay';
 import { ViewerToolbar, type CameraMode } from './ViewerToolbar';
 import { orbitMouseButtonsFor } from '../../utils/orbitMouseButtons';
-import type { SceneVisibility } from './sceneVisibility';
+import { hiddenSceneItemsFor, type SceneVisibility } from './sceneVisibility';
 
 /** Map of IFC GlobalId → VosThing GUID, served by Mycelium at /api/model/mapping. */
 export type BimFragmentsMapping = Record<string, string>;
@@ -266,20 +266,9 @@ function BimFragmentsScene({
     (async () => {
       await model.resetVisible();
       if (cancelled) { invalidate(); return; }
-      if (visibility.kind === 'nothing') {
-        // Ask the scene what it is showing and hide that, rather than naming
-        // the guids the model knows: a .frag holds elements the model has no
-        // Thing for, and those would stay on screen (Bug #5366). Passing no ids
-        // to setVisible does not mean "all" — it leaves most of them showing.
-        const shown = await model.getItemsByVisibility(true);
-        if (cancelled) { invalidate(); return; }
-        if (shown.length > 0) await model.setVisible(shown, false);
-      } else if (visibility.kind === 'everythingExcept' && visibility.hiddenIfcGuids.length > 0) {
-        const localIds = (await model.getLocalIdsByGuids([...visibility.hiddenIfcGuids]))
-          .filter((id): id is number => typeof id === 'number');
-        if (cancelled) { invalidate(); return; }
-        if (localIds.length > 0) await model.setVisible(localIds, false);
-      }
+      const toHide = await hiddenSceneItemsFor(visibility, model);
+      if (cancelled) { invalidate(); return; }
+      if (toHide.length > 0) await model.setVisible(toHide, false);
       const bimFragments = bimFragmentsRef.current;
       if (bimFragments && !cancelled) await bimFragments.update(true);
       invalidate();

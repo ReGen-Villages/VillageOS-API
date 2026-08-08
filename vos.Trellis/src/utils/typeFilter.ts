@@ -157,24 +157,6 @@ export function sortTypeGroups(
 }
 
 /**
- * True when `hiddenTypeIds` covers every bucket `discoverTypes` finds — the
- * state the panel's "None" action produces.
- *
- * Ids that name no bucket are ignored, so one left behind by a Thing that has
- * since gone cannot make a partly-filtered model look fully hidden. An empty
- * model has no bucket to hide, so it is never fully hidden.
- */
-export function everyTypeHidden(
-  things: VosThing[],
-  relationships: VosRelationship[],
-  hiddenTypeIds: ReadonlySet<string>,
-): boolean {
-  const buckets = discoverTypes(things, relationships);
-  if (buckets.length === 0) return false;
-  return buckets.every((bucket) => hiddenTypeIds.has(bucket.typeId));
-}
-
-/**
  * For each Thing, return the id of the type it `is`-relates to (or null).
  * If a Thing has multiple `is` relationships, the first one wins — same
  * behavior as graphologyMapper.buildRelationshipIndex's isSubjectToTypeName.
