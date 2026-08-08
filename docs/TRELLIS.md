@@ -86,7 +86,7 @@ After login, the **Dashboard** is the default landing page. The sidebar on the l
 
 | Icon | Page | Purpose |
 |------|------|---------|
-| Grid | **Dashboard** | Model statistics, service health & daemon state, and live activity feed |
+| Grid | **Dashboard** | Model statistics, reactive-engine capacity, service health & daemon state, and live activity feed |
 | Network | **Graph** | Interactive graph visualization with search, clustering, 3D building view, and CRUD |
 | Box | **Model** | IFC-based 3D model viewer (Fragments) with type filtering and element selection |
 | Clock | **Temporal** | Time-range mutation explorer for viewing property change history |
