@@ -8,6 +8,7 @@
 
 import type { VosThing, VosRelationship } from '../../types/vos';
 import { applyTypeFilter } from '../../utils/typeFilter';
+import { ifcGlobalIdOf } from '../../utils/ifcIdentity';
 
 export type SceneVisibility =
   | { kind: 'everything' }
@@ -37,8 +38,8 @@ export function sceneVisibilityFor(
   const hiddenIfcGuids: string[] = [];
   for (const thing of things) {
     if (stillShowing.has(thing.Id)) continue;
-    const guid = thing.Properties?.ifcGlobalId;
-    if (typeof guid === 'string' && guid.length > 0) hiddenIfcGuids.push(guid);
+    const guid = ifcGlobalIdOf(thing);
+    if (guid !== null) hiddenIfcGuids.push(guid);
   }
   return { kind: 'everythingExcept', hiddenIfcGuids };
 }
