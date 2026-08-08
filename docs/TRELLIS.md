@@ -901,7 +901,9 @@ GraphPage fetches the full thing list (`GET /api/things`) and the relationship l
 
 - **Predicate nodes**: amber `#fbbf24` — things used as `PredicateId` or with `ExecutablePath`/`ServicePort`
 - **Type nodes**: blue `#60a5fa` — things that are targets of "is" relationships
-- **Instance nodes**: color derived from the "is" type name via `hashStringToIndex()` into a 16-color vibrant palette. Every instance of the same type shares the same color (e.g., all "Home" instances are one color, all "SolarArray" another). New types automatically get distinct colors without code changes.
+- **Instance nodes**: colored by the classifying property first — `layoutSettings.classifyingProperty`, `ifcClass` by default — through the curated class table, so IFC elements of the same class share a color across types. An instance whose classifying value is missing or has no curated bucket falls back to the "is" type name via `hashStringToIndex()` into a 16-color vibrant palette, so every instance of the same type shares a color (e.g. all "Home" instances one color, all "SolarArray" another) and new types get distinct colors without code changes.
+
+  Read the classifying value with `storedTextOf`, not from the own property bag. When an instance and the type it `is`-relates to both declare a name, the instance's own value is stored as an *override* rather than an own property, so the own bag looks empty. Reading it directly is what kept the curated class colors from ever reaching an IFC instance (Bug #6191) — the same mistake that made most of the 3D viewer unpickable.
 - **Untyped instances** (no "is" relationship): slate `#94a3b8` fallback
 - **Edge colors**: Resolved per-predicate via `resolvePredicateColor(name, overrides)`. Explicit name→hex overrides from the `GUI_Settings` Thing's `PredicateColors` JSON property take priority; unlisted predicates fall back to an 8-color palette via `hashStringToIndex()`. The same resolver is used by both `buildGraph()` (edge colors) and `computePredicateStats()` (radial menu colors) so they always match.
 

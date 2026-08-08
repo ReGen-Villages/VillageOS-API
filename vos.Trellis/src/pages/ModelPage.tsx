@@ -14,6 +14,7 @@ import { IfcUploadDropzone } from '../components/model/IfcUploadDropzone';
 import type { VosThing } from '../types/vos';
 import type { BimFragmentsMapping } from '../components/model/BimFragmentsViewer';
 import { sceneVisibilityFor } from '../components/model/sceneVisibility';
+import { ifcGlobalIdOf } from '../utils/ifcIdentity';
 
 const BimFragmentsViewer = lazy(() =>
   import('../components/model/BimFragmentsViewer').then((m) => ({ default: m.BimFragmentsViewer })),
@@ -31,8 +32,8 @@ type BimFragmentsState =
 function buildMappingFromThings(things: VosThing[]): BimFragmentsMapping {
   const map: BimFragmentsMapping = {};
   for (const t of things) {
-    const ifcId = t.Properties?.ifcGlobalId;
-    if (typeof ifcId === 'string' && ifcId.length > 0) map[ifcId] = t.Id;
+    const ifcId = ifcGlobalIdOf(t);
+    if (ifcId !== null) map[ifcId] = t.Id;
   }
   return map;
 }
