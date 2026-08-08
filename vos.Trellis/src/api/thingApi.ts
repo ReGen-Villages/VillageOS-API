@@ -1,12 +1,28 @@
-import { apiClient } from './client';
+import { apiClient, ApiError } from './client';
 import type { VosThing, EffectiveProperty } from '../types/vos';
 import type { VosTypeName } from '../utils/constants';
 import { unwrapThing } from '../utils/propertyMapper';
 
 export const thingApi = {
-  getAll: async () => {
-    const things = await apiClient.get<VosThing[]>('/api/things');
+  // `properties` narrows what each Thing carries to the names the model declared it is drawn with
+  // (#6188). Undefined asks for everything, which is what a model that declares nothing wants — its
+  // properties may be the live values a dashboard is watching, and deferring those helps nobody.
+  getAll: async (properties?: readonly string[]) => {
+    const query = properties?.length ? `?properties=${encodeURIComponent(properties.join(','))}` : '';
+    const things = await apiClient.get<VosThing[]>(`/api/things${query}`);
     return things.map(unwrapThing);
+  },
+
+  /** The single Thing with this name, or null when the model has none — a model with nothing to say
+   *  is answered with a 404, which is an answer rather than a failure. */
+  getByName: async (name: string) => {
+    try {
+      const thing = await apiClient.get<VosThing>(`/api/things?name=${encodeURIComponent(name)}`);
+      return unwrapThing(thing);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    }
   },
 
   get: async (id: string) => {

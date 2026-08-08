@@ -7,10 +7,19 @@ vi.mock('./client', () => ({
     put: vi.fn(),
     del: vi.fn(),
   },
+  // getByName tells a missing Thing from a failed read by the status on this, so the mock has to
+  // carry the real shape rather than a stub.
+  ApiError: class ApiError extends Error {
+    status: number;
+    constructor(status: number, body: string) {
+      super(body);
+      this.status = status;
+    }
+  },
 }));
 
 import { thingApi } from './thingApi';
-import { apiClient } from './client';
+import { apiClient, ApiError } from './client';
 
 const mockGet = vi.mocked(apiClient.get);
 const mockPost = vi.mocked(apiClient.post);
@@ -18,6 +27,46 @@ const mockPut = vi.mocked(apiClient.put);
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe('thingApi.getAll narrowing (#6188)', () => {
+  it('asks only for the properties the model declared', async () => {
+    mockGet.mockResolvedValue([]);
+    await thingApi.getAll(['ifcClass', 'ifcGlobalId']);
+    expect(mockGet).toHaveBeenCalledWith('/api/things?properties=ifcClass%2CifcGlobalId');
+  });
+
+  // A model that declares nothing gets everything: its properties may be the live values a dashboard
+  // is watching, and deferring those helps nobody.
+  it('asks for everything when the model declared nothing', async () => {
+    mockGet.mockResolvedValue([]);
+    await thingApi.getAll();
+    expect(mockGet).toHaveBeenCalledWith('/api/things');
+
+    await thingApi.getAll([]);
+    expect(mockGet).toHaveBeenLastCalledWith('/api/things');
+  });
+});
+
+describe('thingApi.getByName', () => {
+  it('reads the one Thing with that name', async () => {
+    mockGet.mockResolvedValue({ Id: 'settings-1', Name: 'GUI_Settings', Properties: {} });
+    const thing = await thingApi.getByName('GUI_Settings');
+    expect(mockGet).toHaveBeenCalledWith('/api/things?name=GUI_Settings');
+    expect(thing?.Id).toBe('settings-1');
+  });
+
+  it('answers null when the model has no such Thing', async () => {
+    mockGet.mockRejectedValue(new ApiError(404, 'not found'));
+    await expect(thingApi.getByName('GUI_Settings')).resolves.toBeNull();
+  });
+
+  // A read that failed for any other reason is not the same as an absent Thing, and swallowing it
+  // would silently load the model as though it declared nothing.
+  it('lets any other failure through', async () => {
+    mockGet.mockRejectedValue(new ApiError(500, 'boom'));
+    await expect(thingApi.getByName('GUI_Settings')).rejects.toThrow();
+  });
 });
 
 describe('thingApi.getEffectiveProperties', () => {

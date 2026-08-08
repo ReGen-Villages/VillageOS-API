@@ -7,6 +7,7 @@ import { useSse } from './useSse';
 import { useFlashTimer } from './useFlashTimer';
 import { toast } from '../components/common/toastStore';
 import { isVisibleRelationship } from '../utils/propertyUpdates';
+import { GUI_SETTINGS_TYPE_NAME, readModelLoadProperties } from '../utils/guiSettings';
 
 /** How long to wait before a single hydrate retry (Bug #5940). */
 const HYDRATE_RETRY_MS = 400;
@@ -32,9 +33,29 @@ type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
  * auto-dismiss, so a background loop would otherwise stack un-dismissable toasts
  * (Bug #5940). User-initiated loads (mount, mutations, ModelChanged) stay loud.
  */
+/**
+ * The properties this model says its pages are drawn with, or none when it says nothing (#6188).
+ *
+ * Read before the model itself because it decides what to ask for. It costs one small request against
+ * a route that already existed, next to a load that is megabytes — and the platform never narrows the
+ * settings Thing, so this could not have ridden in the load it configures.
+ *
+ * A model that says nothing, or a read that fails, loads everything. Narrowing on a guess would strip
+ * properties a page needs; loading everything is only slower.
+ */
+async function declaredModelLoadProperties(): Promise<string[]> {
+  try {
+    const settings = await thingApi.getByName(GUI_SETTINGS_TYPE_NAME);
+    return readModelLoadProperties(settings?.Properties ?? null);
+  } catch {
+    return [];
+  }
+}
+
 export async function reloadModelData(opts?: { silent?: boolean }): Promise<void> {
   try {
-    const [t, r] = await Promise.all([thingApi.getAll(), relationshipApi.getAll()]);
+    const declared = await declaredModelLoadProperties();
+    const [t, r] = await Promise.all([thingApi.getAll(declared), relationshipApi.getAll()]);
     useModelStore.getState().setThings(t);
     useModelStore.getState().setRelationships(r);
     // Flip the gate that pages (e.g. OperationsPage) block rendering on. Without
