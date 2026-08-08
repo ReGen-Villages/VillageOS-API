@@ -1,4 +1,5 @@
 import Graph from 'graphology';
+import { storedTextOf } from './ifcIdentity';
 import type { VosThing, VosRelationship } from '../types/vos';
 import {
   ROLE_COLORS,
@@ -164,10 +165,10 @@ export function buildGraph(
       // no curated bucket and no override, fall back to the vibrant/pastel
       // hash palette keyed by the instance's `is`-target type name so demos
       // without a class table still render distinctly.
-      const rawValue = t.Properties?.[classifyingProperty];
-      const classifyingValue = typeof rawValue === 'string' && rawValue.length > 0
-        ? rawValue
-        : null;
+      // Bug #6191: an IFC instance stores its own class as an override, because
+      // its type declares the same name — so the own bag alone is empty here and
+      // every instance fell through to the hash palette.
+      const classifyingValue = storedTextOf(t, classifyingProperty);
       if (classifyingValue) {
         color = resolveClassColor(classifyingProperty, classifyingValue, classColorOverrides);
       } else {

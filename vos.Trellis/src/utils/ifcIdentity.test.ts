@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ifcGlobalIdOf } from './ifcIdentity';
+import { ifcGlobalIdOf, storedPropertyOf, storedTextOf } from './ifcIdentity';
 import type { VosThing } from '../types/vos';
 
 function thing(partial: Partial<VosThing>): VosThing {
@@ -64,5 +64,35 @@ describe('ifcGlobalIdOf (Bug #6191)', () => {
     expect(ifcGlobalIdOf(thing({
       InheritedOverrides: { a: { SourceId: 'a', SourceName: 'a', InheritedAt: '', Properties: { ifcGlobalId: '' } } },
     }))).toBeNull();
+  });
+});
+
+describe('storedPropertyOf (Bug #6191)', () => {
+  // ifcClass travels the same way as the identifier: the type declares the name,
+  // so an instance's own class is stored as an override. The graph colours by it.
+  it('reads a non-identifier property out of the overrides too', () => {
+    const instance = thing({
+      InheritedOverrides: {
+        'type-id': {
+          SourceId: 'type-id',
+          SourceName: 'Solar_Panel-Tesla:Solar Panel',
+          InheritedAt: '',
+          Properties: { ifcClass: 'IfcBuildingElementProxy' },
+        },
+      },
+    });
+
+    expect(storedTextOf(instance, 'ifcClass')).toBe('IfcBuildingElementProxy');
+  });
+
+  it('keeps a value that is not a string, which storedTextOf then rejects', () => {
+    const t = thing({ Properties: { count: 3, flag: false } });
+    expect(storedPropertyOf(t, 'count')).toBe(3);
+    expect(storedPropertyOf(t, 'flag')).toBe(false);
+    expect(storedTextOf(t, 'count')).toBeNull();
+  });
+
+  it('answers null for a name stored nowhere', () => {
+    expect(storedPropertyOf(thing({}), 'absent')).toBeNull();
   });
 });
