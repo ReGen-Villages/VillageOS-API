@@ -603,7 +603,7 @@ View a thing's properties and relationships as they existed at a specific time:
 
 #### Viewing Property Version History
 
-Get the change history of a property within a time range:
+Get the change history of a property. Naming no time range asks for everything still kept:
 
 ```bash
 # Full history using thing name
@@ -611,8 +611,8 @@ Get the change history of a property within a time range:
 {
   "ObjectId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "PropertyName": "carbonLevel",
-  "StartTime": "2025-02-06T12:00:00Z",
-  "EndTime": "2026-02-06T12:00:00Z",
+  "StartTime": "0001-01-01T00:00:00",
+  "EndTime": "9999-12-31T23:59:59.9999999",
   "Versions": [
     {"Timestamp": "2026-01-01T10:00:00Z", "Value": 25},
     {"Timestamp": "2026-01-15T14:30:00Z", "Value": 30},
