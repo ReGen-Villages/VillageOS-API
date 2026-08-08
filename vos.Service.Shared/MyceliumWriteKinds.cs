@@ -1,6 +1,7 @@
 namespace vos.Service.Shared;
 
-// One sampled measurement; ObservedAt is optional (omit to let Mycelium stamp arrival time).
+// One sampled measurement; ObservedAt is optional (omit to let Mycelium stamp it from the model
+// clock, which a simulated run can anchor away from real time).
 public readonly record struct ObservationSample(string Property, object? Value, DateTime? ObservedAt = null);
 
 // One historical reading for a Sediment deposit; ObservedAt is required.

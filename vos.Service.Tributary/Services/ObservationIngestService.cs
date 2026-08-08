@@ -216,7 +216,10 @@ public class ObservationIngestService
         var props = JsonSerializer.Deserialize<Dictionary<string, object?>>(propsProp.GetRawText())
                     ?? new Dictionary<string, object?>();
 
-        var observedAt = DateTime.UtcNow;
+        // Left null when the source names no time: Mycelium then stamps the batch from the model
+        // clock, which a run can anchor away from real time. Stamping here would read this
+        // process's wall clock instead, putting the sample on a timeline the model never writes to.
+        DateTime? observedAt = null;
         if (element.TryGetProperty("observedAt", out var atProp) && atProp.ValueKind == JsonValueKind.String
             && DateTime.TryParse(atProp.GetString(), CultureInfo.InvariantCulture,
                 DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed))
@@ -228,5 +231,5 @@ public class ObservationIngestService
         return true;
     }
 
-    private record Reading(string Name, Dictionary<string, object?> Properties, DateTime ObservedAt);
+    private record Reading(string Name, Dictionary<string, object?> Properties, DateTime? ObservedAt);
 }
