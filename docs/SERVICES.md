@@ -772,8 +772,8 @@ long seq = await mycelium.SetFactAsync(thingId, "status", "active");
 await mycelium.RecordObservationAsync(thingId, "temperature", 21.5m, DateTime.UtcNow);
 int accepted = await mycelium.RecordObservationsAsync(thingId, new[]
 {
-    new ObservationSample("temperature", 21.7m),
-    new ObservationSample("flow", 3.1m, DateTime.UtcNow), // optional observed-time
+    new ObservationSample("temperature", 21.7m),          // no time → Mycelium stamps the batch
+    new ObservationSample("flow", 3.1m, DateTime.UtcNow), // or name the observed-time yourself
 });
 SedimentDepositResult deposit = await mycelium.DepositSedimentAsync(new[]
 {
