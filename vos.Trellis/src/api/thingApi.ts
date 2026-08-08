@@ -63,12 +63,17 @@ export const thingApi = {
   getEffectiveProperties: (id: string) =>
     apiClient.get<Record<string, EffectiveProperty>>(`/api/things/${id}/properties`),
 
-  // Every thing's resolved properties in one call, keyed by thing id. scope: effective (default,
-  // own + inherited with own/overrides winning) | own | inherited. Each property carries its own
-  // provenance (IsInherited / InheritedFrom) regardless of scope. Used by bulk read-only surfaces
-  // (Property Search) that need the full inherited view without a request per thing.
-  getAllProperties: (scope: 'effective' | 'own' | 'inherited' = 'effective') =>
-    apiClient.get<Record<string, Record<string, EffectiveProperty>>>(
-      `/api/things/properties?scope=${scope}`,
-    ),
+  // Resolved properties keyed by thing id. scope: effective (default, own + inherited with
+  // own/overrides winning) | own | inherited. Each property carries its own provenance (IsInherited /
+  // InheritedFrom) regardless of scope.
+  //
+  // `ids` narrows it to a named set (#6189). Leaving it out reads every thing, which on a large model
+  // is more than the model load itself — only a surface that genuinely works across the whole model,
+  // like searching every property, should do that.
+  getAllProperties: (scope: 'effective' | 'own' | 'inherited' = 'effective', ids?: readonly string[]) => {
+    const narrowing = ids?.length ? `&ids=${encodeURIComponent(ids.join(','))}` : '';
+    return apiClient.get<Record<string, Record<string, EffectiveProperty>>>(
+      `/api/things/properties?scope=${scope}${narrowing}`,
+    );
+  },
 };
