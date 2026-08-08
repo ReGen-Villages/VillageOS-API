@@ -2,8 +2,7 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.EnergyBalance.Services;
 
-// The EnergyBalance analysis as a pipeline node (Plane B / D): PV area + solar resource + efficiency +
-// other generation + consumption in; solar/total generation, % of consumption, and net-positive out.
+// The EnergyBalance analysis as a pipeline node (Plane B / D).
 // pctOfConsumption is what the Plane-C "EnergyNetPositive" range (>= 100%) judges.
 public sealed class EnergyBalanceNode : DagNodeService
 {
@@ -17,7 +16,8 @@ public sealed class EnergyBalanceNode : DagNodeService
     {
         PortDescriptor.Input("solarPvAreaM2", "number", required: true),
         PortDescriptor.Input("solarResourceKwhPerM2PerYear", "number", required: true),
-        PortDescriptor.Input("pvEfficiency", "number", required: true),
+        PortDescriptor.Input("moduleEfficiency", "number", required: true),
+        PortDescriptor.Input("performanceRatio", "number", required: true),
         PortDescriptor.Input("otherGenerationMwhPerYear", "number", required: true),
         PortDescriptor.Input("annualConsumptionMwhPerYear", "number", required: true),
         PortDescriptor.Output("solarGenerationMwhPerYear", "number"),
@@ -31,7 +31,8 @@ public sealed class EnergyBalanceNode : DagNodeService
         var result = EnergyBalanceCalculator.Compute(new EnergyBalanceInputs(
             Number(context, "solarPvAreaM2"),
             Number(context, "solarResourceKwhPerM2PerYear"),
-            Number(context, "pvEfficiency"),
+            Number(context, "moduleEfficiency"),
+            Number(context, "performanceRatio"),
             Number(context, "otherGenerationMwhPerYear"),
             Number(context, "annualConsumptionMwhPerYear")));
 

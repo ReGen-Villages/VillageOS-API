@@ -76,7 +76,7 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 |----------|---------------|
 | **Fan-out Scoring** | The Scorer's `item` input is a **collection**, so a list parameter spreads into one run item each; `onItemError=continue` collects partial results. Ships with a seeded **partial** run showing 4/5 fan-out progress. |
 | **Water Self-Sufficiency** | A `Water Reserve` node with three param-bound inputs. |
-| **Energy Self-Sufficiency** | An `Energy Balance` node with five param-bound inputs. |
+| **Energy Self-Sufficiency** | An `Energy Balance` node with every input param-bound. |
 | **Number Cruncher** | A numeric chain mixing **wired and param-bound** inputs on the same node: `Random → Multiply (factor param) → Sum (offset param) → Output`. |
 | **Site Analysis (Combined)** | The capstone. A `Site Parameters` source feeds one wired input (`population`) while others are param-bound; `Water Reserve` and `Energy Balance` run in parallel, merge into a report, and end at a `Publish` sink. |
 | **Enrichment Batch** | Fan-out into a sink: a list of records is enriched one item at a time, then published. |
@@ -96,9 +96,9 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 |----------|-----------------|
 | Fan-out Scoring | `items` = `["alpha","beta","gamma","delta","epsilon"]`, `weight` = `2` |
 | Water Self-Sufficiency | `population` = `5000`, `perCapitaConsumptionM3` = `0.15`, `storageCapacityM3` = `40000` |
-| Energy Self-Sufficiency | `solarPvAreaM2` = `12000`, `solarResourceKwhPerM2PerYear` = `1400`, `pvEfficiency` = `0.2`, `otherGenerationMwhPerYear` = `500`, `annualConsumptionMwhPerYear` = `3200` |
+| Energy Self-Sufficiency | `solarPvAreaM2` = `12000`, `solarResourceKwhPerM2PerYear` = `1400`, `moduleEfficiency` = `0.17`, `performanceRatio` = `0.77`, `otherGenerationMwhPerYear` = `500`, `annualConsumptionMwhPerYear` = `3200` |
 | Number Cruncher | `factor` = `10`, `offset` = `5` |
-| Site Analysis (Combined) | `perCapitaConsumptionM3` = `0.15`, `storageCapacityM3` = `40000`, plus the five Energy params above |
+| Site Analysis (Combined) | `perCapitaConsumptionM3` = `0.15`, `storageCapacityM3` = `40000`, plus the Energy params above |
 
 ### What actually runs vs. what's editor-only
 
