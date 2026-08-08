@@ -23,7 +23,10 @@ export interface InheritedPropertySet {
 
 export interface VosRelationship {
   Id: string;
-  Name: string;
+  /** Present only when it is not the generated "subject predicate target" form — an explicitly set
+   *  name, or one left stored by a rename. Read it through `relationshipLabel`, which composes the
+   *  generated form from the endpoints when it is absent. */
+  Name?: string;
   SubjectId: string;
   PredicateId: string;
   TargetId: string;

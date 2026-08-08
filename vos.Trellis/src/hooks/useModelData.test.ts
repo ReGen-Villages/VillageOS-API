@@ -5,8 +5,13 @@ const mockGetAllThings = vi.fn();
 const mockGetAllRels = vi.fn();
 const mockGetThing = vi.fn();
 const mockGetRel = vi.fn();
+const mockGetThingByName = vi.fn();
 vi.mock('../api/thingApi', () => ({
-  thingApi: { getAll: () => mockGetAllThings(), get: (id: string) => mockGetThing(id) },
+  thingApi: {
+    getAll: (properties?: readonly string[]) => mockGetAllThings(properties),
+    get: (id: string) => mockGetThing(id),
+    getByName: (name: string) => mockGetThingByName(name),
+  },
 }));
 vi.mock('../api/relationshipApi', () => ({
   relationshipApi: { getAll: () => mockGetAllRels(), get: (id: string) => mockGetRel(id) },
@@ -50,12 +55,48 @@ describe('useModelData', () => {
     mockGetAllRels.mockReset();
     mockGetThing.mockReset();
     mockGetRel.mockReset();
+    mockGetThingByName.mockReset();
     mockGetAllThings.mockResolvedValue([]);
     mockGetAllRels.mockResolvedValue([]);
+    mockGetThingByName.mockResolvedValue(null);
     mockConnected = false;
     vi.mocked(toast.error).mockClear();
     useModelStore.setState({ things: [], relationships: [], loaded: false });
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, statesVersion: 0 });
+  });
+
+  // The model says which properties travel with its load, and the load has to ask for them.
+  it('loads only the properties the model declares', async () => {
+    mockGetThingByName.mockResolvedValue({
+      Id: 'settings-1',
+      Name: 'GUI_Settings',
+      Properties: { ModelLoadProperties: 'ifcClass,ifcGlobalId' },
+    });
+
+    renderHook(() => useModelData());
+
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+    expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'ifcGlobalId']);
+  });
+
+  it('loads every property when the model declares none', async () => {
+    mockGetThingByName.mockResolvedValue(null);
+
+    renderHook(() => useModelData());
+
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+    expect(mockGetAllThings).toHaveBeenCalledWith([]);
+  });
+
+  // Narrowing on a guess would strip properties a page needs; loading everything is only slower.
+  it('loads every property when the settings cannot be read', async () => {
+    mockGetThingByName.mockRejectedValue(new Error('unreachable'));
+
+    renderHook(() => useModelData());
+
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+    expect(mockGetAllThings).toHaveBeenCalledWith([]);
+    expect(useModelStore.getState().loaded).toBe(true);
   });
 
   it('loads things + relationships into the model store on mount', async () => {

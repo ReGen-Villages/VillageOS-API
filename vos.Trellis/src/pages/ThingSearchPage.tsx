@@ -30,8 +30,6 @@ export function ThingSearchPage() {
   const navigate = useNavigate();
   const numbers = useNumberDisplaySettings();
 
-  const declaredTypes = useDeclaredPropertyTypes();
-
   const onInputChange = useCallback((value: string) => {
     setInputValue(value);
     clearTimeout(debounceRef.current);
@@ -55,6 +53,11 @@ export function ThingSearchPage() {
 
   const visibleResults = useMemo(() => results.slice(0, visibleCount), [results, visibleCount]);
   const hasMore = visibleCount < results.length;
+
+  // Only the rows on screen, not the whole model. Paging asks for the next page's ids; the
+  // ones already read are not read again.
+  const visibleIds = useMemo(() => visibleResults.map((match) => match.id), [visibleResults]);
+  const declaredTypes = useDeclaredPropertyTypes(visibleIds.length > 0, visibleIds);
 
   const goToGraph = useCallback(
     (id: string) => {

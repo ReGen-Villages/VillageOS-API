@@ -22,7 +22,7 @@ describe('useDeclaredPropertyTypes', () => {
     mockGetAllProperties.mockResolvedValue(doorNumber);
     const { result } = renderHook(() => useDeclaredPropertyTypes());
     await waitFor(() => expect(result.current).toEqual(doorNumber));
-    expect(mockGetAllProperties).toHaveBeenCalledWith('effective');
+    expect(mockGetAllProperties).toHaveBeenCalledWith('effective', undefined);
   });
 
   it('holds nothing until the answer arrives, so a caller formats by shape meanwhile', () => {
@@ -67,5 +67,61 @@ describe('useDeclaredPropertyTypes', () => {
     mockGetAllProperties.mockRejectedValue(new Error('no'));
     const { result } = renderHook(() => useDeclaredPropertyTypes());
     await waitFor(() => expect(result.current).toEqual({}));
+  });
+
+  // Reading every Thing's resolved properties is more than the model load itself on a large
+  // model. A surface showing a handful of rows should read a handful.
+  describe('narrowing to the things a surface shows', () => {
+    it('reads only the ids it was given', async () => {
+      mockGetAllProperties.mockResolvedValue(doorNumber);
+      const { result } = renderHook(() => useDeclaredPropertyTypes(true, ['thing-1']));
+      await waitFor(() => expect(result.current).toEqual(doorNumber));
+      expect(mockGetAllProperties).toHaveBeenCalledWith('effective', ['thing-1']);
+    });
+
+    it('does not read an id it already holds', async () => {
+      mockGetAllProperties.mockResolvedValue(doorNumber);
+      const { result, rerender } = renderHook(
+        ({ ids }: { ids: string[] }) => useDeclaredPropertyTypes(true, ids),
+        { initialProps: { ids: ['thing-1'] } },
+      );
+      await waitFor(() => expect(result.current).toEqual(doorNumber));
+
+      rerender({ ids: ['thing-1'] });
+      expect(mockGetAllProperties).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads only what is new when the set grows, and keeps what it had', async () => {
+      mockGetAllProperties.mockResolvedValue(doorNumber);
+      const { result, rerender } = renderHook(
+        ({ ids }: { ids: string[] }) => useDeclaredPropertyTypes(true, ids),
+        { initialProps: { ids: ['thing-1'] } },
+      );
+      await waitFor(() => expect(result.current).toEqual(doorNumber));
+
+      mockGetAllProperties.mockResolvedValue(openRatio);
+      rerender({ ids: ['thing-1', 'thing-9'] });
+
+      await waitFor(() => expect(result.current).toEqual({ ...doorNumber, ...openRatio }));
+      expect(mockGetAllProperties).toHaveBeenLastCalledWith('effective', ['thing-9']);
+    });
+
+    it('reads nothing when the surface is showing nothing', () => {
+      renderHook(() => useDeclaredPropertyTypes(true, []));
+      expect(mockGetAllProperties).not.toHaveBeenCalled();
+    });
+
+    // The order rows happen to be in is not a different question.
+    it('does not read again just because the ids arrived in another order', async () => {
+      mockGetAllProperties.mockResolvedValue({ ...doorNumber, ...openRatio });
+      const { result, rerender } = renderHook(
+        ({ ids }: { ids: string[] }) => useDeclaredPropertyTypes(true, ids),
+        { initialProps: { ids: ['thing-1', 'thing-9'] } },
+      );
+      await waitFor(() => expect(result.current).not.toBeNull());
+
+      rerender({ ids: ['thing-9', 'thing-1'] });
+      expect(mockGetAllProperties).toHaveBeenCalledTimes(1);
+    });
   });
 });

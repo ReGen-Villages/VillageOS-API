@@ -29,9 +29,10 @@ export function useDetailWindows(idx: ModelIndex, detail: DetailSpec | undefined
     setOrder((prev) => prev.filter((id) => id !== thingId));
   }, []);
 
-  // Read once for every window rather than once per window, and only after one is opened — a
-  // dashboard nobody has clicked into should not pay for a model-wide read.
-  const declaredTypes = useDeclaredPropertyTypes(order.length > 0);
+  // Read once for every window rather than once per window, only after one is opened, and only for
+  // the things those windows show — a dashboard nobody has clicked into should not pay for a read at
+  // all, and one clicked twice should not pay for the whole model.
+  const declaredTypes = useDeclaredPropertyTypes(order.length > 0, order);
 
   const windows = detail
     ? order.map((thingId, i) => (

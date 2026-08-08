@@ -1,27 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { thingApi } from '../api/thingApi';
 import { useModelStore } from '../stores/modelStore';
 import type { EffectiveProperty } from '../types/vos';
 
-/** Every Thing's resolved properties, keyed by Thing id then property name. */
+/** Resolved properties keyed by Thing id then property name. */
 export type DeclaredPropertyTypes = Record<string, Record<string, EffectiveProperty>>;
 
 /**
- * The type the platform declares for each property, for surfaces that read the client model index
- * (#6163). That index carries values but no types, because it is built from the model itself rather
- * than from the resolved-properties routes, so a value there can only be formatted by its own shape.
+ * The platform's resolved view of a Thing's properties — each value with the type the platform
+ * declares for it and where it was inherited from (#6163). The client model index carries values but
+ * no types, because it is built from the model rather than from the resolved-properties routes.
  *
- * One read covers every Thing. Pass `enabled: false` to hold it back until something is actually
- * going to show a property — a model-wide read is not worth making for a surface nobody has opened.
+ * Pass the ids a surface is actually showing and only those are read. Only a surface that
+ * genuinely works across the whole model — searching every property — should leave `ids` out, because
+ * that reads the resolved properties of every Thing, which on a large model is more than the model
+ * load itself. Ids already held are not read again, so paging through results does not re-read them.
  *
- * Null while the read is in flight. A caller should format by shape until it lands rather than
- * showing nothing: a badly formatted value is recoverable, a missing one is not.
+ * Pass `enabled: false` to hold the read back until something is going to show a property.
+ *
+ * Null until the first answer lands. A caller should format by shape until then rather than showing
+ * nothing: a badly formatted value is recoverable, a missing one is not.
  */
-export function useDeclaredPropertyTypes(enabled = true): DeclaredPropertyTypes | null {
+export function useDeclaredPropertyTypes(
+  enabled = true,
+  ids?: readonly string[],
+): DeclaredPropertyTypes | null {
   const [types, setTypes] = useState<DeclaredPropertyTypes | null>(null);
   // Switching model clears the store rather than remounting the app, so a read that never repeated
   // would keep describing the model that was open before. These ids belong to that model.
   const loaded = useModelStore((state) => state.loaded);
+  const read = useRef<Set<string> | 'all'>(new Set());
 
   // Dropped while rendering rather than in an effect, the way the property rows reset their draft:
   // React re-runs the component before painting, so the previous model's types are never shown.
@@ -31,15 +39,39 @@ export function useDeclaredPropertyTypes(enabled = true): DeclaredPropertyTypes 
     if (!loaded) setTypes(null);
   }
 
+  const wanted = ids === undefined ? undefined : [...ids].sort().join(',');
+
   useEffect(() => {
-    if (!enabled || !loaded || types) return;
+    // The record of what has been read is cleared here rather than beside setTypes above: a render
+    // can be discarded and re-run, and bookkeeping dropped during one that never commits would
+    // forget reads that did happen.
+    if (!loaded) {
+      read.current = new Set();
+      return;
+    }
+    if (!enabled) return;
+
+    const requested = wanted === undefined ? undefined : wanted.split(',').filter(Boolean);
+    if (requested === undefined && read.current === 'all') return;
+
+    const missing = requested === undefined
+      ? undefined
+      : requested.filter((id) => read.current === 'all' || !read.current.has(id));
+    if (missing?.length === 0) return;
+
     let cancelled = false;
-    thingApi.getAllProperties('effective').then(
-      (data) => { if (!cancelled) setTypes(data); },
-      () => { if (!cancelled) setTypes({}); },
+    thingApi.getAllProperties('effective', missing).then(
+      (data) => {
+        if (cancelled) return;
+        const alreadyRead = read.current;
+        if (missing === undefined) read.current = 'all';
+        else if (alreadyRead !== 'all') missing.forEach((id) => alreadyRead.add(id));
+        setTypes((prev) => ({ ...(prev ?? {}), ...data }));
+      },
+      () => { if (!cancelled) setTypes((prev) => prev ?? {}); },
     );
     return () => { cancelled = true; };
-  }, [enabled, loaded, types]);
+  }, [enabled, loaded, wanted]);
 
   return types;
 }

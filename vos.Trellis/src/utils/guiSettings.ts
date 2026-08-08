@@ -102,7 +102,24 @@ export const FLASH_DEFAULTS: FlashSettings = {
   flashNodeBrighten: 0.5,
 };
 
-const GUI_SETTINGS_TYPE_NAME = 'GUI_Settings';
+export const GUI_SETTINGS_TYPE_NAME = 'GUI_Settings';
+
+/**
+ * The properties a model says should travel with its model load, read from the settings Thing.
+ *
+ * An empty list means no narrowing — send everything. That is the right default for a model that has
+ * not been tuned, and especially for an operations model, whose few properties are the live values a
+ * dashboard is watching: deferring those would add a round trip to the only data anyone is looking at.
+ *
+ * A model that does declare a list has to name everything its pages read across the whole model, not
+ * just what the graph draws with — a dashboard's bound properties, a pipeline's wiring. Anything left
+ * out is fetched per surface, not silently absent.
+ */
+export function readModelLoadProperties(properties: Record<string, unknown> | null): string[] {
+  const raw = properties?.['ModelLoadProperties'];
+  if (typeof raw !== 'string') return [];
+  return raw.split(',').map((name) => name.trim()).filter((name) => name.length > 0);
+}
 
 /**
  * Find the GUI settings properties by locating the GUI_Settings type Thing
