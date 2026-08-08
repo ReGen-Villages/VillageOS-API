@@ -629,11 +629,11 @@ Get the change history of a property within a time range:
 Get a log of all property value changes (mutations) across the model, for a specific thing, or for a relationship:
 
 ```bash
-# All mutations in the model
+# All mutations in the model — naming no window asks about every instant on both sides
 > temporal mutations
 {
-  "StartTime": null,
-  "EndTime": null,
+  "StartTime": "0001-01-01T00:00:00",
+  "EndTime": "9999-12-31T23:59:59.9999999",
   "ThingMutations": {
     "3fa85f64-5717-4562-b3fc-2c963f66afa6": {
       "ObjectId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
