@@ -56,8 +56,8 @@ export interface ModelIndex {
   predicateIdToName: Map<string, string>;
   /** archetype id → ids of Things directly `is`-linked to it (Bug #5942). */
   isChildren: Map<string, string[]>;
-  /** ids that are the target of any `is`-edge — i.e. Things acting as an archetype. */
-  isTargets: Set<string>;
+  /** ids of the Things that declared themselves archetypes (#6218) — read, never inferred from edges. */
+  archetypeIds: Set<string>;
   /** Thing id → ids of the archetypes it is directly `is`-linked to (its parents). Used to
    *  resolve inherited property defaults up the `is`-chain (Bug #6048). */
   isParents: Map<string, string[]>;
@@ -70,10 +70,12 @@ export interface ModelIndex {
 export function buildModelIndex(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
   const byId = new Map<string, VosThing>();
   const byName = new Map<string, VosThing>();
+  const archetypeIds = new Set<string>();
   for (const t of things) {
     byId.set(t.Id, t);
     // First writer wins for duplicate names (archetypes are unique by name).
     if (!byName.has(t.Name)) byName.set(t.Name, t);
+    if (t.IsArchetype) archetypeIds.add(t.Id);
   }
   const predicateNameToId = new Map<string, string>();
   const predicateIdToName = new Map<string, string>();
@@ -89,16 +91,13 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
     }
   }
   // Precompute the `is`-hierarchy once (Bug #5942): children-by-archetype for a
-  // transitive walk, and the set of all archetype (is-target) ids to tell types
-  // from instances. Replaces a per-query scan of every relationship.
+  // transitive walk. Replaces a per-query scan of every relationship.
   const isId = predicateNameToId.get(IS_PREDICATE);
   const isChildren = new Map<string, string[]>();
-  const isTargets = new Set<string>();
   const isParents = new Map<string, string[]>();
   if (isId) {
     for (const r of relationships) {
       if (r.PredicateId !== isId) continue;
-      isTargets.add(r.TargetId);
       const kids = isChildren.get(r.TargetId);
       if (kids) kids.push(r.SubjectId);
       else isChildren.set(r.TargetId, [r.SubjectId]);
@@ -109,7 +108,7 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
   }
   return {
     byId, byName, relationships, relationshipsByPredicate,
-    predicateNameToId, predicateIdToName, isChildren, isTargets, isParents,
+    predicateNameToId, predicateIdToName, isChildren, archetypeIds, isParents,
     archetypeMembers: new Map(),
     adjacencyByPredicate: new Map(),
   };
@@ -135,8 +134,11 @@ function adjacency(predicateId: string, inbound: boolean, idx: ModelIndex): Map<
  * Ids of the Things that are of the given archetype, **transitively** over the `is`-chain
  * and counting **instances only** (Bug #5942). Archetypes are subtyped (Customer is Party,
  * PickLocation is Location), so a direct-edge match would miss every real instance under a
- * parent archetype. We descend the is-chain; a Thing that is itself an `is`-target is treated
- * as an archetype/sub-type and descended into, not counted. Cycle-guarded.
+ * parent archetype. We descend the is-chain; a Thing that declares itself an archetype is a
+ * sub-type and is descended into, not counted. Cycle-guarded.
+ *
+ * Descending on the declaration rather than on "does anything `is` this Thing" is what makes it
+ * right for a type with no members yet: the old rule returned such a type as a row of its own (#6218).
  *
  * The answer is remembered on the index and handed out by reference, so callers read it and
  * never write to it.
@@ -155,8 +157,8 @@ export function thingIdsOfArchetype(archetype: string, idx: ModelIndex): Set<str
     if (seen.has(current)) continue;
     seen.add(current);
     for (const childId of idx.isChildren.get(current) ?? []) {
-      if (idx.isTargets.has(childId)) frontier.push(childId);  // a sub-archetype — descend
-      else out.add(childId);                                   // a real instance — count it
+      if (idx.archetypeIds.has(childId)) frontier.push(childId);  // a sub-archetype — descend
+      else out.add(childId);                                      // a real instance — count it
     }
   }
   return out;
