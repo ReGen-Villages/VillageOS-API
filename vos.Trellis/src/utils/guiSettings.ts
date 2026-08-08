@@ -105,7 +105,7 @@ export const FLASH_DEFAULTS: FlashSettings = {
 export const GUI_SETTINGS_TYPE_NAME = 'GUI_Settings';
 
 /**
- * The properties a model says should travel with its model load (#6188), read from the settings Thing.
+ * The properties a model says should travel with its model load, read from the settings Thing.
  *
  * An empty list means no narrowing — send everything. That is the right default for a model that has
  * not been tuned, and especially for an operations model, whose few properties are the live values a

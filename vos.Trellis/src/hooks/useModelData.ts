@@ -34,7 +34,7 @@ type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
  * (Bug #5940). User-initiated loads (mount, mutations, ModelChanged) stay loud.
  */
 /**
- * The properties this model says its pages are drawn with, or none when it says nothing (#6188).
+ * The properties this model says its pages are drawn with, or none when it says nothing.
  *
  * Read before the model itself because it decides what to ask for. It costs one small request against
  * a route that already existed, next to a load that is megabytes — and the platform never narrows the

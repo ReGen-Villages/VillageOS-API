@@ -65,7 +65,7 @@ describe('useModelData', () => {
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, statesVersion: 0 });
   });
 
-  // #6188 — the model says which properties travel with its load, and the load has to ask for them.
+  // The model says which properties travel with its load, and the load has to ask for them.
   it('loads only the properties the model declares', async () => {
     mockGetThingByName.mockResolvedValue({
       Id: 'settings-1',

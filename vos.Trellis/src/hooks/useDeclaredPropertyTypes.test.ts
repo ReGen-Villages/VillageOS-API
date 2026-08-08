@@ -69,7 +69,7 @@ describe('useDeclaredPropertyTypes', () => {
     await waitFor(() => expect(result.current).toEqual({}));
   });
 
-  // #6189 — reading every Thing's resolved properties is more than the model load itself on a large
+  // Reading every Thing's resolved properties is more than the model load itself on a large
   // model. A surface showing a handful of rows should read a handful.
   describe('narrowing to the things a surface shows', () => {
     it('reads only the ids it was given', async () => {

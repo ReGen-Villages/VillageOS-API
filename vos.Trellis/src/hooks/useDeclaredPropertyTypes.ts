@@ -11,7 +11,7 @@ export type DeclaredPropertyTypes = Record<string, Record<string, EffectivePrope
  * declares for it and where it was inherited from (#6163). The client model index carries values but
  * no types, because it is built from the model rather than from the resolved-properties routes.
  *
- * Pass the ids a surface is actually showing and only those are read (#6189). Only a surface that
+ * Pass the ids a surface is actually showing and only those are read. Only a surface that
  * genuinely works across the whole model — searching every property — should leave `ids` out, because
  * that reads the resolved properties of every Thing, which on a large model is more than the model
  * load itself. Ids already held are not read again, so paging through results does not re-read them.
@@ -36,16 +36,20 @@ export function useDeclaredPropertyTypes(
   const [readFor, setReadFor] = useState(loaded);
   if (readFor !== loaded) {
     setReadFor(loaded);
-    if (!loaded) {
-      setTypes(null);
-      read.current = new Set();
-    }
+    if (!loaded) setTypes(null);
   }
 
   const wanted = ids === undefined ? undefined : [...ids].sort().join(',');
 
   useEffect(() => {
-    if (!enabled || !loaded) return;
+    // The record of what has been read is cleared here rather than beside setTypes above: a render
+    // can be discarded and re-run, and bookkeeping dropped during one that never commits would
+    // forget reads that did happen.
+    if (!loaded) {
+      read.current = new Set();
+      return;
+    }
+    if (!enabled) return;
 
     const requested = wanted === undefined ? undefined : wanted.split(',').filter(Boolean);
     if (requested === undefined && read.current === 'all') return;

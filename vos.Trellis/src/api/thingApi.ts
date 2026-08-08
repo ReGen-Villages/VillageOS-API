@@ -4,8 +4,8 @@ import type { VosTypeName } from '../utils/constants';
 import { unwrapThing } from '../utils/propertyMapper';
 
 export const thingApi = {
-  // `properties` narrows what each Thing carries to the names the model declared it is drawn with
-  // (#6188). Undefined asks for everything, which is what a model that declares nothing wants — its
+  // `properties` narrows what each Thing carries to the names the model declared it is drawn
+  // with. Undefined asks for everything, which is what a model that declares nothing wants — its
   // properties may be the live values a dashboard is watching, and deferring those helps nobody.
   getAll: async (properties?: readonly string[]) => {
     const query = properties?.length ? `?properties=${encodeURIComponent(properties.join(','))}` : '';
@@ -67,7 +67,7 @@ export const thingApi = {
   // own/overrides winning) | own | inherited. Each property carries its own provenance (IsInherited /
   // InheritedFrom) regardless of scope.
   //
-  // `ids` narrows it to a named set (#6189). Leaving it out reads every thing, which on a large model
+  // `ids` narrows it to a named set. Leaving it out reads every thing, which on a large model
   // is more than the model load itself — only a surface that genuinely works across the whole model,
   // like searching every property, should do that.
   getAllProperties: (scope: 'effective' | 'own' | 'inherited' = 'effective', ids?: readonly string[]) => {

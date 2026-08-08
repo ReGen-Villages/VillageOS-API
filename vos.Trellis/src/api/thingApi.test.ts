@@ -29,7 +29,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('thingApi.getAll narrowing (#6188)', () => {
+describe('thingApi.getAll narrowing', () => {
   it('asks only for the properties the model declared', async () => {
     mockGet.mockResolvedValue([]);
     await thingApi.getAll(['ifcClass', 'ifcGlobalId']);

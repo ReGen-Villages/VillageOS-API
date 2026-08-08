@@ -54,7 +54,7 @@ export function ThingSearchPage() {
   const visibleResults = useMemo(() => results.slice(0, visibleCount), [results, visibleCount]);
   const hasMore = visibleCount < results.length;
 
-  // Only the rows on screen, not the whole model (#6189). Paging asks for the next page's ids; the
+  // Only the rows on screen, not the whole model. Paging asks for the next page's ids; the
   // ones already read are not read again.
   const visibleIds = useMemo(() => visibleResults.map((match) => match.id), [visibleResults]);
   const declaredTypes = useDeclaredPropertyTypes(visibleIds.length > 0, visibleIds);
