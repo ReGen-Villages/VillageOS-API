@@ -144,6 +144,9 @@ Tributary's contract is **fetch-and-shape**:
 2. **Shape** — an optional JSONata `responseTransform` projects the response into the
    reading shape (`[{ name, properties, observedAt? }]`). JSONata here is *structural* —
    selecting, renaming, and restructuring fields — not a place to compute new domain quantities.
+   A reading that names no `observedAt` is forwarded without one, so Mycelium stamps the batch
+   from the model clock. Tributary never supplies its own: its wall clock is not the model's
+   whenever a run has anchored time away from real time.
 3. **Ingest** (hybrid ingest) — readings are grouped by entity `name`. Each entity is a
    Thing created **once** (its first reading seeds the observable properties, each bounded to
    `Sampled` PropertyMode) and linked to the endpoint **once** via an `observed` relationship;

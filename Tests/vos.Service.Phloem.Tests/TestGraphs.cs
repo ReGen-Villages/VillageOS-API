@@ -388,7 +388,8 @@ public static class TestGraphs
         }
         Port("solarPvAreaM2", "in", required: true);
         Port("solarResourceKwhPerM2PerYear", "in", required: true);
-        Port("pvEfficiency", "in", required: true);
+        Port("moduleEfficiency", "in", required: true);
+        Port("performanceRatio", "in", required: true);
         Port("otherGenerationMwhPerYear", "in", required: true);
         Port("annualConsumptionMwhPerYear", "in", required: true);
         Port("pctOfConsumption", "out");
@@ -400,7 +401,7 @@ public static class TestGraphs
         fx.Rel(conn, has, svc);
 
         var node = fx.Thing("EnergyBalance",
-            ("paramBindings", "{\"solarPvAreaM2\":\"solarPvAreaM2\",\"solarResourceKwhPerM2PerYear\":\"solarResourceKwhPerM2PerYear\",\"pvEfficiency\":\"pvEfficiency\",\"otherGenerationMwhPerYear\":\"otherGenerationMwhPerYear\",\"annualConsumptionMwhPerYear\":\"annualConsumptionMwhPerYear\"}"));
+            ("paramBindings", "{\"solarPvAreaM2\":\"solarPvAreaM2\",\"solarResourceKwhPerM2PerYear\":\"solarResourceKwhPerM2PerYear\",\"moduleEfficiency\":\"moduleEfficiency\",\"performanceRatio\":\"performanceRatio\",\"otherGenerationMwhPerYear\":\"otherGenerationMwhPerYear\",\"annualConsumptionMwhPerYear\":\"annualConsumptionMwhPerYear\"}"));
         fx.Rel(node, isP, nodeArch);
         fx.Rel(node, has, conn);
 

@@ -165,9 +165,11 @@ Two endpoints serve the resolved (effective) view. Both tag each property with `
 | Endpoint | Scope | Use |
 |----------|-------|-----|
 | `GET /api/things/{id}/properties` | one thing | a selected thing's full resolved view (e.g. a detail panel) |
-| `GET /api/things/properties?scope={effective\|own\|inherited}` | all things, one call | bulk read-only surfaces (property search) that need the full inherited view without a request per thing. `effective` (default) includes overrides as the winning value. |
+| `GET /api/things/properties?scope={effective\|own\|inherited}` | all things, one call | bulk read-only surfaces (property search) that need the full inherited view without a request per thing. `effective` (default) includes overrides as the winning value. Add `?ids=` with a comma-separated list to narrow the answer to those things. |
 
 Do **not** reconstruct the effective view from a thing's raw stored own + overrides — that misses inherited defaults the instance never set. Read it from these endpoints, which resolve the `is` chain server-side.
+
+`?ids=` pairs with a narrowed model load: a client that asked `GET /api/things` for only the properties it draws with fills in the rest for the things it is actually showing, rather than re-reading the whole model. An identifier matching no thing is absent from the answer rather than failing the call — the set usually comes from a selection, and one deleted thing should not lose the others.
 
 ### Naming rules (checked on write)
 

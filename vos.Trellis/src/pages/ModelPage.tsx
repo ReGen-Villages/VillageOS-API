@@ -13,7 +13,8 @@ import { toast } from '../components/common/toastStore';
 import { IfcUploadDropzone } from '../components/model/IfcUploadDropzone';
 import type { VosThing } from '../types/vos';
 import type { BimFragmentsMapping } from '../components/model/BimFragmentsViewer';
-import { applyTypeFilter } from '../utils/typeFilter';
+import { sceneVisibilityFor } from '../components/model/sceneVisibility';
+import { ifcGlobalIdOf } from '../utils/ifcIdentity';
 
 const BimFragmentsViewer = lazy(() =>
   import('../components/model/BimFragmentsViewer').then((m) => ({ default: m.BimFragmentsViewer })),
@@ -31,8 +32,8 @@ type BimFragmentsState =
 function buildMappingFromThings(things: VosThing[]): BimFragmentsMapping {
   const map: BimFragmentsMapping = {};
   for (const t of things) {
-    const ifcId = t.Properties?.ifcGlobalId;
-    if (typeof ifcId === 'string' && ifcId.length > 0) map[ifcId] = t.Id;
+    const ifcId = ifcGlobalIdOf(t);
+    if (ifcId !== null) map[ifcId] = t.Id;
   }
   return map;
 }
@@ -55,25 +56,12 @@ export function ModelPage() {
   const selectNode = useUiStore((s) => s.selectNode);
   const hiddenTypeIds = useUiStore((s) => s.hiddenTypeIds);
 
-  // Feature #5362 — translate hidden type Thing ids → IFC GlobalIds whose
-  // Fragments instances should be hidden in the 3D scene. Bug #5384: delegate
-  // to applyTypeFilter so the Model viewer hides the SAME set of Things as the
-  // Graph page — including type-Things themselves (their own IFC geometry) and
-  // the synthetic NO_TYPE_ID bucket (untyped Things with IFC geometry, e.g.
-  // IfcDistributionPort). Rolling our own loop here previously skipped both.
-  const hiddenIfcGuids = useMemo(() => {
-    if (hiddenTypeIds.size === 0) return [];
-    const visible = new Set(
-      applyTypeFilter(things, relationships, hiddenTypeIds).things.map((t) => t.Id),
-    );
-    const out: string[] = [];
-    for (const t of things) {
-      if (visible.has(t.Id)) continue;
-      const guid = t.Properties?.ifcGlobalId;
-      if (typeof guid === 'string' && guid.length > 0) out.push(guid);
-    }
-    return out;
-  }, [things, relationships, hiddenTypeIds]);
+  // Memoised because the viewer re-applies visibility across the whole model
+  // whenever this changes identity.
+  const visibility = useMemo(
+    () => sceneVisibilityFor(things, relationships, hiddenTypeIds),
+    [things, relationships, hiddenTypeIds],
+  );
 
   // Re-fetch the .frag whenever the JWT-scoped model changes (e.g. via
   // /api/auth/switch-model). The thing/relationship arrays come from the
@@ -151,7 +139,7 @@ export function ModelPage() {
                 bimFragmentsBytes={bimFragments.bytes}
                 mapping={mapping}
                 onPick={handlePick}
-                hiddenIfcGuids={hiddenIfcGuids}
+                visibility={visibility}
               />
             </Suspense>
             {/* Feature #5362 — type filter overlays the 3D viewport.

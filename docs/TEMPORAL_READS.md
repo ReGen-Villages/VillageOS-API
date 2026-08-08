@@ -115,6 +115,26 @@ per property by its **PropertyMode**:
 whose audit value justifies the cost. A background compactor enforces each mode on sealed buckets,
 so storage growth is bounded at the source.
 
+### What a read answers beyond a property's retention
+
+A temporal read answers with the value that **stood at the instant asked for**. Where the property's
+retention cannot reach that instant, the property is **left out of the answer** — not returned
+carrying the value it holds now.
+
+| Instant asked for | Answer |
+|---|---|
+| At or after the property's last write | The current value. It is the value that stood then |
+| Earlier, and within what the mode retains | The value in force then |
+| Earlier, and beyond what the mode retains | The property is omitted |
+
+So an absent property in an as-of read means **no value can be known for that instant**. It does not
+mean the value was null: a property that genuinely held null reports null. The two are different
+answers and are reported differently.
+
+With `CurrentOnly`, every instant before the last write is beyond retention — that is what keeping
+nothing amounts to when something asks about the past. Ask at or after the last write and the answer
+is exact; ask earlier and there is nothing to answer from.
+
 ## See also
 
 - [`TRIBUTARY.md`](TRIBUTARY.md) — the outbound fetcher that ingests readings as observations into

@@ -18,13 +18,6 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
     {
     }
 
-    // Input/output port names, read from / written to the study by name.
-    private static readonly string[] Inputs =
-    {
-        "solarPvAreaM2", "solarResourceKwhPerM2PerYear", "pvEfficiency",
-        "otherGenerationMwhPerYear", "annualConsumptionMwhPerYear",
-    };
-
     // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.
     public async Task<EnergyBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
@@ -32,8 +25,12 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
 
         var props = await FetchEffectivePropertiesAsync(client, studyId, cancellationToken);
         var result = EnergyBalanceCalculator.Compute(new EnergyBalanceInputs(
-            Number(props, Inputs[0]), Number(props, Inputs[1]), Number(props, Inputs[2]),
-            Number(props, Inputs[3]), Number(props, Inputs[4])));
+            Number(props, "solarPvAreaM2"),
+            Number(props, "solarResourceKwhPerM2PerYear"),
+            Number(props, "moduleEfficiency"),
+            Number(props, "performanceRatio"),
+            Number(props, "otherGenerationMwhPerYear"),
+            Number(props, "annualConsumptionMwhPerYear")));
 
         await WriteAsync(client, studyId, "pctOfConsumption", result.PctOfConsumption, cancellationToken);
         await WriteAsync(client, studyId, "netPositive", result.NetPositive, cancellationToken);

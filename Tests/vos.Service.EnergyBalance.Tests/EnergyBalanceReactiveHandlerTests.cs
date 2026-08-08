@@ -29,7 +29,7 @@ public class EnergyBalanceReactiveHandlerTests
     // area 13500 * resource 1600 * eff 0.2 / 1000 = 4320 solar; + 100 other = 4420 total; / 4000 consumption * 100 = 110.5%.
     private const string AnchorInputs = """
         { "solarPvAreaM2": { "Value": 13500 }, "solarResourceKwhPerM2PerYear": { "Value": 1600 },
-          "pvEfficiency": { "Value": 0.2 }, "otherGenerationMwhPerYear": { "Value": 100 },
+          "moduleEfficiency": { "Value": 0.2 }, "performanceRatio": { "Value": 1.0 }, "otherGenerationMwhPerYear": { "Value": 100 },
           "annualConsumptionMwhPerYear": { "Value": 4000 } }
         """;
 
@@ -60,7 +60,7 @@ public class EnergyBalanceReactiveHandlerTests
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("""{ "pvEfficiency": { "Value": 0.2 } }""", Encoding.UTF8, "application/json"),
+            Content = new StringContent("""{ "moduleEfficiency": { "Value": 0.2 } }""", Encoding.UTF8, "application/json"),
         });
         var reactive = new EnergyBalanceReactiveHandler(
             new TestHttpClientFactory(new HttpClient(handler)), NullLogger<EnergyBalanceReactiveHandler>.Instance,

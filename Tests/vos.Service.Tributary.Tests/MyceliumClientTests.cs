@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using vos.Service.Shared;
 using vos.Service.Tributary.Services;
 using vos.Tests.Shared;
 using FluentAssertions;
@@ -409,6 +410,28 @@ public class MyceliumClientTests
         ok.Should().BeTrue();
         path.Should().Be($"/api/things/{thingId}/observations");
         body.Should().Contain("\"property\":\"temp\"").And.Contain("\"value\":21").And.Contain("observedAt");
+    }
+
+    [Fact]
+    public async Task SubmitObservationsAsync_OmitsObservedAtWhenTheSampleHasNone()
+    {
+        var body = string.Empty;
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            body = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
+            return JsonResponse("""{"accepted":1}""");
+        });
+        var sut = CreateClient(handler);
+
+        var ok = await sut.SubmitObservationsAsync(Guid.NewGuid(), new[]
+        {
+            new ObservationSample("temp", 21.0),
+        });
+
+        ok.Should().BeTrue();
+        body.Should().NotContain("observedAt",
+            "sending it as null would be the wall clock by another name; leaving it out lets "
+            + "Mycelium stamp the whole batch once from the model clock");
     }
 
     [Fact]

@@ -85,7 +85,7 @@ public class SelectorDemoTests
     }
 
     private static SnapshotThing Thing(string name) =>
-        new(Guid.NewGuid(), name, new(), new(), Array.Empty<string>(), Array.Empty<Guid>());
+        new(Guid.NewGuid(), name, IsArchetype: false, new(), new(), Array.Empty<string>(), Array.Empty<Guid>());
 
     private static SnapshotRelationship Rel() =>
         new(Guid.NewGuid(), "powers", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new(), new(), Array.Empty<string>());

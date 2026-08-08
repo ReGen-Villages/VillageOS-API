@@ -15,6 +15,7 @@ import json
 import os
 import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from urllib.parse import quote, urlencode
@@ -161,6 +162,18 @@ class MyceliumClient:
         if rate is not None:
             body["rate"] = rate
         return self._json("POST", "/api/time", body)
+
+    def thing_id_by_name(self, name):
+        """The id the model holds this name under, or None if it holds no such Thing. A name the
+        model holds more than once is an error rather than a pick — answering with one of them would
+        wire something to whichever happened to be first."""
+        try:
+            answer = self._json("GET", "/api/things?name=" + urllib.parse.quote(name, safe=""))
+        except RuntimeError as error:
+            if " -> 404 " in str(error):
+                return None
+            raise
+        return answer.get("Id") or answer.get("id")
 
     def load_model(self, document):
         """Bulk-load a {Things, Relationships} document in one shot (POST /api/model)."""

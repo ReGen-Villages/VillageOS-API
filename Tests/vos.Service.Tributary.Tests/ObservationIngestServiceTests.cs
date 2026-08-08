@@ -1,6 +1,6 @@
+using vos.Service.Shared;
 using vos.Service.Tributary.Services;
 using FluentAssertions;
-using JsonataTransform = vos.Service.Shared.JsonataTransform;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -178,6 +178,26 @@ public class ObservationIngestServiceTests
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
         captured.Should().NotBeNull();
         captured![0].ObservedAt.Should().Be(new DateTime(2026, 3, 3, 12, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public async Task ObservedAt_LeftUnsetWhenTheReadingNamesNoTime()
+    {
+        var entityId = Guid.NewGuid();
+        IReadOnlyList<ObservationSample>? captured = null;
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("S").Returns(new MyceliumClient.MyceliumThing(entityId, "S"));
+        client.SubmitObservationsAsync(entityId, Arg.Do<IReadOnlyList<ObservationSample>>(s => captured = s)).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var query = new JsonataTransform("{\"name\":\"S\",\"properties\":{\"v\":1}}");
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "{\"x\":1}");
+
+        result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
+        captured.Should().NotBeNull();
+        captured![0].ObservedAt.Should().BeNull(
+            "Mycelium stamps an undated sample from the model clock, which a run can anchor away "
+            + "from real time — stamping here would use this process's wall clock instead");
     }
 
     // ---------- failure paths ----------

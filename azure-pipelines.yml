@@ -148,6 +148,25 @@ steps:
   workingDirectory: tools/docs-to-wiki
   condition: always()
 
+# The Python tools each ship a unittest suite that no step ran, so the simulator, the layout
+# importer and the playground generator could all break and merge green — and the first two share
+# one Mycelium client, so a change to it can break the pair at once. Discovery rather than a named
+# module, so a new test file is run by having been written. Stock Python: nothing to install.
+- script: python -m unittest discover
+  displayName: 'Test simulator'
+  workingDirectory: tools/simulator
+  condition: always()
+
+- script: python -m unittest discover
+  displayName: 'Test layout-importer'
+  workingDirectory: tools/layout-importer
+  condition: always()
+
+- script: python -m unittest discover
+  displayName: 'Test pipeline-playground'
+  workingDirectory: tools/pipeline-playground
+  condition: always()
+
 # The GUI's own checks. Nothing here ran them until now, and both halves of that had been paying:
 # lint errors accumulated across the pages, panels and hooks with nothing to fail (#6150), and the
 # GUI test suite — the guard for the binding resolver, the property panels and the live-update path

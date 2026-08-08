@@ -321,6 +321,22 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    public virtual async Task<JsonElement> GetEngineMetricsAsync()
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/engines/metrics");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> GetEngineReactorsAsync()
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/engines/metrics/reactors");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<JsonElement> GetSeedStatusAsync()
     {
         await SetAuthHeaderAsync();
@@ -597,10 +613,42 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    public virtual async Task<JsonElement> GetThingsInStateAsync(string stateName)
+    // The narrowing is applied by the server, so the answer is the size of the caller's decision
+    // rather than the size of the model. Kinds — the Things others `is` — are absent unless
+    // includeArchetypes asks for them, which is the one thing that changes for a caller naming
+    // nothing.
+    public virtual async Task<JsonElement> GetThingsInStateAsync(
+        string stateName,
+        string? alsoIn = null,
+        string? notIn = null,
+        string? type = null,
+        Guid? within = null,
+        string? withinPredicate = null,
+        bool includeArchetypes = false,
+        int? limit = null,
+        string? properties = null)
     {
         await SetAuthHeaderAsync();
-        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/states/{Uri.EscapeDataString(stateName)}/things");
+
+        var queryParams = new List<string>();
+        void Add(string name, string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                queryParams.Add($"{name}={Uri.EscapeDataString(value)}");
+        }
+
+        Add("alsoIn", alsoIn);
+        Add("notIn", notIn);
+        Add("type", type);
+        Add("within", within?.ToString());
+        Add("withinPredicate", withinPredicate);
+        if (includeArchetypes) Add("includeArchetypes", "true");
+        Add("limit", limit?.ToString());
+        Add("properties", properties);
+        var query = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
+
+        var response = await _httpClient.GetAsync(
+            $"{_myceliumUrl}/api/states/{Uri.EscapeDataString(stateName)}/things{query}");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }

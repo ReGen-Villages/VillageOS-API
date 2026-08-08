@@ -126,11 +126,14 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-            var payload = samples.Select(s => new
+            // A sample with no time of its own leaves observedAt out entirely, so Mycelium stamps
+            // the whole batch once from the model clock rather than this process's wall clock.
+            var payload = samples.Select(s =>
             {
-                property = s.Property,
-                value = ResolveMyceliumValue(s.Value).Value,
-                observedAt = s.ObservedAt
+                var value = ResolveMyceliumValue(s.Value).Value;
+                return s.ObservedAt is { } at
+                    ? (object)new { property = s.Property, value, observedAt = at }
+                    : new { property = s.Property, value };
             });
 
             var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things/{thingId}/observations", payload);

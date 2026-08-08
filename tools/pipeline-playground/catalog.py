@@ -60,7 +60,8 @@ SERVICES = [
     {"key": "energy-balance", "label": "Energy Balance", "subdomain": "energy-balance",
      "ports": [_in("solarPvAreaM2", "number", required=True),
                _in("solarResourceKwhPerM2PerYear", "number", required=True),
-               _in("pvEfficiency", "number", required=True),
+               _in("moduleEfficiency", "number", required=True),
+               _in("performanceRatio", "number", required=True),
                _in("otherGenerationMwhPerYear", "number", required=True),
                _in("annualConsumptionMwhPerYear", "number", required=True),
                _out("pctOfConsumption", "number")]},
@@ -224,14 +225,15 @@ PIPELINES = [
         "wires": [{"from": "water", "fromPort": "daysOfSupply", "to": "out", "toPort": "daysOfSupply"}],
     },
 
-    # 9. Energy self-sufficiency: five param-bound inputs (#5806).
+    # 9. Energy self-sufficiency: every input param-bound (#5806).
     {
         "name": "Energy Self-Sufficiency",
         "nodes": [
             {"key": "energy", "service": "energy-balance", "at": col(0),
              "params": {"solarPvAreaM2": "solarPvAreaM2",
                         "solarResourceKwhPerM2PerYear": "solarResourceKwhPerM2PerYear",
-                        "pvEfficiency": "pvEfficiency",
+                        "moduleEfficiency": "moduleEfficiency",
+                        "performanceRatio": "performanceRatio",
                         "otherGenerationMwhPerYear": "otherGenerationMwhPerYear",
                         "annualConsumptionMwhPerYear": "annualConsumptionMwhPerYear"}},
             {"key": "out", "output": [("pctOfConsumption", "number", True)], "at": col(1)},
@@ -251,7 +253,8 @@ PIPELINES = [
             {"key": "energy", "service": "energy-balance", "at": col(1, 2),
              "params": {"solarPvAreaM2": "solarPvAreaM2",
                         "solarResourceKwhPerM2PerYear": "solarResourceKwhPerM2PerYear",
-                        "pvEfficiency": "pvEfficiency",
+                        "moduleEfficiency": "moduleEfficiency",
+                        "performanceRatio": "performanceRatio",
                         "otherGenerationMwhPerYear": "otherGenerationMwhPerYear",
                         "annualConsumptionMwhPerYear": "annualConsumptionMwhPerYear"}},
             {"key": "merge", "service": "merge", "at": col(2, 1)},

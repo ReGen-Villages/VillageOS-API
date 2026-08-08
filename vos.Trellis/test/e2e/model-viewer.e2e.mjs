@@ -28,6 +28,15 @@ const USERNAME = process.env.VOS_E2E_USERNAME || 'admin';
 const PASSWORD = process.env.VOS_E2E_PASSWORD || 'admin';
 const HEADLESS = process.env.VOS_E2E_HEADFUL !== '1';
 
+// The Filter by Type panel overlays the left of the viewport; sampling starts
+// past it so its own pixels are never mistaken for model geometry.
+const PANEL_WIDTH_FRACTION = 0.4;
+
+const CANVAS_SELECTOR = '[data-testid=fragments-canvas] canvas';
+
+// The seed a run loads when the session has no model yet.
+const SEED_NAME = process.env.VOS_E2E_SEED || 'MarthasVineyard';
+
 /**
  * Puppeteer reads canvas pixels by screenshotting the element and inspecting
  * the PNG. Reading the WebGL buffer directly doesn't work for r3f/three.js
@@ -36,12 +45,16 @@ const HEADLESS = process.env.VOS_E2E_HEADFUL !== '1';
  *
  * Returns width/height plus how many of `samples × samples` grid points land
  * on rendered geometry (any channel clearly brighter than the #0f0f10 bg).
+ *
+ * `skipLeftFraction` keeps the grid clear of the Filter by Type panel, which is
+ * an HTML overlay sitting on top of the canvas — an element screenshot includes
+ * it, so its checkboxes and labels otherwise count as rendered geometry.
  */
-async function samplePixelsViaScreenshot(page, sel, samples = 8) {
+async function samplePixelsViaScreenshot(page, sel, samples = 8, skipLeftFraction = 0) {
   const elem = await page.$(sel);
   if (!elem) return { error: 'canvas not found' };
   const dataUrl = 'data:image/png;base64,' + (await elem.screenshot({ type: 'png', encoding: 'base64' }));
-  const info = await page.evaluate(async (src, n) => {
+  const info = await page.evaluate(async (src, n, skipLeft) => {
     const img = new Image();
     await new Promise((res, rej) => {
       img.onload = res;
@@ -55,7 +68,8 @@ async function samplePixelsViaScreenshot(page, sel, samples = 8) {
     let nonBg = 0;
     for (let i = 1; i <= n; i++) {
       for (let j = 1; j <= n; j++) {
-        const x = Math.floor((img.width * i) / (n + 1));
+        const left = img.width * skipLeft;
+        const x = Math.floor(left + ((img.width - left) * i) / (n + 1));
         const y = Math.floor((img.height * j) / (n + 1));
         const idx = (y * img.width + x) * 4;
         const r = data[idx], g = data[idx + 1], b = data[idx + 2];
@@ -63,7 +77,7 @@ async function samplePixelsViaScreenshot(page, sel, samples = 8) {
       }
     }
     return { width: img.width, height: img.height, nonBg, total: n * n };
-  }, dataUrl, samples);
+  }, dataUrl, samples, skipLeftFraction);
   return {
     ok: true,
     width: info.width,
@@ -71,6 +85,35 @@ async function samplePixelsViaScreenshot(page, sel, samples = 8) {
     nonBackgroundSamples: info.nonBg,
     totalSamples: info.total,
   };
+}
+
+/**
+ * Log in and land on the Model page with the Fragments canvas mounted.
+ *
+ * A session that has no model selected yet meets the seed picker instead of the
+ * app, so a run against a freshly started broker hangs on a canvas that never
+ * arrives. Pick the seed when it is offered.
+ */
+async function loginAndOpenModelPage(page) {
+  await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForSelector('#username', { timeout: 10000 });
+  await page.type('#username', USERNAME);
+  await page.type('#password', PASSWORD);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 15000 }).catch(() => {}),
+    page.click('button[type=submit]'),
+  ]);
+
+  const pickedSeed = await page.evaluate((name) => {
+    const button = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === name);
+    if (!button) return false;
+    button.click();
+    return true;
+  }, SEED_NAME);
+  if (pickedSeed) await page.waitForNetworkIdle({ idleTime: 2000, timeout: 60000 }).catch(() => {});
+
+  await page.goto(`${URL}/model`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector(CANVAS_SELECTOR, { timeout: 20000 });
 }
 
 test('ModelPage renders the Fragments artifact via WebGL', async () => {
@@ -102,23 +145,8 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
       if (msg.type() === 'error') pageErrors.push('[console.error] ' + msg.text());
     });
 
-    await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-
-    // ── Login ─────────────────────────────────────────────────────────────
-    await page.waitForSelector('#username', { timeout: 10000 });
-    await page.type('#username', USERNAME);
-    await page.type('#password', PASSWORD);
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 15000 }).catch(() => {}),
-      page.click('button[type=submit]'),
-    ]);
-
-    // Dashboard loaded; now navigate into the Model page.
-    await page.goto(`${URL}/model`, { waitUntil: 'domcontentloaded' });
-
-    // ── Wait for canvas + tile streaming ─────────────────────────────────
-    const canvasSel = '[data-testid=fragments-canvas] canvas';
-    await page.waitForSelector(canvasSel, { timeout: 20000 });
+    await loginAndOpenModelPage(page);
+    const canvasSel = CANVAS_SELECTOR;
 
     // Poll pixel samples — under software rendering (swiftshader) the first
     // frame can take several seconds after the Fragments worker finishes
@@ -238,6 +266,75 @@ test('ModelPage renders the Fragments artifact via WebGL', async () => {
     } else {
       console.warn('skip — could not find a rendered pixel to click; pick coverage not asserted');
     }
+  } finally {
+    await browser.close();
+  }
+});
+
+// Bug #5366 — unchecking every type must empty the canvas. The regression this
+// guards is specific: visibility used to be driven by a list of IFC GlobalIds
+// built from the model's Things, and a .frag holds far more elements than the
+// model has Things for. Hiding "everything" reached only the mapped few, so the
+// scene stayed on screen while the panel reported nothing selected. A unit test
+// cannot catch it — it only shows up against a real .frag in a real GL context.
+test('ModelPage hides all geometry when no IFC type is selected', async () => {
+  const browser = await puppeteer.launch({
+    headless: HEADLESS,
+    args: [
+      '--ignore-certificate-errors',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--enable-webgl',
+      '--enable-unsafe-swiftshader',
+      '--use-gl=angle',
+      '--use-angle=swiftshader',
+    ],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+
+    await loginAndOpenModelPage(page);
+    const canvasSel = CANVAS_SELECTOR;
+
+    // Every tile must be in before the baseline, or a still-streaming model
+    // reads as "hidden" and the test passes for the wrong reason.
+    const deadline = Date.now() + 40000;
+    let visible;
+    while (Date.now() < deadline) {
+      visible = await samplePixelsViaScreenshot(page, canvasSel, 8, PANEL_WIDTH_FRACTION);
+      if (visible?.ok && visible.nonBackgroundSamples >= 4) break;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    assert.ok(
+      visible?.ok && visible.nonBackgroundSamples >= 4,
+      `model did not stream in; nothing to hide. Got ${visible?.nonBackgroundSamples ?? 'no'} samples.`,
+    );
+
+    const clickedNone = await page.evaluate(() => {
+      const button = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'None');
+      if (!button) return false;
+      button.click();
+      return true;
+    });
+    assert.ok(clickedNone, 'could not find the None button in the Filter by Type panel');
+
+    // Hiding walks the whole scene through the Fragments worker, so give it
+    // longer than a frame before reading pixels.
+    await new Promise((r) => setTimeout(r, 6000));
+
+    const hidden = await samplePixelsViaScreenshot(page, canvasSel, 8, PANEL_WIDTH_FRACTION);
+    if (hidden.nonBackgroundSamples > 0) await page.screenshot({ path: '/tmp/vos-e2e-5366-fail.png' });
+    assert.equal(
+      hidden.nonBackgroundSamples,
+      0,
+      `expected an empty canvas with 0 types selected, but ${hidden.nonBackgroundSamples} of ` +
+        `${hidden.totalSamples} sample points still show geometry (was ${visible.nonBackgroundSamples} ` +
+        `before hiding). Screenshot: /tmp/vos-e2e-5366-fail.png`,
+    );
+
+    console.log(`ok — canvas emptied: ${visible.nonBackgroundSamples} → 0 rendered samples`);
   } finally {
     await browser.close();
   }

@@ -86,6 +86,11 @@ Returns `{ subscriptionId, watermark, snapshot }`. The snapshot lists `things` a
 `relationships`, each with own `Properties` and `InheritedOverrides` (kept separate), `States`,
 and incident relationship ids. `watermark` is the commit sequence the snapshot was taken at.
 
+Each Thing also carries `IsArchetype` — whether it is a **type** or a **member** of one (#6218).
+Read it before working over the members of a type. Nothing else in the payload answers the
+question: a type and a member are the same shape, and a type whose members do not exist yet has no
+`is` edge pointing at it, so a handler that guessed would treat that type as a real unit.
+
 ### Selecting a slice (the startup-template replacement)
 
 The selector is how a handler says *which* objects it wants — it replaced the retired `ServiceArgs`

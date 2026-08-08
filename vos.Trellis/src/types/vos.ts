@@ -3,6 +3,9 @@
 export interface VosThing {
   Id: string;
   Name: string;
+  /** Declared when the Thing was created, because nothing can re-derive it: a type and a member are
+   *  the same shape, and a type whose members do not exist yet has no `is` edge to give it away. */
+  IsArchetype?: boolean;
   Properties: Record<string, unknown>;
   /** Stored per-instance overrides of inherited names, keyed by source (the wire field
    *  `InheritedOverrides`). Override-only — NOT the full inherited view; for that read the
@@ -233,9 +236,12 @@ export interface CriteriaValidationResult {
 
 // State query
 
+/** Response of GET /api/states/{state}/things. The kinds Things `is` are left out unless the
+ *  request asks for them, and `Properties` is present only on the entries of a request that named
+ *  properties — a name the Thing does not hold is absent from it rather than null. */
 export interface ThingsInStateResponse {
   StateName: string;
-  Things: Array<{ Id: string; Name: string }>;
+  Things: Array<{ Id: string; Name: string; Properties?: Record<string, unknown> }>;
 }
 
 /** Window the returned state history covers. `Source` is "in-memory" while history comes from the

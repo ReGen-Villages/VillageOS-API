@@ -86,7 +86,7 @@ After login, the **Dashboard** is the default landing page. The sidebar on the l
 
 | Icon | Page | Purpose |
 |------|------|---------|
-| Grid | **Dashboard** | Model statistics, service health & daemon state, and live activity feed |
+| Grid | **Dashboard** | Model statistics, reactive-engine capacity, service health & daemon state, and live activity feed |
 | Network | **Graph** | Interactive graph visualization with search, clustering, 3D building view, and CRUD |
 | Box | **Model** | IFC-based 3D model viewer (Fragments) with type filtering and element selection |
 | Clock | **Temporal** | Time-range mutation explorer for viewing property change history |
@@ -400,6 +400,8 @@ Panning moves the village across the screen plane — the left/right/up/down are
 
 **Selecting and filtering:** Click any element to select it — its detail panel slides in from the right, the same panel used on the Graph page. The type-filter panel in the top-left corner hides or shows whole categories of elements (it hides the same set of things as the Graph page's type filter).
 
+Unchecking every type empties the viewport. That case is handled apart from the rest: the panel lists the types the model has Things for, while the Fragments artifact holds every element the IFC had — usually far more. Naming the elements to hide therefore reaches only the ones the model knows, so "no types selected" tells the viewer to show nothing at all rather than handing it a list.
+
 > **Note**: When the Model page is in overhead (plan) camera mode, orbiting is disabled — pan and zoom still work.
 
 ### 6.2 Single-Building 3D View
@@ -434,6 +436,23 @@ The top-left card shows at-a-glance counts for your model:
 - **Handlers** — registered service handler count
 
 Below the counts, a **Top Predicates** list shows the most-used relationship types ranked by count.
+
+### 7.1a Reactive engines
+
+Below the model statistics, the **Reactive engines** card shows what the platform's two reactive
+engines are carrying for the current model, read from `GET /api/engines/metrics`:
+
+- **Range evaluation** — registered ranges, their dependency edges, and estimated memory
+- **Reactive computation** — roll-up definitions, their member edges, and estimated memory
+- **Total est. memory** — the combined footprint
+
+The numbers refresh when the model changes and on a short poll (range and roll-up definition
+writes publish no model-change event, so polling keeps the card honest). While the connection is
+down or before the first load, the card reads "Metrics unavailable" rather than zeros. Per-reactor
+drill-in belongs to Taproot (#5856), not this card.
+
+Manual check: create a range or post a fragment carrying `RollupProperties`, and the counts move
+within one poll interval.
 
 ### 7.2 Services
 
@@ -882,7 +901,9 @@ GraphPage fetches the full thing list (`GET /api/things`) and the relationship l
 
 - **Predicate nodes**: amber `#fbbf24` — things used as `PredicateId` or with `ExecutablePath`/`ServicePort`
 - **Type nodes**: blue `#60a5fa` — things that are targets of "is" relationships
-- **Instance nodes**: color derived from the "is" type name via `hashStringToIndex()` into a 16-color vibrant palette. Every instance of the same type shares the same color (e.g., all "Home" instances are one color, all "SolarArray" another). New types automatically get distinct colors without code changes.
+- **Instance nodes**: colored by the classifying property first — `layoutSettings.classifyingProperty`, `ifcClass` by default — through the curated class table, so IFC elements of the same class share a color across types. An instance whose classifying value is missing or has no curated bucket falls back to the "is" type name via `hashStringToIndex()` into a 16-color vibrant palette, so every instance of the same type shares a color (e.g. all "Home" instances one color, all "SolarArray" another) and new types get distinct colors without code changes.
+
+  Read the classifying value with `storedTextOf`, not from the own property bag. When an instance and the type it `is`-relates to both declare a name, the instance's own value is stored as an *override* rather than an own property, so the own bag looks empty. Reading it directly is what kept the curated class colors from ever reaching an IFC instance (Bug #6191) — the same mistake that made most of the 3D viewer unpickable.
 - **Untyped instances** (no "is" relationship): slate `#94a3b8` fallback
 - **Edge colors**: Resolved per-predicate via `resolvePredicateColor(name, overrides)`. Explicit name→hex overrides from the `GUI_Settings` Thing's `PredicateColors` JSON property take priority; unlisted predicates fall back to an 8-color palette via `hashStringToIndex()`. The same resolver is used by both `buildGraph()` (edge colors) and `computePredicateStats()` (radial menu colors) so they always match.
 
@@ -1030,7 +1051,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations` | `OperationsPage` | Config-driven operations dashboard. Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/operations` | `OperationsPage` | Config-driven operations dashboard. Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
