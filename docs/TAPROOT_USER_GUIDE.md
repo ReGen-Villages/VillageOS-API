@@ -9,6 +9,7 @@
 - [Working with Things](#working-with-things)
 - [Working with Relationships](#working-with-relationships)
 - [Querying the Model](#querying-the-model)
+- [Reactive-Engine Capacity](#reactive-engine-capacity)
 - [Microservice Management](#microservice-management)
 - [Model Import/Export](#model-importexport)
 - [Testing](#testing)
@@ -198,6 +199,7 @@ production** — it disables protection against man-in-the-middle attacks.
 | `range validate <criteria>` | Validate criteria syntax |
 | `state <thing>` | Get current states for a thing |
 | `state query <state-name>` | Find the things in a state (the kinds they `is` are left out) |
+| `engines [ranges\|rollups]` | Reactive-engine totals; drill in to per-reactor detail |
 | `serialize [file]` | Export model to JSON |
 | `seed [file]` | Alias for serialize |
 | `deserialize <file>` | Import model from JSON |
@@ -855,6 +857,43 @@ Ranges can be inherited from parent things via "is" relationships, similar to pr
   ]
 }
 ```
+
+## Reactive-Engine Capacity
+
+`engines` shows what the platform's two reactive engines are carrying for the current model,
+from `GET /api/engines/metrics` — counting only; reading the numbers never evaluates a range or
+a reduction.
+
+```
+> engines
+Reactive engines — MarthasVineyard
+  Range evaluation          14 ranges        41 edges      20.4 KB
+  Reactive computation       6 roll-ups      52 members     6.3 KB
+  Total est. memory     26.7 KB
+
+Drill in: engines ranges | engines rollups
+```
+
+Drill in to per-reactor detail — each range reactor with its owner, what it watches, its wired
+edges, and its footprint; each roll-up reactor with its owner and the definition as declared:
+
+```
+> engines ranges
+Range reactors (14)
+  Basin-1 · low_quantity
+    watches: quantity   edges: 1 (+0 binding)   est. 1.2 KB
+  ...
+
+> engines rollups
+Roll-up reactors (6)
+  SolarArray · total_pv_area = Sum(area) over Incoming is from SolarArray
+    members: 3   est. 704 B
+  ...
+```
+
+The estimated memory is deterministic arithmetic over documented per-unit costs — a capacity
+trend, not heap accounting. The same numbers appear on the Trellis dashboard's Reactive engines
+card; the drill-in is unique to the CLI.
 
 ## Microservice Management
 
