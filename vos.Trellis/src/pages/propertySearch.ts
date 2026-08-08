@@ -1,5 +1,6 @@
 import type { EffectiveProperty, VosRelationship } from '../types/vos';
 import { formatPropertyValue } from '../utils/formatters';
+import { relationshipLabel } from '../utils/relationshipLabel';
 
 export interface PropertyMatch {
   propertyName: string;
@@ -78,7 +79,7 @@ export function searchProperties({ effectiveProps, relationships, thingNames, qu
           value: rel.Properties[key],
           ownerType: 'relationship',
           ownerId: rel.Id,
-          ownerName: rel.Name,
+          ownerName: relationshipLabel(rel, (id) => thingNames.get(id)),
           ownerDetail: `${subj} --[${pred}]--> ${targ}`,
         });
       }

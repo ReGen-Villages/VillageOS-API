@@ -17,6 +17,7 @@ import { relationshipApi } from '../api/relationshipApi';
 import { reloadModelData } from '../hooks/useModelData';
 import { useGraphData } from '../hooks/useGraphData';
 import { toast } from '../components/common/toastStore';
+import { relationshipLabel } from '../utils/relationshipLabel';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import type { VosThing } from '../types/vos';
 import { Upload } from 'lucide-react';
@@ -300,7 +301,11 @@ export function GraphPage() {
               selectNode(id);
             }}
             onDeleteRelationship={(id) =>
-              setDeleteConfirm({ type: 'relationship', id, name: detailRelationship.Name })
+              setDeleteConfirm({
+                type: 'relationship',
+                id,
+                name: relationshipLabel(detailRelationship, (thingId) => thingMap.get(thingId)?.Name),
+              })
             }
             onDeleteProperty={handleDeleteRelProperty}
             statesVersion={statesVersion}
