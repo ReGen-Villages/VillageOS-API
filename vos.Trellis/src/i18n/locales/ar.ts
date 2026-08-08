@@ -163,6 +163,17 @@ export const ar: PartialResources & ArabicPlurals = {
     noProperties: "لا توجد خصائص",
   },
   dashboard: {
+    engines: {
+      title: 'المحركات التفاعلية',
+      unavailable: 'المقاييس غير متاحة',
+      ranges: 'تقييم النطاقات',
+      rollups: 'الحساب التفاعلي',
+      rangesUnit: 'نطاقات',
+      rollupsUnit: 'التجميعات',
+      edges: 'حواف',
+      members: 'أعضاء',
+      total: 'إجمالي الذاكرة (تقديري)',
+    },
     title: 'لوحة تحكم Mycelium',
     status: { mycelium: 'Mycelium', live: 'مباشر' },
     actions: {

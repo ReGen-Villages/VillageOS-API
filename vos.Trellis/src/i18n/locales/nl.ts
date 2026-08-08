@@ -77,6 +77,17 @@ export const nl: PartialResources = {
     noProperties: "Geen eigenschappen",
   },
   dashboard: {
+    engines: {
+      title: 'Reactieve engines',
+      unavailable: 'Statistieken niet beschikbaar',
+      ranges: 'Bereikevaluatie',
+      rollups: 'Reactieve berekening',
+      rangesUnit: 'bereiken',
+      rollupsUnit: 'roll-ups',
+      edges: 'randen',
+      members: 'leden',
+      total: 'Totaal geheugen (gesch.)',
+    },
     title: 'Mycelium-dashboard',
     status: { mycelium: 'Mycelium', live: 'Live' },
     actions: {

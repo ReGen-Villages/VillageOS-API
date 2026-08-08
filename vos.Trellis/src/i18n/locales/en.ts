@@ -69,6 +69,17 @@ export const en = {
     noProperties: "No properties",
   },
   dashboard: {
+    engines: {
+      title: 'Reactive engines',
+      unavailable: 'Metrics unavailable',
+      ranges: 'Range evaluation',
+      rollups: 'Reactive computation',
+      rangesUnit: 'ranges',
+      rollupsUnit: 'roll-ups',
+      edges: 'edges',
+      members: 'members',
+      total: 'Total est. memory',
+    },
     title: 'Mycelium Dashboard',
     status: { mycelium: 'Mycelium', live: 'Live' },
     actions: {

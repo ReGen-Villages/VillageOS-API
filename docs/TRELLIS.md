@@ -86,7 +86,7 @@ After login, the **Dashboard** is the default landing page. The sidebar on the l
 
 | Icon | Page | Purpose |
 |------|------|---------|
-| Grid | **Dashboard** | Model statistics, service health & daemon state, and live activity feed |
+| Grid | **Dashboard** | Model statistics, reactive-engine capacity, service health & daemon state, and live activity feed |
 | Network | **Graph** | Interactive graph visualization with search, clustering, 3D building view, and CRUD |
 | Box | **Model** | IFC-based 3D model viewer (Fragments) with type filtering and element selection |
 | Clock | **Temporal** | Time-range mutation explorer for viewing property change history |
@@ -436,6 +436,23 @@ The top-left card shows at-a-glance counts for your model:
 - **Handlers** — registered service handler count
 
 Below the counts, a **Top Predicates** list shows the most-used relationship types ranked by count.
+
+### 7.1a Reactive engines
+
+Below the model statistics, the **Reactive engines** card shows what the platform's two reactive
+engines are carrying for the current model, read from `GET /api/engines/metrics`:
+
+- **Range evaluation** — registered ranges, their dependency edges, and estimated memory
+- **Reactive computation** — roll-up definitions, their member edges, and estimated memory
+- **Total est. memory** — the combined footprint
+
+The numbers refresh when the model changes and on a short poll (range and roll-up definition
+writes publish no model-change event, so polling keeps the card honest). While the connection is
+down or before the first load, the card reads "Metrics unavailable" rather than zeros. Per-reactor
+drill-in belongs to Taproot (#5856), not this card.
+
+Manual check: create a range or post a fragment carrying `RollupProperties`, and the counts move
+within one poll interval.
 
 ### 7.2 Services
 

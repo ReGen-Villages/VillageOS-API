@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ModelStatsCard } from '../components/dashboard/ModelStatsCard';
 import { ServicesPanel } from '../components/dashboard/ServicesPanel';
+import { EngineMetricsPanel } from '../components/dashboard/EngineMetricsPanel';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { myceliumApi } from '../api/myceliumApi';
+import { engineMetricsApi } from '../api/engineMetricsApi';
 import { endpointApi } from '../api/endpointApi';
 import { thingApi } from '../api/thingApi';
 import { fetchFullLog } from '../api/logsApi';
@@ -19,8 +21,13 @@ import { Power, PanelRightOpen, FileCode2, RefreshCw } from 'lucide-react';
 import { RegenLogo } from '../components/auth/RegenLogo';
 
 import type { RegisteredService, EndpointServiceInfo } from '../types/mycelium';
+import type { EngineMetricsSummary } from '../types/engineMetrics';
 
 const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
+
+// Range and roll-up definition writes publish no model-change event (they are engine
+// configuration, not model data), so the capacity panel polls on top of the SSE refreshes.
+const ENGINE_METRICS_POLL_MS = 15000;
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -29,6 +36,7 @@ export function DashboardPage() {
   const [services, setServices] = useState<RegisteredService[]>([]);
   const [endpointServices, setEndpointServices] = useState<EndpointServiceInfo[]>([]);
   const [httpOk, setHttpOk] = useState(false);
+  const [engineMetrics, setEngineMetrics] = useState<EngineMetricsSummary | null>(null);
   const [showShutdown, setShowShutdown] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ thingId: string; name: string } | null>(null);
   const [feedCollapsed, setFeedCollapsed] = useState(() => localStorage.getItem(FEED_COLLAPSED_KEY) === 'true');
@@ -64,6 +72,21 @@ export function DashboardPage() {
     loadMyceliumData();
   }, [loadMyceliumData]);
 
+  const loadEngineMetrics = useCallback(async () => {
+    try {
+      setEngineMetrics(await engineMetricsApi.getSummary());
+    } catch {
+      setEngineMetrics(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- state is only set after the await
+    loadEngineMetrics();
+    const interval = setInterval(loadEngineMetrics, ENGINE_METRICS_POLL_MS);
+    return () => clearInterval(interval);
+  }, [loadEngineMetrics]);
+
   // With the connection down, every service reads as unreachable — derived rather than written into
   // state, so a reconnect shows what was last loaded instead of the offline values overwriting it.
   const displayedServices = connected
@@ -78,9 +101,10 @@ export function DashboardPage() {
       on('ServiceRequestCompleted', () => myceliumApi.getServices().then(setServices)),
       on('EndpointServiceRequestCompleted', () => endpointApi.getAll().then(setEndpointServices)),
       on('ModelChanged', () => loadMyceliumData()),
+      on('ModelChanged', () => loadEngineMetrics()),
     ];
     return () => unsubs.forEach((u) => u());
-  }, [on, loadMyceliumData]);
+  }, [on, loadMyceliumData, loadEngineMetrics]);
 
   const handleDownloadServiceLog = async (serviceKey: string) => {
     try {
@@ -199,6 +223,7 @@ export function DashboardPage() {
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
             <ModelStatsCard things={things} relationships={relationships} />
+            <EngineMetricsPanel metrics={connected ? engineMetrics : null} />
             <ServicesPanel services={displayedServices} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} onDownloadLogs={handleDownloadServiceLog} />
             <PropertyModePanel />
           </div>

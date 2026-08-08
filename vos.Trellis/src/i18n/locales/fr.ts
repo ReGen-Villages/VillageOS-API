@@ -77,6 +77,17 @@ export const fr: PartialResources = {
     noProperties: "Aucune propriété",
   },
   dashboard: {
+    engines: {
+      title: 'Moteurs réactifs',
+      unavailable: 'Métriques indisponibles',
+      ranges: 'Évaluation des plages',
+      rollups: 'Calcul réactif',
+      rangesUnit: 'plages',
+      rollupsUnit: 'roll-ups',
+      edges: 'arêtes',
+      members: 'membres',
+      total: 'Mémoire totale (est.)',
+    },
     title: 'Tableau de bord Mycelium',
     status: { mycelium: 'Mycelium', live: 'En direct' },
     actions: {
