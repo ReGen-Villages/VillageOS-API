@@ -1136,6 +1136,40 @@ public class MyceliumClientTests
         captured!.RequestUri!.Query.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task GetEngineMetricsAsync_CallsTheSummaryRoute()
+    {
+        HttpRequestMessage? captured = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            return JsonResponse("{}");
+        });
+
+        await client.GetEngineMetricsAsync();
+
+        captured!.RequestUri!.AbsolutePath.Should().Be("/api/engines/metrics");
+        captured.Headers.Authorization.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetEngineReactorsAsync_CallsTheReactorsRoute()
+    {
+        HttpRequestMessage? captured = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            return JsonResponse("{}");
+        });
+
+        await client.GetEngineReactorsAsync();
+
+        captured!.RequestUri!.AbsolutePath.Should().Be("/api/engines/metrics/reactors");
+        captured.Headers.Authorization.Should().NotBeNull();
+    }
+
     // ---- Error path: non-2xx on any authenticated GET surfaces HttpRequestException ----
 
     [Fact]
