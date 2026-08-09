@@ -337,6 +337,14 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    public virtual async Task<JsonElement> GetSnapshotResolutionMetricsAsync()
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/snapshots/resolution/metrics");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<JsonElement> GetSeedStatusAsync()
     {
         await SetAuthHeaderAsync();
