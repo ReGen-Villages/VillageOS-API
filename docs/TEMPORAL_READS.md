@@ -135,6 +135,46 @@ With `CurrentOnly`, every instant before the last write is beyond retention — 
 nothing amounts to when something asks about the past. Ask at or after the last write and the answer
 is exact; ask earlier and there is nothing to answer from.
 
+## Reducing into time buckets
+
+A history read answers *what one property was worth over time*. A different question — *how much
+happened per slice of time, across everything of a kind* — is answered by
+`POST /api/temporal/aggregate`.
+
+It reads the **live model**, not the tiers: the members are the instances of a type, each placed by
+an instant it carries as an ordinary property, written once when its event happened. So the cost
+follows the member population rather than the depth of history, and the answer does not shrink when
+a property's retention runs out.
+
+```http
+POST /api/temporal/aggregate
+{"function":"Sum","memberType":"Dispatch","timestampProperty":"left_at","measureProperty":"units",
+ "windowSeconds":28800,"bucketSeconds":900}
+
+{"buckets":[12,0,7,…],"firstBucketStart":"2026-07-05T04:00:00+00:00","bucketSeconds":900,"unusableMembers":0}
+```
+
+| Field | Meaning |
+|---|---|
+| `function` | The reduction per bucket: `Min`, `Max`, `Sum`, `Average` or `Count` |
+| `memberType` | Only Things that `is` this type, followed through the whole chain. A Thing declared as a type never contributes, only its instances |
+| `timestampProperty` | The property holding the instant each member's event happened |
+| `measureProperty` | The property reduced per member. `Count` needs none; every other reduction does |
+| `windowSeconds` | How far back the window reaches from the model clock's now |
+| `bucketSeconds` | How wide each bucket is. The window must be a whole number of them |
+| `within` + `withinPredicate` | Only members this container reaches through the named predicate, at any depth |
+
+The window ends at the **model clock's** now — the same clock as every other temporal read on this
+page — and each bucket is closed at its end, so an event exactly at now falls in the last bucket and
+one exactly at the window start belongs to the window before this. A window equal to one bucket is a
+trailing-window scalar: the question a tile asks, answered by the same code as the series it sits
+above.
+
+A question the platform cannot run is refused with `400` naming what is wrong, rather than answered
+with an empty series that would read as "nothing happened". Members carrying no readable instant or
+measure do not fail the request; they are counted in `unusableMembers`, so a reading of zero because
+nobody stamped the instant is distinguishable from a reading of zero because nothing happened.
+
 ## See also
 
 - [`TRIBUTARY.md`](TRIBUTARY.md) — the outbound fetcher that ingests readings as observations into
