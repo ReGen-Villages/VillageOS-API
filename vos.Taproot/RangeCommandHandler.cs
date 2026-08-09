@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace vos.Taproot;
@@ -113,14 +114,14 @@ public class RangeCommandHandler
 
     private static int SetBoundsMin(CreateRangeOptions options, string value, int index)
     {
-        if (decimal.TryParse(value, out var min))
+        if (decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var min))
             options.BoundsMin = min;
         return index + 1;
     }
 
     private static int SetBoundsMax(CreateRangeOptions options, string value, int index)
     {
-        if (decimal.TryParse(value, out var max))
+        if (decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var max))
             options.BoundsMax = max;
         return index + 1;
     }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using vos.Tests.Shared;
 
 namespace vos.Taproot.Tests;
 
@@ -46,7 +47,7 @@ public class SnapshotsCommandHandlerTests
     {
         MyceliumReports(resolutions: 1000, retries: 40, lockedPasses: 5);
 
-        await ExecuteHandler("");
+        await TestCulture.InAsync(TestCulture.Display, () => ExecuteHandler(""));
 
         var output = _writer.ToString();
         Assert.Contains("4.0%", output);

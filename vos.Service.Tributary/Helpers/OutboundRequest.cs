@@ -1,5 +1,6 @@
-using System.Text;
+using System.Globalization;
 using System.Text.Json;
+using System.Text;
 
 namespace vos.Service.Tributary.Helpers;
 
@@ -35,7 +36,7 @@ public static class OutboundRequest
             case JsonValueKind.Number when value.TryGetDouble(out var n):
                 seconds = n;
                 break;
-            case JsonValueKind.String when double.TryParse(value.GetString(), out var s):
+            case JsonValueKind.String when double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var s):
                 seconds = s;
                 break;
             default:
