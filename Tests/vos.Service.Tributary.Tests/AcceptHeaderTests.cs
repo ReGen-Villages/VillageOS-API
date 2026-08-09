@@ -1,10 +1,9 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Xunit;
+using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
 
@@ -33,7 +32,7 @@ public class AcceptHeaderTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("""{"ok":true}"""); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProps(req, thingId, props)
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -61,7 +60,7 @@ public class AcceptHeaderTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("""{"ok":true}"""); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProps(req, thingId, props)
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -92,7 +91,7 @@ public class AcceptHeaderTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "tiles.test") { outbound = req; return Binary(TiffBytes, "image/tiff"); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProps(req, thingId, props)
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -125,7 +124,7 @@ public class AcceptHeaderTests
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
-            RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProps(req, thingId, props)
+            RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -134,35 +133,5 @@ public class AcceptHeaderTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("acceptHeader").And.Contain("EsriExport.acceptHeader").And.Contain("GeoJsonFeed.acceptHeader");
-    }
-
-    // ---------- helpers ----------
-
-    private static HttpResponseMessage Json(string body) =>
-        new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-
-    private static HttpResponseMessage Binary(byte[] bytes, string? contentType)
-    {
-        var content = new ByteArrayContent(bytes);
-        if (contentType != null)
-            content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
-        return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
-    }
-
-    private static HttpResponseMessage? RouteFindThing(HttpRequestMessage req, Guid id, string name)
-    {
-        if (req.Method == HttpMethod.Get
-            && req.RequestUri!.AbsolutePath == "/api/things"
-            && req.RequestUri.Query.Contains($"name={name}"))
-            return Json($$"""{"Id":"{{id}}","Name":"{{name}}"}""");
-        return null;
-    }
-
-    private static HttpResponseMessage? RouteEffectiveProps(HttpRequestMessage req, Guid id, string jsonObject)
-    {
-        if (req.Method == HttpMethod.Get
-            && req.RequestUri!.AbsolutePath == $"/api/things/{id}/properties")
-            return Json(jsonObject);
-        return null;
     }
 }

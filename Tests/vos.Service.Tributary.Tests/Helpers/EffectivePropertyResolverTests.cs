@@ -112,4 +112,120 @@ public class EffectivePropertyResolverTests
         found.Should().BeTrue();
         value.GetString().Should().Be("alice");
     }
+
+    // Mycelium reports a key that several templates on one `is` chain declare once per declaring
+    // template, qualified by the path from the endpoint Thing. Those are one key shadowed along a
+    // chain, so the closest declaration wins; only paths that diverge are ambiguous.
+
+    [Fact]
+    public void TryGetEffectiveProperty_SingleChainTwoLevels_ClosestAncestorWins()
+    {
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["EsriEndpoint.requestContentType"]          = El("\"application/x-www-form-urlencoded\""),
+            ["EsriEndpoint.Endpoint.requestContentType"] = El("\"application/json\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "requestContentType", out var value, out var conflicts);
+
+        found.Should().BeTrue();
+        value.GetString().Should().Be("application/x-www-form-urlencoded");
+        conflicts.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_SingleChainThreeLevels_ClosestAncestorWins()
+    {
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["A.B.C.x"] = El("\"root\""),
+            ["A.x"]     = El("\"closest\""),
+            ["A.B.x"]   = El("\"middle\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "x", out var value, out var conflicts);
+
+        found.Should().BeTrue();
+        value.GetString().Should().Be("closest");
+        conflicts.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_SingleChainCaseInsensitivePrefix_ClosestAncestorWins()
+    {
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["esriendpoint.responseKind"]          = El("\"binary\""),
+            ["EsriEndpoint.Endpoint.responseKind"] = El("\"json\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "responseKind", out var value, out var conflicts);
+
+        found.Should().BeTrue();
+        value.GetString().Should().Be("binary");
+        conflicts.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_MixedChainAndDivergentBranch_StillConflicts()
+    {
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["A.x"]   = El("\"a\""),
+            ["A.B.x"] = El("\"ab\""),
+            ["C.x"]   = El("\"c\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "x", out _, out var conflicts);
+
+        found.Should().BeFalse();
+        conflicts.Should().BeEquivalentTo(new[] { "A.x", "A.B.x", "C.x" });
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_ShorterPathIsAStringPrefixButNotASegmentPrefix_StillConflicts()
+    {
+        // "Esri" is a string prefix of "EsriEndpoint" but names a different template, so the
+        // shorter path is not an ancestor of the longer one.
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["Esri.url"]                  = El("\"https://a\""),
+            ["EsriEndpoint.Endpoint.url"] = El("\"https://b\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "url", out _, out var conflicts);
+
+        found.Should().BeFalse();
+        conflicts.Should().BeEquivalentTo(new[] { "Esri.url", "EsriEndpoint.Endpoint.url" });
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_PathsSharingALeadingSegmentThenDiverging_StillConflicts()
+    {
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["A.B.x"]   = El("\"ab\""),
+            ["A.C.D.x"] = El("\"acd\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "x", out _, out var conflicts);
+
+        found.Should().BeFalse();
+        conflicts.Should().BeEquivalentTo(new[] { "A.B.x", "A.C.D.x" });
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_SameDepthDivergentPaths_StillConflicts()
+    {
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["Esri.url"]         = El("\"https://a\""),
+            ["EsriEndpoint.url"] = El("\"https://b\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "url", out _, out var conflicts);
+
+        found.Should().BeFalse();
+        conflicts.Should().BeEquivalentTo(new[] { "Esri.url", "EsriEndpoint.url" });
+    }
 }
