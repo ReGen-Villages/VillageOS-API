@@ -181,6 +181,11 @@ data: {"Kind":"PropertyChanged","EntityId":"<guid>","PropertyName":"temp","Value
 does this automatically) or `?lastEventId=`; the server replays committed changes after it, then
 goes live — gap-free and exactly-once. Initial connect resumes from the snapshot `watermark`.
 
+**Derived changes are live-only.** A computed (roll-up) property's change arrives as an ordinary
+property-changed event, but no Fact exists for it, so a resume — which replays the journal —
+never re-delivers it. After a reconnect, re-read the current values of the computed properties
+you depend on.
+
 ### Mutable membership (no reconnect)
 
 - `POST /api/subscriptions/{id}/objects` (selector body) — add objects; returns an incremental snapshot of the added closure

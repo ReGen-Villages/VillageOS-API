@@ -446,8 +446,8 @@ engines are carrying for the current model, read from `GET /api/engines/metrics`
 - **Reactive computation** — roll-up definitions, their member edges, and estimated memory
 - **Total est. memory** — the combined footprint
 
-The numbers refresh when the model changes and on a short poll (range and roll-up definition
-writes publish no model-change event, so polling keeps the card honest). While the connection is
+The numbers refresh when the model changes and when a range or roll-up definition is registered
+(the engine-configuration event, #6227), with a short poll as fallback for a dropped stream. While the connection is
 down or before the first load, the card reads "Metrics unavailable" rather than zeros. Per-reactor
 drill-in belongs to Taproot (#5856), not this card.
 
