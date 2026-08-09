@@ -45,17 +45,13 @@ The shape:
   suffix-aware name match (`EffectivePropertyResolver`, so a Mycelium key like
   `Esri.itemsPath` matches a lookup for `itemsPath`).
 - Mycelium's resolved view reports a key **once per declaring template**, qualified by the path
-  from the endpoint Thing. A key a descendant narrows normally appears **once**, at the ancestor
-  that declares it, holding the narrowed value — Delta writes a narrowing after the template's
-  `is` edge exists, so Mycelium stores it as an override rather than an own property (see
-  [`DELTA.md`](DELTA.md)).
-- The resolver still tolerates the same key arriving **twice** on one chain
-  (`EsriEndpoint.requestContentType` alongside `EsriEndpoint.Endpoint.requestContentType`), which
-  is what a catalog provisioned in the wrong order leaves behind. It reads that as one key
-  shadowed along a chain and takes the **shortest path, the closest declaration**. Only keys whose
-  qualifier paths diverge (`http.url` against `resource.url`) are ambiguous, and those fail the
-  call with a `conflicts` list rather than picking one arbitrarily. Paths are compared segment by
-  segment, so `Esri` and `EsriEndpoint` stay separate templates.
+  from the endpoint Thing. A key a descendant narrows appears **once**, at the ancestor that
+  declares it, holding the narrowed value — Delta writes a narrowing after the template's `is`
+  edge exists, so Mycelium stores it as an override rather than an own property (see
+  [`DELTA.md`](DELTA.md)), and the platform refuses a Thing owning a name it also inherits.
+- A key therefore reaches Tributary once. Two matches mean two genuinely different declarations
+  (`http.url` against `resource.url`), and the call fails with a `conflicts` list rather than
+  picking one arbitrarily.
 
 ## The field taxonomy
 
