@@ -244,9 +244,8 @@ Worked examples:
   `Unwrap(object?)` maps `JsonElement` to native CLR types with
   `int → long → decimal` width escalation.
 - `vos.Service.Tributary/Helpers/EffectivePropertyResolver.cs` —
-  `TryGetEffectiveProperty` with exact-match-preempts-suffix precedence,
-  closest-declaration-wins when the matching qualifier paths lie on one `is` chain, and a
-  `conflicts` list when they diverge.
+  `TryGetEffectiveProperty` with exact-match-preempts-suffix precedence and a
+  `conflicts` list for ambiguous suffixes.
 
 What stays in `Program.cs`: DI registration, middleware order, route mapping,
 lifetime callbacks, endpoint lambdas with thin call-through bodies.
