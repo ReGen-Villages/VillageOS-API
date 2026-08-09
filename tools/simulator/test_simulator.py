@@ -92,6 +92,22 @@ class FakeMycelium:
             for r in document["Relationships"]:
                 self.rels.append((r["Subject"], r["Predicate"], r["Target"]))
 
+    # A double that yielded an empty stream would pass every assertion while testing nothing, so the
+    # three watch calls refuse instead. Exercise them against a running Mycelium — e2e_fragment.py is
+    # the live script — rather than through anything here.
+    _NO_STREAM = ("This double records writes and does not emulate the change stream. "
+                  "Subscribe, follow and unsubscribe are server behaviour: test them against a "
+                  "running Mycelium, the way e2e_fragment.py does.")
+
+    def subscribe(self, selector):
+        raise NotImplementedError(self._NO_STREAM)
+
+    def follow(self, subscription_id, last=0, token_in_query=False):
+        raise NotImplementedError(self._NO_STREAM)
+
+    def unsubscribe(self, subscription_id):
+        raise NotImplementedError(self._NO_STREAM)
+
 
 def _timeline():
     """A tiny generic timeline: a stocked bin, then paced widgets that draw it down past empty."""
@@ -343,6 +359,26 @@ class ReplayAgainstFakeMycelium(unittest.TestCase):
         self.assertIn("bin", client.things)                 # standing world loaded via load_model
         for balance in client.balances.values():
             self.assertGreaterEqual(balance, 0)
+
+
+class TheChangeStreamIsRefusedNotFaked(unittest.TestCase):
+    """The double stands in for the write API and nothing else. `follow_until` subscribes, reads the
+    SSE stream and unsubscribes — server behaviour a recorder cannot stand in for, and a double that
+    yielded an empty stream would pass every assertion while testing nothing."""
+
+    def test_each_watch_call_says_what_is_not_emulated(self):
+        client = FakeMycelium()
+
+        for call in (lambda: client.subscribe({"all": True}),
+                     lambda: list(client.follow("any-subscription")),
+                     lambda: client.unsubscribe("any-subscription")):
+            with self.assertRaises(NotImplementedError) as raised:
+                call()
+            self.assertIn("change stream", str(raised.exception))
+
+    def test_follow_until_against_the_double_refuses_rather_than_timing_out(self):
+        with self.assertRaises(NotImplementedError):
+            S.follow_until(FakeMycelium(), lambda kind, data: True, timeout=0.1)
 
 
 class EveryOpIsApplied(unittest.TestCase):

@@ -20,7 +20,7 @@ library or as a serialized file.
 | --- | --- |
 | `mycelium.py` | A minimal, standard-library Mycelium HTTP client (Things, Relationships, Facts, quantity adjustments, subscriptions/SSE) plus `stable_id`. |
 | `simulator.py` | The driver: `Action`, `BalanceLedger`, `Checkpoint`, `Simulator`, `follow_until`, and a CLI that plays a timeline file. |
-| `test_simulator.py` | Ledger no-oversell under concurrency, checkpoint resume, action serialization, dry replay against a fake Mycelium that fails loud on any oversell. |
+| `test_simulator.py` | Ledger no-oversell under concurrency, checkpoint resume, action serialization, dry replay against a fake Mycelium that fails loud on any oversell. That double stands in for the write API only — it refuses the subscription and stream calls, which belong against a running Mycelium. |
 
 No third-party dependencies — stock Python 3.10+.
 
