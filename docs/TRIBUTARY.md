@@ -40,10 +40,18 @@ The shape:
 - A property's effective value is **closest-ancestor-wins**: the nearest template in the
   chain that declares a non-blank value for the key. A blank value is *structural* — it
   makes the key admissible without supplying an inherited default.
-- Tributary never walks the template graph itself. It reads Mycelium's
-  the **resolved properties** for the endpoint Thing (Mycelium merges the `is`-chain) and
-  resolves each property by suffix-aware name match (`EffectivePropertyResolver`, so a
-  Mycelium key like `Esri.itemsPath` matches a lookup for `itemsPath`).
+- Tributary never walks the template graph itself. It reads the **resolved properties** for
+  the endpoint Thing (Mycelium merges the `is`-chain) and resolves each property by
+  suffix-aware name match (`EffectivePropertyResolver`, so a Mycelium key like
+  `Esri.itemsPath` matches a lookup for `itemsPath`).
+- Mycelium's resolved view reports a key **once per declaring template**, qualified by the
+  path from the endpoint Thing. A root default that a descendant narrows therefore arrives
+  twice — `EsriEndpoint.requestContentType` alongside
+  `EsriEndpoint.Endpoint.requestContentType`. The resolver reads that as one key shadowed
+  along a chain and takes the **shortest path, the closest declaration**. Only keys whose
+  qualifier paths diverge (`http.url` against `resource.url`) are ambiguous, and those still
+  fail the call with a `conflicts` list rather than picking one arbitrarily. Paths are
+  compared segment by segment, so `Esri` and `EsriEndpoint` stay separate templates.
 
 ## The field taxonomy
 

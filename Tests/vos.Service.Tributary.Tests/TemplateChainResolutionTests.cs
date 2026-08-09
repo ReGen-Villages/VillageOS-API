@@ -1,17 +1,15 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Xunit;
+using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
 
-// Integration pin for Bug #6152 through /handle: a root template may declare a key's default
-// and a descendant may override it — the closest declaration must win instead of 400ing as
-// ambiguous. This is the exact shape #5914 ships (responseKind declared on root Endpoint,
-// overridden by EsriTileEndpoint).
+// A root template declares a key's default and a descendant overrides it (#5914's shape:
+// responseKind on root Endpoint, narrowed by EsriTileEndpoint). Pinned through /handle because
+// Mycelium's effective-property view is where the two declarations both show up.
 public class TemplateChainResolutionTests
 {
     private static readonly byte[] PngBytes = { 0x89, 0x50, 0x4E, 0x47, 0xFF, 0xFE, 0x00, 0x01 };
@@ -34,49 +32,19 @@ public class TemplateChainResolutionTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "tiles.test") return Binary(PngBytes, "image/png");
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProps(req, thingId, props)
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
 
-        // Closest ancestor won on both keys: httpMethod resolved (chain, identical values) and
-        // responseKind=binary (child) shadowed the root's json default — hence an envelope.
+        // A base64 envelope rather than a JSON body is the proof that responseKind resolved to the
+        // child's binary rather than the root's json.
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using var envelope = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         envelope.RootElement.GetProperty("contentType").GetString().Should().Be("image/png");
         Convert.FromBase64String(envelope.RootElement.GetProperty("dataBase64").GetString()!)
             .Should().Equal(PngBytes);
-    }
-
-    // ---------- helpers ----------
-
-    private static HttpResponseMessage Json(string body) =>
-        new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-
-    private static HttpResponseMessage Binary(byte[] bytes, string? contentType)
-    {
-        var content = new ByteArrayContent(bytes);
-        if (contentType != null)
-            content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
-        return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
-    }
-
-    private static HttpResponseMessage? RouteFindThing(HttpRequestMessage req, Guid id, string name)
-    {
-        if (req.Method == HttpMethod.Get
-            && req.RequestUri!.AbsolutePath == "/api/things"
-            && req.RequestUri.Query.Contains($"name={name}"))
-            return Json($$"""{"Id":"{{id}}","Name":"{{name}}"}""");
-        return null;
-    }
-
-    private static HttpResponseMessage? RouteEffectiveProps(HttpRequestMessage req, Guid id, string jsonObject)
-    {
-        if (req.Method == HttpMethod.Get
-            && req.RequestUri!.AbsolutePath == $"/api/things/{id}/properties")
-            return Json(jsonObject);
-        return null;
     }
 }

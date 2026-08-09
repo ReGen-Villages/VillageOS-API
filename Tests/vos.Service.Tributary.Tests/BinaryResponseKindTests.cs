@@ -1,10 +1,9 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Xunit;
+using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
 
@@ -36,7 +35,7 @@ public class BinaryResponseKindTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "tiles.test") return Binary(PngBytes, "image/png");
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProps(req, thingId, props)
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -68,7 +67,7 @@ public class BinaryResponseKindTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "tiles.test") return Binary(PngBytes, contentType: null);
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProps(req, thingId, props)
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -101,7 +100,7 @@ public class BinaryResponseKindTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "tiles.test") { outbound = req; return Binary(PngBytes, "image/jpeg"); }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProps(req, thingId, props)
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -132,7 +131,7 @@ public class BinaryResponseKindTests
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.Host == "features.test") return Json("{\"ok\":true}");
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProps(req, thingId, props)
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -157,7 +156,7 @@ public class BinaryResponseKindTests
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProps(req, thingId, props)
+            ?? RouteEffectiveProperties(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -182,7 +181,7 @@ public class BinaryResponseKindTests
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProps(req, thingId, props)
+            ?? RouteEffectiveProperties(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -207,7 +206,7 @@ public class BinaryResponseKindTests
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProps(req, thingId, props)
+            ?? RouteEffectiveProperties(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -238,7 +237,7 @@ public class BinaryResponseKindTests
                 persistCalls++;
                 return Json("{}");
             }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProps(req, thingId, props)
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -268,7 +267,7 @@ public class BinaryResponseKindTests
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProps(req, thingId, props)
+            ?? RouteEffectiveProperties(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -276,35 +275,5 @@ public class BinaryResponseKindTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await response.Content.ReadAsStringAsync()).Should().Contain("cannot be combined with pagingKind");
-    }
-
-    // ---------- helpers ----------
-
-    private static HttpResponseMessage Json(string body) =>
-        new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-
-    private static HttpResponseMessage Binary(byte[] bytes, string? contentType)
-    {
-        var content = new ByteArrayContent(bytes);
-        if (contentType != null)
-            content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
-        return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
-    }
-
-    private static HttpResponseMessage? RouteFindThing(HttpRequestMessage req, Guid id, string name)
-    {
-        if (req.Method == HttpMethod.Get
-            && req.RequestUri!.AbsolutePath == "/api/things"
-            && req.RequestUri.Query.Contains($"name={name}"))
-            return Json($$"""{"Id":"{{id}}","Name":"{{name}}"}""");
-        return null;
-    }
-
-    private static HttpResponseMessage? RouteEffectiveProps(HttpRequestMessage req, Guid id, string jsonObject)
-    {
-        if (req.Method == HttpMethod.Get
-            && req.RequestUri!.AbsolutePath == $"/api/things/{id}/properties")
-            return Json(jsonObject);
-        return null;
     }
 }

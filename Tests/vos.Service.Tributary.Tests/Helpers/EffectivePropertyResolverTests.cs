@@ -113,16 +113,13 @@ public class EffectivePropertyResolverTests
         value.GetString().Should().Be("alice");
     }
 
-    // ---------- closest-ancestor-wins on a single chain (Bug #6152) ----------
-    // The broker reports a key declared at N chain levels N times under qualified names
-    // (e.g. "EsriEndpoint.requestContentType" and "EsriEndpoint.Endpoint.requestContentType").
-    // Matches on ONE `is` chain are shadowing, not ambiguity: the closest ancestor (shortest
-    // qualifier path) wins. Conflicts remain reserved for divergent branches.
+    // Mycelium reports a key that several templates on one `is` chain declare once per declaring
+    // template, qualified by the path from the endpoint Thing. Those are one key shadowed along a
+    // chain, so the closest declaration wins; only paths that diverge are ambiguous.
 
     [Fact]
     public void TryGetEffectiveProperty_SingleChainTwoLevels_ClosestAncestorWins()
     {
-        // The exact shape observed live: child override + root default of the same key.
         var props = new Dictionary<string, JsonElement>
         {
             ["EsriEndpoint.requestContentType"]          = El("\"application/x-www-form-urlencoded\""),
@@ -172,7 +169,6 @@ public class EffectivePropertyResolverTests
     [Fact]
     public void TryGetEffectiveProperty_MixedChainAndDivergentBranch_StillConflicts()
     {
-        // A.x/A.B.x form a chain, but C.x diverges — no single closest ancestor exists.
         var props = new Dictionary<string, JsonElement>
         {
             ["A.x"]   = El("\"a\""),
@@ -187,9 +183,40 @@ public class EffectivePropertyResolverTests
     }
 
     [Fact]
-    public void TryGetEffectiveProperty_StringPrefixButNotSegmentPrefix_StillConflicts()
+    public void TryGetEffectiveProperty_ShorterPathIsAStringPrefixButNotASegmentPrefix_StillConflicts()
     {
-        // "Esri" is a string prefix of "EsriEndpoint" but NOT a segment prefix — divergent types.
+        // "Esri" is a string prefix of "EsriEndpoint" but names a different template, so the
+        // shorter path is not an ancestor of the longer one.
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["Esri.url"]                  = El("\"https://a\""),
+            ["EsriEndpoint.Endpoint.url"] = El("\"https://b\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "url", out _, out var conflicts);
+
+        found.Should().BeFalse();
+        conflicts.Should().BeEquivalentTo(new[] { "Esri.url", "EsriEndpoint.Endpoint.url" });
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_PathsSharingALeadingSegmentThenDiverging_StillConflicts()
+    {
+        var props = new Dictionary<string, JsonElement>
+        {
+            ["A.B.x"]   = El("\"ab\""),
+            ["A.C.D.x"] = El("\"acd\"")
+        };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "x", out _, out var conflicts);
+
+        found.Should().BeFalse();
+        conflicts.Should().BeEquivalentTo(new[] { "A.B.x", "A.C.D.x" });
+    }
+
+    [Fact]
+    public void TryGetEffectiveProperty_SameDepthDivergentPaths_StillConflicts()
+    {
         var props = new Dictionary<string, JsonElement>
         {
             ["Esri.url"]         = El("\"https://a\""),
