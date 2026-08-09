@@ -1170,6 +1170,23 @@ public class MyceliumClientTests
         captured.Headers.Authorization.Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task GetSnapshotResolutionMetricsAsync_CallsTheResolutionMetricsRoute()
+    {
+        HttpRequestMessage? captured = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            return JsonResponse("{}");
+        });
+
+        await client.GetSnapshotResolutionMetricsAsync();
+
+        captured!.RequestUri!.AbsolutePath.Should().Be("/api/snapshots/resolution/metrics");
+        captured.Headers.Authorization.Should().NotBeNull();
+    }
+
     // ---- Error path: non-2xx on any authenticated GET surfaces HttpRequestException ----
 
     [Fact]

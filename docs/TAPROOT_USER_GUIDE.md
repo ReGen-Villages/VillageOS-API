@@ -10,6 +10,7 @@
 - [Working with Relationships](#working-with-relationships)
 - [Querying the Model](#querying-the-model)
 - [Reactive-Engine Capacity](#reactive-engine-capacity)
+- [Snapshot Read Cost](#snapshot-read-cost)
 - [Microservice Management](#microservice-management)
 - [Model Import/Export](#model-importexport)
 - [Testing](#testing)
@@ -200,6 +201,7 @@ production** — it disables protection against man-in-the-middle attacks.
 | `state <thing>` | Get current states for a thing |
 | `state query <state-name>` | Find the things in a state (the kinds they `is` are left out) |
 | `engines [ranges\|rollups]` | Reactive-engine totals; drill in to per-reactor detail |
+| `snapshots` | What snapshot reads cost against the writers: resolutions served, taken again, and forced to take the lock |
 | `serialize [file]` | Export model to JSON |
 | `seed [file]` | Alias for serialize |
 | `deserialize <file>` | Import model from JSON |
@@ -894,6 +896,34 @@ Roll-up reactors (6)
 The estimated memory is deterministic arithmetic over documented per-unit costs — a capacity
 trend, not heap accounting. The same numbers appear on the Trellis dashboard's Reactive engines
 card; the drill-in is unique to the CLI.
+
+## Snapshot Read Cost
+
+`snapshots` shows what the snapshot read path has cost against the writers, from
+`GET /api/snapshots/resolution/metrics` — counting only; asking never resolves a selector.
+
+A snapshot's membership is resolved without a lock, then checked: if a writer changed the model's
+structure mid-walk the resolution is taken again, and one that runs out of attempts takes the lock.
+These three numbers say how often that happens.
+
+```
+> snapshots
+Snapshot resolution — since Mycelium started
+  Resolutions served          8421
+  Taken again                   17   0.2% of resolutions
+  Took the lock                  0   0.0% of resolutions
+
+Totals include the seed load's structural writes. For one run's rate,
+read before and after it and difference the two.
+```
+
+The totals run from process start and are not per model — one resolver serves whatever model is
+loaded, so a seed reload does not reset them. That is why measuring one run means two readings and a
+subtraction rather than a single look.
+
+What the numbers decide: the retry share is the evidence for or against
+`SnapshotResolution:AttemptsBeforeLocking`. Retries near zero means the unlocked attempts are never
+needed; locked passes close to the retry count means they are not earning their keep.
 
 ## Microservice Management
 
