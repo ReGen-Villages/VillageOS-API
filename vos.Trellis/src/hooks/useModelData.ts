@@ -5,8 +5,9 @@ import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { useSse } from './useSse';
 import { useFlashTimer } from './useFlashTimer';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import { isVisibleRelationship } from '../utils/propertyUpdates';
+import { GUI_SETTINGS_TYPE_NAME, readModelLoadProperties } from '../utils/guiSettings';
 
 /** How long to wait before a single hydrate retry (Bug #5940). */
 const HYDRATE_RETRY_MS = 400;
@@ -32,9 +33,29 @@ type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
  * auto-dismiss, so a background loop would otherwise stack un-dismissable toasts
  * (Bug #5940). User-initiated loads (mount, mutations, ModelChanged) stay loud.
  */
+/**
+ * The properties this model says its pages are drawn with, or none when it says nothing.
+ *
+ * Read before the model itself because it decides what to ask for. It costs one small request against
+ * a route that already existed, next to a load that is megabytes — and the platform never narrows the
+ * settings Thing, so this could not have ridden in the load it configures.
+ *
+ * A model that says nothing, or a read that fails, loads everything. Narrowing on a guess would strip
+ * properties a page needs; loading everything is only slower.
+ */
+async function declaredModelLoadProperties(): Promise<string[]> {
+  try {
+    const settings = await thingApi.getByName(GUI_SETTINGS_TYPE_NAME);
+    return readModelLoadProperties(settings?.Properties ?? null);
+  } catch {
+    return [];
+  }
+}
+
 export async function reloadModelData(opts?: { silent?: boolean }): Promise<void> {
   try {
-    const [t, r] = await Promise.all([thingApi.getAll(), relationshipApi.getAll()]);
+    const declared = await declaredModelLoadProperties();
+    const [t, r] = await Promise.all([thingApi.getAll(declared), relationshipApi.getAll()]);
     useModelStore.getState().setThings(t);
     useModelStore.getState().setRelationships(r);
     // Flip the gate that pages (e.g. OperationsPage) block rendering on. Without
@@ -131,6 +152,28 @@ export function useModelData(): void {
       buffer.set(entityId, properties);
     };
 
+    // Each property event is (entity id, property name, value); a retraction carries no value.
+    const onThingProperty = (args: unknown[], change: PropertyChange) => {
+      const [thingId, propertyPath] = args as [string, string | undefined];
+      if (!thingId || propertyPath === undefined) return;
+      triggerFlashNode(thingId);
+      recordProperty(pending.thingProps, thingId, propertyPath, change);
+      schedule();
+    };
+
+    // Applied only while the relationship is on screen — as the opened edge, or hanging off the
+    // opened node. Asking about the node alone dropped every change to the edge whose own panel was
+    // in front of the user, because selecting an edge clears the node selection.
+    const onRelationshipProperty = (args: unknown[], change: PropertyChange) => {
+      const [relId, propertyName] = args as [string, string | undefined];
+      if (!relId || propertyName === undefined) return;
+      triggerFlashEdge(relId);
+      const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
+      if (!isVisibleRelationship(relId, selectedNodeId, selectedEdgeId, useModelStore.getState().relationships)) return;
+      recordProperty(pending.relProps, relId, propertyName, change);
+      schedule();
+    };
+
     let timer: ReturnType<typeof setTimeout> | null = null;
     let flushing = false;
     const schedule = () => { if (!timer && !flushing) timer = setTimeout(() => void flush(), FLUSH_DEBOUNCE_MS); };
@@ -197,53 +240,15 @@ export function useModelData(): void {
         const id = entityId(data);
         if (id) { pending.relHydrate.delete(id); pending.relRemove.add(id); schedule(); }
       }),
-      on('PropertyChanged', (...args: unknown[]) => {
-        const thingId = args[0] as string;
-        const propertyPath = args[1] as string | undefined;
-        const newValue = args[2] as unknown;
-        if (thingId && propertyPath !== undefined) {
-          triggerFlashNode(thingId);
-          // Every property update lands in the store, not just graph-rendering ones. The
-          // Operations dashboard reads live business properties (on-hand, reorder point,
-          // KPIs) straight from the store, so dropping their updates left it showing stale
-          // or blank cells for anything changed after the last full load. The debounced
-          // applyBatch coalesces the high PropertyChanged rate into one write per window.
-          recordProperty(pending.thingProps, thingId, propertyPath, { deleted: false, value: newValue });
-          schedule();
-        }
-      }),
-      // Unhandled before #6143: a deleted property stayed in the store and kept showing.
-      on('PropertyDeleted', (...args: unknown[]) => {
-        const thingId = args[0] as string;
-        const propertyPath = args[1] as string | undefined;
-        if (thingId && propertyPath !== undefined) {
-          triggerFlashNode(thingId);
-          recordProperty(pending.thingProps, thingId, propertyPath, { deleted: true });
-          schedule();
-        }
-      }),
-      on('RelationshipPropertyChanged', (...args: unknown[]) => {
-        const relId = args[0] as string;
-        const propertyName = args[1] as string | undefined;
-        const newValue = args[2] as unknown;
-        if (relId && propertyName !== undefined) {
-          triggerFlashEdge(relId);
-          // Only rebuild if this relationship is on screen — as the opened edge, or hanging off the
-          // opened node. Asking about the node alone dropped every change to the edge whose own
-          // panel was in front of the user, because selecting an edge clears the node selection.
-          const { selectedNodeId, selectedEdgeId } = useUiStore.getState();
-          const rels = useModelStore.getState().relationships;
-          if (isVisibleRelationship(relId, selectedNodeId, selectedEdgeId, rels)) {
-            // A retraction on a relationship is reported as a change to null, indistinguishable
-            // from a property genuinely set to null. Null for a property the store no longer holds
-            // is the echo of a deletion already applied; writing it back would resurrect the row.
-            const held = rels.find((r) => r.Id === relId)?.Properties ?? {};
-            if (newValue === null && !(propertyName in held)) return;
-            recordProperty(pending.relProps, relId, propertyName, { deleted: false, value: newValue });
-            schedule();
-          }
-        }
-      }),
+      // Every property update lands in the store, not just graph-rendering ones. The Operations
+      // dashboard reads live business properties (on-hand, reorder point, KPIs) straight from the
+      // store, so dropping their updates left it showing stale or blank cells for anything changed
+      // after the last full load. The debounced applyBatch coalesces the high rate into one write
+      // per window.
+      on('PropertyChanged', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
+      on('PropertyDeleted', (...args) => onThingProperty(args, { deleted: true })),
+      on('RelationshipPropertyChanged', (...args) => onRelationshipProperty(args, { deleted: false, value: args[2] })),
+      on('RelationshipPropertyDeleted', (...args) => onRelationshipProperty(args, { deleted: true })),
       on('ModelChanged', () => reloadModelData()),
       on('ModelCleared', () => useModelStore.getState().clear()),
       on('StatesChanged', () => useUiStore.getState().bumpStatesVersion()),

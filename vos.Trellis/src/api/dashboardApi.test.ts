@@ -24,6 +24,17 @@ import {
   type ResolveContext,
 } from './dashboardApi';
 
+/** These fixtures are bare graphs, so stamp the declaration a real model carries the way
+ *  `vos.SeedValidate --fix` does — on every Thing something `is`. A type with no members cannot be
+ *  found that way, so the test covering that case declares it by hand (#6218). */
+function declared(things: VosThing[], relationships: VosRelationship[]): VosThing[] {
+  const isId = things.find((x) => x.Name === 'is')?.Id;
+  const targets = new Set(
+    relationships.filter((r) => r.PredicateId === isId).map((r) => r.TargetId),
+  );
+  return things.map((x) => (targets.has(x.Id) ? { ...x, IsArchetype: true } : x));
+}
+
 // ---- a tiny synthetic model: 2 villages + a Dashboard config ----
 const SPEC = {
   title: 'Ops',
@@ -59,7 +70,7 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
 
 function ctxFor(scopeId: string | null): ResolveContext {
   const { things, relationships } = model();
-  return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Village' };
+  return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village' };
 }
 
 async function rowsOf(binding: Binding, ctx: ResolveContext): Promise<Record<string, unknown>[]> {
@@ -77,14 +88,14 @@ describe('discovery', () => {
 
   it('lists compare entities from the compare archetype', () => {
     const { things, relationships } = model();
-    const idx = buildModelIndex(things, relationships);
+    const idx = buildModelIndex(declared(things, relationships), relationships);
     const ents = scopeEntities(discoverDashboards(things, relationships)[0].spec, idx);
     expect(ents.map((e) => e.name)).toEqual(['V-1', 'V-2']);
   });
 
   it('resolves archetype membership via is-edges', () => {
     const { things, relationships } = model();
-    const idx = buildModelIndex(things, relationships);
+    const idx = buildModelIndex(declared(things, relationships), relationships);
     expect(thingsOfArchetype('Village', idx).map((x) => x.Name).sort()).toEqual(['V-1', 'V-2']);
   });
 });
@@ -99,13 +110,16 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   });
   // Party <- Resident(sub-archetype) <- ROWAN(instance); Village(leaf) <- V-1;
   // AssetClass <- ASC-SOLAR <- PANEL-1, and PANEL-1 also is-a Asset (multi-parent).
-  const idx = buildModelIndex(
-    [t('is', 'is'), t('Party', 'Party'), t('Resident', 'Resident'), t('c1', 'ROWAN'),
-     t('Village', 'Village'), t('vil1', 'V-1'),
-     t('AssetClass', 'AssetClass'), t('ASC', 'ASC-SOLAR'), t('Asset', 'Asset'), t('panel', 'PANEL-1')],
-    [rel('Resident', 'Party'), rel('c1', 'Resident'), rel('vil1', 'Village'),
-     rel('ASC', 'AssetClass'), rel('panel', 'ASC'), rel('panel', 'Asset')],
-  );
+  const chainThings = [
+    t('is', 'is'), t('Party', 'Party'), t('Resident', 'Resident'), t('c1', 'ROWAN'),
+    t('Village', 'Village'), t('vil1', 'V-1'),
+    t('AssetClass', 'AssetClass'), t('ASC', 'ASC-SOLAR'), t('Asset', 'Asset'), t('panel', 'PANEL-1'),
+  ];
+  const chainRelationships = [
+    rel('Resident', 'Party'), rel('c1', 'Resident'), rel('vil1', 'Village'),
+    rel('ASC', 'AssetClass'), rel('panel', 'ASC'), rel('panel', 'Asset'),
+  ];
+  const idx = buildModelIndex(declared(chainThings, chainRelationships), chainRelationships);
 
   it('includes instances under a sub-archetype and excludes the sub-archetype node', () => {
     expect(thingIdsOfArchetype('Party', idx)).toEqual(new Set(['c1'])); // ROWAN, not the Resident type node
@@ -125,11 +139,27 @@ describe('thingIdsOfArchetype (transitive, instances-only)', () => {
   });
 
   it('terminates on an is-cycle without hanging', () => {
+    const cycleRelationships = [rel('A', 'B'), rel('B', 'A')];
     const cyc = buildModelIndex(
-      [t('is', 'is'), t('A', 'A'), t('B', 'B')],
-      [rel('A', 'B'), rel('B', 'A')],
+      declared([t('is', 'is'), t('A', 'A'), t('B', 'B')], cycleRelationships),
+      cycleRelationships,
     );
     expect(thingIdsOfArchetype('A', cyc)).toEqual(new Set()); // no instances, no infinite loop
+  });
+
+  // The case the old `is`-target guess got wrong: a type nothing is yet was returned as a row of
+  // its own, permanently for a type declared before the thing it describes exists (#6218).
+  it('excludes a declared archetype that has no members', () => {
+    const rosterThings = [
+      t('is', 'is'), t('Machine', 'Machine'),
+      { ...t('Sorter', 'Sorter'), IsArchetype: true },
+      t('fork1', 'FORKLIFT-1'),
+    ];
+    const rosterRelationships = [rel('Sorter', 'Machine'), rel('fork1', 'Machine')];
+
+    const roster = buildModelIndex(declared(rosterThings, rosterRelationships), rosterRelationships);
+
+    expect(thingIdsOfArchetype('Machine', roster)).toEqual(new Set(['fork1']));
   });
 });
 
@@ -248,7 +278,7 @@ describe('resolveBinding', () => {
         SubjectId, PredicateId: 'is', TargetId, Properties: {},
       });
       const relationships = [rel('o1', 'arch-order'), rel('o2', 'arch-order'), rel('l1', 'arch-line')];
-      return { idx: buildModelIndex(things, relationships), scopeId: null, compareArchetype: 'Order' };
+      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId: null, compareArchetype: 'Order' };
     }
 
     beforeEach(() => {
@@ -302,7 +332,7 @@ describe('resolveBinding', () => {
         rel('root2', 'contains', 'mid2'), rel('mid2', 'contains', 'leaf3'),
         rel('root1', 'links', 'direct1'), rel('root2', 'links', 'direct2'),
       ];
-      return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Root' };
+      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Root' };
     }
 
     it('reaches Things nested more than one hop below the scope entity', async () => {
@@ -389,7 +419,7 @@ describe('resolveBinding', () => {
         rel('rbt1', 'is', 'arch-robot'), rel('rbt2', 'is', 'arch-robot'), rel('cnv1', 'is', 'arch-machine'),
         rel('site1', 'contains', 'rbt1'), rel('site1', 'contains', 'cnv1'), rel('site2', 'contains', 'rbt2'),
       ];
-      return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Site' };
+      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Site' };
     }
 
     it('lists every Thing of the archetype, in no state and with no scope selected', async () => {
@@ -466,7 +496,7 @@ describe('resolveBinding', () => {
         rel('cmd1', 'targets', 'rbt1'), rel('cmd1', 'references', 'locC'), rel('cmd1', 'references', 'zn1'),
         rel('cmd0', 'targets', 'rbt1'), rel('cmd0', 'references', 'locD'),
       ];
-      return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Machine' };
+      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Machine' };
     }
 
     const MEMBERS: Record<string, string[]> = {
@@ -725,7 +755,7 @@ describe('resolveBinding', () => {
         rel('vilA', 'contains', 'znA'), rel('znA', 'contains', 'locA1'), rel('znA', 'contains', 'locA2'),
         rel('vilB', 'contains', 'znB'), rel('znB', 'contains', 'locB1'),
       ];
-      return { idx: buildModelIndex(things, relationships), scopeId, compareArchetype: 'Village' };
+      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village' };
     }
 
     const LOCATION_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };

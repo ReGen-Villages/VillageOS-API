@@ -129,6 +129,6 @@ It registers with Mycelium as service name `ModelBridge`, start command `endpoin
 - Node logic: `vos.Service.ModelBridge/Services/ModelBridgeNode.cs`
   (a `DagNodeService` subclass — see [`SERVICES.md`](SERVICES.md) §16.2 for the
   node envelope and SDK base).
-- CLI: `vos.Service.ModelBridge/Configuration/CliArgs.cs`.
-- Mycelium client: `vos.Service.ModelBridge/Services/MyceliumClient.cs`.
+- Launch settings: `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs` (shared).
+- Mycelium client: `vos.Service.Shared/EndpointServiceMyceliumClient.cs` (shared).
 - Tests: `Tests/vos.Service.ModelBridge.Tests/ModelBridgeNodeTests.cs`.

@@ -4,7 +4,7 @@ import { EditableThingName } from './EditableThingName';
 import { thingApi } from '../../api/thingApi';
 
 vi.mock('../../api/thingApi', () => ({ thingApi: { rename: vi.fn() } }));
-vi.mock('../common/Toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('../common/toastStore', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const renameMock = vi.mocked(thingApi.rename);
 

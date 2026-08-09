@@ -86,6 +86,11 @@ Returns `{ subscriptionId, watermark, snapshot }`. The snapshot lists `things` a
 `relationships`, each with own `Properties` and `InheritedOverrides` (kept separate), `States`,
 and incident relationship ids. `watermark` is the commit sequence the snapshot was taken at.
 
+Each Thing also carries `IsArchetype` — whether it is a **type** or a **member** of one (#6218).
+Read it before working over the members of a type. Nothing else in the payload answers the
+question: a type and a member are the same shape, and a type whose members do not exist yet has no
+`is` edge pointing at it, so a handler that guessed would treat that type as a real unit.
+
 ### Selecting a slice (the startup-template replacement)
 
 The selector is how a handler says *which* objects it wants — it replaced the retired `ServiceArgs`
@@ -175,6 +180,11 @@ data: {"Kind":"PropertyChanged","EntityId":"<guid>","PropertyName":"temp","Value
 **Resume:** on reconnect send the last sequence seen via the `Last-Event-ID` header (EventSource
 does this automatically) or `?lastEventId=`; the server replays committed changes after it, then
 goes live — gap-free and exactly-once. Initial connect resumes from the snapshot `watermark`.
+
+**Derived changes are live-only.** A computed (roll-up) property's change arrives as an ordinary
+property-changed event, but no Fact exists for it, so a resume — which replays the journal —
+never re-delivers it. After a reconnect, re-read the current values of the computed properties
+you depend on.
 
 ### Mutable membership (no reconnect)
 
@@ -306,6 +316,11 @@ Bearer-authed POST. Pick by intent:
 | **Observation** (single) | one sampled telemetry value — queued & batched | `POST /api/things/{id}/properties/{property}/observations` | `{ "value": <scalar>, "observedAt"?: <iso8601> }` | `202` |
 | **Observation** (batch) | many samples across one entity's properties, one call | `POST /api/things/{id}/observations` | `[{ "property", "value", "observedAt"? }]` | `202 { accepted }` |
 | **Sediment** | bulk historical load written straight to sealed Sapwood; entities must already exist; `observedAt` **required** | `POST /api/sediment` | `[{ "thingId", "property", "value", "observedAt" }]` | `202 { batchId, series, buckets, samples }` |
+
+**Computed properties refuse every write kind.** A property whose value the platform computes
+from related Things (a roll-up — its serialized `typeInfo` ends in `Rollup`) answers `400` to
+Facts, Observations, and Sediment alike: its value belongs to the platform's computing pass, and
+a stored write would only be overwritten on the next pass.
 
 **Gating.** A property declares which kinds it accepts (`AllowedWriteKinds`: `Both` / `FactOnly` /
 `ObservationOnly`). Writing the wrong kind is rejected with **405** — a Fact to an `ObservationOnly`

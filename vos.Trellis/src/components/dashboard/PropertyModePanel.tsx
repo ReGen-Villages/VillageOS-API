@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { configApi } from '../../api/configApi';
-import { toast } from '../common/Toast';
+import { toast } from '../common/toastStore';
 import type { PropertyModeConfig } from '../../types/vos';
 
 const MODES = ['CurrentOnly', 'RingBuffer', 'Sampled', 'FullHistory'] as const;
@@ -12,11 +12,10 @@ export function PropertyModePanel() {
   const [mode, setMode] = useState('');
   const [ringBufferSize, setRingBufferSize] = useState('');
   const [sampleRate, setSampleRate] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await configApi.getDefaultPropertyMode();
       setConfig(data);
@@ -30,6 +29,7 @@ export function PropertyModePanel() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { load(); }, [load]);
 
   const save = async () => {

@@ -5,6 +5,7 @@
 # - Triggers on all branch updates and pull requests
 # - Builds the .NET solution
 # - Runs the .NET test suite and the wiki-mirror converter tests
+# - Lints, tests and builds Trellis, the GUI
 # - Publishes test results and code coverage to Azure DevOps
 # - Packages and publishes to NuGet (main branch only)
 # - Mirrors the repo and the wiki to GitHub (develop and main only)
@@ -58,10 +59,13 @@ steps:
     packageType: 'sdk'
     version: '10.x'
 
+# Serves the wiki converters and the Trellis checks below. 22 rather than 20 because Vite asks for
+# ^20.19 || >=22.12 — a 20.x line that resolved below 20.19 would fail the GUI build, and 22 is the
+# version both Vite and Vitest name.
 - task: NodeTool@0
-  displayName: 'Install Node.js (for wiki-mirror converter)'
+  displayName: 'Install Node.js'
   inputs:
-    versionSpec: '20.x'
+    versionSpec: '22.x'
 
 - script: dotnet restore
   displayName: 'Restore NuGet Packages'
@@ -87,12 +91,49 @@ steps:
     testRunTitle: 'VillageOS Tests - $(Build.SourceBranchName)'
   condition: always()
 
-- task: PublishCodeCoverageResults@2
-  displayName: 'Publish Code Coverage'
+# Coverage for both stacks is published together, after the GUI tests have run. See the publish
+# step below the Trellis steps.
+
+# The four echo services are the worked examples of the managed-microservice contract in Go, Node,
+# Python and Rust. Each ships a test suite, and until now the pipeline ran none of them, so all four
+# could rot without anything reporting it. Each step runs even when an earlier one failed, so one
+# build reports every broken example rather than one per push.
+- script: go test ./...
+  displayName: 'Test Go echo service'
+  workingDirectory: vos.Service.Go.Echo
+  condition: always()
+
+# Only devDependencies (TypeScript and the Node types); `npm test` compiles and then runs.
+- script: |
+    npm ci
+    npm test
+  displayName: 'Test Node echo service'
+  workingDirectory: vos.Service.Node.Echo
+  condition: always()
+
+- script: |
+    python -m pip install --upgrade pip
+    python -m pip install -r requirements.txt
+    python -m pytest
+  displayName: 'Test Python echo service'
+  workingDirectory: vos.Service.Python.Echo
+  condition: always()
+
+# Cargo builds axum, tokio and reqwest from source, which is the slowest step in the build. The
+# cache keys on the lock file, so only a dependency change pays that cost again.
+- task: Cache@2
+  displayName: 'Cache Rust dependencies'
   inputs:
-    codecoverageTool: 'Cobertura'
-    summaryFileLocation: '$(testResultsDirectory)/**/coverage.cobertura.xml'
-  condition: succeededOrFailed()
+    key: 'cargo | "$(Agent.OS)" | vos.Service.Rust.Echo/Cargo.lock'
+    restoreKeys: |
+      cargo | "$(Agent.OS)"
+    path: '$(UserProfile)/.cargo/registry'
+  condition: always()
+
+- script: cargo test
+  displayName: 'Test Rust echo service'
+  workingDirectory: vos.Service.Rust.Echo
+  condition: always()
 
 - script: node --test
   displayName: 'Test wiki-mirror converter'
@@ -105,6 +146,79 @@ steps:
 - script: node --test
   displayName: 'Test docs-to-wiki converter'
   workingDirectory: tools/docs-to-wiki
+  condition: always()
+
+# The Python tools each ship a unittest suite that no step ran, so the simulator, the layout
+# importer and the playground generator could all break and merge green — and the first two share
+# one Mycelium client, so a change to it can break the pair at once. Discovery rather than a named
+# module, so a new test file is run by having been written. Stock Python: nothing to install.
+- script: python -m unittest discover
+  displayName: 'Test simulator'
+  workingDirectory: tools/simulator
+  condition: always()
+
+- script: python -m unittest discover
+  displayName: 'Test layout-importer'
+  workingDirectory: tools/layout-importer
+  condition: always()
+
+- script: python -m unittest discover
+  displayName: 'Test pipeline-playground'
+  workingDirectory: tools/pipeline-playground
+  condition: always()
+
+# The GUI's own checks. Nothing here ran them until now, and both halves of that had been paying:
+# lint errors accumulated across the pages, panels and hooks with nothing to fail (#6150), and the
+# GUI test suite — the guard for the binding resolver, the property panels and the live-update path
+# — had never gated a merge. Each step runs even when an earlier one failed, so one run reports
+# every problem rather than one per push. They sit ahead of the mirror and the wiki publish, whose
+# succeeded() conditions then stop a red GUI from being published.
+- script: npm ci
+  displayName: 'Install Trellis dependencies'
+  workingDirectory: vos.Trellis
+  condition: always()
+
+- script: npm run lint
+  displayName: 'Lint Trellis'
+  workingDirectory: vos.Trellis
+  condition: always()
+
+# Both reporters: junit alone replaces the console output, which leaves a failing build's log
+# saying only that the run exited 1, with the failures readable exclusively in the Tests tab.
+# --coverage writes a cobertura report to vos.Trellis/coverage (configured in vite.config.ts).
+# Without it the GUI figure was never measured, so it could fall a long way unnoticed while the
+# platform figure looked healthy.
+- script: npm run test -- --coverage --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/trellis-junit.xml
+  displayName: 'Test Trellis'
+  workingDirectory: vos.Trellis
+  condition: always()
+
+- task: PublishTestResults@2
+  displayName: 'Publish Trellis Test Results'
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '$(testResultsDirectory)/trellis-junit.xml'
+    testRunTitle: 'Trellis'
+    mergeTestResults: true
+    failTaskOnFailedTests: true
+  condition: always()
+
+# Both stacks in one report, so the GUI figure sits next to the platform figure instead of being
+# invisible. Runs after the GUI tests because its report is one of the two being published.
+- task: PublishCodeCoverageResults@2
+  displayName: 'Publish Code Coverage'
+  inputs:
+    summaryFileLocation: |
+      $(testResultsDirectory)/**/coverage.cobertura.xml
+      $(Build.SourcesDirectory)/vos.Trellis/coverage/cobertura-coverage.xml
+  condition: succeededOrFailed()
+
+# Covers the type-check too — `npm run build` is `tsc -b` then the bundle, and nothing else in this
+# pipeline type-checks the GUI. Emits to vos.Trellis/dist here: the output directory resolves to a
+# sibling vos.Mycelium/wwwroot when one exists, and to dist when it does not.
+- script: npm run build
+  displayName: 'Build Trellis'
+  workingDirectory: vos.Trellis
   condition: always()
 
 - script: |

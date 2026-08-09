@@ -163,6 +163,17 @@ export const ar: PartialResources & ArabicPlurals = {
     noProperties: "لا توجد خصائص",
   },
   dashboard: {
+    engines: {
+      title: 'المحركات التفاعلية',
+      unavailable: 'المقاييس غير متاحة',
+      ranges: 'تقييم النطاقات',
+      rollups: 'الحساب التفاعلي',
+      rangesUnit: 'نطاقات',
+      rollupsUnit: 'التجميعات',
+      edges: 'حواف',
+      members: 'أعضاء',
+      total: 'إجمالي الذاكرة (تقديري)',
+    },
     title: 'لوحة تحكم Mycelium',
     status: { mycelium: 'Mycelium', live: 'مباشر' },
     actions: {
@@ -567,6 +578,17 @@ export const ar: PartialResources & ArabicPlurals = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "تعذّرت إضافة الخاصية",
       saveFailed: "فشل الحفظ",
+      typeLabel: "نوع الخاصية",
+      writtenByIngest: "كُتب بواسطة الاستيراد",
+      rejected: {
+        wholeNumber: "‏{{name}} يحمل عددًا صحيحًا — {{value}} ليس كذلك",
+        number: "‏{{name}} يحمل رقمًا — {{value}} ليس كذلك",
+        dateTime: "‏{{name}} يحمل تاريخًا — {{value}} ليس كذلك",
+        identifier: "‏{{name}} يحمل معرِّفًا — {{value}} ليس كذلك",
+        boolean: "‏{{name}} يحمل صوابًا أو خطأً — {{value}} ليس أيًا منهما",
+        readOnly: "‏{{name}} يحمل بيانات كتبها الاستيراد ولا يمكن تعديله هنا",
+      },
+      unknownType: "تعذر حفظ {{name}}: تُبلغ المنصة عن النوع {{type}} وهو غير معروف لهذا الإصدار",
     },
     name: {
       thingName: "اسم الشيء",

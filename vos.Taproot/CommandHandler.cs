@@ -66,6 +66,8 @@ namespace vos.Taproot
             _writer.WriteLine("  range delete <thing> <name>                 - Delete a range");
             _writer.WriteLine("  range validate <criteria>                   - Validate criteria syntax");
             _writer.WriteLine("  state <thing>                               - Get current states for a thing");
+            _writer.WriteLine("  engines [ranges|rollups]                    - Reactive-engine totals; drill in to per-reactor detail");
+            _writer.WriteLine("  snapshots                                   - What snapshot reads cost against the writers");
             _writer.WriteLine("  state query <state-name>                    - Find things in a state");
             _writer.WriteLine();
             _writer.WriteLine("File Operations:");
@@ -183,6 +185,8 @@ namespace vos.Taproot
             ["config"] = async (_, a) => await new ConfigCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["range"] = async (_, a) => await new RangeCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["state"] = async (_, a) => await new StateCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["engines"] = async (_, a) => await new EnginesCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
+            ["snapshots"] = async (_, a) => await new SnapshotsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["shutdown"] = async (_, _) => await ShutdownMyceliumAsync(),
             ["clear"] = async (_, a) => await ClearModelAsync(a),
             ["seeds"] = async (_, a) => await new SeedCommandHandler(a, _writer, _mycelium).ExecuteAsync(),

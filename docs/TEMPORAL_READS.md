@@ -15,6 +15,21 @@ how data is addressed across tiers, and why current-state reads stay fast.
 This split is what keeps high-frequency, long-lived observation streams sustainable: the
 in-memory footprint stays bounded by the size of the graph, not by the length of its history.
 
+## Which clock T is measured against
+
+**Model time** — the clock `GET /api/time` serves. An instant you pass to an as-of read is read in
+that clock, the timestamps you get back are recorded in it, and it is the clock the platform judges
+by when it evaluates a criterion or a range.
+
+Left alone, model time *is* wall time, so the distinction never shows. A deployment that **anchors**
+the clock — setting a start instant, a rate, or both — moves the two apart by however much it
+chooses, and from then on the difference decides whether a read lands on the history at all. Ask in
+wall time against an anchored model and you are asking about an interval nothing was recorded in.
+
+So a client that reasons about time should read the current instant from `/api/time` rather than from
+its own clock, and stamp any timestamp of its own from the same place. One clock, one base, whether
+or not anything ever anchors it.
+
 ## Derived-state history is the exception
 
 A Thing's derived states (the ranges whose criteria hold) are computed, never stored — there is no
@@ -99,6 +114,67 @@ per property by its **PropertyMode**:
 `CurrentOnly` is the default for streamed observations; `FullHistory` is reserved for properties
 whose audit value justifies the cost. A background compactor enforces each mode on sealed buckets,
 so storage growth is bounded at the source.
+
+### What a read answers beyond a property's retention
+
+A temporal read answers with the value that **stood at the instant asked for**. Where the property's
+retention cannot reach that instant, the property is **left out of the answer** — not returned
+carrying the value it holds now.
+
+| Instant asked for | Answer |
+|---|---|
+| At or after the property's last write | The current value. It is the value that stood then |
+| Earlier, and within what the mode retains | The value in force then |
+| Earlier, and beyond what the mode retains | The property is omitted |
+
+So an absent property in an as-of read means **no value can be known for that instant**. It does not
+mean the value was null: a property that genuinely held null reports null. The two are different
+answers and are reported differently.
+
+With `CurrentOnly`, every instant before the last write is beyond retention — that is what keeping
+nothing amounts to when something asks about the past. Ask at or after the last write and the answer
+is exact; ask earlier and there is nothing to answer from.
+
+## Reducing into time buckets
+
+A history read answers *what one property was worth over time*. A different question — *how much
+happened per slice of time, across everything of a kind* — is answered by
+`POST /api/temporal/aggregate`.
+
+It reads the **live model**, not the tiers: the members are the instances of a type, each placed by
+an instant it carries as an ordinary property, written once when its event happened. So the cost
+follows the member population rather than the depth of history, and the answer does not shrink when
+a property's retention runs out.
+
+```http
+POST /api/temporal/aggregate
+{"function":"Sum","memberType":"Dispatch","timestampProperty":"left_at","measureProperty":"units",
+ "windowSeconds":28800,"bucketSeconds":900}
+
+{"buckets":[12,0,7,…],"firstBucketStart":"2026-07-05T04:00:00+00:00","bucketSeconds":900,"unusableMembers":0}
+```
+
+| Field | Meaning |
+|---|---|
+| `function` | The reduction per bucket: `Min`, `Max`, `Sum`, `Average` or `Count` |
+| `memberType` | Only Things that `is` this type, followed through the whole chain. A Thing declared as a type never contributes, only its instances |
+| `timestampProperty` | The property holding the instant each member's event happened |
+| `measureProperty` | The property reduced per member. `Count` needs none; every other reduction does |
+| `windowSeconds` | How far back the window reaches from the model clock's now |
+| `bucketSeconds` | How wide each bucket is. The window must be a whole number of them, and at most ten thousand |
+| `within` + `withinPredicate` | Only members this container reaches through the named predicate, at any depth |
+
+The window ends at the **model clock's** now — the same clock as every other temporal read on this
+page — and each bucket is closed at its end, so an event exactly at now falls in the last bucket and
+one exactly at the window start belongs to the window before this. A window equal to one bucket is a
+trailing-window scalar: the question a tile asks, answered by the same code as the series it sits
+above. An answer holds at most ten thousand values, so a caller reaching further back widens its
+buckets rather than asking for a reply nobody can read.
+
+A question the platform cannot run is refused with `400` naming what is wrong, rather than answered
+with an empty series that would read as "nothing happened". Members carrying no readable instant or
+measure do not fail the request; they are counted in `unusableMembers`, so a reading of zero because
+nobody stamped the instant is distinguishable from a reading of zero because nothing happened.
 
 ## See also
 

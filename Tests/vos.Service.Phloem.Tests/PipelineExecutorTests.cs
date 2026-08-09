@@ -191,7 +191,8 @@ public class PipelineExecutorTests
         {
             solarPvAreaM2 = 29611.0,
             solarResourceKwhPerM2PerYear = 2279.5,
-            pvEfficiency = 0.20,
+            moduleEfficiency = 0.20,
+            performanceRatio = 1.0,
             otherGenerationMwhPerYear = 7400.0,
             annualConsumptionMwhPerYear = 18743.0,
         });

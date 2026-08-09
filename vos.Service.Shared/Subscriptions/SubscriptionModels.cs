@@ -39,9 +39,12 @@ public sealed record InheritedPropertySet(
     string? SourceName,
     Dictionary<string, SnapshotProperty> Properties);
 
+// IsArchetype tells a type from a member of one. Read it before walking the members of a type, or
+// the type itself comes back among them — nothing else in the payload separates the two.
 public sealed record SnapshotThing(
     Guid Id,
     string? Name,
+    bool IsArchetype,
     Dictionary<string, SnapshotProperty> Properties,
     Dictionary<string, InheritedPropertySet> InheritedProperties,
     string[] States,

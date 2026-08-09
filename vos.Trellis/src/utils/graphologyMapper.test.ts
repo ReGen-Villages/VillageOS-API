@@ -480,3 +480,32 @@ describe('buildGraph', () => {
     });
   });
 });
+
+// Bug #6191: an IFC instance and the type it `is`-relates to both declare
+// ifcClass, so the instance's own class is stored as an override. Reading the
+// own bag alone found nothing, and every imported element fell through to the
+// hash palette instead of the curated class colours Feature #5340 added.
+describe('colouring by the classifying property (Bug #6191)', () => {
+  const wallType = makeThing('t-wall', 'Basic Wall', { ifcClass: 'IfcWallType' });
+  const owned = makeThing('i-owned', 'Wall-owns-its-class', { ifcClass: 'IfcWall' });
+  const overridden: VosThing = {
+    Id: 'i-overridden',
+    Name: 'Wall-overrides-its-class',
+    Properties: {},
+    InheritedOverrides: {
+      't-wall': { SourceId: 't-wall', SourceName: 'Basic Wall', InheritedAt: '', Properties: { ifcClass: 'IfcWall' } },
+    },
+  };
+  const things = [isPred, wallType, owned, overridden];
+  const rels = [
+    makeRel('r-owned', 'i-owned', 'p-is', 't-wall'),
+    makeRel('r-overridden', 'i-overridden', 'p-is', 't-wall'),
+  ];
+
+  it('colours an instance the same whether it owns its class or overrides it', () => {
+    const graph = buildGraph(things, rels);
+
+    expect(graph.getNodeAttribute('i-overridden', 'color'))
+      .toBe(graph.getNodeAttribute('i-owned', 'color'));
+  });
+});

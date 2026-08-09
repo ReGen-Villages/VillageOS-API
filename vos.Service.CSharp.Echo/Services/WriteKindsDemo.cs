@@ -7,9 +7,9 @@ namespace vos.Service.CSharp.Echo.Services;
 // temperature/flow Observation-writable.
 public sealed class WriteKindsDemo
 {
-    private readonly MyceliumClient _mycelium;
+    private readonly MyceliumClientBase _mycelium;
 
-    public WriteKindsDemo(MyceliumClient mycelium) => _mycelium = mycelium;
+    public WriteKindsDemo(MyceliumClientBase mycelium) => _mycelium = mycelium;
 
     public async Task<WriteKindsDemoResult> RunAsync(Guid thingId, DateTime now)
     {

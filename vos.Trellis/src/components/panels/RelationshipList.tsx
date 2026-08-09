@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
-import { EditablePropertyList, withDeclaredTypes } from './EditablePropertyList';
+import { EditablePropertyList } from './EditablePropertyList';
+import { withDeclaredTypes } from './editableProperties';
 import { useResolvedRelationshipProperties } from '../../hooks/useResolvedRelationshipProperties';
 import { AddRelationshipRow } from './AddRelationshipRow';
 import type { VosRelationship, VosThing } from '../../types/vos';

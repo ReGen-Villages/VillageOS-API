@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Copy, Pencil, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
-import { EditablePropertyList, withDeclaredTypes, type EditableProperty } from './EditablePropertyList';
+import { EditablePropertyList } from './EditablePropertyList';
+import { withDeclaredTypes, type EditableProperty } from './editableProperties';
 import { RelationshipList } from './RelationshipList';
 import { RetypeRow } from './RetypeRow';
 import { EditableThingName } from './EditableThingName';
@@ -12,11 +13,12 @@ import { formatGuid } from '../../utils/formatters';
 import { thingApi } from '../../api/thingApi';
 import { useNodeRangesData } from '../../hooks/useNodeRangesData';
 import { useUiStore } from '../../stores/uiStore';
-import { toast } from '../common/Toast';
+import { toast } from '../common/toastStore';
 import { canSupport3D } from '../../utils/browserDetect';
 
 const BuildingDetail3D = lazy(() => import('../three/BuildingDetail3D'));
 import type { ChildElement } from '../three/BuildingDetail3D';
+import { storedTextOf } from '../../utils/ifcIdentity';
 
 const TAB_LABEL_KEYS = {
   ranges: 'panels.node.tabRanges',
@@ -69,11 +71,11 @@ export function NodeDetailPanel({ thing, relationships, allThings, onClose, onSe
       const child = allThings.get(rel.TargetId);
       if (!child?.Properties?.geometry) continue;
 
-      const rawKey = child.Properties[classifyingProperty];
       children.push({
         geometryValue: child.Properties.geometry,
         name: child.Name,
-        colorKey: typeof rawKey === 'string' ? rawKey : undefined,
+        // Bug #6191: an IFC child stores its class as an override of its type's.
+        colorKey: storedTextOf(child, classifyingProperty) ?? undefined,
       });
     }
     return children;

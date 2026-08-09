@@ -59,9 +59,10 @@ interface Props {
 export function ActivityFeed({ events, onCollapse }: Props) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
-  const [paused, setPaused] = useState(false);
-  const snapshotRef = useRef<ActivityEvent[]>([]);
-  const pausedAtLengthRef = useRef(0);
+  // What the feed froze on when it was paused, or null when it is live. One piece of state rather
+  // than a flag beside two refs: the frozen list is rendered, and rendering has to read state.
+  const [frozen, setFrozen] = useState<{ events: ActivityEvent[]; atLength: number } | null>(null);
+  const paused = frozen !== null;
   const [enabledCategories, setEnabledCategories] = useState<Set<CategoryLabel>>(
     () => new Set(categories.map((c) => c.label)),
   );
@@ -79,16 +80,8 @@ export function ActivityFeed({ events, onCollapse }: Props) {
       .flatMap((c) => c.types),
   );
 
-  // Snapshot events when pausing
   const togglePause = useCallback(() => {
-    setPaused((prev) => {
-      if (!prev) {
-        // Entering pause — snapshot current events
-        snapshotRef.current = [...events];
-        pausedAtLengthRef.current = events.length;
-      }
-      return !prev;
-    });
+    setFrozen((current) => (current ? null : { events: [...events], atLength: events.length }));
   }, [events]);
 
   const toggleCategory = useCallback((label: CategoryLabel) => {
@@ -100,12 +93,12 @@ export function ActivityFeed({ events, onCollapse }: Props) {
     });
   }, []);
 
-  const displayEvents = paused ? snapshotRef.current : events;
+  const displayEvents = frozen ? frozen.events : events;
   const searchLower = searchText.toLowerCase();
   const filteredEvents = displayEvents.filter(
     (e) => enabledTypes.has(e.Type) && (!searchText || e.Description.toLowerCase().includes(searchLower)),
   );
-  const missedCount = paused ? Math.max(0, events.length - pausedAtLengthRef.current) : 0;
+  const missedCount = frozen ? Math.max(0, events.length - frozen.atLength) : 0;
 
   // Auto-scroll only when not paused. Scroll the list element itself rather
   // than scrollIntoView, which also scrolls every scrollable ancestor (the

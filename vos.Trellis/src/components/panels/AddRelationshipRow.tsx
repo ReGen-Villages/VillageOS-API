@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Loader2 } from 'lucide-react';
 import { ThingPicker } from '../common/ThingPicker';
 import { relationshipApi } from '../../api/relationshipApi';
-import { toast } from '../common/Toast';
+import { toast } from '../common/toastStore';
 import type { VosThing, VosRelationship } from '../../types/vos';
 
 interface Props {

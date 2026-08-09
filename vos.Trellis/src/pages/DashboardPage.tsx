@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ModelStatsCard } from '../components/dashboard/ModelStatsCard';
 import { ServicesPanel } from '../components/dashboard/ServicesPanel';
+import { EngineMetricsPanel } from '../components/dashboard/EngineMetricsPanel';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { myceliumApi } from '../api/myceliumApi';
+import { engineMetricsApi } from '../api/engineMetricsApi';
 import { endpointApi } from '../api/endpointApi';
 import { thingApi } from '../api/thingApi';
 import { fetchFullLog } from '../api/logsApi';
@@ -13,14 +15,19 @@ import { triggerDownload } from '../utils/logDownload';
 import { useSse } from '../hooks/useSse';
 import { useActivityStore } from '../stores/activityStore';
 import { useModelStore } from '../stores/modelStore';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import { PropertyModePanel } from '../components/dashboard/PropertyModePanel';
 import { Power, PanelRightOpen, FileCode2, RefreshCw } from 'lucide-react';
 import { RegenLogo } from '../components/auth/RegenLogo';
 
 import type { RegisteredService, EndpointServiceInfo } from '../types/mycelium';
+import type { EngineMetricsSummary } from '../types/engineMetrics';
 
 const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
+
+// Definition writes publish EngineConfigurationChanged (#6227), so the panel refreshes on
+// events; the poll stays as a fallback for a dropped stream.
+const ENGINE_METRICS_POLL_MS = 15000;
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -29,6 +36,7 @@ export function DashboardPage() {
   const [services, setServices] = useState<RegisteredService[]>([]);
   const [endpointServices, setEndpointServices] = useState<EndpointServiceInfo[]>([]);
   const [httpOk, setHttpOk] = useState(false);
+  const [engineMetrics, setEngineMetrics] = useState<EngineMetricsSummary | null>(null);
   const [showShutdown, setShowShutdown] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ thingId: string; name: string } | null>(null);
   const [feedCollapsed, setFeedCollapsed] = useState(() => localStorage.getItem(FEED_COLLAPSED_KEY) === 'true');
@@ -60,17 +68,30 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
     loadMyceliumData();
   }, [loadMyceliumData]);
 
-  // On connection drop, mark services offline so no stale "running" state shows.
-  useEffect(() => {
-    if (!connected) {
-      setServices((prev) =>
-        prev.map((s) => ({ ...s, IsRunning: false, ProcessId: undefined, HealthStatus: 'Unreachable' })),
-      );
+  const loadEngineMetrics = useCallback(async () => {
+    try {
+      setEngineMetrics(await engineMetricsApi.getSummary());
+    } catch {
+      setEngineMetrics(null);
     }
-  }, [connected]);
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- state is only set after the await
+    loadEngineMetrics();
+    const interval = setInterval(loadEngineMetrics, ENGINE_METRICS_POLL_MS);
+    return () => clearInterval(interval);
+  }, [loadEngineMetrics]);
+
+  // With the connection down, every service reads as unreachable — derived rather than written into
+  // state, so a reconnect shows what was last loaded instead of the offline values overwriting it.
+  const displayedServices = connected
+    ? services
+    : services.map((s) => ({ ...s, IsRunning: false, ProcessId: undefined, HealthStatus: 'Unreachable' }));
 
   // Mycelium-specific live updates only; model data is handled at app level.
   useEffect(() => {
@@ -80,9 +101,11 @@ export function DashboardPage() {
       on('ServiceRequestCompleted', () => myceliumApi.getServices().then(setServices)),
       on('EndpointServiceRequestCompleted', () => endpointApi.getAll().then(setEndpointServices)),
       on('ModelChanged', () => loadMyceliumData()),
+      on('ModelChanged', () => loadEngineMetrics()),
+      on('EngineConfigurationChanged', () => loadEngineMetrics()),
     ];
     return () => unsubs.forEach((u) => u());
-  }, [on, loadMyceliumData]);
+  }, [on, loadMyceliumData, loadEngineMetrics]);
 
   const handleDownloadServiceLog = async (serviceKey: string) => {
     try {
@@ -201,7 +224,8 @@ export function DashboardPage() {
         <div className={`grid grid-cols-1 gap-6 ${feedCollapsed ? '' : 'lg:grid-cols-3'}`}>
           <div className={`space-y-6 ${feedCollapsed ? '' : 'lg:col-span-2'}`}>
             <ModelStatsCard things={things} relationships={relationships} />
-            <ServicesPanel services={services} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} onDownloadLogs={handleDownloadServiceLog} />
+            <EngineMetricsPanel metrics={connected ? engineMetrics : null} />
+            <ServicesPanel services={displayedServices} endpoints={endpointServices} onStart={handleStartService} onStop={handleStopService} onDelete={(thingId, name) => setDeleteTarget({ thingId, name })} onViewLogs={(serviceKey) => navigate(`/logs?service=${serviceKey}`)} onDownloadLogs={handleDownloadServiceLog} />
             <PropertyModePanel />
           </div>
           {!feedCollapsed && (

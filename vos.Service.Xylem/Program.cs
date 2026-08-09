@@ -1,12 +1,15 @@
 using vos.Auth.Shared;
 using vos.Service.Xylem.Configuration;
+using vos.Service.Shared.Configuration;
 using vos.Service.Xylem.Services;
 using Serilog;
 
-var cliArgs = CliArgs.Parse(args);
-if (cliArgs == null)
+var builder = WebApplication.CreateBuilder(args);
+
+var launchSettings = XylemLaunchSettings.Parse(args, builder.Configuration);
+if (launchSettings == null)
 {
-    Console.WriteLine(CliArgs.UsageMessage);
+    Console.WriteLine(XylemLaunchSettings.UsageMessage);
     Environment.Exit(1);
     return;
 }
@@ -26,29 +29,28 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    Log.Information("VillageOS Xylem (IFC ingestion) — Port: {Port}, Mycelium: {MyceliumUrl}", cliArgs.Port, cliArgs.MyceliumUrl);
+    Log.Information("VillageOS Xylem (IFC ingestion) — Port: {Port}, Mycelium: {MyceliumUrl}", launchSettings.Service.Port, launchSettings.Service.MyceliumUrl);
 
-    var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
-    builder.WebHost.UseUrls($"http://localhost:{cliArgs.Port}");
+    builder.WebHost.UseUrls($"http://localhost:{launchSettings.Service.Port}");
     // Allow large IFC uploads: raise Kestrel's request-body cap and the multipart limit to the configured
     // maximum (Kestrel defaults to ~30 MB, the form reader to ~128 MB). The endpoint still enforces the cap.
-    builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = cliArgs.MaxUploadBytes);
+    builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = launchSettings.MaxUploadBytes);
     builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
-        o.MultipartBodyLengthLimit = cliArgs.MaxUploadBytes);
+        o.MultipartBodyLengthLimit = launchSettings.MaxUploadBytes);
     builder.Services.AddHttpClient();
 
-    var authEnabled = !string.IsNullOrEmpty(cliArgs.SigningKey);
+    var authEnabled = !string.IsNullOrEmpty(launchSettings.Service.SigningKey);
     if (authEnabled)
     {
-        builder.AddMyceliumTokenAuth(cliArgs.SigningKey!, issuer: cliArgs.Issuer, audience: cliArgs.Audience);
-        Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", cliArgs.Issuer, cliArgs.Audience);
+        builder.AddMyceliumTokenAuth(launchSettings.Service.SigningKey!, issuer: launchSettings.Service.Issuer, audience: launchSettings.Service.Audience);
+        Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", launchSettings.Service.Issuer, launchSettings.Service.Audience);
     }
 
     builder.Services.AddSingleton<IIfcIngestRunner>(sp => new IfcIngestRunner(
-        cliArgs.IfcIngestDll ?? "", cliArgs.MyceliumUrl, cliArgs.Token, sp.GetRequiredService<ILogger<IfcIngestRunner>>()));
+        launchSettings.IfcIngestDll ?? "", launchSettings.Service.MyceliumUrl, launchSettings.Service.Token, sp.GetRequiredService<ILogger<IfcIngestRunner>>()));
     builder.Services.AddSingleton<IModelPreparer>(sp => new HttpModelPreparer(
-        sp.GetRequiredService<IHttpClientFactory>(), cliArgs.MyceliumUrl, cliArgs.Token));
+        sp.GetRequiredService<IHttpClientFactory>(), launchSettings.Service.MyceliumUrl, launchSettings.Service.Token));
     builder.Services.AddSingleton(sp => new IngestHandler(
         sp.GetRequiredService<IIfcIngestRunner>(), sp.GetRequiredService<IModelPreparer>()));
     builder.Services.AddSingleton<IngestJobStore>();
@@ -86,7 +88,7 @@ try
             var temp = Path.Combine(Path.GetTempPath(), $"xylem_{Guid.NewGuid():N}.ifc");
             long written;
             await using (var s = file.OpenReadStream())
-                written = await UploadSpooler.SpoolAsync(s, temp, cliArgs.MaxUploadBytes, ct);
+                written = await UploadSpooler.SpoolAsync(s, temp, launchSettings.MaxUploadBytes, ct);
             if (written <= 0)
             {
                 if (File.Exists(temp)) File.Delete(temp);
@@ -104,7 +106,7 @@ try
         }
 
         await using var stream = file.OpenReadStream();
-        var result = await handler.IngestUploadAsync(stream, name, mode, cliArgs.MaxUploadBytes, ct);
+        var result = await handler.IngestUploadAsync(stream, name, mode, launchSettings.MaxUploadBytes, ct);
         return result.Success ? Results.Ok(result) : Results.BadRequest(result);
     }).DisableAntiforgery();
     if (authEnabled) ingest.RequireAuthorization();
@@ -117,7 +119,7 @@ try
     if (authEnabled) jobStatus.RequireAuthorization();
 
     app.MapGet("/health", () => new { status = "Healthy", service = "Xylem" });
-    app.MapGet("/stats", () => new { service = "Xylem", version = "1.0.0", myceliumUrl = cliArgs.MyceliumUrl });
+    app.MapGet("/stats", () => new { service = "Xylem", version = "1.0.0", myceliumUrl = launchSettings.Service.MyceliumUrl });
 
     var shutdown = app.MapPost("/shutdown", (IHostApplicationLifetime lifetime) =>
     {

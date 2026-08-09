@@ -1,9 +1,14 @@
 import type { EffectiveProperty, VosRelationship } from '../types/vos';
 import { formatPropertyValue } from '../utils/formatters';
+import { relationshipLabel } from '../utils/relationshipLabel';
 
 export interface PropertyMatch {
   propertyName: string;
   value: unknown;
+  /** What the platform says the property holds, for formatting the value (#6163). Absent on
+   *  relationship matches, which are read from the model index and carry no declared type; those
+   *  fall back to formatting by the value's own shape. */
+  declaredType?: string;
   ownerType: 'thing' | 'relationship';
   ownerId: string;
   ownerName: string;
@@ -34,6 +39,9 @@ export function searchProperties({ effectiveProps, relationships, thingNames, qu
   const q = query.trim().toLowerCase();
   if (q.length === 0) return [];
 
+  // Value search deliberately reads the stored value rather than how it is displayed: a date
+  // matches the timestamp it is stored as, and a shape matches its coordinates rather than the one
+  // word a cell has room for. Searching the presentation would find less, not more.
   const matchFn = mode === 'name'
     ? (key: string, _val: unknown) => key.toLowerCase().includes(q)
     : (_key: string, val: unknown) => formatPropertyValue(val).toLowerCase().includes(q);
@@ -49,6 +57,7 @@ export function searchProperties({ effectiveProps, relationships, thingNames, qu
         matches.push({
           propertyName: name,
           value: ep.Value,
+          declaredType: ep.Type,
           ownerType: 'thing',
           ownerId: thingId,
           ownerName,
@@ -70,7 +79,7 @@ export function searchProperties({ effectiveProps, relationships, thingNames, qu
           value: rel.Properties[key],
           ownerType: 'relationship',
           ownerId: rel.Id,
-          ownerName: rel.Name,
+          ownerName: relationshipLabel(rel, (id) => thingNames.get(id)),
           ownerDetail: `${subj} --[${pred}]--> ${targ}`,
         });
       }

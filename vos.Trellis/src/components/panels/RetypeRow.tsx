@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ThingPicker } from '../common/ThingPicker';
 import { retypeThing } from '../../utils/retype';
-import { toast } from '../common/Toast';
+import { toast } from '../common/toastStore';
 import type { VosThing, VosRelationship } from '../../types/vos';
 
 // Retype control (#5860): change one of a Thing's types by repointing an is-edge. Multiple inheritance is

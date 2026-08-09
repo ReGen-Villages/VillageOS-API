@@ -272,6 +272,41 @@ public class MyceliumClientTests
         await VerifyGetEndpointHit("/api/states/warm/things", c => c.GetThingsInStateAsync("warm"));
     }
 
+    [Fact]
+    public async Task GetThingsInStateAsync_NarrowedNowhereAsksForNothing()
+    {
+        var request = await CaptureRequest(c => c.GetThingsInStateAsync("warm"));
+
+        request.RequestUri!.Query.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetThingsInStateAsync_CarriesEveryNarrowingOnTheQueryString()
+    {
+        var container = Guid.NewGuid();
+
+        var request = await CaptureRequest(c => c.GetThingsInStateAsync(
+            "empty",
+            alsoIn: "reachable",
+            notIn: "on_hold",
+            type: "Vessel",
+            within: container,
+            withinPredicate: "holds",
+            includeArchetypes: true,
+            limit: 5,
+            properties: "capacity,fill"));
+
+        request.RequestUri!.Query.Should()
+            .Contain("alsoIn=reachable")
+            .And.Contain("notIn=on_hold")
+            .And.Contain("type=Vessel")
+            .And.Contain($"within={container}")
+            .And.Contain("withinPredicate=holds")
+            .And.Contain("includeArchetypes=true")
+            .And.Contain("limit=5")
+            .And.Contain("properties=capacity%2Cfill");
+    }
+
     // ---- HTTP method patterns: GET → JsonElement? (404 → null) ----
 
     [Fact]
@@ -1101,6 +1136,57 @@ public class MyceliumClientTests
         captured!.RequestUri!.Query.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task GetEngineMetricsAsync_CallsTheSummaryRoute()
+    {
+        HttpRequestMessage? captured = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            return JsonResponse("{}");
+        });
+
+        await client.GetEngineMetricsAsync();
+
+        captured!.RequestUri!.AbsolutePath.Should().Be("/api/engines/metrics");
+        captured.Headers.Authorization.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetEngineReactorsAsync_CallsTheReactorsRoute()
+    {
+        HttpRequestMessage? captured = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            return JsonResponse("{}");
+        });
+
+        await client.GetEngineReactorsAsync();
+
+        captured!.RequestUri!.AbsolutePath.Should().Be("/api/engines/metrics/reactors");
+        captured.Headers.Authorization.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetSnapshotResolutionMetricsAsync_CallsTheResolutionMetricsRoute()
+    {
+        HttpRequestMessage? captured = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            return JsonResponse("{}");
+        });
+
+        await client.GetSnapshotResolutionMetricsAsync();
+
+        captured!.RequestUri!.AbsolutePath.Should().Be("/api/snapshots/resolution/metrics");
+        captured.Headers.Authorization.Should().NotBeNull();
+    }
+
     // ---- Error path: non-2xx on any authenticated GET surfaces HttpRequestException ----
 
     [Fact]
@@ -1130,20 +1216,27 @@ public class MyceliumClientTests
         return (client, handler);
     }
 
-    private async Task VerifyGetEndpointHit(string expectedPath, Func<MyceliumClient, Task> call)
+    private async Task<HttpRequestMessage> CaptureRequest(Func<MyceliumClient, Task> call)
     {
         HttpRequestMessage? captured = null;
         var (client, _) = NewClient(req =>
         {
             if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
             captured = req;
-            return JsonResponse("[]");
+            return JsonResponse("{}");
         });
 
         await call(client);
 
         captured.Should().NotBeNull();
-        captured!.Method.Should().Be(HttpMethod.Get);
+        return captured!;
+    }
+
+    private async Task VerifyGetEndpointHit(string expectedPath, Func<MyceliumClient, Task> call)
+    {
+        var captured = await CaptureRequest(call);
+
+        captured.Method.Should().Be(HttpMethod.Get);
         captured.RequestUri!.AbsolutePath.Should().Be(expectedPath);
     }
 

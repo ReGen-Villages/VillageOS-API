@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { temporalApi } from '../api/temporalApi';
 import { modelApi } from '../api/modelApi';
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
 import type { ModelMutations, ThingMutations, RelationshipMutations, PropertyVersionsResponse, VosThing, VosRelationship, TemporalSnapshot } from '../types/vos';
 import { stateApi } from '../api/stateApi';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
+import { relationshipLabel } from '../utils/relationshipLabel';
+import { useModelStore } from '../stores/modelStore';
 import clsx from 'clsx';
 
 const TABS = ['mutations', 'thingMutations', 'relationshipMutations', 'snapshot', 'propertyHistory', 'stateQuery'] as const;
@@ -157,6 +159,7 @@ function ThingMutationsPanel() {
     try { setThings(await thingApi.getAll()); } catch { /* ignore */ }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { loadThings(); }, [loadThings]);
 
   const loadMutations = async () => {
@@ -243,6 +246,10 @@ function ThingMutationsPanel() {
 
 function RelationshipMutationsPanel() {
   const { t } = useTranslation();
+  // From the store the app shell already loaded, rather than a second read: the label needs the
+  // endpoint names, and every Thing in the model is already here.
+  const things = useModelStore((s) => s.things);
+  const thingNames = useMemo(() => new Map(things.map((thing) => [thing.Id, thing.Name])), [things]);
   const [relationships, setRelationships] = useState<VosRelationship[]>([]);
   const [relId, setRelId] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -254,6 +261,7 @@ function RelationshipMutationsPanel() {
     try { setRelationships(await relationshipApi.getAll()); } catch { /* ignore */ }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
   useEffect(() => { loadRels(); }, [loadRels]);
 
   const loadMutations = async () => {
@@ -284,7 +292,9 @@ function RelationshipMutationsPanel() {
           className="w-full px-3 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">{t('temporal.selectRelationship')}</option>
-          {relationships.map((r) => <option key={r.Id} value={r.Id}>{r.Name}</option>)}
+          {relationships.map((r) => (
+            <option key={r.Id} value={r.Id}>{relationshipLabel(r, (id) => thingNames.get(id))}</option>
+          ))}
         </select>
       </div>
       <div className="flex gap-3 items-end">
@@ -438,6 +448,7 @@ function PropertyHistoryPanel() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- every state write in the loader is after an await, so nothing is set while the effect runs; the rule does not model that boundary
     loadThings();
   }, [loadThings]);
 

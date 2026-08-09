@@ -3,8 +3,18 @@ namespace vos.Tests.Shared;
 public sealed class MockHttpMessageHandler : HttpMessageHandler
 {
     private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
+    private readonly List<HttpRequestMessage> _requests = new();
+    private readonly Lock _requestsLock = new();
 
-    public List<HttpRequestMessage> Requests { get; } = new();
+    // A subject that registers and withdraws on its own schedule can be in two calls at once.
+    public IReadOnlyList<HttpRequestMessage> Requests
+    {
+        get
+        {
+            lock (_requestsLock)
+                return _requests.ToArray();
+        }
+    }
 
     public MockHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
     {
@@ -13,7 +23,9 @@ public sealed class MockHttpMessageHandler : HttpMessageHandler
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        Requests.Add(request);
+        lock (_requestsLock)
+            _requests.Add(request);
+
         return Task.FromResult(_handler(request));
     }
 }

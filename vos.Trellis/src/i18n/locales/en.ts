@@ -69,6 +69,17 @@ export const en = {
     noProperties: "No properties",
   },
   dashboard: {
+    engines: {
+      title: 'Reactive engines',
+      unavailable: 'Metrics unavailable',
+      ranges: 'Range evaluation',
+      rollups: 'Reactive computation',
+      rangesUnit: 'ranges',
+      rollupsUnit: 'roll-ups',
+      edges: 'edges',
+      members: 'members',
+      total: 'Total est. memory',
+    },
     title: 'Mycelium Dashboard',
     status: { mycelium: 'Mycelium', live: 'Live' },
     actions: {
@@ -451,6 +462,17 @@ export const en = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "Failed to add property",
       saveFailed: "Failed to save",
+      typeLabel: "Property type",
+      writtenByIngest: "written by ingest",
+      rejected: {
+        wholeNumber: "{{name}} holds a whole number — {{value}} is not one",
+        number: "{{name}} holds a number — {{value}} is not one",
+        dateTime: "{{name}} holds a date — {{value}} is not one",
+        identifier: "{{name}} holds an identifier — {{value}} is not one",
+        boolean: "{{name}} holds true or false — {{value}} is neither",
+        readOnly: "{{name}} holds data written by ingest and cannot be edited here",
+      },
+      unknownType: "Cannot save {{name}}: the platform reports type {{type}}, which this version does not know",
     },
     name: {
       thingName: "Thing name",

@@ -1,23 +1,25 @@
 using vos.Auth.Shared;
-using vos.Service.CSharp.Echo.Configuration;
 using vos.Service.CSharp.Echo.Services;
 using vos.Service.Shared;
+using vos.Service.Shared.Configuration;
 using vos.Service.Shared.DagNode;
 using vos.Service.Shared.Subscriptions;
 using Serilog;
 
-var cliArgs = CliArgs.Parse(args);
-if (cliArgs == null)
+var builder = WebApplication.CreateBuilder(args);
+
+var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
+if (launchSettings == null)
 {
-    Console.WriteLine(CliArgs.UsageMessage);
+    Console.WriteLine(ServiceLaunchSettings.UsageMessage);
     Environment.Exit(1);
     return;
 }
 
-var servicePort = cliArgs.Port;
-var myceliumUrl = cliArgs.MyceliumUrl;
-var serviceToken = cliArgs.Token;
-var signingKey = cliArgs.SigningKey;
+var servicePort = launchSettings.Port;
+var myceliumUrl = launchSettings.MyceliumUrl;
+var serviceToken = launchSettings.Token;
+var signingKey = launchSettings.SigningKey;
 
 var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "echo-.log");
 Log.Logger = new LoggerConfiguration()
@@ -37,7 +39,6 @@ try
 
 Log.Information("VillageOS Echo Endpoint Service — Port: {Port}, Mycelium: {MyceliumUrl}", servicePort, myceliumUrl);
 
-var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 builder.WebHost.UseUrls($"http://localhost:{servicePort}");
 builder.Services.AddHttpClient();
@@ -48,18 +49,19 @@ if (authEnabled)
 {
     builder.AddMyceliumTokenAuth(
         signingKey!,
-        issuer: cliArgs.Issuer,
-        audience: cliArgs.Audience);
+        issuer: launchSettings.Issuer,
+        audience: launchSettings.Audience);
     Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-        cliArgs.Issuer, cliArgs.Audience);
+        launchSettings.Issuer, launchSettings.Audience);
 }
 
 var requestCount = 0;
 
 builder.Services.AddSingleton(sp =>
-    new MyceliumClient(
+    new EndpointServiceMyceliumClient(
         sp.GetRequiredService<IHttpClientFactory>(),
-        sp.GetRequiredService<ILogger<MyceliumClient>>(),
+        sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
+        "Echo",
         myceliumUrl,
         serviceToken));
 
@@ -83,7 +85,7 @@ app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
 {
     try
     {
-        var myceliumClient = app.Services.GetRequiredService<MyceliumClient>();
+        var myceliumClient = app.Services.GetRequiredService<EndpointServiceMyceliumClient>();
         var registered = await myceliumClient.RegisterAsync(servicePort);
         Log.Information("Echo endpoint service {Status} with mycelium",
             registered ? "registered" : "failed to register");
@@ -99,7 +101,7 @@ app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
     try
     {
         Log.Information("Shutting down Echo endpoint service — processed {Count} request(s)", requestCount);
-        var myceliumClient = app.Services.GetRequiredService<MyceliumClient>();
+        var myceliumClient = app.Services.GetRequiredService<EndpointServiceMyceliumClient>();
         await myceliumClient.DeregisterAsync();
     }
     catch (Exception ex)
@@ -147,7 +149,7 @@ app.MapGet("/health", () => new
     requestsProcessed = requestCount
 });
 
-app.MapGet("/stats", (MyceliumClient myceliumClient) => new
+app.MapGet("/stats", (EndpointServiceMyceliumClient myceliumClient) => new
 {
     service = "Echo",
     version = "1.0.0",
@@ -157,7 +159,7 @@ app.MapGet("/stats", (MyceliumClient myceliumClient) => new
 });
 
 // Write-kinds demo — POST { "thingId": "..." } (see WriteKindsDemo for prerequisites).
-var writeKindsEndpoint = app.MapPost("/demo/write-kinds", async (WriteKindsDemoRequest req, MyceliumClient myceliumClient) =>
+var writeKindsEndpoint = app.MapPost("/demo/write-kinds", async (WriteKindsDemoRequest req, EndpointServiceMyceliumClient myceliumClient) =>
 {
     var result = await new WriteKindsDemo(myceliumClient).RunAsync(req.ThingId, DateTime.UtcNow);
     return Results.Ok(result);

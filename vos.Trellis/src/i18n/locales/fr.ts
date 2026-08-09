@@ -77,6 +77,17 @@ export const fr: PartialResources = {
     noProperties: "Aucune propriété",
   },
   dashboard: {
+    engines: {
+      title: 'Moteurs réactifs',
+      unavailable: 'Métriques indisponibles',
+      ranges: 'Évaluation des plages',
+      rollups: 'Calcul réactif',
+      rangesUnit: 'plages',
+      rollupsUnit: 'roll-ups',
+      edges: 'arêtes',
+      members: 'membres',
+      total: 'Mémoire totale (est.)',
+    },
     title: 'Tableau de bord Mycelium',
     status: { mycelium: 'Mycelium', live: 'En direct' },
     actions: {
@@ -453,6 +464,17 @@ export const fr: PartialResources = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "Échec de l'ajout de la propriété",
       saveFailed: "Échec de l'enregistrement",
+      typeLabel: "Type de propriété",
+      writtenByIngest: "écrit par l'import",
+      rejected: {
+        wholeNumber: "{{name}} contient un nombre entier — {{value}} n'en est pas un",
+        number: "{{name}} contient un nombre — {{value}} n'en est pas un",
+        dateTime: "{{name}} contient une date — {{value}} n'en est pas une",
+        identifier: "{{name}} contient un identifiant — {{value}} n'en est pas un",
+        boolean: "{{name}} contient vrai ou faux — {{value}} n'est ni l'un ni l'autre",
+        readOnly: "{{name}} contient des données écrites par l'import et ne peut pas être modifié ici",
+      },
+      unknownType: "Impossible d'enregistrer {{name}} : la plateforme signale le type {{type}}, que cette version ne connaît pas",
     },
     name: {
       thingName: "Nom de l'objet",

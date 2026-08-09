@@ -77,6 +77,17 @@ export const de: PartialResources = {
     noProperties: "Keine Eigenschaften",
   },
   dashboard: {
+    engines: {
+      title: 'Reaktive Engines',
+      unavailable: 'Metriken nicht verfügbar',
+      ranges: 'Bereichsauswertung',
+      rollups: 'Reaktive Berechnung',
+      rangesUnit: 'Bereiche',
+      rollupsUnit: 'Roll-ups',
+      edges: 'Kanten',
+      members: 'Mitglieder',
+      total: 'Gesamtspeicher (geschätzt)',
+    },
     title: 'Mycelium-Dashboard',
     status: { mycelium: 'Mycelium', live: 'Live' },
     actions: {
@@ -453,6 +464,17 @@ export const de: PartialResources = {
       savedToast: "{{name}} = {{value}}",
       addFailed: "Eigenschaft konnte nicht hinzugefügt werden",
       saveFailed: "Speichern fehlgeschlagen",
+      typeLabel: "Eigenschaftstyp",
+      writtenByIngest: "vom Import geschrieben",
+      rejected: {
+        wholeNumber: "{{name}} enthält eine ganze Zahl — {{value}} ist keine",
+        number: "{{name}} enthält eine Zahl — {{value}} ist keine",
+        dateTime: "{{name}} enthält ein Datum — {{value}} ist keines",
+        identifier: "{{name}} enthält eine Kennung — {{value}} ist keine",
+        boolean: "{{name}} enthält wahr oder falsch — {{value}} ist keines von beiden",
+        readOnly: "{{name}} enthält Daten aus dem Import und kann hier nicht bearbeitet werden",
+      },
+      unknownType: "{{name}} kann nicht gespeichert werden: Die Plattform meldet den Typ {{type}}, den diese Version nicht kennt",
     },
     name: {
       thingName: "Ding-Name",

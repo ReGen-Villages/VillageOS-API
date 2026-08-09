@@ -19,7 +19,7 @@ public class EnergyBalanceNodeTests
     {
         var node = BuildNode();
         var root = Envelope("""
-            {"solarPvAreaM2":100000,"solarResourceKwhPerM2PerYear":1000,"pvEfficiency":0.20,
+            {"solarPvAreaM2":100000,"solarResourceKwhPerM2PerYear":1000,"moduleEfficiency":0.20,"performanceRatio":1.0,
              "otherGenerationMwhPerYear":900,"annualConsumptionMwhPerYear":18743}
             """);
 
@@ -35,7 +35,7 @@ public class EnergyBalanceNodeTests
     {
         var node = BuildNode();
         var root = Envelope("""
-            {"solarPvAreaM2":100000,"solarResourceKwhPerM2PerYear":1000,"pvEfficiency":0.20,
+            {"solarPvAreaM2":100000,"solarResourceKwhPerM2PerYear":1000,"moduleEfficiency":0.20,"performanceRatio":1.0,
              "otherGenerationMwhPerYear":900}
             """);
 

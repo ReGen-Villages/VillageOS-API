@@ -12,6 +12,9 @@
 
   <ItemGroup>
     <PackageReference Include="NJsonSchema" Version="11.0.2" />
+    <!-- The shared service host configures file logging on every service's behalf. -->
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
     <!-- One JSONata engine wiring shared by Tributary (endpoint transforms) and Phloem (on-wire transforms, #5875). -->
     <PackageReference Include="Jsonata.Net.Native.SystemTextJson" Version="2.11.0" />
   </ItemGroup>

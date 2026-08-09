@@ -83,34 +83,52 @@ curl -H "Authorization: Bearer $TOKEN" https://localhost:7243/api/mycelium/servi
 
 ```text
 vos.Service.<Name>/
-├── Configuration/
-│   └── CliArgs.cs           ← record + Parse(string[]) + UsageMessage
+├── Configuration/           ← only when the service has settings of its own
+│   └── <Name>LaunchSettings.cs  ← wraps ServiceLaunchSettings, adds this service's settings
 ├── Services/
-│   └── MyceliumClient.cs      ← thin subclass of MyceliumClientBase
+│   └── <Name>Node.cs        ← the service's own work
 ├── Helpers/                 ← optional: pure functions extracted from Program.cs
 │   └── <Name>.cs            ← static class, no AspNetCore dependency, fully unit-tested
-└── Program.cs               ← top-level statements: parse args → build app → register endpoints → run
+└── Program.cs               ← top-level statements: read settings → build app → map endpoints → run
 ```
 
-## 4. CLI args — the six standard flags
+A service with no settings beyond the standard ones has no `Configuration`
+folder, and a service that only registers under its own name has no broker
+client of its own. Both come from `vos.Service.Shared`.
 
-A C# `record` with the standard six fields:
+## 4. Launch settings — the six standard flags
+
+`vos.Service.Shared.Configuration.ServiceLaunchSettings` reads the settings
+every service needs. There is one implementation; no service writes its own.
 
 - **Required:** `--port`, `--myceliumUrl`
 - **Optional:** `--token` (pre-minted service JWT for **outbound** Mycelium
   calls), `--signingKey` (base64-encoded HMAC key for validating **inbound**
   Mycelium requests), `--issuer`, `--audience`
 
-`Parse(string[])` returns `null` on missing/invalid input. `UsageMessage`
-mentions every flag. The reference is
-`vos.Service.CSharp.Echo/Configuration/CliArgs.cs`.
+Every setting can also come from configuration or the environment under its
+Pascal-case name — `Port`, `MyceliumUrl`, `SigningKey` and so on — so a service
+can be launched with no flags at all. A flag always wins over configuration.
 
-Service-specific flags extend the standard shape. Metabolism's
-`--mode=consumes|produces` lives in
-`Metabolism/Configuration/CliArgs.cs` and fails parsing for any
-other value.
+`Parse(args, configuration)` returns `null` when a required setting is missing
+or the port is not a usable number, which is the signal to print
+`UsageMessage` and stop. Flags are matched exactly: a flag name carrying an
+invisible character is a different flag, not a near miss.
 
-## 5. MyceliumClient subclassing
+A service with settings of its own wraps the shared record rather than
+reimplementing it, and builds its usage message with
+`ServiceLaunchSettings.BuildUsageMessage`. Metabolism's
+`--mode=consumes|produces` works this way in
+`vos.Service.Metabolism/Configuration/MetabolismLaunchSettings.cs`; Xylem and
+Phloem do the same for their own settings.
+
+## 5. Talking to the broker
+
+A service that only needs to register under its own name uses
+`vos.Service.Shared.EndpointServiceMyceliumClient` and writes no client of its
+own. A service that makes broker calls of its own — Delta, Tributary,
+Metabolism, and Phloem's gateway — derives from `MyceliumClientBase` and adds
+those calls.
 
 `vos.Service.Shared.MyceliumClientBase` owns the
 service-agnostic plumbing:
@@ -236,32 +254,56 @@ Composition, not logic. The `coverage.runsettings` exclusion of `Program.cs`
 is honest after the extraction; before it, real testable code hid behind the
 exclusion.
 
-## 7. Program.cs — the same eleven steps
+## 7. Program.cs — the same steps, most of them shared
 
-Every microservice's `Program.cs`:
+`Program.cs` is wiring. Anything that makes a decision belongs outside it, where
+a test can reach it — code inside an entry point cannot be called from a test.
 
-1. Parses CLI args; `Console.WriteLine(CliArgs.UsageMessage)` +
-   `Environment.Exit(1)` on `null`.
-2. Configures Serilog file logging under `logs/<service>-.log`.
-3. Calls `WebApplication.CreateBuilder(args)`.
+1. Calls `WebApplication.CreateBuilder(args)` first, so the settings reader can
+   see configuration and the environment as well as the command line.
+2. Reads the launch settings; `Console.WriteLine(<Settings>.UsageMessage)` and
+   `Environment.Exit(1)` when `Parse` returns `null`.
+3. Calls `ServiceHost.ConfigureLogging(serviceName, logFileName)`. Pass
+   `writeToFile: false` under the Testing environment: writing files from shared
+   build agents invites flaky tests.
 4. If `--signingKey` was supplied, calls
    `builder.AddMyceliumTokenAuth(signingKey, issuer, audience)`.
 5. Calls `builder.Services.AddContractValidation()` to register the schema
-   registry + validator.
-6. Registers a singleton `MyceliumClient` (and any service-specific dependencies)
-   via DI.
+   registry and validator.
+6. Registers the broker client and the service's own dependencies, then
+   `builder.Services.AddMyceliumRegistration(serviceName, port)`.
 7. Calls `app.UseRouting()`, then `app.UseRequestContractValidation()` (after
-   auth if auth is enabled). The middleware reads
-   `ContractValidationMetadata` off the matched endpoint, so it must run
-   after `UseRouting` and before endpoint dispatch.
-8. Maps **POST `/handle`**, **GET `/health`**, **GET `/stats`**, **POST
-   `/shutdown`**. Each request DTO that has a JSON Schema is tagged
-   `[ContractSchema("<$id>")]`; its route calls `.RequireContract<TRequest>()`
-   to opt in to validation.
-9. Wires `ApplicationStarted` to call `MyceliumClient.RegisterAsync(port)`
-   (best-effort; Mycelium can also discover via `/health`).
-10. Wires `ApplicationStopping` to call `MyceliumClient.DeregisterAsync()`.
-11. `app.Run()`.
+   auth when auth is enabled). The middleware reads
+   `ContractValidationMetadata` off the matched endpoint, so it must run after
+   `UseRouting` and before endpoint dispatch.
+8. Maps **POST `/handle`**, and calls `app.MapHealthAndStats(serviceName,
+   myceliumUrl)` and `app.MapShutdown(serviceName)` for the rest. Each request
+   type that has a JSON Schema is tagged `[ContractSchema("<$id>")]`; its route
+   calls `.RequireContract<TRequest>()` to opt in to validation.
+9. `app.Run()`.
+
+Registration and withdrawal are not steps here: `AddMyceliumRegistration` runs
+both on the host's own schedule. Registration happens off the startup path, so a
+broker that is slow or absent cannot stop the service coming up. Withdrawal is
+awaited, so the broker learns the service has gone rather than being left with a
+handler that no longer answers.
+
+**What `/handle` receives.** A reactive service is sent either a pipeline node
+envelope or a graph relationship naming the Thing to act on.
+`vos.Service.Shared.DagNode.HandleRequestRouter.Classify` makes that call and is
+covered by its own tests, so the entry point only dispatches on the answer:
+
+```csharp
+switch (HandleRequestRouter.Classify(root, out var subjectId))
+{
+    case HandleRequestKind.NodeEnvelope:
+        return Results.Ok(await node.HandleNodeAsync(root, ctx.RequestAborted));
+    case HandleRequestKind.RelationshipSubject:
+        return Results.Ok(new { success = true, outputs = await reactive.RecomputeAsync(subjectId, ctx.RequestAborted) });
+    default:
+        return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes(serviceName) });
+}
+```
 
 The contract-validation wiring is the canonical reference in
 `vos.Service.Metabolism/Program.cs` +
@@ -482,107 +524,109 @@ project's reference graph + adds:
   `WebApplicationFactory<Program>`
 - Project references: the microservice + `vos.Tests.Shared`
 
-Standard test files (one per testable unit):
+Standard test files:
 
 ```text
 Tests/vos.Service.<Name>.Tests/
-├── CliArgsTests.cs          ← CLI parser contract
-├── MyceliumClientTests.cs     ← service-specific RegisterAsync + inherited base behavior
-└── <Service>Tests.cs        ← service-specific business logic (handle endpoint, etc.)
+├── <Name>LaunchSettingsTests.cs  ← only when the service has settings of its own
+└── <Service>Tests.cs             ← the service's own work (handle endpoint, engine, and so on)
 ```
 
-### 10.1 `CliArgsTests` — pin the standard contract
+There is no per-service settings test or broker-client test for the standard
+behaviour, because there is no per-service settings parser or broker client.
+Both live in `vos.Service.Shared` and are covered once, thoroughly, in
+`Tests/vos.Service.Shared.Tests`:
 
-Tests are named `<Method>_<Scenario>_<Expected>_PerTemplate` so the template
-aspect is visible at a glance. Required tests (see
-`Tests/vos.Service.CSharp.Echo.Tests/CliArgsTests.cs`):
-
-| Test name | What it pins |
+| Shared test file | What it pins |
 |---|---|
-| `Parse_RequiredFlagsOnly_ReturnsArgsWithDefaultedOptionals_PerTemplate` | Required `--port` + `--myceliumUrl` are sufficient; optionals default to `null` |
-| `Parse_MissingPort_ReturnsNull_PerTemplate` | Required-arg validation fails closed |
-| `Parse_MissingMyceliumUrl_ReturnsNull_PerTemplate` | Required-arg validation fails closed |
-| `Parse_InvalidPort_ReturnsNull_PerTemplate` (Theory) | Port out of `[1, 65535]` or non-numeric → null |
-| `Parse_PortAtBoundaries_Accepted_PerTemplate` (Theory) | 1 and 65535 are valid |
-| `Parse_AllOptionalFlags_PopulateRespectiveFields_PerTemplate` | Each optional flag round-trips |
-| `Parse_FlagOrderIndependent_PerTemplate` | Args may appear in any order |
-| `Parse_UnknownFlag_IgnoredSilently_PerTemplate` | Forward-compat: unknown flags don't crash |
-| `UsageMessage_MentionsEverySupportedFlag_PerTemplate` | `--help`-style output stays in sync with `Parse` |
+| `Configuration/ServiceLaunchSettingsTests.cs` | Required settings, port bounds, every optional flag, configuration and environment fallback, a flag beating configuration, exact flag matching |
+| `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, refusal and token failure returning false, withdrawal, a supplied token short-circuiting the token call |
+| `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, withdrawal on shutdown, a failing broker not stopping the service serving |
+| `DagNode/HandleRequestRouterTests.cs` | Which shape a `/handle` body is, and what an unusable one is answered with |
 
-### 10.2 `MyceliumClientTests` — pin inherited + service-specific behavior
+Copying a test is the same problem as copying the code. If a behaviour is the
+same in every service, it belongs in the shared suite, not repeated per service.
 
-Standard helpers (use `vos.Tests.Shared.MockHttpMessageHandler` +
-`TestHttpClientFactory`):
+### 10.1 Testing a service's own settings
+
+Only for a service that adds settings of its own. Cover the settings it adds and
+that the shared ones reach the caller — not the shared behaviour again. See
+`Tests/vos.Service.Metabolism.Tests/MetabolismLaunchSettingsTests.cs`.
+
+### 10.2 Testing a service's own broker calls
+
+Only for a service that makes broker calls of its own. Build it over
+`vos.Tests.Shared.MockHttpMessageHandler` and
+`vos.Tests.Shared.PerCallHttpClientFactory`:
 
 ```csharp
-private static (MyceliumClient client, MockHttpMessageHandler handler) NewClient(
-    Func<HttpRequestMessage, HttpResponseMessage> respond,
-    string? serviceToken = "svc-jwt-abc")
-{
-    var handler = new MockHttpMessageHandler(respond);
-    var http = new HttpClient(handler);
-    var factory = new TestHttpClientFactory(http);
-    var client = new MyceliumClient(factory, NullLogger<MyceliumClient>.Instance, "http://localhost:7243", serviceToken);
-    return (client, handler);
-}
+var handler = new MockHttpMessageHandler(respond);
+var client = new MyceliumClient(
+    new PerCallHttpClientFactory(handler),
+    NullLogger<MyceliumClient>.Instance,
+    "http://localhost:7243",
+    serviceToken);
 ```
 
-Required tests (see
-`Tests/vos.Service.CSharp.Echo.Tests/MyceliumClientTests.cs`):
+Use `PerCallHttpClientFactory`, not a single shared client. A client's timeout
+cannot be set again once a request is in flight, so a subject that makes more
+than one call fails on the second one for a reason that has nothing to do with
+the code under test.
 
-| Test name | What it pins |
-|---|---|
-| `HandlerId_IsUniquePerInstance_PerTemplate` | Two `MyceliumClient` instances have distinct `HandlerId` Guids |
-| `MyceliumUrl_PassedThroughFromCtor_PerTemplate` | Constructor wires `MyceliumUrl` |
-| `RegisterAsync_Success_PostsServiceIdentity_PerTemplate` | POST body to `/api/mycelium/register` contains the service-specific `serviceName` + `startCommand` plus the standard `handlerId`/`endpointUrl`/`stopEndpoint`/`healthEndpoint` envelope |
-| `RegisterAsync_MyceliumReturnsFailure_ReturnsFalse_PerTemplate` | Non-2xx → false |
-| `RegisterAsync_AuthFails_ReturnsFalse_PerTemplate` | `CreateAuthenticatedClient` throwing → caught → false |
-| `DeregisterAsync_SendsDeleteToMycelium_PerTemplate` | `DELETE /api/mycelium/services/{HandlerId}` with Bearer header |
-| `GetTokenAsync_WithProvidedToken_ReturnsItDirectly_PerTemplate` | `--token` short-circuits Mycelium call |
+`Tests/vos.Service.Phloem.Tests/MyceliumGatewayTests.cs` is the fullest example.
 
 ### 10.3 Service-specific endpoint tests
 
-Echo has minimal business logic (echo body + counter) and per
-`coverage.runsettings` `Program.cs` is excluded from unit-test coverage — so
-Echo's test suite stops at `CliArgs` + `MyceliumClient`.
+Services with substantial logic of their own — Metabolism's simulation engine,
+Tributary's `ObservationIngestService` — get a `<Service>Tests.cs` exercising
+that logic directly.
 
-Microservices with substantial business logic (e.g. Metabolism's simulation
-engine, Tributary's `ObservationIngestService`) get a dedicated
-`<Service>Tests.cs` exercising that logic directly. When the endpoint surface
-needs unit-level coverage, use `WebApplicationFactory<Program>` from
-`Microsoft.AspNetCore.Mvc.Testing` and pass empty args + a Configure callback
-that injects the args via `WebApplicationFactoryClientOptions`. The `Program`
-class is `internal` by default with top-level statements — declare
-`public partial class Program { }` at the bottom of `Program.cs` to make it
-accessible to the test factory.
+When the endpoint surface itself needs covering, use
+`WebApplicationFactory<Program>` from `Microsoft.AspNetCore.Mvc.Testing` and
+inject the settings through `UseSetting` on the host builder — the settings
+reader falls back to those when no flags are present, which is always the case
+under the test host. The `Program` class is `internal` by default with top-level
+statements, so declare `public partial class Program { }` at the bottom of
+`Program.cs` to make it reachable from the test factory.
 
 ### 10.4 Coverage expectations
 
-Per-microservice acceptance: **≥95 % line on `CliArgs` + `MyceliumClient` + any
-`<Service>Tests.cs` business-logic class**. `Program.cs` is excluded by
-`coverage.runsettings` (integration-test territory).
+Aim for **95% line coverage or better** on everything a service owns: its
+settings record, its broker calls, and its business-logic classes.
 
-> The original wildcard `**/vos.Service.*/Program.cs` was silently
-> ignored because Phase 0 used nested `<File>` elements inside
-> `<ExcludeByFile>` — coverlet's XPlat data collector expects a single
-> comma-separated string. Fixed with explicit
-> per-microservice paths. New microservices need to add their own `Program.cs`
-> to the comma-separated list in `coverage.runsettings`.
+A service entry point is excluded from coverage only once it holds nothing but
+wiring — because whatever it used to decide now lives in shared code and is
+covered there, or its endpoints are driven end to end through the test host.
+An entry point that still handles requests stays counted, so the gap is visible
+rather than hidden. Xylem and Phloem are in that position today.
+
+When adding a service, add its `Program.cs` to the comma-separated
+`<ExcludeByFile>` list in `coverage.runsettings` only when that is true of it.
+
+> The list is comma-separated on purpose: coverlet's XPlat data collector
+> expects a single string there, and nested `<File>` elements are silently
+> ignored — which is how an earlier wildcard came to exclude nothing at all.
 
 ## 11. Adding a new microservice
 
-1. Copy `vos.Service.CSharp.Echo/` to `vos.Service.<Name>/`.
-   Rename the namespace, project file, and `MyceliumClient`'s `serviceName` /
-   `startCommand`.
+1. Copy `vos.Service.CSharp.Echo/` to `vos.Service.<Name>/` and rename the
+   namespace and project file. Change the service name passed to
+   `EndpointServiceMyceliumClient` and to the `ServiceHost` calls.
 2. Add the new project to `VillageOS-API.sln`.
 3. Copy `Tests/vos.Service.CSharp.Echo.Tests/` to
-   `Tests/vos.Service.<Name>.Tests/`. Update the project reference
-   - namespace; the test patterns transfer 1:1.
+   `Tests/vos.Service.<Name>.Tests/` and update the project reference and
+   namespace. Only copy tests for what the new service actually owns — the
+   standard settings, registration and host behaviour are already covered in
+   `Tests/vos.Service.Shared.Tests` and should not be repeated.
 4. Add the test project to `VillageOS-API.sln`.
-5. Run `dotnet test` from the repo root — the new project should be picked up
+5. Run `dotnet test` from the repo root. The new project is picked up
    automatically by the `**/*Tests.csproj` glob in `azure-pipelines.yml`.
-6. Append the new `Program.cs` path to the `<ExcludeByFile>` list in
-   `coverage.runsettings`.
+6. Add the new `Program.cs` to `<ExcludeByFile>` in `coverage.runsettings` only
+   once it holds nothing but wiring. If it still handles requests itself, leave
+   it counted and extract the handling instead.
+
+Only add a `Configuration/` folder if the service has settings beyond the
+standard six, and only add a broker client if it makes broker calls of its own.
 
 ## 12. Pointers
 
@@ -729,8 +773,8 @@ long seq = await mycelium.SetFactAsync(thingId, "status", "active");
 await mycelium.RecordObservationAsync(thingId, "temperature", 21.5m, DateTime.UtcNow);
 int accepted = await mycelium.RecordObservationsAsync(thingId, new[]
 {
-    new ObservationSample("temperature", 21.7m),
-    new ObservationSample("flow", 3.1m, DateTime.UtcNow), // optional observed-time
+    new ObservationSample("temperature", 21.7m),          // no time → Mycelium stamps the batch
+    new ObservationSample("flow", 3.1m, DateTime.UtcNow), // or name the observed-time yourself
 });
 SedimentDepositResult deposit = await mycelium.DepositSedimentAsync(new[]
 {

@@ -16,9 +16,10 @@ import { modelApi } from '../api/modelApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { reloadModelData } from '../hooks/useModelData';
 import { useGraphData } from '../hooks/useGraphData';
-import { toast } from '../components/common/Toast';
+import { toast } from '../components/common/toastStore';
+import { relationshipLabel } from '../utils/relationshipLabel';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type { VosThing } from '../types/vos';
 import { Upload } from 'lucide-react';
 import { applyTypeFilter } from '../utils/typeFilter';
 
@@ -61,11 +62,16 @@ export function GraphPage() {
     [things, relationships, hiddenTypeIds],
   );
 
-  const [detailThing, setDetailThing] = useState<VosThing | null>(null);
-  const [detailRelationship, setDetailRelationship] = useState<VosRelationship | null>(null);
+  const [fetchedThing, setFetchedThing] = useState<VosThing | null>(null);
   const thingMap = useMemo(() => new Map(things.map((t) => [t.Id, t])), [things]);
-  const thingMapRef = useRef(thingMap);
-  thingMapRef.current = thingMap;
+
+  // Both follow the selection, so neither is state: nothing to hold that the selection and the
+  // loaded model do not already say.
+  const detailThing = selectedNodeId ? fetchedThing : null;
+  const detailRelationship = useMemo(
+    () => (selectedEdgeId ? relationships.find((r) => r.Id === selectedEdgeId) ?? null : null),
+    [selectedEdgeId, relationships],
+  );
 
   useEffect(() => {
     useUiStore.getState().clearPredicateIds();
@@ -85,34 +91,21 @@ export function GraphPage() {
   // Fetch full thing detail (including inherited properties) when a node is selected.
   // Re-runs when the underlying things array refreshes so live edits surface in the panel.
   useEffect(() => {
-    if (!selectedNodeId) {
-      setDetailThing(null);
-      return;
-    }
+    if (!selectedNodeId) return;
     let cancelled = false;
     (async () => {
       try {
         const thing = await thingApi.get(selectedNodeId);
         if (cancelled) return;
-        setDetailThing(thing);
+        setFetchedThing(thing);
       } catch {
         if (!cancelled) {
-          setDetailThing(thingMapRef.current.get(selectedNodeId) || null);
+          setFetchedThing(thingMap.get(selectedNodeId) ?? null);
         }
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedNodeId, things]);
-
-  // Sync detailRelationship to the latest relationships array when either
-  // the selection or the underlying data changes.
-  useEffect(() => {
-    if (!selectedEdgeId) {
-      setDetailRelationship(null);
-      return;
-    }
-    setDetailRelationship(relationships.find((r) => r.Id === selectedEdgeId) || null);
-  }, [selectedEdgeId, relationships]);
+  }, [selectedNodeId, thingMap]);
 
   const handleDeleteThing = async () => {
     if (!deleteConfirm || deleteConfirm.type !== 'thing') return;
@@ -140,26 +133,21 @@ export function GraphPage() {
     setDeleteConfirm(null);
   };
 
+  // Neither delete touches the store: the retraction arrives on the stream, the way it reaches
+  // every other client. One path, so the one other people depend on is exercised by ordinary use.
   const handleDeleteProperty = async (thingId: string, propertyName: string) => {
     try {
       await thingApi.deleteProperty(thingId, propertyName);
       toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
-      useModelStore.getState().applyBatch({ thingPropertyRemovals: [{ id: thingId, path: propertyName }] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }
   };
 
-  // Applied here rather than left to the stream: a retracted relationship property arrives as a
-  // change to null, which is what a property genuinely set to null looks like. The client that did
-  // the deleting is the one place that knows which of the two it was.
   const handleDeleteRelProperty = async (relationshipId: string, propertyName: string) => {
     try {
       await relationshipApi.deleteProperty(relationshipId, propertyName);
       toast.success(t('graph.toast.propertyDeleted', { name: propertyName }));
-      useModelStore.getState().applyBatch({
-        relationshipPropertyRemovals: [{ id: relationshipId, name: propertyName }],
-      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('graph.toast.deleteFailed'));
     }
@@ -313,7 +301,11 @@ export function GraphPage() {
               selectNode(id);
             }}
             onDeleteRelationship={(id) =>
-              setDeleteConfirm({ type: 'relationship', id, name: detailRelationship.Name })
+              setDeleteConfirm({
+                type: 'relationship',
+                id,
+                name: relationshipLabel(detailRelationship, (thingId) => thingMap.get(thingId)?.Name),
+              })
             }
             onDeleteProperty={handleDeleteRelProperty}
             statesVersion={statesVersion}

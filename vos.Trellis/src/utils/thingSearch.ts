@@ -1,5 +1,4 @@
 import type { VosThing, VosRelationship } from '../types/vos';
-import { formatPropertyValue } from './formatters';
 
 /** Property keys excluded from the preview and own-property count. */
 export const THING_SEARCH_SKIP_KEYS = new Set([
@@ -19,7 +18,9 @@ export interface ThingMatch {
   typeName?: string;
   ownPropertyCount: number;
   relationshipCount: number;
-  previewProps: Array<{ key: string; value: unknown; formatted: string }>;
+  /** Left unformatted: how a value should read depends on the type the platform declares for it,
+   *  which this index does not carry. The page that shows them resolves that and formats (#6163). */
+  previewProps: Array<{ key: string; value: unknown }>;
 }
 
 export interface ThingSearchIndex {
@@ -105,7 +106,6 @@ export function searchThings(
     const previewProps = ownKeys.slice(0, PREVIEW_PROPS).map((key) => ({
       key,
       value: thing.Properties[key],
-      formatted: formatPropertyValue(thing.Properties[key]),
     }));
 
     matches.push({

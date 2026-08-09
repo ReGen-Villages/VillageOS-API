@@ -6,27 +6,27 @@ import { ModelPage } from './ModelPage';
 // WebGL and a worker. jsdom has neither, so we stub the whole component and
 // expose the onPick callback so tests can simulate a pick.
 let capturedOnPick: ((id: string | null) => void) | null = null;
-let capturedHiddenIfcGuids: readonly string[] = [];
+let capturedVisibility: SceneVisibility = { kind: 'everything' };
 vi.mock('../components/model/BimFragmentsViewer', () => ({
   BimFragmentsViewer: ({
     bimFragmentsBytes,
     mapping,
     onPick,
-    hiddenIfcGuids = [],
+    visibility,
   }: {
     bimFragmentsBytes: ArrayBuffer;
     mapping: Record<string, string>;
     onPick: (id: string | null) => void;
-    hiddenIfcGuids?: readonly string[];
+    visibility: SceneVisibility;
   }) => {
     capturedOnPick = onPick;
-    capturedHiddenIfcGuids = hiddenIfcGuids;
+    capturedVisibility = visibility;
     return (
       <div
         data-testid="fragments-viewer-stub"
         data-bytesize={bimFragmentsBytes.byteLength}
         data-mapping-size={Object.keys(mapping).length}
-        data-hidden-count={hiddenIfcGuids.length}
+        data-visibility={visibility.kind}
       />
     );
   },
@@ -73,6 +73,7 @@ import { thingApi } from '../api/thingApi';
 import { useUiStore } from '../stores/uiStore';
 import { useModelStore } from '../stores/modelStore';
 import type { VosThing } from '../types/vos';
+import type { SceneVisibility } from '../components/model/sceneVisibility';
 const mockGetBytes = vi.mocked(apiClient.getBytes);
 const mockGet = vi.mocked(thingApi.get);
 
@@ -90,7 +91,7 @@ describe('ModelPage', () => {
     mockGet.mockReset();
     mockModelId = 'model-1';
     capturedOnPick = null;
-    capturedHiddenIfcGuids = [];
+    capturedVisibility = { kind: 'everything' };
     // Reset shared selection state so cross-test bleed-through can't mask bugs.
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, hiddenTypeIds: new Set() });
     // Feature #5329: ModelPage now consumes things from the model store,
@@ -209,29 +210,35 @@ describe('ModelPage', () => {
     await waitFor(() => expect(screen.queryByTestId('node-detail-panel')).toBeNull());
   });
 
-  // Regression test for Bug #5384: the hiddenTypeIds → hiddenIfcGuids
-  // translation must cover the same three cases as applyTypeFilter on the
-  // Graph page: (a) instances of a hidden type, (b) the hidden type-Things
-  // themselves, (c) untyped Things when NO_TYPE_ID is hidden. The previous
-  // bespoke loop only handled (a), leaving ~9.6k IFC objects rendered after
-  // clicking "None" on the example model.
-  it('emits hiddenIfcGuids for instances, type-Things, AND untyped Things', async () => {
-    const bytes = new Uint8Array([0x01]).buffer;
-    mockGetBytes.mockResolvedValue(bytes);
-
-    // Model: one type Thing (with its own IFC geometry — IfcWallType),
-    // one instance Thing (is-related to the type), and one untyped Thing
-    // (no `is` relation — e.g. IfcDistributionPort).
+  // Bug #5384: a partial hide must cover the same three cases as applyTypeFilter
+  // on the Graph page — instances of a hidden type, the hidden type-Things
+  // themselves, and untyped Things when NO_TYPE_ID is hidden. A bespoke loop
+  // once handled only the first, leaving IFC objects rendered.
+  //
+  // Model: two type Things (each with its own IFC geometry, as IfcWallType has),
+  // an instance of each, and one untyped Thing (no `is` relation — e.g.
+  // IfcDistributionPort).
+  function seedTwoTypeModel() {
     const isPredicate: VosThing = { Id: 'pred-is', Name: 'is', Properties: {} };
-    const typeThing: VosThing = {
+    const wallType: VosThing = {
       Id: 'type-wall',
       Name: 'Basic Wall:Generic-200mm',
-      Properties: { ifcGlobalId: 'ifc-type-guid' },
+      Properties: { ifcGlobalId: 'ifc-wall-type-guid' },
     };
-    const instance: VosThing = {
-      Id: 'inst-1',
+    const doorType: VosThing = {
+      Id: 'type-door',
+      Name: 'Door:Single-Flush',
+      Properties: { ifcGlobalId: 'ifc-door-type-guid' },
+    };
+    const wall: VosThing = {
+      Id: 'inst-wall',
       Name: 'Wall_101',
-      Properties: { ifcGlobalId: 'ifc-instance-guid' },
+      Properties: { ifcGlobalId: 'ifc-wall-guid' },
+    };
+    const door: VosThing = {
+      Id: 'inst-door',
+      Name: 'Door_202',
+      Properties: { ifcGlobalId: 'ifc-door-guid' },
     };
     const untyped: VosThing = {
       Id: 'port-1',
@@ -239,26 +246,63 @@ describe('ModelPage', () => {
       Properties: { ifcGlobalId: 'ifc-untyped-guid' },
     };
     seedModel(
-      [isPredicate, typeThing, instance, untyped],
-      [{
-        Id: 'rel-1',
-        Name: 'inst-1 is type-wall',
-        SubjectId: 'inst-1',
-        PredicateId: 'pred-is',
-        TargetId: 'type-wall',
-        Properties: {},
-      }],
+      [isPredicate, wallType, doorType, wall, door, untyped],
+      [
+        { Id: 'rel-1', Name: '', SubjectId: 'inst-wall', PredicateId: 'pred-is', TargetId: 'type-wall', Properties: {} },
+        { Id: 'rel-2', Name: '', SubjectId: 'inst-door', PredicateId: 'pred-is', TargetId: 'type-door', Properties: {} },
+      ],
     );
+  }
 
-    // Hide every group — same set the TypeFilterPanel produces on "None".
+  it('shows everything when no type is hidden', async () => {
+    mockGetBytes.mockResolvedValue(new Uint8Array([0x01]).buffer);
+    seedTwoTypeModel();
+
+    render(<ModelPage />);
+    await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
+
+    expect(capturedVisibility).toEqual({ kind: 'everything' });
+  });
+
+  it('hides instances, type-Things AND untyped Things of a partly hidden model', async () => {
+    mockGetBytes.mockResolvedValue(new Uint8Array([0x01]).buffer);
+    seedTwoTypeModel();
+
+    // Hide the wall bucket and the synthetic one; the door bucket still shows.
     const { NO_TYPE_ID } = await import('../utils/typeFilter');
     useUiStore.setState({ hiddenTypeIds: new Set(['type-wall', NO_TYPE_ID]) });
 
     render(<ModelPage />);
     await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
 
-    const guids = [...capturedHiddenIfcGuids].sort();
-    expect(guids).toEqual(['ifc-instance-guid', 'ifc-type-guid', 'ifc-untyped-guid']);
+    expect(capturedVisibility.kind).toBe('everythingExcept');
+    const guids = capturedVisibility.kind === 'everythingExcept'
+      ? [...capturedVisibility.hiddenIfcGuids].sort()
+      : [];
+    // The door type Thing sits in the no-type bucket (nothing `is`-relates it
+    // away), so hiding that bucket hides it too — its instance stays visible.
+    expect(guids).toEqual([
+      'ifc-door-type-guid',
+      'ifc-untyped-guid',
+      'ifc-wall-guid',
+      'ifc-wall-type-guid',
+    ]);
+  });
+
+  // Bug #5366: a guid list can only ever hide geometry the model has a Thing
+  // for, and a real .frag holds far more elements than that. Unchecking every
+  // type has to say "show nothing" outright or the scene stays on screen.
+  it('shows nothing when every type is hidden, rather than listing guids to hide', async () => {
+    mockGetBytes.mockResolvedValue(new Uint8Array([0x01]).buffer);
+    seedTwoTypeModel();
+
+    const { NO_TYPE_ID } = await import('../utils/typeFilter');
+    useUiStore.setState({ hiddenTypeIds: new Set(['type-wall', 'type-door', NO_TYPE_ID]) });
+
+    render(<ModelPage />);
+    await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
+
+    expect(capturedVisibility).toEqual({ kind: 'nothing' });
   });
 
   it('drives selection through useUiStore so it stays in sync with the GraphPage', async () => {

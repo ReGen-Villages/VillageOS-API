@@ -1,3 +1,4 @@
+import { parseParamValue } from './parseParamValue';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -35,18 +36,6 @@ const RUN_STATUS_COLOR: Record<string, string> = {
 };
 
 let nodeSeq = 0;
-
-/** Parse a Params-bar value as JSON when it is valid JSON (lists, numbers, booleans, objects); otherwise keep
- * it as the raw string. Lets a user type `["a","b","c"]` to drive a fan-out, or `42` for a number param. */
-export function parseParamValue(raw: string): unknown {
-  const trimmed = raw.trim();
-  if (trimmed === '') return '';
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    return raw;
-  }
-}
 
 /** A short edge label for a mapped wire (#5874/#5875), e.g. `user.id → a` with a trailing `ƒ` when the wire
  * carries a JSONata transform; undefined when the wire is a plain whole-payload pass-through. */
@@ -91,7 +80,9 @@ export function PipelinePage() {
   type EditorSnapshot = { nodes: Node[]; edges: Edge[] };
   const historyRef = useRef(new EditorHistory<EditorSnapshot>({ nodes: [], edges: [] }));
   const stateRef = useRef<EditorSnapshot>({ nodes, edges });
-  stateRef.current = { nodes, edges };
+  // Mirrored after each commit rather than during render, so a handler that snapshots for undo
+  // reads what is on screen — never values from a render React went on to discard.
+  useEffect(() => { stateRef.current = { nodes, edges }; }, [nodes, edges]);
   const [canUndo, setCanUndo] = useState(false);
   const [dirty, setDirty] = useState(false);
 
@@ -536,7 +527,10 @@ export function PipelinePage() {
                         <input
                           aria-label={t('pipeline.portName', { index: i + 1 })}
                           value={p.portName}
-                          onChange={(e) => setBoundaryPorts(selectedNode.id, d.ports.map((q, j) => (j === i ? { ...q, portName: e.target.value } : q)))}
+                          onChange={
+                            // eslint-disable-next-line react-hooks/refs -- an event handler, which the rule's own guidance names as the right place to read a ref; it cannot tell one written inline in JSX from code running during render
+                            (e) => setBoundaryPorts(selectedNode.id, d.ports.map((q, j) => (j === i ? { ...q, portName: e.target.value } : q)))
+                          }
                           className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
                         />
                         <button
@@ -565,7 +559,10 @@ export function PipelinePage() {
                           <input
                             placeholder={t('pipeline.fromParam')}
                             value={bindings[p.portName] ?? ''}
-                            onChange={(e) => setBinding(selectedNode.id, p.portName, e.target.value)}
+                            onChange={
+                              // eslint-disable-next-line react-hooks/refs -- an event handler, which the rule's own guidance names as the right place to read a ref; it cannot tell one written inline in JSX from code running during render
+                              (e) => setBinding(selectedNode.id, p.portName, e.target.value)
+                            }
                             className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
                           />
                         )}
@@ -591,7 +588,10 @@ export function PipelinePage() {
                     aria-label={t('pipeline.wireFromPath')}
                     placeholder="e.g. user.id"
                     value={data.fromPath ?? ''}
-                    onChange={(e) => setEdgePath(selectedEdge.id, 'fromPath', e.target.value)}
+                    onChange={
+                      // eslint-disable-next-line react-hooks/refs -- an event handler, which the rule's own guidance names as the right place to read a ref; it cannot tell one written inline in JSX from code running during render
+                      (e) => setEdgePath(selectedEdge.id, 'fromPath', e.target.value)
+                    }
                     className="flex-1 px-1 py-0.5 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900"
                   />
                 </label>

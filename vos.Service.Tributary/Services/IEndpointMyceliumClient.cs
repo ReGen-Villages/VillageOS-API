@@ -1,7 +1,6 @@
-namespace vos.Service.Tributary.Services;
+using vos.Service.Shared;
 
-// One sampled measurement for a property of an entity, at a source-supplied time.
-public readonly record struct ObservationSample(string Property, object? Value, DateTime ObservedAt);
+namespace vos.Service.Tributary.Services;
 
 public interface IEndpointMyceliumClient
 {

@@ -3,12 +3,12 @@ import { render, fireEvent, waitFor } from '@testing-library/react';
 
 vi.mock('../../api/ingestApi', () => ({ ingestApi: { configured: vi.fn(() => true), upload: vi.fn() } }));
 vi.mock('../../hooks/useModelData', () => ({ reloadModelData: vi.fn() }));
-vi.mock('../common/Toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('../common/toastStore', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { IfcUploadDropzone } from './IfcUploadDropzone';
 import { ingestApi } from '../../api/ingestApi';
 import { reloadModelData } from '../../hooks/useModelData';
-import { toast } from '../common/Toast';
+import { toast } from '../common/toastStore';
 
 const fileInput = (c: HTMLElement) => c.querySelector('input[type="file"]') as HTMLInputElement;
 
