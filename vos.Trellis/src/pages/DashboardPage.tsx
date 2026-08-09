@@ -25,8 +25,8 @@ import type { EngineMetricsSummary } from '../types/engineMetrics';
 
 const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 
-// Range and roll-up definition writes publish no model-change event (they are engine
-// configuration, not model data), so the capacity panel polls on top of the SSE refreshes.
+// Definition writes publish EngineConfigurationChanged (#6227), so the panel refreshes on
+// events; the poll stays as a fallback for a dropped stream.
 const ENGINE_METRICS_POLL_MS = 15000;
 
 export function DashboardPage() {
@@ -102,6 +102,7 @@ export function DashboardPage() {
       on('EndpointServiceRequestCompleted', () => endpointApi.getAll().then(setEndpointServices)),
       on('ModelChanged', () => loadMyceliumData()),
       on('ModelChanged', () => loadEngineMetrics()),
+      on('EngineConfigurationChanged', () => loadEngineMetrics()),
     ];
     return () => unsubs.forEach((u) => u());
   }, [on, loadMyceliumData, loadEngineMetrics]);
