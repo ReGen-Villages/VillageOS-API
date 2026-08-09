@@ -42,6 +42,22 @@ public class MetabolismTests
         sim.Config.Quantity.Should().Be(10.0m);
     }
 
+    // A string-valued property reaches Convert.ToDecimal as a string, which reads the machine's
+    // regional format. The value comes off the model, so the dot is always a decimal point.
+    [Fact]
+    public void UpdateProperty_StringQuantity_ReadsTheDotAsADecimalPointWhateverTheRegionalFormat()
+    {
+        _engine.Register(MakeConfig());
+
+        var quantity = TestCulture.In(TestCulture.CommaDecimal, () =>
+        {
+            _engine.UpdateProperty("rel-1", "quantity", "10.5");
+            return _engine.GetAll().First().Config.Quantity;
+        });
+
+        quantity.Should().Be(10.5m);
+    }
+
     [Fact]
     public void UpdateProperty_FrequencySeconds_UpdatesConfig()
     {

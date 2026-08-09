@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace vos.Service.Delta.Helpers;
@@ -19,7 +20,11 @@ public static class JsonValueCoercion
             };
         }
 
-        return value?.ToString();
+        // A boxed number renders with the machine's separator unless the culture is named, which would
+        // write "30,5" into the model as the property's text.
+        return value is IFormattable formattable
+            ? formattable.ToString(null, CultureInfo.InvariantCulture)
+            : value?.ToString();
     }
 
     public static bool TryGetPropertyValue(IDictionary<string, object> properties, string name, out object? value)

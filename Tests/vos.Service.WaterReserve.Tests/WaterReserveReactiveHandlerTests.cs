@@ -51,8 +51,8 @@ public class WaterReserveReactiveHandlerTests
     }
 
     // A string-valued input goes through double.TryParse rather than GetDouble. A regional format
-    // that writes 22,5 must not turn "22.5" into 225 — the values come from the model, not from a
-    // person, so the dot is always a decimal point.
+    // that writes 900,5 must not turn "900.5" into 9005 — the values come from the model, not from
+    // a person, so the dot is always a decimal point.
     [Fact]
     public async Task String_valued_inputs_parse_the_same_whatever_the_regional_format()
     {
