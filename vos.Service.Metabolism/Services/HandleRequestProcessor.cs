@@ -58,10 +58,10 @@ public class HandleRequestProcessor
                 frequencySeconds = freqProp.GetInt32();
 
             if (props.TryGetProperty("startUtc", out var startProp) && startProp.ValueKind == JsonValueKind.String)
-                startUtc = DateTime.Parse(startProp.GetString()!, null, DateTimeStyles.RoundtripKind);
+                startUtc = DateTime.Parse(startProp.GetString()!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
 
             if (props.TryGetProperty("endUtc", out var endProp) && endProp.ValueKind == JsonValueKind.String)
-                endUtc = DateTime.Parse(endProp.GetString()!, null, DateTimeStyles.RoundtripKind);
+                endUtc = DateTime.Parse(endProp.GetString()!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
 
             if (props.TryGetProperty("startDelaySeconds", out var delayProp) && delayProp.ValueKind == JsonValueKind.Number)
                 startDelaySeconds = delayProp.GetDecimal();

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 using vos.Service.Shared;
@@ -72,7 +73,7 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
         return value.ValueKind switch
         {
             JsonValueKind.Number => value.GetDouble(),
-            JsonValueKind.String when double.TryParse(value.GetString(), out var d) => d,
+            JsonValueKind.String when double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d) => d,
             _ => throw new InvalidOperationException($"WaterReserve input value is not numeric: {value.ValueKind}"),
         };
     }

@@ -50,6 +50,25 @@ public class WaterReserveReactiveHandlerTests
         Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post && r.Uri.Contains("/properties/daysOfSupply/facts"));
     }
 
+    // A string-valued input goes through double.TryParse rather than GetDouble. A regional format
+    // that writes 900,5 must not turn "900.5" into 9005 — the values come from the model, not from
+    // a person, so the dot is always a decimal point.
+    [Fact]
+    public async Task String_valued_inputs_parse_the_same_whatever_the_regional_format()
+    {
+        const string stringInputs = """
+            { "population": { "Value": "300" }, "perCapitaConsumptionM3": { "Value": "50" },
+              "storageCapacityM3": { "Value": "900.5" } }
+            """;
+        var handler = new RecordingHandler(req => req.Method == HttpMethod.Get
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(stringInputs, Encoding.UTF8, "application/json") }
+            : new HttpResponseMessage(HttpStatusCode.OK));
+
+        var outputs = await TestCulture.InAsync(TestCulture.CommaDecimal, () => NewHandler(handler).RecomputeAsync(Anchor));
+
+        Assert.Equal(21.9, outputs.DaysOfSupply, 1);
+    }
+
     [Fact]
     public async Task Fails_when_a_required_input_is_missing_from_the_anchor()
     {

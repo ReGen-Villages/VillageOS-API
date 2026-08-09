@@ -254,6 +254,36 @@ Composition, not logic. The `coverage.runsettings` exclusion of `Program.cs`
 is honest after the extraction; before it, real testable code hid behind the
 exclusion.
 
+### 6.1 Read and write machine-to-machine values with the invariant culture
+
+Any value that arrives from JSON, from Mycelium, or from a command line and becomes model
+data must be parsed with `CultureInfo.InvariantCulture`, and any number rendered back into a
+wire payload or a model property must be formatted with it. A regional format describes how
+numbers are shown to a person; it must never decide how data is read or stored.
+
+```csharp
+double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds)
+Convert.ToDecimal(value, CultureInfo.InvariantCulture)
+formattable.ToString(null, CultureInfo.InvariantCulture)
+```
+
+`Convert.ToDecimal(object)` is the easy one to miss: it is culture-sensitive only when the
+boxed value happens to be a string, so it behaves correctly right up until a property arrives
+as text.
+
+Leaving it to the machine's setting does not fail loudly — it returns the wrong number. Under
+a comma-decimal region such as `nl-NL`, `double.TryParse("30.5", out var v)` yields **305**,
+because the dot is read as a thousands separator. A timeout, a site parameter or a range
+bound silently changes by a factor of ten with no error anywhere.
+
+**Formatting for a person is the opposite case.** Taproot's own output should follow the
+operator's region, so leave display formatting alone. Only values crossing a wire or landing
+in the model are invariant.
+
+Tests prove this with `TestCulture` from `vos.Tests.Shared`: `CommaDecimal` forces a
+comma-decimal region around a parse so the test fails on any machine rather than only on one
+already configured that way, and `Display` pins a rendering assertion to a named culture.
+
 ## 7. Program.cs — the same steps, most of them shared
 
 `Program.cs` is wiring. Anything that makes a decision belongs outside it, where

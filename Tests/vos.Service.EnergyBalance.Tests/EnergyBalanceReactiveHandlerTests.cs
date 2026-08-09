@@ -55,6 +55,30 @@ public class EnergyBalanceReactiveHandlerTests
         Assert.Contains("110.5", pctWrite.Body);
     }
 
+    // A string-valued input goes through double.TryParse rather than GetDouble. A regional format
+    // that writes 0,2 must not turn "0.2" into 2 — the values come from the model, not from a
+    // person, so the dot is always a decimal point.
+    [Fact]
+    public async Task String_valued_inputs_parse_the_same_whatever_the_regional_format()
+    {
+        const string stringInputs = """
+            { "solarPvAreaM2": { "Value": "13500" }, "solarResourceKwhPerM2PerYear": { "Value": "1600" },
+              "moduleEfficiency": { "Value": "0.2" }, "performanceRatio": { "Value": "1.0" },
+              "otherGenerationMwhPerYear": { "Value": "100" }, "annualConsumptionMwhPerYear": { "Value": "4000" } }
+            """;
+        var handler = new RecordingHandler(req => req.Method == HttpMethod.Get
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(stringInputs, Encoding.UTF8, "application/json") }
+            : new HttpResponseMessage(HttpStatusCode.OK));
+
+        var reactive = new EnergyBalanceReactiveHandler(
+            new TestHttpClientFactory(new HttpClient(handler)), NullLogger<EnergyBalanceReactiveHandler>.Instance,
+            "http://mycelium", serviceToken: "test-token");
+
+        var outputs = await TestCulture.InAsync(TestCulture.CommaDecimal, () => reactive.RecomputeAsync(Anchor));
+
+        Assert.Equal(110.5, outputs.PctOfConsumption, 3);
+    }
+
     [Fact]
     public async Task Fails_when_a_required_input_is_missing_from_the_anchor()
     {

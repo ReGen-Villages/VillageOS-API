@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Moq;
 using Xunit;
+using vos.Tests.Shared;
 
 namespace vos.Taproot.Tests;
 
@@ -37,7 +38,7 @@ public class EnginesCommandHandlerTests
     {
         _myceliumMock.Setup(m => m.GetEngineMetricsAsync()).ReturnsAsync(Parse(Summary));
 
-        await ExecuteHandler("");
+        await TestCulture.InAsync(TestCulture.Display, () => ExecuteHandler(""));
 
         var output = _writer.ToString();
         Assert.Contains("TestModel", output);
@@ -63,7 +64,7 @@ public class EnginesCommandHandlerTests
              "Rollups":[]}
             """));
 
-        await ExecuteHandler("ranges");
+        await TestCulture.InAsync(TestCulture.Display, () => ExecuteHandler("ranges"));
 
         var output = _writer.ToString();
         Assert.Contains("Tank-1", output);
@@ -114,7 +115,7 @@ public class EnginesCommandHandlerTests
              "Rollups":[]}
             """));
 
-        await ExecuteHandler("ranges");
+        await TestCulture.InAsync(TestCulture.Display, () => ExecuteHandler("ranges"));
 
         var output = _writer.ToString();
         Assert.Contains("(none)", output);

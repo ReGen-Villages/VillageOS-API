@@ -1,5 +1,7 @@
 using System.Text.Json;
+using FluentAssertions;
 using Moq;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Taproot.Tests;
@@ -83,6 +85,28 @@ public class RangeCommandHandlerTests
         await ExecuteHandler($"create {thingId} nominal temp>=20 --bounds-min 20", _myceliumMock.Object);
 
         _myceliumMock.Verify(b => b.CreateRangeAsync(thingId, "nominal", "temp>=20", null, It.IsAny<object>()), Times.Once);
+    }
+
+    // A bound typed on the command line becomes stored model data, so the same command must mean the
+    // same number on every machine. A regional format that writes 20,5 must not turn --bounds-min 20.5
+    // into 205.
+    [Fact]
+    public async Task Create_BoundsWithADecimalPoint_MeansTheSameWhateverTheRegionalFormat()
+    {
+        var thingId = Guid.NewGuid();
+        var mockResponse = JsonDocument.Parse("{\"Name\":\"nominal\"}");
+        object? capturedBounds = null;
+        _myceliumMock.Setup(b => b.CreateRangeAsync(thingId, "nominal", "temp>=20", null, It.IsAny<object>()))
+            .Callback<Guid, string, string, string?, object?>((_, _, _, _, bounds) => capturedBounds = bounds)
+            .ReturnsAsync(mockResponse.RootElement);
+
+        await TestCulture.InAsync(TestCulture.CommaDecimal,
+            () => ExecuteHandler($"create {thingId} nominal temp>=20 --bounds-min 20.5 --bounds-max 80.25", _myceliumMock.Object));
+
+        capturedBounds.Should().NotBeNull();
+        var boundsType = capturedBounds!.GetType();
+        boundsType.GetProperty("Min")!.GetValue(capturedBounds).Should().Be(20.5m);
+        boundsType.GetProperty("Max")!.GetValue(capturedBounds).Should().Be(80.25m);
     }
 
     [Fact]

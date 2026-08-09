@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using vos.Service.Metabolism.Helpers;
 using vos.Service.Metabolism.Models;
+using System.Globalization;
 
 namespace vos.Service.Metabolism.Services;
 
@@ -158,11 +159,11 @@ public class Metabolism
             {
                 updated = propertyName switch
                 {
-                    "quantity" => old with { Quantity = Convert.ToDecimal(value) },
-                    "frequencySeconds" => old with { FrequencySeconds = Convert.ToInt32(value) },
+                    "quantity" => old with { Quantity = Convert.ToDecimal(value, CultureInfo.InvariantCulture) },
+                    "frequencySeconds" => old with { FrequencySeconds = Convert.ToInt32(value, CultureInfo.InvariantCulture) },
                     "unit" => old with { Unit = value?.ToString() ?? "" },
                     "propertyPath" => old with { PropertyPath = value?.ToString() ?? "quantity" },
-                    "startDelaySeconds" => old with { StartDelaySeconds = Convert.ToDecimal(value) },
+                    "startDelaySeconds" => old with { StartDelaySeconds = Convert.ToDecimal(value, CultureInfo.InvariantCulture) },
                     _ => null
                 };
             }

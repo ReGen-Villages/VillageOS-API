@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Delta.Helpers;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Delta.Tests.Helpers;
@@ -25,6 +26,15 @@ public class JsonValueCoercionTests
     public void CoerceToString_IntegerPrimitive_UsesToString()
     {
         JsonValueCoercion.CoerceToString(42).Should().Be("42");
+    }
+
+    // The text written here becomes the property's value on the model, so it must not pick up the
+    // machine's separator and store "30,5".
+    [Fact]
+    public void CoerceToString_BoxedNumber_RendersWithADotWhateverTheRegionalFormat()
+    {
+        TestCulture.In(TestCulture.CommaDecimal, () => JsonValueCoercion.CoerceToString(30.5))
+            .Should().Be("30.5");
     }
 
     [Fact]

@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Tributary.Helpers;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Tributary.Tests.Helpers;
@@ -113,8 +115,17 @@ public class OutboundRequestTests
     {
         // TimeSpan.FromSeconds(TimeSpan.MaxValue.TotalSeconds) itself overflows, so the boundary value
         // must be rejected rather than passed through.
-        var atMax = TimeSpan.MaxValue.TotalSeconds.ToString("R");
+        var atMax = TimeSpan.MaxValue.TotalSeconds.ToString("R", CultureInfo.InvariantCulture);
         OutboundRequest.ResolveTimeout(Json(atMax)).Should().Be(OutboundRequest.DefaultTimeout);
+    }
+
+    [Fact]
+    public void ResolveTimeout_StringSeconds_ReadsTheDotAsADecimalPointWhateverTheRegionalFormat()
+    {
+        // A regional format that writes 30,5 must not make the JSON value "30.5" mean 305 seconds.
+        var resolved = TestCulture.In(TestCulture.CommaDecimal, () => OutboundRequest.ResolveTimeout(Json("\"30.5\"")));
+
+        resolved.Should().Be(TimeSpan.FromSeconds(30.5));
     }
 
     // ---------- TryParseStringMap ----------
