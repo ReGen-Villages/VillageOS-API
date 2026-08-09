@@ -95,10 +95,17 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 | Pipeline | Params to enter |
 |----------|-----------------|
 | Fan-out Scoring | `items` = `["alpha","beta","gamma","delta","epsilon"]`, `weight` = `2` |
-| Water Self-Sufficiency | `population` = `5000`, `perCapitaConsumptionM3` = `0.15`, `storageCapacityM3` = `40000` |
+| Water Self-Sufficiency | `population` = `5000`, `perCapitaConsumptionM3` = `55`, `storageCapacityM3` = `40000` |
 | Energy Self-Sufficiency | `solarPvAreaM2` = `12000`, `solarResourceKwhPerM2PerYear` = `1400`, `moduleEfficiency` = `0.17`, `performanceRatio` = `0.77`, `otherGenerationMwhPerYear` = `500`, `annualConsumptionMwhPerYear` = `3200` |
 | Number Cruncher | `factor` = `10`, `offset` = `5` |
-| Site Analysis (Combined) | `perCapitaConsumptionM3` = `0.15`, `storageCapacityM3` = `40000`, plus the Energy params above |
+| Site Analysis (Combined) | `perCapitaConsumptionM3` = `55`, `storageCapacityM3` = `40000`, plus the Energy params above |
+
+> **`perCapitaConsumptionM3` is per person per *year*.** `55` is 150 litres per person per day
+> expressed annually — the same basis the site-analysis templates use. A per-day figure is silently
+> wrong rather than rejected: the calculator derives daily demand itself (`annual ÷ 365`), so
+> entering `0.15` understates demand by a factor of about 366 and inflates days of supply by the
+> same amount. The calculator's own field is `PerCapitaConsumptionM3PerYear`; the port drops the
+> `PerYear`, which is what makes the substitution easy to miss.
 
 ### What actually runs vs. what's editor-only
 
