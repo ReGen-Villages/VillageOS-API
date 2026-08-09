@@ -96,7 +96,7 @@ flowchart TB
 ### How Relationship Services Work
 
 1. **PlatformServiceConnection + Service definition**: A dispatched predicate `is PlatformServiceConnection` (`trigger: graph`) and `has` a Service Thing carrying the handler configuration properties (typically inherited from a shared prototype):
-   - `ExecutablePath` -- path to the handler executable (`.dll` files are run via `dotnet`)
+   - `ExecutablePath` -- path to the handler executable (`.dll` files are run via `dotnet`). A relative path resolves from the folder Mycelium runs in, not from the seed file, so a service built in another repository needs a path that climbs out of Mycelium's own.
    - `ServicePort` -- port for the daemon to listen on
    - `ServiceArgs` -- extra CLI arguments (e.g., `--mode=consumes`) passed verbatim to the daemon.
    - `RunMode` -- execution mode (only `"daemon"` is supported; defaults to `"daemon"` if unset)
