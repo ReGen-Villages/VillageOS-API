@@ -1,5 +1,6 @@
 using vos.Auth.Shared;
 using vos.Service.Shared;
+using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
 using vos.Service.WaterReserve.Services;
@@ -54,6 +55,20 @@ try
         new WaterReserveReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<WaterReserveReactiveHandler>>(), myceliumUrl, serviceToken));
 
+    builder.Services.AddSingleton(sp => new SubscriptionClient(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<ILogger<SubscriptionClient>>(), myceliumUrl, serviceToken));
+    builder.Services.AddSingleton<ISubscriptionClient>(sp => sp.GetRequiredService<SubscriptionClient>());
+
+    // Recompute when an input moves, so a study's result never presents a stale number as current.
+    builder.Services.AddSingleton(sp => new InputChangeRecomputeService(
+        sp.GetRequiredService<ISubscriptionClient>(),
+        new RecomputeInputs("WaterReserve", WaterReserveReactiveHandler.InputProperties,
+            (studyId, ct) => sp.GetRequiredService<WaterReserveReactiveHandler>().RecomputeAsync(studyId, ct)),
+        sp.GetRequiredService<IHostEnvironment>(),
+        sp.GetRequiredService<ILogger<InputChangeRecomputeService>>()));
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<InputChangeRecomputeService>());
+
     builder.Services.AddMyceliumRegistration("WaterReserve", servicePort);
 
     var app = builder.Build();
@@ -64,7 +79,8 @@ try
         app.UseAuthorization();
     }
 
-    var handle = app.MapPost("/handle", async (HttpContext ctx, WaterReserveNode node, WaterReserveReactiveHandler reactive) =>
+    var handle = app.MapPost("/handle", async (HttpContext ctx, WaterReserveNode node, WaterReserveReactiveHandler reactive,
+        InputChangeRecomputeService following) =>
     {
         using var reader = new StreamReader(ctx.Request.Body);
         var root = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(await reader.ReadToEndAsync());
@@ -75,6 +91,7 @@ try
                 return Results.Ok(await node.HandleNodeAsync(root, ctx.RequestAborted));
 
             case HandleRequestKind.RelationshipSubject:
+                following.Watch(studyId);
                 var outputs = await reactive.RecomputeAsync(studyId, ctx.RequestAborted);
                 return Results.Ok(new { success = true, outputs });
 

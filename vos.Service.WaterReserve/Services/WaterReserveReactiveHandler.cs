@@ -18,7 +18,11 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
     {
     }
 
-    // Input port names, read off the study by name.
+    // Input port names, read off the study by name. Public so the subscription that recomputes on a change
+    // watches exactly what Compute reads.
+    public static readonly IReadOnlySet<string> InputProperties =
+        new HashSet<string>(StringComparer.Ordinal) { "population", "perCapitaConsumptionM3", "storageCapacityM3" };
+
     private static readonly string[] Inputs = { "population", "perCapitaConsumptionM3", "storageCapacityM3" };
 
     // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.

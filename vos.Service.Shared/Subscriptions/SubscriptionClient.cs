@@ -12,6 +12,11 @@ public interface ISubscriptionClient
     Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default);
     Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default);
     IAsyncEnumerable<ModelChangeEvent> StreamAsync(Guid subscriptionId, long fromSequence, CancellationToken ct = default);
+
+    /// <summary>Raised once the stream has re-established a dropped connection. Replay covers Facts, but a
+    /// derived value (a roll-up recompute) is published live-only and is absent from the journal, so a
+    /// subscriber computing from one must re-read after a gap rather than trust the resume.</summary>
+    event Action? Reconnected;
 }
 
 // Subscribe once for a snapshot, then stream live changes over SSE, resuming via Last-Event-ID
@@ -21,6 +26,8 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public TimeSpan ReconnectDelay { get; set; } = TimeSpan.FromSeconds(2);
+
+    public event Action? Reconnected;
 
     public SubscriptionClient(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null)
         : base(httpClientFactory, logger, myceliumUrl, serviceToken)
@@ -68,6 +75,7 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
         Guid subscriptionId, long fromSequence, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var lastSequence = fromSequence;
+        var everConnected = false;
 
         while (!ct.IsCancellationRequested)
         {
@@ -77,6 +85,9 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
                 if (!await DelayReconnectAsync(ct)) yield break;
                 continue;
             }
+
+            if (everConnected) Reconnected?.Invoke();
+            everConnected = true;
 
             using (connection.Response)
             {

@@ -334,6 +334,24 @@ switch (HandleRequestRouter.Classify(root, out var subjectId))
 }
 ```
 
+**Staying current (#6155).** A dispatch computes once. `InputChangeRecomputeService`
+(`vos.Service.Shared.Subscriptions`) keeps the result current afterwards: `/handle` calls
+`Watch(subjectId)` for the subject it just computed, and the service recomputes whenever one of its
+**input** properties on that subject moves. EnergyBalance and WaterReserve both register it; the set of
+subjects grows from the dispatches the service already receives, so no discovery rule of its own.
+
+Three details make it work:
+
+- **Watching the subject is enough.** Mycelium publishes a derived value on the Thing that owns it, so a
+  roll-up whose members changed arrives as a property change on the subject, exactly like a param someone
+  edited. There is no need to subscribe to member Things.
+- **Only inputs trigger it.** A compute service writes its outputs onto the same subject it watches, so
+  reacting to every change there would recompute forever. Each handler exposes `InputProperties`, and the
+  wiring passes that same set, so the filter cannot drift from what the handler reads.
+- **A reconnect recomputes.** A derived value is published live-only and never enters the journal, so a
+  resumed stream does not replay one. `ISubscriptionClient.Reconnected` fires after the stream re-establishes
+  a dropped connection, and every watched subject is recomputed rather than trusted.
+
 The contract-validation wiring is the canonical reference in
 `vos.Service.Metabolism/Program.cs` +
 `Endpoints/EndpointMapper.cs`. Adopting it in a new

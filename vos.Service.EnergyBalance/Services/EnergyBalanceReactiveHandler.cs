@@ -19,6 +19,16 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
     {
     }
 
+    // What Compute reads off the study. Public so the subscription that recomputes on a change watches
+    // exactly these — solarPvAreaM2 and otherGenerationMwhPerYear are roll-ups, and Mycelium publishes a
+    // derived value on the Thing that owns it, so a member change arrives here as a change on the study.
+    public static readonly IReadOnlySet<string> InputProperties =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "solarPvAreaM2", "solarResourceKwhPerM2PerYear", "moduleEfficiency",
+            "performanceRatio", "otherGenerationMwhPerYear", "annualConsumptionMwhPerYear",
+        };
+
     // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.
     public async Task<EnergyBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
