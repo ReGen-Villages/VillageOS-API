@@ -63,11 +63,26 @@ find-or-create by name:
 2. Order templates **root-first** (ascending chain length is a valid topological order, so a
    parent is always provisioned before its children).
 3. For each template: if a Thing with that name already exists, reuse it; otherwise create it and
-   — only for the newly-created Thing — wire its `is` edge to its parent.
+   — only for the newly-created Thing — wire its `is` edge to its parent, then write the keys it
+   narrows.
+
+**Why a narrowed key is written last.** A template usually restates keys its parent already
+declares, with a tighter value (`EsriEndpoint` narrowing `Endpoint`'s `requestContentType`). The
+order those two writes happen in decides how Mycelium stores the result:
+
+| Order | What Mycelium stores | Result |
+|---|---|---|
+| Property first, `is` after | An **own** property — the name was not yet inherited when it was written | The template owns a name it also inherits. The platform forbids that (invariant I1/I2), and the key surfaces **twice** in every descendant's resolved view |
+| `is` first, property after | An **override** — the name resolves as inherited, so the write materializes a per-instance override | One key in the resolved view, holding the narrowed value |
+
+So the provisioner splits a template's seed properties: keys no ancestor declares are carried on
+the create, and keys some ancestor declares are written after the `is` edge exists. The root
+template inherits nothing, so all of its properties stay on the create.
 
 > **Known gap.** If a template Thing was created on a prior run but its `is` edge failed, a later
 > run finds the Thing and cannot repair the missing edge — there is no Mycelium relationship-query
-> API to detect it. Tracked in the code comment on `TemplateCatalogProvisioner`.
+> API to detect it. The same run leaves that template's narrowed keys unwritten, so it silently
+> keeps the parent's values. Tracked in the code comment on `TemplateCatalogProvisioner`.
 
 Provisioning is best-effort startup work (Mycelium's liveness monitor covers an unusable model)
 and is **skipped under the `Testing` environment** so tests make no Mycelium calls at boot.

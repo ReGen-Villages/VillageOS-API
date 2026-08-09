@@ -62,6 +62,29 @@ public class TemplateCatalogProvisionerTests
     }
     """;
 
+    // EsriEndpoint narrows requestContentType, which Endpoint already declares, and adds layer, which
+    // it does not. The two halves must be provisioned differently.
+    private const string NarrowingSeed = """
+    {
+      "things": [
+        { "name": "Endpoint", "properties": { "url": "", "requestContentType": "application/json" } },
+        { "name": "EsriEndpoint", "properties": { "requestContentType": "application/x-www-form-urlencoded", "layer": "" } }
+      ],
+      "relationships": [ { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" } ]
+    }
+    """;
+
+    // A grouping template with `properties` absent rather than empty.
+    private const string PropertylessChildSeed = """
+    {
+      "things": [
+        { "name": "Endpoint", "properties": { "url": "" } },
+        { "name": "Grouping" }
+      ],
+      "relationships": [ { "subject": "Grouping", "predicate": "is", "target": "Endpoint" } ]
+    }
+    """;
+
     // The `is` target is authored in a different case than the thing name to pin case-insensitive
     // parent resolution during wiring.
     private const string CaseVariationSeed = """
@@ -204,6 +227,86 @@ public class TemplateCatalogProvisionerTests
         stub.Relationships.Should().BeEmpty("the child cannot be wired to a parent that failed to create");
     }
 
+    // A key the parent chain already declares must not be created as an own property: the thing would
+    // then own a name it also inherits, which the platform forbids (invariant I1/I2) and which makes
+    // the key surface twice in the resolved view. It has to be written after `is` exists, so Mycelium
+    // stores it as an override.
+
+    [Fact]
+    public async Task ProvisionAsync_TemplateNarrowsAParentKey_DoesNotCreateItAsAnOwnProperty()
+    {
+        var stub = new MyceliumStub();
+
+        await Provisioner(stub, NarrowingSeed).ProvisionAsync();
+
+        var esriCreateBody = stub.ThingPostBodies.Single(b => b.Contains("EsriEndpoint"));
+        esriCreateBody.Should().NotContain("requestContentType", "the parent declares it, so creating it here would shadow");
+        esriCreateBody.Should().Contain("layer", "a key no ancestor declares is genuinely this template's own");
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_TemplateNarrowsAParentKey_WritesItAfterTheIsEdgeExists()
+    {
+        var stub = new MyceliumStub();
+
+        await Provisioner(stub, NarrowingSeed).ProvisionAsync();
+
+        stub.PropertyWrites.Should().ContainSingle()
+            .Which.Should().Match<(Guid ThingId, string Name, string Body)>(w =>
+                w.ThingId == stub.CreatedByName["EsriEndpoint"]
+                && w.Name == "requestContentType"
+                && w.Body.Contains("application/x-www-form-urlencoded"));
+
+        stub.Calls.IndexOf("property:EsriEndpoint.requestContentType")
+            .Should().BeGreaterThan(stub.Calls.IndexOf("relationship:EsriEndpoint->Endpoint"));
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_RootTemplate_KeepsEveryPropertyOnCreate()
+    {
+        var stub = new MyceliumStub();
+
+        await Provisioner(stub, NarrowingSeed).ProvisionAsync();
+
+        var endpointCreateBody = stub.ThingPostBodies.Single(b => !b.Contains("EsriEndpoint"));
+        endpointCreateBody.Should().Contain("requestContentType", "the root inherits nothing, so nothing can shadow");
+        stub.PropertyWrites.Should().NotContain(w => w.ThingId == stub.CreatedByName["Endpoint"]);
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_ParentWiringFailed_SkipsTheNarrowedWriteRatherThanShadowing()
+    {
+        var stub = new MyceliumStub { FailRelationships = true };
+
+        await Provisioner(stub, NarrowingSeed).ProvisionAsync();
+
+        stub.PropertyWrites.Should().BeEmpty(
+            "without the is edge the key is not inherited, so writing it would create the shadow this avoids");
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_TemplateDeclaringNoProperties_IsCreatedAndWired()
+    {
+        var stub = new MyceliumStub();
+
+        await Provisioner(stub, PropertylessChildSeed).ProvisionAsync();
+
+        stub.CreatedByName.Keys.Should().BeEquivalentTo(new[] { "Endpoint", "Grouping" });
+        stub.Relationships.Should().ContainSingle();
+        stub.PropertyWrites.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_NarrowedWriteFails_StillProvisionsTheRestOfTheCatalog()
+    {
+        var stub = new MyceliumStub { FailPropertyWrites = true };
+
+        await Provisioner(stub, ThreeLevelSeed).ProvisionAsync();
+
+        stub.CreatedByName.Keys.Should().BeEquivalentTo(new[] { "Endpoint", "EsriEndpoint", "CountyParcels" });
+        stub.Relationships.Should().HaveCount(2, "a template that could not narrow a key is still wired");
+    }
+
     // ---------- Harness ----------
 
     private static TemplateCatalogProvisioner Provisioner(MyceliumStub stub, string seedJson) =>
@@ -227,11 +330,18 @@ public class TemplateCatalogProvisionerTests
         public Guid IsId { get; } = Guid.NewGuid();
         public bool IsPredicatePresent { get; init; } = true;
         public string? FailCreateName { get; init; }
+        public bool FailRelationships { get; init; }
+        public bool FailPropertyWrites { get; init; }
 
         private readonly Dictionary<string, Guid> _preexisting = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, Guid> CreatedByName { get; } = new(StringComparer.OrdinalIgnoreCase);
         public List<string> ThingPostBodies { get; } = new();
         public List<(Guid Subject, Guid Predicate, Guid Target)> Relationships { get; } = new();
+        public List<(Guid ThingId, string Name, string Body)> PropertyWrites { get; } = new();
+
+        // Mycelium writes in call order, so ordering between the `is` edge and a property write is the
+        // whole point of these tests; record it rather than inferring it from the per-kind lists.
+        public List<string> Calls { get; } = new();
         public int ThingPostCount => ThingPostBodies.Count;
 
         public void Preexist(string name, Guid id) => _preexisting[name] = id;
@@ -266,12 +376,38 @@ public class TemplateCatalogProvisionerTests
 
             if (req.Method == HttpMethod.Post && path == "/api/relationships")
             {
+                if (FailRelationships)
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 var body = Body(req);
-                Relationships.Add((GuidProp(body, "subjectId"), GuidProp(body, "predicateId"), GuidProp(body, "targetId")));
+                var subject = GuidProp(body, "subjectId");
+                var target = GuidProp(body, "targetId");
+                Relationships.Add((subject, GuidProp(body, "predicateId"), target));
+                Calls.Add($"relationship:{NameOf(subject)}->{NameOf(target)}");
                 return new HttpResponseMessage(HttpStatusCode.Created);
             }
 
+            if (req.Method == HttpMethod.Put && path.EndsWith("/properties", StringComparison.Ordinal))
+            {
+                if (FailPropertyWrites)
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
+                var body = Body(req);
+                var thingId = Guid.Parse(path.Split('/')[^2]);
+                var name = StringProp(body, "name") ?? string.Empty;
+                PropertyWrites.Add((thingId, name, body));
+                Calls.Add($"property:{NameOf(thingId)}.{name}");
+                return Json("{}");
+            }
+
             return new HttpResponseMessage(HttpStatusCode.NotFound);
+        }
+
+        private string NameOf(Guid id)
+        {
+            foreach (var (name, known) in CreatedByName)
+                if (known == id) return name;
+            foreach (var (name, known) in _preexisting)
+                if (known == id) return name;
+            return id.ToString();
         }
 
         private static string Body(HttpRequestMessage req) =>
