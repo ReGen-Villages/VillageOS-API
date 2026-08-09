@@ -312,6 +312,11 @@ Bearer-authed POST. Pick by intent:
 | **Observation** (batch) | many samples across one entity's properties, one call | `POST /api/things/{id}/observations` | `[{ "property", "value", "observedAt"? }]` | `202 { accepted }` |
 | **Sediment** | bulk historical load written straight to sealed Sapwood; entities must already exist; `observedAt` **required** | `POST /api/sediment` | `[{ "thingId", "property", "value", "observedAt" }]` | `202 { batchId, series, buckets, samples }` |
 
+**Computed properties refuse every write kind.** A property whose value the platform computes
+from related Things (a roll-up — its serialized `typeInfo` ends in `Rollup`) answers `400` to
+Facts, Observations, and Sediment alike: its value belongs to the platform's computing pass, and
+a stored write would only be overwritten on the next pass.
+
 **Gating.** A property declares which kinds it accepts (`AllowedWriteKinds`: `Both` / `FactOnly` /
 `ObservationOnly`). Writing the wrong kind is rejected with **405** — a Fact to an `ObservationOnly`
 property, or an observation to a `FactOnly` one. An unknown thing/property is **404**.
