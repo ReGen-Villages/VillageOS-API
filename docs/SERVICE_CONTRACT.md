@@ -122,7 +122,8 @@ its endpoints is in the closure. What resolving a selector costs follows from th
 |---|---|
 | `ids` | the objects named, and their own edges |
 | `traverse` | the same again for each object the walk reaches |
-| `names`, `types` | a search of every Thing in the model |
+| `names` | the Things carrying the name |
+| `types` | the members of the type, reached by descending its `is` chain |
 | `all` | the whole model, by definition |
 
 Two consequences are worth designing around:
