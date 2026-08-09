@@ -93,6 +93,8 @@ public class SelectorDemoTests
     // Records the selector it was subscribed with and the id it was asked to unsubscribe.
     private sealed class FakeSubscriptionClient(SubscribeResult result) : ISubscriptionClient
     {
+        public event Action? Reconnected { add { } remove { } }
+
         public SubscriptionSelector? Subscribed { get; private set; }
         public Guid? Unsubscribed { get; private set; }
 
