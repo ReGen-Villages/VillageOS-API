@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace vos.Taproot;
 
 /// <summary>
@@ -46,15 +44,15 @@ public class SnapshotsCommandHandler
 
         _writer.WriteLine("Snapshot resolution — since Mycelium started");
         _writer.WriteLine($"  Resolutions served    {resolutions,10}");
-        _writer.WriteLine($"  Taken again           {retries,10}   {Share(retries, resolutions)}");
-        _writer.WriteLine($"  Took the lock         {lockedPasses,10}   {Share(lockedPasses, resolutions)}");
+        _writer.WriteLine($"  Taken again           {retries,10}{Share(retries, resolutions)}");
+        _writer.WriteLine($"  Took the lock         {lockedPasses,10}{Share(lockedPasses, resolutions)}");
         _writer.WriteLine();
         _writer.WriteLine("Totals include the seed load's structural writes. For one run's rate,");
         _writer.WriteLine("read before and after it and difference the two.");
     }
 
     private static string Share(long part, long total) =>
-        total == 0 ? "" : $"{(double)part / total:P1} of resolutions";
+        total == 0 ? "" : $"   {(double)part / total:P1} of resolutions";
 
     private void ShowUsage()
     {

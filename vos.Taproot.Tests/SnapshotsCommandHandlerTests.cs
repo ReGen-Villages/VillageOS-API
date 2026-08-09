@@ -64,14 +64,18 @@ public class SnapshotsCommandHandlerTests
         Assert.Contains("difference", _writer.ToString());
     }
 
+    /// With no resolutions there is no share to show, and the column separator must go with it
+    /// rather than being left dangling at the end of the line.
     [Fact]
-    public async Task Execute_BeforeAnyResolution_PrintsNoShare()
+    public async Task Execute_BeforeAnyResolution_PrintsNoShareAndNoDanglingSeparator()
     {
         MyceliumReports(resolutions: 0, retries: 0, lockedPasses: 0);
 
         await ExecuteHandler("");
 
-        Assert.DoesNotContain("%", _writer.ToString());
+        var output = _writer.ToString();
+        Assert.DoesNotContain("%", output);
+        Assert.All(output.Split(Environment.NewLine), line => Assert.Equal(line.TrimEnd(), line));
     }
 
     [Fact]
