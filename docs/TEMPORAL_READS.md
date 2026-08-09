@@ -161,14 +161,15 @@ POST /api/temporal/aggregate
 | `timestampProperty` | The property holding the instant each member's event happened |
 | `measureProperty` | The property reduced per member. `Count` needs none; every other reduction does |
 | `windowSeconds` | How far back the window reaches from the model clock's now |
-| `bucketSeconds` | How wide each bucket is. The window must be a whole number of them |
+| `bucketSeconds` | How wide each bucket is. The window must be a whole number of them, and at most ten thousand |
 | `within` + `withinPredicate` | Only members this container reaches through the named predicate, at any depth |
 
 The window ends at the **model clock's** now — the same clock as every other temporal read on this
 page — and each bucket is closed at its end, so an event exactly at now falls in the last bucket and
 one exactly at the window start belongs to the window before this. A window equal to one bucket is a
 trailing-window scalar: the question a tile asks, answered by the same code as the series it sits
-above.
+above. An answer holds at most ten thousand values, so a caller reaching further back widens its
+buckets rather than asking for a reply nobody can read.
 
 A question the platform cannot run is refused with `400` naming what is wrong, rather than answered
 with an empty series that would read as "nothing happened". Members carrying no readable instant or
