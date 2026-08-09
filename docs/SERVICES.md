@@ -337,8 +337,17 @@ switch (HandleRequestRouter.Classify(root, out var subjectId))
 **Staying current (#6155).** A dispatch computes once. `InputChangeRecomputeService`
 (`vos.Service.Shared.Subscriptions`) keeps the result current afterwards: `/handle` calls
 `Watch(subjectId)` for the subject it just computed, and the service recomputes whenever one of its
-**input** properties on that subject moves. EnergyBalance and WaterReserve both register it; the set of
-subjects grows from the dispatches the service already receives, so no discovery rule of its own.
+**input** properties on that subject moves. The set of subjects grows from the dispatches the service
+already receives, so no discovery rule of its own. One line wires it:
+
+```csharp
+builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
+    "EnergyBalance", myceliumUrl, serviceToken, EnergyBalanceReactiveHandler.InputProperties,
+    (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
+```
+
+Pass the handler's own `InputProperties`, which it derives from the list `Compute` reads, so the filter
+cannot come to disagree with the inputs.
 
 Three details make it work:
 

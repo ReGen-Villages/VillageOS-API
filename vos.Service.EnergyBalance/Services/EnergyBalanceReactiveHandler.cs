@@ -19,15 +19,18 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
     {
     }
 
-    // What Compute reads off the study. Public so the subscription that recomputes on a change watches
-    // exactly these — solarPvAreaM2 and otherGenerationMwhPerYear are roll-ups, and Mycelium publishes a
-    // derived value on the Thing that owns it, so a member change arrives here as a change on the study.
-    public static readonly IReadOnlySet<string> InputProperties =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "solarPvAreaM2", "solarResourceKwhPerM2PerYear", "moduleEfficiency",
-            "performanceRatio", "otherGenerationMwhPerYear", "annualConsumptionMwhPerYear",
-        };
+    // Input port names, read off the study by name. solarPvAreaM2 and otherGenerationMwhPerYear are
+    // roll-ups; Mycelium publishes a derived value on the Thing that owns it, so a member change arrives
+    // as a change on the study like any other.
+    private static readonly string[] Inputs =
+    {
+        "solarPvAreaM2", "solarResourceKwhPerM2PerYear", "moduleEfficiency",
+        "performanceRatio", "otherGenerationMwhPerYear", "annualConsumptionMwhPerYear",
+    };
+
+    // The same names as a set, for the subscription that recomputes when one moves. Derived from Inputs
+    // rather than restated, so the filter cannot come to disagree with what Compute reads.
+    public static readonly IReadOnlySet<string> InputProperties = new HashSet<string>(Inputs, StringComparer.Ordinal);
 
     // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.
     public async Task<EnergyBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
@@ -36,12 +39,8 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
 
         var props = await FetchEffectivePropertiesAsync(client, studyId, cancellationToken);
         var result = EnergyBalanceCalculator.Compute(new EnergyBalanceInputs(
-            Number(props, "solarPvAreaM2"),
-            Number(props, "solarResourceKwhPerM2PerYear"),
-            Number(props, "moduleEfficiency"),
-            Number(props, "performanceRatio"),
-            Number(props, "otherGenerationMwhPerYear"),
-            Number(props, "annualConsumptionMwhPerYear")));
+            Number(props, Inputs[0]), Number(props, Inputs[1]), Number(props, Inputs[2]),
+            Number(props, Inputs[3]), Number(props, Inputs[4]), Number(props, Inputs[5])));
 
         await WriteAsync(client, studyId, "pctOfConsumption", result.PctOfConsumption, cancellationToken);
         await WriteAsync(client, studyId, "netPositive", result.NetPositive, cancellationToken);

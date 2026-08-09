@@ -55,19 +55,10 @@ try
         new WaterReserveReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<WaterReserveReactiveHandler>>(), myceliumUrl, serviceToken));
 
-    builder.Services.AddSingleton(sp => new SubscriptionClient(
-        sp.GetRequiredService<IHttpClientFactory>(),
-        sp.GetRequiredService<ILogger<SubscriptionClient>>(), myceliumUrl, serviceToken));
-    builder.Services.AddSingleton<ISubscriptionClient>(sp => sp.GetRequiredService<SubscriptionClient>());
-
     // Recompute when an input moves, so a study's result never presents a stale number as current.
-    builder.Services.AddSingleton(sp => new InputChangeRecomputeService(
-        sp.GetRequiredService<ISubscriptionClient>(),
-        new RecomputeInputs("WaterReserve", WaterReserveReactiveHandler.InputProperties,
-            (studyId, ct) => sp.GetRequiredService<WaterReserveReactiveHandler>().RecomputeAsync(studyId, ct)),
-        sp.GetRequiredService<IHostEnvironment>(),
-        sp.GetRequiredService<ILogger<InputChangeRecomputeService>>()));
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<InputChangeRecomputeService>());
+    builder.Services.AddInputChangeRecompute<WaterReserveReactiveHandler>(
+        "WaterReserve", myceliumUrl, serviceToken, WaterReserveReactiveHandler.InputProperties,
+        (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
 
     builder.Services.AddMyceliumRegistration("WaterReserve", servicePort);
 

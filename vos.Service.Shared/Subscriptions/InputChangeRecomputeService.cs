@@ -1,7 +1,35 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace vos.Service.Shared.Subscriptions;
+
+public static class InputChangeRecomputeRegistration
+{
+    /// <summary>Wire the subscription that keeps a compute service's results current. The handler type is
+    /// resolved per recompute rather than captured, so it follows whatever the container holds.</summary>
+    public static IServiceCollection AddInputChangeRecompute<THandler>(
+        this IServiceCollection services, string serviceName, string myceliumUrl, string? serviceToken,
+        IReadOnlySet<string> inputProperties, Func<THandler, Guid, CancellationToken, Task> recompute)
+        where THandler : notnull
+    {
+        services.AddSingleton<ISubscriptionClient>(provider => new SubscriptionClient(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            provider.GetRequiredService<ILogger<SubscriptionClient>>(), myceliumUrl, serviceToken));
+
+        services.AddSingleton(provider => new RecomputeInputs(serviceName, inputProperties,
+            (subjectId, cancellationToken) =>
+                recompute(provider.GetRequiredService<THandler>(), subjectId, cancellationToken)));
+
+        services.AddSingleton(provider => new InputChangeRecomputeService(
+            provider.GetRequiredService<ISubscriptionClient>(),
+            provider.GetRequiredService<RecomputeInputs>(),
+            provider.GetRequiredService<IHostEnvironment>(),
+            provider.GetRequiredService<ILogger<InputChangeRecomputeService>>()));
+
+        return services.AddHostedService(provider => provider.GetRequiredService<InputChangeRecomputeService>());
+    }
+}
 
 /// <summary>What a compute service needs to keep its results current: the inputs it reads off a
 /// subject, and how to recompute one.</summary>

@@ -55,19 +55,10 @@ try
         new EnergyBalanceReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<EnergyBalanceReactiveHandler>>(), myceliumUrl, serviceToken));
 
-    builder.Services.AddSingleton(sp => new SubscriptionClient(
-        sp.GetRequiredService<IHttpClientFactory>(),
-        sp.GetRequiredService<ILogger<SubscriptionClient>>(), myceliumUrl, serviceToken));
-    builder.Services.AddSingleton<ISubscriptionClient>(sp => sp.GetRequiredService<SubscriptionClient>());
-
     // Recompute when an input moves, so a study's result never presents a stale number as current.
-    builder.Services.AddSingleton(sp => new InputChangeRecomputeService(
-        sp.GetRequiredService<ISubscriptionClient>(),
-        new RecomputeInputs("EnergyBalance", EnergyBalanceReactiveHandler.InputProperties,
-            (studyId, ct) => sp.GetRequiredService<EnergyBalanceReactiveHandler>().RecomputeAsync(studyId, ct)),
-        sp.GetRequiredService<IHostEnvironment>(),
-        sp.GetRequiredService<ILogger<InputChangeRecomputeService>>()));
-    builder.Services.AddHostedService(sp => sp.GetRequiredService<InputChangeRecomputeService>());
+    builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
+        "EnergyBalance", myceliumUrl, serviceToken, EnergyBalanceReactiveHandler.InputProperties,
+        (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
 
     builder.Services.AddMyceliumRegistration("EnergyBalance", servicePort);
 
