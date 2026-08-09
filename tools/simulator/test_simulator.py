@@ -92,9 +92,7 @@ class FakeMycelium:
             for r in document["Relationships"]:
                 self.rels.append((r["Subject"], r["Predicate"], r["Target"]))
 
-    # A double that yielded an empty stream would pass every assertion while testing nothing, so the
-    # three watch calls refuse instead. Exercise them against a running Mycelium — e2e_fragment.py is
-    # the live script — rather than through anything here.
+    # A double that yielded an empty stream would pass every assertion while testing nothing.
     _NO_STREAM = ("This double records writes and does not emulate the change stream. "
                   "Subscribe, follow and unsubscribe are server behaviour: test them against a "
                   "running Mycelium, the way e2e_fragment.py does.")
@@ -362,9 +360,8 @@ class ReplayAgainstFakeMycelium(unittest.TestCase):
 
 
 class TheChangeStreamIsRefusedNotFaked(unittest.TestCase):
-    """The double stands in for the write API and nothing else. `follow_until` subscribes, reads the
-    SSE stream and unsubscribes — server behaviour a recorder cannot stand in for, and a double that
-    yielded an empty stream would pass every assertion while testing nothing."""
+    """`follow_until` subscribes, reads the SSE stream and unsubscribes — server behaviour a
+    recorder cannot stand in for."""
 
     def test_each_watch_call_says_what_is_not_emulated(self):
         client = FakeMycelium()
