@@ -201,9 +201,46 @@ downstream number is proportional to it.
 
 ### What gets written
 
-The completed wizard posts one **fragment** — Things, relationships and values in a single call.
-Because a fragment upserts, progress can be saved as the planner goes: the same fragment posted
-again updates rather than duplicating. Closing the tab does not lose the work.
+The wizard posts the **submission** — what it has collected so far — to the intake service
+(`vos.Service.Intake`). The service composes one **fragment** from it (Things, relationships and values
+in a single call) and applies it. Because a fragment upserts, progress can be saved as the planner
+goes: the same submission posted again updates rather than duplicating. Closing the tab does not lose
+the work.
+
+```jsonc
+{
+  "submissionId": "willow-bend-2026-08",     // every identifier derives from this
+  "site": {
+    "name": "Willow Bend",
+    "latitude": 39.5012,
+    "longitude": -8.4137,
+    "statedAreaHectares": 24.0,              // what the planner asserted
+    "population": 320,
+    "householdSize": 2.4
+  },
+  "parcel": {                                 // left out until a boundary has been drawn
+    "boundarySource": "drawn-by-hand",        // or imported-from-file, or generated-from-stated-area
+    "boundary": [
+      { "latitude": 39.4990248, "longitude": -8.4165190 }
+      // …at least three corners
+    ]
+  }
+}
+```
+
+Four rules, each of which exists to stop a particular kind of quiet damage:
+
+| Rule | Why |
+|---|---|
+| **One place composes the fragment** | The signed-in wizard and a public submission post the same document to the same service, so there is one mapping from a submission to the model rather than one per caller. |
+| **Identifiers derive from the submission** | A wizard saves as it goes and a planner can double-click. A freshly generated identifier would build a second site beside the first; a derived one lands on the same Things every time, which is also what lets promotion be idempotent later. |
+| **A field not filled in yet is left out, not zeroed** | An absent value reads as absent. A zero standing in for one cannot be told from a real answer — the same reason a computed output is declared and left empty. |
+| **A field the service does not write is refused** | A submission accepted and quietly dropped leaves the planner believing it was recorded. The refusal names the field. |
+
+The **measured area is computed by the service** from the boundary, not submitted alongside it, so the
+figure the planner saw and the figure the model holds cannot drift apart. Coordinates arrive as named
+`latitude` / `longitude` pairs, because a coordinate pair read in the wrong order is a mistake nothing
+downstream can catch; the boundary is stored as a GeoJSON polygon, which is longitude-first.
 
 ---
 
@@ -383,6 +420,12 @@ Each computed output is **declared on the study with its type and no value** unt
 (#6159). A seeded zero cannot be told from a real result, and a range reading it would report a verdict
 about an analysis that never ran.
 
+> **One name still to settle.** The reactive energy service writes `pctOfConsumption`, which is what the
+> site-survey studies declare and what their `EnergyNetPositive` range reads. This table calls the same
+> quantity `energySelfSufficiencyPct`. Wiring the analysis to an intake study has to settle on one of
+> them — a study that declares a name no service writes stays empty for ever, and #6159 exists to make
+> that visible rather than fatal.
+
 ---
 
 ## 8. The calculations, worked through
@@ -521,6 +564,12 @@ address. They are reachable only from the machine Mycelium runs on.
 
 **Authenticated planner work needs nothing new.** Trellis posts to this route and the pipeline runs.
 
+**A signed-in submission goes through the intake service too.** Not because it has to — a signed-in
+wizard could compose the fragment itself — but because then there would be two mappings from a
+submission to the model, and the second one to change would be the one that was wrong. What differs
+between a planner and a stranger is what the service demands before it accepts the call, not what it
+writes.
+
 ### Why public intake gets its own service
 
 The obvious shortcut is to allow anonymous calls on that route for one label. It should not be taken.
@@ -574,11 +623,12 @@ The main finding from designing this: most of it is already built.
 | Rendering a report from a spec stored in the model | **Exists** (operations dashboard) |
 | Posting a whole submission in one idempotent call | **Exists** (fragments) |
 | Authentication, model isolation, service supervision | **Exists** (Mycelium) |
+| Composing a submission into the model's own shape | **Exists** (`vos.Service.Intake`) |
 | — | |
 | A map, and drawing a parcel on it | **New** — the only new UI capability |
 | The intake wizard | **New** |
 | Rainwater harvest, food balance, land allocation nodes | **New** — three small services |
-| Public intake service | **New** |
+| Anonymous submission: rate limits, size caps, bot checks, the staging model | **New** — hardening around the service that already composes |
 | Land-intake archetypes, registrations, pipeline, dashboard spec | **New** — but data, not code |
 
 ---
