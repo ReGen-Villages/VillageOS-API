@@ -2,8 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace vos.Service.Intake.Models;
 
-/// <summary>A partial-model fragment as <c>POST /api/model/fragment</c> reads it: Things, the relationships
-/// between them, and the values they carry, applied as one upsert.</summary>
+/// <summary>The document <c>POST /api/model/fragment</c> reads, applied as one upsert.</summary>
 public sealed record ModelFragment(
     string Name,
     IReadOnlyList<FragmentThing> Things,

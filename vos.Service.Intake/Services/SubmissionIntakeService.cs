@@ -3,8 +3,7 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Services;
 
-/// <summary>Reads a submission, composes the fragment it becomes, and applies it — the single path from what
-/// a wizard collected to what the model holds.</summary>
+/// <summary>The single path from what a wizard collected to what the model holds.</summary>
 public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium)
 {
     public async Task<ComposedSubmission> SubmitAsync(string document, CancellationToken cancellation)

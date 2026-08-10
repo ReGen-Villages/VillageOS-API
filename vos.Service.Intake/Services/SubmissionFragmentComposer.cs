@@ -4,11 +4,10 @@ using vos.Service.Intake.Models;
 namespace vos.Service.Intake.Services;
 
 /// <summary>
-/// Turns a submission into the one fragment that puts it into the model.
-///
-/// The result is the shape an imported building model already produces — <c>SiteStudy -studies-&gt; Site</c>,
-/// the study carrying what an analysis makes of the land and the site carrying what is true of it — so no
-/// reader has to ask where a site's facts came from. A study is found by its flag, never by its source.
+/// The shape a submission has to land in: <c>SiteStudy -studies-&gt; Site</c>, the site carrying what is true
+/// of the land and the study carrying what an analysis makes of it. It is the shape an imported building
+/// model already produces, so no reader has to ask where a site's facts came from, and a study is found by
+/// its flag rather than by its source.
 /// </summary>
 public static class SubmissionFragmentComposer
 {
