@@ -33,40 +33,41 @@ public static class SubmissionFragmentComposer
             ?? throw new SubmissionError("'site' is missing: a submission is a site and what is known about it.");
         var siteName = Required(site.Name, "site.name", "a Thing is created under a name");
 
-        var siteId = StableIdentity.Derive(submissionId, "site");
-        var studyId = StableIdentity.Derive(submissionId, "study");
-        var studyName = $"{siteName} Site Study";
+        var siteThing = new NamedThing(StableIdentity.Derive(submissionId, "site"), siteName);
+        var studyThing = new NamedThing(StableIdentity.Derive(submissionId, "study"), $"{siteName} Site Study");
 
         var things = new List<FragmentThing>
         {
-            new(siteId, siteName, SiteProperties(site)),
-            new(studyId, studyName, StudyProperties()),
+            new(siteThing.Id, siteThing.Name, SiteProperties(site)),
+            new(studyThing.Id, studyThing.Name, StudyProperties()),
         };
         var relationships = new List<FragmentRelationship>();
         var mintedPredicates = new Dictionary<Guid, FragmentThing>();
 
-        void Relate(Guid subject, string subjectName, PredicateIdentity predicate, Guid target, string targetName)
+        void Relate(NamedThing subject, PredicateIdentity predicate, NamedThing target)
         {
             if (predicate.Minted)
                 mintedPredicates[predicate.Id] = new FragmentThing(predicate.Id, predicate.Name, new Dictionary<string, TypedValue>());
             relationships.Add(new FragmentRelationship(
-                $"{subjectName} {predicate.Name} {targetName}", subject, predicate.Id, target));
+                $"{subject.Name} {predicate.Name} {target.Name}", subject.Id, predicate.Id, target.Id));
         }
 
-        Relate(studyId, studyName, predicates.Studies, siteId, siteName);
+        Relate(studyThing, predicates.Studies, siteThing);
 
         Guid? parcelId = null;
         if (submission.Parcel is { } parcel)
         {
-            parcelId = StableIdentity.Derive(submissionId, "parcel");
-            var parcelName = $"{siteName} Parcel-01";
-            things.Add(new FragmentThing(parcelId.Value, parcelName, ParcelProperties(parcel)));
-            Relate(siteId, siteName, predicates.Has, parcelId.Value, parcelName);
+            var parcelThing = new NamedThing(StableIdentity.Derive(submissionId, "parcel"), $"{siteName} Parcel-01");
+            parcelId = parcelThing.Id;
+            things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
+            Relate(siteThing, predicates.Has, parcelThing);
         }
 
         var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships);
-        return new ComposedSubmission(fragment, siteId, studyId, parcelId);
+        return new ComposedSubmission(fragment, siteThing.Id, studyThing.Id, parcelId);
     }
+
+    private readonly record struct NamedThing(Guid Id, string Name);
 
     private static Dictionary<string, TypedValue> SiteProperties(SubmittedSite site)
     {

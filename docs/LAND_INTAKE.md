@@ -242,6 +242,11 @@ figure the planner saw and the figure the model holds cannot drift apart. Coordi
 `latitude` / `longitude` pairs, because a coordinate pair read in the wrong order is a mistake nothing
 downstream can catch; the boundary is stored as a GeoJSON polygon, which is longitude-first.
 
+The body is **capped at a few hundred kilobytes** — far above a form's worth of answers and a drawn
+boundary, and low enough that a body cannot cost the service its memory before anything has looked at
+it. That cap is a floor under the rate limiting and bot checks a public endpoint needs, not a
+substitute for them ([§9](#9-public-submissions-and-the-trust-boundary)).
+
 ---
 
 ## 5. Phase two — discovery
@@ -423,8 +428,8 @@ about an analysis that never ran.
 > **One name still to settle.** The reactive energy service writes `pctOfConsumption`, which is what the
 > site-survey studies declare and what their `EnergyNetPositive` range reads. This table calls the same
 > quantity `energySelfSufficiencyPct`. Wiring the analysis to an intake study has to settle on one of
-> them — a study that declares a name no service writes stays empty for ever, and #6159 exists to make
-> that visible rather than fatal.
+> them: a study that declares a name no service ever writes reads empty for ever, and the range over it
+> never reports.
 
 ---
 

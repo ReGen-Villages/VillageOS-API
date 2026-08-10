@@ -45,6 +45,22 @@ public class SubmissionEndpointTests
     }
 
     [Fact]
+    public async Task A_body_beyond_the_cap_is_refused_before_it_is_read()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        using var client = factory.CreateClient();
+
+        var corners = string.Join(",", Enumerable.Repeat("""{"latitude":39.5,"longitude":-8.4}""", 20_000));
+        var document = """{"submissionId":"willow-bend-2026-08","site":{"name":"Willow Bend"},"parcel":{"boundarySource":"drawn-by-hand","boundary":["""
+                       + corners + "]}}";
+
+        var response = await client.PostAsync("/submissions", Submission(document));
+
+        response.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge,
+            "a submission is a form's worth of answers and a boundary; anything larger must not be read into memory first");
+    }
+
+    [Fact]
     public async Task A_submission_without_a_token_is_refused_where_a_key_is_configured()
     {
         await using var factory = new IntakeWebApplicationFactory

@@ -26,17 +26,18 @@ public class SubmissionIntakeServiceTests
             "http://localhost",
             "test-token"));
 
-    // Read inside the responder: the client disposes the request content once the call returns.
-    private static SubmissionIntakeService ServiceCapturing(out Func<string?> fragment)
+    // The posted document is read inside the responder: the client disposes the request content once the
+    // call returns, so reading it afterwards finds nothing.
+    private static (SubmissionIntakeService Service, Func<string?> PostedFragment) ServiceCapturingFragment()
     {
         string? captured = null;
-        fragment = () => captured;
-        return Service(request =>
+        var service = Service(request =>
         {
             if (IsFragment(request))
                 captured = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
             return Holds(request);
         });
+        return (service, () => captured);
     }
 
     [Fact]
@@ -110,9 +111,21 @@ public class SubmissionIntakeServiceTests
     }
 
     [Fact]
+    public async Task A_lookup_that_answers_with_no_thing_is_read_as_a_predicate_the_model_lacks()
+    {
+        var service = Service(request => IsFragment(request) ? Json("{}") : Json("null"));
+
+        var composed = await service.SubmitAsync(Document, CancellationToken.None);
+
+        composed.Fragment.Relationships.Single().Predicate
+            .Should().Be(StableIdentity.DerivePredicate("studies"),
+                "the model answers a name it does not hold with an empty body as readily as with a 404");
+    }
+
+    [Fact]
     public async Task The_posted_fragment_declares_the_computed_output_without_a_value()
     {
-        var service = ServiceCapturing(out var fragment);
+        var (service, fragment) = ServiceCapturingFragment();
 
         await service.SubmitAsync(Document, CancellationToken.None);
 
@@ -127,7 +140,7 @@ public class SubmissionIntakeServiceTests
     [Fact]
     public async Task The_posted_fragment_names_the_things_by_the_keys_the_model_reads()
     {
-        var service = ServiceCapturing(out var fragment);
+        var (service, fragment) = ServiceCapturingFragment();
 
         await service.SubmitAsync(Document, CancellationToken.None);
 

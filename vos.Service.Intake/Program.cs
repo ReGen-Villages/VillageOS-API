@@ -29,6 +29,9 @@ try
 
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
+    // A submission is read into memory whole, so the body is capped well below Kestrel's default. The cap
+    // is not the rate limiting and bot checks a public endpoint needs (#6043) — it is the floor under them.
+    builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = SubmissionSize.MaximumBytes);
     builder.Services.AddHttpClient();
 
     var authEnabled = !string.IsNullOrEmpty(signingKey);
@@ -61,6 +64,9 @@ try
     // credential, so widening it later widens one service rather than every endpoint in the model.
     var submissions = app.MapPost("/submissions", async (HttpContext context, SubmissionIntakeService intake) =>
     {
+        if (context.Request.ContentLength > SubmissionSize.MaximumBytes)
+            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+
         using var reader = new StreamReader(context.Request.Body);
         var document = await reader.ReadToEndAsync(context.RequestAborted);
 
