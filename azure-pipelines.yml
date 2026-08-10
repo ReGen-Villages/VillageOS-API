@@ -123,6 +123,7 @@ steps:
 
 # Only devDependencies (TypeScript and the Node types); `npm test` compiles and then runs.
 - script: |
+    set -euo pipefail
     npm ci
     npm test
   displayName: 'Test Node echo service'
@@ -132,6 +133,7 @@ steps:
 # macOS ships no `python`, and its `python3` is externally managed, so pip refuses to install into
 # it — this is the one step here with dependencies to install, hence the virtual environment.
 - script: |
+    set -euo pipefail
     python3 -m venv .venv
     .venv/bin/python -m pip install --upgrade pip
     .venv/bin/python -m pip install -r requirements.txt
@@ -291,6 +293,9 @@ steps:
 # Contents:Read+Write on ReGen-Villages/VillageOS-API, or a classic token with repo scope.
 # Set in Azure DevOps > Pipelines > Edit > Variables
 - bash: |
+    # Without this the step's exit code is the final git push's, so anything failing before it goes
+    # unreported — which is how an unrewritten README reached the public mirror (#6367).
+    set -euo pipefail
     git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.git" 2>/dev/null || true
 
     # Rewrite Azure DevOps wiki URLs → GitHub wiki URLs so the GitHub README
