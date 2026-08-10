@@ -147,6 +147,7 @@ The `is` predicate is VillageOS's type system. Linking a thing to a type with an
 
 - **Inherited properties are live defaults.** An inherited property the instance hasn't set resolves, on read, to the type's *current* value. Change a value on the type and every instance that hasn't set its own sees the new value immediately — there is nothing to re-copy.
 - **The first write makes a per-instance override.** When an instance sets a value for an inherited property, VillageOS records a per-instance copy (an *override*) on that instance and leaves the type untouched. Reads then return the override; the type's default still flows to every other instance. This is **write isolation** — one instance can never change the value another instance sees.
+- **Retracting the name gives the type's value back.** Deleting that property on the instance removes the override, and the instance resolves the type's live value again. The type is untouched either way.
 - **Ranges resolve the same way.** A type's ranges apply to its instances by walking the `is` chain at evaluation time; they are not stored on the instance. When an inherited value changes, the affected ranges re-evaluate.
 - **Transitive.** Resolution follows the whole chain (`Dog is Mammal is Animal`), and type-membership tests walk it too.
 - **Classification.** The GUI uses `is` relationships to determine node types and colors.
