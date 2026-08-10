@@ -299,11 +299,15 @@ steps:
     # (.../VillageOS-API-Wiki?pagePath=%2FPage); the page name maps to the
     # GitHub wiki slug. The wiki-root link and the VillageOS project link are
     # rewritten by exact match. Keep these patterns in sync with README.md.
-    sed -i'' \
+    # Written through a temporary file rather than edited in place: `sed -i` means "no backup" to
+    # GNU sed and "the next argument is the backup extension" to the BSD sed macOS ships, and the
+    # agents are macOS.
+    sed \
       -e 's|https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2F\([^)]*\)|https://github.com/ReGen-Villages/VillageOS-API/wiki/\1|g' \
       -e 's|\[VillageOS\](https://dev.azure.com/ReGenVillages/VillageOS)|VillageOS|g' \
       -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)|[VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki)|g' \
-      README.md
+      README.md > "$AGENT_TEMPDIRECTORY/README.mirror.md"
+    mv "$AGENT_TEMPDIRECTORY/README.mirror.md" README.md
     git add README.md
     git -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
       commit -m "ci: rewrite wiki links for GitHub mirror" --allow-empty || true
