@@ -95,7 +95,8 @@ platform can answer — currently that the property type names Trellis holds are
 the ones the platform's write routes accept, so a type added on one side and not
 the other is caught rather than surfacing later as a property the GUI
 mishandles. It needs a Mycelium running, so it is not part of the build above;
-the VillageOS pipeline runs it on develop, where it can start one. Point it
+the VillageOS pipeline runs it on every branch, because that build can start
+one. Point it
 elsewhere with `VOS_INTEGRATION_URL`, `VOS_INTEGRATION_USERNAME` and
 `VOS_INTEGRATION_PASSWORD`.
 

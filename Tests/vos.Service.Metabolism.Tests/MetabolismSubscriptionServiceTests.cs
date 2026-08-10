@@ -28,6 +28,8 @@ public class MetabolismSubscriptionServiceTests
 
     private sealed class FakeSubscriptionClient : ISubscriptionClient
     {
+        public event Action? Reconnected { add { } remove { } }
+
         public Guid SubscriptionId { get; } = Guid.NewGuid();
         public List<Guid> Added { get; } = new();
         public List<Guid> Removed { get; } = new();
