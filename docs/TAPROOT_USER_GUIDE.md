@@ -729,12 +729,25 @@ The criteria DSL supports various expressions:
 | NOT | `NOT status = 'off'` | Negation |
 | IN | `status IN ('active', 'pending')` | Membership test |
 | MATCHES | `name MATCHES '^Sensor.*'` | Regex pattern match |
+| IS KNOWN | `pctOfConsumption IS KNOWN` | The property has a value — any value, including zero |
+| IS UNKNOWN | `pctOfConsumption IS UNKNOWN` | The property has no value, or the thing does not carry it |
 | Related ref | `[connected_to.Generator].temp > 50` | Related thing property |
 | State check | `[powered_by].state HAS 'running'` | Check related thing's state |
 
 `MATCHES` against a number turns the value into text in one fixed format first, so write the pattern with a
 dot decimal separator — `area MATCHES '^120\.5$'`. A comma never appears, whatever regional settings the
 server runs under.
+
+`IS KNOWN` is the only test that asks whether a value is there rather than what it is. Every other
+comparison reads an absent value as not satisfied, so a range over a property nothing has written reports the
+same definite negative as one over a property that was written and fell short. Where that distinction
+matters, guard the verdict and give the unanswered case a range of its own, so it becomes a state a reader
+can see:
+
+```bash
+> range create "Site Study" EnergyNetPositive "pctOfConsumption IS KNOWN AND pctOfConsumption >= 100"
+> range create "Site Study" EnergyNotAssessed "pctOfConsumption IS UNKNOWN"
+```
 
 **Examples:**
 
