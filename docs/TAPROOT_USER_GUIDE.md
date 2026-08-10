@@ -732,6 +732,10 @@ The criteria DSL supports various expressions:
 | Related ref | `[connected_to.Generator].temp > 50` | Related thing property |
 | State check | `[powered_by].state HAS 'running'` | Check related thing's state |
 
+`MATCHES` against a number turns the value into text in one fixed format first, so write the pattern with a
+dot decimal separator — `area MATCHES '^120\.5$'`. A comma never appears, whatever regional settings the
+server runs under.
+
 **Examples:**
 
 ```bash
