@@ -364,7 +364,7 @@ Using a synthetic example throughout — **Willow Bend**, a fictional 24-hectare
 | | `householdSize` | 2.4 | Fact |
 | | `solarResourceKwhPerM2PerYear` | 1750 | **Observation** — discovered |
 | | `rainfallMillimetresPerYear` | 700 | **Observation** — discovered |
-| | `energySelfSufficiencyPct` | 90.8 | Fact — computed |
+| Willow Bend Site Study *(SiteStudy)* | `energySelfSufficiencyPct` | 90.8 | Fact — computed |
 | Parcel-01 *(Parcel)* | `boundary` | GeoJSON polygon | Fact |
 | | `measuredAreaHectares` | 23.4 | Fact |
 | | `boundarySource` | `drawn-by-hand` | Fact |
@@ -372,6 +372,16 @@ Using a synthetic example throughout — **Willow Bend**, a fictional 24-hectare
 The stated area is what the planner asserted. The measured area is what the boundary actually
 encloses. The solar figure is an observation because it was sampled from a provider on a date and
 will be refreshed. That distinction is the whole point of moving this into the model.
+
+**Computed values belong to the study, not the site.** A `SiteStudy` relates to its `Site` by `studies`,
+and it is the study that carries params, computed outputs and judge-ranges — whether the facts came from
+a submission or from an imported building model (#6154). The site carries what is true of the land; the
+study carries what an analysis made of it. A submission therefore mints both, in the same relationship
+shape the IFC ingest already produces, so no reader has to ask where a site's facts came from.
+
+Each computed output is **declared on the study with its type and no value** until something writes it
+(#6159). A seeded zero cannot be told from a real result, and a range reading it would report a verdict
+about an analysis that never ran.
 
 ---
 
