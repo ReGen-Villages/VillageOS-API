@@ -352,6 +352,9 @@ relationships (including the `is` type edge), and their initial values — in on
   transactional: if a write fails partway through the batch, already-applied changes are **not** rolled
   back (partial application). Because re-posting is idempotent, a retry self-heals. Full transactional
   rollback is a tracked follow-up.
+- **A computed name cannot be written.** If a roll-up computes a property name for a Thing — through a
+  definition it owns, one it inherits from a type it already has, or one a type in the same batch brings —
+  writing a value for that name fails `400` with **zero** mutation. Send the members; the value follows.
 - **Server resolves lazy inheritance (I1).** A Thing that carries a value for a name it will *inherit*
   is created **bare**, gains its `is` edge, then has the value written as an **override** — so you send
   the natural `{Thing-with-own-Properties} + {Thing is Archetype}` shape and never trip I1 yourself.
