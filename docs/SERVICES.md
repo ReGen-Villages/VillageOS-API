@@ -21,7 +21,7 @@ handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
 Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`, `Phloem`,
-`WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`. `Delta` is the endpoint-registration service: it
+`WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
 provisions the endpoint-template catalog into Mycelium at startup and validates every endpoint
 registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
 fetch side of the same endpoint story. `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
@@ -40,6 +40,15 @@ the canonical reference implementation** — the simplest. When adding a new
 microservice, copy Echo's structure and the test patterns in §10. `Phloem` is the
 pipeline/DAG orchestrator and a service becomes a pipeline *node* via an additive `/handle`
 envelope — both documented in §16 (Pipelines / DAG orchestration).
+
+**`Intake` is the exception to most of this section.** It takes a land-intake **submission**, composes
+the Site, Parcel and SiteStudy it becomes, and applies them as one fragment (#6310). It does **not**
+register with Mycelium and is not reachable through the endpoint-forward route — that route resolves
+where to forward from data in the model, so a submission path opened there would put whatever the model
+happens to name within reach of whoever can call it. So it registers nothing, holds its own credential,
+maps `/health` without the `/stats` that would describe a registration it does not keep, and caps the
+request body, since it reads a submission into memory whole. The submission document is in
+[`LAND_INTAKE.md`](LAND_INTAKE.md) §4.
 
 **Two kinds of predicates — the extension point.** `is` is the *only* predicate built into
 Mycelium; **every other predicate that does work is a *Handled Predicate*** dispatched to a

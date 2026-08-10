@@ -45,10 +45,15 @@ public static class ServiceHost
 
     // Returns nothing to gate on, unlike MapShutdown: the broker polls /health to decide whether the
     // service is alive, and it cannot do that behind authentication.
+    public static void MapHealth(this WebApplication app, string serviceName) =>
+        app.MapGet("/health", () => new { status = "Healthy", service = serviceName });
+
+    // For a service the broker registers. The statistics name its registration, so a service that keeps no
+    // registration maps health alone.
     public static void MapHealthAndStats(
         this WebApplication app, string serviceName, string myceliumUrl)
     {
-        app.MapGet("/health", () => new { status = "Healthy", service = serviceName });
+        app.MapHealth(serviceName);
 
         app.MapGet("/stats", (EndpointServiceMyceliumClient client) => new
         {
