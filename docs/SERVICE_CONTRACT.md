@@ -347,11 +347,11 @@ relationships (including the `is` type edge), and their initial values — in on
   or properties, and never renames an existing Thing (identity is by `Id`; the `Name` sent for a known
   `Id` is ignored). Anything in the model but absent from the fragment is left untouched — removing
   structure is a separate, explicit operation.
-- **Validate-first, not yet transactional.** Relationship references and typed envelopes are validated
-  up front, so a malformed fragment fails `400` with **zero** mutation. Application itself is not yet
-  transactional: if a write fails partway through the batch, already-applied changes are **not** rolled
-  back (partial application). Because re-posting is idempotent, a retry self-heals. Full transactional
-  rollback is a tracked follow-up.
+- **All of it or none of it.** References, typed envelopes and computed names are validated up front, so
+  those faults fail `400` with **zero** mutation. A failure while the batch is being applied is undone —
+  every Thing, edge, value and roll-up definition the batch applied is reversed before the `400` — so the
+  model a caller reads afterwards is the one they posted against. Re-posting is idempotent either way,
+  so a corrected retry still heals.
 - **A computed name cannot be written.** If a roll-up computes a property name for a Thing — through a
   definition it owns, one it inherits from a type it already has, or one a type in the same batch brings —
   writing a value for that name fails `400` with **zero** mutation. Send the members; the value follows.
