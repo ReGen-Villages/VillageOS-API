@@ -22,7 +22,11 @@ pr:
       - '*'  # Trigger on all pull requests
 
 pool:
-  vmImage: 'windows-latest'
+  name: 'Amsterdam'
+  # The pool holds macOS agents only. Kept as a demand so that if a non-macOS agent is ever added,
+  # jobs fail to match rather than running somewhere unverified.
+  demands:
+    - Agent.OS -equals Darwin
 
 variables:
   buildConfiguration: 'Release'
@@ -32,6 +36,11 @@ variables:
   wikiRepoId: 'de73fcdb-2959-4209-a858-f3d697e8c632'
 
 steps:
+# A self-hosted agent keeps its working directory between runs, so a stale file from an earlier
+# build would otherwise still be here — including one the guard below is meant to catch.
+- checkout: self
+  clean: true
+
 # Fail fast if proprietary engine code ever reappears in the public repo (it must not — the
 # engine lives only in the private VillageOS repo). Runs before build AND before the GitHub
 # mirror step (which is gated on succeeded()), so a violation can never be published.
@@ -98,6 +107,15 @@ steps:
 # Python and Rust. Each ships a test suite, and until now the pipeline ran none of them, so all four
 # could rot without anything reporting it. Each step runs even when an earlier one failed, so one
 # build reports every broken example rather than one per push.
+# The Amsterdam agents carry .NET, Node, Java and python3, and neither Go nor Rust, so the build
+# brings those two itself. GoTool unpacks into the agent tool cache, so only the first build on a
+# given agent pays the download.
+- task: GoTool@0
+  displayName: 'Install Go'
+  inputs:
+    version: '1.26'   # the version go.mod asks for
+  condition: always()
+
 - script: go test ./...
   displayName: 'Test Go echo service'
   workingDirectory: vos.Service.Go.Echo
@@ -111,12 +129,29 @@ steps:
   workingDirectory: vos.Service.Node.Echo
   condition: always()
 
+# macOS ships no `python`, and its `python3` is externally managed, so pip refuses to install into
+# it — this is the one step here with dependencies to install, hence the virtual environment.
 - script: |
-    python -m pip install --upgrade pip
-    python -m pip install -r requirements.txt
-    python -m pytest
+    python3 -m venv .venv
+    .venv/bin/python -m pip install --upgrade pip
+    .venv/bin/python -m pip install -r requirements.txt
+    .venv/bin/python -m pytest
   displayName: 'Test Python echo service'
   workingDirectory: vos.Service.Python.Echo
+  condition: always()
+
+# There is no first-party Rust task, so rustup's own installer — skipped when an earlier build on
+# this agent already ran it. prependpath puts cargo on PATH for the steps below; the registry
+# location goes into a variable because the cache task cannot read a shell one.
+- bash: |
+    set -euo pipefail
+    if [ ! -x "$HOME/.cargo/bin/cargo" ]; then
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --no-modify-path --default-toolchain stable
+    fi
+    echo "##vso[task.prependpath]$HOME/.cargo/bin"
+    echo "##vso[task.setvariable variable=cargoRegistry]$HOME/.cargo/registry"
+  displayName: 'Install Rust'
   condition: always()
 
 # Cargo builds axum, tokio and reqwest from source, which is the slowest step in the build. The
@@ -127,7 +162,7 @@ steps:
     key: 'cargo | "$(Agent.OS)" | vos.Service.Rust.Echo/Cargo.lock'
     restoreKeys: |
       cargo | "$(Agent.OS)"
-    path: '$(UserProfile)/.cargo/registry'
+    path: '$(cargoRegistry)'
   condition: always()
 
 - script: cargo test
@@ -152,17 +187,17 @@ steps:
 # importer and the playground generator could all break and merge green — and the first two share
 # one Mycelium client, so a change to it can break the pair at once. Discovery rather than a named
 # module, so a new test file is run by having been written. Stock Python: nothing to install.
-- script: python -m unittest discover
+- script: python3 -m unittest discover
   displayName: 'Test simulator'
   workingDirectory: tools/simulator
   condition: always()
 
-- script: python -m unittest discover
+- script: python3 -m unittest discover
   displayName: 'Test layout-importer'
   workingDirectory: tools/layout-importer
   condition: always()
 
-- script: python -m unittest discover
+- script: python3 -m unittest discover
   displayName: 'Test pipeline-playground'
   workingDirectory: tools/pipeline-playground
   condition: always()
