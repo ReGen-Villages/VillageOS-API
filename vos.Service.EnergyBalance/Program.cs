@@ -68,6 +68,7 @@ try
     {
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseMyceliumRequestToken();
     }
 
     var handle = app.MapPost("/handle", async (HttpContext ctx, EnergyBalanceNode node, EnergyBalanceReactiveHandler reactive,
