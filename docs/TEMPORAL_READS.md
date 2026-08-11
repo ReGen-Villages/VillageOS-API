@@ -135,6 +135,30 @@ With `CurrentOnly`, every instant before the last write is beyond retention — 
 nothing amounts to when something asks about the past. Ask at or after the last write and the answer
 is exact; ask earlier and there is nothing to answer from.
 
+## What a read answers about a Thing or relationship that was not there
+
+A Thing and a relationship each carry the instant the model started holding them, so an as-of read
+answers about the graph as it stood rather than the graph as it is now:
+
+| Instant asked for | Answer |
+|---|---|
+| Before the object joined the model | Left out. `GET /api/things/{id}?timestamp=` answers `404` |
+| While it stood | Included, with the property values that stood then |
+| At or after it was retracted | Left out — the same answer as before it arrived |
+
+The instant is taken when the object **joins the model**, not when a client composed it, so composing
+a relationship and inserting it later dates it from the insertion.
+
+## A restart does not move the history
+
+Every instant the model recorded is written durably alongside what it describes — when an object
+began, when it was retracted, when each property value took effect. A restart replays that history and
+restores those instants, so an as-of read gives the same answer before and after one. Timestamps you
+read from the platform are safe to store and ask about again later.
+
+This holds for a run on an anchored clock too: the instants come back in model time, not in the wall
+time of whenever the platform was last started.
+
 ## Reducing into time buckets
 
 A history read answers *what one property was worth over time*. A different question — *how much
