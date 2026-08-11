@@ -729,8 +729,8 @@ The criteria DSL supports various expressions:
 | NOT | `NOT status = 'off'` | Negation |
 | IN | `status IN ('active', 'pending')` | Membership test |
 | MATCHES | `name MATCHES '^Sensor.*'` | Regex pattern match |
-| IS KNOWN | `pctOfConsumption IS KNOWN` | The property has a value — any value, including zero |
-| IS UNKNOWN | `pctOfConsumption IS UNKNOWN` | The property has no value, or the thing does not carry it |
+| IS KNOWN | `pctOfConsumption IS KNOWN` | The reference produced a value — any value, including zero |
+| IS UNKNOWN | `pctOfConsumption IS UNKNOWN` | It produced none: no value, no such property, or an empty collection |
 | Related ref | `[connected_to.Generator].temp > 50` | Related thing property |
 | State check | `[powered_by].state HAS 'running'` | Check related thing's state |
 
