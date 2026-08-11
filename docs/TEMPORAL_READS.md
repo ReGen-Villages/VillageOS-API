@@ -147,9 +147,17 @@ answers about the graph as it stood rather than the graph as it is now:
 | At or after it was retracted | Left out — the same answer as before it arrived |
 
 The instant is taken when the object **joins the model**, not when a client composed it, so composing
-a relationship and inserting it later dates it from the insertion. It is written into the Fact that
-records the creation, so it survives a restart rather than being reset to when the platform came back
-up.
+a relationship and inserting it later dates it from the insertion.
+
+## A restart does not move the history
+
+Every instant the model recorded is written durably alongside what it describes — when an object
+began, when it was retracted, when each property value took effect. A restart replays that history and
+restores those instants, so an as-of read gives the same answer before and after one. Timestamps you
+read from the platform are safe to store and ask about again later.
+
+This holds for a run on an anchored clock too: the instants come back in model time, not in the wall
+time of whenever the platform was last started.
 
 ## Reducing into time buckets
 
