@@ -135,6 +135,22 @@ With `CurrentOnly`, every instant before the last write is beyond retention — 
 nothing amounts to when something asks about the past. Ask at or after the last write and the answer
 is exact; ask earlier and there is nothing to answer from.
 
+## What a read answers about a Thing or relationship that was not there
+
+A Thing and a relationship each carry the instant the model started holding them, so an as-of read
+answers about the graph as it stood rather than the graph as it is now:
+
+| Instant asked for | Answer |
+|---|---|
+| Before the object joined the model | Left out. `GET /api/things/{id}?timestamp=` answers `404` |
+| While it stood | Included, with the property values that stood then |
+| At or after it was retracted | Left out — the same answer as before it arrived |
+
+The instant is taken when the object **joins the model**, not when a client composed it, so composing
+a relationship and inserting it later dates it from the insertion. It is written into the Fact that
+records the creation, so it survives a restart rather than being reset to when the platform came back
+up.
+
 ## Reducing into time buckets
 
 A history read answers *what one property was worth over time*. A different question — *how much
