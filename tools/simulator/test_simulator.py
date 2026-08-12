@@ -470,10 +470,6 @@ class CliPlaysATimelineFile(unittest.TestCase):
             os.unlink(path)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class CoalesceForwardReference(unittest.TestCase):
     """A create_rel whose target is created in a LATER fragment must not fold into its subject's
     fragment (it would apply before the target exists → 400); it stays granular."""
@@ -496,3 +492,62 @@ class CoalesceForwardReference(unittest.TestCase):
         self.assertTrue(
             any(a.op == "create_rel" and a.args.get("target_id") == "O" for a in out),
             "the W->O edge must survive as a granular create_rel applied after O exists")
+
+
+class SetupCarriesWhatTheBatchCannotHold(unittest.TestCase):
+    """A standing-world batch — the coalesced fragment, or the ``--seed-first`` document — carries
+    Thing and Relationship creations and nothing else. Every other setup action used to fall off the
+    end of that rebuild and reach no one, while the identical action on the paced clock applied, so a
+    run delivered less than its timeline asked for and still reported success."""
+
+    def test_a_fact_set_at_setup_reaches_the_client(self):
+        client = FakeMycelium()
+        S.Simulator(client, **_fast()).run([
+            S.Action(0, 0, "setup", "set_fact",
+                     {"thing_id": "already-in-the-model", "prop": "code", "value": "x"}, "code"),
+        ])
+        self.assertEqual(client.facts, [("already-in-the-model", "code", "x")])
+
+    def test_every_op_the_batch_cannot_hold_reaches_the_client(self):
+        client = FakeMycelium()
+        S.Simulator(client, **_fast()).run([
+            S.Action(0, 0, "setup", "create_thing",
+                     {"name": "BIN", "thing_id": "bin", "properties": {"contained_units": 10}}, "BIN"),
+            S.Action(0, 1, "setup", "ledger_set", {"thing_id": "bin", "amount": 10}, "BIN"),
+            S.Action(0, 2, "setup", "set_fact", {"thing_id": "bin", "prop": "code", "value": "x"}, "code"),
+            S.Action(0, 3, "setup", "set_observation",
+                     {"thing_id": "bin", "prop": "temp", "value": 4,
+                      "observed_at": "2026-01-01T00:00:00Z"}, "temp"),
+            S.Action(0, 4, "setup", "increment",
+                     {"thing_id": "bin", "prop": "contained_units", "amount": 5}, "in"),
+            S.Action(0, 5, "setup", "decrement",
+                     {"thing_id": "bin", "prop": "contained_units", "amount": 3}, "out"),
+            S.Action(0, 6, "setup", "delete_thing", {"thing_id": "retired"}, "retired"),
+        ])
+        self.assertEqual(client.facts, [("bin", "code", "x")])
+        self.assertEqual(client.observations, [("bin", "temp", 4, "2026-01-01T00:00:00Z")])
+        self.assertEqual(client.deleted, ["retired"])
+        self.assertEqual(client.balances["bin"], 12)     # 10 stocked, +5, -3 — and the batch ran first
+
+    def test_a_carried_action_is_ordered_after_the_batch_that_creates_its_target(self):
+        sim = S.Simulator(FakeMycelium(), **_fast())
+        out = sim._coalesce([
+            S.Action(0, 0, "setup", "set_fact", {"thing_id": "T", "prop": "code", "value": "x"}, "code"),
+            S.Action(0, 1, "setup", "create_thing", {"name": "T", "thing_id": "T"}, "T"),
+        ])
+        ops = [a.op for a in out]
+        self.assertLess(ops.index("apply_fragment"), ops.index("set_fact"),
+                        "a Fact on a Thing the same batch creates must be posted once it exists")
+
+    def test_seed_first_carries_them_too(self):
+        client = FakeMycelium()
+        S.Simulator(client, **_fast(seed_first=True)).run([
+            S.Action(0, 0, "setup", "create_thing", {"name": "BIN", "thing_id": "bin"}, "BIN"),
+            S.Action(0, 1, "setup", "set_fact", {"thing_id": "bin", "prop": "code", "value": "x"}, "code"),
+        ])
+        self.assertIn("bin", client.things)
+        self.assertEqual(client.facts, [("bin", "code", "x")])
+
+
+if __name__ == "__main__":
+    unittest.main()

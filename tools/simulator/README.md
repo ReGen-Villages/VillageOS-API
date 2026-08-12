@@ -72,6 +72,12 @@ python3 simulator.py --url http://localhost:5000 --token "$JWT" --timeline run.j
   `available`/`requested`). The `BalanceLedger` holds one lock per balance, resolves to an absolute
   quantity, and applies at most what is available — a shortfall is a legitimate outcome, and a 400
   *inside* the lock means a real divergence (a lost write, a double-run) and fails loud.
+- **Plays every action it is handed.** Setup folds Thing and Relationship creations into one batch —
+  the coalesced fragment, or the `--seed-first` document. Any other setup action (`set_fact`,
+  `set_observation`, `increment`, `decrement`, `delete_thing`) is applied on its own straight after
+  that batch, so it lands on a Thing that already exists. Both halves of a timeline therefore accept
+  the whole op vocabulary: an action means the same thing at setup as it does on the clock, and no
+  action is dropped for sitting in the standing world.
 - **Idempotent on resume, no platform change.** Every created Thing is keyed to `stable_id(...)` and
   passed as a client-supplied `Id`; the `Checkpoint` journals the committed prefix. A re-run skips
   what it already did, and a straggler duplicate is *rejected* (not merged) — which is intended: a
@@ -94,10 +100,12 @@ python3 simulator.py --url http://localhost:5000 --token "$JWT" --timeline run.j
   only grow or update the model; retiring a Thing stays a granular `delete_thing`. Validation is
   **up front** (references, typed envelopes, computed names), so a malformed fragment fails `400` with
   zero mutation, and a failure while the batch is being applied is undone before the `400` — the model
-  is never left half-built. Re-posting stays idempotent either way. Properties travel as typed envelopes, so decimals/measures don't truncate. The whole **setup** (standing world) collapses
-  into one bulk fragment (`ledger_set` actions still precede it); `--seed-first` instead bulk-loads the
-  granular setup via `POST /api/model`. A later-offset `is` edge on an already-existing Thing is a
-  lifecycle edge and stays a granular `create_rel`. Coalescing is a pure function of the sorted
+  is never left half-built. Re-posting stays idempotent either way. Properties travel as typed
+  envelopes, so decimals/measures don't truncate. The **setup**'s creations (standing world) collapse
+  into one bulk fragment (`ledger_set` actions still precede it, and every other setup action follows
+  it); `--seed-first` instead bulk-loads the granular creations via `POST /api/model` and applies the
+  rest one at a time. A later-offset `is` edge on an already-existing Thing is a lifecycle edge and
+  stays a granular `create_rel`. Coalescing is a pure function of the sorted
   timeline, so checkpoint indices and pacing are unchanged — a paced fragment sits at its
   `create_thing`'s offset and fires at that instance's moment. This lives in the generic engine, so
   every domain timeline gets it for free.
