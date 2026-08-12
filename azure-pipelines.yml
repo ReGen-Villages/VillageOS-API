@@ -37,6 +37,9 @@ variables:
   # Azure DevOps project-wiki git repo id (from `az devops wiki list`). The wiki
   # is mirrored from here to the GitHub wiki on develop/main.
   wikiRepoId: 'de73fcdb-2959-4209-a858-f3d697e8c632'
+  # pip reads this, and it sets where the downloaded packages are kept so the cache step below can
+  # name that directory. It sits outside the sources directory, which the checkout empties.
+  PIP_CACHE_DIR: '$(Pipeline.Workspace)/.pip'
 
 steps:
 # A self-hosted agent keeps its working directory between runs, so a stale file from an earlier
@@ -85,12 +88,18 @@ steps:
 - script: dotnet build --configuration $(buildConfiguration) --no-restore
   displayName: 'Build Solution'
 
+# The solution rather than a wildcard over the test projects: a wildcard starts a separate test run
+# per project, and each one loads the runner, starts a test host and waits for the previous project
+# to finish. One run over the solution tests the projects alongside each other instead.
+# maxcpucount caps how many projects test at once. The default is one per processor, which on a pool
+# of one machine that is already short of memory at idle would start more test hosts than it can
+# hold. Four costs no time, because the run lasts as long as its slowest single project either way.
 - task: DotNetCoreCLI@2
   displayName: 'Run Tests with Coverage'
   inputs:
     command: 'test'
-    projects: '**/*Tests.csproj'
-    arguments: '--configuration $(buildConfiguration) --no-build --logger trx --results-directory $(testResultsDirectory) --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
+    projects: 'VillageOS-API.sln'
+    arguments: '--configuration $(buildConfiguration) --no-build -maxcpucount:4 --logger trx --results-directory $(testResultsDirectory) --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
     publishTestResults: false
 
 - task: PublishTestResults@2
@@ -133,6 +142,19 @@ steps:
   workingDirectory: vos.Service.Node.Echo
   condition: always()
 
+# Holds the packages pip downloads, so the install below reads them from disk instead of fetching
+# them again. The virtual environment itself is deliberately not cached: it records the path and
+# version of the interpreter that built it, so a macOS or Homebrew update to python3 would leave a
+# restored one broken, and a red build is a bad trade for the seconds it would save.
+- task: Cache@2
+  displayName: 'Cache Python packages'
+  inputs:
+    key: 'pip | "$(Agent.OS)" | vos.Service.Python.Echo/requirements.txt'
+    restoreKeys: |
+      pip | "$(Agent.OS)"
+    path: '$(PIP_CACHE_DIR)'
+  condition: always()
+
 # macOS ships no `python`, and its `python3` is externally managed, so pip refuses to install into
 # it — this is the one step here with dependencies to install, hence the virtual environment.
 - script: |
@@ -168,6 +190,20 @@ steps:
     restoreKeys: |
       cargo | "$(Agent.OS)"
     path: '$(cargoRegistry)'
+  condition: always()
+
+# The step above holds the downloaded source of the dependencies, which is not what costs the time —
+# compiling it is, and that happened on every run. This holds the compiled output. It has to be a
+# second task because a cache step takes one directory. The checkout removes untracked files, so the
+# build directory does not survive a run on its own. Cargo checks the compiler version and rebuilds
+# what a toolchain change invalidates, so a restored build directory cannot go stale unnoticed.
+- task: Cache@2
+  displayName: 'Cache Rust build output'
+  inputs:
+    key: 'cargo-target | "$(Agent.OS)" | vos.Service.Rust.Echo/Cargo.lock'
+    restoreKeys: |
+      cargo-target | "$(Agent.OS)"
+    path: 'vos.Service.Rust.Echo/target'
   condition: always()
 
 - script: cargo test

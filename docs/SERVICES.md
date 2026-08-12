@@ -684,8 +684,11 @@ When adding a service, add its `Program.cs` to the comma-separated
    standard settings, registration and host behaviour are already covered in
    `Tests/vos.Service.Shared.Tests` and should not be repeated.
 4. Add the test project to `VillageOS-API.sln`.
-5. Run `dotnet test` from the repo root. The new project is picked up
-   automatically by the `**/*Tests.csproj` glob in `azure-pipelines.yml`.
+5. Run `dotnet test` from the repo root. The build hands the runner the
+   solution, so step 4 is what puts the new tests into it — a test project left
+   out of the solution still builds and still passes locally, and is never run
+   on the build agent. `Tests/vos.ContinuousIntegration.Tests/` fails when a
+   test project on disk is missing from the solution.
 6. Add the new `Program.cs` to `<ExcludeByFile>` in `coverage.runsettings` only
    once it holds nothing but wiring. If it still handles requests itself, leave
    it counted and extract the handling instead.
