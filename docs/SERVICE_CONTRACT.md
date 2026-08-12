@@ -362,6 +362,23 @@ relationships (including the `is` type edge), and their initial values — in on
 - **Emits the same Facts/SSE** as the per-write endpoints (it goes through the same fact pipeline), so
   every created Thing/edge/value animates and survives replay. Property values carry a typed envelope
   (`{ "typeInfo": "vos.Decimal", "value": 2.5 }`) so decimals/measures don't truncate.
+- **An envelope can configure the property, not only value it.** Alongside `typeInfo` and `value` it
+  may carry `writeKind` (the `AllowedWriteKinds` gating above: `Both` / `FactOnly` / `ObservationOnly`)
+  and `mode` / `ringBufferSize` / `sampleRate` (the `PropertyMode` and its size — see
+  [TEMPORAL_READS.md](TEMPORAL_READS.md)). This is how a fragment sets up a property that records
+  sampled readings, in the same call that creates it:
+
+  ```json
+  { "typeInfo": "vos.Double", "writeKind": "ObservationOnly", "mode": "RingBuffer", "ringBufferSize": 240 }
+  ```
+
+  Omit them and nothing changes: the property accepts either kind and follows the model's default
+  retention. An unrecognised name for either fails `400` up front with zero mutation, and so does a
+  size with no `mode` to apply it to — it would otherwise be accepted and then do nothing. A `value`
+  is optional here: an envelope that declares a property without valuing it creates the property and
+  asserts nothing, which is how you set up one that only ever receives observations. The settings
+  land on the property the Thing **owns**; for a name it only inherits, the archetype's declaration
+  governs.
 - **Batch-scale reactive work.** Each write still re-evaluates its own affected ranges, but the O(model)
   roll-up recompute is **deferred and run once** for the whole batch (not per write), so applying a large
   fragment is ~O(model), not O((things + rels) × model). Send big graphs as one fragment rather than many
