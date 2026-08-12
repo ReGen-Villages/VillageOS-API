@@ -65,9 +65,9 @@ steps:
     echo "Guard passed: no proprietary engine footprint."
   displayName: 'Guard: no proprietary engine in public repo'
 
-# A widened trigger makes more green builds rather than a failure, so nothing in a build result
-# would look wrong. The platform repo keeps its own trigger honest with a test that reads its build
-# file; no test project here reads one, so this check is a step instead.
+# A widened trigger produces more green builds rather than a failure, so nothing in a build result
+# would look wrong. The platform repo has a test that reads its own build file and fails on that;
+# no test project here reads one, so the check is a step instead.
 - bash: |
     set -euo pipefail
     python3 - <<'PY'
