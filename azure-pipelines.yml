@@ -2,7 +2,7 @@
 # Azure DevOps Pipeline for VillageOS Temporal Graph Database
 # ============================================================
 # This pipeline:
-# - Triggers on all branch updates and pull requests
+# - Triggers when develop or main moves, and when a branch policy validates a pull request
 # - Builds the .NET solution
 # - Runs the .NET test suite and the wiki-mirror converter tests
 # - Lints, tests and builds Trellis, the GUI
@@ -11,15 +11,18 @@
 # - Mirrors the repo and the wiki to GitHub (develop and main only)
 # ============================================================
 
+# A feature branch is built when its pull request is validated and again after the merge; building
+# every push as well took the pool's single agent a third time for a result nothing waits on.
 trigger:
   branches:
     include:
-      - '*'  # Trigger on all branches
+      - develop
+      - main
 
-pr:
-  branches:
-    include:
-      - '*'  # Trigger on all pull requests
+# Pull requests are still built: the branch policy on develop queues this pipeline itself, against
+# the merge commit, and reads nothing here. Azure Repos ignores this block entirely — it applies
+# only to a pipeline driven from GitHub.
+pr: none
 
 pool:
   name: 'Amsterdam'
