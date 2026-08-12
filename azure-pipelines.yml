@@ -65,6 +65,37 @@ steps:
     echo "Guard passed: no proprietary engine footprint."
   displayName: 'Guard: no proprietary engine in public repo'
 
+# A widened trigger makes more green builds rather than a failure, so nothing in a build result
+# would look wrong. The platform repo keeps its own trigger honest with a test that reads its build
+# file; no test project here reads one, so this check is a step instead.
+- bash: |
+    set -euo pipefail
+    python3 - <<'PY'
+    import sys
+
+    def fail(message):
+        print(f"##[error]{message}")
+        sys.exit(1)
+
+    lines = open("azure-pipelines.yml").read().splitlines()
+    declarations = [i for i, line in enumerate(lines) if line.startswith("trigger:")]
+    if len(declarations) != 1:
+        fail(f"Expected one push trigger in the build file, found {len(declarations)}")
+
+    block = []
+    for line in lines[declarations[0] + 1:]:
+        if line and not line[0].isspace():
+            break
+        block.append(line)
+
+    branches = [line.strip()[2:].strip().strip("'\"") for line in block if line.strip().startswith("- ")]
+    if branches != ["develop", "main"]:
+        fail(f"A push must build develop and main only; the trigger names {branches}")
+
+    print("Guard passed: a push builds develop and main.")
+    PY
+  displayName: 'Guard: a push builds develop and main only'
+
 - task: UseDotNet@2
   displayName: 'Install .NET SDK'
   inputs:
