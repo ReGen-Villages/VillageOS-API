@@ -116,12 +116,18 @@ steps:
 - script: dotnet build --configuration $(buildConfiguration) --no-restore
   displayName: 'Build Solution'
 
+# The solution rather than a wildcard over the test projects: a wildcard starts a separate test run
+# per project, and each one loads the runner, starts a test host and waits for the previous project
+# to finish. One run over the solution tests the projects alongside each other instead.
+# maxcpucount caps how many projects test at once. The default is one per processor, which on a pool
+# of one machine that is already short of memory at idle would start more test hosts than it can
+# hold. Four costs no time, because the run lasts as long as its slowest single project either way.
 - task: DotNetCoreCLI@2
   displayName: 'Run Tests with Coverage'
   inputs:
     command: 'test'
-    projects: '**/*Tests.csproj'
-    arguments: '--configuration $(buildConfiguration) --no-build --logger trx --results-directory $(testResultsDirectory) --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
+    projects: 'VillageOS-API.sln'
+    arguments: '--configuration $(buildConfiguration) --no-build -maxcpucount:4 --logger trx --results-directory $(testResultsDirectory) --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
     publishTestResults: false
 
 - task: PublishTestResults@2
