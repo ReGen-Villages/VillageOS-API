@@ -373,9 +373,12 @@ relationships (including the `is` type edge), and their initial values — in on
   ```
 
   Omit them and nothing changes: the property accepts either kind and follows the model's default
-  retention. An unrecognised name for either fails `400` up front, with zero mutation. A `value` is
-  optional here — an envelope that declares a property without valuing it creates the property and
-  asserts nothing.
+  retention. An unrecognised name for either fails `400` up front with zero mutation, and so does a
+  size with no `mode` to apply it to — it would otherwise be accepted and then do nothing. A `value`
+  is optional here: an envelope that declares a property without valuing it creates the property and
+  asserts nothing, which is how you set up one that only ever receives observations. The settings
+  land on the property the Thing **owns**; for a name it only inherits, the archetype's declaration
+  governs.
 - **Batch-scale reactive work.** Each write still re-evaluates its own affected ranges, but the O(model)
   roll-up recompute is **deferred and run once** for the whole batch (not per write), so applying a large
   fragment is ~O(model), not O((things + rels) × model). Send big graphs as one fragment rather than many
