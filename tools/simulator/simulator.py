@@ -69,6 +69,11 @@ class Action:
         return cls(d["offset"], d["seq"], d["actor"], d["op"], d.get("args", {}), d.get("key", ""))
 
 
+BATCHED_OPS = frozenset({"create_thing", "create_rel"})
+"""The only ops a standing-world batch — a coalesced fragment or a ``--seed-first`` seed document —
+can carry."""
+
+
 def _fragment_thing(args):
     """A create_thing action's args → a ThingDto (Id, Name, typed Properties) for a fragment."""
     return {"Id": args["thing_id"], "Name": args["name"],
@@ -231,10 +236,13 @@ class Simulator:
         if self.dry_run:
             how = "planned (dry-run)"
         elif self.seed_first:
-            document = self._as_seed_document(writes)
+            document = self._as_seed_document(x for x in writes if x.op in BATCHED_OPS)
             self.client.load_model(document)
             self.stats["seed_first_things"] = len(document["Things"])
             self.stats["seed_first_rels"] = len(document["Relationships"])
+            for action in writes:
+                if action.op not in BATCHED_OPS:
+                    self._apply(action)
             how = "bulk-loaded via POST /api/model"
         else:
             for action in writes:
@@ -254,6 +262,8 @@ class Simulator:
                 rels.append({"Name": a.get("predicate") or "rel",
                              "Subject": a["subject_id"], "Predicate": a["predicate_id"],
                              "Target": a["target_id"]})
+            else:
+                raise ValueError(f"{action.op!r} cannot travel in a seed document")
         return {"Name": "simulator standing world", "Things": things, "Relationships": rels}
 
     # ── coalescing: fold creates (+ their creation-time edges) into fragments ────
@@ -268,7 +278,9 @@ class Simulator:
         ``create_thing``'s offset and fires at that instance's moment.
 
         Setup is coalesced into ONE standing-world fragment *unless* ``--seed-first`` (which bulk-loads
-        the granular setup via ``POST /api/model`` and needs create_thing/create_rel left intact)."""
+        the granular setup via ``POST /api/model`` and needs create_thing/create_rel left intact). A
+        setup action the fragment cannot carry survives as it stands, ordered after the fragment so it
+        lands on a Thing that already exists — the paced path's catch-all, applied to both halves."""
         setup = [x for x in actions if x.is_setup]
         paced = [x for x in actions if not x.is_setup]
 
@@ -284,6 +296,8 @@ class Simulator:
                 setup_out.append(Action(0.0, seq, "setup", "apply_fragment",
                                         {"things": things, "relationships": rels,
                                          "name": "simulator standing world"}, "setup fragment"))
+            setup_out.extend(x for x in setup
+                             if x.op != "ledger_set" and x.op not in BATCHED_OPS)
 
         # ── PACED → each create_thing folds its same-offset creation-time edges into one fragment. ──
         # A create_rel is a creation-time edge of C iff it shares C's offset and its subject is C.
