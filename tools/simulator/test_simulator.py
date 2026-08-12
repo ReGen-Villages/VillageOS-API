@@ -542,11 +542,24 @@ class SetupCarriesWhatTheBatchCannotHold(unittest.TestCase):
     def test_seed_first_carries_them_too(self):
         client = FakeMycelium()
         S.Simulator(client, **_fast(seed_first=True)).run([
-            S.Action(0, 0, "setup", "create_thing", {"name": "BIN", "thing_id": "bin"}, "BIN"),
-            S.Action(0, 1, "setup", "set_fact", {"thing_id": "bin", "prop": "code", "value": "x"}, "code"),
+            S.Action(0, 0, "setup", "create_thing", {"name": "A", "thing_id": "A"}, "A"),
+            S.Action(0, 1, "setup", "create_thing", {"name": "BIN", "thing_id": "bin"}, "BIN"),
+            S.Action(0, 2, "setup", "create_rel",
+                     {"subject_id": "bin", "predicate_id": "GUID-is", "predicate": "is",
+                      "target_id": "A"}, "bin|is|A"),
+            S.Action(0, 3, "setup", "set_fact", {"thing_id": "bin", "prop": "code", "value": "x"}, "code"),
         ])
         self.assertIn("bin", client.things)
+        self.assertIn(("bin", "GUID-is", "A"), client.rels)   # the document still carries both kinds
         self.assertEqual(client.facts, [("bin", "code", "x")])
+
+    def test_a_seed_document_refuses_an_op_it_cannot_carry(self):
+        # The one loop left that could silently ignore a new op, so it refuses like _apply instead.
+        with self.assertRaises(ValueError):
+            S.Simulator._as_seed_document([
+                S.Action(0, 0, "setup", "set_fact",
+                         {"thing_id": "T", "prop": "code", "value": "x"}, "code"),
+            ])
 
 
 if __name__ == "__main__":

@@ -71,7 +71,7 @@ class Action:
 
 BATCHED_OPS = frozenset({"create_thing", "create_rel"})
 """The only ops a standing-world batch — a coalesced fragment or a ``--seed-first`` seed document —
-can carry. Every other setup action is applied on its own, after the batch."""
+can carry."""
 
 
 def _fragment_thing(args):
@@ -236,7 +236,7 @@ class Simulator:
         if self.dry_run:
             how = "planned (dry-run)"
         elif self.seed_first:
-            document = self._as_seed_document(writes)
+            document = self._as_seed_document(x for x in writes if x.op in BATCHED_OPS)
             self.client.load_model(document)
             self.stats["seed_first_things"] = len(document["Things"])
             self.stats["seed_first_rels"] = len(document["Relationships"])
@@ -262,6 +262,8 @@ class Simulator:
                 rels.append({"Name": a.get("predicate") or "rel",
                              "Subject": a["subject_id"], "Predicate": a["predicate_id"],
                              "Target": a["target_id"]})
+            else:
+                raise ValueError(f"{action.op!r} cannot travel in a seed document")
         return {"Name": "simulator standing world", "Things": things, "Relationships": rels}
 
     # ── coalescing: fold creates (+ their creation-time edges) into fragments ────
