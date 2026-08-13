@@ -51,6 +51,9 @@ Read these from configuration or the environment, **never** from the command lin
 on the environment of the daemon it launches. A command line is readable by every process on the host
 and is recorded by anything that logs the line a service was started with.
 
+Launch a process of your own and the same rule applies to what you hand it: set the credential on the
+child's environment, not in its arguments. Xylem hands the IFC ingest tool its `Token` that way.
+
 | Setting | Meaning |
 |---------|---------|
 | `Token` | Pre-minted service JWT for outbound calls; if unset, fetch one from `POST /api/auth/token` |

@@ -125,6 +125,10 @@ to every process on the host and is recorded by anything that logs the line a
 service was started with, so `--token=` and `--signingKey=` are ignored if
 given. Mycelium sets both on the environment of every daemon it launches.
 
+The rule holds in the other direction too: a service that launches a process of
+its own passes any credential on that child's environment, never in its
+arguments. Xylem hands the IFC ingest tool its `Token` that way.
+
 `Parse(args, configuration)` returns `null` when a required setting is missing
 or the port is not a usable number, which is the signal to print
 `UsageMessage` and stop. Flags are matched exactly: a flag name carrying an
