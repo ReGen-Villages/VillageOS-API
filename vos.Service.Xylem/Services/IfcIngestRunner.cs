@@ -4,10 +4,11 @@ using System.Text.RegularExpressions;
 namespace vos.Service.Xylem.Services;
 
 // Production runner: invokes the vos.Tools.IfcIngest tool as a subprocess
-//   dotnet <IfcIngest.dll> --ifc <path> --post <mycelium> --token <jwt> --name <model> --profile analysis
+//   dotnet <IfcIngest.dll> --ifc <path> --post <mycelium> --name <model> --profile analysis
 // which parses (Xbim), classifies, and posts the graph to /api/model/fragment (idempotent, stable ids).
-// Purely the subprocess; new-model model preparation is the handler's job. Not unit-tested (it spawns a
-// process); the guard + count parsing are covered, and the orchestration by IngestHandlerTests.
+// Purely the subprocess; new-model model preparation is the handler's job. The spawn itself is not unit-
+// tested; the launch it builds, the guard and the count parsing are, and the orchestration by
+// IngestHandlerTests.
 public sealed class IfcIngestRunner : IIfcIngestRunner
 {
     // The IfcIngest CLI prints "Ingested <n> things, <m> relationships." — the only count it surfaces.
@@ -33,20 +34,7 @@ public sealed class IfcIngestRunner : IIfcIngestRunner
         if (string.IsNullOrEmpty(_ifcIngestDll) || !File.Exists(_ifcIngestDll))
             return new IngestRunResult(false, 0, 0, 0, $"IfcIngest tool not found at '{_ifcIngestDll}'.");
 
-        var psi = new ProcessStartInfo("dotnet")
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-        psi.ArgumentList.Add(_ifcIngestDll);
-        psi.ArgumentList.Add("--ifc"); psi.ArgumentList.Add(ifcPath);
-        psi.ArgumentList.Add("--post"); psi.ArgumentList.Add(_myceliumUrl);
-        if (!string.IsNullOrEmpty(_token)) { psi.ArgumentList.Add("--token"); psi.ArgumentList.Add(_token); }
-        psi.ArgumentList.Add("--name"); psi.ArgumentList.Add(modelName);
-        psi.ArgumentList.Add("--profile"); psi.ArgumentList.Add("analysis");
-
-        using var proc = Process.Start(psi);
+        using var proc = Process.Start(BuildStartInfo(ifcPath, modelName));
         if (proc is null) return new IngestRunResult(false, 0, 0, 0, "Failed to start IfcIngest process.");
 
         var stdout = await proc.StandardOutput.ReadToEndAsync(ct);
@@ -61,6 +49,30 @@ public sealed class IfcIngestRunner : IIfcIngestRunner
 
         var (things, rels) = ParseCounts(stdout);
         return new IngestRunResult(true, things, 0, rels, null);
+    }
+
+    // The bearer token travels in the child's environment, never in its arguments: an argument list is
+    // readable by anything that can list processes, and by any diagnostic that captures a command line.
+    // An absent token is removed rather than left inherited, so the ingest tool authenticates with this
+    // setting and nothing else.
+    internal ProcessStartInfo BuildStartInfo(string ifcPath, string modelName)
+    {
+        var psi = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        psi.ArgumentList.Add(_ifcIngestDll);
+        psi.ArgumentList.Add("--ifc"); psi.ArgumentList.Add(ifcPath);
+        psi.ArgumentList.Add("--post"); psi.ArgumentList.Add(_myceliumUrl);
+        psi.ArgumentList.Add("--name"); psi.ArgumentList.Add(modelName);
+        psi.ArgumentList.Add("--profile"); psi.ArgumentList.Add("analysis");
+
+        if (string.IsNullOrEmpty(_token)) psi.Environment.Remove("Token");
+        else psi.Environment["Token"] = _token;
+
+        return psi;
     }
 
     // Pull "Ingested <n> things, <m> relationships" out of the CLI output; (0,0) if absent.

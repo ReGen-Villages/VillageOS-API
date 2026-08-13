@@ -19,6 +19,25 @@ public class IfcIngestRunnerTests
         r.Error.Should().Contain("not found");
     }
 
+    [Fact]
+    public void The_ingest_process_is_handed_its_token_through_the_environment()
+    {
+        var startInfo = new IfcIngestRunner("/tools/IfcIngest.dll", "http://localhost:5000", "the.service.jwt",
+            NullLogger<IfcIngestRunner>.Instance).BuildStartInfo("/tmp/model.ifc", "Demo");
+
+        startInfo.Environment["Token"].Should().Be("the.service.jwt");
+        startInfo.ArgumentList.Should().NotContain("--token").And.NotContain("the.service.jwt");
+    }
+
+    [Fact]
+    public void An_absent_token_leaves_the_ingest_process_without_one()
+    {
+        var startInfo = new IfcIngestRunner("/tools/IfcIngest.dll", "http://localhost:5000", null,
+            NullLogger<IfcIngestRunner>.Instance).BuildStartInfo("/tmp/model.ifc", "Demo");
+
+        startInfo.Environment.Should().NotContainKey("Token");
+    }
+
     [Theory]
     [InlineData("Ingested 12 things, 5 relationships.\nFragment POST: 200 applied", 12, 5)]
     [InlineData("Ingested 0 things, 0 relationships.", 0, 0)]
