@@ -12,13 +12,13 @@ This is the Go analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.S
 # Standalone (against a running Mycelium on https://localhost:7243):
 go run . --port=5101 --myceliumUrl=https://localhost:7243
 
-# With inbound auth (Mycelium passes these when it launches the daemon):
-go run . --port=5101 --myceliumUrl=https://localhost:7243 \
-         --token=<service-jwt> --signingKey=<base64-hmac-key> \
-         --issuer=VillageOS --audience=VosClients
+# with inbound auth, as Mycelium launches it:
+Token=<service-jwt> SigningKey=<base64-hmac-key> \
+  go run . --port=5101 --myceliumUrl=https://localhost:7243 \
+           --issuer=VillageOS --audience=VosClients
 ```
 
-Normally you don't run it by hand — Mycelium launches it as a daemon with these flags when a relationship using your predicate is created.
+Normally you don't run it by hand — Mycelium launches it as a daemon when a relationship using your predicate is created, passing the flags on the command line and the credentials on the environment.
 
 ## CLI arguments
 
@@ -26,10 +26,17 @@ Normally you don't run it by hand — Mycelium launches it as a daemon with thes
 |------|----------|---------|
 | `--port` | ✓ | Port to listen on (1–65535) |
 | `--myceliumUrl` | ✓ | Base URL of the Mycelium gateway |
-| `--token` | | Pre-minted service JWT; if omitted, fetched from `POST /api/auth/token` |
-| `--signingKey` | | Base64 HMAC key; when present, `/handle` and `/shutdown` require a valid Mycelium-signed JWT |
 | `--issuer` | | JWT issuer to validate (default `VillageOS`) |
 | `--audience` | | JWT audience to validate (default `VosClients`) |
+
+## Credentials
+
+Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--signingKey=` argument is ignored.
+
+| Variable | Meaning |
+|----------|---------|
+| `Token` | Pre-minted service JWT; if unset, fetched from `POST /api/auth/token` |
+| `SigningKey` | Base64 HMAC key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT |
 
 ## Endpoints
 
@@ -42,12 +49,12 @@ Normally you don't run it by hand — Mycelium launches it as a daemon with thes
 | GET | `/stats` | — | Service metadata |
 | POST | `/shutdown` | JWT* | Graceful shutdown |
 
-\* Enforced only when `--signingKey` is supplied (matches the .NET handlers).
+\* Enforced only when a `SigningKey` is supplied (matches the .NET handlers).
 
 ## How it maps to the contract
 
 - **Registration** — `register()` POSTs to `/api/mycelium/register` with `{handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint}` after obtaining a bearer token.
-- **JWT validation** — `verifyHS256()` checks the HS256 signature against `base64decode(--signingKey)`, plus issuer/audience/expiry with 30s clock skew — the same parameters as `ServiceTokenValidator` on the .NET side.
+- **JWT validation** — `verifyHS256()` checks the HS256 signature against `base64decode(SigningKey)`, plus issuer/audience/expiry with 30s clock skew — the same parameters as `ServiceTokenValidator` on the .NET side.
 - **Deregistration** — `deregister()` sends `DELETE /api/mycelium/services/{handlerId}` on SIGINT/SIGTERM and on `/shutdown`.
 
 ## Build / verify

@@ -22,15 +22,19 @@ export interface Config {
   audience: string;
 }
 
-const USAGE = `Usage: node index.js --port=<port> --myceliumUrl=<url> [--token=<jwt>] [--signingKey=<base64>] [--issuer=<iss>] [--audience=<aud>]
+const USAGE = `Usage: node index.js --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
   --port        Port to listen on (1-65535)
   --myceliumUrl Base URL of the VillageOS Mycelium gateway
-  --token       Service JWT for authenticating to Mycelium (optional; else fetched)
-  --signingKey  Base64 HMAC key for validating inbound /handle requests (optional)
   --issuer      JWT issuer Mycelium signs with (default VillageOS)
-  --audience    JWT audience Mycelium signs with (default VosClients)`;
+  --audience    JWT audience Mycelium signs with (default VosClients)
 
-export function parseArgs(argv: string[]): Config | null {
+Credentials come from the environment, never the command line:
+  Token         Service JWT for authenticating to Mycelium (optional; else fetched)
+  SigningKey    Base64 HMAC key for validating inbound /handle requests (optional)`;
+
+// A credential is read from the environment alone. A command line is visible to every process on
+// the host and is recorded by anything that logs the line a service was started with.
+export function parseArgs(argv: string[], environment: NodeJS.ProcessEnv = process.env): Config | null {
   const map = new Map<string, string>();
   for (const a of argv) {
     const eq = a.indexOf("=");
@@ -44,8 +48,8 @@ export function parseArgs(argv: string[]): Config | null {
   return {
     port,
     myceliumUrl: myceliumUrl.replace(/\/+$/, ""),
-    token: map.get("--token"),
-    signingKey: map.get("--signingKey"),
+    token: environment.Token,
+    signingKey: environment.SigningKey,
     issuer: map.get("--issuer") || "VillageOS",
     audience: map.get("--audience") || "VosClients",
   };

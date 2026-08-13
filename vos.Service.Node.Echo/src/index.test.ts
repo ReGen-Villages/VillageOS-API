@@ -30,7 +30,7 @@ function makeToken(key: Buffer, overrides: Record<string, unknown> = {}): string
 }
 
 test("parseArgs: valid required flags + defaults", () => {
-  const cfg = parseArgs(["--port=5102", "--myceliumUrl=https://localhost:7243/"]);
+  const cfg = parseArgs(["--port=5102", "--myceliumUrl=https://localhost:7243/"], {});
   assert.ok(cfg);
   assert.equal(cfg.port, 5102);
   assert.equal(cfg.myceliumUrl, "https://localhost:7243");
@@ -39,9 +39,29 @@ test("parseArgs: valid required flags + defaults", () => {
 });
 
 test("parseArgs: missing required flags returns null", () => {
-  assert.equal(parseArgs(["--port=5102"]), null);
-  assert.equal(parseArgs(["--myceliumUrl=x"]), null);
-  assert.equal(parseArgs(["--port=0", "--myceliumUrl=x"]), null);
+  assert.equal(parseArgs(["--port=5102"], {}), null);
+  assert.equal(parseArgs(["--myceliumUrl=x"], {}), null);
+  assert.equal(parseArgs(["--port=0", "--myceliumUrl=x"], {}), null);
+});
+
+test("parseArgs: credentials come from the environment", () => {
+  const cfg = parseArgs(["--port=5102", "--myceliumUrl=https://localhost:7243"], {
+    Token: "environment-token",
+    SigningKey: "ZW52aXJvbm1lbnQta2V5",
+  });
+  assert.ok(cfg);
+  assert.equal(cfg.token, "environment-token");
+  assert.equal(cfg.signingKey, "ZW52aXJvbm1lbnQta2V5");
+});
+
+test("parseArgs: a credential given as a flag is ignored", () => {
+  const cfg = parseArgs(
+    ["--port=5102", "--myceliumUrl=https://localhost:7243", "--token=flag-token", "--signingKey=flag-key"],
+    {},
+  );
+  assert.ok(cfg);
+  assert.equal(cfg.token, undefined);
+  assert.equal(cfg.signingKey, undefined);
 });
 
 test("verifyJwt: accepts a valid token", () => {

@@ -13,8 +13,10 @@ Run:  python app.py --port=5103 --myceliumUrl=https://localhost:7243
 from __future__ import annotations
 
 import base64
+import os
 import sys
 import uuid
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -38,8 +40,13 @@ class Config:
     audience: str = "VosClients"
 
 
-def parse_args(argv: list[str]) -> Config | None:
-    cfg = Config()
+def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> Config | None:
+    """Parse the standard --key=value flags.
+
+    A credential is read from the environment alone. A command line is visible to every process
+    on the host and is recorded by anything that logs the line a service was started with.
+    """
+    cfg = Config(token=environment.get("Token"), signing_key=environment.get("SigningKey"))
     seen_port = seen_url = False
     for arg in argv:
         if "=" not in arg:
@@ -51,10 +58,6 @@ def parse_args(argv: list[str]) -> Config | None:
             cfg.port, seen_port = int(value), True
         elif key == "--myceliumUrl":
             cfg.mycelium_url, seen_url = value.rstrip("/"), True
-        elif key == "--token":
-            cfg.token = value
-        elif key == "--signingKey":
-            cfg.signing_key = value
         elif key == "--issuer" and value:
             cfg.issuer = value
         elif key == "--audience" and value:
@@ -64,7 +67,8 @@ def parse_args(argv: list[str]) -> Config | None:
 
 USAGE = (
     "Usage: python app.py --port=<port> --myceliumUrl=<url> "
-    "[--token=<jwt>] [--signingKey=<base64>] [--issuer=<iss>] [--audience=<aud>]"
+    "[--issuer=<iss>] [--audience=<aud>]\n"
+    "Credentials come from the environment, never the command line: Token, SigningKey"
 )
 
 config = parse_args(sys.argv[1:]) or Config()

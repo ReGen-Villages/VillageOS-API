@@ -41,11 +41,14 @@ struct Config {
 }
 
 /// Parses the standard --key=value flags. Returns None if required ones missing.
-fn parse_args(args: &[String]) -> Option<Config> {
+///
+/// A credential is read from the environment alone. A command line is visible to every process on
+/// the host and is recorded by anything that logs the line a service was started with.
+fn parse_args(args: &[String], environment: impl Fn(&str) -> Option<String>) -> Option<Config> {
     let mut port: Option<u16> = None;
     let mut mycelium_url: Option<String> = None;
-    let mut token = None;
-    let mut signing_key = None;
+    let token = environment("Token");
+    let signing_key = environment("SigningKey");
     let mut issuer = "VillageOS".to_string();
     let mut audience = "VosClients".to_string();
 
@@ -54,8 +57,6 @@ fn parse_args(args: &[String]) -> Option<Config> {
         match k {
             "--port" => port = v.parse::<u16>().ok().filter(|p| *p >= 1),
             "--myceliumUrl" => mycelium_url = Some(v.trim_end_matches('/').to_string()),
-            "--token" => token = Some(v.to_string()),
-            "--signingKey" => signing_key = Some(v.to_string()),
             "--issuer" if !v.is_empty() => issuer = v.to_string(),
             "--audience" if !v.is_empty() => audience = v.to_string(),
             _ => {}
@@ -72,7 +73,8 @@ fn parse_args(args: &[String]) -> Option<Config> {
     })
 }
 
-const USAGE: &str = "Usage: app --port=<port> --myceliumUrl=<url> [--token=<jwt>] [--signingKey=<base64>] [--issuer=<iss>] [--audience=<aud>]";
+const USAGE: &str = "Usage: app --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]\n\
+    Credentials come from the environment, never the command line: Token, SigningKey";
 
 struct AppState {
     config: Config,
@@ -482,7 +484,7 @@ async fn demo_subscribe(State(state): State<Arc<AppState>>, body: Option<Json<Su
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let Some(config) = parse_args(&args) else {
+    let Some(config) = parse_args(&args, |name| std::env::var(name).ok()) else {
         eprintln!("{USAGE}");
         std::process::exit(1);
     };
@@ -587,12 +589,19 @@ mod tests {
         encode(&Header::new(Algorithm::HS256), &claims, &EncodingKey::from_secret(KEY_RAW)).unwrap()
     }
 
+    fn empty_environment(_: &str) -> Option<String> {
+        None
+    }
+
     #[test]
     fn parse_args_valid_with_defaults() {
-        let cfg = parse_args(&[
-            "--port=5104".into(),
-            "--myceliumUrl=https://localhost:7243/".into(),
-        ])
+        let cfg = parse_args(
+            &[
+                "--port=5104".into(),
+                "--myceliumUrl=https://localhost:7243/".into(),
+            ],
+            empty_environment,
+        )
         .unwrap();
         assert_eq!(cfg.port, 5104);
         assert_eq!(cfg.mycelium_url, "https://localhost:7243");
@@ -602,8 +611,39 @@ mod tests {
 
     #[test]
     fn parse_args_missing_required_returns_none() {
-        assert!(parse_args(&["--port=5104".into()]).is_none());
-        assert!(parse_args(&["--myceliumUrl=x".into()]).is_none());
+        assert!(parse_args(&["--port=5104".into()], empty_environment).is_none());
+        assert!(parse_args(&["--myceliumUrl=x".into()], empty_environment).is_none());
+    }
+
+    #[test]
+    fn parse_args_takes_credentials_from_the_environment() {
+        let cfg = parse_args(
+            &["--port=5104".into(), "--myceliumUrl=https://localhost:7243".into()],
+            |name| match name {
+                "Token" => Some("environment-token".into()),
+                "SigningKey" => Some("ZW52aXJvbm1lbnQta2V5".into()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert_eq!(cfg.token.as_deref(), Some("environment-token"));
+        assert_eq!(cfg.signing_key.as_deref(), Some("ZW52aXJvbm1lbnQta2V5"));
+    }
+
+    #[test]
+    fn parse_args_ignores_credentials_given_as_flags() {
+        let cfg = parse_args(
+            &[
+                "--port=5104".into(),
+                "--myceliumUrl=https://localhost:7243".into(),
+                "--token=flag-token".into(),
+                "--signingKey=flag-key".into(),
+            ],
+            empty_environment,
+        )
+        .unwrap();
+        assert!(cfg.token.is_none());
+        assert!(cfg.signing_key.is_none());
     }
 
     #[test]

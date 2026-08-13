@@ -36,8 +36,10 @@ func validClaims() map[string]any {
 	}
 }
 
+func emptyEnvironment(string) string { return "" }
+
 func TestParseArgs(t *testing.T) {
-	cfg, err := parseArgs([]string{"--port=5101", "--myceliumUrl=https://localhost:7243/"})
+	cfg, err := parseArgs([]string{"--port=5101", "--myceliumUrl=https://localhost:7243/"}, emptyEnvironment)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,11 +49,39 @@ func TestParseArgs(t *testing.T) {
 	if cfg.Issuer != "VillageOS" || cfg.Audience != "VosClients" {
 		t.Fatalf("defaults not applied: %+v", cfg)
 	}
-	if _, err := parseArgs([]string{"--port=5101"}); err == nil {
+	if _, err := parseArgs([]string{"--port=5101"}, emptyEnvironment); err == nil {
 		t.Fatal("expected error when --myceliumUrl missing")
 	}
-	if _, err := parseArgs([]string{"--port=0", "--myceliumUrl=x"}); err == nil {
+	if _, err := parseArgs([]string{"--port=0", "--myceliumUrl=x"}, emptyEnvironment); err == nil {
 		t.Fatal("expected error for out-of-range port")
+	}
+}
+
+func TestParseArgsTakesCredentialsFromTheEnvironment(t *testing.T) {
+	environment := map[string]string{"Token": "environment-token", "SigningKey": "ZW52aXJvbm1lbnQta2V5"}
+	cfg, err := parseArgs(
+		[]string{"--port=5101", "--myceliumUrl=https://localhost:7243"},
+		func(name string) string { return environment[name] })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Token != "environment-token" {
+		t.Fatalf("token = %q, want the environment value", cfg.Token)
+	}
+	if cfg.SigningKey != "ZW52aXJvbm1lbnQta2V5" {
+		t.Fatalf("signing key = %q, want the environment value", cfg.SigningKey)
+	}
+}
+
+func TestParseArgsIgnoresCredentialsGivenAsFlags(t *testing.T) {
+	cfg, err := parseArgs(
+		[]string{"--port=5101", "--myceliumUrl=https://localhost:7243", "--token=flag-token", "--signingKey=flag-key"},
+		emptyEnvironment)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Token != "" || cfg.SigningKey != "" {
+		t.Fatalf("a credential flag was accepted: %+v", cfg)
 	}
 }
 

@@ -11,10 +11,10 @@ It's the Rust analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Se
 ```bash
 cargo run -- --port=5104 --myceliumUrl=https://localhost:7243
 
-# with inbound auth (as Mycelium launches it):
-cargo run -- --port=5104 --myceliumUrl=https://localhost:7243 \
-  --token=<service-jwt> --signingKey=<base64-hmac-key> \
-  --issuer=VillageOS --audience=VosClients
+# with inbound auth, as Mycelium launches it:
+Token=<service-jwt> SigningKey=<base64-hmac-key> \
+  cargo run -- --port=5104 --myceliumUrl=https://localhost:7243 \
+    --issuer=VillageOS --audience=VosClients
 ```
 
 ## CLI arguments
@@ -23,10 +23,17 @@ cargo run -- --port=5104 --myceliumUrl=https://localhost:7243 \
 |------|----------|---------|
 | `--port` | ✓ | Port to listen on (1–65535) |
 | `--myceliumUrl` | ✓ | Base URL of the Mycelium gateway |
-| `--token` | | Pre-minted service JWT; if omitted, fetched from `POST /api/auth/token` |
-| `--signingKey` | | Base64 HMAC key; when present, `/handle` and `/shutdown` require a valid Mycelium-signed JWT |
 | `--issuer` | | JWT issuer (default `VillageOS`) |
 | `--audience` | | JWT audience (default `VosClients`) |
+
+## Credentials
+
+Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--signingKey=` argument is ignored.
+
+| Variable | Meaning |
+|----------|---------|
+| `Token` | Pre-minted service JWT; if unset, fetched from `POST /api/auth/token` |
+| `SigningKey` | Base64 HMAC key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT |
 
 ## Endpoints
 
@@ -37,12 +44,12 @@ cargo run -- --port=5104 --myceliumUrl=https://localhost:7243 \
 | GET | `/stats` | — | Service metadata |
 | POST | `/shutdown` | JWT* | Graceful shutdown |
 
-\* Enforced only when `--signingKey` is supplied.
+\* Enforced only when a `SigningKey` is supplied.
 
 ## How it maps to the contract
 
 - **Registration** — `register()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token, spawned once the listener is bound.
-- **JWT validation** — `verify_jwt()` uses `jsonwebtoken` to validate the HS256 signature against `base64::decode(--signingKey)`, plus issuer/audience/expiry with 30s leeway (matching `ServiceTokenValidator`).
+- **JWT validation** — `verify_jwt()` uses `jsonwebtoken` to validate the HS256 signature against `base64::decode(SigningKey)`, plus issuer/audience/expiry with 30s leeway (matching `ServiceTokenValidator`).
 - **Deregistration** — `DELETE /api/mycelium/services/{handler_id}` from Axum's graceful-shutdown hook on Ctrl-C.
 
 ## Verify

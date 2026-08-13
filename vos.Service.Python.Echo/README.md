@@ -12,10 +12,10 @@ It's the Python analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.
 pip install -r requirements.txt
 python app.py --port=5103 --myceliumUrl=https://localhost:7243
 
-# with inbound auth (as Mycelium launches it):
-python app.py --port=5103 --myceliumUrl=https://localhost:7243 \
-  --token=<service-jwt> --signingKey=<base64-hmac-key> \
-  --issuer=VillageOS --audience=VosClients
+# with inbound auth, as Mycelium launches it:
+Token=<service-jwt> SigningKey=<base64-hmac-key> \
+  python app.py --port=5103 --myceliumUrl=https://localhost:7243 \
+    --issuer=VillageOS --audience=VosClients
 ```
 
 Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
@@ -26,10 +26,17 @@ Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 |------|----------|---------|
 | `--port` | ✓ | Port to listen on (1–65535) |
 | `--myceliumUrl` | ✓ | Base URL of the Mycelium gateway |
-| `--token` | | Pre-minted service JWT; if omitted, fetched from `POST /api/auth/token` |
-| `--signingKey` | | Base64 HMAC key; when present, `/handle` and `/shutdown` require a valid Mycelium-signed JWT |
 | `--issuer` | | JWT issuer (default `VillageOS`) |
 | `--audience` | | JWT audience (default `VosClients`) |
+
+## Credentials
+
+Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--signingKey=` argument is ignored.
+
+| Variable | Meaning |
+|----------|---------|
+| `Token` | Pre-minted service JWT; if unset, fetched from `POST /api/auth/token` |
+| `SigningKey` | Base64 HMAC key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT |
 
 ## Endpoints
 
@@ -40,12 +47,12 @@ Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 | GET | `/stats` | — | Service metadata |
 | POST | `/shutdown` | JWT* | Graceful shutdown |
 
-\* Enforced only when `--signingKey` is supplied.
+\* Enforced only when a `SigningKey` is supplied.
 
 ## How it maps to the contract
 
 - **Registration** — `register_with_mycelium()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token; runs from the FastAPI `lifespan` startup hook.
-- **JWT validation** — `verify_request()` (a FastAPI dependency) uses PyJWT to validate the HS256 signature against `base64decode(--signingKey)`, plus issuer/audience/expiry with 30s leeway (matching `ServiceTokenValidator`).
+- **JWT validation** — `verify_request()` (a FastAPI dependency) uses PyJWT to validate the HS256 signature against `base64decode(SigningKey)`, plus issuer/audience/expiry with 30s leeway (matching `ServiceTokenValidator`).
 - **Deregistration** — `deregister_from_mycelium()` sends `DELETE /api/mycelium/services/{handler_id}` from the `lifespan` shutdown hook.
 
 ## Test

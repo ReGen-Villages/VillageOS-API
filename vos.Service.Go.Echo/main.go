@@ -6,8 +6,8 @@
 //
 // Lifecycle:
 //  1. Mycelium launches:  ./app --port=5101 --myceliumUrl=https://localhost:7243 \
-//     [--token=<jwt>] [--signingKey=<base64>] \
 //     [--issuer=VillageOS] [--audience=VosClients]
+//     with Token and SigningKey set on the daemon's environment.
 //  2. On startup the service registers (POST /api/mycelium/register).
 //  3. Mycelium calls POST /handle for each matching relationship (JWT-authed).
 //  4. On shutdown (SIGINT/SIGTERM or POST /shutdown) it deregisters
@@ -48,8 +48,15 @@ type config struct {
 	Audience    string
 }
 
-func parseArgs(args []string) (config, error) {
-	c := config{Issuer: "VillageOS", Audience: "VosClients"}
+// A credential is read from the environment alone. A command line is visible to every process on
+// the host and is recorded by anything that logs the line a service was started with.
+func parseArgs(args []string, environment func(string) string) (config, error) {
+	c := config{
+		Issuer:     "VillageOS",
+		Audience:   "VosClients",
+		Token:      environment("Token"),
+		SigningKey: environment("SigningKey"),
+	}
 	var portSet, urlSet bool
 	for _, a := range args {
 		k, v, ok := strings.Cut(a, "=")
@@ -65,10 +72,6 @@ func parseArgs(args []string) (config, error) {
 			c.Port, portSet = p, true
 		case "--myceliumUrl":
 			c.MyceliumURL, urlSet = strings.TrimRight(v, "/"), true
-		case "--token":
-			c.Token = v
-		case "--signingKey":
-			c.SigningKey = v
 		case "--issuer":
 			if v != "" {
 				c.Issuer = v
@@ -85,13 +88,15 @@ func parseArgs(args []string) (config, error) {
 	return c, nil
 }
 
-const usage = `Usage: app --port=<port> --myceliumUrl=<url> [--token=<jwt>] [--signingKey=<base64>] [--issuer=<iss>] [--audience=<aud>]
+const usage = `Usage: app --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
   --port        Port to listen on (1-65535)
   --myceliumUrl Base URL of the VillageOS Mycelium gateway
-  --token       Service JWT for authenticating to Mycelium (optional; else fetched)
-  --signingKey  Base64 HMAC key for validating inbound /handle requests (optional)
   --issuer      JWT issuer Mycelium signs with (default VillageOS)
-  --audience    JWT audience Mycelium signs with (default VosClients)`
+  --audience    JWT audience Mycelium signs with (default VosClients)
+
+Credentials come from the environment, never the command line:
+  Token         Service JWT for authenticating to Mycelium (optional; else fetched)
+  SigningKey    Base64 HMAC key for validating inbound /handle requests (optional)`
 
 type service struct {
 	cfg       config
@@ -492,7 +497,7 @@ func (s *service) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 	key, err := base64.StdEncoding.DecodeString(s.cfg.SigningKey)
 	if err != nil {
-		log.Fatalf("invalid --signingKey (not base64): %v", err)
+		log.Fatalf("invalid SigningKey (not base64): %v", err)
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
@@ -585,7 +590,7 @@ func newUUID() string {
 }
 
 func main() {
-	cfg, err := parseArgs(os.Args[1:])
+	cfg, err := parseArgs(os.Args[1:], os.Getenv)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		fmt.Fprintln(os.Stderr, usage)
