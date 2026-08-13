@@ -519,7 +519,7 @@ var token = /* extract .token from response */;
 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 ```
 
-Mycelium-launched daemons receive a pre-minted service JWT directly via the `--token` CLI argument, so they can authenticate immediately without a token-exchange step. Manually-started services that omit `--token` fetch a JWT via `POST /api/auth/token`. In both cases, JWTs are short-lived (5 minutes), cached for 4 minutes, and refreshed automatically.
+Mycelium-launched daemons receive a pre-minted service JWT through the `Token` environment setting, so they can authenticate immediately without a token-exchange step. Manually-started services that leave `Token` unset fetch a JWT via `POST /api/auth/token`. In both cases, JWTs are short-lived (5 minutes), cached for 4 minutes, and refreshed automatically.
 
 ### Available Endpoints
 
@@ -590,32 +590,43 @@ Normally Mycelium auto-starts handler daemons via the daemon lifecycle manager. 
 |----------|----------|-------------|
 | `--port=<port>` | Yes | Port for the service to listen on |
 | `--myceliumUrl=<url>` | Yes | URL of the VillageOS Mycelium (e.g., `https://localhost:7243`) |
-| `--token=<jwt>` | No | Service JWT for authenticating outbound requests to Mycelium. If omitted, the service attempts to fetch one via `POST /api/auth/token` |
-| `--signingKey=<base64>` | No | Base64-encoded Mycelium signing key. Enables the service to validate inbound requests from Mycelium (the `/handle` calls). If omitted, inbound auth is disabled |
+| `--issuer=<issuer>` | No | JWT issuer Mycelium signs with. Must match for `/handle` authentication |
+| `--audience=<audience>` | No | JWT audience Mycelium signs with. Must match for `/handle` authentication |
 | `--mode=<mode>` | Metabolism only | `consumes` or `produces` |
 
-#### Obtaining `--signingKey`
+#### Credential settings
 
-Mycelium's signing key is stored in `data/vos-signing-key.json`. The `--signingKey` argument expects the key value encoded as base64 of its UTF-8 bytes:
+The two credentials are **not** command-line arguments. An argument list is visible to every process on the host and is recorded by anything that logs the line a service was started with, so both are read from configuration — which includes environment variables — and nowhere else.
+
+| Setting | Environment variable | Required | Description |
+|---------|----------------------|----------|-------------|
+| `Token` | `Token` | No | Service JWT for authenticating outbound requests to Mycelium. If omitted, the service attempts to fetch one via `POST /api/auth/token` |
+| `SigningKey` | `SigningKey` | No | Base64-encoded Mycelium signing key. Lets the service validate inbound `/handle` requests from Mycelium. If omitted, inbound auth is disabled |
+
+Mycelium sets both on the environment of every daemon it launches. You only need them when starting a service by hand.
+
+#### Obtaining `SigningKey`
+
+Mycelium's signing key is stored in `data/vos-signing-key.json`. The setting expects the key value encoded as base64 of its UTF-8 bytes:
 
 ```bash
 # Read the raw key from Mycelium's key file
 KEY=$(python3 -c "import json; print(json.load(open('data/vos-signing-key.json'))['Key'])")
 
-# Base64-encode it (this is what --signingKey expects)
-SIGNING_KEY=$(echo -n "$KEY" | base64)
+# Base64-encode it (this is what SigningKey expects)
+export SigningKey=$(echo -n "$KEY" | base64)
 ```
 
 If Mycelium uses the `Jwt__Key` environment variable or `Jwt:Key` in appsettings instead of the key file, use that value.
 
-#### Obtaining `--token`
+#### Obtaining `Token`
 
 **Option A — Omit it.** The service will call `POST /api/auth/token` on Mycelium at startup to fetch a JWT.
 
 **Option B — Fetch a JWT manually:**
 
 ```bash
-TOKEN=$(curl -s -X POST "https://localhost:7243/api/auth/token" \
+export Token=$(curl -s -X POST "https://localhost:7243/api/auth/token" \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 ```
 
@@ -625,9 +636,7 @@ TOKEN=$(curl -s -X POST "https://localhost:7243/api/auth/token" \
 dotnet run --project vos.Service.Metabolism -- \
   --port=7102 \
   --myceliumUrl=https://localhost:7243 \
-  --mode=consumes \
-  --token=$TOKEN \
-  --signingKey=$SIGNING_KEY
+  --mode=consumes
 ```
 
 #### Example: Start Metabolism (produces)
@@ -636,9 +645,7 @@ dotnet run --project vos.Service.Metabolism -- \
 dotnet run --project vos.Service.Metabolism -- \
   --port=7103 \
   --myceliumUrl=https://localhost:7243 \
-  --mode=produces \
-  --token=$TOKEN \
-  --signingKey=$SIGNING_KEY
+  --mode=produces
 ```
 
 #### Example: Start Echo Endpoint Service
@@ -646,9 +653,7 @@ dotnet run --project vos.Service.Metabolism -- \
 ```bash
 dotnet run --project vos.Service.CSharp.Echo -- \
   --port=7200 \
-  --myceliumUrl=https://localhost:7243 \
-  --token=$TOKEN \
-  --signingKey=$SIGNING_KEY
+  --myceliumUrl=https://localhost:7243
 ```
 
 #### Quick Development Start (minimal auth)
@@ -719,9 +724,9 @@ Mycelium tracks daemon state internally via its daemon state tracking. Key field
 
 ## Security
 
-1. **Bidirectional Auth**: Handler → Mycelium uses a short-lived JWT (pre-minted `--token` or fetched via `POST /api/auth/token`); Mycelium → handler signs each `/handle` call with a short-lived, model-scoped service JWT carrying the request's `vos:model_id`, validated via `vos.Auth.Shared`
+1. **Bidirectional Auth**: Handler → Mycelium uses a short-lived JWT (pre-minted via the `Token` setting, or fetched via `POST /api/auth/token`); Mycelium → handler signs each `/handle` call with a short-lived, model-scoped service JWT carrying the request's `vos:model_id`, validated via `vos.Auth.Shared`
 2. **Short-lived JWTs**: Handlers authenticate with 5-minute JWTs, cached for 4 minutes and refreshed automatically
-3. **Per-request model scope**: Mycelium signs each `/handle` call with a 5-minute service JWT carrying the requesting user's `vos:model_id`. The handler reuses this inbound token for its callbacks into Mycelium (via the shared `UseMyceliumRequestToken` middleware), so a daemon shared by several models acts on the model of the current request — never the model that first launched it. The `--token` startup JWT is used only for the daemon's own registration/deregistration.
+3. **Per-request model scope**: Mycelium signs each `/handle` call with a 5-minute service JWT carrying the requesting user's `vos:model_id`. The handler reuses this inbound token for its callbacks into Mycelium (via the shared `UseMyceliumRequestToken` middleware), so a daemon shared by several models acts on the model of the current request — never the model that first launched it. The startup JWT from the `Token` setting is used only for the daemon's own registration/deregistration.
 4. **Localhost Only**: Handlers bind to `http://localhost:{port}` (not exposed externally)
 5. **Mycelium Control**: Only Mycelium can launch and stop handler daemons
 6. **No Direct Access**: GUI and external users cannot call handler endpoints directly

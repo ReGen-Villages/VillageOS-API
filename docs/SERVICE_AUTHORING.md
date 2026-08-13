@@ -24,8 +24,8 @@ Each reference is an **echo handler**: `/handle` acknowledges the relationship a
 sequenceDiagram
     participant M as Mycelium
     participant S as Your service
-    M->>S: launch: app --port --myceliumUrl --token --signingKey --issuer --audience
-    S->>M: POST /api/auth/token (skip if --token given) → { token }
+    M->>S: launch: app --port --myceliumUrl --issuer --audience (Token + SigningKey in the environment)
+    S->>M: POST /api/auth/token (skip if Token is set) → { token }
     S->>M: POST /api/mycelium/register (Bearer) → 200
     Note over M,S: relationship with your predicate is created
     M->>S: POST /handle (Bearer mycelium_request JWT) → 200
@@ -42,16 +42,25 @@ Mycelium launches your binary with `--key=value` flags. `--port` and `--mycelium
 |------|----------|---------|
 | `--port` | ✓ | Port to listen on (1–65535) |
 | `--myceliumUrl` | ✓ | Base URL of Mycelium, e.g. `https://localhost:7243` |
-| `--token` | | Pre-minted service JWT for outbound calls; if omitted, fetch one from `POST /api/auth/token` |
-| `--signingKey` | | Base64-encoded HMAC key for validating **inbound** requests. When present, `/handle` and `/shutdown` require auth; when absent, auth is disabled |
-| `--issuer` | | JWT issuer to validate against. **Required when `--signingKey` is set** (startup fails otherwise); must match what Mycelium signs |
-| `--audience` | | JWT audience to validate against. **Required when `--signingKey` is set** (startup fails otherwise); must match what Mycelium signs |
+| `--issuer` | | JWT issuer to validate against. **Required when `SigningKey` is set** (startup fails otherwise); must match what Mycelium signs |
+| `--audience` | | JWT audience to validate against. **Required when `SigningKey` is set** (startup fails otherwise); must match what Mycelium signs |
+
+### Credentials
+
+Read these from configuration or the environment, **never** from the command line. Mycelium sets both
+on the environment of the daemon it launches. A command line is readable by every process on the host
+and is recorded by anything that logs the line a service was started with.
+
+| Setting | Meaning |
+|---------|---------|
+| `Token` | Pre-minted service JWT for outbound calls; if unset, fetch one from `POST /api/auth/token` |
+| `SigningKey` | Base64-encoded HMAC key for validating **inbound** requests. When present, `/handle` and `/shutdown` require auth; when absent, auth is disabled |
 
 ## Registration
 
 On startup, obtain a bearer token then register.
 
-1. **Token** — use `--token` if provided, else `POST {myceliumUrl}/api/auth/token` (no body) → `{ "token": "<jwt>" }`.
+1. **Token** — use the `Token` setting if provided, else `POST {myceliumUrl}/api/auth/token` (no body) → `{ "token": "<jwt>" }`.
 2. **Register** — `POST {myceliumUrl}/api/mycelium/register` with `Authorization: Bearer <token>` and body:
 
 ```json
@@ -76,7 +85,7 @@ A 2xx means you're registered.
 | GET | `/stats` | — | Service metadata |
 | POST | `/shutdown` | ✓ | Graceful shutdown trigger |
 
-\* Auth enforced only when `--signingKey` was supplied.
+\* Auth enforced only when a `SigningKey` was supplied.
 
 **Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
 batch, `/handle` is called only after the whole fragment is applied — every Thing, edge, and
@@ -110,15 +119,15 @@ Return any 2xx; Mycelium logs non-2xx and continues. A reasonable body:
 
 ## Inbound JWT validation
 
-When `--signingKey` is supplied, validate the Bearer JWT on `/handle` and `/shutdown`:
+When a `SigningKey` is supplied, validate the Bearer JWT on `/handle` and `/shutdown`:
 
-1. **Key** = `base64decode(--signingKey)` → use directly as the **HMAC-SHA256** secret.
+1. **Key** = `base64decode(SigningKey)` → use directly as the **HMAC-SHA256** secret.
 2. **Algorithm** = HS256.
-3. **Claims** — validate `iss == --issuer`, `aud == --audience`, and `exp`/`nbf`, allowing **30 seconds** clock skew.
+3. **Claims** — validate `iss` and `aud` against the `--issuer` and `--audience` flags, and `exp`/`nbf`, allowing **30 seconds** clock skew.
 
 Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT carrying `iss`/`aud` and the request's `vos:model_id`; the platform validates this same HS256 JWT before dispatch, so your handler should apply the identical checks. Reject with 401 on any failure.
 
-**Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the `--token` startup JWT — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` get this for free: add `app.UseMyceliumRequestToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the current request's bearer.
+**Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the startup JWT from `Token` — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` get this for free: add `app.UseMyceliumRequestToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the current request's bearer.
 
 ## Deregistration & health
 
@@ -127,11 +136,12 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 
 ## Authoring checklist
 
-- [ ] Parse the six `--key=value` flags; exit with usage if `--port`/`--myceliumUrl` missing
+- [ ] Parse the `--key=value` flags; exit with usage if `--port`/`--myceliumUrl` missing
+- [ ] Read `Token` and `SigningKey` from configuration, not from the command line
 - [ ] Generate a `handlerId` UUID at startup
-- [ ] Get a token (`--token` or `/api/auth/token`) and `POST /api/mycelium/register`
+- [ ] Get a token (the `Token` setting or `/api/auth/token`) and `POST /api/mycelium/register`
 - [ ] Serve `/handle`, `/health`, `/stats`, `/shutdown`
-- [ ] Validate the inbound HS256 JWT when `--signingKey` is set (iss/aud/exp, 30s skew)
+- [ ] Validate the inbound HS256 JWT when a `SigningKey` is set (iss/aud/exp, 30s skew)
 - [ ] Add `app.UseMyceliumRequestToken()` so `/handle` callbacks use the request's model token
 - [ ] Deregister on shutdown
 - [ ] Add tests for arg parsing + JWT validation (see any reference example)

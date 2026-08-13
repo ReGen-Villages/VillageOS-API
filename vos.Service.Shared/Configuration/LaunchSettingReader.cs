@@ -30,6 +30,11 @@ public sealed class LaunchSettingReader
         return _configuration?[ConfigurationKeyFor(flagName)];
     }
 
+    // A credential is read from configuration alone. Command-line arguments are visible to every
+    // process on the host and to anything that records the line a service was started with.
+    public string? ReadCredential(string settingName) =>
+        _configuration?[ConfigurationKeyFor(settingName)];
+
     // Flags are camel case on the command line and Pascal case in configuration: --myceliumUrl reads MyceliumUrl.
     private static string ConfigurationKeyFor(string flagName) =>
         char.ToUpperInvariant(flagName[0]) + flagName[1..];

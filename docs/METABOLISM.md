@@ -41,8 +41,8 @@ When a seed loads with 20 `consumes` relationships, all 20 get registered within
 ### Startup sequence
 
 ```text
-1. Parse CLI args (--port, --myceliumUrl, --mode, --token, --signingKey)
-2. Use pre-minted service JWT received via --token for Mycelium authentication
+1. Parse the launch settings (--port, --myceliumUrl and --mode from the command line; Token and SigningKey from configuration)
+2. Use the pre-minted service JWT from the Token setting for Mycelium authentication
 3. Start ASP.NET minimal API on the given port (with Mycelium token validation via vos.Auth.Shared)
 4. Open an SSE subscription to Mycelium for relationship property-change events
 5. Wait for /handle requests from Mycelium (validated via Mycelium-signed request tokens)
@@ -143,7 +143,7 @@ vos.Service.Metabolism/
 
 **`Metabolism`** — The simulation engine. Holds a `ConcurrentDictionary<string, SimulationEntry>` keyed by relationship ID. Each entry has its own async loop running in a `Task`. Handles registration, cancellation, property hot-reload, and graceful shutdown.
 
-**`MyceliumClient`** — HTTP communication with Mycelium: pre-minted service token from `--token` startup arg (with open-endpoint fallback), service registration/deregistration, and quantity increment/decrement API calls.
+**`MyceliumClient`** — HTTP communication with Mycelium: pre-minted service token from the `Token` startup setting (with open-endpoint fallback), service registration/deregistration, and quantity increment/decrement API calls.
 
 **`MetabolismSubscriptionService`** — Hosted service owning the SSE subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations (add on Register, remove on Cancel).
 

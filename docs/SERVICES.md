@@ -105,19 +105,25 @@ A service with no settings beyond the standard ones has no `Configuration`
 folder, and a service that only registers under its own name has no broker
 client of its own. Both come from `vos.Service.Shared`.
 
-## 4. Launch settings — the six standard flags
+## 4. Launch settings — the standard flags and the two credentials
 
 `vos.Service.Shared.Configuration.ServiceLaunchSettings` reads the settings
 every service needs. There is one implementation; no service writes its own.
 
-- **Required:** `--port`, `--myceliumUrl`
-- **Optional:** `--token` (pre-minted service JWT for **outbound** Mycelium
-  calls), `--signingKey` (base64-encoded HMAC key for validating **inbound**
-  Mycelium requests), `--issuer`, `--audience`
+- **Required flags:** `--port`, `--myceliumUrl`
+- **Optional flags:** `--issuer`, `--audience`
+- **Credentials, which are never flags:** `Token` (pre-minted service JWT for
+  **outbound** Mycelium calls) and `SigningKey` (base64-encoded HMAC key for
+  validating **inbound** Mycelium requests)
 
-Every setting can also come from configuration or the environment under its
-Pascal-case name — `Port`, `MyceliumUrl`, `SigningKey` and so on — so a service
-can be launched with no flags at all. A flag always wins over configuration.
+Every flag can also come from configuration or the environment under its
+Pascal-case name — `Port`, `MyceliumUrl` and so on — so a service can be
+launched with no flags at all. A flag always wins over configuration.
+
+The two credentials are read from configuration alone. A command line is visible
+to every process on the host and is recorded by anything that logs the line a
+service was started with, so `--token=` and `--signingKey=` are ignored if
+given. Mycelium sets both on the environment of every daemon it launches.
 
 `Parse(args, configuration)` returns `null` when a required setting is missing
 or the port is not a usable number, which is the signal to print
@@ -144,8 +150,8 @@ service-agnostic plumbing:
 
 - `HandlerId` (fresh `Guid` per process)
 - `MyceliumUrl`
-- `GetTokenAsync()` — returns `--token` if set, otherwise hits the legacy
-  `/api/auth/token` endpoint
+- `GetTokenAsync()` — returns the `Token` setting if set, otherwise hits the
+  legacy `/api/auth/token` endpoint
 - `CreateAuthenticatedClientAsync(timeout?)` — returns an `HttpClient` with
   Bearer auth
 - `RegisterAsync(port, serviceName, startCommand)` — POSTs the registration
@@ -215,7 +221,7 @@ sequenceDiagram
     participant B  as VillageOS Mycelium
 
     Note over MS,B: ApplicationStarted
-    MS->>B: GET /api/auth/token (--token short-circuits this when set)
+    MS->>B: GET /api/auth/token (the Token setting short-circuits this when set)
     B-->>MS: { token: "..." }
     MS->>B: POST /api/mycelium/register<br/>{ handlerId, serviceName, endpointUrl, ... }
     B-->>MS: 200 OK
@@ -304,7 +310,7 @@ a test can reach it — code inside an entry point cannot be called from a test.
 3. Calls `ServiceHost.ConfigureLogging(serviceName, logFileName)`. Pass
    `writeToFile: false` under the Testing environment: writing files from shared
    build agents invites flaky tests.
-4. If `--signingKey` was supplied, calls
+4. If a `SigningKey` was supplied, calls
    `builder.AddMyceliumTokenAuth(signingKey, issuer, audience)`.
 5. Calls `builder.Services.AddContractValidation()` to register the schema
    registry and validator.
@@ -694,7 +700,7 @@ When adding a service, add its `Program.cs` to the comma-separated
    it counted and extract the handling instead.
 
 Only add a `Configuration/` folder if the service has settings beyond the
-standard six, and only add a broker client if it makes broker calls of its own.
+standard ones, and only add a broker client if it makes broker calls of its own.
 
 ## 12. Pointers
 
@@ -720,8 +726,9 @@ Full reference: the **Mycelium Guide** on Mycelium repo's wiki
 
 ### Creating a service API key
 
-Microservices authenticate with a pre-minted JWT passed via `--token` (the
-Mycelium mints and supplies it when it launches the daemon). They do **not**
+Microservices authenticate with a pre-minted JWT supplied through the `Token`
+setting (Mycelium mints it and sets it on the daemon's environment when it
+launches the daemon). They do **not**
 accept an API key directly — there is no `--api-key` argument or `VOS_API_KEY`
 support in the microservice host. A service API key is still useful for
 operators/CLI to *obtain* a token; create one like this:
@@ -739,7 +746,8 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 The response includes a `rawKey` field (e.g. `vos_sk_...`) — store it securely,
 it is only shown once. Exchange it for a JWT via `POST /api/auth/token`
-(`X-API-Key: <rawKey>`); pass the resulting token to a service with `--token`.
+(`X-API-Key: <rawKey>`); give the resulting token to a service through the
+`Token` setting.
 
 ### Related docs
 

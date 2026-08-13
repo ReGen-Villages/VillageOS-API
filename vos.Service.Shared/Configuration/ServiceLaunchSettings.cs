@@ -31,8 +31,8 @@ public record ServiceLaunchSettings(
         return new ServiceLaunchSettings(
             port,
             myceliumUrl,
-            reader.Read("token"),
-            reader.Read("signingKey"),
+            reader.ReadCredential("token"),
+            reader.ReadCredential("signingKey"),
             reader.Read("issuer"),
             reader.Read("audience"));
     }
@@ -47,16 +47,18 @@ public record ServiceLaunchSettings(
     }
 
     private const string CommonFlagSummary =
-        "--port=<port> --myceliumUrl=<url> [--token=<jwt>] [--signingKey=<base64>] " +
-        "[--issuer=<issuer>] [--audience=<audience>]";
+        "--port=<port> --myceliumUrl=<url> [--issuer=<issuer>] [--audience=<audience>]";
 
     private const string CommonFlagDescriptions =
         "  --port         Port number for the service to listen on\n" +
         "  --myceliumUrl  URL of the VOS Mycelium\n" +
-        "  --token        Service JWT token for authenticating with Mycelium (optional)\n" +
-        "  --signingKey   Base64-encoded signing key for validating mycelium requests (optional)\n" +
         "  --issuer       JWT issuer Mycelium signs with, which must match for /handle authentication\n" +
         "  --audience     JWT audience Mycelium signs with, which must match for /handle authentication";
+
+    private const string CredentialDescriptions =
+        "\n\nCredentials come from configuration or the environment, never the command line:\n" +
+        "  Token          Service JWT for authenticating with Mycelium (optional)\n" +
+        "  SigningKey     Base64-encoded signing key for validating Mycelium requests (optional)";
 
     public static string UsageMessage => BuildUsageMessage();
 
@@ -66,5 +68,5 @@ public record ServiceLaunchSettings(
         string extraFlagSummary = "",
         string extraFlagDescriptions = "") =>
         $"Usage: dotnet run -- {CommonFlagSummary}{extraFlagSummary}\n" +
-        $"{CommonFlagDescriptions}{extraFlagDescriptions}";
+        $"{CommonFlagDescriptions}{extraFlagDescriptions}{CredentialDescriptions}";
 }

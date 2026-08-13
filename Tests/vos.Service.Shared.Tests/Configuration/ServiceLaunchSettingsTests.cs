@@ -43,15 +43,41 @@ public class ServiceLaunchSettingsTests
     {
         var result = ServiceLaunchSettings.Parse([
             "--port=7111", "--myceliumUrl=https://localhost:7243",
-            "--token=my.jwt.token", "--signingKey=c29tZWtleQ==",
             "--issuer=VillageOS", "--audience=VillageOSClients"
         ]);
 
         result.Should().NotBeNull();
-        result!.Token.Should().Be("my.jwt.token");
-        result.SigningKey.Should().Be("c29tZWtleQ==");
-        result.Issuer.Should().Be("VillageOS");
+        result!.Issuer.Should().Be("VillageOS");
         result.Audience.Should().Be("VillageOSClients");
+    }
+
+    [Fact]
+    public void Parse_WhenACredentialIsGivenOnTheCommandLine_IgnoresIt()
+    {
+        var result = ServiceLaunchSettings.Parse([
+            "--port=7111", "--myceliumUrl=https://localhost:7243",
+            "--token=my.jwt.token", "--signingKey=c29tZWtleQ=="
+        ]);
+
+        result.Should().NotBeNull();
+        result!.Token.Should().BeNull();
+        result.SigningKey.Should().BeNull();
+    }
+
+    [Fact]
+    public void Parse_WhenACredentialIsOnTheCommandLineAndInConfiguration_TakesTheConfiguredOne()
+    {
+        var configuration = ConfigurationFrom(
+            ("Token", "configured-token"), ("SigningKey", "configured-key"));
+
+        var result = ServiceLaunchSettings.Parse([
+            "--port=7111", "--myceliumUrl=https://localhost:7243",
+            "--token=flag-token", "--signingKey=flag-key"
+        ], configuration);
+
+        result.Should().NotBeNull();
+        result!.Token.Should().Be("configured-token");
+        result.SigningKey.Should().Be("configured-key");
     }
 
     [Fact]
@@ -110,10 +136,10 @@ public class ServiceLaunchSettingsTests
     public void Parse_KeepsAValueContainingAnEqualsSign()
     {
         var result = ServiceLaunchSettings.Parse(
-            ["--port=7111", "--myceliumUrl=https://localhost:7243", "--token=a=b=c"]);
+            ["--port=7111", "--myceliumUrl=https://localhost:7243", "--audience=a=b=c"]);
 
         result.Should().NotBeNull();
-        result!.Token.Should().Be("a=b=c");
+        result!.Audience.Should().Be("a=b=c");
     }
 
     [Fact]
@@ -219,10 +245,17 @@ public class ServiceLaunchSettingsTests
 
         usage.Should().Contain("--port")
             .And.Contain("--myceliumUrl")
-            .And.Contain("--token")
-            .And.Contain("--signingKey")
             .And.Contain("--issuer")
             .And.Contain("--audience");
+    }
+
+    [Fact]
+    public void UsageMessage_NamesTheCredentialsAsConfigurationSettings_NotFlags()
+    {
+        var usage = ServiceLaunchSettings.UsageMessage;
+
+        usage.Should().NotContain("--token").And.NotContain("--signingKey");
+        usage.Should().Contain("Token").And.Contain("SigningKey");
     }
 
     [Fact]

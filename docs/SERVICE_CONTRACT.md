@@ -24,19 +24,28 @@ Mycelium launches a daemon with these flags (a service ignores ones it doesn't n
 |------|---------|
 | `--port` | Port the service listens on |
 | `--myceliumUrl` | Mycelium base URL |
-| `--token` | Pre-minted service JWT (else fetch from `POST /api/auth/token`) |
-| `--signingKey` | Base64 HMAC key for validating inbound `/handle` JWTs |
 | `--issuer` / `--audience` | Expected JWT issuer/audience (validation must match what Mycelium signs) |
 
 Plain service-specific flags (e.g. `--mode=consumes`) are passed through verbatim.
 
+The two credentials are **not** flags. Mycelium sets them on the daemon's environment, and a service
+reads them from configuration:
+
+| Setting | Meaning |
+|---------|---------|
+| `Token` | Pre-minted service JWT (else fetch from `POST /api/auth/token`) |
+| `SigningKey` | Base64 HMAC key for validating inbound `/handle` JWTs |
+
+A command line is readable by every process on the host and is recorded by anything that logs the
+line a service was started with, which is why neither credential travels there.
+
 ## Auth
 
-One HS256 JWT. The service token (`--token`) carries `vos:token_type=service` + a scope; use it for
-the daemon's own registration/deregistration. Inbound `/handle` calls are signed by Mycelium with a
-short-lived service token carrying the request's `vos:model_id`; validate them against `--signingKey`
-with the given issuer/audience, and reuse the inbound token for any callback so a shared daemon acts
-on the request's model.
+One HS256 JWT. The service token (the `Token` setting) carries `vos:token_type=service` + a scope;
+use it for the daemon's own registration/deregistration. Inbound `/handle` calls are signed by
+Mycelium with a short-lived service token carrying the request's `vos:model_id`; validate them
+against `SigningKey` with the given issuer/audience, and reuse the inbound token for any callback so
+a shared daemon acts on the request's model.
 
 EventSource and other browser/streaming clients that can't set headers pass the JWT as
 `?access_token=<jwt>` on the SSE stream URLs instead.

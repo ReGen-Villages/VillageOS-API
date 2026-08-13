@@ -25,12 +25,12 @@ public class XylemLaunchSettingsTests
     [Fact]
     public void Parse_CarriesTheCommonSettingsThrough()
     {
-        var result = XylemLaunchSettings.Parse(FlagsWith("--token=my.jwt.token"));
+        var result = XylemLaunchSettings.Parse(FlagsWith("--issuer=VillageOS"));
 
         result.Should().NotBeNull();
         result!.Service.Port.Should().Be(7111);
         result.Service.MyceliumUrl.Should().Be("https://localhost:7243");
-        result.Service.Token.Should().Be("my.jwt.token");
+        result.Service.Issuer.Should().Be("VillageOS");
     }
 
     [Fact]

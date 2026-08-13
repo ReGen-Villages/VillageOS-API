@@ -128,7 +128,7 @@ If the `is`-wire or any property-set fails, Delta runs a **compensating delete**
 to remove the orphaned Thing, so a partial registration never lingers. Success returns the new
 `registeredThingId`, `endpointTemplateId`, and `predicateId`.
 
-> **Single active model.** Writes target whichever model Delta's `--token` is scoped to. `/handle`
+> **Single active model.** Writes target whichever model Delta's service token is scoped to. `/handle`
 > does not yet propagate a caller-specified model, so per-model routing is deferred (Feature #5478).
 
 ## Endpoints
@@ -140,24 +140,24 @@ to remove the orphaned Thing, so a partial registration never lingers. Success r
 | `GET /health` | `{ "status": "Healthy", "service": "Delta" }`. |
 | `POST /shutdown` | Graceful stop after a short delay. |
 
-When `--signingKey` is supplied, `/handle`, `/register`, and `/shutdown` require a valid Mycelium
+When a `SigningKey` is supplied, `/handle`, `/register`, and `/shutdown` require a valid Mycelium
 JWT; `/health` stays open. Delta does not expose a `/stats` endpoint today (noted in
 [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md)).
 
 ## CLI & configuration
 
-Delta takes the **standard six flags** (see [`SERVICES.md`](SERVICES.md) §4):
+Delta takes the **standard launch settings** (see [`SERVICES.md`](SERVICES.md) §4):
 
 ```bash
-dotnet run -- --port=<port> --myceliumUrl=<url> \
-  [--token=<jwt>] [--signingKey=<base64>] [--issuer=<iss>] [--audience=<aud>]
+dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
 ```
 
 `--issuer` / `--audience` must match what Mycelium signed with, or `/handle` auth rejects valid
 tokens. Any flag absent from the command line falls back to configuration and the environment under
-its Pascal-case name — `Port`, `MyceliumUrl`, `Token`, `SigningKey`, `Issuer`, `Audience` — so Delta
-can be launched with no flags at all. A flag always wins over configuration. This is the shared
-behaviour every service now has; see `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs`.
+its Pascal-case name — `Port`, `MyceliumUrl`, `Issuer`, `Audience` — so Delta can be launched with no
+flags at all. A flag always wins over configuration. The two credentials, `Token` and `SigningKey`,
+come from configuration only and are ignored on the command line. This is the shared behaviour every
+service now has; see `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs`.
 
 ## Seed loading
 
