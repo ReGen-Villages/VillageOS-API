@@ -315,7 +315,7 @@ def test_demo_subscribe_summarises_and_unsubscribes(mycelium):
     assert captured[1].url.path == "/api/subscriptions/s-1"
 
 
-# ---- Launch settings: credentials come from the environment, never the command line ----
+# ---- Launch settings ----
 
 from app import parse_args
 

@@ -12,7 +12,7 @@ This is the Go analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.S
 # Standalone (against a running Mycelium on https://localhost:7243):
 go run . --port=5101 --myceliumUrl=https://localhost:7243
 
-# With inbound auth, as Mycelium launches the daemon:
+# with inbound auth, as Mycelium launches it:
 Token=<service-jwt> SigningKey=<base64-hmac-key> \
   go run . --port=5101 --myceliumUrl=https://localhost:7243 \
            --issuer=VillageOS --audience=VosClients

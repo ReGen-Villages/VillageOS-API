@@ -8,7 +8,6 @@ is created. The whole contract is HTTP + a single HS256 JWT.
 and never dispatches it to a handler. Register for a custom predicate instead.
 
 Run:  python app.py --port=5103 --myceliumUrl=https://localhost:7243
-Mycelium sets Token and SigningKey on the daemon's environment; neither is a flag.
 """
 
 from __future__ import annotations

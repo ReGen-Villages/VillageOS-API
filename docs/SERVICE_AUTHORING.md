@@ -140,7 +140,7 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 ## Authoring checklist
 
 - [ ] Parse the `--key=value` flags; exit with usage if `--port`/`--myceliumUrl` missing
-- [ ] Read `Token` and `SigningKey` from configuration, not from the command line
+- [ ] Read `Token` and `SigningKey` from configuration or the environment, not from the command line
 - [ ] Generate a `handlerId` UUID at startup
 - [ ] Get a token (the `Token` setting or `/api/auth/token`) and `POST /api/mycelium/register`
 - [ ] Serve `/handle`, `/health`, `/stats`, `/shutdown`

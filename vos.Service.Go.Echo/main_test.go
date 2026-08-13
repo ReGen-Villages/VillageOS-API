@@ -36,11 +36,7 @@ func validClaims() map[string]any {
 	}
 }
 
-func environmentOf(values map[string]string) func(string) string {
-	return func(name string) string { return values[name] }
-}
-
-var emptyEnvironment = environmentOf(nil)
+func emptyEnvironment(string) string { return "" }
 
 func TestParseArgs(t *testing.T) {
 	cfg, err := parseArgs([]string{"--port=5101", "--myceliumUrl=https://localhost:7243/"}, emptyEnvironment)
@@ -62,9 +58,10 @@ func TestParseArgs(t *testing.T) {
 }
 
 func TestParseArgsTakesCredentialsFromTheEnvironment(t *testing.T) {
+	environment := map[string]string{"Token": "environment-token", "SigningKey": "ZW52aXJvbm1lbnQta2V5"}
 	cfg, err := parseArgs(
 		[]string{"--port=5101", "--myceliumUrl=https://localhost:7243"},
-		environmentOf(map[string]string{"Token": "environment-token", "SigningKey": "ZW52aXJvbm1lbnQta2V5"}))
+		func(name string) string { return environment[name] })
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

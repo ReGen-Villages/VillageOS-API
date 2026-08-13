@@ -8,7 +8,6 @@
 //! in-process and never dispatches it. Register for a custom predicate instead.
 //!
 //! Run: cargo run -- --port=5104 --myceliumUrl=https://localhost:7243
-//! Mycelium sets Token and SigningKey on the daemon's environment; neither is a flag.
 
 use std::sync::{
     atomic::{AtomicU64, Ordering},

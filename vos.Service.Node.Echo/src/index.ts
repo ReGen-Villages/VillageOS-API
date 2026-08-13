@@ -6,8 +6,6 @@
 //
 // `is` is NOT an external predicate — Mycelium handles `is` inheritance
 // in-process and never dispatches it. Register for a custom predicate instead.
-//
-// Mycelium sets Token and SigningKey on the daemon's environment; neither is a flag.
 
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
