@@ -60,12 +60,11 @@ public class MetabolismLaunchSettingsTests
     public void Parse_CarriesTheCommonSettingsThrough()
     {
         var result = MetabolismLaunchSettings.Parse(
-            FlagsWith("--mode=consumes", "--token=my.jwt.token", "--issuer=VillageOS"));
+            FlagsWith("--mode=consumes", "--issuer=VillageOS"));
 
         result.Should().NotBeNull();
         result!.Service.Port.Should().Be(7111);
         result.Service.MyceliumUrl.Should().Be("https://localhost:7243");
-        result.Service.Token.Should().Be("my.jwt.token");
         result.Service.Issuer.Should().Be("VillageOS");
     }
 

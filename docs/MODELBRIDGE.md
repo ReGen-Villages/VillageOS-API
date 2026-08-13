@@ -114,12 +114,11 @@ estimate).
 
 ## CLI & registration
 
-ModelBridge takes only the **standard six flags** — no service-specific args (see
+ModelBridge takes only the **standard launch settings** — no service-specific args (see
 [`SERVICES.md`](SERVICES.md) §4):
 
 ```bash
-dotnet run -- --port=<port> --myceliumUrl=<url> \
-  [--token=<jwt>] [--signingKey=<base64>] [--issuer=<iss>] [--audience=<aud>]
+dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
 ```
 
 It registers with Mycelium as service name `ModelBridge`, start command `endpoint-service`.
