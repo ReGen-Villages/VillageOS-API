@@ -13,10 +13,10 @@ npm install            # dev-only deps: typescript + @types/node
 npm run build          # compile src → dist
 node dist/index.js --port=5102 --myceliumUrl=https://localhost:7243
 
-# with inbound auth (as Mycelium launches it):
-node dist/index.js --port=5102 --myceliumUrl=https://localhost:7243 \
-  --token=<service-jwt> --signingKey=<base64-hmac-key> \
-  --issuer=VillageOS --audience=VosClients
+# with inbound auth, as Mycelium launches it:
+Token=<service-jwt> SigningKey=<base64-hmac-key> \
+  node dist/index.js --port=5102 --myceliumUrl=https://localhost:7243 \
+    --issuer=VillageOS --audience=VosClients
 ```
 
 ## CLI arguments
@@ -25,10 +25,17 @@ node dist/index.js --port=5102 --myceliumUrl=https://localhost:7243 \
 |------|----------|---------|
 | `--port` | ✓ | Port to listen on (1–65535) |
 | `--myceliumUrl` | ✓ | Base URL of the Mycelium gateway |
-| `--token` | | Pre-minted service JWT; if omitted, fetched from `POST /api/auth/token` |
-| `--signingKey` | | Base64 HMAC key; when present, `/handle` and `/shutdown` require a valid Mycelium-signed JWT |
 | `--issuer` | | JWT issuer (default `VillageOS`) |
 | `--audience` | | JWT audience (default `VosClients`) |
+
+## Credentials
+
+Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--signingKey=` argument is ignored.
+
+| Variable | Meaning |
+|----------|---------|
+| `Token` | Pre-minted service JWT; if unset, fetched from `POST /api/auth/token` |
+| `SigningKey` | Base64 HMAC key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT |
 
 ## Endpoints
 
@@ -39,7 +46,7 @@ node dist/index.js --port=5102 --myceliumUrl=https://localhost:7243 \
 | GET | `/stats` | — | Service metadata |
 | POST | `/shutdown` | JWT* | Graceful shutdown |
 
-\* Enforced only when `--signingKey` is supplied.
+\* Enforced only when a `SigningKey` is supplied.
 
 ## How it maps to the contract
 

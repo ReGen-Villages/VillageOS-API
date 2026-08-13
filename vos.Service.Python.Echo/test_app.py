@@ -313,3 +313,34 @@ def test_demo_subscribe_summarises_and_unsubscribes(mycelium):
     assert captured[0].method == "POST"
     assert captured[1].method == "DELETE"
     assert captured[1].url.path == "/api/subscriptions/s-1"
+
+
+# ---- Launch settings: credentials come from the environment, never the command line ----
+
+from app import parse_args
+
+
+def test_parse_args_reads_the_standard_flags():
+    cfg = parse_args(["--port=5103", "--myceliumUrl=https://localhost:7243/"], {})
+    assert cfg.port == 5103
+    assert cfg.mycelium_url == "https://localhost:7243"
+    assert cfg.issuer == "VillageOS"
+    assert cfg.audience == "VosClients"
+
+
+def test_parse_args_takes_credentials_from_the_environment():
+    cfg = parse_args(
+        ["--port=5103", "--myceliumUrl=https://localhost:7243"],
+        {"Token": "environment-token", "SigningKey": "ZW52aXJvbm1lbnQta2V5"},
+    )
+    assert cfg.token == "environment-token"
+    assert cfg.signing_key == "ZW52aXJvbm1lbnQta2V5"
+
+
+def test_parse_args_ignores_credentials_given_as_flags():
+    cfg = parse_args(
+        ["--port=5103", "--myceliumUrl=https://localhost:7243", "--token=flag-token", "--signingKey=flag-key"],
+        {},
+    )
+    assert cfg.token is None
+    assert cfg.signing_key is None

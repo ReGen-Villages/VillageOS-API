@@ -6,7 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace vos.Auth.Shared;
 
-// Adds Mycelium-signed JWT auth to handler minimal-API apps; the signing key arrives as --signingKey from Mycelium at startup.
+// Adds Mycelium-signed JWT auth to handler minimal-API apps; the signing key arrives as the SigningKey setting from Mycelium at startup.
 public static class HandlerAuthExtensions
 {
     // base64SigningKey wraps the UTF-8 bytes of Mycelium's key (decode base64, then read as UTF-8 — not the raw key bytes).
