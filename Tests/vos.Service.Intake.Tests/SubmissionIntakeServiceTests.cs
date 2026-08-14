@@ -19,7 +19,14 @@ public class SubmissionIntakeServiceTests
         }
         """;
 
+    /// <summary>A service talking to a model seeded from the analysis templates: the archetypes answer, and
+    /// the test says what happens to everything else. <see cref="ServiceOfAnUnseededModel"/> is the one
+    /// that does not.</summary>
     private static SubmissionIntakeService Service(Func<HttpRequestMessage, HttpResponseMessage> respond) =>
+        ServiceOfAnUnseededModel(Seeded(respond));
+
+    private static SubmissionIntakeService ServiceOfAnUnseededModel(
+        Func<HttpRequestMessage, HttpResponseMessage> respond) =>
         new(new IntakeMyceliumClient(
             new PerCallHttpClientFactory(new MockHttpMessageHandler(respond)),
             NullLogger<IntakeMyceliumClient>.Instance,
@@ -65,7 +72,7 @@ public class SubmissionIntakeServiceTests
 
         var composed = await service.SubmitAsync(Document, CancellationToken.None);
 
-        composed.Fragment.Relationships.Single().Predicate.Should().Be(studies);
+        composed.Fragment.Relationships.Should().Contain(edge => edge.Predicate == studies);
         composed.Fragment.Things.Should().NotContain(thing => thing.Id == studies,
             "a predicate the model already holds must not be built a second time beside it");
     }
@@ -79,8 +86,8 @@ public class SubmissionIntakeServiceTests
 
         var composed = await service.SubmitAsync(Document, CancellationToken.None);
 
-        composed.Fragment.Relationships.Single().Predicate
-            .Should().Be(StableIdentity.DerivePredicate("studies"),
+        composed.Fragment.Relationships.Should()
+            .Contain(edge => edge.Predicate == StableIdentity.DerivePredicate("studies"),
                 "two submissions into a model that holds no `studies` yet must agree on which Thing it is");
         composed.Fragment.Things.Should().Contain(thing => thing.Name == "studies");
     }
@@ -117,24 +124,46 @@ public class SubmissionIntakeServiceTests
 
         var composed = await service.SubmitAsync(Document, CancellationToken.None);
 
-        composed.Fragment.Relationships.Single().Predicate
-            .Should().Be(StableIdentity.DerivePredicate("studies"),
+        composed.Fragment.Relationships.Should()
+            .Contain(edge => edge.Predicate == StableIdentity.DerivePredicate("studies"),
                 "the model answers a name it does not hold with an empty body as readily as with a 404");
     }
 
     [Fact]
-    public async Task The_posted_fragment_declares_the_computed_output_without_a_value()
+    public async Task The_posted_study_is_the_archetype_that_declares_what_the_analysis_writes()
     {
         var (service, fragment) = ServiceCapturingFragment();
 
         await service.SubmitAsync(Document, CancellationToken.None);
 
-        var study = JsonDocument.Parse(fragment()!).RootElement.GetProperty("Things").EnumerateArray()
-            .Single(thing => thing.GetProperty("Properties").TryGetProperty("energySelfSufficiencyPct", out _));
-        var declared = study.GetProperty("Properties").GetProperty("energySelfSufficiencyPct");
+        var posted = JsonDocument.Parse(fragment()!).RootElement;
+        var study = posted.GetProperty("Things").EnumerateArray().Single(thing =>
+            thing.GetProperty("Properties").TryGetProperty(SubmissionFragmentComposer.SiteStudyFlag, out _));
+        study.GetProperty("Properties").EnumerateObject().Select(property => property.Name)
+            .Should().Equal([SubmissionFragmentComposer.SiteStudyFlag],
+                "everything the analysis writes is declared on the archetype the study is");
 
-        declared.GetProperty("typeInfo").GetString().Should().Be("vos.Double");
-        declared.TryGetProperty("value", out _).Should().BeFalse();
+        var archetype = StableArchetypeId(SubmissionFragmentComposer.SiteStudyArchetypeName);
+        posted.GetProperty("Relationships").EnumerateArray().Should().Contain(edge =>
+            edge.GetProperty("Subject").GetGuid() == study.GetProperty("Id").GetGuid()
+            && edge.GetProperty("Target").GetGuid() == archetype);
+    }
+
+    // The archetypes are the model's, not this service's: it relates Things to them and never mints one,
+    // so a model that was never seeded is told what it is missing instead of quietly filling with Things
+    // nothing can tell apart.
+    [Fact]
+    public async Task A_model_that_was_never_seeded_is_refused_naming_the_archetype_it_lacks()
+    {
+        var service = ServiceOfAnUnseededModel(request => IsFragment(request)
+            ? Json("{}")
+            : new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var refusal = await Assert.ThrowsAsync<SubmissionError>(
+            () => service.SubmitAsync(Document, CancellationToken.None));
+
+        refusal.Message.Should().Contain(SubmissionFragmentComposer.SiteArchetypeName)
+            .And.Contain("Seed the model from the analysis templates");
     }
 
     [Fact]
@@ -146,7 +175,7 @@ public class SubmissionIntakeServiceTests
 
         var posted = JsonDocument.Parse(fragment()!).RootElement;
         posted.GetProperty("Things").EnumerateArray().First().TryGetProperty("Id", out _).Should().BeTrue();
-        var edge = posted.GetProperty("Relationships").EnumerateArray().Single();
+        var edge = posted.GetProperty("Relationships").EnumerateArray().First();
         foreach (var key in new[] { "Subject", "Predicate", "Target" })
             edge.TryGetProperty(key, out _).Should().BeTrue($"the model reads an edge's {key} under that name");
     }
