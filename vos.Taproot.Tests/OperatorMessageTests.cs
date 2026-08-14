@@ -45,6 +45,21 @@ public class OperatorMessageTests
         OperatorMessage.For(exception).Should().Be("Connection refused");
     }
 
+    // A condition written as "the messages differ" instead of "the outer already says it" would
+    // append an empty bracket here.
+    [Fact]
+    public void For_InnerExceptionWithNoMessageOfItsOwn_AddsNothing()
+    {
+        var exception = new InvalidOperationException("The seed could not be read", new EmptyMessageException());
+
+        OperatorMessage.For(exception).Should().Be("The seed could not be read");
+    }
+
+    private sealed class EmptyMessageException : Exception
+    {
+        public override string Message => string.Empty;
+    }
+
     // The real chain for an unreachable host: the outer message is the inner one plus the address.
     // Appending it again would read "Connection refused (localhost:7243) (Connection refused)".
     [Fact]

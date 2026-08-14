@@ -2,10 +2,8 @@ namespace vos.Taproot;
 
 internal static class OperatorMessage
 {
-    // .NET keeps the reason a call failed in the wrapped exception: an HttpRequestException saying
-    // "see inner exception" carries the refused certificate, the refused connection or the timeout
-    // underneath it. Reporting only the outer message tells the operator to consult something they
-    // were never shown.
+    // .NET keeps the reason in the wrapped exception, so an HttpRequestException that says "see
+    // inner exception" is pointing the operator at something the CLI never shows them.
     public static string For(Exception exception)
     {
         var innermost = exception;
