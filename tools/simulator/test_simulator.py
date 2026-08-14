@@ -257,6 +257,39 @@ class CredentialFlagsAreRefused(unittest.TestCase):
         self.assertIn("unrecognized arguments: --api-key", refusal)
 
 
+class TheStreamAddressCarriesAStreamToken(unittest.TestCase):
+    """A stream address is recorded — in access logs, in any proxy in front, in browser history. So the
+    bearer never goes in one: `stream_url` mints a stream token, which reads one stream for minutes and
+    is refused on every other route."""
+
+    def test_the_address_carries_a_minted_stream_token_and_not_the_bearer(self):
+        captured = {}
+
+        class _Resp(io.BytesIO):
+            def __enter__(self_):
+                return self_
+
+            def __exit__(self_, *a):
+                return False
+
+        def fake_urlopen(req, timeout=None, **kwargs):
+            captured["url"] = req.full_url
+            return _Resp(json.dumps({"token": "a-stream-token"}).encode())
+
+        original = urllib.request.urlopen
+        urllib.request.urlopen = fake_urlopen
+        try:
+            client = M.MyceliumClient("http://h", token="the-bearer")
+            url = client.stream_url("sub-1", last=7)
+        finally:
+            urllib.request.urlopen = original
+
+        self.assertIn("/api/auth/stream-token", captured["url"])
+        self.assertIn("access_token=a-stream-token", url)
+        self.assertNotIn("the-bearer", url)
+        self.assertIn("lastEventId=7", url)
+
+
 class ExpiredTokenIsReminted(unittest.TestCase):
     """A cached JWT expires mid-run, so a long scenario would die with 401 on its first write
     past the token's TTL. An authenticated 401 re-mints once from the API key and retries."""

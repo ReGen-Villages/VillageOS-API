@@ -114,8 +114,6 @@ async function openStreams() {
     const token = await apiClient.ensureToken();
     if (myGeneration !== generation || refCount === 0) return; // released/superseded while awaiting
 
-    const tokenParam = `access_token=${encodeURIComponent(token)}`;
-
     // Whole-model object subscription: snapshot watermark anchors the first resume.
     const resp = await fetch(`${BASE_URL}/api/subscriptions`, {
       method: 'POST',
@@ -123,26 +121,36 @@ async function openStreams() {
       body: JSON.stringify({ all: true }),
     });
     if (myGeneration !== generation || refCount === 0) return;
-    if (resp.ok) {
-      const { subscriptionId, watermark } = await resp.json();
-      if (myGeneration !== generation || refCount === 0) return;
-      // Resume from where we left off (Bug #5943): on a reconnect the broker replays the
-      // Facts we missed and de-dupes by sequence; on a first connect we have no position, so
-      // seed from the fresh snapshot watermark. The stream honours ?lastEventId over the
-      // subscription's own watermark, so a fresh subscription still resumes precisely.
-      const resumeFrom = consumedWatermark ?? watermark;
-      consumedWatermark = resumeFrom;
-      const obj = new EventSource(
-        `${BASE_URL}/api/subscriptions/${subscriptionId}/stream?${tokenParam}&lastEventId=${resumeFrom}`,
-      );
-      obj.onopen = () => { reconnectAttempt = 0; setConnected(true); };
-      obj.onerror = () => scheduleReconnect();
-      attachListeners(obj, true);
-      objectSource = obj;
-    } else {
+    if (!resp.ok) {
       scheduleReconnect();
       return;
     }
+
+    const { subscriptionId, watermark } = await resp.json();
+    if (myGeneration !== generation || refCount === 0) return;
+
+    // The stream addresses get recorded, so what they carry is a stream token — viewer role, expiring
+    // in minutes, refused on every route that is not a stream. The sign-in token stays in headers.
+    // Minted after the snapshot call rather than before it, so a slow snapshot cannot spend the
+    // short lifetime before either stream has opened.
+    const streamToken = await apiClient.mintStreamToken();
+    if (myGeneration !== generation || refCount === 0) return;
+
+    const tokenParam = `access_token=${encodeURIComponent(streamToken)}`;
+
+    // Resume from where we left off (Bug #5943): on a reconnect the broker replays the
+    // Facts we missed and de-dupes by sequence; on a first connect we have no position, so
+    // seed from the fresh snapshot watermark. The stream honours ?lastEventId over the
+    // subscription's own watermark, so a fresh subscription still resumes precisely.
+    const resumeFrom = consumedWatermark ?? watermark;
+    consumedWatermark = resumeFrom;
+    const obj = new EventSource(
+      `${BASE_URL}/api/subscriptions/${subscriptionId}/stream?${tokenParam}&lastEventId=${resumeFrom}`,
+    );
+    obj.onopen = () => { reconnectAttempt = 0; setConnected(true); };
+    obj.onerror = () => scheduleReconnect();
+    attachListeners(obj, true);
+    objectSource = obj;
 
     // System / operational events.
     const sys = new EventSource(`${BASE_URL}/api/events/stream?${tokenParam}`);

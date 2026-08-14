@@ -1,6 +1,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useSse } from './useSse';
+import { apiClient } from '../api/client';
 
 // Captures EventSource instances + their per-event listeners so a test can fire server pushes.
 class FakeEventSource {
@@ -21,7 +22,12 @@ class FakeEventSource {
   }
 }
 
-vi.mock('../api/client', () => ({ apiClient: { ensureToken: vi.fn().mockResolvedValue('tok') } }));
+vi.mock('../api/client', () => ({
+  apiClient: {
+    ensureToken: vi.fn().mockResolvedValue('sign-in-token'),
+    mintStreamToken: vi.fn().mockResolvedValue('stream-token'),
+  },
+}));
 
 describe('useSse', () => {
   beforeEach(() => {
@@ -93,7 +99,34 @@ describe('useSse', () => {
     const urls = FakeEventSource.instances.map((e) => e.url);
     expect(urls.some((u) => u.includes('/api/subscriptions/s1/stream'))).toBe(true);
     expect(urls.some((u) => u.includes('/api/events/stream'))).toBe(true);
-    expect(urls.every((u) => u.includes('access_token=tok'))).toBe(true);
+    expect(urls.every((u) => u.includes('access_token=stream-token'))).toBe(true);
+    unmount();
+  });
+
+  // A stream address is recorded — access logs, proxies, browser history, the referrer sent to a
+  // third-party address the page loads. The sign-in token must never be the thing written there.
+  it('carries a stream token in the address and never the sign-in token', async () => {
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(FakeEventSource.instances.length).toBe(2));
+
+    expect(FakeEventSource.instances.map((e) => e.url).some((u) => u.includes('sign-in-token')))
+      .toBe(false);
+    unmount();
+  });
+
+  it('mints a fresh stream token for each reconnect', async () => {
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    const mintsForTheFirstOpen = vi.mocked(apiClient.mintStreamToken).mock.calls.length;
+
+    vi.useFakeTimers();
+    act(() => objectStreams()[0].onerror?.());
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+    expect(vi.mocked(apiClient.mintStreamToken).mock.calls.length)
+      .toBeGreaterThan(mintsForTheFirstOpen);
     unmount();
   });
 

@@ -47,8 +47,11 @@ Mycelium with a short-lived service token carrying the request's `vos:model_id`;
 against `SigningKey` with the given issuer/audience, and reuse the inbound token for any callback so
 a shared daemon acts on the request's model.
 
-EventSource and other browser/streaming clients that can't set headers pass the JWT as
-`?access_token=<jwt>` on the SSE stream URLs instead.
+EventSource and other streaming clients that can't set headers pass `?access_token=<token>` on the SSE
+stream URLs instead. That token is a **stream token** from `POST /api/auth/stream-token`, not the
+sign-in JWT: an address is recorded (access logs, proxies, browser history) where a header is not, so
+the platform mints one with the viewer role and a lifetime of minutes and refuses it on every route
+that is not a stream. A daemon can set a header, so it never needs one.
 
 ## Handler endpoints (the service exposes)
 

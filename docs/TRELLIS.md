@@ -1143,8 +1143,10 @@ The Mycelium exposes two **Server-Sent Events** streams (push-only): the per-sub
 object change stream (`GET /api/subscriptions/{id}/stream`, opened after `POST /api/subscriptions {all:true}`)
 and the system/operational events stream (`GET /api/events/stream`). The object stream is
 resumable via `Last-Event-ID`; both authenticate via `?access_token` (EventSource can't set the
-Authorization header). The first six events below ride the object stream; the rest ride the
-system stream.
+Authorization header). What that carries is a **stream token** from `POST /api/auth/stream-token` —
+viewer role, expiring in minutes, refused on every route that is not a stream — because a stream
+address is recorded in access logs, proxies and browser history where a header is not. The first six
+events below ride the object stream; the rest ride the system stream.
 
 **Events:**
 
@@ -1170,8 +1172,9 @@ system stream.
 ### React Hook (`useSse.ts`)
 
 - Module-level singleton managing both EventSources (shared across all hook consumers)
-- Manual reconnect with backoff [1s, 2s, 5s, 10s, 30s], reopening with a fresh `?access_token`
-  (EventSource can't refresh the token on its own retry)
+- Manual reconnect with backoff [1s, 2s, 5s, 10s, 30s], minting a fresh stream token for each reopen
+  (EventSource can't refresh the token in its address on its own retry, and a stream token is meant to
+  be stale by the time anyone reads the log that recorded it)
 - **Resume from the consumed sequence** (Bug #5943): the object stream records each event's SSE id
   (`e.lastEventId`) as the highest applied Fact sequence, and on reconnect reopens with
   `?lastEventId=<that sequence>` so the broker replays exactly the Facts missed during the drop and

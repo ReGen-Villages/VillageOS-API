@@ -716,6 +716,7 @@ streams, seed-loading, and JWT minting. Quick map for what calls what:
 | Login | `/api/auth/login` | POST |
 | API-key exchange | `/api/auth/token` | POST (`X-API-Key` header) |
 | Session restore | `/api/auth/restore-session` | GET (HttpOnly cookie) |
+| Stream token (for `?access_token=` on an SSE address) | `/api/auth/stream-token` | POST |
 | Things | `/api/things` | GET, POST, DELETE |
 | Properties | `/api/properties` | GET, PUT, DELETE |
 | Relationships | `/api/relationships` | GET, POST, DELETE |
