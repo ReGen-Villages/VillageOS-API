@@ -1273,9 +1273,11 @@ await handler.ExecuteAsync();
 
 ### Certificate Issues
 
-**Error:** `Could not connect to Mycelium: The SSL connection could not be established, see inner exception.`
+**Error:** `The SSL connection could not be established, see inner exception.`
 
-The CLI checks the Mycelium's TLS certificate and refuses one the machine does not trust — a self-signed development certificate, for example. The message does not say "certificate" because the CLI shows only the first line of the failure; the line underneath, which it does not show, names the certificate.
+The CLI prints that at startup as `Warning: Could not connect to Mycelium: …` and, for a command you run later, as `Error communicating with Mycelium: …`.
+
+The CLI checks the Mycelium's TLS certificate and refuses one the machine does not trust — a self-signed development certificate, for example. Neither message says "certificate": the CLI prints only the first line of the failure, and the line underneath, which names the certificate, is not shown.
 
 A Mycelium that is not running opens with the same words, so read what comes after the colon:
 
