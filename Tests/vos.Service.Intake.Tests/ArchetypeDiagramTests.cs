@@ -12,7 +12,10 @@ namespace vos.Service.Intake.Tests;
 /// </summary>
 public class ArchetypeDiagramTests
 {
-    private static readonly Regex EdgeLabel = new(@"-->\|(?<predicate>[^|]+)\|", RegexOptions.Compiled);
+    private static readonly Regex Arrow = new(@"[-=.]{2,}[>ox]", RegexOptions.Compiled);
+
+    private static readonly Regex LabelledArrow =
+        new(@"[-=.]{2,}[>ox]\s*\|(?<predicate>[^|]+)\|", RegexOptions.Compiled);
 
     [Fact]
     public void Every_edge_in_the_archetype_diagram_names_a_predicate_the_composer_writes()
@@ -25,11 +28,14 @@ public class ArchetypeDiagramTests
             SubmissionFragmentComposer.StudiesPredicateName,
         };
 
-        var drawn = EdgeLabel.Matches(diagram)
+        var drawn = LabelledArrow.Matches(diagram)
             .Select(match => match.Groups["predicate"].Value)
             .ToList();
 
         drawn.Should().NotBeEmpty("a diagram whose edges cannot be read proves nothing about the ones it draws");
+        drawn.Should().HaveCount(Arrow.Matches(diagram).Count,
+            "Mermaid draws an arrow several ways and carries its label two ways, so an edge this test "
+            + "cannot read a label from has to fail here rather than go unchecked");
         drawn.Distinct().Where(predicate => !composed.Contains(predicate)).Should().BeEmpty(
             $"the diagram may only draw predicates the model holds — {string.Join(", ", composed)}");
     }
