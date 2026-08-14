@@ -46,7 +46,7 @@ public class SeedCommandHandler
         }
         catch (Exception ex)
         {
-            _writer.WriteLine("Error: " + ex.Message);
+            _writer.WriteLine("Error: " + OperatorMessage.For(ex));
         }
     }
 

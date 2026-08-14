@@ -36,7 +36,7 @@ public class PlantCommandHandler
         }
         catch (Exception ex)
         {
-            _writer.WriteLine($"Error: {ex.Message}");
+            _writer.WriteLine($"Error: {OperatorMessage.For(ex)}");
         }
     }
 
@@ -90,7 +90,7 @@ public class PlantCommandHandler
                     }
                     catch (Exception ex)
                     {
-                        _writer.WriteLine($"  Warning: Could not set mode for {thingName}.{prop.Name}: {ex.Message}");
+                        _writer.WriteLine($"  Warning: Could not set mode for {thingName}.{prop.Name}: {OperatorMessage.For(ex)}");
                     }
                 }
             }

@@ -208,7 +208,7 @@ namespace vos.Taproot
             }
             catch (Exception ex)
             {
-                _writer.WriteLine($"Warning: Could not connect to Mycelium: {ex.Message}");
+                _writer.WriteLine($"Warning: Could not connect to Mycelium: {OperatorMessage.For(ex)}");
                 _writer.WriteLine("Commands will fail until Mycelium is available.");
             }
 
@@ -248,11 +248,11 @@ namespace vos.Taproot
                     }
                     catch (HttpRequestException ex)
                     {
-                        _writer.WriteLine($"Error communicating with Mycelium: {ex.Message}");
+                        _writer.WriteLine($"Error communicating with Mycelium: {OperatorMessage.For(ex)}");
                     }
                     catch (Exception ex)
                     {
-                        _writer.WriteLine("Error: " + ex.Message);
+                        _writer.WriteLine("Error: " + OperatorMessage.For(ex));
                     }
             }
         }
