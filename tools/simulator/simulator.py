@@ -20,7 +20,8 @@ duplicate fails loud rather than forking. Structural writes need an editor/admin
 (ModifyData / WritePropertyFact); a service-role token is refused (403).
 
 Usage (as a CLI, playing a serialized timeline):
-  python3 simulator.py --url http://localhost:5000 --token <jwt> --timeline run.jsonl \
+  export VOS_TOKEN=<editor/admin JWT>        # or VOS_API_KEY=<key> and a token is minted from it
+  python3 simulator.py --url http://localhost:5000 --timeline run.jsonl \
       --speed 120 [--seed-first] [--follow] [--checkpoint run.ckpt] [--dry-run]
 """
 
@@ -406,9 +407,6 @@ def follow_until(client, predicate, timeout=60.0, selector=None):
 def main(argv):
     p = argparse.ArgumentParser(description="Replay a timeline of graph changes against a live Mycelium.")
     p.add_argument("--url", default="http://localhost:5000", help="Mycelium base URL")
-    p.add_argument("--token", default=None, help="editor/admin JWT (structural writes need it)")
-    p.add_argument("--api-key", default=None,
-                   help="mint a token: POST /api/auth/token with the X-API-Key header")
     p.add_argument("--model-id", default=None, help="target model id for the token mint (?modelId=)")
     p.add_argument("--timeline", required=True, help="JSONL timeline file (one action per line)")
     p.add_argument("--speed", type=float, default=60.0, help="sim-seconds per real-second (default 60)")
@@ -429,7 +427,7 @@ def main(argv):
     print(f"[simulator] timeline: {len(actions)} actions ({setup} setup, {len(actions) - setup} paced), "
           f"speed={args.speed}x, span ~{max((x.offset for x in actions), default=0):.0f}s", flush=True)
 
-    client = MyceliumClient(args.url, token=args.token, api_key=args.api_key, model_id=args.model_id)
+    client = MyceliumClient(args.url, model_id=args.model_id)
     if args.follow and not args.dry_run:
         threading.Thread(
             target=lambda: [print(f"[sse] {k} {json.dumps(d)[:120]}", flush=True)

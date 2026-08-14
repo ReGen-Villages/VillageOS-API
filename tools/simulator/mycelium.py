@@ -24,6 +24,11 @@ from urllib.parse import quote, urlencode
 # same action key always hashes to the same UUID.
 _ID_NAMESPACE = uuid.UUID("6f9b1e2c-4a7d-5b8e-9c0f-1d2e3a4b5c6d")
 
+# A command line is readable by every process on the host and is kept in the shell's history file, so
+# no tool sharing this client takes either credential as an argument.
+TOKEN_VARIABLE = "VOS_TOKEN"
+API_KEY_VARIABLE = "VOS_API_KEY"
+
 
 def stable_id(*parts) -> str:
     """A deterministic Thing id (UUIDv5) derived from a stable action key. The same ``parts`` always
@@ -58,28 +63,35 @@ def typed_properties(properties):
 
 
 class MyceliumClient:
-    def __init__(self, url, token=None, api_key=None, model_id=None, timeout=300, insecure=False):
+    def __init__(self, url, token=None, api_key=None, model_id=None, timeout=300, insecure=False,
+                 environment=None):
+        """An in-process caller may hand over a credential directly; a tool run from a shell leaves
+        both unset and the environment supplies them. ``environment`` defaults to this process's own
+        and is an argument so a test can supply one without touching the process it runs in."""
+        environment = os.environ if environment is None else environment
         self.url = url.rstrip("/")
-        self._token = token
-        self._api_key = api_key
+        self._token = token or environment.get(TOKEN_VARIABLE)
+        self._api_key = api_key or environment.get(API_KEY_VARIABLE)
         self._model_id = model_id
         self.timeout = timeout
         # Skip TLS verification for a local Mycelium's self-signed dev cert. Off by default; enable via
         # insecure=True (the --insecure flag) or the VOS_TLS_NOVERIFY env var. None = default verification.
         self._ssl = (ssl._create_unverified_context()
-                     if insecure or os.environ.get("VOS_TLS_NOVERIFY") else None)
+                     if insecure or environment.get("VOS_TLS_NOVERIFY") else None)
 
     # -- auth -------------------------------------------------------------
     def token(self) -> str:
         """Return the bearer JWT, minting one from the API key if only that was supplied.
 
         The mint is ``POST /api/auth/token`` with the key in the **``X-API-Key`` header** (not a body)
-        and an optional ``?modelId=`` for a multi-model host; it returns ``{ "token": <jwt> }``. Pass a
-        ready editor/admin JWT via ``token=`` to skip this entirely."""
+        and an optional ``?modelId=`` for a multi-model host; it returns ``{ "token": <jwt> }``. A
+        ready editor/admin JWT skips the mint entirely."""
         if self._token:
             return self._token
         if not self._api_key:
-            raise RuntimeError("no credentials: pass a token=<jwt> or api_key=<key>")
+            raise RuntimeError(
+                f"no credentials: set {TOKEN_VARIABLE} to an editor/admin JWT, or "
+                f"{API_KEY_VARIABLE} to an API key a token can be minted from")
         path = "/api/auth/token"
         if self._model_id:
             path += "?" + urlencode({"modelId": self._model_id})

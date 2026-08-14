@@ -5,6 +5,8 @@ second structure.
 
 Domain-agnostic, like the tool: the structures here are sites, wings, rooms and cells.
 """
+import contextlib
+import io
 import json
 import os
 import sys
@@ -240,6 +242,16 @@ class RunsTheImporter(unittest.TestCase):
         self.ids_path = os.path.join(self.directory, "ids.json")
         with open(self.ids_path, "w", encoding="utf-8") as handle:
             json.dump(KNOWN_IDS, handle)
+
+    def test_an_api_key_argument_is_refused(self):
+        """The key is read from the environment by the shared client. A command line is readable by
+        every process on the host, so a run that puts one there is stopped rather than sent."""
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
+            L.main([self.spec_path, "--api-key", "KEY-123"], client=FakeMycelium())
+
+        self.assertIn("unrecognized arguments: --api-key", stderr.getvalue())
 
     def test_a_dry_run_writes_the_fragment_that_would_have_been_sent(self):
         out = os.path.join(self.directory, "fragment.json")
