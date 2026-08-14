@@ -262,28 +262,14 @@ class TheStreamAddressCarriesAStreamToken(unittest.TestCase):
     and writes that instead."""
 
     def test_the_address_carries_a_minted_stream_token_and_not_the_bearer(self):
-        captured = {}
+        captured, fake = _capture_request({"token": "a-stream-token"})
 
-        class _Resp(io.BytesIO):
-            def __enter__(self_):
-                return self_
-
-            def __exit__(self_, *a):
-                return False
-
-        def fake_urlopen(req, timeout=None, **kwargs):
-            captured["url"] = req.full_url
-            return _Resp(json.dumps({"token": "a-stream-token"}).encode())
-
-        original = urllib.request.urlopen
-        urllib.request.urlopen = fake_urlopen
-        try:
+        with _urlopen_replaced_by(fake):
             client = M.MyceliumClient("http://h", token="the-bearer")
             url = client.stream_url("sub-1", last=7)
-        finally:
-            urllib.request.urlopen = original
 
         self.assertIn("/api/auth/stream-token", captured["url"])
+        self.assertEqual(captured["headers"].get("authorization"), "Bearer the-bearer")
         self.assertIn("access_token=a-stream-token", url)
         self.assertNotIn("the-bearer", url)
         self.assertIn("lastEventId=7", url)
