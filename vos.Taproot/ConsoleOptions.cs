@@ -33,14 +33,14 @@ public class ConsoleOptions
     {
         foreach (var arg in args)
         {
-            if (TryExtractValue(arg, MyceliumUrlPrefixes, out var url))
+            if (TryExtractMyceliumUrl(arg, out var url))
                 options.MyceliumUrl = url;
         }
     }
 
-    private static bool TryExtractValue(string arg, string[] prefixes, out string value)
+    private static bool TryExtractMyceliumUrl(string arg, out string value)
     {
-        foreach (var prefix in prefixes)
+        foreach (var prefix in MyceliumUrlPrefixes)
         {
             if (arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
