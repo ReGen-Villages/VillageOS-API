@@ -3,12 +3,13 @@ namespace vos.Taproot;
 public class ConsoleOptions
 {
     private static readonly string[] MyceliumUrlPrefixes = { "--mycelium-url=", "--mycelium=" };
-    private static readonly string[] ApiKeyPrefixes = { "--api-key=", "--apikey=" };
 
     public string MyceliumUrl { get; set; } = "https://localhost:7243";
     public string? ApiKey { get; set; }
 
-    // Precedence: command-line args > environment variables > defaults.
+    // The API key is deliberately not a command-line setting: an argument list is readable by every
+    // process on the host and the shell keeps it in its history file. VOS_API_KEY is its only source.
+    // Precedence for everything else: command-line args > environment variables > defaults.
     public static ConsoleOptions Parse(string[] args)
     {
         var options = new ConsoleOptions();
@@ -34,8 +35,6 @@ public class ConsoleOptions
         {
             if (TryExtractValue(arg, MyceliumUrlPrefixes, out var url))
                 options.MyceliumUrl = url;
-            else if (TryExtractValue(arg, ApiKeyPrefixes, out var key))
-                options.ApiKey = key;
         }
     }
 

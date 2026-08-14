@@ -73,7 +73,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task Ctor_NoApiKeyAnywhere_GetTokenThrows()
+    public async Task Ctor_NoApiKeyAnywhere_GetTokenThrowsNamingVosApiKeyNotAFlag()
     {
         var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
         try
@@ -83,7 +83,9 @@ public class MyceliumClientTests
 
             var act = async () => await client.GetTokenAsync();
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*API key*");
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*VOS_API_KEY*")
+                .Where(thrown => !thrown.Message.Contains("--api"));
         }
         finally
         {

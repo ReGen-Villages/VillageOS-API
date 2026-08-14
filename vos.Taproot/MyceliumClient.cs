@@ -63,7 +63,7 @@ public class MyceliumClient
         if (string.IsNullOrEmpty(_apiKey))
         {
             throw new InvalidOperationException(
-                "No API key configured. Set VOS_API_KEY environment variable or pass --api-key flag.");
+                "No API key configured. Set the VOS_API_KEY environment variable before starting the CLI.");
         }
 
         var request = new HttpRequestMessage(HttpMethod.Post, $"{_myceliumUrl}/api/auth/token");
