@@ -1266,18 +1266,11 @@ await handler.ExecuteAsync();
 
 ### Certificate Issues
 
-**Error:** `The SSL connection could not be established, see inner exception.`
+**Error:** `The SSL connection could not be established, see inner exception. (The remote certificate is invalid because of errors in the certificate chain: UntrustedRoot)`
 
-The CLI prints that at startup as `Warning: Could not connect to Mycelium: …` and, for a command you run later, as `Error communicating with Mycelium: …`.
+The CLI checks the Mycelium's TLS certificate and refuses one the machine does not trust — a self-signed development certificate, for example. The reason is the part in brackets; the exact wording depends on what is wrong with the certificate.
 
-The CLI checks the Mycelium's TLS certificate and refuses one the machine does not trust — a self-signed development certificate, for example. Neither message says "certificate": the CLI prints only the first line of the failure, and the line underneath, which names the certificate, is not shown.
-
-A Mycelium that is not running opens with the same words, so read what comes after the colon:
-
-| What follows | What went wrong |
-|--------------|-----------------|
-| `The SSL connection could not be established, see inner exception.` | The certificate was refused |
-| `Connection refused (localhost:7243)` | Nothing is listening on that address |
+You will see it as `Warning: Could not connect to Mycelium: …` when the CLI starts, and after an `Error` prefix from a command you run afterwards.
 
 **Solutions:**
 

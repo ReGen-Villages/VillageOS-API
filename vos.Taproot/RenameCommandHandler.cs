@@ -42,7 +42,7 @@ public class RenameCommandHandler
         }
         catch (Exception ex)
         {
-            _writer.WriteLine($"Error: {ex.Message}");
+            _writer.WriteLine($"Error: {OperatorMessage.For(ex)}");
         }
     }
 

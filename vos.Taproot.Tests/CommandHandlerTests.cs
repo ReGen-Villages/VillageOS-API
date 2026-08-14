@@ -1,3 +1,4 @@
+using System.Security.Authentication;
 using System.Text.Json;
 using Moq;
 using Xunit;
@@ -245,6 +246,38 @@ public class CommandHandlerTests
         var output = writer.ToString();
         Assert.Contains("Warning:", output);
         Assert.Contains("Could not connect to Mycelium", output);
+    }
+
+    private static HttpRequestException RefusedCertificate() => new(
+        "The SSL connection could not be established, see inner exception.",
+        new AuthenticationException(
+            "The remote certificate is invalid because of errors in the certificate chain: UntrustedRoot"));
+
+    [Fact]
+    public async Task RunAsync_RefusedCertificateAtStartup_ShowsTheReason()
+    {
+        var reader = new StringReader("exit\n");
+        var writer = new StringWriter();
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ThrowsAsync(RefusedCertificate());
+        var handler = CreateHandler(reader, writer);
+
+        await handler.RunAsync();
+
+        Assert.Contains("The remote certificate is invalid", writer.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsync_RefusedCertificateOnACommand_ShowsTheReason()
+    {
+        var reader = new StringReader("list things\nexit\n");
+        var writer = new StringWriter();
+        _myceliumMock.Setup(b => b.GetTokenAsync()).ReturnsAsync("test-token");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ThrowsAsync(RefusedCertificate());
+        var handler = CreateHandler(reader, writer);
+
+        await handler.RunAsync();
+
+        Assert.Contains("The remote certificate is invalid", writer.ToString());
     }
 
     [Theory]
