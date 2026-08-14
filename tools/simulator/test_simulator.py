@@ -136,23 +136,36 @@ def _fast(**kw):
     return kw
 
 
+class _Response(io.BytesIO):
+    """A canned body in the context-manager shape urlopen answers with."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+
+@contextlib.contextmanager
+def _urlopen_replaced_by(fake):
+    original = urllib.request.urlopen
+    urllib.request.urlopen = fake
+    try:
+        yield
+    finally:
+        urllib.request.urlopen = original
+
+
 def _capture_request(response_json):
     """A urlopen stand-in that records the one request it is given and answers with response_json."""
     captured = {}
-
-    class _Resp(io.BytesIO):
-        def __enter__(self_):
-            return self_
-
-        def __exit__(self_, *a):
-            return False
 
     def fake_urlopen(req, timeout=None, **kwargs):
         captured["method"] = req.get_method()
         captured["url"] = req.full_url
         captured["headers"] = {k.lower(): v for k, v in req.header_items()}
         captured["body"] = req.data
-        return _Resp(json.dumps(response_json).encode())
+        return _Response(json.dumps(response_json).encode())
 
     return captured, fake_urlopen
 
@@ -170,13 +183,10 @@ class AuthMintsFromApiKeyViaHeader(unittest.TestCase):
 
     def test_api_key_is_exchanged_via_x_api_key_header(self):
         captured, fake = _capture_request({"token": "minted-jwt"})
-        original = urllib.request.urlopen
-        urllib.request.urlopen = fake
-        try:
+        with _urlopen_replaced_by(fake):
             client = M.MyceliumClient("http://h", api_key="KEY-123", model_id="m-1", environment={})
             self.assertEqual(client.token(), "minted-jwt")
-        finally:
-            urllib.request.urlopen = original
+
         self.assertEqual(captured["method"], "POST")
         self.assertIn("/api/auth/token", captured["url"])
         self.assertIn("modelid=m-1", captured["url"].lower())
@@ -196,13 +206,9 @@ class CredentialsComeFromTheEnvironment(unittest.TestCase):
 
     def test_the_api_key_comes_from_the_environment(self):
         captured, fake = _capture_request({"token": "minted-jwt"})
-        original = urllib.request.urlopen
-        urllib.request.urlopen = fake
-        try:
+        with _urlopen_replaced_by(fake):
             client = M.MyceliumClient("http://h", environment={M.API_KEY_VARIABLE: "environment-key"})
             self.assertEqual(client.token(), "minted-jwt")
-        finally:
-            urllib.request.urlopen = original
 
         self.assertEqual(captured["headers"].get("x-api-key"), "environment-key")
 
@@ -260,13 +266,6 @@ class ExpiredTokenIsReminted(unittest.TestCase):
         status None means a normal 200 returning payload."""
         calls = []
 
-        class _Resp(io.BytesIO):
-            def __enter__(self_):
-                return self_
-
-            def __exit__(self_, *a):
-                return False
-
         def fake_urlopen(req, timeout=None, **kwargs):
             calls.append({
                 "url": req.full_url,
@@ -275,7 +274,7 @@ class ExpiredTokenIsReminted(unittest.TestCase):
             status, payload = responses.pop(0)
             if status is not None:
                 raise urllib.error.HTTPError(req.full_url, status, "err", {}, io.BytesIO(b"denied"))
-            return _Resp(json.dumps(payload).encode())
+            return _Response(json.dumps(payload).encode())
 
         return calls, fake_urlopen
 
@@ -286,13 +285,9 @@ class ExpiredTokenIsReminted(unittest.TestCase):
             (None, {"token": "second-jwt"}),     # re-mint
             (None, {"ok": True}),                # retry succeeds
         ])
-        original = urllib.request.urlopen
-        urllib.request.urlopen = fake
-        try:
+        with _urlopen_replaced_by(fake):
             client = M.MyceliumClient("http://h", api_key="KEY-123", environment={})
             result = client._json("POST", "/api/things", {"Name": "T"})
-        finally:
-            urllib.request.urlopen = original
 
         self.assertEqual(result, {"ok": True})
         writes = [c for c in calls if "/api/things" in c["url"]]
@@ -307,27 +302,19 @@ class ExpiredTokenIsReminted(unittest.TestCase):
             (None, {"token": "second-jwt"}),
             (401, None),                         # still refused — the key itself is not accepted
         ])
-        original = urllib.request.urlopen
-        urllib.request.urlopen = fake
-        try:
+        with _urlopen_replaced_by(fake):
             client = M.MyceliumClient("http://h", api_key="KEY-123", environment={})
             with self.assertRaises(RuntimeError):
                 client._json("POST", "/api/things", {"Name": "T"})
-        finally:
-            urllib.request.urlopen = original
 
         self.assertEqual(len([c for c in calls if "/api/things" in c["url"]]), 2)
 
     def test_401_without_an_api_key_is_not_retried(self):
         calls, fake = self._client_with([(401, None)])
-        original = urllib.request.urlopen
-        urllib.request.urlopen = fake
-        try:
+        with _urlopen_replaced_by(fake):
             client = M.MyceliumClient("http://h", token="ready-jwt", environment={})
             with self.assertRaises(RuntimeError):
                 client._json("POST", "/api/things", {"Name": "T"})
-        finally:
-            urllib.request.urlopen = original
 
         self.assertEqual(len(calls), 1)          # nothing to re-mint from, so it surfaces at once
 
