@@ -68,8 +68,15 @@ The file then lists only what the names cannot say.
 python3 layout.py layout.json --ids ids.json --out fragment.json
 
 # Send it
-python3 layout.py layout.json --url https://localhost:7243 --api-key "$VOS_API_KEY"
+export VOS_API_KEY=<an API key>
+python3 layout.py layout.json --url https://localhost:7243
 ```
+
+**The key is not an argument.** A command line is readable by every process on the host and is kept
+in the shell's history file, and an API key keeps minting tokens until somebody revokes it — so it is
+read from `VOS_API_KEY`, and `--api-key` is refused as an unknown argument. A ready editor/admin JWT
+in `VOS_TOKEN` is used instead where there is one. Both are read by the client this tool shares with
+`tools/simulator`.
 
 The predicate and type **names** in the file are resolved to model ids, either from an `--ids` file
 or from the model itself; where both answer, the file wins. The tool never guesses one: a wrong id
@@ -93,8 +100,8 @@ python3 -m unittest test_layout
 Names building the tree, a name that does not follow the standard being reported, a row overriding
 one field and leaving the rest, the fragment carrying every node once with its containment and type
 edges, ids staying stable, an extended file keeping the ids the first run used, applying sending one
-fragment and a second run sending the same one, and a file that cannot be read failing before the
-model is asked anything.
+fragment and a second run sending the same one, a file that cannot be read failing before the model
+is asked anything, and a run that puts the API key on the command line being refused.
 
 Everything but the command-line entry point is covered. `python3 -m coverage run --source=layout -m
 unittest test_layout` reports it.

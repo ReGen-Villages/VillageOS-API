@@ -20,7 +20,7 @@ library or as a serialized file.
 | --- | --- |
 | `mycelium.py` | A minimal, standard-library Mycelium HTTP client (Things, Relationships, Facts, quantity adjustments, subscriptions/SSE) plus `stable_id`. |
 | `simulator.py` | The driver: `Action`, `BalanceLedger`, `Checkpoint`, `Simulator`, `follow_until`, and a CLI that plays a timeline file. |
-| `test_simulator.py` | Ledger no-oversell under concurrency, checkpoint resume, action serialization, dry replay against a fake Mycelium that fails loud on any oversell. That double stands in for the write API only — it refuses the subscription and stream calls, which belong against a running Mycelium. |
+| `test_simulator.py` | Ledger no-oversell under concurrency, checkpoint resume, action serialization, where a credential comes from, dry replay against a fake Mycelium that fails loud on any oversell. That double stands in for the write API only — it refuses the subscription and stream calls, which belong against a running Mycelium. |
 
 No third-party dependencies — stock Python 3.10+.
 
@@ -40,7 +40,7 @@ actions = [
            args={"thing_id": stable_id("bin", "A"), "prop": "contained_units", "amount": 5}, key="draw"),
 ]
 
-client = MyceliumClient("http://localhost:5000", token="<editor-jwt>")
+client = MyceliumClient("http://localhost:5000")     # credential from VOS_TOKEN or VOS_API_KEY
 Simulator(client, speed=120, checkpoint="run.ckpt").run(actions)
 ```
 
@@ -49,7 +49,8 @@ Simulator(client, speed=120, checkpoint="run.ckpt").run(actions)
 Serialize a timeline to JSONL (one `Action` per line via `Action.to_dict()` / `write_timeline`) and play it:
 
 ```bash
-python3 simulator.py --url http://localhost:5000 --token "$JWT" --timeline run.jsonl \
+export VOS_TOKEN=<editor/admin JWT>
+python3 simulator.py --url http://localhost:5000 --timeline run.jsonl \
     --speed 120 [--seed-first] [--follow] [--checkpoint run.ckpt] [--dry-run]
 ```
 
@@ -110,9 +111,20 @@ python3 simulator.py --url http://localhost:5000 --token "$JWT" --timeline run.j
   `create_thing`'s offset and fires at that instance's moment. This lives in the generic engine, so
   every domain timeline gets it for free.
 
-## Token
+## Credentials
 
 Structural writes (`/things`, `/relationships`, `/facts`, `/increments`) need `ModifyData` /
-`WritePropertyFact`, both of which admit editor, admin, and service roles. Pass an editor/admin JWT via `--token`, or
-an API key via `--api-key` to mint one: the client calls `POST /api/auth/token` with the key in the
-**`X-API-Key`** header (add `--model-id` for a multi-model host → `?modelId=`), which returns `{token}`.
+`WritePropertyFact`, both of which admit editor, admin, and service roles.
+
+**Neither credential is an argument.** A command line is readable by every process on the host and is
+kept in the shell's history file, and a replay runs for as long as its timeline lasts — so the client
+reads both from the environment, and `--token` or `--api-key` is refused as an unknown argument.
+
+| Variable | Meaning |
+| --- | --- |
+| `VOS_TOKEN` | A ready editor/admin JWT. Used as it stands, with no mint. |
+| `VOS_API_KEY` | An API key a token is minted from: `POST /api/auth/token` with the key in the **`X-API-Key`** header (add `--model-id` for a multi-model host → `?modelId=`), which returns `{token}`. |
+
+With neither set, the first request fails saying so. In-process callers may still hand a credential
+straight to `MyceliumClient(...)` — a library call is not a command line — and that wins over the
+environment.

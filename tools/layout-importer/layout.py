@@ -228,7 +228,6 @@ def main(argv=None, client=None) -> int:
     parser.add_argument("--ids", help="JSON mapping predicate and type names to model ids")
     parser.add_argument("--out", help="write the fragment here instead of sending it")
     parser.add_argument("--url", default="https://localhost:7243", help="Mycelium base URL")
-    parser.add_argument("--api-key", dest="api_key")
     parser.add_argument("--insecure", action="store_true")
     args = parser.parse_args(argv)
 
@@ -247,7 +246,7 @@ def main(argv=None, client=None) -> int:
     # A model is needed to send the fragment, and to look up any id the file did not supply. An id
     # the file pins wins over the one the model holds.
     if not args.out or not ids:
-        client = client or MyceliumClient(args.url, api_key=args.api_key, insecure=args.insecure)
+        client = client or MyceliumClient(args.url, insecure=args.insecure)
         ids = {**resolve_ids(client, names_used(layout)), **ids}
 
     things, relationships = build_fragment(layout, ids)

@@ -18,8 +18,8 @@ Then it deletes the two test Things. Ids are deterministic (``stable_id``), so t
 makes re-runs idempotent even if a prior run did not clean up.
 
 Usage:
-  python3 e2e_fragment.py --url http://localhost:50000 --token "$JWT"
-  python3 e2e_fragment.py --api-key <key> [--model-id <id>]
+  export VOS_TOKEN=<editor/admin JWT>        # or VOS_API_KEY=<key> and a token is minted from it
+  python3 e2e_fragment.py --url http://localhost:50000 [--model-id <id>]
   # --is-predicate <guid>   pin the built-in `is` predicate Thing id (auto-resolved from the model otherwise)
 
 Exit code 0 = all checks passed, 1 = a check failed or the run errored.
@@ -41,17 +41,11 @@ import simulator as S         # noqa: E402
 def main(argv) -> int:
     p = argparse.ArgumentParser(description="Live E2E: simulator -> POST /api/model/fragment -> override.")
     p.add_argument("--url", default="http://localhost:50000", help="Mycelium base URL")
-    p.add_argument("--token", default=None, help="editor/admin/service JWT")
-    p.add_argument("--api-key", default=None, help="API key to mint a token (POST /api/auth/token)")
     p.add_argument("--model-id", default=None, help="target model id for the token mint")
     p.add_argument("--is-predicate", default=None, help="id of the built-in `is` predicate Thing")
     args = p.parse_args(argv)
 
-    if not args.token and not args.api_key:
-        print("error: pass --token <jwt> or --api-key <key>", file=sys.stderr)
-        return 1
-
-    client = M.MyceliumClient(args.url, token=args.token, api_key=args.api_key, model_id=args.model_id)
+    client = M.MyceliumClient(args.url, model_id=args.model_id)
 
     def get(path):
         req = urllib.request.Request(args.url + path, headers={"Authorization": "Bearer " + client.token()})

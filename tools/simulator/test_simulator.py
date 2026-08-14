@@ -2,6 +2,7 @@
 one-writer-per-balance guarantee, resumable checkpoints, and a dry replay against a fake Mycelium
 that fails loud on any oversell. Domain-agnostic — the timelines here are abstract Things and bins.
 """
+import contextlib
 import io
 import json
 import os
@@ -10,6 +11,7 @@ import threading
 import unittest
 import urllib.request
 
+import e2e_fragment as E
 import mycelium as M
 import simulator as S
 
@@ -134,51 +136,125 @@ def _fast(**kw):
     return kw
 
 
+class _Response(io.BytesIO):
+    """A canned body in the context-manager shape urlopen answers with."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+
+@contextlib.contextmanager
+def _urlopen_replaced_by(fake):
+    original = urllib.request.urlopen
+    urllib.request.urlopen = fake
+    try:
+        yield
+    finally:
+        urllib.request.urlopen = original
+
+
+def _capture_request(response_json):
+    """A urlopen stand-in that records the one request it is given and answers with response_json."""
+    captured = {}
+
+    def fake_urlopen(req, timeout=None, **kwargs):
+        captured["method"] = req.get_method()
+        captured["url"] = req.full_url
+        captured["headers"] = {k.lower(): v for k, v in req.header_items()}
+        captured["body"] = req.data
+        return _Response(json.dumps(response_json).encode())
+
+    return captured, fake_urlopen
+
+
 class AuthMintsFromApiKeyViaHeader(unittest.TestCase):
     """The mint contract is POST /api/auth/token with the key in the X-API-Key header (optional
-    ?modelId=), returning {token}. Guards the fix from the earlier wrong {"apiKey": ...} body form."""
+    ?modelId=), returning {token}. Guards the fix from the earlier wrong {"apiKey": ...} body form.
 
-    def _capture(self, response_json):
-        captured = {}
-
-        class _Resp(io.BytesIO):
-            def __enter__(self_):
-                return self_
-
-            def __exit__(self_, *a):
-                return False
-
-        def fake_urlopen(req, timeout=None, **kwargs):
-            captured["method"] = req.get_method()
-            captured["url"] = req.full_url
-            captured["headers"] = {k.lower(): v for k, v in req.header_items()}
-            captured["body"] = req.data
-            return _Resp(json.dumps(response_json).encode())
-
-        return captured, fake_urlopen
+    Every client here is given an empty environment, so what the shell running the tests happens to
+    export cannot supply a credential the case did not ask for."""
 
     def test_ready_token_is_used_verbatim_without_a_mint(self):
-        client = M.MyceliumClient("http://h", token="ready-jwt")
+        client = M.MyceliumClient("http://h", token="ready-jwt", environment={})
         self.assertEqual(client.token(), "ready-jwt")
 
     def test_api_key_is_exchanged_via_x_api_key_header(self):
-        captured, fake = self._capture({"token": "minted-jwt"})
-        original = urllib.request.urlopen
-        urllib.request.urlopen = fake
-        try:
-            client = M.MyceliumClient("http://h", api_key="KEY-123", model_id="m-1")
+        captured, fake = _capture_request({"token": "minted-jwt"})
+        with _urlopen_replaced_by(fake):
+            client = M.MyceliumClient("http://h", api_key="KEY-123", model_id="m-1", environment={})
             self.assertEqual(client.token(), "minted-jwt")
-        finally:
-            urllib.request.urlopen = original
+
         self.assertEqual(captured["method"], "POST")
         self.assertIn("/api/auth/token", captured["url"])
         self.assertIn("modelid=m-1", captured["url"].lower())
         self.assertEqual(captured["headers"].get("x-api-key"), "KEY-123")
         self.assertIsNone(captured["body"])              # key rides the header, not a JSON body
 
-    def test_no_credentials_raises(self):
-        with self.assertRaises(RuntimeError):
-            M.MyceliumClient("http://h").token()
+
+class CredentialsComeFromTheEnvironment(unittest.TestCase):
+    """Where a credential comes from. A command line is readable by every process on the host and is
+    kept in the shell's history file, so the client reads both from the environment. An in-process
+    caller may still hand one over directly — a library call is not a command line."""
+
+    def test_the_token_comes_from_the_environment(self):
+        client = M.MyceliumClient("http://h", environment={M.TOKEN_VARIABLE: "environment-jwt"})
+
+        self.assertEqual(client.token(), "environment-jwt")
+
+    def test_the_api_key_comes_from_the_environment(self):
+        captured, fake = _capture_request({"token": "minted-jwt"})
+        with _urlopen_replaced_by(fake):
+            client = M.MyceliumClient("http://h", environment={M.API_KEY_VARIABLE: "environment-key"})
+            self.assertEqual(client.token(), "minted-jwt")
+
+        self.assertEqual(captured["headers"].get("x-api-key"), "environment-key")
+
+    def test_a_credential_handed_over_directly_wins_over_the_environment(self):
+        client = M.MyceliumClient("http://h", token="in-process-jwt",
+                                  environment={M.TOKEN_VARIABLE: "environment-jwt"})
+
+        self.assertEqual(client.token(), "in-process-jwt")
+
+    def test_no_credential_anywhere_names_both_variables(self):
+        with self.assertRaises(RuntimeError) as refused:
+            M.MyceliumClient("http://h", environment={}).token()
+
+        self.assertIn(M.TOKEN_VARIABLE, str(refused.exception))
+        self.assertIn(M.API_KEY_VARIABLE, str(refused.exception))
+
+
+class CredentialFlagsAreRefused(unittest.TestCase):
+    """Neither credential is an argument any more. A run that still passes one is told the argument
+    is unknown, rather than reaching the model with the secret in the process table."""
+
+    def _refusal(self, main, argv):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
+            main(argv)
+        return stderr.getvalue()
+
+    def test_the_simulator_refuses_a_token_argument(self):
+        refusal = self._refusal(S.main, ["--timeline", "run.jsonl", "--token", "an.editor.jwt"])
+
+        self.assertIn("unrecognized arguments: --token", refusal)
+
+    def test_the_simulator_refuses_an_api_key_argument(self):
+        refusal = self._refusal(S.main, ["--timeline", "run.jsonl", "--api-key", "KEY-123"])
+
+        self.assertIn("unrecognized arguments: --api-key", refusal)
+
+    def test_the_fragment_check_refuses_a_token_argument(self):
+        refusal = self._refusal(E.main, ["--token", "an.editor.jwt"])
+
+        self.assertIn("unrecognized arguments: --token", refusal)
+
+    def test_the_fragment_check_refuses_an_api_key_argument(self):
+        refusal = self._refusal(E.main, ["--api-key", "KEY-123"])
+
+        self.assertIn("unrecognized arguments: --api-key", refusal)
 
 
 class ExpiredTokenIsReminted(unittest.TestCase):
@@ -190,13 +266,6 @@ class ExpiredTokenIsReminted(unittest.TestCase):
         status None means a normal 200 returning payload."""
         calls = []
 
-        class _Resp(io.BytesIO):
-            def __enter__(self_):
-                return self_
-
-            def __exit__(self_, *a):
-                return False
-
         def fake_urlopen(req, timeout=None, **kwargs):
             calls.append({
                 "url": req.full_url,
@@ -205,7 +274,7 @@ class ExpiredTokenIsReminted(unittest.TestCase):
             status, payload = responses.pop(0)
             if status is not None:
                 raise urllib.error.HTTPError(req.full_url, status, "err", {}, io.BytesIO(b"denied"))
-            return _Resp(json.dumps(payload).encode())
+            return _Response(json.dumps(payload).encode())
 
         return calls, fake_urlopen
 
@@ -216,13 +285,9 @@ class ExpiredTokenIsReminted(unittest.TestCase):
             (None, {"token": "second-jwt"}),     # re-mint
             (None, {"ok": True}),                # retry succeeds
         ])
-        original = urllib.request.urlopen
-        urllib.request.urlopen = fake
-        try:
-            client = M.MyceliumClient("http://h", api_key="KEY-123")
+        with _urlopen_replaced_by(fake):
+            client = M.MyceliumClient("http://h", api_key="KEY-123", environment={})
             result = client._json("POST", "/api/things", {"Name": "T"})
-        finally:
-            urllib.request.urlopen = original
 
         self.assertEqual(result, {"ok": True})
         writes = [c for c in calls if "/api/things" in c["url"]]
@@ -237,27 +302,19 @@ class ExpiredTokenIsReminted(unittest.TestCase):
             (None, {"token": "second-jwt"}),
             (401, None),                         # still refused — the key itself is not accepted
         ])
-        original = urllib.request.urlopen
-        urllib.request.urlopen = fake
-        try:
-            client = M.MyceliumClient("http://h", api_key="KEY-123")
+        with _urlopen_replaced_by(fake):
+            client = M.MyceliumClient("http://h", api_key="KEY-123", environment={})
             with self.assertRaises(RuntimeError):
                 client._json("POST", "/api/things", {"Name": "T"})
-        finally:
-            urllib.request.urlopen = original
 
         self.assertEqual(len([c for c in calls if "/api/things" in c["url"]]), 2)
 
     def test_401_without_an_api_key_is_not_retried(self):
         calls, fake = self._client_with([(401, None)])
-        original = urllib.request.urlopen
-        urllib.request.urlopen = fake
-        try:
-            client = M.MyceliumClient("http://h", token="ready-jwt")
+        with _urlopen_replaced_by(fake):
+            client = M.MyceliumClient("http://h", token="ready-jwt", environment={})
             with self.assertRaises(RuntimeError):
                 client._json("POST", "/api/things", {"Name": "T"})
-        finally:
-            urllib.request.urlopen = original
 
         self.assertEqual(len(calls), 1)          # nothing to re-mint from, so it surfaces at once
 
