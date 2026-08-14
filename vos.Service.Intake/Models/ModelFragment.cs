@@ -14,9 +14,7 @@ public sealed record FragmentThing(Guid Id, string Name, IReadOnlyDictionary<str
 /// re-posted submission finds its own edges rather than adding second copies of them.</summary>
 public sealed record FragmentRelationship(string Name, Guid Subject, Guid Predicate, Guid Target);
 
-/// <summary>A property value with the type it is written as. A <see cref="Value"/> of null is omitted from
-/// the document entirely, which declares the name and its type without asserting a value — how a computed
-/// output waits for whatever computes it instead of holding a zero nothing produced.</summary>
+/// <summary>A property value with the type it is written as.</summary>
 public sealed record TypedValue
 {
     [JsonPropertyName("typeInfo")]
@@ -27,8 +25,6 @@ public sealed record TypedValue
     public object? Value { get; init; }
 
     public static TypedValue Written(string typeInfo, object value) => new() { TypeInfo = typeInfo, Value = value };
-
-    public static TypedValue Declared(string typeInfo) => new() { TypeInfo = typeInfo };
 }
 
 public static class VosTypeNames

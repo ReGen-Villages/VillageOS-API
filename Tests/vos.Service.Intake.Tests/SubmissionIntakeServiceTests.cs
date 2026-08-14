@@ -150,20 +150,22 @@ public class SubmissionIntakeServiceTests
     }
 
     // The archetypes are the model's, not this service's: it relates Things to them and never mints one,
-    // so a model that was never seeded is told what it is missing instead of quietly filling with Things
-    // nothing can tell apart.
+    // so a model that was never seeded is refused instead of quietly filling with Things nothing can tell
+    // apart. Not a SubmissionError: the document was well formed, and whoever sent it cannot seed a model.
     [Fact]
-    public async Task A_model_that_was_never_seeded_is_refused_naming_the_archetype_it_lacks()
+    public async Task A_model_that_was_never_seeded_is_refused_as_a_fault_of_the_deployment()
     {
         var service = ServiceOfAnUnseededModel(request => IsFragment(request)
             ? Json("{}")
             : new HttpResponseMessage(HttpStatusCode.NotFound));
 
-        var refusal = await Assert.ThrowsAsync<SubmissionError>(
+        var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
             () => service.SubmitAsync(Document, CancellationToken.None));
 
         refusal.Message.Should().Contain(SubmissionFragmentComposer.SiteArchetypeName)
             .And.Contain("Seed the model from the analysis templates");
+        refusal.Should().NotBeAssignableTo<SubmissionError>(
+            "a 400 would tell the submitter to correct something they cannot reach");
     }
 
     [Fact]

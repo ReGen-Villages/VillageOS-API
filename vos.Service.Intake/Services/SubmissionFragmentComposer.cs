@@ -51,9 +51,12 @@ public static class SubmissionFragmentComposer
                 $"{subject.Name} {predicate.Name} {target.Name}", subject.Id, predicate.Id, target.Id));
         }
 
-        Relate(studyThing, predicates.Studies, siteThing);
         // Everything an archetype declares is inherited through this edge, so a correction is an edit to
         // the model rather than a redeployment of this service.
+        void BeArchetype(NamedThing thing, Guid archetype, string archetypeName) =>
+            Relate(thing, predicates.Is, new NamedThing(archetype, archetypeName));
+
+        Relate(studyThing, predicates.Studies, siteThing);
         BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
         BeArchetype(studyThing, archetypes.SiteStudy, SiteStudyArchetypeName);
 
@@ -69,9 +72,6 @@ public static class SubmissionFragmentComposer
 
         var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships);
         return new ComposedSubmission(fragment, siteThing.Id, studyThing.Id, parcelId);
-
-        void BeArchetype(NamedThing thing, Guid archetype, string archetypeName) =>
-            Relate(thing, predicates.Is, new NamedThing(archetype, archetypeName));
     }
 
     private readonly record struct NamedThing(Guid Id, string Name);

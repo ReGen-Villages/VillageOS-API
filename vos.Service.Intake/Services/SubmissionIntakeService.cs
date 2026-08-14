@@ -29,7 +29,7 @@ public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium)
     // from a hazard — which is the whole reason the Things point at archetypes at all.
     private async Task<Guid> RequireArchetypeAsync(string name, CancellationToken cancellation) =>
         await mycelium.FindThingIdByNameAsync(name, cancellation)
-        ?? throw new SubmissionError(
+        ?? throw new ModelNotSeededError(
             $"this model holds no '{name}' archetype, so a submission has nothing to relate its Things to. "
             + "Seed the model from the analysis templates before submitting into it.");
 

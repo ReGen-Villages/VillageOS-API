@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Web;
+using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Services;
 
 namespace vos.Service.Intake.Tests;
@@ -44,5 +45,5 @@ public static class ModelStub
         };
 
     public static Guid StableArchetypeId(string archetypeName) =>
-        new(System.Security.Cryptography.MD5.HashData(Encoding.UTF8.GetBytes("archetype:" + archetypeName)));
+        StableIdentity.Derive(archetypeName, "archetype");
 }
