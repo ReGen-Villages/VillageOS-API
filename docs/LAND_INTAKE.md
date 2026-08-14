@@ -599,6 +599,12 @@ submission to the model, and the second one to change would be the one that was 
 between a planner and a stranger is what the service demands before it accepts the call, not what it
 writes.
 
+**A refusal says only what the caller can act on.** A submission naming a field wrongly is answered
+`400` with the field named, because whoever filled the form in can correct it. Anything wrong with the
+deployment — a model that was never seeded with the archetypes, for one — is answered `503` with
+nothing in the body, and what is actually wrong goes to the log. A stranger is not told the state of
+the model they are submitting into.
+
 ### Why public intake gets its own service
 
 The obvious shortcut is to allow anonymous calls on that route for one label. It should not be taken.
