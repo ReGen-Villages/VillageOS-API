@@ -1273,9 +1273,21 @@ await handler.ExecuteAsync();
 
 ### Certificate Issues
 
-**Error:** `SSL certificate problem`
+**Error:** `Could not connect to Mycelium: The SSL connection could not be established, see inner exception.`
 
-The CLI accepts self-signed certificates by default for development. For production, ensure proper certificates are configured on the Mycelium.
+The CLI checks the Mycelium's TLS certificate and refuses one the machine does not trust — a self-signed development certificate, for example. The message does not say "certificate" because the CLI shows only the first line of the failure; the line underneath, which it does not show, names the certificate.
+
+A Mycelium that is not running opens with the same words, so read what comes after the colon:
+
+| What follows | What went wrong |
+|--------------|-----------------|
+| `The SSL connection could not be established, see inner exception.` | The certificate was refused |
+| `Connection refused (localhost:7243)` | Nothing is listening on that address |
+
+**Solutions:**
+
+1. For local development against a self-signed certificate, set `VOS_INSECURE_TLS=true` — see [TLS Validation](#tls-validation)
+2. **Never set that in production.** Install a certificate the client already trusts on the Mycelium instead
 
 ### Command Not Found
 
