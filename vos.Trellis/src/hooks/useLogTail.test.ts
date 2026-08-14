@@ -59,7 +59,8 @@ describe('useLogTail', () => {
   beforeEach(() => {
     FakeEventSource.reset();
     vi.stubGlobal('EventSource', FakeEventSource);
-    vi.spyOn(apiClient, 'ensureToken').mockResolvedValue('a-short-lived-token');
+    vi.spyOn(apiClient, 'ensureToken').mockResolvedValue('the-sign-in-token');
+    vi.spyOn(apiClient, 'mintStreamToken').mockResolvedValue('a-stream-token');
   });
 
   afterEach(() => {
@@ -68,14 +69,16 @@ describe('useLogTail', () => {
     vi.useRealTimers();
   });
 
-  // EventSource cannot send an Authorization header, so the token rides on the query string.
-  it('opens the broker log with the tail length and the access token', async () => {
+  // EventSource cannot send an Authorization header, so the credential rides on the query string —
+  // where it is recorded, which is why it is the stream token and not the sign-in token behind it.
+  it('opens the broker log with the tail length and a stream token', async () => {
     renderHook(() => useLogTail());
 
     const stream = await openedStream();
     expect(stream.url).toContain('/api/logs/stream');
     expect(stream.url).toContain('tail=200');
-    expect(stream.url).toContain('access_token=a-short-lived-token');
+    expect(stream.url).toContain('access_token=a-stream-token');
+    expect(stream.url).not.toContain('the-sign-in-token');
     expect(stream.url).not.toContain('service=');
   });
 
@@ -171,7 +174,7 @@ describe('useLogTail', () => {
   // failing silently for the rest of the session.
   it('retries when no token can be obtained', async () => {
     vi.useFakeTimers();
-    vi.spyOn(apiClient, 'ensureToken').mockRejectedValue(new Error('not signed in'));
+    vi.spyOn(apiClient, 'mintStreamToken').mockRejectedValue(new Error('not signed in'));
 
     const { result } = renderHook(() => useLogTail());
 
@@ -181,7 +184,7 @@ describe('useLogTail', () => {
     expect(result.current.connected).toBe(false);
     expect(FakeEventSource.instances).toHaveLength(0);
 
-    vi.spyOn(apiClient, 'ensureToken').mockResolvedValue('a-short-lived-token');
+    vi.spyOn(apiClient, 'mintStreamToken').mockResolvedValue('a-stream-token');
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
     });

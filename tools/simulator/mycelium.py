@@ -227,11 +227,17 @@ class MyceliumClient:
         except Exception:
             pass
 
+    def stream_token(self) -> str:
+        """Mint the credential a stream address may carry (``POST /api/auth/stream-token``) — the only
+        token the platform admits there, because an address is recorded where a header is not. A client
+        that can set a header wants ``follow()`` instead, which sends the bearer and mints nothing."""
+        return self._json("POST", "/api/auth/stream-token", None).get("token", "")
+
     def stream_url(self, subscription_id, last=0):
         """A browser-usable SSE URL that carries auth in the query string, since EventSource cannot
-        set the Authorization header — the JWT rides as ``?access_token=`` and resume as
+        set the Authorization header — a stream token rides as ``?access_token=`` and resume as
         ``&lastEventId=``. This is exactly what Trellis's useSse hook builds."""
-        query = {"access_token": self.token()}
+        query = {"access_token": self.stream_token()}
         if last:
             query["lastEventId"] = last
         return f"{self.url}/api/subscriptions/{subscription_id}/stream?{urlencode(query)}"

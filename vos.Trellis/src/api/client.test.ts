@@ -195,6 +195,46 @@ describe('ApiClient', () => {
     });
   });
 
+  describe('mintStreamToken', () => {
+    it('asks the mint route for one, carrying the sign-in token in a header', async () => {
+      fetchSpy
+        .mockResolvedValueOnce(mockResponse(200, tokenResponse))
+        .mockResolvedValueOnce(mockResponse(200, { token: 'a-stream-token' }));
+      await apiClient.login('testuser', 'pass');
+
+      const streamToken = await apiClient.mintStreamToken();
+
+      expect(streamToken).toBe('a-stream-token');
+      const [url, init] = fetchSpy.mock.calls[1] as [string, RequestInit];
+      expect(url).toContain('/api/auth/stream-token');
+      expect(init.method).toBe('POST');
+      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer test-jwt-token');
+    });
+
+    it('asks for a new one every time, because each is meant to go stale', async () => {
+      fetchSpy
+        .mockResolvedValueOnce(mockResponse(200, tokenResponse))
+        .mockResolvedValueOnce(mockResponse(200, { token: 'first' }))
+        .mockResolvedValueOnce(mockResponse(200, { token: 'second' }));
+      await apiClient.login('testuser', 'pass');
+
+      expect(await apiClient.mintStreamToken()).toBe('first');
+      expect(await apiClient.mintStreamToken()).toBe('second');
+    });
+
+    it('reports a refused mint as authentication required rather than returning nothing', async () => {
+      const callback = vi.fn();
+      apiClient.setAuthRequiredCallback(callback);
+      fetchSpy
+        .mockResolvedValueOnce(mockResponse(200, tokenResponse))
+        .mockResolvedValueOnce(mockResponse(401, '{"error":"Unauthorized"}'));
+      await apiClient.login('testuser', 'pass');
+
+      await expect(apiClient.mintStreamToken()).rejects.toThrow(AuthRequiredError);
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('changePassword', () => {
     it('sends password change request and clears MustChangePassword flag', async () => {
       const loginResp = { ...tokenResponse, user: { ...tokenResponse.user, MustChangePassword: true } };

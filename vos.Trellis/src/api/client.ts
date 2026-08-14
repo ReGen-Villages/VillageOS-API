@@ -245,6 +245,22 @@ class ApiClient {
     throw new AuthRequiredError();
   }
 
+  /**
+   * Mints the credential an EventSource address may carry, since EventSource cannot set a request
+   * header and an address is recorded where a header is not. Never cached: one per stream open,
+   * reconnects included, so the copy left in a log is stale by the time anyone reads it.
+   */
+  async mintStreamToken(): Promise<string> {
+    const resp = await fetch(`${BASE_URL}/api/auth/stream-token`, {
+      method: 'POST',
+      headers: await this.headers(),
+      credentials: 'include',
+    });
+    await this.assertOk(resp);
+    const data = await resp.json();
+    return data.token as string;
+  }
+
   private async headers(): Promise<HeadersInit> {
     const token = await this.ensureToken();
     return {

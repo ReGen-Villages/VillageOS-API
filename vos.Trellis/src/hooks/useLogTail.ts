@@ -10,9 +10,9 @@ const TAIL_LINES = 200;
 /**
  * Tails a log over SSE — the Mycelium broker log by default, or a named service daemon's log when
  * `service` is given (e.g. 'irrigator' → watch-irrigator.log). Mirrors useSse's auth approach:
- * EventSource can't set an Authorization header, so the short-lived token is passed as ?access_token
- * (the /api/logs/stream path is whitelisted in Mycelium's BrowserStreamPaths). Reconnects with
- * backoff on error, and re-opens against the new source when `service` changes.
+ * EventSource can't set an Authorization header, so the address carries a stream token minted for
+ * this one open (the /api/logs/stream path is one of Mycelium's BrowserStreamPaths). Reconnects
+ * with backoff on error, and re-opens against the new source when `service` changes.
  */
 export function useLogTail(service?: string): { lines: string[]; connected: boolean; clear: () => void } {
   const [lines, setLines] = useState<string[]>([]);
@@ -42,10 +42,10 @@ export function useLogTail(service?: string): { lines: string[]; connected: bool
     const open = async () => {
       sourceRef.current?.close();
       try {
-        const token = await apiClient.ensureToken();
+        const streamToken = await apiClient.mintStreamToken();
         if (released) return;
         const serviceParam = service ? `&service=${encodeURIComponent(service)}` : '';
-        const url = `${BASE_URL}/api/logs/stream?tail=${TAIL_LINES}${serviceParam}&access_token=${encodeURIComponent(token)}`;
+        const url = `${BASE_URL}/api/logs/stream?tail=${TAIL_LINES}${serviceParam}&access_token=${encodeURIComponent(streamToken)}`;
         const es = new EventSource(url);
         es.onopen = () => {
           attemptRef.current = 0;
