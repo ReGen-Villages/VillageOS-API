@@ -757,8 +757,9 @@ a `.png` and an `.svg`.
 
 **The pages above reference the PNGs deliberately.** Mermaid renders label text inside SVG
 `<foreignObject>` elements, which word processors — LibreOffice and Word among them — do not
-support: the image imports as a placeholder thumbnail rather than the diagram. The SVGs are kept for
-the web and the wiki, where `<foreignObject>` renders correctly.
+support: the image imports as a placeholder thumbnail rather than the diagram. The SVG is the copy to
+reach for where a diagram has to scale — a slide, a screen it will be zoomed on. Nothing publishes it
+on its own: the wiki is generated from these pages, so it receives the PNGs too.
 
 Three things keep the PNGs legible on a page, and all three matter:
 

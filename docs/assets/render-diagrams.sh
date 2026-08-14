@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Renders a diagram source to the PNG the documents embed and the SVG the web and the wiki use.
+# Renders a diagram source to the PNG the documents embed and the SVG kept beside it for scaling.
 #
 # The PNG is stamped with a physical size the renderer does not write. A word processor that finds no
 # size in the file guesses one, and the diagram lands as a thumbnail. Declaring 96 pixels per inch
@@ -14,7 +14,8 @@ cd "$(dirname "$0")"
 if [ "$#" -eq 0 ]; then set -- *.mmd; fi
 
 for source in "$@"; do
-  diagram="${source%.mmd}"
+  # Accepts a path as well as a bare name: a shell completes the path form from the repository root.
+  diagram="$(basename "${source%.mmd}")"
 
   npx -y @mermaid-js/mermaid-cli@11 -i "$diagram.mmd" -o "$diagram.png" -c mermaid-config.json -b white -s 3
   npx -y @mermaid-js/mermaid-cli@11 -i "$diagram.mmd" -o "$diagram.svg" -c mermaid-config.json -b white
