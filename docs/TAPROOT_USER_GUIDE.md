@@ -58,9 +58,10 @@ All operations are performed remotely on the Mycelium's model.
 
 **1. Start the Mycelium first.** Mycelium (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there (see the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki) for the Mycelium Guide). It listens on `https://localhost:7243` by default.
 
-**2. In a new terminal, start the CLI:**
+**2. In a new terminal, start the CLI.** It needs an API key, which it reads from `VOS_API_KEY` — see [Authentication](#authentication) for where to get one:
 
 ```bash
+export VOS_API_KEY=vos_ak_...
 cd vos.Taproot
 dotnet run
 ```
@@ -105,22 +106,14 @@ The CLI runs in interactive mode with the following features:
 
 The CLI requires an API key to communicate with Mycelium. On first Mycelium start, the admin user and a default API key are written to `bootstrap-credentials.txt` (mode 0600) in Mycelium's data directory — credentials are **never** logged. Copy the API key from that file. You can create additional keys via the `POST /api/auth/keys` endpoint after signing in as `admin` (its password comes from `VOS_ADMIN_PASSWORD`, or is the random one recorded in `bootstrap-credentials.txt`).
 
-Provide the API key in two ways:
-
-**1. Command-line argument (highest priority):**
-
-```bash
-dotnet run -- --api-key=vos_ak_...
-# or
-dotnet run -- --apikey=vos_ak_...
-```
-
-**2. Environment variable:**
+Provide the API key in the `VOS_API_KEY` environment variable:
 
 ```bash
 export VOS_API_KEY=vos_ak_...
 dotnet run
 ```
+
+There is no command-line argument for the key, and passing one authenticates nothing. A command line is readable by every process on the host for as long as the program runs, and the shell writes it to its history file — an interactive session lasts as long as you are working, and an API key keeps working until somebody revokes it.
 
 The API key is exchanged for a short-lived JWT via `POST /api/auth/token` with `X-API-Key` header. Tokens are cached for 4 minutes and refreshed automatically.
 
@@ -148,7 +141,7 @@ If neither is specified, the CLI uses `https://localhost:7243`
 
 ### Priority Order
 
-Command-line args > Environment variables > Default
+For the Mycelium URL: command-line args > environment variable > default. The API key has no command-line form, so `VOS_API_KEY` is the only source.
 
 ### TLS Validation
 

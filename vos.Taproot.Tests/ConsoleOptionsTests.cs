@@ -214,20 +214,44 @@ public class ConsoleOptionsTests
         }
     }
 
-    [Fact]
-    public void Parse_CommandLineArgs_OverrideEnvVars()
+    // ========== The API key is not a command-line argument ==========
+
+    [Theory]
+    [InlineData("--api-key=from-command-line")]
+    [InlineData("--apikey=from-command-line")]
+    [InlineData("--API-KEY=from-command-line")]
+    public void Parse_ApiKeyArgument_DoesNotSupplyTheKey(string argument)
     {
-        var origUrl = Environment.GetEnvironmentVariable("VOS_MYCELIUM_URL");
+        var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
         try
         {
-            Environment.SetEnvironmentVariable("VOS_MYCELIUM_URL", "https://from-env:9000");
-            var options = ConsoleOptions.Parse(new[] { "--mycelium-url=https://from-cli:8000", "--api-key=clikey" });
-            Assert.Equal("https://from-cli:8000", options.MyceliumUrl);
-            Assert.Equal("clikey", options.ApiKey);
+            Environment.SetEnvironmentVariable("VOS_API_KEY", null);
+
+            var options = ConsoleOptions.Parse(new[] { argument });
+
+            Assert.Null(options.ApiKey);
         }
         finally
         {
-            Environment.SetEnvironmentVariable("VOS_MYCELIUM_URL", origUrl);
+            Environment.SetEnvironmentVariable("VOS_API_KEY", original);
+        }
+    }
+
+    [Fact]
+    public void Parse_ApiKeyArgument_DoesNotReplaceTheEnvironmentKey()
+    {
+        var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
+        try
+        {
+            Environment.SetEnvironmentVariable("VOS_API_KEY", "from-environment");
+
+            var options = ConsoleOptions.Parse(new[] { "--api-key=from-command-line" });
+
+            Assert.Equal("from-environment", options.ApiKey);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VOS_API_KEY", original);
         }
     }
 }

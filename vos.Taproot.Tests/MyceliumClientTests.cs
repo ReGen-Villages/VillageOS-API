@@ -16,6 +16,7 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
+[Collection(nameof(CliEnvVarCollection))]
 public class MyceliumClientTests
 {
     private const string MyceliumUrl = "https://localhost:7243";
@@ -73,7 +74,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task Ctor_NoApiKeyAnywhere_GetTokenThrows()
+    public async Task Ctor_NoApiKeyAnywhere_GetTokenThrowsNamingVosApiKeyNotAFlag()
     {
         var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
         try
@@ -83,7 +84,32 @@ public class MyceliumClientTests
 
             var act = async () => await client.GetTokenAsync();
 
-            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*API key*");
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*VOS_API_KEY*")
+                .Where(thrown => !thrown.Message.Contains("--api"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VOS_API_KEY", original);
+        }
+    }
+
+    // ConsoleOptions treats a whitespace VOS_API_KEY as no key at all, so the client has to agree:
+    // otherwise the CLI sends the blank key and the operator gets a rejection from the server
+    // instead of being told the variable is empty.
+    [Fact]
+    public async Task Ctor_WhitespaceApiKeyInEnvironment_GetTokenThrowsNamingVosApiKey()
+    {
+        var original = Environment.GetEnvironmentVariable("VOS_API_KEY");
+        try
+        {
+            Environment.SetEnvironmentVariable("VOS_API_KEY", "   ");
+            var (client, handler) = NewClient(_ => Ok(), apiKey: null);
+
+            var act = async () => await client.GetTokenAsync();
+
+            await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*VOS_API_KEY*");
+            handler.Requests.Should().BeEmpty("a blank key must never reach the server");
         }
         finally
         {
