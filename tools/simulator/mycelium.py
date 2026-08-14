@@ -228,12 +228,9 @@ class MyceliumClient:
             pass
 
     def stream_token(self) -> str:
-        """Mint the credential a stream address may carry (``POST /api/auth/stream-token``).
-
-        A request header is read and discarded; an address is recorded — in access logs, in any proxy
-        in front, in browser history. So the platform admits only this token in a stream address: it
-        reads, it expires in minutes, and it is refused on every route that is not a stream. A client
-        that can set a header wants ``follow()`` instead, which sends the bearer and mints none."""
+        """Mint the credential a stream address may carry (``POST /api/auth/stream-token``) — the only
+        token the platform admits there, because an address is recorded where a header is not. A client
+        that can set a header wants ``follow()`` instead, which sends the bearer and mints nothing."""
         return self._json("POST", "/api/auth/stream-token", None).get("token", "")
 
     def stream_url(self, subscription_id, last=0):

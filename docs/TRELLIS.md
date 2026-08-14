@@ -1115,6 +1115,7 @@ Singleton `ApiClient` class with:
 - `switchModel(modelId)` — calls `POST /api/auth/switch-model` to get a new JWT scoped to a different model without re-entering credentials
 - `rescopeToModel(modelId)` — re-scopes the session after a seed switch: for user tokens calls `switchModel()`; for API-key tokens invalidates the cached token and re-exchanges via `ensureToken()`
 - `changePassword(userId, newPassword, currentPassword?)` — calls `PUT /api/auth/users/{id}/password`
+- `mintStreamToken()` — calls `POST /api/auth/stream-token` for the credential an `EventSource` address may carry (see [SSE Streams](#sse-streams)). One per stream open, reconnects included; the sign-in token stays in request headers
 - Silent token refresh — background `setTimeout` at 80% of token lifetime calls `POST /api/auth/refresh` to get a new JWT with the same identity and model scope; on failure triggers `onAuthRequired` callback
 - Auto-fetches JWT Bearer token via API key exchange (4-min client refresh / 5-min server expiry) or login (25-min client refresh / 30-min server expiry)
 - Base URL from `VITE_BROKER_URL` env var (defaults to `''` — same origin via Vite proxy)
@@ -1185,7 +1186,7 @@ events below ride the object stream; the rest ride the system stream.
   is the backstop for it
 - `useSyncExternalStore` subscription model for `connected` state
 - Ref counting (acquire/release) for stream lifecycle
-- Token from `apiClient.ensureToken()` for authentication
+- Credential from `apiClient.mintStreamToken()` per open, so the address never carries the sign-in token; `ensureToken()` still supplies the header for the subscription call, and the mint runs after it so a slow snapshot cannot spend the short lifetime
 - Maps each event's SSE `data` to the handler args (property changes → `(id, name, value)`;
   others → the data object), so consumers stay decoupled from the transport
 - Returns: `{ connected, on(event, handler) }`

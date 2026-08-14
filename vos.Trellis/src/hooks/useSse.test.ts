@@ -103,8 +103,8 @@ describe('useSse', () => {
     unmount();
   });
 
-  // A stream address is recorded — access logs, proxies, browser history, the referrer sent to a
-  // third-party address the page loads. The sign-in token must never be the thing written there.
+  // The address is recorded — access logs, proxies, browser history — so of the two credentials the
+  // hook now holds, only the short-lived one may be written into it.
   it('carries a stream token in the address and never the sign-in token', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(FakeEventSource.instances.length).toBe(2));

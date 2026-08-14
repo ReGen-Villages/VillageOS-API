@@ -246,12 +246,9 @@ class ApiClient {
   }
 
   /**
-   * Mints the credential an EventSource address may carry. EventSource cannot set a request header,
-   * so this one travels where addresses are recorded — access logs, proxies, browser history, the
-   * referrer sent to any third-party address the page loads. Mycelium mints it with the viewer role
-   * and a lifetime of minutes, and refuses it on every route that is not a stream, so a copy taken
-   * from a recording is worth far less than the sign-in token. One per stream open, including each
-   * reconnect: it is meant to be stale by the time anyone reads the log.
+   * Mints the credential an EventSource address may carry, since EventSource cannot set a request
+   * header and an address is recorded where a header is not. Never cached: one per stream open,
+   * reconnects included, so the copy left in a log is stale by the time anyone reads it.
    */
   async mintStreamToken(): Promise<string> {
     const resp = await fetch(`${BASE_URL}/api/auth/stream-token`, {

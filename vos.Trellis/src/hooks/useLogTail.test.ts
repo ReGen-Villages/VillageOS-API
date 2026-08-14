@@ -70,8 +70,7 @@ describe('useLogTail', () => {
   });
 
   // EventSource cannot send an Authorization header, so the credential rides on the query string —
-  // and an address is recorded, so the credential written there is a stream token, never the sign-in
-  // token it was minted with.
+  // where it is recorded, which is why it is the stream token and not the sign-in token behind it.
   it('opens the broker log with the tail length and a stream token', async () => {
     renderHook(() => useLogTail());
 

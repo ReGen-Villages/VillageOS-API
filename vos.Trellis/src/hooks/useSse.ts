@@ -129,10 +129,8 @@ async function openStreams() {
     const { subscriptionId, watermark } = await resp.json();
     if (myGeneration !== generation || refCount === 0) return;
 
-    // The stream addresses get recorded, so what they carry is a stream token — viewer role, expiring
-    // in minutes, refused on every route that is not a stream. The sign-in token stays in headers.
-    // Minted after the snapshot call rather than before it, so a slow snapshot cannot spend the
-    // short lifetime before either stream has opened.
+    // Minted after the snapshot call, never before: on a large model that call is the slow step, and
+    // a credential that lives for minutes must not spend them waiting for it.
     const streamToken = await apiClient.mintStreamToken();
     if (myGeneration !== generation || refCount === 0) return;
 

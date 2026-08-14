@@ -85,9 +85,9 @@ python3 simulator.py --url http://localhost:5000 --timeline run.jsonl \
   surprise duplicate should fail, not silently upsert. `--from-offset` resumes by simulated time.
 - **Authenticates the browser stream.** EventSource can't set headers, so a **stream token** rides as
   `?access_token=` (resume `&lastEventId=`) — `client.stream_url(...)` mints one and builds the
-  address, the way Trellis does. A stream address is recorded, in access logs and proxies and browser
-  history, so the platform admits only this token there: viewer role, expiring in minutes, refused on
-  every route that is not a stream. `follow()` sends the bearer header instead and mints nothing.
+  address, the way Trellis does. It is the only credential the platform admits there, because an
+  address is recorded where a header is not. `follow()` sends the bearer header instead, and mints
+  nothing.
 - **Doesn't fake the clock.** `--speed` changes only *when* each POST is issued, never the stored
   timestamps. The only caller-supplied time is an Observation's optional `observed_at`.
 - **Respects lazy inheritance (I1), resolved server-side.** Under lazy inheritance a Thing may not

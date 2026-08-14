@@ -258,9 +258,8 @@ class CredentialFlagsAreRefused(unittest.TestCase):
 
 
 class TheStreamAddressCarriesAStreamToken(unittest.TestCase):
-    """A stream address is recorded — in access logs, in any proxy in front, in browser history. So the
-    bearer never goes in one: `stream_url` mints a stream token, which reads one stream for minutes and
-    is refused on every other route."""
+    """A stream address is recorded, so the bearer never goes in one: `stream_url` mints a stream token
+    and writes that instead."""
 
     def test_the_address_carries_a_minted_stream_token_and_not_the_bearer(self):
         captured = {}

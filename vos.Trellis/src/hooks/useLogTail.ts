@@ -10,10 +10,9 @@ const TAIL_LINES = 200;
 /**
  * Tails a log over SSE — the Mycelium broker log by default, or a named service daemon's log when
  * `service` is given (e.g. 'irrigator' → watch-irrigator.log). Mirrors useSse's auth approach:
- * EventSource can't set an Authorization header, so the address carries a stream token — minted for
- * this one open, viewer role, refused anywhere but the stream routes (the /api/logs/stream path is
- * one of Mycelium's BrowserStreamPaths). Reconnects with backoff on error, and re-opens against the
- * new source when `service` changes.
+ * EventSource can't set an Authorization header, so the address carries a stream token minted for
+ * this one open (the /api/logs/stream path is one of Mycelium's BrowserStreamPaths). Reconnects
+ * with backoff on error, and re-opens against the new source when `service` changes.
  */
 export function useLogTail(service?: string): { lines: string[]; connected: boolean; clear: () => void } {
   const [lines, setLines] = useState<string[]>([]);
