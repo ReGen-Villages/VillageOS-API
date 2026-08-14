@@ -11,12 +11,27 @@ public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium)
         var submission = SubmissionReader.Read(document);
         var predicates = new ResolvedPredicates(
             await ResolvePredicateAsync(SubmissionFragmentComposer.StudiesPredicateName, cancellation),
-            await ResolvePredicateAsync(SubmissionFragmentComposer.HasPredicateName, cancellation));
+            await ResolvePredicateAsync(SubmissionFragmentComposer.HasPredicateName, cancellation),
+            await ResolvePredicateAsync(SubmissionFragmentComposer.IsPredicateName, cancellation));
 
-        var composed = SubmissionFragmentComposer.Compose(submission, predicates);
+        var archetypes = new ResolvedArchetypes(
+            await RequireArchetypeAsync(SubmissionFragmentComposer.SiteArchetypeName, cancellation),
+            await RequireArchetypeAsync(SubmissionFragmentComposer.SiteStudyArchetypeName, cancellation),
+            await RequireArchetypeAsync(SubmissionFragmentComposer.ParcelArchetypeName, cancellation));
+
+        var composed = SubmissionFragmentComposer.Compose(submission, predicates, archetypes);
         await mycelium.ApplyFragmentAsync(composed.Fragment, cancellation);
         return composed;
     }
+
+    // An archetype is never minted here. A model missing one was not seeded from the analysis templates,
+    // and a submission that quietly built untyped Things in it would leave nothing able to tell a parcel
+    // from a hazard — which is the whole reason the Things point at archetypes at all.
+    private async Task<Guid> RequireArchetypeAsync(string name, CancellationToken cancellation) =>
+        await mycelium.FindThingIdByNameAsync(name, cancellation)
+        ?? throw new ModelNotSeededError(
+            $"this model holds no '{name}' archetype, so a submission has nothing to relate its Things to. "
+            + "Seed the model from the analysis templates before submitting into it.");
 
     // A predicate the model already holds is used as it stands. One it does not gets an identifier derived
     // from its name rather than a fresh one, so two submissions into the same model relate their Things

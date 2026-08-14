@@ -14,17 +14,17 @@ public static class SubmissionFragmentComposer
     public const string SiteStudyFlag = "__IsSiteStudy";
     public const string StudiesPredicateName = "studies";
     public const string HasPredicateName = "has";
+    public const string IsPredicateName = "is";
+
+    public const string SiteArchetypeName = "Site";
+    public const string SiteStudyArchetypeName = "SiteStudy";
+    public const string ParcelArchetypeName = "Parcel";
 
     private static readonly IReadOnlyList<string> BoundarySources =
         ["drawn-by-hand", "imported-from-file", "generated-from-stated-area"];
 
-    // What the site analysis writes onto the study. Each is declared with its type and no value: a seeded
-    // zero cannot be told from a real result, and a range reading one would report a verdict about an
-    // analysis that never ran.
-    private static readonly IReadOnlyDictionary<string, string> ComputedOutputs =
-        new Dictionary<string, string> { ["energySelfSufficiencyPct"] = VosTypeNames.Double };
-
-    public static ComposedSubmission Compose(Submission submission, ResolvedPredicates predicates)
+    public static ComposedSubmission Compose(
+        Submission submission, ResolvedPredicates predicates, ResolvedArchetypes archetypes)
     {
         var submissionId = Required(submission.SubmissionId, "submissionId",
             "every identifier derives from it, so a submission posted twice without one would build a second site");
@@ -51,7 +51,14 @@ public static class SubmissionFragmentComposer
                 $"{subject.Name} {predicate.Name} {target.Name}", subject.Id, predicate.Id, target.Id));
         }
 
+        // Everything an archetype declares is inherited through this edge, so a correction is an edit to
+        // the model rather than a redeployment of this service.
+        void BeArchetype(NamedThing thing, Guid archetype, string archetypeName) =>
+            Relate(thing, predicates.Is, new NamedThing(archetype, archetypeName));
+
         Relate(studyThing, predicates.Studies, siteThing);
+        BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
+        BeArchetype(studyThing, archetypes.SiteStudy, SiteStudyArchetypeName);
 
         Guid? parcelId = null;
         if (submission.Parcel is { } parcel)
@@ -60,6 +67,7 @@ public static class SubmissionFragmentComposer
             parcelId = parcelThing.Id;
             things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
             Relate(siteThing, predicates.Has, parcelThing);
+            BeArchetype(parcelThing, archetypes.Parcel, ParcelArchetypeName);
         }
 
         var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships);
@@ -79,16 +87,12 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
-    private static Dictionary<string, TypedValue> StudyProperties()
+    // Only the flag readers locate a study by. Every computed output is declared on the archetype, and a
+    // declaration here could only disagree with it.
+    private static Dictionary<string, TypedValue> StudyProperties() => new()
     {
-        var properties = new Dictionary<string, TypedValue>
-        {
-            [SiteStudyFlag] = TypedValue.Written(VosTypeNames.Boolean, true),
-        };
-        foreach (var (name, typeInfo) in ComputedOutputs)
-            properties[name] = TypedValue.Declared(typeInfo);
-        return properties;
-    }
+        [SiteStudyFlag] = TypedValue.Written(VosTypeNames.Boolean, true),
+    };
 
     private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
     {
@@ -108,7 +112,7 @@ public static class SubmissionFragmentComposer
         return new Dictionary<string, TypedValue>
         {
             ["measuredAreaHectares"] = TypedValue.Written(VosTypeNames.Double, BoundaryGeometry.MeasureHectares(boundary)),
-            ["boundary"] = TypedValue.Written(VosTypeNames.String, BoundaryGeometry.ToGeoJson(boundary)),
+            ["boundary"] = TypedValue.Written(VosTypeNames.GeoJson, BoundaryGeometry.ToGeoJson(boundary)),
             ["boundarySource"] = TypedValue.Written(VosTypeNames.String, source),
         };
     }

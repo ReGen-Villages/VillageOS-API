@@ -1,4 +1,3 @@
-using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
@@ -14,7 +13,11 @@ namespace vos.Service.Intake.Tests;
 public class SubmissionFragmentComposerTests
 {
     private static ComposedSubmission Compose(Submission submission) =>
-        SubmissionFragmentComposer.Compose(submission, WillowBend.KnownPredicates);
+        SubmissionFragmentComposer.Compose(submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes);
+
+    private static bool IsEdgeTo(ComposedSubmission composed, Guid subject, Guid archetype) =>
+        composed.Fragment.Relationships.Any(edge =>
+            edge.Subject == subject && edge.Predicate == WillowBend.IsPredicateId && edge.Target == archetype);
 
     private static FragmentThing Thing(ComposedSubmission composed, Guid id) =>
         composed.Fragment.Things.Single(thing => thing.Id == id);
@@ -64,18 +67,35 @@ public class SubmissionFragmentComposerTests
             && edge.Target == composed.ParcelId!.Value);
     }
 
+    // A study used to declare its own computed outputs, and named one no service writes. The archetype
+    // declares every one of them, so a study that is the archetype resolves them through inheritance and
+    // a declaration here could only disagree with it.
     [Fact]
-    public void A_computed_output_is_declared_with_its_type_and_no_value()
+    public void The_study_declares_no_computed_output_of_its_own()
     {
         var composed = Compose(WillowBend.Submission());
 
-        var declared = Thing(composed, composed.StudyId).Properties["energySelfSufficiencyPct"];
-        declared.TypeInfo.Should().Be(VosTypeNames.Double);
-        declared.Value.Should().BeNull();
+        Thing(composed, composed.StudyId).Properties.Keys
+            .Should().Equal(SubmissionFragmentComposer.SiteStudyFlag);
+    }
 
-        JsonSerializer.Serialize(declared).Should().Be("""{"typeInfo":"vos.Double"}""",
-            "an envelope that carries no value declares the name without asserting anything, which is what "
-            + "keeps an uncomputed study readable as uncomputed rather than as zero");
+    [Fact]
+    public void Every_thing_a_submission_mints_is_its_archetype()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        IsEdgeTo(composed, composed.SiteId, WillowBend.SiteArchetypeId).Should().BeTrue();
+        IsEdgeTo(composed, composed.StudyId, WillowBend.SiteStudyArchetypeId).Should().BeTrue();
+        IsEdgeTo(composed, composed.ParcelId!.Value, WillowBend.ParcelArchetypeId).Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_submission_with_no_parcel_relates_none_to_the_parcel_archetype()
+    {
+        var composed = Compose(WillowBend.Submission() with { Parcel = null });
+
+        composed.Fragment.Relationships.Should()
+            .NotContain(edge => edge.Target == WillowBend.ParcelArchetypeId);
     }
 
     [Fact]
@@ -94,7 +114,7 @@ public class SubmissionFragmentComposerTests
 
         composed.ParcelId.Should().BeNull();
         composed.Fragment.Things.Should().HaveCount(2);
-        composed.Fragment.Relationships.Should().ContainSingle();
+        composed.Fragment.Relationships.Should().HaveCount(3, "the study studies the site, and each is its archetype");
     }
 
     [Fact]
@@ -121,7 +141,12 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission());
 
-        var boundary = (string)Thing(composed, composed.ParcelId!.Value).Properties["boundary"].Value!;
+        var written = Thing(composed, composed.ParcelId!.Value).Properties["boundary"];
+        written.TypeInfo.Should().Be(VosTypeNames.GeoJson,
+            "the Parcel archetype declares the boundary as GeoJSON, and an instance writing text would "
+            + "shadow that declaration with a weaker one");
+
+        var boundary = (string)written.Value!;
         boundary.Should().StartWith("""{"type":"Polygon","coordinates":[[[-8.416519,39.4990248]""");
         boundary.Should().EndWith("""[-8.416519,39.4990248]]]}""");
     }
@@ -133,7 +158,8 @@ public class SubmissionFragmentComposerTests
 
         var composed = SubmissionFragmentComposer.Compose(
             WillowBend.Submission() with { Parcel = null },
-            WillowBend.KnownPredicates with { Studies = minted });
+            WillowBend.KnownPredicates with { Studies = minted },
+            WillowBend.KnownArchetypes);
 
         composed.Fragment.Things.Should().Contain(thing => thing.Id == minted.Id && thing.Name == "studies");
     }

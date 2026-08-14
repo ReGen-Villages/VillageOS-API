@@ -8,4 +8,9 @@ public sealed record ComposedSubmission(ModelFragment Fragment, Guid SiteId, Gui
 /// one under this name yet, so the fragment carries it.</summary>
 public sealed record PredicateIdentity(string Name, Guid Id, bool Minted);
 
-public sealed record ResolvedPredicates(PredicateIdentity Studies, PredicateIdentity Has);
+public sealed record ResolvedPredicates(PredicateIdentity Studies, PredicateIdentity Has, PredicateIdentity Is);
+
+/// <summary>The archetypes a submission's Things point at, as the model that will hold them names them. A
+/// submission carries no property declarations of its own for anything an archetype already declares: it
+/// relates its Things and inherits the rest.</summary>
+public sealed record ResolvedArchetypes(Guid Site, Guid SiteStudy, Guid Parcel);
