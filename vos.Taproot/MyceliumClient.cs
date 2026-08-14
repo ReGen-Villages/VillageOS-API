@@ -60,7 +60,7 @@ public class MyceliumClient
             return _cachedToken;
         }
 
-        if (string.IsNullOrEmpty(_apiKey))
+        if (string.IsNullOrWhiteSpace(_apiKey))
         {
             throw new InvalidOperationException(
                 "No API key configured. Set the VOS_API_KEY environment variable before starting the CLI.");
