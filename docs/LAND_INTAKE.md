@@ -380,7 +380,15 @@ That is the whole contract. Any language can implement it.
 
 ![The land-intake archetypes and the relationships between them](assets/land-intake-archetypes.png)
 
-Two design decisions worth stating:
+Three design decisions worth stating:
+
+**One predicate joins a site to its parts.** Every edge in the picture reads `has` — the site to its
+parcel, its allocations, its hazard assessments, its data sources. A predicate per pair —
+`hasParcel`, `hasHazard` — would mean a reader had to know the name for each kind before it could
+walk anything, and adding a kind would mean teaching every reader another name. With one predicate a
+reader walks a site's parts without knowing what they are, and reads what each one is from its `is`
+edge. The study is the exception, and joins the site through `studies`: it is not a part of the site,
+it is a reading of it.
 
 **The parcel is its own Thing, not a property on the site.** A site can be re-surveyed. Keeping the
 boundary separate means a new survey is a new Thing with its own history, and the geometry can carry
@@ -756,17 +764,18 @@ Three things keep the PNGs legible on a page, and all three matter:
 
 | | Why |
 |---|---|
-| **Intrinsic size larger than any page** | Each PNG declares a physical width of half a metre or more, so a word processor scales it down to the text width rather than guessing. Declaring the *exact* target width does not work — importers apply their own scaling factor on top and the diagram lands at a fraction of the width. |
+| **Intrinsic size larger than any page** | Each PNG declares a physical width of half a metre or more, so a word processor scales it down to the text width rather than guessing. Declaring the *exact* target width does not work — importers apply their own scaling factor on top and the diagram lands at a fraction of the width. The renderer writes no physical size at all, so `render-diagrams.sh` stamps one on after rendering. |
 | **Type set well above the default** | Render settings live in `mermaid-config.json` so every diagram matches. |
 | **Shape close to the page box** | Legibility depends on the diagram's proportions, not just its type size: a wide diagram scaled to fit the text width shrinks its own text with it. Keep each diagram inside roughly **170 × 230 mm** once fitted to the text width. |
 
 To regenerate after editing a source:
 
 ```bash
-cd docs/assets
-npx -y @mermaid-js/mermaid-cli@11 -i land-intake-<name>.mmd -o land-intake-<name>.png -c mermaid-config.json -b white -s 3
-npx -y @mermaid-js/mermaid-cli@11 -i land-intake-<name>.mmd -o land-intake-<name>.svg -c mermaid-config.json -b white
+docs/assets/render-diagrams.sh land-intake-<name>.mmd
 ```
+
+Name no source and it re-renders every one. The script writes both the PNG and the SVG, and stamps
+the PNG with the physical size described above.
 
 ### Reading this as a document
 
