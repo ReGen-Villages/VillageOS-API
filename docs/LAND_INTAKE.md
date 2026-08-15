@@ -781,8 +781,9 @@ a `.png` and an `.svg`.
 rather than rendered to a picture.** It changes whenever an archetype or a predicate does, and a
 picture that has to be re-rendered to stay true drifts from the model between renders. Written in the
 page it cannot drift, and `ArchetypeDiagramTests` reads it here and fails when an edge names a
-predicate the submission service does not write. The trade is that this one diagram imports into a
-word processor as an empty placeholder for the reason given below; read §7 in the PDF.
+predicate the submission service does not write. It draws wherever this page is rendered — the wiki,
+Azure DevOps, GitHub, and the PDF. The one place it does not is a word processor opening this
+Markdown directly, for the reason given below.
 
 **The pages above reference the PNGs deliberately.** Mermaid renders label text inside SVG
 `<foreignObject>` elements, which word processors — LibreOffice and Word among them — do not
@@ -790,7 +791,7 @@ support: the image imports as a placeholder thumbnail rather than the diagram. T
 reach for where a diagram has to scale — a slide, a screen it will be zoomed on. Nothing publishes it
 on its own: the wiki is generated from these pages, so it receives the PNGs too.
 
-Three things keep the PNGs legible on a page, and all three matter:
+Each of these keeps the PNGs legible on a page, and all of them matter:
 
 | | Why |
 |---|---|
@@ -809,12 +810,12 @@ the PNG with the physical size described above.
 
 ### Reading this as a document
 
-`LAND_INTAKE.pdf` sits beside this file and is the version to open, print or share.
+`LAND_INTAKE.pdf` is the version to open, print or share. It is not kept in the repository — build it
+with [`tools/docs-pdf`](../tools/docs-pdf/README.md) when you need one, and it lands beside this file.
 
 Opening the Markdown directly in a word processor does not work well: LibreOffice ignores an image's
 intrinsic dimensions and places every diagram as a thumbnail, whatever the file declares. The PDF
 takes the reader's sizing heuristics out of the path — diagrams fill the text column, tall ones scale
 to fit the page.
 
-Regenerate it with [`tools/docs-pdf`](../tools/docs-pdf/README.md) after changing this document or any
-diagram.
+Rebuild it after changing this document or any diagram, or you are sharing the previous version.

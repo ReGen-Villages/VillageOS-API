@@ -21,7 +21,7 @@ public class ArchetypeDiagramTests
         new(@"[-=.]{2,}[>ox]\s*\|(?<predicate>[^|]+)\|", RegexOptions.Compiled);
 
     private static readonly Regex DiagramUnderArchetypeHeading = new(
-        Regex.Escape(ArchetypeSectionHeading) + @"\s*\r?\n(?:(?!^#{1,6} ).)*?^```mermaid\r?\n(?<diagram>.*?)^```",
+        "^" + Regex.Escape(ArchetypeSectionHeading) + @"\s*\r?\n(?:(?!^#{1,6} ).)*?^```mermaid\r?\n(?<diagram>.*?)^```",
         RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.Multiline);
 
     [Fact]
