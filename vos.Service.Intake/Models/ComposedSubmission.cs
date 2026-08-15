@@ -16,4 +16,4 @@ public sealed record ResolvedPredicates(PredicateIdentity Studies, PredicateIden
 /// <summary>The archetypes a submission's Things point at, as the model that will hold them names them. A
 /// submission carries no property declarations of its own for anything an archetype already declares: it
 /// relates its Things and inherits the rest.</summary>
-public sealed record ResolvedArchetypes(Guid Site, Guid SiteStudy, Guid Parcel);
+public sealed record ResolvedArchetypes(Guid Site, Guid SiteStudy, Guid Parcel, Guid Project, Guid Contact);

@@ -25,6 +25,8 @@ public static class ModelStub
         SubmissionFragmentComposer.SiteArchetypeName,
         SubmissionFragmentComposer.SiteStudyArchetypeName,
         SubmissionFragmentComposer.ParcelArchetypeName,
+        SubmissionFragmentComposer.ProjectArchetypeName,
+        SubmissionFragmentComposer.ContactArchetypeName,
     ];
 
     public static string NameAsked(HttpRequestMessage request) =>

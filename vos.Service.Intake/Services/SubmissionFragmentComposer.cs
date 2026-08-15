@@ -12,8 +12,9 @@ namespace vos.Service.Intake.Services;
 /// <remarks>
 /// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
 /// archetypes that declare those properties, and this file is the only place it can learn what a submission
-/// writes. It finds the property maps by the names <c>SiteProperties</c>, <c>StudyProperties</c> and
-/// <c>ParcelProperties</c>, one per Thing; reads a property from a <c>Write(properties, …)</c> call or a
+/// writes. It finds the property maps by the names <c>SiteProperties</c>, <c>StudyProperties</c>,
+/// <c>ParcelProperties</c>, <c>ProjectProperties</c> and <c>ContactProperties</c>, one per Thing — a map
+/// added here and not there is never read; reads a property from a <c>Write(properties, …)</c> call or a
 /// <c>["name"] = TypedValue.…</c> entry; and takes the predicates a submission may use from the
 /// <c>…PredicateName</c> constants below, matched by name to the fields of
 /// <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>. Renaming any of those compiles and passes every
@@ -29,6 +30,8 @@ public static class SubmissionFragmentComposer
     public const string SiteArchetypeName = "Site";
     public const string SiteStudyArchetypeName = "SiteStudy";
     public const string ParcelArchetypeName = "Parcel";
+    public const string ProjectArchetypeName = "Project";
+    public const string ContactArchetypeName = "Contact";
 
     private static readonly IReadOnlyList<string> BoundarySources =
         ["drawn-by-hand", "imported-from-file", "generated-from-stated-area"];
@@ -70,6 +73,34 @@ public static class SubmissionFragmentComposer
         BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
         BeArchetype(studyThing, archetypes.SiteStudy, SiteStudyArchetypeName);
 
+        // The project holds the site rather than the other way round: a submission is one planner's
+        // undertaking, and the site is what it is about.
+        Guid? projectId = null;
+        if (submission.Project is { } project)
+        {
+            var projectThing = new NamedThing(
+                StableIdentity.Derive(submissionId, "project"), Required(project.Name, "project.name", "a Thing is created under a name"));
+            projectId = projectThing.Id;
+            things.Add(new FragmentThing(projectThing.Id, projectThing.Name, ProjectProperties(project)));
+            Relate(projectThing, predicates.Has, siteThing);
+            BeArchetype(projectThing, archetypes.Project, ProjectArchetypeName);
+
+            if (submission.Contact is { } contact)
+            {
+                var contactThing = new NamedThing(
+                    StableIdentity.Derive(submissionId, "contact"), Required(contact.Name, "contact.name", "a Thing is created under a name"));
+                things.Add(new FragmentThing(contactThing.Id, contactThing.Name, ContactProperties(contact)));
+                Relate(projectThing, predicates.Has, contactThing);
+                BeArchetype(contactThing, archetypes.Contact, ContactArchetypeName);
+            }
+        }
+        else if (submission.Contact is not null)
+        {
+            throw new SubmissionError(
+                "'contact' was given without 'project': a contact hangs off the project it can be asked about, "
+                + "so there is nowhere to put one on its own.");
+        }
+
         Guid? parcelId = null;
         if (submission.Parcel is { } parcel)
         {
@@ -103,6 +134,24 @@ public static class SubmissionFragmentComposer
     {
         [SiteStudyFlag] = TypedValue.Written(VosTypeNames.Boolean, true),
     };
+
+    private static Dictionary<string, TypedValue> ProjectProperties(SubmittedProject project)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "country", VosTypeNames.String, project.Country);
+        Write(properties, "nearestCity", VosTypeNames.String, project.NearestCity);
+        Write(properties, "existingDataNotes", VosTypeNames.String, project.ExistingDataNotes);
+        return properties;
+    }
+
+    private static Dictionary<string, TypedValue> ContactProperties(SubmittedContact contact)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "relationshipToProject", VosTypeNames.String, contact.RelationshipToProject);
+        Write(properties, "emailAddress", VosTypeNames.String, contact.EmailAddress);
+        Write(properties, "phoneNumber", VosTypeNames.String, contact.PhoneNumber);
+        return properties;
+    }
 
     private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
     {

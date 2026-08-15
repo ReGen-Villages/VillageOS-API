@@ -9,8 +9,33 @@ namespace vos.Service.Intake.Models;
 public sealed record Submission
 {
     public string? SubmissionId { get; init; }
+    public SubmittedProject? Project { get; init; }
+    public SubmittedContact? Contact { get; init; }
     public SubmittedSite? Site { get; init; }
     public SubmittedParcel? Parcel { get; init; }
+}
+
+/// <summary>What the submission is for. Its properties are the planner's own account of the undertaking,
+/// which is why every one of them is a Fact rather than something a provider refreshes.</summary>
+public sealed record SubmittedProject
+{
+    public string? Name { get; init; }
+    public string? Country { get; init; }
+    public string? NearestCity { get; init; }
+
+    /// <summary>What the planner already holds about the land. It is prose because the point is to capture
+    /// what a discovery pass should not go looking for, which no fixed vocabulary would cover.</summary>
+    public string? ExistingDataNotes { get; init; }
+}
+
+/// <summary>Who to ask about the submission. Kept as its own Thing rather than properties on the project so
+/// that who to ask can change without rewriting what is being asked about.</summary>
+public sealed record SubmittedContact
+{
+    public string? Name { get; init; }
+    public string? RelationshipToProject { get; init; }
+    public string? EmailAddress { get; init; }
+    public string? PhoneNumber { get; init; }
 }
 
 public sealed record SubmittedSite

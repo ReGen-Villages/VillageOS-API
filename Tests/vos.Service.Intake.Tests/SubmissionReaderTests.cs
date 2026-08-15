@@ -10,9 +10,9 @@ public class SubmissionReaderTests
     public void A_field_the_service_does_not_write_is_refused_by_name()
     {
         var refusal = Assert.Throws<SubmissionError>(() => SubmissionReader.Read(
-            """{"submissionId":"willow-bend-2026-08","contact":{"email":"someone@example.org"}}"""));
+            """{"submissionId":"willow-bend-2026-08","budgetEuros":250000}"""));
 
-        refusal.Message.Should().Contain("contact",
+        refusal.Message.Should().Contain("budgetEuros",
             "a field accepted and quietly dropped leaves the planner believing it was recorded");
     }
 
