@@ -12,17 +12,25 @@ namespace vos.Service.Intake.Services;
 /// <remarks>
 /// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
 /// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
-/// from the shape below: the property maps, by the names <c>SiteProperties</c>, <c>StudyProperties</c> and
-/// <c>ParcelProperties</c>, one per Thing; each property, from a <c>Write(properties, …)</c> call or a
-/// <c>["name"] = TypedValue.…</c> entry; the archetypes a submission is composed against, from the
-/// <c>…ArchetypeName</c> constants; and the predicates it may use, from the <c>…PredicateName</c> constants,
-/// matched by name to the fields of <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>.
+/// from the shape below: the property maps, by the names <c>SiteProperties</c>, <c>StudyProperties</c>,
+/// <c>ParcelProperties</c>, <c>ProjectProperties</c> and <c>ContactProperties</c>, one per Thing; each
+/// property, from a <c>Write(properties, …)</c> call or a <c>["name"] = TypedValue.…</c> entry; the
+/// archetypes a submission is composed against, from the <c>…ArchetypeName</c> constants; and the predicates
+/// it may use, from the <c>…PredicateName</c> constants, matched by name to the fields of
+/// <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>.
 /// <para>
-/// Renaming any of them compiles and passes every test here, and the two failures are not alike. A renamed
+/// Renaming any of them compiles and passes every test here, and the failures are not alike. A renamed
 /// property map stops the model reference building. A renamed <c>…ArchetypeName</c> is quieter: that list is
 /// the gate deciding whether a model is one this producer targets at all, so a shorter list weakens the gate
 /// rather than tripping it, and the reference builds full of findings about a model the producer was never
-/// pointed at.
+/// pointed at. A map added here and not there is quieter still — it builds, it passes, and what that Thing
+/// carries is never checked against the archetype declaring it.
+/// </para>
+/// <para>
+/// Adding an <c>…ArchetypeName</c> tightens the gate rather than weakening it: the producer section reports
+/// only on a model holding every archetype named here, so a model carrying some of them and not the rest
+/// goes silent. That is the intended reading — a submission is composed against the whole set — but it means
+/// a name added here narrows which models the reference says anything about.
 /// </para>
 /// </remarks>
 public static class SubmissionFragmentComposer
@@ -35,6 +43,8 @@ public static class SubmissionFragmentComposer
     public const string SiteArchetypeName = "Site";
     public const string SiteStudyArchetypeName = "SiteStudy";
     public const string ParcelArchetypeName = "Parcel";
+    public const string ProjectArchetypeName = "Project";
+    public const string ContactArchetypeName = "Contact";
 
     private static readonly IReadOnlyList<string> BoundarySources =
         ["drawn-by-hand", "imported-from-file", "generated-from-stated-area"];
@@ -76,6 +86,34 @@ public static class SubmissionFragmentComposer
         BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
         BeArchetype(studyThing, archetypes.SiteStudy, SiteStudyArchetypeName);
 
+        // The project holds the site rather than the other way round: a submission is one planner's
+        // undertaking, and the site is what it is about.
+        if (submission.Project is { } project)
+        {
+            var projectThing = new NamedThing(
+                StableIdentity.Derive(submissionId, "project"),
+                Required(project.Name, "project.name", "a Thing is created under a name"));
+            things.Add(new FragmentThing(projectThing.Id, projectThing.Name, ProjectProperties(project)));
+            Relate(projectThing, predicates.Has, siteThing);
+            BeArchetype(projectThing, archetypes.Project, ProjectArchetypeName);
+
+            if (submission.Contact is { } contact)
+            {
+                var contactThing = new NamedThing(
+                    StableIdentity.Derive(submissionId, "contact"),
+                    Required(contact.Name, "contact.name", "a Thing is created under a name"));
+                things.Add(new FragmentThing(contactThing.Id, contactThing.Name, ContactProperties(contact)));
+                Relate(projectThing, predicates.Has, contactThing);
+                BeArchetype(contactThing, archetypes.Contact, ContactArchetypeName);
+            }
+        }
+        else if (submission.Contact is not null)
+        {
+            throw new SubmissionError(
+                "'contact' was given without 'project': a contact hangs off the project it can be asked about, "
+                + "so there is nowhere to put one on its own.");
+        }
+
         Guid? parcelId = null;
         if (submission.Parcel is { } parcel)
         {
@@ -109,6 +147,24 @@ public static class SubmissionFragmentComposer
     {
         [SiteStudyFlag] = TypedValue.Written(VosTypeNames.Boolean, true),
     };
+
+    private static Dictionary<string, TypedValue> ProjectProperties(SubmittedProject project)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "country", VosTypeNames.String, project.Country);
+        Write(properties, "nearestCity", VosTypeNames.String, project.NearestCity);
+        Write(properties, "existingDataNotes", VosTypeNames.String, project.ExistingDataNotes);
+        return properties;
+    }
+
+    private static Dictionary<string, TypedValue> ContactProperties(SubmittedContact contact)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "relationshipToProject", VosTypeNames.String, contact.RelationshipToProject);
+        Write(properties, "emailAddress", VosTypeNames.String, contact.EmailAddress);
+        Write(properties, "phoneNumber", VosTypeNames.String, contact.PhoneNumber);
+        return properties;
+    }
 
     private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
     {

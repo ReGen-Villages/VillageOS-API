@@ -24,13 +24,29 @@ public static class WillowBend
     public static readonly Guid SiteArchetypeId = new("44444444-4444-4444-4444-444444444444");
     public static readonly Guid SiteStudyArchetypeId = new("55555555-5555-5555-5555-555555555555");
     public static readonly Guid ParcelArchetypeId = new("66666666-6666-6666-6666-666666666666");
+    public static readonly Guid ProjectArchetypeId = new("77777777-7777-7777-7777-777777777777");
+    public static readonly Guid ContactArchetypeId = new("88888888-8888-8888-8888-888888888888");
 
     public static ResolvedArchetypes KnownArchetypes =>
-        new(SiteArchetypeId, SiteStudyArchetypeId, ParcelArchetypeId);
+        new(SiteArchetypeId, SiteStudyArchetypeId, ParcelArchetypeId, ProjectArchetypeId, ContactArchetypeId);
 
     public static Submission Submission() => new()
     {
         SubmissionId = SubmissionId,
+        Project = new SubmittedProject
+        {
+            Name = "Willow Bend Regeneration",
+            Country = "Portugal",
+            NearestCity = "Santarém",
+            ExistingDataNotes = "Rainfall figures held from a 2024 survey; no solar measurements.",
+        },
+        Contact = new SubmittedContact
+        {
+            Name = "Ana Ferreira",
+            RelationshipToProject = "landowner",
+            EmailAddress = "ana.ferreira@example.pt",
+            PhoneNumber = "+351 200 000 000",
+        },
         Site = new SubmittedSite
         {
             Name = "Willow Bend",

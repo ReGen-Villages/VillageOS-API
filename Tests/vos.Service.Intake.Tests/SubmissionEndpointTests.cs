@@ -38,10 +38,10 @@ public class SubmissionEndpointTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsync("/submissions", Submission(
-            """{"submissionId":"willow-bend-2026-08","contact":{"email":"someone@example.org"}}"""));
+            """{"submissionId":"willow-bend-2026-08","budgetEuros":250000}"""));
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("contact");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("budgetEuros");
     }
 
     [Fact]

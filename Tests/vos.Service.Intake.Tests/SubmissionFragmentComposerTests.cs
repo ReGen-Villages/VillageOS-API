@@ -6,9 +6,9 @@ using Xunit;
 namespace vos.Service.Intake.Tests;
 
 /// <summary>
-/// What a submission has to put into the model. Each of the first four is the executable form of a clause
-/// the platform's own fixture pins, so a site built here and a site built by an imported building model
-/// stay the same shape and one reader serves both.
+/// What a submission has to put into the model. The tests about the study, the site and the parcel are the
+/// executable form of clauses the platform's own fixture pins, so a site built here and a site built by an
+/// imported building model stay the same shape and one reader serves both.
 /// </summary>
 public class SubmissionFragmentComposerTests
 {
@@ -21,6 +21,72 @@ public class SubmissionFragmentComposerTests
 
     private static FragmentThing Thing(ComposedSubmission composed, Guid id) =>
         composed.Fragment.Things.Single(thing => thing.Id == id);
+
+    private static FragmentThing Named(ComposedSubmission composed, string name) =>
+        composed.Fragment.Things.Single(thing => thing.Name == name);
+
+    private static bool Holds(ComposedSubmission composed, Guid subject, Guid target) =>
+        composed.Fragment.Relationships.Any(edge =>
+            edge.Subject == subject && edge.Predicate == WillowBend.HasPredicateId && edge.Target == target);
+
+    // The project holds the site, not the reverse: a submission is one planner's undertaking and the site is
+    // what it is about. A reader walking a project's parts finds the site among them.
+    [Fact]
+    public void The_project_holds_the_site_the_submission_is_about()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        var project = Named(composed, "Willow Bend Regeneration");
+        Holds(composed, project.Id, composed.SiteId).Should().BeTrue();
+        IsEdgeTo(composed, project.Id, WillowBend.ProjectArchetypeId).Should().BeTrue();
+    }
+
+    // Who to ask hangs off what is being asked about, so a contact can change without rewriting the project.
+    [Fact]
+    public void The_contact_hangs_off_the_project_rather_than_the_site()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        var project = Named(composed, "Willow Bend Regeneration");
+        var contact = Named(composed, "Ana Ferreira");
+        Holds(composed, project.Id, contact.Id).Should().BeTrue();
+        Holds(composed, composed.SiteId, contact.Id).Should().BeFalse(
+            "a contact is reached through the project it can be asked about");
+        IsEdgeTo(composed, contact.Id, WillowBend.ContactArchetypeId).Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_project_writes_the_properties_its_archetype_declares()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        var project = Named(composed, "Willow Bend Regeneration");
+        project.Properties.Should().ContainKeys("country", "nearestCity", "existingDataNotes");
+        Named(composed, "Ana Ferreira").Properties.Should()
+            .ContainKeys("relationshipToProject", "emailAddress", "phoneNumber");
+    }
+
+    // Every field beyond the submission identifier and the site name is optional, because a wizard saves as
+    // the planner fills it in.
+    [Fact]
+    public void A_submission_naming_no_project_mints_neither_it_nor_a_contact()
+    {
+        var composed = Compose(WillowBend.Submission() with { Project = null, Contact = null });
+
+        composed.Fragment.Things.Should().OnlyContain(thing => thing.Name != "Willow Bend Regeneration");
+        composed.Fragment.Things.Select(thing => thing.Name).Should().NotContain("Ana Ferreira");
+    }
+
+    // A contact has nowhere to hang without a project, and a fragment that silently dropped it would leave
+    // the planner believing it was recorded.
+    [Fact]
+    public void A_contact_given_without_a_project_is_refused()
+    {
+        var refusal = Assert.Throws<SubmissionError>(() =>
+            Compose(WillowBend.Submission() with { Project = null }));
+
+        refusal.Message.Should().Contain("contact").And.Contain("project");
+    }
 
     [Fact]
     public void The_study_relates_to_its_site_by_studies()
@@ -113,8 +179,9 @@ public class SubmissionFragmentComposerTests
         var composed = Compose(WillowBend.Submission() with { Parcel = null });
 
         composed.ParcelId.Should().BeNull();
-        composed.Fragment.Things.Should().HaveCount(2);
-        composed.Fragment.Relationships.Should().HaveCount(3, "the study studies the site, and each is its archetype");
+        composed.Fragment.Things.Should().HaveCount(4, "the site, its study, the project and its contact, and nothing for the parcel");
+        composed.Fragment.Relationships.Should().HaveCount(7,
+            "the study studies the site, the project holds the site and the contact, and each of the four is its archetype");
     }
 
     [Fact]
