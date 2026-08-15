@@ -894,7 +894,7 @@ debugging session otherwise.
 
 **Every diagram is written into this page as a `mermaid` block.** The source is the diagram, so
 there is nothing to re-render and nothing that can fall behind. A changed picture reads as changed
-text in a pull request, which is the only way a reviewer can see what moved.
+text in a pull request, so a reviewer can see what moved.
 
 They draw wherever this page is read: Azure DevOps, the wiki generated from it, GitHub, and the PDF.
 
