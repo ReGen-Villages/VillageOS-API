@@ -9,6 +9,16 @@ namespace vos.Service.Intake.Services;
 /// model already produces, so no reader has to ask where a site's facts came from, and a study is found by
 /// its flag rather than by its source.
 /// </summary>
+/// <remarks>
+/// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
+/// archetypes that declare those properties, and this file is the only place it can learn what a submission
+/// writes. It finds the property maps by the names <c>SiteProperties</c>, <c>StudyProperties</c> and
+/// <c>ParcelProperties</c>, one per Thing; reads a property from a <c>Write(properties, …)</c> call or a
+/// <c>["name"] = TypedValue.…</c> entry; and takes the predicates a submission may use from the
+/// <c>…PredicateName</c> constants below, matched by name to the fields of
+/// <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>. Renaming any of those compiles and passes every
+/// test here, and the model reference then fails to build.
+/// </remarks>
 public static class SubmissionFragmentComposer
 {
     public const string SiteStudyFlag = "__IsSiteStudy";

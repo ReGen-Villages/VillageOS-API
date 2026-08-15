@@ -8,6 +8,9 @@ public sealed record ComposedSubmission(ModelFragment Fragment, Guid SiteId, Gui
 /// one under this name yet, so the fragment carries it.</summary>
 public sealed record PredicateIdentity(string Name, Guid Id, bool Minted);
 
+/// <summary>The predicates a submission may relate its Things with. These field names are matched to the
+/// <c>…PredicateName</c> constants on <see cref="vos.Service.Intake.Services.SubmissionFragmentComposer"/> by a
+/// tool that reads both files as text; read the remarks there before renaming one.</summary>
 public sealed record ResolvedPredicates(PredicateIdentity Studies, PredicateIdentity Has, PredicateIdentity Is);
 
 /// <summary>The archetypes a submission's Things point at, as the model that will hold them names them. A
