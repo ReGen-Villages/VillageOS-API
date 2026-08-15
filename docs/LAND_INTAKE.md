@@ -1,9 +1,11 @@
 # Land Intake and Site Analysis — Design
 
-> **Status: design. Not yet implemented.** Tracked as Epic
+> **Status: partly built.** The archetypes exist and a model can be seeded with them, and the intake
+> service composes a submission into them. The wizard, the map, anonymous submission and open-data
+> discovery are still design. Tracked as Epic
 > [#6012](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6012) (client, services)
 > and Epic [#6033](https://dev.azure.com/ReGenVillages/VillageOS/_workitems/edit/6033) (model, broker).
-> Where this document says "will", nothing is built yet. Where it says "already", the capability
+> Where this document says "will", that part is not built yet. Where it says "already", the capability
 > exists today and is referenced from the doc that describes it.
 
 ## Contents
@@ -378,23 +380,38 @@ That is the whole contract. Any language can implement it.
 
 ### The archetypes
 
-![The land-intake archetypes and the relationships between them](assets/land-intake-archetypes.png)
+```mermaid
+flowchart LR
+  PR["<b>Project</b><br/>name · country · city"]
+  CO["<b>Contact</b><br/>name · role<br/>email · phone"]
+  SI["<b>Site</b><br/>lat · lng · elevation<br/>climate zone<br/>stated area · population<br/>household size<br/><i>+ discovered values</i>"]
+  ST["<b>SiteStudy</b><br/><i>computed outputs</i><br/><i>judge-ranges</i>"]
+  PA["<b>Parcel</b><br/>boundary · measured area<br/>how it was obtained"]
+  AL["<b>ProgrammeAllocation</b><br/>category · share · area"]
+  HA["<b>HazardAssessment</b><br/>type · level<br/>source · date"]
+  DS["<b>DataSource</b><br/>which source · coverage<br/>last resolved"]
 
-Three design decisions worth stating:
+  PR -->|has| CO
+  PR -->|has| SI
+  SI -->|has| PA
+  SI -->|has| AL
+  SI -->|has| HA
+  SI -->|has| DS
+  ST -->|studies| SI
+```
 
-**One predicate joins a site to its parts.** Every edge in the picture reads `has` — the site to its
-parcel, its allocations, its hazard assessments, its data sources. A predicate per pair —
-`hasParcel`, `hasHazard` — would mean a reader had to know the name for each kind before it could
-walk anything, and adding a kind would mean teaching every reader another name. With one predicate a
-reader walks a site's parts without knowing what they are, and reads what each one is from its `is`
-edge. The study is the exception, and joins the site through `studies`: it is not a part of the site,
-it is a reading of it.
+The design decisions worth stating:
 
 **The parcel is its own Thing, not a property on the site.** A site can be re-surveyed. Keeping the
 boundary separate means a new survey is a new Thing with its own history, and the geometry can carry
 its own provenance — drawn by hand, imported from a file, or auto-generated from a stated area. That
 last one matters: a square generated from a number is not evidence of anything and should not look
 identical to a surveyed boundary.
+
+**Everything hangs off its holder by the generic `has` predicate.** Nothing binds a service to these
+edges, so a predicate per pair — `hasParcel`, `hasHazard` — would be vocabulary the platform carries for
+no behaviour. A reader tells a parcel from a hazard by what the target `is`. The one named predicate is
+`studies`, which the site survey already uses to relate a study to the site it is about.
 
 **Hazards are Things, not a bag of properties.** There is a fixed vocabulary of hazard types and a
 fixed scale of levels, and modelling each assessment as a Thing lets it carry its source and its
@@ -414,7 +431,7 @@ Using a synthetic example throughout — **Willow Bend**, a fictional 24-hectare
 | | `householdSize` | 2.4 | Fact |
 | | `solarResourceKwhPerM2PerYear` | 1750 | **Observation** — discovered |
 | | `rainfallMillimetresPerYear` | 700 | **Observation** — discovered |
-| Willow Bend Site Study *(SiteStudy)* | `energySelfSufficiencyPct` | 90.8 | Fact — computed |
+| Willow Bend Site Study *(SiteStudy)* | `pctOfConsumption` | 90.8 | Fact — computed |
 | Parcel-01 *(Parcel)* | `boundary` | GeoJSON polygon | Fact |
 | | `measuredAreaHectares` | 23.4 | Fact |
 | | `boundarySource` | `drawn-by-hand` | Fact |
@@ -433,11 +450,10 @@ Each computed output is **declared on the study with its type and no value** unt
 (#6159). A seeded zero cannot be told from a real result, and a range reading it would report a verdict
 about an analysis that never ran.
 
-> **One name still to settle.** The reactive energy service writes `pctOfConsumption`, which is what the
-> site-survey studies declare and what their `EnergyNetPositive` range reads. This table calls the same
-> quantity `energySelfSufficiencyPct`. Wiring the analysis to an intake study has to settle on one of
-> them: a study that declares a name no service ever writes reads empty for ever, and the range over it
-> never reports.
+> **Settled: `pctOfConsumption`.** The reactive energy service writes it, the shared `SiteStudy`
+> archetype declares it, and that archetype's `EnergyNetPositive` range reads it. A submission's study
+> declares no computed output of its own — it `is` the archetype and inherits every one, so there is one
+> place the name is answered rather than two that can disagree.
 
 ---
 
@@ -582,6 +598,12 @@ wizard could compose the fragment itself — but because then there would be two
 submission to the model, and the second one to change would be the one that was wrong. What differs
 between a planner and a stranger is what the service demands before it accepts the call, not what it
 writes.
+
+**A refusal says only what the caller can act on.** A submission naming a field wrongly is answered
+`400` with the field named, because whoever filled the form in can correct it. Anything wrong with the
+deployment — a model that was never seeded with the archetypes, for one — is answered `503` with
+nothing in the body, and what is actually wrong goes to the log. A stranger is not told the state of
+the model they are submitting into.
 
 ### Why public intake gets its own service
 
@@ -751,9 +773,16 @@ debugging session otherwise.
 
 ## Diagrams
 
-Each diagram is generated from a Mermaid source file kept beside it, so it can be edited and
+Most diagrams are generated from a Mermaid source file kept beside them, so they can be edited and
 re-rendered rather than redrawn. Sources are `docs/assets/land-intake-*.mmd`, and each produces both
 a `.png` and an `.svg`.
+
+**The archetype diagram in §7 is the exception: it is written into this page as a `mermaid` block
+rather than rendered to a picture.** It changes whenever an archetype or a predicate does, and a
+picture that has to be re-rendered to stay true drifts from the model between renders. Written in the
+page it cannot drift, and `ArchetypeDiagramTests` reads it here and fails when an edge names a
+predicate the submission service does not write. The trade is that this one diagram imports into a
+word processor as an empty placeholder for the reason given below; read §7 in the PDF.
 
 **The pages above reference the PNGs deliberately.** Mermaid renders label text inside SVG
 `<foreignObject>` elements, which word processors — LibreOffice and Word among them — do not

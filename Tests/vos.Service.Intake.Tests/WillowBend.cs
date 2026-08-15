@@ -11,10 +11,22 @@ public static class WillowBend
 
     public static readonly Guid StudiesPredicateId = new("11111111-1111-1111-1111-111111111111");
     public static readonly Guid HasPredicateId = new("22222222-2222-2222-2222-222222222222");
+    public static readonly Guid IsPredicateId = new("33333333-3333-3333-3333-333333333333");
 
     public static ResolvedPredicates KnownPredicates => new(
         new PredicateIdentity("studies", StudiesPredicateId, Minted: false),
-        new PredicateIdentity("has", HasPredicateId, Minted: false));
+        new PredicateIdentity("has", HasPredicateId, Minted: false),
+        new PredicateIdentity("is", IsPredicateId, Minted: false));
+
+    /// <summary>The archetypes a model seeded from the shared analysis template and the land-intake
+    /// template holds. A submission points its Things at these rather than declaring their properties
+    /// again.</summary>
+    public static readonly Guid SiteArchetypeId = new("44444444-4444-4444-4444-444444444444");
+    public static readonly Guid SiteStudyArchetypeId = new("55555555-5555-5555-5555-555555555555");
+    public static readonly Guid ParcelArchetypeId = new("66666666-6666-6666-6666-666666666666");
+
+    public static ResolvedArchetypes KnownArchetypes =>
+        new(SiteArchetypeId, SiteStudyArchetypeId, ParcelArchetypeId);
 
     public static Submission Submission() => new()
     {

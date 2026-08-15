@@ -79,6 +79,14 @@ try
         {
             return Results.BadRequest(new { error = error.Message });
         }
+        // The submission was well formed and the model was not ready for it. Answering 400 would tell
+        // whoever filled the form in to correct something they cannot reach, and this route is meant to
+        // take anonymous submissions, so what is wrong goes to the log rather than into the response.
+        catch (ModelNotSeededError error)
+        {
+            Log.Error(error, "A submission could not be accepted: {Reason}", error.Message);
+            return Results.Problem("This service cannot accept submissions at the moment.", statusCode: 503);
+        }
     });
     if (authEnabled) submissions.RequireAuthorization();
 

@@ -12,16 +12,22 @@ namespace vos.Service.Intake.Tests;
 /// </summary>
 public class ArchetypeDiagramTests
 {
+    private const string DesignDocumentFileName = "LAND_INTAKE.md";
+    private const string ArchetypeSectionHeading = "### The archetypes";
+
     private static readonly Regex Arrow = new(@"[-=.]{2,}[>ox]", RegexOptions.Compiled);
 
     private static readonly Regex LabelledArrow =
         new(@"[-=.]{2,}[>ox]\s*\|(?<predicate>[^|]+)\|", RegexOptions.Compiled);
 
+    private static readonly Regex DiagramUnderArchetypeHeading = new(
+        Regex.Escape(ArchetypeSectionHeading) + @"\s*\r?\n(?:(?!^#{1,6} ).)*?^```mermaid\r?\n(?<diagram>.*?)^```",
+        RegexOptions.Compiled | RegexOptions.Singleline | RegexOptions.Multiline);
+
     [Fact]
     public void Every_edge_in_the_archetype_diagram_names_a_predicate_the_composer_writes()
     {
-        var diagram = File.ReadAllText(
-            Path.Combine(AppContext.BaseDirectory, "land-intake-archetypes.mmd"));
+        var diagram = ArchetypeDiagram();
         var composed = new[]
         {
             SubmissionFragmentComposer.HasPredicateName,
@@ -38,5 +44,18 @@ public class ArchetypeDiagramTests
             + "cannot read a label from has to fail here rather than go unchecked");
         drawn.Distinct().Where(predicate => !composed.Contains(predicate)).Should().BeEmpty(
             $"the diagram may only draw predicates the model holds — {string.Join(", ", composed)}");
+    }
+
+    private static string ArchetypeDiagram()
+    {
+        var document = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, DesignDocumentFileName));
+        var match = DiagramUnderArchetypeHeading.Match(document);
+
+        match.Success.Should().BeTrue(
+            $"the diagram is written into {DesignDocumentFileName} under '{ArchetypeSectionHeading}' rather "
+            + "than rendered to a picture, so moving it or retitling the section has to fail here rather "
+            + "than leave this test reading nothing and passing");
+
+        return match.Groups["diagram"].Value;
     }
 }
