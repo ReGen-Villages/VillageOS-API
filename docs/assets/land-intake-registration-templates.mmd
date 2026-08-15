@@ -1,8 +1,0 @@
-flowchart BT
-  R1["<b>a registration</b><br/>solar-resource<br/>supplies: url"]
-  R2["<b>a registration</b><br/>county-parcels<br/>supplies: url, tokenUrl, tokenRequest"]
-  E1["<b>Endpoint</b> (root)<br/>httpMethod=GET · no auth · no paging"]
-  E2["<b>EsriEndpoint</b><br/>token exchange · offset paging<br/>provider's field names fixed"]
-  R1 -->|is| E1
-  R2 -->|is| E2
-  E2 -->|is| E1

@@ -97,7 +97,24 @@ produces one result, not two. This is how a submission enters the model.
 
 ### The parts
 
-![The parts of VillageOS and how they connect](assets/land-intake-parts.png)
+```mermaid
+flowchart LR
+  subgraph client["What people use"]
+    T["<b>Trellis</b><br/>the web GUI"]
+    TR["<b>Taproot</b><br/>the command line"]
+  end
+  M["<b>Mycelium</b><br/>the broker — holds the model,<br/>serves the API, runs the services"]
+  subgraph svc["Services (each a small program)"]
+    TB["<b>Tributary</b><br/>fetches outside data"]
+    D["<b>Delta</b><br/>registers data sources"]
+    P["<b>Phloem</b><br/>runs pipelines"]
+    MB["<b>ModelBridge</b><br/>moves a value between<br/>the model and a pipeline"]
+    C["<b>Compute services</b><br/>energy, water, food"]
+  end
+  T --> M
+  TR --> M
+  M --> TB & D & P & MB & C
+```
 
 **Mycelium** — the broker. It holds the models, serves the API, authenticates every caller, and
 starts and supervises the services. Everything goes through it.
@@ -129,7 +146,11 @@ one pipeline value back onto a Thing.
 A **pipeline** (or **DAG**, for directed acyclic graph — a flow chart with no loops) is a calculation
 expressed as boxes and arrows.
 
-![A pipeline: two nodes joined by a typed wire](assets/land-intake-pipeline-anatomy.png)
+```mermaid
+flowchart LR
+  A["node: Land allocation"] -->|"wire<br/>productiveHa → productiveLandHa"| B["node: Food balance"]
+  B --> C["node: Publish"]
+```
 
 - **Node** — one box. Each node is a microservice call.
 - **Port** — a named, typed input or output socket on a node. `population` in, `daysOfSupply` out.
@@ -148,7 +169,31 @@ saved, and versioned like any other data.
 
 Three phases, in order. Each is independent of the others and can be re-run on its own.
 
-![Intake, discovery and analysis, each reading and writing the model](assets/land-intake-three-phases.png)
+```mermaid
+flowchart TB
+  subgraph P1["① INTAKE — a person answers questions"]
+    direction LR
+    W["Trellis wizard<br/>project · contact<br/>location · size · programme"] --> MAP["Map +<br/>parcel drawing"]
+  end
+
+  subgraph P2["② DISCOVERY — the platform looks the place up"]
+    direction LR
+    SEL["Select sources<br/>covering this site"] --> FETCH["Tributary calls each<br/>with the site's coordinates"]
+  end
+
+  subgraph P3["③ ANALYSIS — a pipeline does the arithmetic"]
+    direction LR
+    READ["Read values<br/>from the model"] --> CALC["Land split →<br/>energy · food · water"] --> WRITE["Write<br/>results back"]
+  end
+
+  DASH["Operations dashboard<br/>reads it all back"]
+  MODEL[("<b>The model</b><br/>Site · Parcel · Programme<br/>discovered values · results")]
+
+  P1 --> P2 --> P3 --> DASH --> MODEL
+  P1 -.->|"writes the submission"| MODEL
+  P2 -.->|"writes observations"| MODEL
+  P3 -.->|"writes results"| MODEL
+```
 
 **Why three phases and not one.** Discovery talks to the outside world; analysis does not. Keeping
 them apart means a planner can adjust an assumption and re-run the analysis instantly, without
@@ -264,7 +309,16 @@ There is no code anywhere that knows about any particular provider. A provider i
 
 Registrations inherit from a small hierarchy of templates, so shared behaviour is declared once:
 
-![Data-source registrations inheriting from endpoint templates](assets/land-intake-registration-templates.png)
+```mermaid
+flowchart BT
+  R1["<b>a registration</b><br/>solar-resource<br/>supplies: url"]
+  R2["<b>a registration</b><br/>county-parcels<br/>supplies: url, tokenUrl, tokenRequest"]
+  E1["<b>Endpoint</b> (root)<br/>httpMethod=GET · no auth · no paging"]
+  E2["<b>EsriEndpoint</b><br/>token exchange · offset paging<br/>provider's field names fixed"]
+  R1 -->|is| E1
+  R2 -->|is| E2
+  E2 -->|is| E1
+```
 
 A registration's allowed settings are the union of everything declared along its chain, and a value
 resolves to the nearest ancestor that sets it. **Delta** validates all of that at registration time
@@ -314,7 +368,23 @@ that time. The site now carries a solar figure that came from somewhere, with a 
 
 ### The discovery run
 
-![A discovery run: select covering sources, fetch each, ingest onto the site](assets/land-intake-discovery-sequence.png)
+```mermaid
+sequenceDiagram
+  participant Planner
+  participant Mycelium
+  participant Tributary
+  participant Provider as Outside provider
+  Planner->>Mycelium: Discover data for this site
+  Mycelium->>Mycelium: select sources whose coverage<br/>includes the site's country
+  loop each covering source, in parallel
+    Mycelium->>Tributary: call <source> with lat/lng
+    Tributary->>Provider: HTTP request
+    Provider-->>Tributary: response
+    Tributary->>Tributary: reshape into a reading
+    Tributary->>Mycelium: write observation onto the Site
+  end
+  Mycelium-->>Planner: resolved: 6 · unresolved: 1 (timeout)
+```
 
 **Partial failure is normal and must be tolerated.** Public data portals go down. One source failing
 leaves its value undiscovered; it does not stop the others and it does not abort the run. The run
@@ -342,7 +412,23 @@ flagged as needing a manual read, so the gap is visible rather than implied by a
 The pipeline reads what is in the model, computes, and writes results back. It makes no outside
 calls.
 
-![The site-analysis pipeline, from land allocation to the three balances](assets/land-intake-analysis-pipeline.png)
+```mermaid
+flowchart TB
+  R["<b>Read from the model</b><br/>area · programme split · population · household size<br/>solar resource · rainfall <i>(discovered)</i>"]
+  LA["<b>Land allocation</b><br/>shares → areas, plus the built and productive footprints"]
+  EB["<b>Energy<br/>balance</b>"]
+  FB["<b>Food<br/>balance</b>"]
+  RH["<b>Rainwater<br/>harvest</b>"]
+  W["<b>Merge and write the results onto the Site</b>"]
+
+  R --> LA
+  LA -->|"residential ha"| EB
+  LA -->|"productive ha"| FB
+  LA -->|"built + productive ha"| RH
+  EB --> W
+  FB --> W
+  RH --> W
+```
 
 The three balances have no dependency on each other, so Phloem runs them at the same time.
 
@@ -585,7 +671,18 @@ as "may read the model" or "may modify data".
 
 ### The existing route for service endpoints
 
-![How an authenticated call reaches a service through Mycelium](assets/land-intake-endpoint-route.png)
+```mermaid
+sequenceDiagram
+  participant Trellis
+  participant Mycelium
+  participant Service
+  Trellis->>Mycelium: POST /api/endpoints/phloem<br/>Authorization: Bearer …
+  Mycelium->>Mycelium: check token · check policy<br/>resolve the model from the token
+  Mycelium->>Mycelium: find the service by its routing label<br/>(read live from the model)
+  Mycelium->>Service: start it if not running,<br/>then forward the body to /handle
+  Service-->>Mycelium: result
+  Mycelium-->>Trellis: result
+```
 
 This gives a lot for free: one authentication system, model scoping, services started on demand,
 per-route traffic statistics, and — importantly — the services themselves never listen on a public
@@ -616,7 +713,23 @@ nobody mistyping a property is not security.
 
 So public submission gets a separate, small program with one job:
 
-![The public intake service and the trust boundary around it](assets/land-intake-public-intake.png)
+```mermaid
+flowchart TB
+  U["Someone with land<br/><i>public internet</i>"]
+  PX["Reverse proxy — terminates TLS"]
+  LI["<b>Land intake service</b><br/>the only public-facing service"]
+  M["<b>Mycelium</b><br/>API + Trellis<br/><i>every other service stays on loopback</i>"]
+  IM[("<b>Intake model</b><br/>write-only for<br/>this service")]
+  PM[("Project<br/>models")]
+
+  U -->|"intake.example.org"| PX
+  PX --> LI
+  PX -->|"app.example.org"| M
+  LI -->|"service key → token<br/>writes a fragment"| M
+  M -->|"its token names<br/>only this model"| IM
+  M --> PM
+  LI -.->|"credential refused"| PM
+```
 
 | Property | How it is achieved |
 |---|---|
@@ -635,7 +748,13 @@ routing; it currently knows nothing about deployment topology, and that is a fea
 
 Submissions land in a staging model. Becoming a project is a deliberate act.
 
-![From submission through review to a promoted project](assets/land-intake-promotion.png)
+```mermaid
+flowchart LR
+  S["Submission<br/><i>arrived</i>"] --> R{"Planner<br/>reviews"}
+  R -->|junk| X["Rejected<br/><i>disposable</i>"]
+  R -->|real| P["Promoted<br/>into a project model"]
+  P --> O["Project records:<br/>which submission · when · by whom"]
+```
 
 Anything anonymous attracts junk, and junk already sitting in a working model is expensive to remove.
 Promotion must be idempotent — a planner double-clicking must not create two projects — which means
@@ -773,49 +892,22 @@ debugging session otherwise.
 
 ## Diagrams
 
-Most diagrams are generated from a Mermaid source file kept beside them, so they can be edited and
-re-rendered rather than redrawn. Sources are `docs/assets/land-intake-*.mmd`, and each produces both
-a `.png` and an `.svg`.
+**Every diagram is written into this page as a `mermaid` block.** The source is the diagram, so
+there is nothing to re-render and nothing that can fall behind. A changed picture reads as changed
+text in a pull request, so a reviewer can see what moved.
 
-**The archetype diagram in §7 is the exception: it is written into this page as a `mermaid` block
-rather than rendered to a picture.** It changes whenever an archetype or a predicate does, and a
-picture that has to be re-rendered to stay true drifts from the model between renders. Written in the
-page it cannot drift, and `ArchetypeDiagramTests` reads it here and fails when an edge names a
-predicate the submission service does not write. It draws wherever this page is rendered — the wiki,
-Azure DevOps, GitHub, and the PDF. The one place it does not is a word processor opening this
-Markdown directly, for the reason given below.
+They draw wherever this page is read: Azure DevOps, the wiki generated from it, GitHub, and the PDF.
 
-**The pages above reference the PNGs deliberately.** Mermaid renders label text inside SVG
-`<foreignObject>` elements, which word processors — LibreOffice and Word among them — do not
-support: the image imports as a placeholder thumbnail rather than the diagram. The SVG is the copy to
-reach for where a diagram has to scale — a slide, a screen it will be zoomed on. Nothing publishes it
-on its own: the wiki is generated from these pages, so it receives the PNGs too.
-
-Each of these keeps the PNGs legible on a page, and all of them matter:
-
-| | Why |
-|---|---|
-| **Intrinsic size larger than any page** | Each PNG declares a physical width of half a metre or more, so a word processor scales it down to the text width rather than guessing. Declaring the *exact* target width does not work — importers apply their own scaling factor on top and the diagram lands at a fraction of the width. The renderer writes no physical size at all, so `render-diagrams.sh` stamps one on after rendering. |
-| **Type set well above the default** | Render settings live in `mermaid-config.json` so every diagram matches. |
-| **Shape close to the page box** | Legibility depends on the diagram's proportions, not just its type size: a wide diagram scaled to fit the text width shrinks its own text with it. Keep each diagram inside roughly **170 × 230 mm** once fitted to the text width. |
-
-To regenerate after editing a source:
-
-```bash
-docs/assets/render-diagrams.sh land-intake-<name>.mmd
-```
-
-Name no source and it re-renders every one. The script writes both the PNG and the SVG, and stamps
-the PNG with the physical size described above.
+Written here, a diagram can also be checked. `ArchetypeDiagramTests` reads the archetype diagram in
+§7 out of this file and fails when an edge names a predicate the submission service does not write,
+so that picture cannot quietly stop describing the model.
 
 ### Reading this as a document
 
 `LAND_INTAKE.pdf` is the version to open, print or share. It is not kept in the repository — build it
-with [`tools/docs-pdf`](../tools/docs-pdf/README.md) when you need one, and it lands beside this file.
+with [`tools/docs-pdf`](../tools/docs-pdf/README.md) when you need one, and it lands beside this
+file. Rebuild it after changing this document, or you are sharing the previous version.
 
-Opening the Markdown directly in a word processor does not work well: LibreOffice ignores an image's
-intrinsic dimensions and places every diagram as a thumbnail, whatever the file declares. The PDF
-takes the reader's sizing heuristics out of the path — diagrams fill the text column, tall ones scale
-to fit the page.
-
-Rebuild it after changing this document or any diagram, or you are sharing the previous version.
+Opening the Markdown directly in a word processor shows the diagrams as their source text. A
+`mermaid` block is text until something draws it, and a word processor draws nothing; the PDF is the
+path that does.

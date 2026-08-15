@@ -125,14 +125,14 @@ test('external links are left alone', () => {
 
 test('an image becomes a wiki attachment and is collected for copying', () => {
   const imagesSeen = new Set();
-  const out = rewriteLinks('![map](assets/land-intake-parts.png)', {
-    docPath: 'docs/LAND_INTAKE.md',
+  const out = rewriteLinks('![a diagram](assets/a-diagram.png)', {
+    docPath: 'docs/A_DOCUMENT.md',
     pageOf: () => undefined,
     anchorsOf: () => ({}),
     imagesSeen,
   });
-  assert.equal(out, '![map](/.attachments/land-intake-parts.png)');
-  assert.deepEqual([...imagesSeen], ['docs/assets/land-intake-parts.png']);
+  assert.equal(out, '![a diagram](/.attachments/a-diagram.png)');
+  assert.deepEqual([...imagesSeen], ['docs/assets/a-diagram.png']);
 });
 
 test('a page path becomes the file name the wiki expects', () => {
