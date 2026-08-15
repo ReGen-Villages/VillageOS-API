@@ -11,14 +11,27 @@ namespace vos.Service.Intake.Services;
 /// </summary>
 /// <remarks>
 /// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
-/// archetypes that declare those properties, and this file is the only place it can learn what a submission
-/// writes. It finds the property maps by the names <c>SiteProperties</c>, <c>StudyProperties</c>,
-/// <c>ParcelProperties</c>, <c>ProjectProperties</c> and <c>ContactProperties</c>, one per Thing; reads a
-/// property from a <c>Write(properties, …)</c> call or a <c>["name"] = TypedValue.…</c> entry; and takes the
-/// predicates a submission may use from the <c>…PredicateName</c> constants below, matched by name to the
-/// fields of <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>. Renaming any of those compiles and
-/// passes every test here, and the model reference then fails to build. A map added here and not there is
-/// worse than either: it builds, it passes, and what the Thing carries is never checked at all.
+/// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
+/// from the shape below: the property maps, by the names <c>SiteProperties</c>, <c>StudyProperties</c>,
+/// <c>ParcelProperties</c>, <c>ProjectProperties</c> and <c>ContactProperties</c>, one per Thing; each
+/// property, from a <c>Write(properties, …)</c> call or a <c>["name"] = TypedValue.…</c> entry; the
+/// archetypes a submission is composed against, from the <c>…ArchetypeName</c> constants; and the predicates
+/// it may use, from the <c>…PredicateName</c> constants, matched by name to the fields of
+/// <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>.
+/// <para>
+/// Renaming any of them compiles and passes every test here, and the failures are not alike. A renamed
+/// property map stops the model reference building. A renamed <c>…ArchetypeName</c> is quieter: that list is
+/// the gate deciding whether a model is one this producer targets at all, so a shorter list weakens the gate
+/// rather than tripping it, and the reference builds full of findings about a model the producer was never
+/// pointed at. A map added here and not there is quieter still — it builds, it passes, and what that Thing
+/// carries is never checked against the archetype declaring it.
+/// </para>
+/// <para>
+/// Adding an <c>…ArchetypeName</c> tightens the gate rather than weakening it: the producer section reports
+/// only on a model holding every archetype named here, so a model carrying some of them and not the rest
+/// goes silent. That is the intended reading — a submission is composed against the whole set — but it means
+/// a name added here narrows which models the reference says anything about.
+/// </para>
 /// </remarks>
 public static class SubmissionFragmentComposer
 {
