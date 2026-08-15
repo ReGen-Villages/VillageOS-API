@@ -400,7 +400,7 @@ flowchart LR
   ST -->|studies| SI
 ```
 
-Two design decisions worth stating:
+The design decisions worth stating:
 
 **The parcel is its own Thing, not a property on the site.** A site can be re-surveyed. Keeping the
 boundary separate means a new survey is a new Thing with its own history, and the geometry can carry
@@ -773,39 +773,49 @@ debugging session otherwise.
 
 ## Diagrams
 
-Each diagram is generated from a Mermaid source file kept beside it, so it can be edited and
+Most diagrams are generated from a Mermaid source file kept beside them, so they can be edited and
 re-rendered rather than redrawn. Sources are `docs/assets/land-intake-*.mmd`, and each produces both
 a `.png` and an `.svg`.
 
+**The archetype diagram in §7 is the exception: it is written into this page as a `mermaid` block
+rather than rendered to a picture.** It changes whenever an archetype or a predicate does, and a
+picture that has to be re-rendered to stay true drifts from the model between renders. Written in the
+page it cannot drift, and `ArchetypeDiagramTests` reads it here and fails when an edge names a
+predicate the submission service does not write. It draws wherever this page is rendered — the wiki,
+Azure DevOps, GitHub, and the PDF. The one place it does not is a word processor opening this
+Markdown directly, for the reason given below.
+
 **The pages above reference the PNGs deliberately.** Mermaid renders label text inside SVG
 `<foreignObject>` elements, which word processors — LibreOffice and Word among them — do not
-support: the image imports as a placeholder thumbnail rather than the diagram. The SVGs are kept for
-the web and the wiki, where `<foreignObject>` renders correctly.
+support: the image imports as a placeholder thumbnail rather than the diagram. The SVG is the copy to
+reach for where a diagram has to scale — a slide, a screen it will be zoomed on. Nothing publishes it
+on its own: the wiki is generated from these pages, so it receives the PNGs too.
 
-Three things keep the PNGs legible on a page, and all three matter:
+Each of these keeps the PNGs legible on a page, and all of them matter:
 
 | | Why |
 |---|---|
-| **Intrinsic size larger than any page** | Each PNG declares a physical width of half a metre or more, so a word processor scales it down to the text width rather than guessing. Declaring the *exact* target width does not work — importers apply their own scaling factor on top and the diagram lands at a fraction of the width. |
+| **Intrinsic size larger than any page** | Each PNG declares a physical width of half a metre or more, so a word processor scales it down to the text width rather than guessing. Declaring the *exact* target width does not work — importers apply their own scaling factor on top and the diagram lands at a fraction of the width. The renderer writes no physical size at all, so `render-diagrams.sh` stamps one on after rendering. |
 | **Type set well above the default** | Render settings live in `mermaid-config.json` so every diagram matches. |
 | **Shape close to the page box** | Legibility depends on the diagram's proportions, not just its type size: a wide diagram scaled to fit the text width shrinks its own text with it. Keep each diagram inside roughly **170 × 230 mm** once fitted to the text width. |
 
 To regenerate after editing a source:
 
 ```bash
-cd docs/assets
-npx -y @mermaid-js/mermaid-cli@11 -i land-intake-<name>.mmd -o land-intake-<name>.png -c mermaid-config.json -b white -s 3
-npx -y @mermaid-js/mermaid-cli@11 -i land-intake-<name>.mmd -o land-intake-<name>.svg -c mermaid-config.json -b white
+docs/assets/render-diagrams.sh land-intake-<name>.mmd
 ```
+
+Name no source and it re-renders every one. The script writes both the PNG and the SVG, and stamps
+the PNG with the physical size described above.
 
 ### Reading this as a document
 
-`LAND_INTAKE.pdf` sits beside this file and is the version to open, print or share.
+`LAND_INTAKE.pdf` is the version to open, print or share. It is not kept in the repository — build it
+with [`tools/docs-pdf`](../tools/docs-pdf/README.md) when you need one, and it lands beside this file.
 
 Opening the Markdown directly in a word processor does not work well: LibreOffice ignores an image's
 intrinsic dimensions and places every diagram as a thumbnail, whatever the file declares. The PDF
 takes the reader's sizing heuristics out of the path — diagrams fill the text column, tall ones scale
 to fit the page.
 
-Regenerate it with [`tools/docs-pdf`](../tools/docs-pdf/README.md) after changing this document or any
-diagram.
+Rebuild it after changing this document or any diagram, or you are sharing the previous version.
