@@ -13,12 +13,12 @@ namespace vos.Service.Intake.Services;
 /// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
 /// archetypes that declare those properties, and this file is the only place it can learn what a submission
 /// writes. It finds the property maps by the names <c>SiteProperties</c>, <c>StudyProperties</c>,
-/// <c>ParcelProperties</c>, <c>ProjectProperties</c> and <c>ContactProperties</c>, one per Thing — a map
-/// added here and not there is never read; reads a property from a <c>Write(properties, …)</c> call or a
-/// <c>["name"] = TypedValue.…</c> entry; and takes the predicates a submission may use from the
-/// <c>…PredicateName</c> constants below, matched by name to the fields of
-/// <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>. Renaming any of those compiles and passes every
-/// test here, and the model reference then fails to build.
+/// <c>ParcelProperties</c>, <c>ProjectProperties</c> and <c>ContactProperties</c>, one per Thing; reads a
+/// property from a <c>Write(properties, …)</c> call or a <c>["name"] = TypedValue.…</c> entry; and takes the
+/// predicates a submission may use from the <c>…PredicateName</c> constants below, matched by name to the
+/// fields of <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>. Renaming any of those compiles and
+/// passes every test here, and the model reference then fails to build. A map added here and not there is
+/// worse than either: it builds, it passes, and what the Thing carries is never checked at all.
 /// </remarks>
 public static class SubmissionFragmentComposer
 {
@@ -75,12 +75,11 @@ public static class SubmissionFragmentComposer
 
         // The project holds the site rather than the other way round: a submission is one planner's
         // undertaking, and the site is what it is about.
-        Guid? projectId = null;
         if (submission.Project is { } project)
         {
             var projectThing = new NamedThing(
-                StableIdentity.Derive(submissionId, "project"), Required(project.Name, "project.name", "a Thing is created under a name"));
-            projectId = projectThing.Id;
+                StableIdentity.Derive(submissionId, "project"),
+                Required(project.Name, "project.name", "a Thing is created under a name"));
             things.Add(new FragmentThing(projectThing.Id, projectThing.Name, ProjectProperties(project)));
             Relate(projectThing, predicates.Has, siteThing);
             BeArchetype(projectThing, archetypes.Project, ProjectArchetypeName);
@@ -88,7 +87,8 @@ public static class SubmissionFragmentComposer
             if (submission.Contact is { } contact)
             {
                 var contactThing = new NamedThing(
-                    StableIdentity.Derive(submissionId, "contact"), Required(contact.Name, "contact.name", "a Thing is created under a name"));
+                    StableIdentity.Derive(submissionId, "contact"),
+                    Required(contact.Name, "contact.name", "a Thing is created under a name"));
                 things.Add(new FragmentThing(contactThing.Id, contactThing.Name, ContactProperties(contact)));
                 Relate(projectThing, predicates.Has, contactThing);
                 BeArchetype(contactThing, archetypes.Contact, ContactArchetypeName);
