@@ -11,13 +11,19 @@ namespace vos.Service.Intake.Services;
 /// </summary>
 /// <remarks>
 /// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
-/// archetypes that declare those properties, and this file is the only place it can learn what a submission
-/// writes. It finds the property maps by the names <c>SiteProperties</c>, <c>StudyProperties</c> and
-/// <c>ParcelProperties</c>, one per Thing; reads a property from a <c>Write(properties, …)</c> call or a
-/// <c>["name"] = TypedValue.…</c> entry; and takes the predicates a submission may use from the
-/// <c>…PredicateName</c> constants below, matched by name to the fields of
-/// <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>. Renaming any of those compiles and passes every
-/// test here, and the model reference then fails to build.
+/// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
+/// from the shape below: the property maps, by the names <c>SiteProperties</c>, <c>StudyProperties</c> and
+/// <c>ParcelProperties</c>, one per Thing; each property, from a <c>Write(properties, …)</c> call or a
+/// <c>["name"] = TypedValue.…</c> entry; the archetypes a submission is composed against, from the
+/// <c>…ArchetypeName</c> constants; and the predicates it may use, from the <c>…PredicateName</c> constants,
+/// matched by name to the fields of <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>.
+/// <para>
+/// Renaming any of them compiles and passes every test here, and the two failures are not alike. A renamed
+/// property map stops the model reference building. A renamed <c>…ArchetypeName</c> is quieter: that list is
+/// the gate deciding whether a model is one this producer targets at all, so a shorter list weakens the gate
+/// rather than tripping it, and the reference builds full of findings about a model the producer was never
+/// pointed at.
+/// </para>
 /// </remarks>
 public static class SubmissionFragmentComposer
 {
