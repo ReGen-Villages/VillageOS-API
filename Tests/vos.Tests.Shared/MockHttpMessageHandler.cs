@@ -17,14 +17,19 @@ public sealed class MockHttpMessageHandler : HttpMessageHandler
     }
 
     public MockHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
-        : this(request => Task.FromResult(handler(request)))
     {
+        _handler = request => Task.FromResult(handler(request));
     }
 
     /// <summary>For a subject whose calls should be able to overlap. A handler that answers synchronously
     /// runs each call to completion on the caller's thread, so calls started together still finish one
     /// after another and a test cannot tell that shape from a caller that awaited them in turn.</summary>
-    public MockHttpMessageHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler)
+    /// <remarks>Named rather than a second constructor: a lambda body can satisfy both delegate types, so
+    /// the overload made every existing call site ambiguous.</remarks>
+    public static MockHttpMessageHandler AnsweringAsynchronously(
+        Func<HttpRequestMessage, Task<HttpResponseMessage>> handler) => new(handler);
+
+    private MockHttpMessageHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler)
     {
         _handler = handler;
     }

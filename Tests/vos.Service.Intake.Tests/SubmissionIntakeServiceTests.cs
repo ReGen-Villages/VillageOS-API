@@ -38,7 +38,7 @@ public class SubmissionIntakeServiceTests
     private static SubmissionIntakeService ServiceOfAnUnseededModel(
         Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
         new(new IntakeMyceliumClient(
-            new PerCallHttpClientFactory(new MockHttpMessageHandler(respond)),
+            new PerCallHttpClientFactory(MockHttpMessageHandler.AnsweringAsynchronously(respond)),
             NullLogger<IntakeMyceliumClient>.Instance,
             "http://localhost",
             "test-token"));
