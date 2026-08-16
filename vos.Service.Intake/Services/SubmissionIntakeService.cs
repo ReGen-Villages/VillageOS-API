@@ -19,7 +19,8 @@ public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium)
             await RequireArchetypeAsync(SubmissionFragmentComposer.SiteStudyArchetypeName, cancellation),
             await RequireArchetypeAsync(SubmissionFragmentComposer.ParcelArchetypeName, cancellation),
             await RequireArchetypeAsync(SubmissionFragmentComposer.ProjectArchetypeName, cancellation),
-            await RequireArchetypeAsync(SubmissionFragmentComposer.ContactArchetypeName, cancellation));
+            await RequireArchetypeAsync(SubmissionFragmentComposer.ContactArchetypeName, cancellation),
+            await RequireArchetypeAsync(SubmissionFragmentComposer.ProgrammeAllocationArchetypeName, cancellation));
 
         var composed = SubmissionFragmentComposer.Compose(submission, predicates, archetypes);
         await mycelium.ApplyFragmentAsync(composed.Fragment, cancellation);

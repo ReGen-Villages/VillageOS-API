@@ -257,6 +257,18 @@ the work.
 ```jsonc
 {
   "submissionId": "willow-bend-2026-08",     // every identifier derives from this
+  "project": {                                // the undertaking; it holds the site
+    "name": "Willow Bend Regeneration",
+    "country": "Portugal",
+    "nearestCity": "Santarém",
+    "existingDataNotes": "Rainfall held from a 2024 survey; no solar measurements."
+  },
+  "contact": {                                // hangs off the project, so it can change on its own
+    "name": "Ana Ferreira",
+    "relationshipToProject": "landowner",
+    "emailAddress": "ana.ferreira@example.pt",
+    "phoneNumber": "+351 200 000 000"
+  },
   "site": {
     "name": "Willow Bend",
     "latitude": 39.5012,
@@ -271,11 +283,16 @@ the work.
       { "latitude": 39.4990248, "longitude": -8.4165190 }
       // …at least three corners
     ]
-  }
+  },
+  "allocations": [                            // shares are taken as given and normalised later
+    { "category": "Residential", "sharePct": 22, "allocatedAreaHectares": 5.28 },
+    { "category": "Food and agriculture", "sharePct": 34, "allocatedAreaHectares": 8.16 }
+    // …one entry per category, each naming a category only once
+  ]
 }
 ```
 
-Four rules, each of which exists to stop a particular kind of quiet damage:
+Each of these rules exists to stop a particular kind of quiet damage:
 
 | Rule | Why |
 |---|---|

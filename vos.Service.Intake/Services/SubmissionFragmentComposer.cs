@@ -13,11 +13,11 @@ namespace vos.Service.Intake.Services;
 /// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
 /// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
 /// from the shape below: the property maps, by the names <c>SiteProperties</c>, <c>StudyProperties</c>,
-/// <c>ParcelProperties</c>, <c>ProjectProperties</c> and <c>ContactProperties</c>, one per Thing; each
-/// property, from a <c>Write(properties, …)</c> call or a <c>["name"] = TypedValue.…</c> entry; the
-/// archetypes a submission is composed against, from the <c>…ArchetypeName</c> constants; and the predicates
-/// it may use, from the <c>…PredicateName</c> constants, matched by name to the fields of
-/// <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>.
+/// <c>ParcelProperties</c>, <c>ProjectProperties</c>, <c>ContactProperties</c> and
+/// <c>AllocationProperties</c>, one per Thing; each property, from a <c>Write(properties, …)</c> call or a
+/// <c>["name"] = TypedValue.…</c> entry; the archetypes a submission is composed against, from the
+/// <c>…ArchetypeName</c> constants; and the predicates it may use, from the <c>…PredicateName</c> constants,
+/// matched by name to the fields of <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>.
 /// <para>
 /// Renaming any of them compiles and passes every test here, and the failures are not alike. A renamed
 /// property map stops the model reference building. A renamed <c>…ArchetypeName</c> is quieter: that list is
@@ -45,6 +45,7 @@ public static class SubmissionFragmentComposer
     public const string ParcelArchetypeName = "Parcel";
     public const string ProjectArchetypeName = "Project";
     public const string ContactArchetypeName = "Contact";
+    public const string ProgrammeAllocationArchetypeName = "ProgrammeAllocation";
 
     private static readonly IReadOnlyList<string> BoundarySources =
         ["drawn-by-hand", "imported-from-file", "generated-from-stated-area"];
@@ -124,6 +125,29 @@ public static class SubmissionFragmentComposer
             BeArchetype(parcelThing, archetypes.Parcel, ParcelArchetypeName);
         }
 
+        var categoriesAlreadyGiven = new Dictionary<string, string>();
+        foreach (var allocation in submission.Allocations ?? [])
+        {
+            var category = Required(allocation.Category, "allocation.category",
+                "an allocation is a share of the land put to some named use").Trim();
+
+            // Identity comes from the category rather than from a position in the list, so a wizard that
+            // reorders them re-posts onto the same Things. Case and surrounding space are not part of what
+            // the planner meant, so they are not part of what identifies it either.
+            var key = category.ToLowerInvariant();
+            if (categoriesAlreadyGiven.TryGetValue(key, out var alreadyGiven))
+                throw new SubmissionError(
+                    $"'allocations' gives '{alreadyGiven}' and '{category}' as separate shares of one "
+                    + "category: they disagree about it and nothing here can say which was meant.");
+            categoriesAlreadyGiven[key] = category;
+
+            var allocationThing = new NamedThing(
+                StableIdentity.Derive(submissionId, $"allocation:{key}"), $"{siteName} {category}");
+            things.Add(new FragmentThing(allocationThing.Id, allocationThing.Name, AllocationProperties(allocation, category)));
+            Relate(siteThing, predicates.Has, allocationThing);
+            BeArchetype(allocationThing, archetypes.ProgrammeAllocation, ProgrammeAllocationArchetypeName);
+        }
+
         var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships);
         return new ComposedSubmission(fragment, siteThing.Id, studyThing.Id, parcelId);
     }
@@ -163,6 +187,20 @@ public static class SubmissionFragmentComposer
         Write(properties, "relationshipToProject", VosTypeNames.String, contact.RelationshipToProject);
         Write(properties, "emailAddress", VosTypeNames.String, contact.EmailAddress);
         Write(properties, "phoneNumber", VosTypeNames.String, contact.PhoneNumber);
+        return properties;
+    }
+
+    // The share is written as given. Shares are normalised across the chosen categories further down the
+    // analysis, so a set that does not reach a hundred is a wizard part-filled, and judging whether they add
+    // up is a range's work on the study rather than this service's.
+    private static Dictionary<string, TypedValue> AllocationProperties(SubmittedAllocation allocation, string category)
+    {
+        var properties = new Dictionary<string, TypedValue>
+        {
+            ["allocationCategory"] = TypedValue.Written(VosTypeNames.String, category),
+        };
+        Write(properties, "sharePct", VosTypeNames.Double, allocation.SharePct);
+        Write(properties, "allocatedAreaHectares", VosTypeNames.Double, allocation.AllocatedAreaHectares);
         return properties;
     }
 

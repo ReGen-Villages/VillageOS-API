@@ -26,9 +26,11 @@ public static class WillowBend
     public static readonly Guid ParcelArchetypeId = new("66666666-6666-6666-6666-666666666666");
     public static readonly Guid ProjectArchetypeId = new("77777777-7777-7777-7777-777777777777");
     public static readonly Guid ContactArchetypeId = new("88888888-8888-8888-8888-888888888888");
+    public static readonly Guid ProgrammeAllocationArchetypeId = new("99999999-9999-9999-9999-999999999999");
 
     public static ResolvedArchetypes KnownArchetypes =>
-        new(SiteArchetypeId, SiteStudyArchetypeId, ParcelArchetypeId, ProjectArchetypeId, ContactArchetypeId);
+        new(SiteArchetypeId, SiteStudyArchetypeId, ParcelArchetypeId, ProjectArchetypeId, ContactArchetypeId,
+            ProgrammeAllocationArchetypeId);
 
     public static Submission Submission() => new()
     {
@@ -56,6 +58,17 @@ public static class WillowBend
             Population = 320,
             HouseholdSize = 2.4,
         },
+        // The programme from LAND_INTAKE.md §8. The shares add to 100 there, but nothing in the producer
+        // requires it — they are normalised across the chosen categories further down the analysis.
+        Allocations =
+        [
+            new SubmittedAllocation { Category = "Residential", SharePct = 22, AllocatedAreaHectares = 5.28 },
+            new SubmittedAllocation { Category = "Food and agriculture", SharePct = 34, AllocatedAreaHectares = 8.16 },
+            new SubmittedAllocation { Category = "Green, water and restoration", SharePct = 20, AllocatedAreaHectares = 4.80 },
+            new SubmittedAllocation { Category = "Commercial and retail", SharePct = 8, AllocatedAreaHectares = 1.92 },
+            new SubmittedAllocation { Category = "Community, education and health", SharePct = 9, AllocatedAreaHectares = 2.16 },
+            new SubmittedAllocation { Category = "Mobility and infrastructure", SharePct = 7, AllocatedAreaHectares = 1.68 },
+        ],
         Parcel = new SubmittedParcel
         {
             BoundarySource = "drawn-by-hand",
