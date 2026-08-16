@@ -36,6 +36,7 @@ public class BinaryResponseKindTests
         {
             if (req.RequestUri!.Host == "tiles.test") return Binary(PngBytes, "image/png");
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -68,6 +69,7 @@ public class BinaryResponseKindTests
         {
             if (req.RequestUri!.Host == "tiles.test") return Binary(PngBytes, contentType: null);
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -101,6 +103,7 @@ public class BinaryResponseKindTests
         {
             if (req.RequestUri!.Host == "tiles.test") { outbound = req; return Binary(PngBytes, "image/jpeg"); }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -132,6 +135,7 @@ public class BinaryResponseKindTests
         {
             if (req.RequestUri!.Host == "features.test") return Json("{\"ok\":true}");
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -157,6 +161,7 @@ public class BinaryResponseKindTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
             ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -182,6 +187,7 @@ public class BinaryResponseKindTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
             ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -207,6 +213,7 @@ public class BinaryResponseKindTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
             ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -238,6 +245,7 @@ public class BinaryResponseKindTests
                 return Json("{}");
             }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -268,6 +276,7 @@ public class BinaryResponseKindTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
             ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKinds(req, thingId)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 

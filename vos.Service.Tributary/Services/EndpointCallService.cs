@@ -4,6 +4,7 @@ using vos.Service.Shared;
 using Microsoft.Extensions.Logging;
 using vos.Service.Tributary.Helpers;
 using vos.Service.Tributary.Models;
+using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared.Validation;
 
 namespace vos.Service.Tributary.Services;
@@ -21,18 +22,73 @@ public sealed class EndpointCallService
     private readonly TokenExchangeCache _tokenExchangeCache;
     private readonly ILogger<EndpointCallService> _logger;
 
+    private readonly ISubscriptionClient _subscriptions;
+
+    // The mechanisms this service implements, by the name of the kind Thing each answers to. The
+    // model owns which endpoints use which kind and what each requires; code owns only how the work
+    // is done. A kind the model names and nothing here implements is refused saying both halves.
+    private const string TokenExchangeMechanism = "TokenExchangeAuth";
+    private const string OffsetPagingMechanism = "OffsetPaging";
+    private const string BinaryBodyMechanism = "BinaryResponse";
+    private const string JsonBodyMechanism = "JsonResponse";
+
     public EndpointCallService(
         MyceliumClient mycelium,
         IHttpClientFactory httpClientFactory,
         ObservationIngestService observationService,
         TokenExchangeCache tokenExchangeCache,
+        ISubscriptionClient subscriptions,
         ILogger<EndpointCallService> logger)
     {
         _mycelium = mycelium;
         _httpClientFactory = httpClientFactory;
         _observationService = observationService;
         _tokenExchangeCache = tokenExchangeCache;
+        _subscriptions = subscriptions;
         _logger = logger;
+    }
+
+    // One scoped read answers every role. Unsubscribing in a finally keeps a failed resolution from
+    // leaving a live subscription on the gateway for the rest of the process's life.
+    private async Task<IReadOnlyDictionary<string, ResolvedKind>> ResolveKindsAsync(
+        Guid endpointId, CancellationToken cancellationToken)
+    {
+        var subscribed = await _subscriptions.SubscribeAsync(
+            EndpointKindResolver.SelectorFor(endpointId), cancellationToken);
+        try
+        {
+            return EndpointKindResolver.Resolve(subscribed.Snapshot, endpointId);
+        }
+        finally
+        {
+            await _subscriptions.UnsubscribeAsync(subscribed.SubscriptionId, cancellationToken);
+        }
+    }
+
+    // Checked at two points on the same run, so it is written once. The two checks are not redundant:
+    // a transform can arrive on the request or be declared on the endpoint, and only the second is
+    // known once the endpoint's own properties have resolved.
+    private const string BinaryTransformClash =
+        "A binary body cannot be combined with a response transform: there is no text to transform.";
+
+    // Says what the model asked for and what this service can actually do, because either half alone
+    // sends the reader to the wrong place.
+    private static EndpointCallResult UnimplementedKind(string role, string named, params string[] implemented)
+    {
+        var error = $"The endpoint's '{role}' kind is '{named}', which this service does not implement. "
+            + $"It implements: {string.Join(", ", implemented)}.";
+        return Json(400, new { error }, error);
+    }
+
+    // Refused before any outbound call, which is the whole reason a kind declares its requirements
+    // instead of the code knowing them.
+    private static string? UnmetRequirement(
+        ResolvedKind? kind, Dictionary<string, JsonElement> effective)
+    {
+        var missing = EndpointKindResolver.MissingRequirements(kind, effective);
+        return missing.Count == 0
+            ? null
+            : $"Endpoint reaches kind '{kind!.Name}' but does not supply: {string.Join(", ", missing)}.";
     }
 
     public async Task<EndpointCallResult> ExecuteAsync(EndpointCallRequest request, CancellationToken cancellationToken = default)
@@ -48,31 +104,37 @@ public sealed class EndpointCallService
         if (effective == null)
             return Problem(500, "Endpoint resolution failed", "Failed to resolve effective properties for endpoint thing.");
 
-        // ---- responseKind resolution ----
-        // json/absent -> the existing string path. binary -> a byte-level read wrapped in a base64
-        // envelope; combos that presuppose a decodable string body (transforms, offset paging) are
-        // rejected before any side effect below.
-        if (!TryResolveOptionalString(effective, "responseKind", out var responseKind, out var responseKindError))
-            return EndpointCallResult.Failure(responseKindError!);
+        // ---- The kinds this endpoint reaches ----
+        // Reaching no kind for a role is a valid answer meaning "the plain behaviour": a plain body,
+        // no credential, no paging. Reaching one nothing here implements is not, and says so.
+        var kinds = await ResolveKindsAsync(thing.Value.Id, cancellationToken);
+        kinds.TryGetValue(EndpointKindRoles.ResponseBody, out var bodyKind);
+        kinds.TryGetValue(EndpointKindRoles.Authentication, out var authKind);
+        kinds.TryGetValue(EndpointKindRoles.Paging, out var pagingKind);
 
+        foreach (var kind in new[] { bodyKind, authKind, pagingKind })
+            if (UnmetRequirement(kind, effective) is { } unmet)
+                return Json(400, new { error = unmet }, unmet);
+
+        // A byte-level read wrapped in a base64 envelope; combinations that presuppose a decodable
+        // string body (transforms, offset paging) are rejected before any side effect below.
         var binaryResponse = false;
-        switch (responseKind?.Trim().ToLowerInvariant())
+        switch (bodyKind?.Name)
         {
             case null:
-            case "":
-            case "json":
+            case JsonBodyMechanism:
                 break;
-            case "binary":
+            case BinaryBodyMechanism:
                 binaryResponse = true;
                 break;
             default:
-                return Json(400, new { error = $"Unsupported responseKind: {responseKind}" }, $"Unsupported responseKind: {responseKind}");
+                return UnimplementedKind(EndpointKindRoles.ResponseBody, bodyKind.Name,
+                    JsonBodyMechanism, BinaryBodyMechanism);
         }
 
         var hasOverrideTransform = !string.IsNullOrWhiteSpace(request.ResponseTransform);
         if (binaryResponse && hasOverrideTransform)
-            return Json(400, new { error = "responseKind 'binary' cannot be combined with responseTransform." },
-                "responseKind 'binary' cannot be combined with responseTransform.");
+            return Json(400, new { error = BinaryTransformClash }, BinaryTransformClash);
         JsonataTransform? overrideQuery = null;
         if (hasOverrideTransform)
         {
@@ -127,8 +189,7 @@ public sealed class EndpointCallService
             }, "Endpoint thing has ambiguous properties for responseTransform.");
 
         if (binaryResponse && !string.IsNullOrWhiteSpace(responseTransform))
-            return Json(400, new { error = "responseKind 'binary' cannot be combined with responseTransform." },
-                "responseKind 'binary' cannot be combined with responseTransform.");
+            return Json(400, new { error = BinaryTransformClash }, BinaryTransformClash);
 
         var url = urlElement.ValueKind == JsonValueKind.String ? urlElement.GetString() : urlElement.ToString();
         var method = methodElement.ValueKind == JsonValueKind.String ? methodElement.GetString() : methodElement.ToString();
@@ -169,28 +230,23 @@ public sealed class EndpointCallService
         if (timeoutConflicts != null)
             return EndpointCallResult.Failure(AmbiguousProperty("timeout", timeoutConflicts));
 
-        // ---- Auth-kind branching (Task #5470) ----
-        // authKind is a structural key on the root Endpoint template; descendants resolve its value.
-        // none/absent -> a plain REST call. tokenExchange -> a pre-minted token, or one minted from a
-        // configured credential exchange (token endpoint, form fields, and response token/expiry paths
-        // all come from the template, so nothing here is source-specific). The credential attaches as a
-        // query param (default `token`) or, when tokenHeader is set, a request header. Validation gaps
-        // are 400 here; the mint network call is deferred into the try below so failures become 502.
-        if (!TryResolveOptionalString(effective, "authKind", out var authKind, out var authKindError))
-            return EndpointCallResult.Failure(authKindError!);
-
+        // ---- Authentication (Task #5470) ----
+        // Reaching no kind is a plain REST call. TokenExchangeAuth uses a pre-minted token, or one
+        // minted from a configured credential exchange (token endpoint, form fields, and response
+        // token/expiry paths all come from the template, so nothing here is source-specific). The
+        // credential attaches as a query parameter (default `token`) or, when tokenHeader is set, a
+        // request header. What the kind requires has already been checked above; the mint network call
+        // is deferred into the try below so its failures become 502 rather than 400.
         string? preMintedToken = null;
         TokenExchangeRequest? tokenFetch = null;
         var tokenParam = "token";
         string? tokenHeader = null;
         string? tokenScheme = null;
-        switch (authKind?.Trim().ToLowerInvariant())
+        switch (authKind?.Name)
         {
             case null:
-            case "":
-            case "none":
                 break;
-            case "tokenexchange":
+            case TokenExchangeMechanism:
                 if (!TryResolveOptionalString(effective, "tokenParam", out var tp, out var tpError))
                     return EndpointCallResult.Failure(tpError!);
                 if (!string.IsNullOrWhiteSpace(tp))
@@ -219,26 +275,27 @@ public sealed class EndpointCallService
                 if (!TryResolveOptionalString(effective, "expiryUnit", out var expiryUnit, out var euError))
                     return EndpointCallResult.Failure(euError!);
                 if (string.IsNullOrWhiteSpace(tokenUrl) || tokenRequest == null || tokenRequest.Count == 0 || string.IsNullOrWhiteSpace(tokenPath))
-                    return Json(400, new { error = "authKind 'tokenExchange' requires tokenUrl, tokenRequest, and tokenPath (or a pre-minted token)." },
-                        "authKind 'tokenExchange' requires tokenUrl, tokenRequest, and tokenPath (or a pre-minted token).");
+                {
+                    // Reached only when the kind declares fewer requirements than the mechanism needs.
+                    // The kind's own check above is the one an endpoint author sees; this guards the
+                    // mechanism against a kind that under-declares.
+                    const string underDeclared =
+                        "Token exchange needs tokenUrl, tokenRequest and tokenPath, or a pre-minted token.";
+                    return Json(400, new { error = underDeclared }, underDeclared);
+                }
                 tokenFetch = new TokenExchangeRequest(tokenUrl!, tokenRequest, tokenPath!, expiryPath, expiryUnit);
                 break;
             default:
-                return Json(400, new { error = $"Unsupported authKind: {authKind}" }, $"Unsupported authKind: {authKind}");
+                return UnimplementedKind(EndpointKindRoles.Authentication, authKind.Name, TokenExchangeMechanism);
         }
 
-        // ---- Offset paging resolution (Task #5470) ----
-        if (!TryResolveOptionalString(effective, "pagingKind", out var pagingKind, out var pagingError))
-            return EndpointCallResult.Failure(pagingError!);
-
+        // ---- Paging (Task #5470) ----
         OffsetPaginationConfig? pageConfig = null;
-        switch (pagingKind?.Trim().ToLowerInvariant())
+        switch (pagingKind?.Name)
         {
             case null:
-            case "":
-            case "none":
                 break;
-            case "offset":
+            case OffsetPagingMechanism:
                 if (!TryResolveOptionalString(effective, "offsetParam", out var offsetParam, out var offsetError))
                     return EndpointCallResult.Failure(offsetError!);
                 if (!TryResolveOptionalString(effective, "pageSizeParam", out var pageSizeParam, out var pspError))
@@ -248,8 +305,11 @@ public sealed class EndpointCallService
                 if (!TryResolveOptionalString(effective, "itemsPath", out var itemsPath, out var ipError))
                     return EndpointCallResult.Failure(ipError!);
                 if (string.IsNullOrWhiteSpace(offsetParam) || string.IsNullOrWhiteSpace(hasMorePath) || string.IsNullOrWhiteSpace(itemsPath))
-                    return Json(400, new { error = "pagingKind 'offset' requires offsetParam, hasMorePath, and itemsPath." },
-                        "pagingKind 'offset' requires offsetParam, hasMorePath, and itemsPath.");
+                {
+                    const string underDeclared =
+                        "Offset paging needs offsetParam, hasMorePath and itemsPath.";
+                    return Json(400, new { error = underDeclared }, underDeclared);
+                }
 
                 int? pageSize = null;
                 if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, "pageSize", out var pageSizeElement, out var pageSizeConflicts))
@@ -270,12 +330,14 @@ public sealed class EndpointCallService
                     itemsPath!);
                 break;
             default:
-                return Json(400, new { error = $"Unsupported pagingKind: {pagingKind}" }, $"Unsupported pagingKind: {pagingKind}");
+                return UnimplementedKind(EndpointKindRoles.Paging, pagingKind.Name, OffsetPagingMechanism);
         }
 
         if (binaryResponse && pageConfig != null)
-            return Json(400, new { error = $"responseKind 'binary' cannot be combined with pagingKind '{pagingKind}'." },
-                $"responseKind 'binary' cannot be combined with pagingKind '{pagingKind}'.");
+        {
+            var clash = $"A '{bodyKind!.Name}' body cannot be read page by page as '{pagingKind!.Name}'.";
+            return Json(400, new { error = clash }, clash);
+        }
 
         try
         {
