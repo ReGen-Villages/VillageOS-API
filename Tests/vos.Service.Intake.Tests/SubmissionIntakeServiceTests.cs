@@ -33,6 +33,16 @@ public class SubmissionIntakeServiceTests
             "http://localhost",
             "test-token"));
 
+    /// <summary>For a test whose answers must be able to overlap; a handler answering synchronously runs
+    /// each call to completion before the next starts, whatever the caller did.</summary>
+    private static SubmissionIntakeService ServiceOfAnUnseededModel(
+        Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
+        new(new IntakeMyceliumClient(
+            new PerCallHttpClientFactory(new MockHttpMessageHandler(respond)),
+            NullLogger<IntakeMyceliumClient>.Instance,
+            "http://localhost",
+            "test-token"));
+
     // The posted document is read inside the responder: the client disposes the request content once the
     // call returns, so reading it afterwards finds nothing.
     private static (SubmissionIntakeService Service, Func<string?> PostedFragment) ServiceCapturingFragment()
@@ -45,6 +55,41 @@ public class SubmissionIntakeServiceTests
             return Holds(request);
         });
         return (service, () => captured);
+    }
+
+    // A fragment upserts, so a wizard posts the whole submission again on every save. None of the name
+    // lookups reads another's answer, and awaiting them one after another spends a round trip each on every
+    // save — one more again for every archetype added later.
+    [Fact]
+    public async Task The_name_lookups_run_together_rather_than_one_after_another()
+    {
+        var counting = new object();
+        var inFlight = 0;
+        var mostAtOnce = 0;
+        // Completes as soon as a second lookup is in flight. Awaited one after another there is never a
+        // second one waiting here, so the count stays at one however long each call takes.
+        var aSecondArrived = new TaskCompletionSource();
+
+        var service = ServiceOfAnUnseededModel(async request =>
+        {
+            if (IsFragment(request)) return Json("{}");
+
+            lock (counting)
+            {
+                inFlight++;
+                mostAtOnce = Math.Max(mostAtOnce, inFlight);
+                if (inFlight >= 2) aSecondArrived.TrySetResult();
+            }
+            await Task.WhenAny(aSecondArrived.Task, Task.Delay(TimeSpan.FromSeconds(2)));
+            lock (counting) inFlight--;
+
+            return SeededAnswer(request);
+        });
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        mostAtOnce.Should().BeGreaterThan(1,
+            "the lookups do not depend on one another, so they should not wait for one another");
     }
 
     [Fact]
@@ -162,8 +207,16 @@ public class SubmissionIntakeServiceTests
         var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
             () => service.SubmitAsync(Document, CancellationToken.None));
 
-        refusal.Message.Should().Contain(SubmissionFragmentComposer.SiteArchetypeName)
-            .And.Contain("Seed the model from the analysis templates");
+        // Every missing name, not whichever lookup answered first. They run together, so naming one would
+        // name a different one from run to run, and an unseeded model is missing all of them anyway.
+        refusal.Message.Should().ContainAll(
+            SubmissionFragmentComposer.SiteArchetypeName,
+            SubmissionFragmentComposer.SiteStudyArchetypeName,
+            SubmissionFragmentComposer.ParcelArchetypeName,
+            SubmissionFragmentComposer.ProjectArchetypeName,
+            SubmissionFragmentComposer.ContactArchetypeName,
+            SubmissionFragmentComposer.ProgrammeAllocationArchetypeName);
+        refusal.Message.Should().Contain("Seed the model from the analysis templates");
         refusal.Should().NotBeAssignableTo<SubmissionError>(
             "a 400 would tell the submitter to correct something they cannot reach");
     }

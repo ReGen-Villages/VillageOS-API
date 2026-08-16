@@ -47,6 +47,16 @@ public static class ModelStub
                 : answerTheRest(request);
         };
 
+    /// <summary>What <see cref="Seeded"/> answers a name lookup with, for a test that has to wrap the
+    /// answering itself rather than hand it over.</summary>
+    public static HttpResponseMessage SeededAnswer(HttpRequestMessage request)
+    {
+        var name = NameAsked(request);
+        return ArchetypeNames.Contains(name)
+            ? Json($$"""{"Id":"{{StableArchetypeId(name)}}","Name":"{{name}}"}""")
+            : Holds(request);
+    }
+
     public static Guid StableArchetypeId(string archetypeName) =>
         StableIdentity.Derive(archetypeName, "archetype");
 }
