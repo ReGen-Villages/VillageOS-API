@@ -258,6 +258,42 @@ public class SubmissionFragmentComposerTests
         refusal.Message.Should().Contain("riverFlood").And.Contain("RiverFlood");
     }
 
+    // One source is one Thing, so a second description has nowhere to land. Keeping the first silently would
+    // leave the planner believing the second was recorded, which is the fault the whole submission path
+    // refuses everywhere else.
+    [Fact]
+    public void One_source_described_two_ways_is_refused()
+    {
+        var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
+        {
+            Hazards =
+            [
+                new SubmittedHazard
+                {
+                    HazardType = "riverFlood",
+                    Source = new SubmittedDataSource { Name = "Portal", CoverageDescription = "Rivers." },
+                },
+                new SubmittedHazard
+                {
+                    HazardType = "wildfire",
+                    Source = new SubmittedDataSource { Name = "Portal", CoverageDescription = "Forests." },
+                },
+            ],
+        }));
+
+        refusal.Message.Should().Contain("Rivers.").And.Contain("Forests.");
+    }
+
+    // A second mention that adds no description is the same source said again, not a disagreement.
+    [Fact]
+    public void One_source_mentioned_again_without_a_description_is_accepted()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        Named(composed, "National flood portal").Properties["coverageDescription"].Value
+            .Should().Be("Mainland river catchments, updated yearly.");
+    }
+
     [Fact]
     public void A_submission_naming_no_hazards_mints_none()
     {

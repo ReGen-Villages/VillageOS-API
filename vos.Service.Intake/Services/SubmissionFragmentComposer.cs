@@ -137,7 +137,7 @@ public static class SubmissionFragmentComposer
             // Identity comes from the category rather than from a position in the list, so a wizard that
             // reorders them re-posts onto the same Things. Case and surrounding space are not part of what
             // the planner meant, so they are not part of what identifies it either.
-            var key = category.ToLowerInvariant();
+            var key = Key(category);
             if (categoriesAlreadyGiven.TryGetValue(key, out var alreadyGiven))
                 throw new SubmissionError(
                     $"'allocations' gives '{alreadyGiven}' and '{category}' as separate shares of one "
@@ -155,12 +155,13 @@ public static class SubmissionFragmentComposer
         // A source named by two hazards is one Thing both hang off, not one each. Identity comes from the
         // source's name for the same reason an allocation's comes from its category.
         var sourcesAlreadyMinted = new Dictionary<string, NamedThing>();
+        var coverageAlreadyGiven = new Dictionary<string, string?>();
         var hazardsAlreadyGiven = new Dictionary<string, string>();
         foreach (var hazard in submission.Hazards ?? [])
         {
             var hazardType = Required(hazard.HazardType, "hazard.hazardType",
                 "an assessment is about one named hazard").Trim();
-            var typeKey = hazardType.ToLowerInvariant();
+            var typeKey = Key(hazardType);
             if (hazardsAlreadyGiven.TryGetValue(typeKey, out var alreadyGiven))
                 throw new SubmissionError(
                     $"'hazards' gives '{alreadyGiven}' and '{hazardType}' as separate assessments of one "
@@ -177,14 +178,24 @@ public static class SubmissionFragmentComposer
                 continue;
 
             var sourceName = Required(source.Name, "hazard.source.name", "a Thing is created under a name").Trim();
-            var sourceKey = sourceName.ToLowerInvariant();
+            var sourceKey = Key(sourceName);
             if (!sourcesAlreadyMinted.TryGetValue(sourceKey, out var sourceThing))
             {
                 sourceThing = new NamedThing(StableIdentity.Derive(submissionId, $"source:{sourceKey}"), sourceName);
                 sourcesAlreadyMinted[sourceKey] = sourceThing;
+                coverageAlreadyGiven[sourceKey] = source.CoverageDescription;
                 things.Add(new FragmentThing(sourceThing.Id, sourceThing.Name, DataSourceProperties(source)));
                 Relate(siteThing, predicates.Has, sourceThing);
                 BeArchetype(sourceThing, archetypes.DataSource, DataSourceArchetypeName);
+            }
+            else if (source.CoverageDescription is { } coverage
+                     && coverageAlreadyGiven[sourceKey] is { } first && coverage != first)
+            {
+                // One source is one Thing, so the second mention's description has nowhere to go. Taking the
+                // first silently would leave the planner believing the second was recorded.
+                throw new SubmissionError(
+                    $"'{sourceName}' is described two ways: '{first}' and '{coverage}'. One source is one "
+                    + "Thing, so give the description once or give it the same both times.");
             }
 
             Relate(hazardThing, predicates.Has, sourceThing);
@@ -288,6 +299,11 @@ public static class SubmissionFragmentComposer
         if (value is not null)
             properties[name] = TypedValue.Written(typeInfo, value);
     }
+
+    // What identifies a Thing a planner named, as against how they happened to type it. Case and surrounding
+    // space are not part of what they meant, so a wizard that re-posts with either changed lands on the Thing
+    // it landed on before rather than building a second beside it.
+    private static string Key(string named) => named.Trim().ToLowerInvariant();
 
     private static string Required(string? value, string field, string why) =>
         string.IsNullOrWhiteSpace(value) ? throw new SubmissionError($"'{field}' is missing: {why}.") : value;
