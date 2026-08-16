@@ -14,6 +14,27 @@ public sealed record Submission
     public SubmittedSite? Site { get; init; }
     public SubmittedParcel? Parcel { get; init; }
     public IReadOnlyList<SubmittedAllocation>? Allocations { get; init; }
+    public IReadOnlyList<SubmittedHazard>? Hazards { get; init; }
+}
+
+/// <summary>A hazard the planner says applies to the land, and which source says so. The level and the date
+/// it was assessed on are not here: those are read from the source when it is resolved, and a level a planner
+/// remembered is a recollection rather than an assessment.</summary>
+public sealed record SubmittedHazard
+{
+    public string? HazardType { get; init; }
+
+    /// <summary>Which source says so. It becomes a Thing the assessment hangs off rather than a name copied
+    /// onto it, so a reader can walk from a hazard to what produced it and the two cannot disagree.</summary>
+    public SubmittedDataSource? Source { get; init; }
+}
+
+/// <summary>Where a figure came from. A planner asserts what it covers; when discovery resolves it, the date
+/// it was last resolved lands on this same Thing.</summary>
+public sealed record SubmittedDataSource
+{
+    public string? Name { get; init; }
+    public string? CoverageDescription { get; init; }
 }
 
 /// <summary>How a planner would divide the land. The shares are taken as given: they are normalised across

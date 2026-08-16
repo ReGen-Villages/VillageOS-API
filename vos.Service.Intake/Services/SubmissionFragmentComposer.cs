@@ -13,8 +13,9 @@ namespace vos.Service.Intake.Services;
 /// A tool in the VillageOS repository reads this file as text. It checks what a submission writes against the
 /// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
 /// from the shape below: the property maps, by the names <c>SiteProperties</c>, <c>StudyProperties</c>,
-/// <c>ParcelProperties</c>, <c>ProjectProperties</c>, <c>ContactProperties</c> and
-/// <c>AllocationProperties</c>, one per Thing; each property, from a <c>Write(properties, …)</c> call or a
+/// <c>ParcelProperties</c>, <c>ProjectProperties</c>, <c>ContactProperties</c>, <c>AllocationProperties</c>,
+/// <c>HazardProperties</c> and <c>DataSourceProperties</c>, one per Thing; each property, from a
+/// <c>Write(properties, …)</c> call or a
 /// <c>["name"] = TypedValue.…</c> entry; the archetypes a submission is composed against, from the
 /// <c>…ArchetypeName</c> constants; and the predicates it may use, from the <c>…PredicateName</c> constants,
 /// matched by name to the fields of <see cref="vos.Service.Intake.Models.ResolvedPredicates"/>.
@@ -46,6 +47,8 @@ public static class SubmissionFragmentComposer
     public const string ProjectArchetypeName = "Project";
     public const string ContactArchetypeName = "Contact";
     public const string ProgrammeAllocationArchetypeName = "ProgrammeAllocation";
+    public const string HazardAssessmentArchetypeName = "HazardAssessment";
+    public const string DataSourceArchetypeName = "DataSource";
 
     private static readonly IReadOnlyList<string> BoundarySources =
         ["drawn-by-hand", "imported-from-file", "generated-from-stated-area"];
@@ -134,7 +137,7 @@ public static class SubmissionFragmentComposer
             // Identity comes from the category rather than from a position in the list, so a wizard that
             // reorders them re-posts onto the same Things. Case and surrounding space are not part of what
             // the planner meant, so they are not part of what identifies it either.
-            var key = category.ToLowerInvariant();
+            var key = Key(category);
             if (categoriesAlreadyGiven.TryGetValue(key, out var alreadyGiven))
                 throw new SubmissionError(
                     $"'allocations' gives '{alreadyGiven}' and '{category}' as separate shares of one "
@@ -147,6 +150,55 @@ public static class SubmissionFragmentComposer
                 AllocationProperties(allocation with { Category = category })));
             Relate(siteThing, predicates.Has, allocationThing);
             BeArchetype(allocationThing, archetypes.ProgrammeAllocation, ProgrammeAllocationArchetypeName);
+        }
+
+        // A source named by two hazards is one Thing both hang off, not one each. Identity comes from the
+        // source's name for the same reason an allocation's comes from its category.
+        var sourcesAlreadyMinted = new Dictionary<string, NamedThing>();
+        var coverageAlreadyGiven = new Dictionary<string, string?>();
+        var hazardsAlreadyGiven = new Dictionary<string, string>();
+        foreach (var hazard in submission.Hazards ?? [])
+        {
+            var hazardType = Required(hazard.HazardType, "hazard.hazardType",
+                "an assessment is about one named hazard").Trim();
+            var typeKey = Key(hazardType);
+            if (hazardsAlreadyGiven.TryGetValue(typeKey, out var alreadyGiven))
+                throw new SubmissionError(
+                    $"'hazards' gives '{alreadyGiven}' and '{hazardType}' as separate assessments of one "
+                    + "hazard: they disagree about it and nothing here can say which was meant.");
+            hazardsAlreadyGiven[typeKey] = hazardType;
+
+            var hazardThing = new NamedThing(
+                StableIdentity.Derive(submissionId, $"hazard:{typeKey}"), $"{siteName} {hazardType}");
+            things.Add(new FragmentThing(hazardThing.Id, hazardThing.Name, HazardProperties(hazard with { HazardType = hazardType })));
+            Relate(siteThing, predicates.Has, hazardThing);
+            BeArchetype(hazardThing, archetypes.HazardAssessment, HazardAssessmentArchetypeName);
+
+            if (hazard.Source is not { } source)
+                continue;
+
+            var sourceName = Required(source.Name, "hazard.source.name", "a Thing is created under a name").Trim();
+            var sourceKey = Key(sourceName);
+            if (!sourcesAlreadyMinted.TryGetValue(sourceKey, out var sourceThing))
+            {
+                sourceThing = new NamedThing(StableIdentity.Derive(submissionId, $"source:{sourceKey}"), sourceName);
+                sourcesAlreadyMinted[sourceKey] = sourceThing;
+                coverageAlreadyGiven[sourceKey] = source.CoverageDescription;
+                things.Add(new FragmentThing(sourceThing.Id, sourceThing.Name, DataSourceProperties(source)));
+                Relate(siteThing, predicates.Has, sourceThing);
+                BeArchetype(sourceThing, archetypes.DataSource, DataSourceArchetypeName);
+            }
+            else if (source.CoverageDescription is { } coverage
+                     && coverageAlreadyGiven[sourceKey] is { } first && coverage != first)
+            {
+                // One source is one Thing, so the second mention's description has nowhere to go. Taking the
+                // first silently would leave the planner believing the second was recorded.
+                throw new SubmissionError(
+                    $"'{sourceName}' is described two ways: '{first}' and '{coverage}'. One source is one "
+                    + "Thing, so give the description once or give it the same both times.");
+            }
+
+            Relate(hazardThing, predicates.Has, sourceThing);
         }
 
         var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships);
@@ -203,6 +255,22 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
+    // The level and the date it was assessed on are absent by design. Both take observations only, written
+    // when the source is resolved; a level a planner remembered would read as an assessment and is not one.
+    private static Dictionary<string, TypedValue> HazardProperties(SubmittedHazard hazard)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "hazardType", VosTypeNames.String, hazard.HazardType);
+        return properties;
+    }
+
+    private static Dictionary<string, TypedValue> DataSourceProperties(SubmittedDataSource source)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "coverageDescription", VosTypeNames.String, source.CoverageDescription);
+        return properties;
+    }
+
     private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
     {
         var boundary = parcel.Boundary
@@ -231,6 +299,11 @@ public static class SubmissionFragmentComposer
         if (value is not null)
             properties[name] = TypedValue.Written(typeInfo, value);
     }
+
+    // What identifies a Thing a planner named, as against how they happened to type it. Case and surrounding
+    // space are not part of what they meant, so a wizard that re-posts with either changed lands on the Thing
+    // it landed on before rather than building a second beside it.
+    private static string Key(string named) => named.Trim().ToLowerInvariant();
 
     private static string Required(string? value, string field, string why) =>
         string.IsNullOrWhiteSpace(value) ? throw new SubmissionError($"'{field}' is missing: {why}.") : value;

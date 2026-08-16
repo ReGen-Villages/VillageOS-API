@@ -41,14 +41,16 @@ a question *of* the value. Nobody asks what a phone number means. Names from a s
 — the building-model type names, for instance — stay as they are; they are that standard's vocabulary,
 not the model's.
 
-Two examples in this repository that get it wrong, kept here because they are the shape to recognise:
+A worked example of each, one already put right and one not:
 
 | Where | What it does | What it costs |
 |-------|--------------|---------------|
 | `SubmissionFragmentComposer` | Holds the allowed boundary sources as a list in C# and refuses anything else | Adding a way of obtaining a boundary means changing a service and deploying it |
-| `HazardAssessment.assessmentSource` | A string naming where an assessment came from, while `DataSource` is a Thing in the same model | Nothing can walk from a hazard to what produced it, and the two can disagree with nothing to notice |
+| `HazardAssessment` — **fixed** | Named its source in a string while `DataSource` was a Thing in the same model. It now hangs off that Thing instead | Before: nothing could walk from a hazard to what produced it, and the two could disagree with nothing to notice |
 
-Neither is a reason to rewrite them on sight — fix them when the work is already in that file.
+The hazard is what the rule looks like applied. Two hazards read off one portal share one `DataSource`, the planner asserts what it covers, and discovery later writes the date it was resolved onto that same Thing — which a name copied onto each hazard could never have supported.
+
+The boundary sources are still wrong. That is not a reason to rewrite them on sight; fix a breach when the work is already in that file.
 
 ## Lifecycle
 

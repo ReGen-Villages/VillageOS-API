@@ -27,10 +27,12 @@ public static class WillowBend
     public static readonly Guid ProjectArchetypeId = new("77777777-7777-7777-7777-777777777777");
     public static readonly Guid ContactArchetypeId = new("88888888-8888-8888-8888-888888888888");
     public static readonly Guid ProgrammeAllocationArchetypeId = new("99999999-9999-9999-9999-999999999999");
+    public static readonly Guid HazardAssessmentArchetypeId = new("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    public static readonly Guid DataSourceArchetypeId = new("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
     public static ResolvedArchetypes KnownArchetypes =>
         new(SiteArchetypeId, SiteStudyArchetypeId, ParcelArchetypeId, ProjectArchetypeId, ContactArchetypeId,
-            ProgrammeAllocationArchetypeId);
+            ProgrammeAllocationArchetypeId, HazardAssessmentArchetypeId, DataSourceArchetypeId);
 
     public static Submission Submission() => new()
     {
@@ -68,6 +70,25 @@ public static class WillowBend
             new SubmittedAllocation { Category = "Commercial and retail", SharePct = 8, AllocatedAreaHectares = 1.92 },
             new SubmittedAllocation { Category = "Community, education and health", SharePct = 9, AllocatedAreaHectares = 2.16 },
             new SubmittedAllocation { Category = "Mobility and infrastructure", SharePct = 7, AllocatedAreaHectares = 1.68 },
+        ],
+        // Two hazards read off one portal, so the source is one Thing both hang off. LAND_INTAKE.md §8
+        // calls a level without a source a recollection rather than an assessment, so neither is here.
+        Hazards =
+        [
+            new SubmittedHazard
+            {
+                HazardType = "riverFlood",
+                Source = new SubmittedDataSource
+                {
+                    Name = "National flood portal",
+                    CoverageDescription = "Mainland river catchments, updated yearly.",
+                },
+            },
+            new SubmittedHazard
+            {
+                HazardType = "wildfire",
+                Source = new SubmittedDataSource { Name = "National flood portal" },
+            },
         ],
         Parcel = new SubmittedParcel
         {

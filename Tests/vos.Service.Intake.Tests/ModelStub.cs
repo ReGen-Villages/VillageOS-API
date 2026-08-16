@@ -28,6 +28,8 @@ public static class ModelStub
         SubmissionFragmentComposer.ProjectArchetypeName,
         SubmissionFragmentComposer.ContactArchetypeName,
         SubmissionFragmentComposer.ProgrammeAllocationArchetypeName,
+        SubmissionFragmentComposer.HazardAssessmentArchetypeName,
+        SubmissionFragmentComposer.DataSourceArchetypeName,
     ];
 
     public static string NameAsked(HttpRequestMessage request) =>
