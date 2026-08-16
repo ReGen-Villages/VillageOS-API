@@ -243,6 +243,17 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    // Every connection the model declares, each with what it resolves to. The platform resolves these —
+    // a value may be held on the Thing, inherited through its `is` chain, or reached by an edge — so
+    // reading them here is what keeps this client out of the business of resolving anything itself.
+    public virtual async Task<JsonElement> GetAllConnectionsAsync()
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/mycelium/connections");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<bool> ShutdownMyceliumAsync()
     {
         await SetAuthHeaderAsync();

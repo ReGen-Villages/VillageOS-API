@@ -230,29 +230,26 @@ namespace vos.Taproot
             }
         }
 
+        // The platform says which connections bind a service and what each resolves to. Working that out
+        // here — from a payload of Things with no relationships in it — could not read a value the
+        // platform resolves by walking an edge, and would go wrong again the next time one moved.
         private async Task ListHandlersAsync()
         {
-            var things = await _mycelium.GetAllThingsAsync();
+            var connections = await _mycelium.GetAllConnectionsAsync();
 
-            if (things.ValueKind != JsonValueKind.Array)
+            if (connections.ValueKind != JsonValueKind.Array)
             {
                 _writer.WriteLine("No handlers found.");
                 return;
             }
 
-            var handlers = new List<JsonElement>();
-            foreach (var thing in things.EnumerateArray())
-            {
-                if (thing.TryGetProperty("Properties", out var props) &&
-                    props.TryGetProperty("ExecutablePath", out _))
-                {
-                    handlers.Add(thing);
-                }
-            }
+            var handlers = connections.EnumerateArray()
+                .Where(c => c.GetBoolOrDefault("BindsService"))
+                .ToList();
 
             if (handlers.Count == 0)
             {
-                _writer.WriteLine("No handlers found. Handlers are things with an 'ExecutablePath' property.");
+                _writer.WriteLine("No handlers found. A handler is a connection bound to a service.");
                 return;
             }
 
@@ -265,16 +262,22 @@ namespace vos.Taproot
 
         private void WriteHandlerEntry(JsonElement handler)
         {
-            var id = handler.GetStringOrDefault("Id");
+            var id = handler.GetStringOrDefault("ConnectionId");
             var name = handler.GetStringOrDefault("Name");
-            var props = handler.GetProperty("Properties");
-            var execPath = props.GetStringOrDefault("ExecutablePath");
-            var runMode = props.GetStringOrDefault("RunMode", "daemon");
 
             _writer.WriteLine($"  {_options.FormatIdentifier(name, id)}");
-            _writer.WriteLine($"    Executable: {execPath}");
-            _writer.WriteLine($"    Mode: {runMode}");
+            _writer.WriteLine($"    Executable: {ResolvedOrNotStated(handler, "ExecutablePath")}");
+            _writer.WriteLine($"    Mode: {ResolvedOrNotStated(handler, "RunMode")}");
+            _writer.WriteLine($"    Reached by: {ResolvedOrNotStated(handler, "Trigger")}");
         }
+
+        // A value the platform resolved, or a plain statement that nothing did. Standing a default in
+        // for silence would have this command state something no model says — which is how the run mode
+        // came to read as "daemon" for every service whatever it declared.
+        private static string ResolvedOrNotStated(JsonElement handler, string field) =>
+            handler.TryGetProperty(field, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString()!
+                : "not stated";
 
         private async Task ListServicesAsync()
         {
