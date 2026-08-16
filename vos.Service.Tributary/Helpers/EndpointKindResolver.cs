@@ -52,7 +52,7 @@ public static class EndpointKindResolver
             {
                 if (edge.SubjectId != subjectId) continue;
                 if (!namesById.TryGetValue(edge.PredicateId, out var role)) continue;
-                if (!EndpointKindRoles.All.Contains(role, StringComparer.OrdinalIgnoreCase)) continue;
+                if (!EndpointKindRoles.IsRole(role)) continue;
                 if (resolved.ContainsKey(role)) continue;
                 if (!thingsById.TryGetValue(edge.TargetId, out var kind)) continue;
 

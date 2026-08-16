@@ -26,4 +26,11 @@ public static class EndpointKindRoles
 
     public static bool IsRole(string predicateName) =>
         All.Contains(predicateName, StringComparer.OrdinalIgnoreCase);
+
+    // The spelling both sides key on, whatever the seed wrote. Without this a role is recognised
+    // case-insensitively but then stored and looked up case-sensitively, so a seed that capitalises
+    // it differently provisions an edge nothing can find again.
+    public static string Canonical(string predicateName) =>
+        All.FirstOrDefault(role => string.Equals(role, predicateName, StringComparison.OrdinalIgnoreCase))
+        ?? predicateName;
 }

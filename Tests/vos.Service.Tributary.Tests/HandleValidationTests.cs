@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
+using vos.Service.Shared;
 using Xunit;
 
 namespace vos.Service.Tributary.Tests;
@@ -46,6 +47,44 @@ public class HandleValidationTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
         calledOut.Should().BeFalse("an endpoint whose kinds could not be read must not be called unauthenticated");
+    }
+
+    // The point of a kind declaring what it requires: an endpoint that cannot satisfy it is refused
+    // before anything is called, naming what is missing — rather than failing partway through an
+    // outbound request, or worse, calling out without the credential it was supposed to carry.
+    [Fact]
+    public async Task Handle_EndpointMissingWhatItsKindRequires_Returns400NamingItAndDoesNotCallOut()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "Endpoint.tokenUrl":   {"Value":"https://api.test/token"}
+        }
+        """;
+        var calledOut = false;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test") { calledOut = true; return MyceliumStub.Json("{}"); }
+            return MyceliumStub.RouteFindThing(req, thingId, "EP")
+                ?? MyceliumStub.RouteEffectiveProperties(req, thingId, props)
+                ?? MyceliumStub.RouteKinds(req, thingId, new MyceliumStub.Kind(
+                    EndpointKindRoles.Authentication, "TokenExchangeAuth", "tokenUrl", "tokenRequest", "tokenPath"))
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("TokenExchangeAuth", "the refusal names the kind that was not satisfied");
+        body.Should().Contain("tokenRequest").And.Contain("tokenPath", "and every key still outstanding");
+        body.Should().NotContain("tokenUrl", "the one key the endpoint does supply is not reported missing");
+        calledOut.Should().BeFalse("an endpoint that cannot satisfy its kind must not be called at all");
     }
 
     [Fact]

@@ -93,6 +93,22 @@ public class EndpointKindGraphTests
             .Message.Should().Contain("EsriEndpoint");
     }
 
+    // Delta writes these edges and Tributary reads them. If one side matched the role name case
+    // sensitively and the other did not, a seed spelling it differently would provision a plain
+    // relationship that the reader then treated as a kind edge, or the reverse.
+    [Fact]
+    public void Build_RoleSpelledWithDifferentCase_IsStillAKindEdge()
+    {
+        var seed = SeedWithKind();
+        seed.Relationships[1] = new SeedRelationship
+        {
+            Subject = "EsriEndpoint", Predicate = "AuthenticatesBy", Target = "TokenExchangeAuth",
+        };
+
+        EndpointSeedGraph.Build(seed).ResolveKind("EsriEndpoint", "authenticatesBy")!
+            .Name.Should().Be("TokenExchangeAuth");
+    }
+
     [Fact]
     public void Build_EdgeToAKindThatDoesNotExist_IsRefused()
     {

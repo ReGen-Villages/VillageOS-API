@@ -44,7 +44,7 @@ public sealed class EndpointSeedGraph
     public EndpointKind? ResolveKind(string templateName, string role)
     {
         foreach (var template in Chain(templateName))
-            if (_kindEdges.TryGetValue((template.Name, role), out var kindName))
+            if (_kindEdges.TryGetValue((template.Name, EndpointKindRoles.Canonical(role)), out var kindName))
                 return Kinds[kindName];
         return null;
     }
@@ -162,12 +162,12 @@ public sealed class EndpointSeedGraph
             if (!byName.ContainsKey(rel.Subject))
                 throw new InvalidOperationException($"Relationship references unknown template '{rel.Subject}'.");
 
-            if (EndpointKindRoles.All.Contains(rel.Predicate))
+            if (EndpointKindRoles.IsRole(rel.Predicate))
             {
                 if (!kinds.ContainsKey(rel.Target))
                     throw new InvalidOperationException(
                         $"Template '{rel.Subject}' relates to unknown kind '{rel.Target}' through '{rel.Predicate}'.");
-                if (!kindEdges.TryAdd((rel.Subject, rel.Predicate), rel.Target))
+                if (!kindEdges.TryAdd((rel.Subject, EndpointKindRoles.Canonical(rel.Predicate)), rel.Target))
                     throw new InvalidOperationException(
                         $"Template '{rel.Subject}' declares more than one '{rel.Predicate}' kind.");
                 continue;
