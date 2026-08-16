@@ -143,7 +143,8 @@ public static class SubmissionFragmentComposer
 
             var allocationThing = new NamedThing(
                 StableIdentity.Derive(submissionId, $"allocation:{key}"), $"{siteName} {category}");
-            things.Add(new FragmentThing(allocationThing.Id, allocationThing.Name, AllocationProperties(allocation, category)));
+            things.Add(new FragmentThing(allocationThing.Id, allocationThing.Name,
+                AllocationProperties(allocation with { Category = category })));
             Relate(siteThing, predicates.Has, allocationThing);
             BeArchetype(allocationThing, archetypes.ProgrammeAllocation, ProgrammeAllocationArchetypeName);
         }
@@ -193,12 +194,10 @@ public static class SubmissionFragmentComposer
     // The share is written as given. Shares are normalised across the chosen categories further down the
     // analysis, so a set that does not reach a hundred is a wizard part-filled, and judging whether they add
     // up is a range's work on the study rather than this service's.
-    private static Dictionary<string, TypedValue> AllocationProperties(SubmittedAllocation allocation, string category)
+    private static Dictionary<string, TypedValue> AllocationProperties(SubmittedAllocation allocation)
     {
-        var properties = new Dictionary<string, TypedValue>
-        {
-            ["allocationCategory"] = TypedValue.Written(VosTypeNames.String, category),
-        };
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "allocationCategory", VosTypeNames.String, allocation.Category);
         Write(properties, "sharePct", VosTypeNames.Double, allocation.SharePct);
         Write(properties, "allocatedAreaHectares", VosTypeNames.Double, allocation.AllocatedAreaHectares);
         return properties;
