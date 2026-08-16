@@ -196,12 +196,13 @@ public class FindCommandHandlerTests
     public async Task FindRelationships_AsSubject_ListsOutgoingRelationships()
     {
         var subjectId = Guid.NewGuid();
+        var predicateId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         var relationshipId = Guid.NewGuid();
 
         var thingJson = JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{subjectId}"",""Name"":""Subject""}}");
         var relationshipsJson = JsonSerializer.Deserialize<JsonElement>($@"[
-            {{""Id"":""{relationshipId}"",""SubjectId"":""{subjectId}"",""TargetId"":""{targetId}"",""Name"":""Predicate""}}
+            {{""Id"":""{relationshipId}"",""SubjectId"":""{subjectId}"",""PredicateId"":""{predicateId}"",""TargetId"":""{targetId}""}}
         ]");
 
         _myceliumMock.Setup(b => b.GetThingAsync(subjectId)).ReturnsAsync(thingJson);
@@ -219,12 +220,13 @@ public class FindCommandHandlerTests
     public async Task FindRelationships_AsTarget_ListsIncomingRelationships()
     {
         var subjectId = Guid.NewGuid();
+        var predicateId = Guid.NewGuid();
         var targetId = Guid.NewGuid();
         var relationshipId = Guid.NewGuid();
 
         var thingJson = JsonSerializer.Deserialize<JsonElement>($@"{{""Id"":""{targetId}"",""Name"":""Target""}}");
         var relationshipsJson = JsonSerializer.Deserialize<JsonElement>($@"[
-            {{""Id"":""{relationshipId}"",""SubjectId"":""{subjectId}"",""TargetId"":""{targetId}"",""Name"":""Predicate""}}
+            {{""Id"":""{relationshipId}"",""SubjectId"":""{subjectId}"",""PredicateId"":""{predicateId}"",""TargetId"":""{targetId}""}}
         ]");
 
         _myceliumMock.Setup(b => b.GetThingAsync(targetId)).ReturnsAsync(thingJson);

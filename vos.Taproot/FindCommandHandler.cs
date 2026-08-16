@@ -193,15 +193,24 @@ namespace vos.Taproot
             string thingName, string thingIdStr, bool isSubject)
         {
             var id = rel.GetProperty("Id").GetString();
-            var relName = rel.TryGetProperty("Name", out var rn) ? rn.GetString() : "unknown";
+            var predicateId = rel.TryGetProperty("PredicateId", out var pp) ? pp.GetString() : null;
+            var predicate = ResolveName(predicateId, nameMap);
 
             var (subjectDisplay, targetDisplay) = isSubject
                 ? GetDisplaysForSubjectRole(rel, nameMap, thingName, thingIdStr)
                 : GetDisplaysForTargetRole(rel, nameMap, thingName, thingIdStr);
 
             var relIdDisplay = _options.ShowGuids ? $"{id}: " : "";
-            _writer.WriteLine($"    {relIdDisplay}{subjectDisplay} --[{relName}]--> {targetDisplay}");
+            _writer.WriteLine(
+                $"    {relIdDisplay}{subjectDisplay} --[{predicate}]--> {targetDisplay}{OwnName(rel)}");
         }
+
+        // An edge given a name of its own is the only one the platform sends a name for, and that name
+        // is about the whole edge rather than the step between the arrows.
+        private static string OwnName(JsonElement rel) =>
+            rel.TryGetProperty("Name", out var name) && name.GetString() is { Length: > 0 } own
+                ? $"  \"{own}\""
+                : "";
 
         private (string Subject, string Target) GetDisplaysForSubjectRole(
             JsonElement rel, Dictionary<string, string> nameMap,

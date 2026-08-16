@@ -164,7 +164,6 @@ namespace vos.Taproot
         private void WriteRelationshipEntry(JsonElement rel, Dictionary<string, string> nameMap)
         {
             var id = rel.GetStringOrDefault("Id");
-            var name = rel.GetStringOrDefault("Name");
             var subjectId = rel.GetStringOrDefault("SubjectId");
             var targetId = rel.GetStringOrDefault("TargetId");
             var predicateId = rel.GetStringOrDefault("PredicateId");
@@ -172,6 +171,11 @@ namespace vos.Taproot
             var subjectName = ResolveName(subjectId, nameMap);
             var targetName = ResolveName(targetId, nameMap);
             var predicateName = ResolveName(predicateId, nameMap);
+
+            // The platform sends a name only for an edge given one of its own; every other edge is named
+            // by the three endpoints, which the payload carries as identifiers.
+            var ownName = rel.GetStringOrDefault("Name", "");
+            var name = ownName.Length > 0 ? ownName : $"{subjectName} {predicateName} {targetName}";
 
             var relDisplay = _options.ShowGuids ? $"{name} ({id})" : name;
             var subjectDisplay = _options.FormatIdentifier(subjectName, subjectId);
