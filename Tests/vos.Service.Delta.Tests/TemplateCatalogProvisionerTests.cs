@@ -97,6 +97,89 @@ public class TemplateCatalogProvisionerTests
     }
     """;
 
+    // A template reaching a kind. TokenExchangeAuth declares the keys it requires of an endpoint, so
+    // the provisioned Thing carries one property per requirement — the same way a template declares a
+    // structural key, because that is what a requirement is.
+    private const string KindSeed = """
+    {
+      "things": [
+        { "name": "Endpoint", "properties": { "url": "" } },
+        { "name": "EsriEndpoint", "properties": { "tokenPath": "token" } }
+      ],
+      "kinds": [
+        { "name": "TokenExchangeAuth", "requires": ["tokenUrl", "tokenPath"] }
+      ],
+      "relationships": [
+        { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" },
+        { "subject": "EsriEndpoint", "predicate": "authenticatesBy", "target": "TokenExchangeAuth" }
+      ]
+    }
+    """;
+
+    [Fact]
+    public async Task ProvisionAsync_SeedDeclaringAKind_CreatesTheKindThingCarryingWhatItRequires()
+    {
+        var stub = new MyceliumStub();
+
+        await Provisioner(stub, KindSeed).ProvisionAsync();
+
+        stub.CreatedByName.Should().ContainKey("TokenExchangeAuth");
+        stub.ThingPostBodies.Should().Contain(b => b.Contains("TokenExchangeAuth") && b.Contains("tokenUrl"));
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_SeedDeclaringAKind_MintsTheRolePredicateAndWiresTheEdge()
+    {
+        var stub = new MyceliumStub();
+
+        await Provisioner(stub, KindSeed).ProvisionAsync();
+
+        stub.CreatedByName.Should().ContainKey("authenticatesBy");
+        stub.Relationships.Should().Contain(r =>
+            r.Subject == stub.CreatedByName["EsriEndpoint"]
+            && r.Predicate == stub.CreatedByName["authenticatesBy"]
+            && r.Target == stub.CreatedByName["TokenExchangeAuth"]);
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_KindAndRolePredicateAlreadyPresent_ReusesThemRatherThanMintingASecond()
+    {
+        var stub = new MyceliumStub();
+        var kindId = Guid.NewGuid();
+        var roleId = Guid.NewGuid();
+        stub.Preexist("TokenExchangeAuth", kindId);
+        stub.Preexist("authenticatesBy", roleId);
+
+        await Provisioner(stub, KindSeed).ProvisionAsync();
+
+        stub.CreatedByName.Should().NotContainKey("TokenExchangeAuth");
+        stub.CreatedByName.Should().NotContainKey("authenticatesBy");
+        stub.Relationships.Should().Contain(r => r.Predicate == roleId && r.Target == kindId);
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_KindThingCannotBeCreated_LeavesTheEdgeUnwiredRatherThanPointingAtNothing()
+    {
+        var stub = new MyceliumStub { FailCreateName = "TokenExchangeAuth" };
+
+        await Provisioner(stub, KindSeed).ProvisionAsync();
+
+        stub.Relationships.Should().NotContain(r => r.Predicate == stub.CreatedByName.GetValueOrDefault("authenticatesBy"));
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_KindEdgeWiredAfterTheIsEdge_SoTheTemplateIsAlreadyInItsChain()
+    {
+        var stub = new MyceliumStub();
+
+        await Provisioner(stub, KindSeed).ProvisionAsync();
+
+        var isEdge = stub.Calls.IndexOf("relationship:EsriEndpoint->Endpoint");
+        var kindEdge = stub.Calls.IndexOf("relationship:EsriEndpoint->TokenExchangeAuth");
+        isEdge.Should().BeGreaterThanOrEqualTo(0);
+        kindEdge.Should().BeGreaterThan(isEdge);
+    }
+
     [Fact]
     public async Task ProvisionAsync_FreshMycelium_CreatesEveryTemplateThingWithProperties()
     {

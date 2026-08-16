@@ -108,9 +108,83 @@ public sealed class TemplateCatalogProvisioner
             }
         }
 
+        // Kinds last: a role edge is written onto a template, so the template must already exist and
+        // already be in its own `is` chain, or the edge lands on a Thing whose narrowed keys are still
+        // unwritten and a reader resolving through it sees the parent's values.
+        var kindEdges = await ProvisionKindsAsync(idByName);
+
         _logger.LogInformation(
-            "Endpoint template catalog provisioned: {Created} thing(s) created, {Wired} 'is' relationship(s) wired, {Total} template(s) total.",
-            createdCount, wiredCount, _graph.Templates.Count);
+            "Endpoint template catalog provisioned: {Created} thing(s) created, {Wired} 'is' relationship(s) wired, "
+            + "{KindEdges} kind edge(s) wired, {Total} template(s) total.",
+            createdCount, wiredCount, kindEdges, _graph.Templates.Count);
+    }
+
+    // Mints each kind and each role predicate find-or-create, then relates every template to the kind
+    // it declares. A kind that cannot be minted takes its edges with it: an endpoint reaching nothing
+    // is refused by Tributary, where an endpoint reaching a Thing that does not exist is not.
+    private async Task<int> ProvisionKindsAsync(Dictionary<string, Guid> templateIds)
+    {
+        var wired = 0;
+        var kindIds = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        var roleIds = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var kind in _graph.Kinds.Values)
+        {
+            var id = await FindOrCreateAsync(kind.Name, RequirementProperties(kind));
+            if (id == null)
+            {
+                _logger.LogError(
+                    "Failed to provision endpoint kind '{Kind}'; templates naming it are left unrelated.", kind.Name);
+                continue;
+            }
+            kindIds[kind.Name] = id.Value;
+        }
+
+        foreach (var (template, role, kindName) in _graph.KindEdges)
+        {
+            if (!templateIds.TryGetValue(template, out var subjectId)
+                || !kindIds.TryGetValue(kindName, out var targetId))
+                continue;
+
+            if (!roleIds.TryGetValue(role, out var roleId))
+            {
+                var minted = await FindOrCreateAsync(role, properties: null);
+                if (minted == null)
+                {
+                    _logger.LogError("Failed to provision role predicate '{Role}'; no template can use it.", role);
+                    continue;
+                }
+                roleIds[role] = roleId = minted.Value;
+            }
+
+            if (await _myceliumClient.CreateRelationshipAsync(subjectId, roleId, targetId))
+                wired++;
+            else
+                _logger.LogError(
+                    "Failed to relate '{Template}' to kind '{Kind}' through '{Role}'; the endpoint will be refused "
+                    + "as reaching no {Role} kind.", template, kindName, role, role);
+        }
+
+        return wired;
+    }
+
+    // A requirement is declared the way a template declares a structural key — by name, with no value.
+    // The kind says what an endpoint must supply; only the endpoint can say what it supplies.
+    private static Dictionary<string, object> RequirementProperties(EndpointKind kind) =>
+        kind.Requires.ToDictionary(required => required, _ => (object)string.Empty);
+
+    private async Task<Guid?> FindOrCreateAsync(string name, Dictionary<string, object>? properties)
+    {
+        var existing = await _myceliumClient.FindThingByNameAsync(name);
+        if (existing != null)
+            return existing.Value.Id;
+
+        var created = await _myceliumClient.CreateThingAsync(new RegisterEndpointRequest
+        {
+            Name = name,
+            Properties = properties,
+        });
+        return created?.Id;
     }
 
     // The template's keys that an ancestor already declares. Mycelium turns a write to an inherited
