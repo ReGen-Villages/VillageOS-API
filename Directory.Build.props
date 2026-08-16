@@ -1,5 +1,13 @@
 <Project>
   <PropertyGroup>
     <RunSettingsFilePath>$(MSBuildThisFileDirectory)coverage.runsettings</RunSettingsFilePath>
+
+    <!-- Taproot, the services and the platform ship as one thing and say one version. The suffix is
+         the part that matters: it says there is no compatibility promise yet. Kept in step with the
+         platform's own Directory.Build.props by a check in the build that has both checked out. -->
+    <Version>0.1.0-alpha</Version>
+    <!-- The commit the SDK appends by default makes the same declared version read differently on
+         every build, and a model that records which build read it should record what was declared. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 </Project>
