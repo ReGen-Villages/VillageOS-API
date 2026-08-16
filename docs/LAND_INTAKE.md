@@ -288,6 +288,17 @@ the work.
     { "category": "Residential", "sharePct": 22, "allocatedAreaHectares": 5.28 },
     { "category": "Food and agriculture", "sharePct": 34, "allocatedAreaHectares": 8.16 }
     // …one entry per category, each naming a category only once
+  ],
+  "hazards": [                                // no level here: that is read from the source
+    {
+      "hazardType": "riverFlood",
+      "source": {                             // becomes a Thing the assessment hangs off
+        "name": "National flood portal",
+        "coverageDescription": "Mainland river catchments, updated yearly."
+      }
+    },
+    { "hazardType": "wildfire", "source": { "name": "National flood portal" } }
+    // …two hazards naming one source share that source
   ]
 }
 ```
@@ -491,7 +502,7 @@ flowchart LR
   ST["<b>SiteStudy</b><br/><i>computed outputs</i><br/><i>judge-ranges</i>"]
   PA["<b>Parcel</b><br/>boundary · measured area<br/>how it was obtained"]
   AL["<b>ProgrammeAllocation</b><br/>category · share · area"]
-  HA["<b>HazardAssessment</b><br/>type · level<br/>source · date"]
+  HA["<b>HazardAssessment</b><br/>type · level · date"]
   DS["<b>DataSource</b><br/>which source · coverage<br/>last resolved"]
 
   PR -->|has| CO
@@ -500,6 +511,7 @@ flowchart LR
   SI -->|has| AL
   SI -->|has| HA
   SI -->|has| DS
+  HA -->|has| DS
   ST -->|studies| SI
 ```
 
@@ -517,8 +529,15 @@ no behaviour. A reader tells a parcel from a hazard by what the target `is`. The
 `studies`, which the site survey already uses to relate a study to the site it is about.
 
 **Hazards are Things, not a bag of properties.** There is a fixed vocabulary of hazard types and a
-fixed scale of levels, and modelling each assessment as a Thing lets it carry its source and its
-date. The current tool stores them as a flat map with no indication where any level came from.
+fixed scale of levels, and modelling each assessment as a Thing lets it carry its date and reach the
+source that produced it. The current tool stores them as a flat map with no indication where any
+level came from.
+
+**An assessment reaches its source, rather than naming it.** The source is the `DataSource` Thing the
+assessment hangs off, not a name copied onto it. Two hazards read off one portal share one source, so
+resolving that source updates both, and a reader can walk from a hazard to what produced it. A copied
+name could be walked to by nothing and could disagree with the source's own with nothing to notice —
+which is the difference between an assessment and a recollection.
 
 ### A site, filled in
 

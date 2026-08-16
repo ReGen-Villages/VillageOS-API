@@ -17,4 +17,5 @@ public sealed record ResolvedPredicates(PredicateIdentity Studies, PredicateIden
 /// submission carries no property declarations of its own for anything an archetype already declares: it
 /// relates its Things and inherits the rest.</summary>
 public sealed record ResolvedArchetypes(
-    Guid Site, Guid SiteStudy, Guid Parcel, Guid Project, Guid Contact, Guid ProgrammeAllocation);
+    Guid Site, Guid SiteStudy, Guid Parcel, Guid Project, Guid Contact, Guid ProgrammeAllocation,
+    Guid HazardAssessment, Guid DataSource);

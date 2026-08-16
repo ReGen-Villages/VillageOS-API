@@ -188,6 +188,99 @@ public class SubmissionFragmentComposerTests
             .NotContain(edge => edge.Target == WillowBend.ProgrammeAllocationArchetypeId);
     }
 
+    private static IEnumerable<FragmentThing> Hazards(ComposedSubmission composed) =>
+        composed.Fragment.Things.Where(thing => thing.Properties.ContainsKey("hazardType"));
+
+    // The whole point of the archetype change: a hazard says which source assessed it by hanging off that
+    // source, so a reader can walk from one to the other. A name copied onto the hazard could be walked to
+    // by nothing, and could disagree with the source's own with nothing to notice.
+    [Fact]
+    public void A_hazard_hangs_off_the_source_that_assessed_it()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        var flood = Hazards(composed).Single(thing => (string)thing.Properties["hazardType"].Value! == "riverFlood");
+        var source = Named(composed, "National flood portal");
+
+        Holds(composed, flood.Id, source.Id).Should().BeTrue();
+        IsEdgeTo(composed, source.Id, WillowBend.DataSourceArchetypeId).Should().BeTrue();
+        flood.Properties.Should().NotContainKey("assessmentSource",
+            "the source is a Thing this hangs off, not a name copied onto it");
+    }
+
+    // One portal read twice is one source. Minting it per hazard would leave two Things a reader cannot tell
+    // apart, and discovery resolving one would leave the other stale.
+    [Fact]
+    public void Two_hazards_citing_one_source_share_that_source()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        composed.Fragment.Things.Where(thing => thing.Name == "National flood portal").Should().HaveCount(1);
+        Hazards(composed).Should().OnlyContain(hazard =>
+            Holds(composed, hazard.Id, Named(composed, "National flood portal").Id));
+    }
+
+    // A level a planner remembered is a recollection. It arrives as an observation when the source is
+    // resolved, and a submission writing one would make an unassessed hazard read as assessed.
+    [Fact]
+    public void A_hazard_carries_no_level_and_no_date()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        Hazards(composed).Should().OnlyContain(thing =>
+            !thing.Properties.ContainsKey("hazardLevel") && !thing.Properties.ContainsKey("assessedOn"));
+    }
+
+    [Fact]
+    public void Each_hazard_is_a_thing_of_its_own_the_site_holds()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        var hazards = Hazards(composed).ToList();
+        hazards.Should().HaveCount(WillowBend.Submission().Hazards!.Count);
+        hazards.Should().OnlyContain(thing => Holds(composed, composed.SiteId, thing.Id));
+        hazards.Should().OnlyContain(thing =>
+            IsEdgeTo(composed, thing.Id, WillowBend.HazardAssessmentArchetypeId));
+    }
+
+    [Fact]
+    public void Two_assessments_of_one_hazard_are_refused()
+    {
+        var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
+        {
+            Hazards =
+            [
+                new SubmittedHazard { HazardType = "riverFlood" },
+                new SubmittedHazard { HazardType = " RiverFlood " },
+            ],
+        }));
+
+        refusal.Message.Should().Contain("riverFlood").And.Contain("RiverFlood");
+    }
+
+    [Fact]
+    public void A_submission_naming_no_hazards_mints_none()
+    {
+        var composed = Compose(WillowBend.Submission() with { Hazards = null });
+
+        Hazards(composed).Should().BeEmpty();
+        composed.Fragment.Relationships.Should()
+            .NotContain(edge => edge.Target == WillowBend.HazardAssessmentArchetypeId);
+    }
+
+    [Fact]
+    public void A_hazard_named_without_a_source_still_mints()
+    {
+        var composed = Compose(WillowBend.Submission() with
+        {
+            Hazards = [new SubmittedHazard { HazardType = "landslide" }],
+        });
+
+        Hazards(composed).Single().Properties["hazardType"].Value.Should().Be("landslide");
+        composed.Fragment.Relationships.Should()
+            .NotContain(edge => edge.Target == WillowBend.DataSourceArchetypeId);
+    }
+
     [Fact]
     public void The_study_relates_to_its_site_by_studies()
     {

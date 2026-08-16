@@ -16,6 +16,8 @@ public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium)
         SubmissionFragmentComposer.ProjectArchetypeName,
         SubmissionFragmentComposer.ContactArchetypeName,
         SubmissionFragmentComposer.ProgrammeAllocationArchetypeName,
+        SubmissionFragmentComposer.HazardAssessmentArchetypeName,
+        SubmissionFragmentComposer.DataSourceArchetypeName,
     ];
 
     public async Task<ComposedSubmission> SubmitAsync(string document, CancellationToken cancellation)
@@ -48,7 +50,9 @@ public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium)
             found[SubmissionFragmentComposer.ParcelArchetypeName]!.Value,
             found[SubmissionFragmentComposer.ProjectArchetypeName]!.Value,
             found[SubmissionFragmentComposer.ContactArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.ProgrammeAllocationArchetypeName]!.Value);
+            found[SubmissionFragmentComposer.ProgrammeAllocationArchetypeName]!.Value,
+            found[SubmissionFragmentComposer.HazardAssessmentArchetypeName]!.Value,
+            found[SubmissionFragmentComposer.DataSourceArchetypeName]!.Value);
 
         var composed = SubmissionFragmentComposer.Compose(submission, predicates, archetypes);
         await mycelium.ApplyFragmentAsync(composed.Fragment, cancellation);
