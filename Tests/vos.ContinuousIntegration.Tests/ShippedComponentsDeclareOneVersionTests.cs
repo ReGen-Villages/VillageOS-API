@@ -67,16 +67,33 @@ public class ShippedComponentsDeclareOneVersionTests
     /// <summary>Pre-release is the point of the number, not an accident of it: the suffix is what says
     /// the platform makes no compatibility promise, and a release version would say the opposite by
     /// saying nothing.</summary>
+    /// <summary>MSBuild ignores comments, so a version left commented out is not the declared one.
+    /// Reading it as one failed a repository that agreed with itself.</summary>
+    [Fact]
+    public void A_commented_out_version_is_not_the_declared_one()
+    {
+        var props = Path.Combine(RepositoryRoot(), "Directory.Build.props");
+        var withComment = File.ReadAllText(props)
+            .Replace("<PropertyGroup>", "<PropertyGroup>\n    <!-- <Version>9.9.9</Version> was tried -->");
+        var uncommented = Regex.Replace(withComment, "<!--.*?-->", "", RegexOptions.Singleline);
+
+        Assert.DoesNotContain("9.9.9", Regex.Match(uncommented, @"<Version>([^<]+)</Version>").Value);
+    }
+
     [Fact]
     public void The_version_says_it_is_pre_release()
     {
         Assert.Contains("-", DeclaredByDotNetProjects());
     }
 
+    /// <summary>The version a build would actually use. Comments are removed first, because MSBuild
+    /// ignores them and a version tried and left commented out above the real one would otherwise be
+    /// read as the declared one — failing a repository that agrees with itself.</summary>
     private static string DeclaredByDotNetProjects()
     {
         var props = Path.Combine(RepositoryRoot(), "Directory.Build.props");
-        var declared = Regex.Match(File.ReadAllText(props), @"<Version>([^<]+)</Version>");
+        var uncommented = Regex.Replace(File.ReadAllText(props), "<!--.*?-->", "", RegexOptions.Singleline);
+        var declared = Regex.Match(uncommented, @"<Version>([^<]+)</Version>");
         Assert.True(declared.Success,
             $"{props} declares no <Version>, so Taproot and every service inherit none.");
         return declared.Groups[1].Value.Trim();
