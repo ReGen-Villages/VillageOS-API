@@ -821,11 +821,22 @@ ArcGIS vocabulary in the code; ESRI is just one configuration. No special
 binary, and no Delta change — the endpoint-template catalog already resolves
 multi-level hierarchies.
 
-At the contract level: `/handle` branches on a template-supplied `authKind`
-(`none` for a plain REST call, `tokenExchange` to mint or reuse a credential)
-and a `pagingKind` (`offset` to walk an offset-paginated source and aggregate
-all pages before transforming). Both default to off on the root `Endpoint`
-template, and a source-specific child template selects the mode.
+At the contract level: a template reaches the **kinds** it uses, through
+`authenticatesBy`, `pagesBy` and `readsBodyAs`. A kind is a Thing in the seed,
+not a word on the endpoint, and it declares the keys it requires — so an
+endpoint that cannot satisfy its kind is refused before anything is called,
+naming what is missing. `TokenExchangeAuth` mints or reuses a credential;
+`OffsetPaging` walks an offset-paginated source and aggregates every page before
+transforming; `BinaryResponse` reads the body as bytes.
+
+Reaching no kind for a role is a valid answer meaning the plain behaviour — no
+credential, no paging, a text body — and is what the root `Endpoint` template
+does. A source-specific child template reaches the kinds it needs, and the
+nearest declaration up the `is` chain wins, exactly as a narrowed key does.
+
+Adding an endpoint that uses a kind the platform already implements is a seed
+change with no release. Naming a kind nothing implements is refused saying both
+what the model asked for and what this service can do.
 
 The canonical `EsriEndpoint` template JSON, the token-exchange/caching
 mechanics, and the offset-paging mechanics live in

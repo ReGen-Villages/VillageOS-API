@@ -33,7 +33,7 @@ public class AcceptHeaderTests
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("""{"ok":true}"""); }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKinds(req, thingId)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -62,7 +62,7 @@ public class AcceptHeaderTests
         {
             if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("""{"ok":true}"""); }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKinds(req, thingId)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -94,7 +94,7 @@ public class AcceptHeaderTests
         {
             if (req.RequestUri!.Host == "tiles.test") { outbound = req; return Binary(TiffBytes, "image/tiff"); }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKinds(req, thingId)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -128,7 +128,7 @@ public class AcceptHeaderTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
             RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
-                ?? RouteKinds(req, thingId)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 

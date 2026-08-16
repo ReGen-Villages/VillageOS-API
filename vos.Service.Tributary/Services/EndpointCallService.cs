@@ -50,18 +50,43 @@ public sealed class EndpointCallService
 
     // One scoped read answers every role. Unsubscribing in a finally keeps a failed resolution from
     // leaving a live subscription on the gateway for the rest of the process's life.
-    private async Task<IReadOnlyDictionary<string, ResolvedKind>> ResolveKindsAsync(
+    //
+    // Null means the read failed, never that the endpoint reaches no kind — the two must not collapse,
+    // because an unreachable gateway would otherwise read as an endpoint needing no credential and the
+    // call would go out unauthenticated. The subscription client throws on any non-success status, so
+    // the catch is what keeps a momentary gateway failure from escaping this method as an exception
+    // rather than the 502 every other gateway call here produces.
+    private async Task<IReadOnlyDictionary<string, ResolvedKind>?> ResolveKindsAsync(
         Guid endpointId, CancellationToken cancellationToken)
     {
-        var subscribed = await _subscriptions.SubscribeAsync(
-            EndpointKindResolver.SelectorFor(endpointId), cancellationToken);
+        SubscribeResult subscribed;
+        try
+        {
+            subscribed = await _subscriptions.SubscribeAsync(
+                EndpointKindResolver.SelectorFor(endpointId), cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to read which kinds endpoint {EndpointId} reaches", endpointId);
+            return null;
+        }
+
         try
         {
             return EndpointKindResolver.Resolve(subscribed.Snapshot, endpointId);
         }
         finally
         {
-            await _subscriptions.UnsubscribeAsync(subscribed.SubscriptionId, cancellationToken);
+            try
+            {
+                await _subscriptions.UnsubscribeAsync(subscribed.SubscriptionId, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                // The read already succeeded; failing to release the subscription must not lose it.
+                _logger.LogWarning(exception, "Failed to release the kind-resolution subscription {SubscriptionId}",
+                    subscribed.SubscriptionId);
+            }
         }
     }
 
@@ -108,6 +133,10 @@ public sealed class EndpointCallService
         // Reaching no kind for a role is a valid answer meaning "the plain behaviour": a plain body,
         // no credential, no paging. Reaching one nothing here implements is not, and says so.
         var kinds = await ResolveKindsAsync(thing.Value.Id, cancellationToken);
+        if (kinds == null)
+            return Problem(502, "Endpoint resolution failed",
+                "Failed to read which kinds the endpoint reaches. Refusing rather than calling out as though it reaches none.");
+
         kinds.TryGetValue(EndpointKindRoles.ResponseBody, out var bodyKind);
         kinds.TryGetValue(EndpointKindRoles.Authentication, out var authKind);
         kinds.TryGetValue(EndpointKindRoles.Paging, out var pagingKind);

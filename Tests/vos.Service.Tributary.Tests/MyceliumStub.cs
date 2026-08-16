@@ -1,3 +1,5 @@
+using vos.Service.Shared;
+using System.Text.RegularExpressions;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -43,6 +45,33 @@ internal static class MyceliumStub
     // The scoped snapshot Tributary reads to learn which kinds an endpoint reaches. The predicate
     // Things are included because a real snapshot only carries them when the selector names them —
     // leaving them out here would make every test agree with a resolver that reads nothing.
+    // Derives the edges from the same effective-properties document the test already writes, the way
+    // Delta derives them from a seed. A test keeps declaring its endpoint's shape in one place, and
+    // the words it uses there are the ones the old string-valued keys used, so the tests read as they
+    // did before while the service under test sees only edges.
+    private static readonly (string Key, string Word, string Role, string Kind)[] DerivedKinds =
+    [
+        ("responseKind", "binary", EndpointKindRoles.ResponseBody, "BinaryResponse"),
+        ("responseKind", "json", EndpointKindRoles.ResponseBody, "JsonResponse"),
+        ("authKind", "tokenexchange", EndpointKindRoles.Authentication, "TokenExchangeAuth"),
+        ("pagingKind", "offset", EndpointKindRoles.Paging, "OffsetPaging"),
+    ];
+
+    internal static HttpResponseMessage? RouteKindsFromProperties(
+        HttpRequestMessage request, Guid endpointId, string effectiveProperties)
+    {
+        var kinds = new List<Kind>();
+        foreach (var (key, word, role, kind) in DerivedKinds)
+        {
+            var declared = Regex.Match(effectiveProperties,
+                "\"(?:[^\"]*\\.)?" + key + "\"\\s*:\\s*\\{\\s*\"Value\"\\s*:\\s*\"([^\"]*)\"",
+                RegexOptions.IgnoreCase);
+            if (declared.Success && string.Equals(declared.Groups[1].Value.Trim(), word, StringComparison.OrdinalIgnoreCase))
+                kinds.Add(new Kind(role, kind));
+        }
+        return RouteKinds(request, endpointId, [.. kinds]);
+    }
+
     internal static HttpResponseMessage? RouteKinds(HttpRequestMessage request, Guid endpointId, params Kind[] kinds)
     {
         var path = request.RequestUri!.AbsolutePath;
