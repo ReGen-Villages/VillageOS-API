@@ -172,7 +172,7 @@ production** — it disables protection against man-in-the-middle attacks.
 | `list things` | List all things |
 | `list relations` | List all relationships |
 | `list predicates` | List all predicates |
-| `list handlers` | List all relationship services |
+| `list handlers` | List every connection bound to a service, with the executable, run mode and trigger the platform resolves for it |
 | `list services` | List all registered services (running state, health, and daemon PID shown inline) |
 | `list agents` | Alias for `list services` |
 | `start service <handler>` | Start a registered microservice's daemon |

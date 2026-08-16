@@ -112,11 +112,22 @@ public class ListCommandHandlerTests
         Assert.Contains("owns", output);
     }
 
+    private static JsonElement Connections(string body) =>
+        JsonSerializer.Deserialize<JsonElement>(body);
+
+    private static string Connection(Guid id, string name, bool bindsService = true,
+        string executablePath = "/path/to/exec", string? runMode = "daemon", string? trigger = "graph")
+    {
+        string Field(string field, string? value) => value is null ? $"\"{field}\":null" : $"\"{field}\":\"{value}\"";
+        return $"{{\"ConnectionId\":\"{id}\",\"Name\":\"{name}\"," +
+               $"{Field("Trigger", trigger)},\"BindsService\":{bindsService.ToString().ToLowerInvariant()}," +
+               $"{Field("ExecutablePath", bindsService ? executablePath : null)},{Field("RunMode", runMode)}}}";
+    }
+
     [Fact]
     public async Task ListHandlers_WithNoHandlers_ShowsNoHandlers()
     {
-        var json = JsonSerializer.Deserialize<JsonElement>("[]");
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync()).ReturnsAsync(Connections("[]"));
 
         await ExecuteHandler("handlers");
 
@@ -127,9 +138,8 @@ public class ListCommandHandlerTests
     public async Task ListHandlers_WithHandlers_ShowsHandlers()
     {
         var handlerId = Guid.NewGuid();
-        var json = JsonSerializer.Deserialize<JsonElement>(
-            $"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\",\"Properties\":{{\"ExecutablePath\":\"/path/to/exec\",\"RunMode\":\"daemon\"}}}}]");
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(handlerId, "MyHandler")}]"));
 
         await ExecuteHandler("handlers");
 
@@ -137,6 +147,64 @@ public class ListCommandHandlerTests
         Assert.Contains("Handlers (1)", output);
         Assert.Contains("MyHandler", output);
         Assert.Contains("/path/to/exec", output);
+    }
+
+    [Fact]
+    public async Task ListHandlers_ReportsTheRunModeThePlatformResolved()
+    {
+        // The run mode may be held on the service, inherited from the prototype it `is`, or reached by an
+        // edge. Which of those it was is the platform's business; this command prints the answer.
+        var id = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(id, "Oneshot", runMode: "oneshot")}]"));
+
+        await ExecuteHandler("handlers");
+
+        Assert.Contains("Mode: oneshot", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task ListHandlers_ARunModeNothingStates_SaysSoRatherThanPrintingADefault()
+    {
+        // It printed "daemon" whenever the property was absent, so a model that said nothing and a model
+        // that said daemon read identically — and after the platform moves the value, every model would
+        // have read as daemon whatever it declared.
+        var id = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(id, "Unstated", runMode: null)}]"));
+
+        await ExecuteHandler("handlers");
+
+        var output = _writer.ToString();
+        Assert.Contains("Mode: not stated", output);
+        Assert.DoesNotContain("Mode: daemon", output);
+    }
+
+    [Fact]
+    public async Task ListHandlers_AConnectionBindingNoService_IsNotAHandler()
+    {
+        // It is declared and cannot run. Listing it as a handler would claim it has something to launch.
+        var id = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(id, "Unbound", bindsService: false, runMode: null)}]"));
+
+        await ExecuteHandler("handlers");
+
+        var output = _writer.ToString();
+        Assert.Contains("No handlers found", output);
+        Assert.DoesNotContain("Unbound", output);
+    }
+
+    [Fact]
+    public async Task ListHandlers_ShowsHowEachHandlerIsReached()
+    {
+        var id = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(id, "Echo", trigger: "http")}]"));
+
+        await ExecuteHandler("handlers");
+
+        Assert.Contains("Reached by: http", _writer.ToString());
     }
 
     [Fact]
@@ -286,9 +354,8 @@ public class ListCommandHandlerTests
     public async Task ListHandlers_WithShowGuidsFlag_ShowsGuids()
     {
         var handlerId = Guid.NewGuid();
-        var json = JsonSerializer.Deserialize<JsonElement>(
-            $"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\",\"Properties\":{{\"ExecutablePath\":\"/path/to/exec\",\"RunMode\":\"daemon\"}}}}]");
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(handlerId, "MyHandler")}]"));
 
         await ExecuteHandler("handlers --showguids");
 
@@ -301,9 +368,8 @@ public class ListCommandHandlerTests
     public async Task ListHandlers_WithoutShowGuidsFlag_HidesGuids()
     {
         var handlerId = Guid.NewGuid();
-        var json = JsonSerializer.Deserialize<JsonElement>(
-            $"[{{\"Id\":\"{handlerId}\",\"Name\":\"MyHandler\",\"Properties\":{{\"ExecutablePath\":\"/path/to/exec\",\"RunMode\":\"daemon\"}}}}]");
-        _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.GetAllConnectionsAsync())
+            .ReturnsAsync(Connections($"[{Connection(handlerId, "MyHandler")}]"));
 
         await ExecuteHandler("handlers");
 

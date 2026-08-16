@@ -230,29 +230,27 @@ namespace vos.Taproot
             }
         }
 
+        // This used to fetch every Thing and work the answer out here: a Thing was a handler because it
+        // carried an ExecutablePath, and its run mode was whatever that Thing's properties said. That
+        // re-implemented the platform's resolution against a payload with no relationships in it, so a
+        // value the platform resolves by walking an edge could not be read at all.
         private async Task ListHandlersAsync()
         {
-            var things = await _mycelium.GetAllThingsAsync();
+            var connections = await _mycelium.GetAllConnectionsAsync();
 
-            if (things.ValueKind != JsonValueKind.Array)
+            if (connections.ValueKind != JsonValueKind.Array)
             {
                 _writer.WriteLine("No handlers found.");
                 return;
             }
 
-            var handlers = new List<JsonElement>();
-            foreach (var thing in things.EnumerateArray())
-            {
-                if (thing.TryGetProperty("Properties", out var props) &&
-                    props.TryGetProperty("ExecutablePath", out _))
-                {
-                    handlers.Add(thing);
-                }
-            }
+            var handlers = connections.EnumerateArray()
+                .Where(c => c.GetBoolOrDefault("BindsService"))
+                .ToList();
 
             if (handlers.Count == 0)
             {
-                _writer.WriteLine("No handlers found. Handlers are things with an 'ExecutablePath' property.");
+                _writer.WriteLine("No handlers found. A handler is a connection bound to a service.");
                 return;
             }
 
@@ -265,16 +263,21 @@ namespace vos.Taproot
 
         private void WriteHandlerEntry(JsonElement handler)
         {
-            var id = handler.GetStringOrDefault("Id");
+            var id = handler.GetStringOrDefault("ConnectionId");
             var name = handler.GetStringOrDefault("Name");
-            var props = handler.GetProperty("Properties");
-            var execPath = props.GetStringOrDefault("ExecutablePath");
-            var runMode = props.GetStringOrDefault("RunMode", "daemon");
 
             _writer.WriteLine($"  {_options.FormatIdentifier(name, id)}");
-            _writer.WriteLine($"    Executable: {execPath}");
-            _writer.WriteLine($"    Mode: {runMode}");
+            _writer.WriteLine($"    Executable: {handler.GetStringOrDefault("ExecutablePath")}");
+            // Absent means the platform resolved none, which is not the same as running as a daemon.
+            // Printing a default here would have this command state something nothing in the model says.
+            _writer.WriteLine($"    Mode: {Stated(handler, "RunMode")}");
+            _writer.WriteLine($"    Reached by: {Stated(handler, "Trigger")}");
         }
+
+        private static string Stated(JsonElement handler, string name) =>
+            handler.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString()!
+                : "not stated";
 
         private async Task ListServicesAsync()
         {
