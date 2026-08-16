@@ -8,21 +8,60 @@ namespace vos.ContinuousIntegration.Tests;
 /// Trellis, Taproot and the services ship together and say one version (#6467).
 ///
 /// Trellis is a JavaScript application and the rest are .NET projects, so the same version is written
-/// in two files in two formats. Nothing but a check keeps two files in step, and a client reporting a
-/// version the platform does not is a pair that cannot be spoken about as one release.
+/// in two formats. Nothing but a check keeps two files in step, and a client reporting a version the
+/// platform does not is a pair that cannot be spoken about as one release.
+///
+/// The default is that a component must match. Anything exempt is named below with a reason, so a
+/// component added later fails until somebody decides which it is rather than passing by being
+/// unnoticed.
 ///
 /// This asserts the repository agrees with itself. That it also agrees with the platform is checked
-/// where both are checked out, which is the platform's own build: this repository has no platform to
-/// ask, and must not have one.
+/// where both are checked out, which is the platform's own build: there is no platform here to ask,
+/// and there must not be.
 /// </summary>
 public class ShippedComponentsDeclareOneVersionTests
 {
     private const string SolutionFileName = "VillageOS-API.sln";
 
+    /// <summary>Not shipped with the platform, so not held to its version.
+    ///
+    /// The three under tools/ build documentation and mirror a wiki; they run on somebody's machine
+    /// and are never handed to anyone. The echo package is one half of a worked example showing what
+    /// a microservice in another language has to implement, and its version is part of the example.
+    /// </summary>
+    private static readonly string[] NotShipped =
+    [
+        Path.Combine("tools", "docs-pdf"),
+        Path.Combine("tools", "wiki-mirror"),
+        Path.Combine("tools", "docs-to-wiki"),
+        "vos.Service.Node.Echo",
+    ];
+
     [Fact]
-    public void Trellis_declares_the_version_the_dotnet_projects_declare()
+    public void Every_shipped_javascript_component_declares_the_version_the_dotnet_projects_do()
     {
-        Assert.Equal(DeclaredByDotNetProjects(), DeclaredByTrellis());
+        var expected = DeclaredByDotNetProjects();
+
+        foreach (var package in ShippedPackageFiles())
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(package));
+            Assert.True(document.RootElement.TryGetProperty("version", out var declared),
+                $"{package} declares no version. Add one, or name it in {nameof(NotShipped)} with why.");
+            Assert.Equal(expected, declared.GetString());
+        }
+    }
+
+    /// <summary>A project declaring its own version inherits none, and leaves the rule true of a file
+    /// nobody builds from.</summary>
+    [Fact]
+    public void No_project_declares_a_version_of_its_own()
+    {
+        var offenders = ProjectFiles()
+            .Where(project => Regex.IsMatch(File.ReadAllText(project), @"<Version>"))
+            .ToArray();
+
+        Assert.True(offenders.Length == 0,
+            $"these declare a version instead of inheriting one: {string.Join(", ", offenders)}");
     }
 
     /// <summary>Pre-release is the point of the number, not an accident of it: the suffix is what says
@@ -43,14 +82,26 @@ public class ShippedComponentsDeclareOneVersionTests
         return declared.Groups[1].Value.Trim();
     }
 
-    private static string DeclaredByTrellis()
+    private static IEnumerable<string> ShippedPackageFiles() =>
+        FilesUnderTheRepository("package.json")
+            .Where(package => !NotShipped.Any(
+                exempt => package.Contains(Path.DirectorySeparatorChar + exempt + Path.DirectorySeparatorChar)));
+
+    private static IEnumerable<string> ProjectFiles() => FilesUnderTheRepository("*.csproj");
+
+    /// <summary>Skips hidden directories, which is where a git worktree keeps a second checkout of
+    /// everything this would otherwise find twice, and node_modules, which carries a version file per
+    /// dependency.</summary>
+    private static IEnumerable<string> FilesUnderTheRepository(string pattern)
     {
-        var package = Path.Combine(RepositoryRoot(), "vos.Trellis", "package.json");
-        using var document = JsonDocument.Parse(File.ReadAllText(package));
-        Assert.True(document.RootElement.TryGetProperty("version", out var version),
-            $"{package} declares no version.");
-        return version.GetString()!;
+        var root = RepositoryRoot();
+        return Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories)
+            .Where(path => !path.Contains(Path.DirectorySeparatorChar + "node_modules" + Path.DirectorySeparatorChar))
+            .Where(path => !RelativeSegments(root, path).Any(segment => segment.StartsWith('.')));
     }
+
+    private static string[] RelativeSegments(string root, string path) =>
+        Path.GetRelativePath(root, path).Split(Path.DirectorySeparatorChar);
 
     /// <summary>Walked up to rather than a path relative to the test output directory: how deep that
     /// directory sits below the repository root differs between a run from the solution, from a
