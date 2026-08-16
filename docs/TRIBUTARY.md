@@ -6,12 +6,13 @@ in Mycelium, it resolves that endpoint's effective properties, performs the HTTP
 expression, and ingests the readings as time-series observations on each entity's series.
 
 It is deliberately **source-agnostic** — there is no per-API code. A specific source
-(ArcGIS/ESRI, an OAuth2 REST API, a plain JSON endpoint) is expressed entirely as an
-endpoint *template* plus a registration, never as a branch in Tributary. This page is
-the canonical reference for the token-exchange and offset-paging *mechanics* and the
-`EsriEndpoint` template, alongside the model the service sits on and the boundary it
-respects. `SERVICES.md` section 14 summarizes how Mycelium hosts Tributary as an
-endpoint service and points back here.
+(ArcGIS/ESRI, an OAuth2 REST API, a plain JSON endpoint, a map-tile server) is expressed
+entirely as an endpoint *template* plus a registration, never as a branch in Tributary.
+This page is the canonical reference for the token-exchange, offset-paging, and
+non-text-payload *mechanics* and the `EsriEndpoint` / `EsriTileEndpoint` templates,
+alongside the model the service sits on and the boundary it respects. `SERVICES.md`
+section 14 summarizes how Mycelium hosts Tributary as an endpoint service and points
+back here.
 
 ## The endpoint-template graph
 
@@ -23,13 +24,29 @@ resolves to the closest ancestor that declares it:
 
 ```mermaid
 flowchart TB
-    Endpoint["<b>Endpoint</b> (root)<br/>authKind, pagingKind = none"]
-    Esri["<b>EsriEndpoint</b> (source type)<br/>authKind=tokenExchange · pagingKind=offset<br/>ArcGIS field names fixed as canonical-defaults"]
+    Endpoint["<b>Endpoint</b> (root)<br/>reaches no kind"]
+    Esri["<b>EsriEndpoint</b> (source type)<br/>ArcGIS field names fixed as canonical-defaults"]
+    Tile["<b>EsriTileEndpoint</b> (source type)"]
     Reg["<b>a registration</b><br/>supplies the required-structural blanks:<br/>url, tokenUrl, tokenRequest"]
+    Auth["<b>TokenExchangeAuth</b> (kind)<br/>requires tokenUrl, tokenRequest, tokenPath"]
+    Page["<b>OffsetPaging</b> (kind)<br/>requires offsetParam, hasMorePath, itemsPath"]
+    Bin["<b>BinaryResponse</b> (kind)<br/>requires nothing"]
     Reg -->|is| Esri -->|is| Endpoint
+    Tile -->|is| Endpoint
+    Esri -->|authenticatesBy| Auth
+    Esri -->|pagesBy| Page
+    Tile -->|readsBodyAs| Bin
 ```
 
 The shape:
+
+- **How an endpoint authenticates, pages, and reads its body is not a property — it is a
+  kind the endpoint reaches.** A kind is a Thing related through a role edge
+  (`authenticatesBy`, `pagesBy`, `readsBodyAs`); its own property keys are what an
+  endpoint using it must supply, checked before anything is called. A role reaching no
+  kind means the plain behaviour; the nearest declaration up the `is` chain wins; and the
+  superseded property spellings (`authKind`, `pagingKind`, `responseKind`) are refused at
+  provisioning (see [`DELTA.md`](DELTA.md)).
 
 - Templates are Things; inheritance is expressed model-natively as `is` relationships
   (`EsriEndpoint is Endpoint`), never a scalar field.
@@ -61,37 +78,35 @@ value and whether it is expected to be overridden.
 | Role | Meaning | Examples |
 |------|---------|----------|
 | **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible via `AllowedKeys`; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token) |
-| **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParam`, `pageSizeParam`, `hasMorePath`, `itemsPath`; a child's `authKind` / `pagingKind` |
+| **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParam`, `pageSizeParam`, `hasMorePath`, `itemsPath` |
 | **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParam` (token), `responseTransform` ($) |
-| **optional** | May be absent entirely; the feature is simply off. | `headers`, `queryParams`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize` |
+| **optional** | May be absent entirely; the feature is simply off. | `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize` |
 
-`authKind` and `pagingKind` are *sensible-default* on the root `Endpoint` (unset → `none`,
-i.e. off) and become *canonical-default* on a source child that selects a mode
-(`tokenExchange` / `offset`).
+Which *mechanisms* apply is not in the table because it is not a property: an endpoint
+reaches `TokenExchangeAuth`, `OffsetPaging`, or `BinaryResponse` through its template's
+role edges, and the kinds themselves name the required-structural keys above.
 
 The `EsriEndpoint` template is the worked example: it restates only the keys it narrows
-(`httpMethod=POST`, form-encoded `requestContentType`), selects `authKind=tokenExchange`
-and `pagingKind=offset`, and fixes the ArcGIS field names as canonical-defaults
+(`httpMethod=POST`, form-encoded `requestContentType`), reaches `TokenExchangeAuth` and
+`OffsetPaging`, and fixes the ArcGIS field names as canonical-defaults
 (`tokenPath=token`, `expiryUnit=epochMillis`, `hasMorePath=exceededTransferLimit`,
 `itemsPath=features`, …). A registration then supplies only the required-structural
 blanks (`url`, `tokenUrl`, `tokenRequest`). The full template JSON is below.
 
 ## Token-exchange auth + offset paging
 
-Tributary stays source-agnostic: it has two **generic** capabilities — a
-token-exchange auth provider and an offset paginator — both driven entirely by
-endpoint-template config. There is no ArcGIS vocabulary in the code; ESRI is just one
-configuration (see *The `EsriEndpoint` template* below). No special binary, and no Delta
-change — the endpoint-template catalog already resolves multi-level hierarchies.
+Tributary stays source-agnostic: it has **generic** capabilities — a token-exchange
+auth provider, an offset paginator, and a binary body reader — each selected by the
+kind an endpoint reaches and driven entirely by endpoint-template config. There is no
+ArcGIS vocabulary in the code; ESRI is just one configuration (see *The `EsriEndpoint`
+template* below).
 
-**Auth kind.** `authKind` is a structural key on the **root `Endpoint`** template, so
-it is admissible for every endpoint and carries no inherited default (an unset value is
-treated as `none`). Descendant templates (or a registration) resolve the value.
-`/handle` branches on it:
+**Authentication.** An endpoint that reaches no kind through `authenticatesBy` makes a
+plain REST call (a *static* key needs no auth kind — configure it directly as a
+`queryParams` entry or header). Reaching **`TokenExchangeAuth`** selects the
+token-exchange mechanism:
 
-- `none` (or unset) — a plain REST call, unchanged. (A *static* key needs no auth kind —
-  configure it directly as a `queryParams` entry or header.)
-- `tokenExchange` — a pre-minted `token` is used directly; otherwise a token is minted
+- a pre-minted `token` is used directly; otherwise a token is minted
   by POSTing the configured `tokenRequest` form fields to `tokenUrl`, reading the token
   out at the simple dotted `tokenPath` (and optional `expiryPath` + `expiryUnit` of
   `epochMillis`/`epochSeconds`/`seconds`). Tokens live in a per-process
@@ -102,7 +117,8 @@ treated as `none`). Descendant templates (or a registration) resolve the value.
   surfaces as a **generic** 502 (the upstream message may name the credential and is not
   echoed to the caller — it is logged).
 
-**Offset paging.** When `pagingKind = offset`, `OffsetPaginator` loops the query
+**Offset paging.** When the endpoint reaches **`OffsetPaging`** through `pagesBy`,
+`OffsetPaginator` loops the query
 advancing `offsetParam` (by `pageSize` via `pageSizeParam`, else by the returned item
 count) while the page's `hasMorePath` boolean is true, and concatenates every page's
 array at `itemsPath` into the first page's body. Aggregation happens **before** the
@@ -120,17 +136,24 @@ a child template that extends `Endpoint` and restates only the keys it narrows:
     { "name": "Endpoint", "properties": {
         "url": "", "httpMethod": "GET", "responseTransform": "$",
         "headers": "", "queryParams": "", "requestContentType": "",
-        "timeout": "", "authKind": "" } },
+        "timeout": "" } },
     { "name": "EsriEndpoint", "properties": {
         "httpMethod": "POST", "requestContentType": "application/x-www-form-urlencoded",
-        "authKind": "tokenExchange",
         "token": "", "tokenUrl": "", "tokenRequest": "",
         "tokenPath": "token", "expiryPath": "expires", "expiryUnit": "epochMillis",
-        "pagingKind": "offset", "offsetParam": "resultOffset",
+        "offsetParam": "resultOffset",
         "pageSizeParam": "resultRecordCount", "hasMorePath": "exceededTransferLimit",
         "itemsPath": "features", "pageSize": "" } }
   ],
-  "relationships": [ { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" } ]
+  "kinds": [
+    { "name": "TokenExchangeAuth", "requires": ["tokenUrl", "tokenRequest", "tokenPath"] },
+    { "name": "OffsetPaging", "requires": ["offsetParam", "hasMorePath", "itemsPath"] }
+  ],
+  "relationships": [
+    { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" },
+    { "subject": "EsriEndpoint", "predicate": "authenticatesBy", "target": "TokenExchangeAuth" },
+    { "subject": "EsriEndpoint", "predicate": "pagesBy", "target": "OffsetPaging" }
+  ]
 }
 ```
 
@@ -142,6 +165,69 @@ OAuth2 source reuses the same code with `tokenPath=access_token`,
 but supplying no inherited default. Graph composition is pinned by
 `EsriEndpointTemplateTests` (Delta); behavior by `EsriHandleTests`,
 `TokenExchangeCacheTests`, and `OffsetPaginatorTests` (Tributary).
+
+## Non-text payloads and map tiles
+
+Endpoints are not all JSON. ESRI/ArcGIS map tiles and imagery — PNG/JPEG cached tiles,
+`image/tiff` from an ImageServer, LERC elevation, PBF vector tiles, WebP — are binary
+payloads a text read would destroy: decoding non-UTF-8 bytes to a string replaces byte
+sequences with U+FFFD, which is lossy and irreversible. An endpoint whose body is bytes
+therefore reaches the **`BinaryResponse`** kind through `readsBodyAs`, which selects a
+byte-level read (`ReadAsByteArrayAsync`) wrapped in a base64 JSON envelope:
+
+```json
+{ "contentType": "image/jpeg", "dataBase64": "/9j/4AAQSkZJRg…", "byteLength": 14401 }
+```
+
+- The upstream `Content-Type` is carried through verbatim (absent → `application/octet-stream`),
+  and `byteLength` equals the decoded length — the bytes round-trip exactly.
+- The envelope itself stays `application/json`, so it flows through Mycelium's
+  pass-through endpoint proxying with **no broker change**. Decoding is the caller's move
+  (`Convert.FromBase64String` and write the file).
+- Combinations that presuppose a decodable string body are rejected up front with a 400:
+  a binary body cannot be combined with a `responseTransform` (declared on the endpoint
+  or supplied on the request — the override is refused *before* it persists), nor with
+  `OffsetPaging`.
+- Reaching no kind through `readsBodyAs` keeps the plain text body; `JsonResponse` is the
+  explicit spelling of the same default.
+
+**Accept negotiation.** The optional `acceptHeader` key sets the outbound `Accept`
+header for upstreams that content-negotiate (an ImageServer answering `image/tiff`, or
+`https://httpbin.org/image` answering with the format the caller asks for). The dedicated
+key wins over any `Accept` in the generic `headers` map — exactly one value goes on the
+wire — and q-value lists (`image/tiff, image/png;q=0.8`) are carried intact. It composes
+with `BinaryResponse`: negotiate the format, carry the bytes home.
+
+**The `EsriTileEndpoint` template.** A map tile is a plain unauthenticated GET whose body
+is bytes, so the template descends from the root directly — none of `EsriEndpoint`'s
+token exchange or paging — and adds only the kind edge and the optional negotiation blank:
+
+```json
+{
+  "things": [
+    { "name": "EsriTileEndpoint", "properties": { "acceptHeader": "" } }
+  ],
+  "kinds": [ { "name": "BinaryResponse", "requires": [] } ],
+  "relationships": [
+    { "subject": "EsriTileEndpoint", "predicate": "is", "target": "Endpoint" },
+    { "subject": "EsriTileEndpoint", "predicate": "readsBodyAs", "target": "BinaryResponse" }
+  ]
+}
+```
+
+`BinaryResponse` requires nothing — reading bytes needs no configuration — so a
+registration owes only the `url` (fixed-URL for now: one registration per tile;
+per-request `{z}/{y}/{x}` templating is tracked as #5917). Tile **metadata** endpoints
+(`f=json` service descriptions) are ordinary JSON endpoints and need none of this.
+
+**Model placement: transient passthrough.** A tile is a stateless fetch response. It is
+never persisted as a Thing, an observation, or a Fact — binary cannot be a scalar
+observation, and a base64 Fact would bloat the replay log. The envelope is returned and
+forgotten; the same request refetches upstream. Keeping fetched responses on local disk
+(config-driven, TTL-bounded) is the planned fast-follow #5918.
+
+Graph composition is pinned by `EsriTileEndpointTemplateTests` (Delta); behavior by
+`BinaryResponseKindTests` and `AcceptHeaderTests` (Tributary).
 
 ## Fetch-and-shape, not derive — the Metabolism boundary
 
