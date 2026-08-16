@@ -60,7 +60,8 @@ public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium)
     // from a hazard — which is the whole reason the Things point at archetypes at all.
     //
     // Every missing name is reported rather than whichever lookup happened to answer first: an unseeded
-    // model is missing all of them, and naming one per attempt would take six attempts to describe.
+    // model is missing all of them, and naming one per attempt would take an attempt per archetype to
+    // describe.
     private static void RefuseAModelMissingAnyArchetype(IReadOnlyDictionary<string, Guid?> found)
     {
         var missing = ArchetypeNames.Where(name => found[name] is null).ToArray();
