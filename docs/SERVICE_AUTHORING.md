@@ -18,6 +18,38 @@ Each reference is an **echo handler**: `/handle` acknowledges the relationship a
 
 `is` is the one **built-in** predicate. Mycelium applies `is` inheritance in-process and **never dispatches it to an external handler** — only predicates like `consumes`/`produces` are mapped to external services. So you cannot write an external "is handler"; register your service for a custom predicate (or `consumes`/`produces`) instead.
 
+## Things and relations, not strings
+
+When something could be a Thing in the model or a string on one, make it a Thing. When a value names
+another Thing, relate to it instead of copying its name into a string.
+
+A string is a dead end. Nothing can walk to it, nothing can hang a property off it, no range can judge
+it, and no reader can ask what else is true of it. A Thing can be extended by editing the model; a
+string can only be extended by editing a service and deploying it — in a platform whose whole point is
+that the specifics live in the model rather than in code.
+
+**A value that names a kind is a Thing.** If you would ever want to say something *about* the value —
+what it means, what it maps to, who may use it — it is a Thing, not a word.
+
+**A value that names another Thing is a relation.** If the model already holds what the value refers
+to, write an edge to it. A name copied into a property cannot be traversed, cannot be checked, and goes
+stale the moment the Thing it names is renamed.
+
+**A string is right for a scalar datum about one Thing** that nothing else needs to reason about: a
+phone number, an email address, free prose a person wrote. The test is whether anything would ever ask
+a question *of* the value. Nobody asks what a phone number means. Names from a standard a service reads
+— the building-model type names, for instance — stay as they are; they are that standard's vocabulary,
+not the model's.
+
+Two examples in this repository that get it wrong, kept here because they are the shape to recognise:
+
+| Where | What it does | What it costs |
+|-------|--------------|---------------|
+| `SubmissionFragmentComposer` | Holds the allowed boundary sources as a list in C# and refuses anything else | Adding a way of obtaining a boundary means changing a service and deploying it |
+| `HazardAssessment.assessmentSource` | A string naming where an assessment came from, while `DataSource` is a Thing in the same model | Nothing can walk from a hazard to what produced it, and the two can disagree with nothing to notice |
+
+Neither is a reason to rewrite them on sight — fix them when the work is already in that file.
+
 ## Lifecycle
 
 ```mermaid
