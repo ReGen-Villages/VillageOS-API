@@ -9,11 +9,10 @@ namespace vos.Service.Delta.Tests;
 // relationships between them — so this test is the executable spec for the EsriEndpoint shape Delta
 // is expected to resolve.
 // Key design point: Tributary's handling is source-agnostic (a generic token-exchange + offset
-// paginator). "ESRI-ness" is therefore pure template config: the EsriEndpoint template
-// selects authKind=tokenExchange and pagingKind=offset and supplies the ArcGIS field
-// names (tokenPath=token, hasMorePath=exceededTransferLimit, itemsPath=features,
-// …). authKind itself is a structural key on the root Endpoint template; the child
-// only resolves its value.
+// paginator). "ESRI-ness" is therefore pure template config: the EsriEndpoint template reaches the
+// TokenExchangeAuth and OffsetPaging kinds and supplies the ArcGIS field names (tokenPath=token,
+// hasMorePath=exceededTransferLimit, itemsPath=features, …). A kind is a Thing the template
+// relates to, never a word it carries, so what a kind requires can be read before anything is called.
 public class EsriEndpointTemplateTests
 {
     private static RegisterEndpointRequest Thing(string name, Dictionary<string, object> props) =>
@@ -22,9 +21,13 @@ public class EsriEndpointTemplateTests
     private static SeedRelationship Is(string subject, string target) =>
         new() { Subject = subject, Predicate = "is", Target = target };
 
+    private static SeedRelationship Uses(string subject, string role, string kind) =>
+        new() { Subject = subject, Predicate = role, Target = kind };
+
     // The canonical Endpoint -> EsriEndpoint hierarchy. The root carries the base-capability keys
-    // (Task #5469) plus authKind as blank structural keys; EsriEndpoint restates the narrowed keys and
-    // adds the generic token-exchange / offset-paging keys, set to the ArcGIS field names.
+    // (Task #5469) as blank structural keys and reaches no kind; EsriEndpoint restates the narrowed
+    // keys, reaches its two kinds, and sets the generic token-exchange / offset-paging keys to the
+    // ArcGIS field names.
     private static EndpointSeedGraph Graph() => EndpointSeedGraph.Build(new EndpointSeedModel
     {
         Things = new()
@@ -38,7 +41,6 @@ public class EsriEndpointTemplateTests
                 ["queryParams"] = "",
                 ["requestContentType"] = "",
                 ["timeout"] = "",
-                ["authKind"] = "",
             }),
             Thing("EsriEndpoint", new()
             {
@@ -46,7 +48,6 @@ public class EsriEndpointTemplateTests
                 ["httpMethod"] = "POST",
                 ["requestContentType"] = "application/x-www-form-urlencoded",
                 // auth: a token-exchange whose ArcGIS specifics are config
-                ["authKind"] = "tokenExchange",
                 ["token"] = "",          // per-registration pre-minted token (optional)
                 ["tokenUrl"] = "",       // per-registration token endpoint
                 ["tokenRequest"] = "",   // per-registration credential form fields
@@ -54,7 +55,6 @@ public class EsriEndpointTemplateTests
                 ["expiryPath"] = "expires",
                 ["expiryUnit"] = "epochMillis",
                 // paging: offset window over a FeatureServer query
-                ["pagingKind"] = "offset",
                 ["offsetParam"] = "resultOffset",
                 ["pageSizeParam"] = "resultRecordCount",
                 ["hasMorePath"] = "exceededTransferLimit",
@@ -62,7 +62,17 @@ public class EsriEndpointTemplateTests
                 ["pageSize"] = "",       // per-registration page size (optional)
             }),
         },
-        Relationships = new() { Is("EsriEndpoint", "Endpoint") },
+        Kinds = new()
+        {
+            new EndpointKind { Name = "TokenExchangeAuth", Requires = ["tokenUrl", "tokenRequest", "tokenPath"] },
+            new EndpointKind { Name = "OffsetPaging", Requires = ["offsetParam", "hasMorePath", "itemsPath"] },
+        },
+        Relationships = new()
+        {
+            Is("EsriEndpoint", "Endpoint"),
+            Uses("EsriEndpoint", EndpointKindRoles.Authentication, "TokenExchangeAuth"),
+            Uses("EsriEndpoint", EndpointKindRoles.Paging, "OffsetPaging"),
+        },
     });
 
     [Fact]
@@ -76,28 +86,39 @@ public class EsriEndpointTemplateTests
     }
 
     [Fact]
-    public void AuthKind_DeclaredOnRoot_IsAllowedForEveryEndpoint()
+    public void Authentication_RootReachesNoKind_SoAPlainEndpointAuthenticatesWithNothing()
     {
-        var graph = Graph();
-
-        // authKind is a key on the root, so it is admissible for a plain Endpoint registration too.
-        graph.AllowedKeys("Endpoint").Should().Contain("authKind");
-        graph.AllowedKeys("EsriEndpoint").Should().Contain("authKind");
+        Graph().ResolveKind("Endpoint", EndpointKindRoles.Authentication).Should().BeNull();
     }
 
     [Fact]
-    public void AuthKind_BlankOnRoot_HasNoInheritedDefault()
+    public void Authentication_ResolvedByChild_IsTokenExchangeForEsriEndpoint()
     {
-        // A plain Endpoint leaves authKind blank -> resolves to nothing -> handler treats as "none".
-        Graph().TryGetEffectiveSeedValue("Endpoint", "authKind", out var value).Should().BeFalse();
-        value.Should().BeNull();
+        Graph().ResolveKind("EsriEndpoint", EndpointKindRoles.Authentication)!
+            .Name.Should().Be("TokenExchangeAuth");
     }
 
     [Fact]
-    public void AuthKind_ResolvedByChild_IsTokenExchangeForEsriEndpoint()
+    public void Paging_ResolvedByChild_IsOffsetForEsriEndpoint()
     {
-        Graph().TryGetEffectiveSeedValue("EsriEndpoint", "authKind", out var value).Should().BeTrue();
-        value.Should().Be("tokenExchange");
+        Graph().ResolveKind("EsriEndpoint", EndpointKindRoles.Paging)!.Name.Should().Be("OffsetPaging");
+    }
+
+    [Fact]
+    public void Paging_TheTemplateSuppliesEveryFieldOffsetPagingRequires()
+    {
+        // Paging is fully described by the template, so nothing is left for a registration to supply.
+        Graph().MissingRequirements("EsriEndpoint", EndpointKindRoles.Paging).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Authentication_CredentialsAreLeftToTheRegistration_AndAreReportedAsOutstanding()
+    {
+        // tokenUrl and tokenRequest are blank structural keys: an ArcGIS server's address and its
+        // credentials belong to whoever registers the endpoint, not to the template they share. The
+        // kind names them so a registration missing them is refused before any call is attempted.
+        Graph().MissingRequirements("EsriEndpoint", EndpointKindRoles.Authentication)
+            .Should().BeEquivalentTo("tokenUrl", "tokenRequest");
     }
 
     [Fact]
@@ -116,7 +137,6 @@ public class EsriEndpointTemplateTests
     }
 
     [Theory]
-    [InlineData("pagingKind", "offset")]
     [InlineData("offsetParam", "resultOffset")]
     [InlineData("hasMorePath", "exceededTransferLimit")]
     [InlineData("itemsPath", "features")]
@@ -137,10 +157,10 @@ public class EsriEndpointTemplateTests
         {
             // inherited from the root
             "url", "httpMethod", "responseTransform", "headers", "queryParams",
-            "requestContentType", "timeout", "authKind",
+            "requestContentType", "timeout",
             // declared on EsriEndpoint
             "token", "tokenUrl", "tokenRequest", "tokenPath", "expiryPath", "expiryUnit",
-            "pagingKind", "offsetParam", "pageSizeParam", "hasMorePath", "itemsPath", "pageSize",
+            "offsetParam", "pageSizeParam", "hasMorePath", "itemsPath", "pageSize",
         });
     }
 

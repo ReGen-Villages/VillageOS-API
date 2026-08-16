@@ -14,8 +14,47 @@ public sealed class EndpointSeedModel
     // The template things, each a name + flat property bag.
     public List<RegisterEndpointRequest> Things { get; set; } = new();
 
-    // Relationships among the things; is rows define the inheritance hierarchy.
+    // The vocabulary an endpoint reaches: how it authenticates, how it pages, how its body reads.
+    // Held apart from Things because a kind is not an endpoint template and must not be mistaken for
+    // one — it has no place in the inheritance chain and would otherwise read as a second root.
+    public List<EndpointKind> Kinds { get; set; } = new();
+
+    // Relationships among the things; is rows define the inheritance hierarchy, and a kind-role row
+    // names the kind a template uses.
     public List<SeedRelationship> Relationships { get; set; } = new();
+}
+
+// One way of doing something an endpoint can point at, and what it needs from an endpoint that
+// does. Requires is what makes the kind worth being a Thing: an endpoint can be judged against its
+// kind before anything is called, instead of failing partway through the outbound request.
+public sealed class EndpointKind
+{
+    public string Name { get; set; } = string.Empty;
+
+    public List<string> Requires { get; set; } = new();
+}
+
+// The roles a template can fill by reaching a kind. Delta writes these edges and Tributary reads
+// them; a role only one side spells right is an endpoint that silently authenticates as nobody.
+public static class EndpointKindRoles
+{
+    public const string Authentication = "authenticatesBy";
+    public const string Paging = "pagesBy";
+    public const string ResponseBody = "readsBodyAs";
+
+    // The property each role was written as before the kind became a Thing. A seed still carrying
+    // one is refused, because provisioning it would leave the endpoint reaching nothing while
+    // looking configured.
+    public static readonly IReadOnlyDictionary<string, string> SupersededProperties =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["authKind"] = Authentication,
+            ["pagingKind"] = Paging,
+            ["responseKind"] = ResponseBody,
+        };
+
+    public static readonly IReadOnlySet<string> All =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Authentication, Paging, ResponseBody };
 }
 
 // A name-keyed relationship row in an EndpointSeedModel (mirrors a model relationship).
