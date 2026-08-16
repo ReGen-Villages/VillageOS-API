@@ -33,6 +33,7 @@ public class EsriHandleTests
         {
             if (req.RequestUri!.Host == "sampleserver6.arcgisonline.com") { outbound = req; return Json("{\"features\":[]}"); }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -72,6 +73,7 @@ public class EsriHandleTests
             }
             if (req.RequestUri.Host == "features.test") { outbound = req; return Json("{\"ok\":true}"); }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -105,6 +107,7 @@ public class EsriHandleTests
             if (req.RequestUri!.Host == "tokens.test") { tokenCalls++; return Json("{\"token\":\"NOPE\",\"expires\":0}"); }
             if (req.RequestUri.Host == "features.test") { outbound = req; return Json("{\"ok\":true}"); }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -139,6 +142,7 @@ public class EsriHandleTests
         {
             if (req.RequestUri!.Host == "features.test") { outbound = req; return Json("{\"ok\":true}"); }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -165,6 +169,7 @@ public class EsriHandleTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
             ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -197,6 +202,7 @@ public class EsriHandleTests
             if (req.RequestUri.Host == "features.test")
                 return Json("{\"ok\":true}");
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -240,6 +246,7 @@ public class EsriHandleTests
                     : Json("{\"features\":[{\"attributes\":{\"OBJECTID\":1}},{\"attributes\":{\"OBJECTID\":2}}],\"exceededTransferLimit\":true}");
             }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -250,28 +257,4 @@ public class EsriHandleTests
         (await response.Content.ReadAsStringAsync()).Should().Be("3");
     }
 
-    [Fact]
-    public async Task Handle_AmbiguousAuthKind_Returns400()
-    {
-        var thingId = Guid.NewGuid();
-        var props = """
-        {
-          "Endpoint.url":        {"Value":"https://features.test/query"},
-          "Endpoint.httpMethod": {"Value":"GET"},
-          "A.authKind":          {"Value":"none"},
-          "B.authKind":          {"Value":"tokenExchange"}
-        }
-        """;
-        await using var factory = new TributaryWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProperties(req, thingId, props)
-            ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("ambiguous properties for authKind");
-    }
 }

@@ -26,11 +26,26 @@ property keys along that template's chain**, and a property's effective value is
 
 ```mermaid
 flowchart TB
-    Endpoint["<b>Endpoint</b> (root)<br/>authKind, pagingKind = none"]
-    Esri["<b>EsriEndpoint</b> (source type)<br/>authKind=tokenExchange · pagingKind=offset"]
+    Endpoint["<b>Endpoint</b> (root)<br/>reaches no kind"]
+    Esri["<b>EsriEndpoint</b> (source type)"]
     Reg["<b>a registration</b><br/>supplies the structural blanks:<br/>url, tokenUrl, tokenRequest"]
+    Auth["<b>TokenExchangeAuth</b> (kind)<br/>requires tokenUrl, tokenRequest, tokenPath"]
+    Page["<b>OffsetPaging</b> (kind)<br/>requires offsetParam, hasMorePath, itemsPath"]
     Reg -->|is| Esri -->|is| Endpoint
+    Esri -->|authenticatesBy| Auth
+    Esri -->|pagesBy| Page
 ```
+
+**A kind is a Thing an endpoint reaches, never a word it carries.** It declares the
+keys it requires, so an endpoint that cannot satisfy its kind is refused before
+anything is called rather than failing partway through the outbound request. The
+roles are `authenticatesBy`, `pagesBy` and `readsBodyAs`; a role reaching no kind
+means the plain behaviour, and the nearest declaration up the `is` chain wins.
+
+A seed that still sets `authKind`, `pagingKind` or `responseKind` as a property
+is refused at provisioning, naming the template and the edge to write instead.
+There is no compatibility shim: a catalogue half-provisioned against the old
+shape would leave endpoints reaching nothing while looking configured.
 
 Delta loads this graph from a `seed.json` document (`EndpointSeedModel` — a `Things[]` +
 `Relationships[]` fragment) and builds an `EndpointSeedGraph`. The graph is the same shape

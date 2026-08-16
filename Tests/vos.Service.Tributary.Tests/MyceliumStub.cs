@@ -1,3 +1,5 @@
+using vos.Service.Shared;
+using System.Text.RegularExpressions;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -35,5 +37,73 @@ internal static class MyceliumStub
             && request.RequestUri!.AbsolutePath == $"/api/things/{id}/properties")
             return Json(jsonObject);
         return null;
+    }
+
+    // One kind an endpoint reaches, and the keys that kind requires of it.
+    internal readonly record struct Kind(string Role, string Name, params string[] Requires);
+
+    // The scoped snapshot Tributary reads to learn which kinds an endpoint reaches. The predicate
+    // Things are included because a real snapshot only carries them when the selector names them —
+    // leaving them out here would make every test agree with a resolver that reads nothing.
+    // Derives the edges from the same effective-properties document the test already writes, the way
+    // Delta derives them from a seed. A test keeps declaring its endpoint's shape in one place, and
+    // the words it uses there are the ones the old string-valued keys used, so the tests read as they
+    // did before while the service under test sees only edges.
+    private static readonly (string Key, string Word, string Role, string Kind)[] DerivedKinds =
+    [
+        ("responseKind", "binary", EndpointKindRoles.ResponseBody, "BinaryResponse"),
+        ("responseKind", "json", EndpointKindRoles.ResponseBody, "JsonResponse"),
+        ("authKind", "tokenexchange", EndpointKindRoles.Authentication, "TokenExchangeAuth"),
+        ("pagingKind", "offset", EndpointKindRoles.Paging, "OffsetPaging"),
+    ];
+
+    internal static HttpResponseMessage? RouteKindsFromProperties(
+        HttpRequestMessage request, Guid endpointId, string effectiveProperties)
+    {
+        var kinds = new List<Kind>();
+        foreach (var (key, word, role, kind) in DerivedKinds)
+        {
+            var declared = Regex.Match(effectiveProperties,
+                "\"(?:[^\"]*\\.)?" + key + "\"\\s*:\\s*\\{\\s*\"Value\"\\s*:\\s*\"([^\"]*)\"",
+                RegexOptions.IgnoreCase);
+            if (declared.Success && string.Equals(declared.Groups[1].Value.Trim(), word, StringComparison.OrdinalIgnoreCase))
+                kinds.Add(new Kind(role, kind));
+        }
+        return RouteKinds(request, endpointId, [.. kinds]);
+    }
+
+    internal static HttpResponseMessage? RouteKinds(HttpRequestMessage request, Guid endpointId, params Kind[] kinds)
+    {
+        var path = request.RequestUri!.AbsolutePath;
+        if (request.Method == HttpMethod.Delete && path.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        if (request.Method != HttpMethod.Post || path != "/api/subscriptions")
+            return null;
+
+        var things = new List<string> { Thing(endpointId, "endpoint") };
+        var edges = new List<string>();
+        foreach (var kind in kinds)
+        {
+            var roleId = Guid.NewGuid();
+            var kindId = Guid.NewGuid();
+            things.Add(Thing(roleId, kind.Role));
+            things.Add(Thing(kindId, kind.Name, kind.Requires));
+            edges.Add("{\"id\":\"" + Guid.NewGuid() + "\",\"name\":null,\"subjectId\":\"" + endpointId
+                + "\",\"predicateId\":\"" + roleId + "\",\"targetId\":\"" + kindId
+                + "\",\"properties\":{},\"inheritedProperties\":{},\"states\":[]}");
+        }
+
+        return Json("{\"subscriptionId\":\"" + Guid.NewGuid() + "\",\"watermark\":0,\"snapshot\":{"
+            + "\"watermark\":0,\"things\":[" + string.Join(",", things) + "],"
+            + "\"relationships\":[" + string.Join(",", edges) + "]}}");
+    }
+
+    private static string Thing(Guid id, string name, params string[] declaredProperties)
+    {
+        var declared = declaredProperties.Select(property =>
+            "\"" + property + "\":{\"value\":null,\"typeInfo\":null,\"mode\":null}");
+        return "{\"id\":\"" + id + "\",\"name\":\"" + name + "\",\"isArchetype\":false,"
+            + "\"properties\":{" + string.Join(",", declared) + "},"
+            + "\"inheritedProperties\":{},\"states\":[],\"relationships\":[]}";
     }
 }

@@ -1,3 +1,5 @@
+using vos.Service.Shared;
+
 namespace vos.Service.Delta.Models;
 
 // A Delta endpoint-template seed document — a simplified, hand-authored mirror of a VosModel
@@ -14,8 +16,24 @@ public sealed class EndpointSeedModel
     // The template things, each a name + flat property bag.
     public List<RegisterEndpointRequest> Things { get; set; } = new();
 
-    // Relationships among the things; is rows define the inheritance hierarchy.
+    // The vocabulary an endpoint reaches: how it authenticates, how it pages, how its body reads.
+    // Held apart from Things because a kind is not an endpoint template and must not be mistaken for
+    // one — it has no place in the inheritance chain and would otherwise read as a second root.
+    public List<EndpointKind> Kinds { get; set; } = new();
+
+    // Relationships among the things; is rows define the inheritance hierarchy, and a kind-role row
+    // names the kind a template uses.
     public List<SeedRelationship> Relationships { get; set; } = new();
+}
+
+// One way of doing something an endpoint can point at, and what it needs from an endpoint that
+// does. Requires is what makes the kind worth being a Thing: an endpoint can be judged against its
+// kind before anything is called, instead of failing partway through the outbound request.
+public sealed class EndpointKind
+{
+    public string Name { get; set; } = string.Empty;
+
+    public List<string> Requires { get; set; } = new();
 }
 
 // A name-keyed relationship row in an EndpointSeedModel (mirrors a model relationship).

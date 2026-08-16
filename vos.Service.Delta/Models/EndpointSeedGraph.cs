@@ -1,3 +1,5 @@
+using vos.Service.Shared;
+
 namespace vos.Service.Delta.Models;
 
 // A validated, single-rooted graph of endpoint-template things. Parentage is derived from the
@@ -9,18 +11,42 @@ public sealed class EndpointSeedGraph
 {
     private readonly IReadOnlyDictionary<string, string> _parents;
 
+    // (template, role) -> kind name. Only what a template declares itself; the chain is walked on read.
+    private readonly IReadOnlyDictionary<(string Template, string Role), string> _kindEdges;
+
     public IReadOnlyDictionary<string, RegisterEndpointRequest> Templates { get; }
+
+    public IReadOnlyDictionary<string, EndpointKind> Kinds { get; }
+
+    // The kind edges as declared, for provisioning. Resolution walks the chain; provisioning writes
+    // only what a template declares itself, because an inherited edge is reached through `is`.
+    public IEnumerable<(string Template, string Role, string Kind)> KindEdges =>
+        _kindEdges.Select(entry => (entry.Key.Template, entry.Key.Role, entry.Value));
 
     public RegisterEndpointRequest Root { get; }
 
     private EndpointSeedGraph(
         IReadOnlyDictionary<string, RegisterEndpointRequest> templates,
         RegisterEndpointRequest root,
-        IReadOnlyDictionary<string, string> parents)
+        IReadOnlyDictionary<string, string> parents,
+        IReadOnlyDictionary<string, EndpointKind> kinds,
+        IReadOnlyDictionary<(string, string), string> kindEdges)
     {
         Templates = templates;
         Root = root;
         _parents = parents;
+        Kinds = kinds;
+        _kindEdges = kindEdges;
+    }
+
+    // The kind this template reaches for the role, nearest-first up the is chain — the same
+    // closest-ancestor-wins rule a narrowed property follows, so a kind and a key are inherited alike.
+    public EndpointKind? ResolveKind(string templateName, string role)
+    {
+        foreach (var template in Chain(templateName))
+            if (_kindEdges.TryGetValue((template.Name, EndpointKindRoles.Canonical(role)), out var kindName))
+                return Kinds[kindName];
+        return null;
     }
 
     public string? ParentName(string templateName) =>
@@ -105,7 +131,28 @@ public sealed class EndpointSeedGraph
                 throw new InvalidOperationException($"Duplicate template name '{thing.Name}' in endpoint seed graph.");
         }
 
+        var kinds = new Dictionary<string, EndpointKind>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kind in seed.Kinds ?? new List<EndpointKind>())
+        {
+            if (kind == null || string.IsNullOrWhiteSpace(kind.Name))
+                throw new InvalidOperationException("Endpoint seed has a kind with an empty name.");
+            if (byName.ContainsKey(kind.Name))
+                throw new InvalidOperationException(
+                    $"'{kind.Name}' is both an endpoint template and a kind; a kind is what a template reaches, not a template.");
+            if (!kinds.TryAdd(kind.Name, kind))
+                throw new InvalidOperationException($"Duplicate kind name '{kind.Name}' in endpoint seed graph.");
+        }
+
+        foreach (var template in byName.Values)
+            foreach (var (superseded, role) in EndpointKindRoles.SupersededProperties)
+                if (template.Properties?.ContainsKey(superseded) == true)
+                    throw new InvalidOperationException(
+                        $"Template '{template.Name}' sets '{superseded}'. A kind is a Thing an endpoint reaches, "
+                        + $"not a word it carries: remove the property and relate the template to a kind with "
+                        + $"'{role}' instead.");
+
         var parents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var kindEdges = new Dictionary<(string, string), string>();
         foreach (var rel in seed.Relationships ?? new List<SeedRelationship>())
         {
             if (rel == null)
@@ -114,6 +161,18 @@ public sealed class EndpointSeedGraph
                 throw new InvalidOperationException("Endpoint seed has a relationship with an empty subject, predicate, or target.");
             if (!byName.ContainsKey(rel.Subject))
                 throw new InvalidOperationException($"Relationship references unknown template '{rel.Subject}'.");
+
+            if (EndpointKindRoles.IsRole(rel.Predicate))
+            {
+                if (!kinds.ContainsKey(rel.Target))
+                    throw new InvalidOperationException(
+                        $"Template '{rel.Subject}' relates to unknown kind '{rel.Target}' through '{rel.Predicate}'.");
+                if (!kindEdges.TryAdd((rel.Subject, EndpointKindRoles.Canonical(rel.Predicate)), rel.Target))
+                    throw new InvalidOperationException(
+                        $"Template '{rel.Subject}' declares more than one '{rel.Predicate}' kind.");
+                continue;
+            }
+
             if (!byName.ContainsKey(rel.Target))
                 throw new InvalidOperationException($"Relationship references unknown template '{rel.Target}'.");
 
@@ -145,6 +204,6 @@ public sealed class EndpointSeedGraph
             }
         }
 
-        return new EndpointSeedGraph(byName, byName[roots[0]], parents);
+        return new EndpointSeedGraph(byName, byName[roots[0]], parents, kinds, kindEdges);
     }
 }

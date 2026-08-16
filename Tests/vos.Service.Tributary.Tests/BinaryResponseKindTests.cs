@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using Xunit;
+using vos.Service.Shared;
 using static vos.Service.Tributary.Tests.MyceliumStub;
 
 namespace vos.Service.Tributary.Tests;
@@ -36,6 +37,7 @@ public class BinaryResponseKindTests
         {
             if (req.RequestUri!.Host == "tiles.test") return Binary(PngBytes, "image/png");
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -68,6 +70,7 @@ public class BinaryResponseKindTests
         {
             if (req.RequestUri!.Host == "tiles.test") return Binary(PngBytes, contentType: null);
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -101,6 +104,7 @@ public class BinaryResponseKindTests
         {
             if (req.RequestUri!.Host == "tiles.test") { outbound = req; return Binary(PngBytes, "image/jpeg"); }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -132,6 +136,7 @@ public class BinaryResponseKindTests
         {
             if (req.RequestUri!.Host == "features.test") return Json("{\"ok\":true}");
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -143,53 +148,34 @@ public class BinaryResponseKindTests
     }
 
     [Fact]
-    public async Task Handle_UnsupportedResponseKind_Returns400()
-    {
-        var thingId = Guid.NewGuid();
-        var props = """
-        {
-          "Endpoint.url":          {"Value":"https://features.test/query"},
-          "Endpoint.httpMethod":   {"Value":"GET"},
-          "Endpoint.responseKind": {"Value":"xml"}
-        }
-        """;
-        await using var factory = new TributaryWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProperties(req, thingId, props)
-            ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("Unsupported responseKind");
-    }
-
-    [Fact]
-    public async Task Handle_AmbiguousResponseKind_Returns400()
+    // The model may name a kind this service has no mechanism for — that is the price of letting the
+    // model hold the vocabulary. The refusal has to name both halves, or the reader cannot tell
+    // whether to fix the seed or ship a mechanism.
+    public async Task Handle_BodyKindNothingImplements_Returns400NamingItAndWhatIsImplemented()
     {
         var thingId = Guid.NewGuid();
         var props = """
         {
           "Endpoint.url":        {"Value":"https://features.test/query"},
-          "Endpoint.httpMethod": {"Value":"GET"},
-          "A.responseKind":      {"Value":"json"},
-          "B.responseKind":      {"Value":"binary"}
+          "Endpoint.httpMethod": {"Value":"GET"}
         }
         """;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
             ?? RouteEffectiveProperties(req, thingId, props)
+            ?? RouteKinds(req, thingId, new Kind(EndpointKindRoles.ResponseBody, "XmlResponse"))
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("ambiguous properties for responseKind");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("XmlResponse", "the reader needs to know which kind was named");
+        body.Should().Contain("JsonResponse", "and which ones this service does implement");
     }
+
 
     [Fact]
     public async Task Handle_ResponseKindBinary_WithTemplateTransform_Returns400()
@@ -207,13 +193,14 @@ public class BinaryResponseKindTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
             ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("cannot be combined with responseTransform");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("cannot be combined with a response transform");
     }
 
     [Fact]
@@ -238,6 +225,7 @@ public class BinaryResponseKindTests
                 return Json("{}");
             }
             return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -245,7 +233,7 @@ public class BinaryResponseKindTests
         var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP", responseTransform = "$count(features)" });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("cannot be combined with responseTransform");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("cannot be combined with a response transform");
         persistCalls.Should().Be(0, "the combo must be rejected before the override persists to the endpoint thing");
     }
 
@@ -268,12 +256,13 @@ public class BinaryResponseKindTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
             ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("cannot be combined with pagingKind");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("cannot be read page by page");
     }
 }

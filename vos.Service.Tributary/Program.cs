@@ -7,6 +7,7 @@ using vos.Service.Tributary.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
+using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared.Validation;
 using Serilog;
 
@@ -58,6 +59,14 @@ try
             myceliumUrl,
             serviceToken));
     builder.Services.AddSingleton<IEndpointMyceliumClient>(sp => sp.GetRequiredService<MyceliumClient>());
+    // Reads which kinds an endpoint reaches. A scoped snapshot, not a property read, because a kind
+    // is a Thing the endpoint relates to rather than a word it carries.
+    builder.Services.AddSingleton<ISubscriptionClient>(sp =>
+        new SubscriptionClient(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<SubscriptionClient>>(),
+            myceliumUrl,
+            serviceToken));
     builder.Services.AddSingleton<ObservationIngestService>();
     // Per-process token-exchange cache (Task #5470). TimeProvider.System drives its refresh threshold;
     // tests substitute a fake clock. Singleton so the cache survives across /handle requests.
