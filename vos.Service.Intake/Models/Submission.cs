@@ -13,6 +13,21 @@ public sealed record Submission
     public SubmittedContact? Contact { get; init; }
     public SubmittedSite? Site { get; init; }
     public SubmittedParcel? Parcel { get; init; }
+    public IReadOnlyList<SubmittedAllocation>? Allocations { get; init; }
+}
+
+/// <summary>How a planner would divide the land. The shares are taken as given: they are normalised across
+/// the categories chosen further down the analysis, so a set that does not reach a hundred is a wizard
+/// part-filled rather than a submission to refuse.</summary>
+public sealed record SubmittedAllocation
+{
+    /// <summary>The planner's own word for this use of the land. Deliberately not checked against a fixed
+    /// vocabulary: which categories roll into which footprint is configuration on the analysis node, so a
+    /// project with its own programme vocabulary must not need a change here.</summary>
+    public string? Category { get; init; }
+
+    public double? SharePct { get; init; }
+    public double? AllocatedAreaHectares { get; init; }
 }
 
 /// <summary>What the submission is for. Its properties are the planner's own account of the undertaking,

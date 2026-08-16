@@ -88,6 +88,106 @@ public class SubmissionFragmentComposerTests
         refusal.Message.Should().Contain("contact").And.Contain("project");
     }
 
+    private static IEnumerable<FragmentThing> Allocations(ComposedSubmission composed) =>
+        composed.Fragment.Things.Where(thing => thing.Properties.ContainsKey("allocationCategory"));
+
+    [Fact]
+    public void Each_allocation_is_a_thing_of_its_own_the_site_holds()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        var allocations = Allocations(composed).ToList();
+        allocations.Should().HaveCount(WillowBend.Submission().Allocations!.Count);
+        allocations.Should().OnlyContain(thing =>
+            composed.Fragment.Relationships.Any(edge =>
+                edge.Subject == composed.SiteId
+                && edge.Predicate == WillowBend.HasPredicateId
+                && edge.Target == thing.Id));
+        allocations.Should().OnlyContain(thing =>
+            IsEdgeTo(composed, thing.Id, WillowBend.ProgrammeAllocationArchetypeId));
+    }
+
+    [Fact]
+    public void An_allocation_writes_the_properties_its_archetype_declares()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        var residential = Allocations(composed)
+            .Single(thing => (string)thing.Properties["allocationCategory"].Value! == "Residential");
+        residential.Properties["sharePct"].Value.Should().Be(22.0);
+        residential.Properties["allocatedAreaHectares"].Value.Should().Be(5.28);
+    }
+
+    // Shares are normalised across the chosen categories further down the analysis, so a set that does not
+    // reach a hundred is a wizard part-filled. Refusing it here would reject a submission mid-save.
+    [Fact]
+    public void Shares_that_do_not_add_to_a_hundred_are_taken_as_given()
+    {
+        var composed = Compose(WillowBend.Submission() with
+        {
+            Allocations = [new SubmittedAllocation { Category = "Residential", SharePct = 12 }],
+        });
+
+        Allocations(composed).Single().Properties["sharePct"].Value.Should().Be(12.0);
+    }
+
+    // Which categories roll into which footprint is configuration on the analysis node, so a project with
+    // its own programme vocabulary must not need a change here.
+    [Fact]
+    public void A_category_outside_any_familiar_vocabulary_is_accepted()
+    {
+        var composed = Compose(WillowBend.Submission() with
+        {
+            Allocations = [new SubmittedAllocation { Category = "Silvopasture", SharePct = 100 }],
+        });
+
+        Allocations(composed).Single().Properties["allocationCategory"].Value.Should().Be("Silvopasture");
+    }
+
+    // Two shares of one category disagree about it and nothing here can say which was meant.
+    [Fact]
+    public void Two_allocations_naming_one_category_are_refused()
+    {
+        var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
+        {
+            Allocations =
+            [
+                new SubmittedAllocation { Category = "Residential", SharePct = 22 },
+                new SubmittedAllocation { Category = " residential ", SharePct = 30 },
+            ],
+        }));
+
+        refusal.Message.Should().Contain("Residential").And.Contain("residential");
+    }
+
+    // Identity comes from the category, not from a position in the list, so a wizard that reorders them
+    // re-posts onto the same Things rather than building a second set beside the first.
+    [Fact]
+    public void Reordering_the_allocations_lands_on_the_same_things()
+    {
+        var submission = WillowBend.Submission();
+        var reversed = submission with { Allocations = [.. submission.Allocations!.Reverse()] };
+
+        // Which identifier each category landed on, not merely the set of identifiers minted: a producer
+        // deriving them from a position in the list mints the same set either way and hands them to
+        // different categories, which a comparison of sets alone reads as unchanged.
+        static Dictionary<string, Guid> ByCategory(ComposedSubmission composed) =>
+            Allocations(composed).ToDictionary(
+                thing => (string)thing.Properties["allocationCategory"].Value!, thing => thing.Id);
+
+        ByCategory(Compose(reversed)).Should().BeEquivalentTo(ByCategory(Compose(submission)));
+    }
+
+    [Fact]
+    public void A_submission_with_no_allocations_mints_none()
+    {
+        var composed = Compose(WillowBend.Submission() with { Allocations = null });
+
+        Allocations(composed).Should().BeEmpty();
+        composed.Fragment.Relationships.Should()
+            .NotContain(edge => edge.Target == WillowBend.ProgrammeAllocationArchetypeId);
+    }
+
     [Fact]
     public void The_study_relates_to_its_site_by_studies()
     {
@@ -156,15 +256,6 @@ public class SubmissionFragmentComposerTests
     }
 
     [Fact]
-    public void A_submission_with_no_parcel_relates_none_to_the_parcel_archetype()
-    {
-        var composed = Compose(WillowBend.Submission() with { Parcel = null });
-
-        composed.Fragment.Relationships.Should()
-            .NotContain(edge => edge.Target == WillowBend.ParcelArchetypeId);
-    }
-
-    [Fact]
     public void A_value_the_planner_has_not_given_is_absent_rather_than_zero()
     {
         var submission = WillowBend.Submission();
@@ -179,9 +270,9 @@ public class SubmissionFragmentComposerTests
         var composed = Compose(WillowBend.Submission() with { Parcel = null });
 
         composed.ParcelId.Should().BeNull();
-        composed.Fragment.Things.Should().HaveCount(4, "the site, its study, the project and its contact, and nothing for the parcel");
-        composed.Fragment.Relationships.Should().HaveCount(7,
-            "the study studies the site, the project holds the site and the contact, and each of the four is its archetype");
+        composed.Fragment.Things.Should().NotContain(thing => thing.Properties.ContainsKey("boundary"),
+            "a boundary is what a parcel is, so nothing carrying one may exist when none was drawn");
+        composed.Fragment.Relationships.Should().NotContain(edge => edge.Target == WillowBend.ParcelArchetypeId);
     }
 
     [Fact]
