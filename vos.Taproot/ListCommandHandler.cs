@@ -230,10 +230,9 @@ namespace vos.Taproot
             }
         }
 
-        // This used to fetch every Thing and work the answer out here: a Thing was a handler because it
-        // carried an ExecutablePath, and its run mode was whatever that Thing's properties said. That
-        // re-implemented the platform's resolution against a payload with no relationships in it, so a
-        // value the platform resolves by walking an edge could not be read at all.
+        // The platform says which connections bind a service and what each resolves to. Working that out
+        // here — from a payload of Things with no relationships in it — could not read a value the
+        // platform resolves by walking an edge, and would go wrong again the next time one moved.
         private async Task ListHandlersAsync()
         {
             var connections = await _mycelium.GetAllConnectionsAsync();
@@ -267,15 +266,16 @@ namespace vos.Taproot
             var name = handler.GetStringOrDefault("Name");
 
             _writer.WriteLine($"  {_options.FormatIdentifier(name, id)}");
-            _writer.WriteLine($"    Executable: {handler.GetStringOrDefault("ExecutablePath")}");
-            // Absent means the platform resolved none, which is not the same as running as a daemon.
-            // Printing a default here would have this command state something nothing in the model says.
-            _writer.WriteLine($"    Mode: {Stated(handler, "RunMode")}");
-            _writer.WriteLine($"    Reached by: {Stated(handler, "Trigger")}");
+            _writer.WriteLine($"    Executable: {ResolvedOrNotStated(handler, "ExecutablePath")}");
+            _writer.WriteLine($"    Mode: {ResolvedOrNotStated(handler, "RunMode")}");
+            _writer.WriteLine($"    Reached by: {ResolvedOrNotStated(handler, "Trigger")}");
         }
 
-        private static string Stated(JsonElement handler, string name) =>
-            handler.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+        // A value the platform resolved, or a plain statement that nothing did. Standing a default in
+        // for silence would have this command state something no model says — which is how the run mode
+        // came to read as "daemon" for every service whatever it declared.
+        private static string ResolvedOrNotStated(JsonElement handler, string field) =>
+            handler.TryGetProperty(field, out var value) && value.ValueKind == JsonValueKind.String
                 ? value.GetString()!
                 : "not stated";
 
