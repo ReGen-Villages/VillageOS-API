@@ -23,9 +23,9 @@ export interface InheritedPropertySet {
 
 export interface VosRelationship {
   Id: string;
-  /** Present only when it is not the generated "subject predicate target" form — an explicitly set
-   *  name, or one left stored by a rename. Read it through `relationshipLabel`, which composes the
-   *  generated form from the endpoints when it is absent. */
+  /** Present only for an edge given a name of its own when it was created. Every other edge is called
+   *  "subject predicate target", composed on each read. Read it through `relationshipLabel`, which
+   *  composes that form from the endpoints when this is absent. */
   Name?: string;
   SubjectId: string;
   PredicateId: string;
