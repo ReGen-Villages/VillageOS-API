@@ -1,3 +1,5 @@
+using vos.Service.Shared;
+
 namespace vos.Service.Delta.Models;
 
 // A validated, single-rooted graph of endpoint-template things. Parentage is derived from the
@@ -45,21 +47,6 @@ public sealed class EndpointSeedGraph
             if (_kindEdges.TryGetValue((template.Name, role), out var kindName))
                 return Kinds[kindName];
         return null;
-    }
-
-    // What the template's kind for this role requires and the template's chain does not supply.
-    // Empty when the kind is satisfied, and when there is no kind to satisfy.
-    public IReadOnlyList<string> MissingRequirements(string templateName, string role)
-    {
-        var kind = ResolveKind(templateName, role);
-        if (kind == null)
-            return Array.Empty<string>();
-
-        var available = AllowedKeys(templateName);
-        return kind.Requires
-            .Where(required => !available.Contains(required)
-                || !TryGetEffectiveSeedValue(templateName, required, out _))
-            .ToList();
     }
 
     public string? ParentName(string templateName) =>

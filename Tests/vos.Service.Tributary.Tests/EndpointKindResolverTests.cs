@@ -1,5 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
+using vos.Service.Shared;
 using vos.Service.Shared.Subscriptions;
 using vos.Service.Tributary.Helpers;
 using Xunit;
@@ -51,6 +52,29 @@ public class EndpointKindResolverTests
         selector.IncludeRelationships.Should().BeTrue();
         selector.Traverse![0].Predicate.Should().Be("is");
         selector.Traverse.Select(rule => rule.Predicate).Should().Contain(EndpointKindRoles.All);
+    }
+
+    // A predicate Thing is not pulled into a snapshot by being a predicate. Traversal adds the Things
+    // an edge points AT, and the incident-relationship pass adds the edges themselves — nothing adds
+    // the Thing naming the edge. Resolve matches on that name, so a predicate the selector does not
+    // ask for by name is a role that silently matches nothing and reads as "reaches no kind".
+    [Fact]
+    public void SelectorFor_AsksForEveryPredicateResolveMatchesOn_ByName()
+    {
+        var selector = EndpointKindResolver.SelectorFor(Registration);
+
+        selector.Names.Should().Contain("is", "the chain walk compares the predicate Thing's name");
+        selector.Names.Should().Contain(EndpointKindRoles.All);
+    }
+
+    [Fact]
+    public void Resolve_SnapshotWithoutThePredicateThings_ReachesNothing()
+    {
+        // Pins the failure the selector exists to prevent, so the two cannot drift apart silently.
+        var snapshot = Snapshot();
+        snapshot.Things.RemoveAll(thing => thing.Name is "is" or "authenticatesBy");
+
+        EndpointKindResolver.Resolve(snapshot, Registration).Should().BeEmpty();
     }
 
     [Fact]

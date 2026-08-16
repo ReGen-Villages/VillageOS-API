@@ -1,3 +1,5 @@
+using vos.Service.Shared;
+
 namespace vos.Service.Delta.Models;
 
 // A Delta endpoint-template seed document — a simplified, hand-authored mirror of a VosModel
@@ -32,29 +34,6 @@ public sealed class EndpointKind
     public string Name { get; set; } = string.Empty;
 
     public List<string> Requires { get; set; } = new();
-}
-
-// The roles a template can fill by reaching a kind. Delta writes these edges and Tributary reads
-// them; a role only one side spells right is an endpoint that silently authenticates as nobody.
-public static class EndpointKindRoles
-{
-    public const string Authentication = "authenticatesBy";
-    public const string Paging = "pagesBy";
-    public const string ResponseBody = "readsBodyAs";
-
-    // The property each role was written as before the kind became a Thing. A seed still carrying
-    // one is refused, because provisioning it would leave the endpoint reaching nothing while
-    // looking configured.
-    public static readonly IReadOnlyDictionary<string, string> SupersededProperties =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["authKind"] = Authentication,
-            ["pagingKind"] = Paging,
-            ["responseKind"] = ResponseBody,
-        };
-
-    public static readonly IReadOnlySet<string> All =
-        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Authentication, Paging, ResponseBody };
 }
 
 // A name-keyed relationship row in an EndpointSeedModel (mirrors a model relationship).

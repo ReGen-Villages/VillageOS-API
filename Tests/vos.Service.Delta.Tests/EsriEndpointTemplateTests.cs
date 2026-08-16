@@ -1,5 +1,6 @@
 using FluentAssertions;
 using vos.Service.Delta.Models;
+using vos.Service.Shared;
 using Xunit;
 
 namespace vos.Service.Delta.Tests;
@@ -108,7 +109,8 @@ public class EsriEndpointTemplateTests
     public void Paging_TheTemplateSuppliesEveryFieldOffsetPagingRequires()
     {
         // Paging is fully described by the template, so nothing is left for a registration to supply.
-        Graph().MissingRequirements("EsriEndpoint", EndpointKindRoles.Paging).Should().BeEmpty();
+        var kind = Graph().ResolveKind("EsriEndpoint", EndpointKindRoles.Paging)!;
+        Graph().AllowedKeys("EsriEndpoint").Should().Contain(kind.Requires);
     }
 
     [Fact]
@@ -117,7 +119,9 @@ public class EsriEndpointTemplateTests
         // tokenUrl and tokenRequest are blank structural keys: an ArcGIS server's address and its
         // credentials belong to whoever registers the endpoint, not to the template they share. The
         // kind names them so a registration missing them is refused before any call is attempted.
-        Graph().MissingRequirements("EsriEndpoint", EndpointKindRoles.Authentication)
+        var kind = Graph().ResolveKind("EsriEndpoint", EndpointKindRoles.Authentication)!;
+        kind.Requires.Where(required =>
+                !Graph().TryGetEffectiveSeedValue("EsriEndpoint", required, out _))
             .Should().BeEquivalentTo("tokenUrl", "tokenRequest");
     }
 

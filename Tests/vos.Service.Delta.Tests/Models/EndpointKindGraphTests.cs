@@ -105,24 +105,4 @@ public class EndpointKindGraphTests
         Assert.Throws<InvalidOperationException>(() => EndpointSeedGraph.Build(seed))
             .Message.Should().Contain("OffsetPaging");
     }
-
-    [Fact]
-    public void MissingRequirements_EndpointLackingWhatItsKindDeclares_NamesEveryMissingProperty()
-    {
-        var graph = EndpointSeedGraph.Build(SeedWithKind());
-
-        graph.MissingRequirements("EsriEndpoint", "authenticatesBy")
-            .Should().BeEquivalentTo("tokenRequest", "tokenPath");
-    }
-
-    [Fact]
-    public void MissingRequirements_EndpointSatisfyingItsKind_NamesNothing()
-    {
-        var seed = SeedWithKind();
-        seed.Things[1].Properties!["tokenRequest"] = "{}";
-        seed.Things[1].Properties!["tokenPath"] = "access_token";
-
-        EndpointSeedGraph.Build(seed).MissingRequirements("EsriEndpoint", "authenticatesBy")
-            .Should().BeEmpty();
-    }
 }

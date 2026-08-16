@@ -168,6 +168,17 @@ public class TemplateCatalogProvisionerTests
     }
 
     [Fact]
+    public async Task ProvisionAsync_RolePredicateCannotBeMinted_LeavesTheEdgeUnwired()
+    {
+        var stub = new MyceliumStub { FailCreateName = "authenticatesBy" };
+
+        await Provisioner(stub, KindSeed).ProvisionAsync();
+
+        stub.CreatedByName.Should().ContainKey("TokenExchangeAuth", "the kind itself is unaffected");
+        stub.Relationships.Should().NotContain(r => r.Target == stub.CreatedByName["TokenExchangeAuth"]);
+    }
+
+    [Fact]
     public async Task ProvisionAsync_KindEdgeWiredAfterTheIsEdge_SoTheTemplateIsAlreadyInItsChain()
     {
         var stub = new MyceliumStub();
