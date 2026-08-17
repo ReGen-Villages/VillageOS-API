@@ -265,7 +265,6 @@ public class CoveringSourceResolverTests
         covering.Should().ContainSingle();
         covering[0].Name.Should().BeEmpty();
         covering[0].EndpointName.Should().BeEmpty();
-        covering[0].EndpointId.Should().Be(endpoint);
     }
 
     [Fact]

@@ -3,7 +3,7 @@ using vos.Service.Shared.Subscriptions;
 namespace vos.Service.Confluence.Helpers;
 
 // A source that covers the site, and the endpoint registration a call to it goes through.
-public sealed record CoveringSource(Guid DataSourceId, string Name, Guid EndpointId, string EndpointName);
+public sealed record CoveringSource(Guid DataSourceId, string Name, string EndpointName);
 
 // Reads which sources cover a site, from one scoped snapshot.
 //
@@ -68,7 +68,7 @@ public static class CoveringSourceResolver
             if (EndpointOf(snapshot, namesById, thingsById, edge.SubjectId) is not { } endpoint) continue;
 
             covering.Add(new CoveringSource(
-                edge.SubjectId, source.Name ?? string.Empty, endpoint.Id, endpoint.Name ?? string.Empty));
+                edge.SubjectId, source.Name ?? string.Empty, endpoint.Name ?? string.Empty));
         }
 
         return covering;

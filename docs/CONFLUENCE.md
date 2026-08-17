@@ -10,8 +10,8 @@ the pipeline reads what discovery wrote. That keeps the pipeline a pure calculat
 with no network dependency, so a planner adjusting an assumption reruns the analysis
 instantly and without touching a public data portal again.
 
-> Today Confluence answers *which sources cover this site*. Calling them, the
-> partial-failure report, and spawning the pipeline are the next two slices.
+> Today Confluence answers *which sources cover this site*. Calling them, reporting
+> what did and did not resolve, and spawning the pipeline follow under #6052.
 
 ## Coverage is edges, not a word
 
