@@ -4,7 +4,7 @@ using Xunit;
 
 namespace vos.Service.Tributary.Tests.Helpers;
 
-public class AddressTemplateTests
+public class AddressPlaceholdersTests
 {
     // Ordinal, because that is what a deserialized request body hands the helper. Building these with
     // a case-insensitive comparer would let the helper's own lookup be wrong and still pass.
@@ -14,7 +14,7 @@ public class AddressTemplateTests
     [Fact]
     public void Fill_SubstitutesEveryPlaceholder()
     {
-        var filled = AddressTemplate.Fill(
+        var filled = AddressPlaceholders.Fill(
             "https://tiles.test/tile/{z}/{y}/{x}.png",
             Values(("z", "9"), ("y", "271"), ("x", "301")),
             out var missing);
@@ -26,7 +26,7 @@ public class AddressTemplateTests
     [Fact]
     public void Fill_SubstitutesInTheQueryStringAsWellAsThePath()
     {
-        var filled = AddressTemplate.Fill(
+        var filled = AddressPlaceholders.Fill(
             "https://api.test/{version}/forecast?latitude={lat}&longitude={lng}",
             Values(("version", "v1"), ("lat", "-25.75"), ("lng", "28.19")),
             out _);
@@ -37,7 +37,7 @@ public class AddressTemplateTests
     [Fact]
     public void Fill_RepeatedPlaceholder_SubstitutesEveryOccurrence()
     {
-        var filled = AddressTemplate.Fill(
+        var filled = AddressPlaceholders.Fill(
             "https://api.test/{site}/summary?for={site}",
             Values(("site", "willow")),
             out _);
@@ -48,7 +48,7 @@ public class AddressTemplateTests
     [Fact]
     public void Fill_NamesEveryUnfilledPlaceholder_NotOnlyTheFirst()
     {
-        AddressTemplate.Fill(
+        AddressPlaceholders.Fill(
             "https://tiles.test/tile/{z}/{y}/{x}.png",
             Values(("y", "271")),
             out var missing);
@@ -61,7 +61,7 @@ public class AddressTemplateTests
     {
         // The caller refuses on `missing`; leaving the text alone keeps a half-filled address from
         // ever being mistaken for a real one.
-        var filled = AddressTemplate.Fill("https://tiles.test/{z}/{y}", Values(("z", "9")), out var missing);
+        var filled = AddressPlaceholders.Fill("https://tiles.test/{z}/{y}", Values(("z", "9")), out var missing);
 
         missing.Should().NotBeEmpty();
         filled.Should().Be("https://tiles.test/{z}/{y}");
@@ -72,7 +72,7 @@ public class AddressTemplateTests
     {
         // One caller passes a shared set of values to sources whose addresses take different
         // placeholders, so an unused value is ordinary rather than a mistake.
-        var filled = AddressTemplate.Fill(
+        var filled = AddressPlaceholders.Fill(
             "https://api.test/forecast?latitude={lat}",
             Values(("lat", "-25.75"), ("lng", "28.19"), ("elevation", "1200")),
             out var missing);
@@ -84,7 +84,7 @@ public class AddressTemplateTests
     [Fact]
     public void Fill_NoPlaceholders_ReturnsTheAddressUnchanged()
     {
-        var filled = AddressTemplate.Fill(
+        var filled = AddressPlaceholders.Fill(
             "https://api.test/fixed?f=json",
             Values(("lat", "-25.75")),
             out var missing);
@@ -96,7 +96,7 @@ public class AddressTemplateTests
     [Fact]
     public void Fill_NoValuesSupplied_ReportsThePlaceholdersAsMissing()
     {
-        AddressTemplate.Fill("https://tiles.test/{z}", null, out var missing);
+        AddressPlaceholders.Fill("https://tiles.test/{z}", null, out var missing);
 
         missing.Should().BeEquivalentTo(new[] { "z" });
     }
@@ -108,7 +108,7 @@ public class AddressTemplateTests
     [InlineData("100%", "100%25")]
     public void Fill_EscapesTheValue_SoItCannotAlterTheAddressStructure(string value, string expected)
     {
-        var filled = AddressTemplate.Fill("https://api.test/lookup?name={name}", Values(("name", value)), out _);
+        var filled = AddressPlaceholders.Fill("https://api.test/lookup?name={name}", Values(("name", value)), out _);
 
         filled.Should().Be($"https://api.test/lookup?name={expected}");
     }
@@ -116,7 +116,7 @@ public class AddressTemplateTests
     [Fact]
     public void Fill_PlaceholderNameMatchIsCaseInsensitive()
     {
-        var filled = AddressTemplate.Fill("https://api.test/{Site}", Values(("site", "willow")), out var missing);
+        var filled = AddressPlaceholders.Fill("https://api.test/{Site}", Values(("site", "willow")), out var missing);
 
         filled.Should().Be("https://api.test/willow");
         missing.Should().BeEmpty();

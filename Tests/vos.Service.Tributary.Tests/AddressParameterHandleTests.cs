@@ -7,7 +7,7 @@ using static vos.Service.Tributary.Tests.MyceliumStub;
 namespace vos.Service.Tributary.Tests;
 
 // One registration serving many addresses, driven through /handle (Feature #5917). The unit-level
-// substitution rules live in Helpers/AddressTemplateTests; these pin what the call path does with
+// substitution rules live in Helpers/AddressPlaceholdersTests; these pin what the call path does with
 // them — which address goes on the wire, and what is refused before anything is called.
 public class AddressParameterHandleTests
 {
@@ -126,7 +126,7 @@ public class AddressParameterHandleTests
     }
 
     [Fact]
-    public async Task Handle_NoAddressParameters_OnATemplatedAddress_Returns400()
+    public async Task Handle_NoAddressParameters_OnAnAddressWithPlaceholders_Returns400()
     {
         var thingId = Guid.NewGuid();
         await using var factory = new TributaryWebApplicationFactory();
@@ -250,7 +250,7 @@ public class AddressParameterHandleTests
     [Fact]
     public async Task Handle_PlaceholdersComposeWithPagingParameters()
     {
-        // Paging rewrites the query per page; it must walk the filled address, not the template.
+        // Paging rewrites the query per page; it must walk the filled address, not the placeholders.
         var thingId = Guid.NewGuid();
         var requested = new List<string>();
         var props = """

@@ -6,13 +6,13 @@ namespace vos.Service.Tributary.Helpers;
 // registration serves every address in a set instead of one registration per address. The
 // substitution is generic: it knows the placeholder names only as text, so a tile pyramid, a point
 // query at a site's coordinates, and anything later all use the same mechanism.
-public static class AddressTemplate
+public static class AddressPlaceholders
 {
     private static readonly Regex Placeholder = new(@"\{([^{}]+)\}", RegexOptions.Compiled);
 
     private static readonly IReadOnlyList<string> NothingUnfilled = Array.Empty<string>();
 
-    // Returns the template untouched when anything is unfilled: the caller refuses on `missing`, and
+    // Returns the address untouched when anything is unfilled: the caller refuses on `missing`, and
     // a half-filled address must never be mistaken for a real one. A supplied value that no
     // placeholder names is ignored rather than refused, because one caller passes a shared set of
     // values to sources whose addresses take different placeholders.
@@ -21,18 +21,18 @@ public static class AddressTemplate
     // caller: the values arrive deserialized from a request body, which gives an ordinal dictionary
     // whose behaviour would silently differ from every other property map in this service.
     public static string Fill(
-        string template, IReadOnlyDictionary<string, string>? values, out IReadOnlyList<string> missing)
+        string address, IReadOnlyDictionary<string, string>? values, out IReadOnlyList<string> missing)
     {
         missing = NothingUnfilled;
-        if (!template.Contains('{'))
-            return template;
+        if (!address.Contains('{'))
+            return address;
 
         var supplied = values is { Count: > 0 }
             ? new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase)
             : null;
 
         List<string>? unfilled = null;
-        var filled = Placeholder.Replace(template, match =>
+        var filled = Placeholder.Replace(address, match =>
         {
             var name = match.Groups[1].Value;
             if (supplied != null && supplied.TryGetValue(name, out var value))
@@ -46,6 +46,6 @@ public static class AddressTemplate
             return filled;
 
         missing = unfilled;
-        return template;
+        return address;
     }
 }
