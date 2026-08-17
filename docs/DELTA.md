@@ -143,10 +143,11 @@ If the `is`-wire or any property-set fails, Delta runs a **compensating delete**
 to remove the orphaned Thing, so a partial registration never lingers. Success returns the new
 `registeredThingId`, `endpointTemplateId`, and `predicateId`.
 
-> **Which model a write lands in.** Delta writes using the bearer on the incoming request, which
+> **Which model a registration lands in.** The write uses the bearer on the incoming request, which
 > Mycelium signs with the calling project's model — so one shared Delta registers into the model of
-> whoever called it. A request that arrives without a bearer (`/register` invoked directly) falls back
-> to the token Delta was started with, and writes into the model that token names.
+> whoever called it. [Startup provisioning](#startup-provisioning-the-catalog) is the exception: it
+> runs before any request exists, so it uses the token Delta was started with and the catalog lands
+> in the model that token names.
 
 ## Endpoints
 
