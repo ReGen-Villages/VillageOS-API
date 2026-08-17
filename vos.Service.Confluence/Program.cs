@@ -108,7 +108,7 @@ try
         // it, and a site whose sources were all unavailable is exactly the case a planner needs the
         // analysis to say something about rather than silently never running.
         var spawn = await analysis.SpawnAsync(
-            request.SiteId, coverage.AnalysisPipelineId, httpContext.RequestAborted);
+            request.SiteId, coverage.Analysis, httpContext.RequestAborted);
 
         return Results.Ok(new
         {

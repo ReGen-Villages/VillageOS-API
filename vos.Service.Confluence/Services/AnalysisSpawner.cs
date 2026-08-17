@@ -1,17 +1,20 @@
 using Microsoft.Extensions.Logging;
+using vos.Service.Confluence.Helpers;
 
 namespace vos.Service.Confluence.Services;
 
-// Starts the analysis for a site by writing `Site runs Pipeline`.
+// Starts the analysis for a site by relating its study to each compute service.
 //
-// Confluence never calls the orchestrator. `runs` is a handled predicate, so creating the edge is
-// what dispatches the pipeline — the model carries the trigger, and a second way to start an
-// analysis would be a second thing to keep in step with it. It also means the run is a fact in the
-// model rather than a call that happened, so what started an analysis is answerable afterwards.
+// Confluence calls no compute service. A connection bound to a service is a handled predicate, so
+// creating `study -connection-> prototype` is what dispatches it — the model carries the trigger, and a
+// second way to start an analysis would be a second thing to keep in step with it. It also means the
+// analysis is a fact in the model rather than a call that happened, so what started one is answerable
+// afterwards.
+//
+// The service reads its inputs off the study, writes its outputs back, and starts watching the study, so
+// this edge is written once: every later change to an input recomputes without anything calling again.
 public sealed class AnalysisSpawner
 {
-    public const string RunsPredicate = "runs";
-
     private readonly MyceliumRelationshipClient _mycelium;
     private readonly ILogger<AnalysisSpawner> _logger;
 
@@ -21,29 +24,35 @@ public sealed class AnalysisSpawner
         _logger = logger;
     }
 
-    // Null pipeline means the site names none: nothing was ever going to run, so there is nothing to
-    // report as failed. Discovery has already written its observations either way.
-    public async Task<AnalysisSpawn> SpawnAsync(Guid siteId, Guid? pipelineId, CancellationToken cancellationToken)
+    public async Task<AnalysisSpawn> SpawnAsync(
+        Guid siteId, SiteAnalysis? analysis, CancellationToken cancellationToken)
     {
-        if (pipelineId == null)
-            return new AnalysisSpawn(false, "The site is analysed by no pipeline.");
+        if (analysis == null)
+            return new AnalysisSpawn(false, "The site has no study to analyse.");
 
-        var runs = await _mycelium.FindPredicateAsync(RunsPredicate, cancellationToken);
-        if (runs == null)
+        if (analysis.Triggers.Count == 0)
+            return new AnalysisSpawn(false, "The model marks no connection as one a site analysis starts.");
+
+        var unstarted = new List<string>();
+        foreach (var trigger in analysis.Triggers)
         {
-            _logger.LogError("Cannot start the analysis for site {SiteId}: the model has no '{Predicate}' predicate.",
-                siteId, RunsPredicate);
-            return new AnalysisSpawn(false, $"The model has no '{RunsPredicate}' predicate.");
+            if (await _mycelium.CreateRelationshipAsync(
+                    analysis.StudyId, trigger.ConnectionId, trigger.ServicePrototypeId, cancellationToken))
+                continue;
+
+            _logger.LogError("Could not start {Connection} for study {StudyId} of site {SiteId}.",
+                trigger.ConnectionName, analysis.StudyId, siteId);
+            unstarted.Add(trigger.ConnectionName);
         }
 
-        if (!await _mycelium.CreateRelationshipAsync(siteId, runs.Value, pipelineId.Value, cancellationToken))
-        {
-            _logger.LogError("Failed to start the analysis for site {SiteId} on pipeline {PipelineId}.",
-                siteId, pipelineId);
-            return new AnalysisSpawn(false, "Writing the run relationship failed.");
-        }
+        // Partial failure is reported as failure while naming what did start, for the reason an
+        // unresolved source carries one: a planner reading a balance has to know it is not there because
+        // it could not be written, rather than because the figure is genuinely unknown.
+        if (unstarted.Count > 0)
+            return new AnalysisSpawn(false, "Could not start: " + string.Join(", ", unstarted) + ".");
 
-        _logger.LogInformation("Analysis started for site {SiteId} on pipeline {PipelineId}.", siteId, pipelineId);
+        _logger.LogInformation("Analysis started for study {StudyId} of site {SiteId} on {Count} services.",
+            analysis.StudyId, siteId, analysis.Triggers.Count);
         return new AnalysisSpawn(true, null);
     }
 }

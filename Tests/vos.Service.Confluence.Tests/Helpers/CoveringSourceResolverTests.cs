@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Confluence.Helpers;
 using vos.Service.Shared.Subscriptions;
@@ -49,7 +50,39 @@ public class CoveringSourceResolverTests
             return this;
         }
 
+        // Re-declares a Thing as a type, carrying the flag when it is one a reader finds by mark.
+        public ModelBuilder Archetype(string name, string? flag = null)
+        {
+            var id = Id(name);
+            var properties = flag == null
+                ? new Dictionary<string, SnapshotProperty>()
+                : new Dictionary<string, SnapshotProperty>
+                {
+                    [flag] = new(JsonDocument.Parse("true").RootElement, null, null),
+                };
+
+            _things.RemoveAll(thing => thing.Id == id);
+            _things.Add(new SnapshotThing(
+                id, name, true, properties,
+                new Dictionary<string, InheritedPropertySet>(),
+                Array.Empty<string>(), Array.Empty<Guid>()));
+            return this;
+        }
+
         public SnapshotDocument Build() => new(0, _things, _edges);
+    }
+
+    private static ModelBuilder StudyOf(string site) =>
+        new ModelBuilder().Relate(site + "Study", CoveringSourceResolver.StudiesPredicate, site);
+
+    // A connection the model marks as one a site analysis starts, bound to the service it dispatches.
+    private static ModelBuilder MarkedConnection(ModelBuilder model, string connection, string prototype)
+    {
+        model.Relate(connection, CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
+             .Relate(connection, CoveringSourceResolver.HasPredicate, connection + " service")
+             .Relate(connection + " service", CoveringSourceResolver.IsPredicateName, prototype);
+        model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        return model.Archetype(prototype);
     }
 
     // A source is callable only through its registration, so every scenario below wires both.
@@ -183,65 +216,137 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
-    public void AnalysisPipelineOf_SiteAnalysedByAPipeline_IsThatPipeline()
+    public void AnalysisOf_StudyAndAMarkedConnection_TriggersThatService()
     {
-        var model = new ModelBuilder()
-            .Relate("WillowBend", CoveringSourceResolver.AnalysedByPredicate, "SiteAnalysis");
+        var model = StudyOf("WillowBend");
+        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype");
 
-        var pipeline = CoveringSourceResolver.AnalysisPipelineOf(model.Build(), model.Id("WillowBend"));
+        var analysis = CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"));
 
-        pipeline.Should().Be(model.Id("SiteAnalysis"));
+        analysis!.StudyId.Should().Be(model.Id("WillowBendStudy"));
+        analysis.Triggers.Should().ContainSingle()
+            .Which.Should().Be(new AnalysisTrigger(
+                "balancesEnergy", model.Id("balancesEnergy"), model.Id("EnergyBalance prototype")));
     }
 
     [Fact]
-    public void AnalysisPipelineOf_SiteAnalysedByNothing_IsNull()
+    public void AnalysisOf_SiteWithNoStudy_IsNull()
     {
-        // Not a failure: nothing was ever going to run, and reporting it as one would blame the run
+        // Not a failure: nothing was ever going to compute, and reporting it as one would blame the run
         // for a gap in the model — the same rule a source with no registration is left out under.
         var model = new ModelBuilder().Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal");
+        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype");
 
-        CoveringSourceResolver.AnalysisPipelineOf(model.Build(), model.Id("WillowBend")).Should().BeNull();
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend")).Should().BeNull();
     }
 
     [Fact]
-    public void AnalysisPipelineOf_AnotherSitesPipeline_IsNotReturned()
+    public void AnalysisOf_AnotherSitesStudy_IsNotReturned()
     {
         var model = new ModelBuilder()
             .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")
-            .Relate("Elsewhere", CoveringSourceResolver.AnalysedByPredicate, "SiteAnalysis");
+            .Relate("ElsewhereStudy", CoveringSourceResolver.StudiesPredicate, "Elsewhere");
 
-        CoveringSourceResolver.AnalysisPipelineOf(model.Build(), model.Id("WillowBend")).Should().BeNull();
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend")).Should().BeNull();
     }
 
     [Fact]
-    public void AnalysisPipelineOf_SnapshotHoldingAnUnnamedThing_StillFindsThePipeline()
+    public void AnalysisOf_ConnectionWithoutTheMark_IsNotATrigger()
+    {
+        // An unmarked connection is one bound for some other purpose. Starting it would dispatch a
+        // service against a study it knows nothing about.
+        var model = StudyOf("WillowBend")
+            .Relate("ordinary", CoveringSourceResolver.HasPredicate, "ordinary service")
+            .Relate("ordinary service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
+        model.Archetype("EnergyBalance prototype");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalysisOf_MarkedConnectionBindingNoService_IsNotATrigger()
+    {
+        // An edge pointing at nothing to dispatch would be written and never answered, which reads
+        // afterwards as an analysis that started and produced nothing.
+        var model = StudyOf("WillowBend")
+            .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection");
+        model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalysisOf_MarkThroughAnIntermediateArchetype_IsStillFound()
+    {
+        // A model may put its own archetype between a connection and the marked one. The mark is
+        // inherited through the is chain, so the walk climbs rather than reading one step.
+        var model = StudyOf("WillowBend")
+            .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "PlatformAnalysisConnection")
+            .Relate("PlatformAnalysisConnection", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
+            .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
+            .Relate("balancesEnergy service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
+        model.Archetype("PlatformAnalysisConnection");
+        model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        model.Archetype("EnergyBalance prototype");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Select(trigger => trigger.ConnectionName).Should().Equal("balancesEnergy");
+    }
+
+    [Fact]
+    public void AnalysisOf_TwoMarkedConnections_AreOrderedByName()
+    {
+        // A run writes its edges the same way twice, which is what makes the log of two runs comparable.
+        var model = StudyOf("WillowBend");
+        MarkedConnection(model, "reservesWater", "WaterReserve prototype");
+        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Select(trigger => trigger.ConnectionName)
+            .Should().Equal("balancesEnergy", "reservesWater");
+    }
+
+    [Fact]
+    public void AnalysisOf_SnapshotHoldingAnUnnamedThing_StillFindsTheStudy()
     {
         // A snapshot Thing's name is optional, and this runs on the path that serves a discovery run:
-        // one unnamed Thing anywhere in the snapshot must not stop the site's pipeline being found.
+        // one unnamed Thing anywhere in the snapshot must not stop the site's study being found.
         var site = Guid.NewGuid();
-        var pipeline = Guid.NewGuid();
-        var analysedBy = Guid.NewGuid();
+        var study = Guid.NewGuid();
+        var studies = Guid.NewGuid();
         var snapshot = new SnapshotDocument(
             0,
             new List<SnapshotThing>
             {
                 Thing(site, "WillowBend"),
-                Thing(pipeline, "SiteAnalysis"),
-                Thing(analysedBy, CoveringSourceResolver.AnalysedByPredicate),
+                Thing(study, "WillowBendStudy"),
+                Thing(studies, CoveringSourceResolver.StudiesPredicate),
                 Unnamed(Guid.NewGuid()),
             },
-            new List<SnapshotRelationship> { Edge(site, analysedBy, pipeline) });
+            new List<SnapshotRelationship> { Edge(study, studies, site) });
 
-        CoveringSourceResolver.AnalysisPipelineOf(snapshot, site).Should().Be(pipeline);
+        CoveringSourceResolver.AnalysisOf(snapshot, site)!.StudyId.Should().Be(study);
     }
 
     [Fact]
-    public void AnalysisPipelineOf_PredicateNameMatchIsCaseInsensitive()
+    public void AnalysisOf_PredicateNameMatchIsCaseInsensitive()
     {
-        var model = new ModelBuilder().Relate("WillowBend", "AnalysedBy", "SiteAnalysis");
+        var model = new ModelBuilder().Relate("WillowBendStudy", "Studies", "WillowBend");
 
-        CoveringSourceResolver.AnalysisPipelineOf(model.Build(), model.Id("WillowBend"))
-            .Should().Be(model.Id("SiteAnalysis"));
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .StudyId.Should().Be(model.Id("WillowBendStudy"));
+    }
+
+    [Fact]
+    public void SelectorFor_AsksForTheAnalysisConnectionsModelWide()
+    {
+        // The study is not related to its connections yet — relating it is what the read is for — so a
+        // traversal from the site reaches none of them.
+        var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
+
+        selector.MarkedTypes.Should().Equal(CoveringSourceResolver.SiteAnalysisConnectionFlag);
     }
 
     [Fact]
@@ -274,7 +379,9 @@ public class CoveringSourceResolverTests
             CoveringSourceResolver.IsInPredicate,
             CoveringSourceResolver.CoversPredicate,
             CoveringSourceResolver.ResolvedByPredicate,
-            CoveringSourceResolver.AnalysedByPredicate,
+            CoveringSourceResolver.StudiesPredicate,
+            CoveringSourceResolver.HasPredicate,
+            CoveringSourceResolver.IsPredicateName,
         });
     }
 
