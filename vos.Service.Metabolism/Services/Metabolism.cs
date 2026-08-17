@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Helpers;
 using vos.Service.Metabolism.Models;
 using System.Globalization;
@@ -11,15 +12,15 @@ public class Metabolism
     private readonly ConcurrentDictionary<string, SimulationEntry> _simulations = new();
     private readonly MyceliumClient _myceliumClient;
     private readonly ILogger<Metabolism> _logger;
-    private readonly string _mode;
+    private readonly ResourceDirection _direction;
     private readonly object _updateLock = new();
     private int _registrationOrder;
 
-    public Metabolism(MyceliumClient myceliumClient, ILogger<Metabolism> logger, string mode)
+    public Metabolism(MyceliumClient myceliumClient, ILogger<Metabolism> logger, ResourceDirection direction)
     {
         _myceliumClient = myceliumClient;
         _logger = logger;
-        _mode = mode;
+        _direction = direction;
     }
 
     // Raised when a relationship gains a simulation via a /handle request — the
@@ -66,7 +67,7 @@ public class Metabolism
     private async Task RunSimulationLoop(SimulationEntry entry, int order, CancellationToken ct)
     {
         var config = entry.Config;
-        var verb = _mode == "consumes" ? "decrementing" : "incrementing";
+        var verb = _direction.ProgressVerb;
 
         // Phase 1: Wait for startDelaySeconds before considering startUtc
         if (config.StartDelaySeconds > 0)
@@ -115,9 +116,8 @@ public class Metabolism
                 // Track per-relationship cumulative total (best-effort — pool operation already succeeded)
                 try
                 {
-                    var trackingProp = _mode == "consumes" ? "total_consumed" : "total_produced";
                     await _myceliumClient.IncrementRelationshipPropertyAsync(
-                        config.RelationshipId, trackingProp, config.Quantity);
+                        config.RelationshipId, _direction.TrackingPropertyName, config.Quantity);
                 }
                 catch (Exception relEx)
                 {

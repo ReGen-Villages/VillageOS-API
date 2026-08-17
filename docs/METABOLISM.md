@@ -126,7 +126,8 @@ The `Metabolism.UpdateProperty` method uses a lock to prevent race conditions wh
 vos.Service.Metabolism/
 ├── Program.cs                          # Entry point, wiring
 ├── Configuration/
-│   └── MetabolismLaunchSettings.cs     # the shared launch settings plus --mode
+│   ├── MetabolismLaunchSettings.cs     # the shared launch settings plus --mode
+│   └── ResourceDirection.cs            # what consuming and producing each mean
 ├── Models/
 │   ├── HandleRequest.cs                # /handle request payload
 │   └── SimulationConfig.cs             # Simulation loop parameters

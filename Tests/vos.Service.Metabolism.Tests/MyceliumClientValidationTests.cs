@@ -3,6 +3,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
+using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
 using vos.Service.Shared.Contracts.Validation;
 using vos.Tests.Shared;
@@ -129,7 +130,7 @@ public class MyceliumClientValidationTests
         var client = new TestableMetabolismMyceliumClient(
             httpFactory.Object,
             logger ?? new Mock<ILogger<MyceliumClient>>().Object,
-            "http://test-mycelium", "consumes")
+            "http://test-mycelium", ResourceDirection.Consumes)
         {
             ViolationModeForTests = mode,
             ApplyPayloadOverride = applyPayloadOverride,
@@ -143,8 +144,8 @@ public class MyceliumClientValidationTests
     // are protected-virtual on the production MyceliumClient (Phase 4).
     private sealed class TestableMetabolismMyceliumClient : MyceliumClient
     {
-        public TestableMetabolismMyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string myceliumUrl, string mode)
-            : base(http, log, myceliumUrl, mode) { }
+        public TestableMetabolismMyceliumClient(IHttpClientFactory http, ILogger<MyceliumClient> log, string myceliumUrl, ResourceDirection direction)
+            : base(http, log, myceliumUrl, direction) { }
 
         public SchemaViolationMode? ViolationModeForTests { get; set; }
         public Func<object>? ApplyPayloadOverride { get; set; }

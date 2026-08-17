@@ -1,5 +1,6 @@
 using System.Text.Json;
 using vos.Service.Metabolism.Models;
+using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
 using vos.Tests.Shared;
 using FluentAssertions;
@@ -19,10 +20,10 @@ public class MetabolismTests
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
         var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
-        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://localhost:0", "consumes");
+        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://localhost:0", ResourceDirection.Consumes);
 
         var engineLogger = new Mock<ILogger<Services.Metabolism>>();
-        _engine = new Services.Metabolism(myceliumClient, engineLogger.Object, "consumes");
+        _engine = new Services.Metabolism(myceliumClient, engineLogger.Object, ResourceDirection.Consumes);
     }
 
     private SimulationConfig MakeConfig(string relId = "rel-1", decimal quantity = 5.0m, int freqSeconds = 60) =>
@@ -230,8 +231,11 @@ public class MetabolismTests
     // Create a Metabolism engine whose MyceliumClient is backed by a MockHttpMessageHandler
     // so that ApplyQuantityAsync and IncrementRelationshipPropertyAsync succeed.
     private static Services.Metabolism CreateEngineWithMockedMycelium(
-        Func<HttpRequestMessage, HttpResponseMessage>? apiResponder = null)
+        Func<HttpRequestMessage, HttpResponseMessage>? apiResponder = null,
+        ResourceDirection? direction = null)
     {
+        direction ??= ResourceDirection.Consumes;
+
         apiResponder ??= _ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)
         {
             Content = new StringContent("{\"newValue\":1}", System.Text.Encoding.UTF8, "application/json")
@@ -254,10 +258,10 @@ public class MetabolismTests
             new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-mycelium") });
 
         var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
-        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://test-mycelium", "consumes");
+        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://test-mycelium", direction);
 
         var engineLogger = new Mock<ILogger<Services.Metabolism>>();
-        return new Services.Metabolism(myceliumClient, engineLogger.Object, "consumes");
+        return new Services.Metabolism(myceliumClient, engineLogger.Object, direction);
     }
 
     private static SimulationConfig MakePastConfig(
@@ -281,6 +285,33 @@ public class MetabolismTests
         await Task.Delay(1500);
 
         entry.Status.Should().Be("active");
+    }
+
+    // Regression (#6512): the running total a tick writes was chosen by comparing the launch word
+    // against a literal, so a misspelling recorded consumption as production and nothing failed.
+    [Theory]
+    [InlineData("consumes", "total_consumed", "decrements")]
+    [InlineData("produces", "total_produced", "increments")]
+    public async Task RunSimulationLoop_WritesTheRunningTotalAndPoolCallItsDirectionNames(
+        string launchArgument, string expectedTrackingProperty, string expectedPoolAction)
+    {
+        var paths = new System.Collections.Concurrent.ConcurrentBag<string>();
+        var engine = CreateEngineWithMockedMycelium(
+            req =>
+            {
+                paths.Add(req.RequestUri!.AbsolutePath);
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"newValue\":1}", System.Text.Encoding.UTF8, "application/json")
+                };
+            },
+            ResourceDirection.Parse(launchArgument));
+
+        engine.Register(MakePastConfig(freqSeconds: 1));
+        await Task.Delay(2500);
+
+        paths.Should().Contain($"/api/relationships/rel-1/properties/{expectedTrackingProperty}/increments");
+        paths.Should().Contain($"/api/things/target-1/properties/quantity/{expectedPoolAction}");
     }
 
     [Fact]

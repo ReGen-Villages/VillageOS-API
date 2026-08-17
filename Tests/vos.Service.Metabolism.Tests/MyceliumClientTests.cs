@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
 using vos.Tests.Shared;
 using FluentAssertions;
@@ -18,12 +19,12 @@ public class MyceliumClientTests
     {
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
-        return new MyceliumClient(httpFactory.Object, _logger.Object, "http://localhost:0", "consumes");
+        return new MyceliumClient(httpFactory.Object, _logger.Object, "http://localhost:0", ResourceDirection.Consumes);
     }
 
     // Create a MyceliumClient backed by a MockHttpMessageHandler so HTTP calls
     // are intercepted without requiring a running mycelium.
-    private MyceliumClient CreateMockedClient(MockHttpMessageHandler handler, string mode = "consumes")
+    private MyceliumClient CreateMockedClient(MockHttpMessageHandler handler, ResourceDirection? direction = null)
     {
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://test-mycelium") };
         var httpFactory = new Mock<IHttpClientFactory>();
@@ -36,7 +37,8 @@ public class MyceliumClientTests
                 BaseAddress = new Uri("http://test-mycelium")
             };
         });
-        return new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium", mode);
+        return new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium",
+            direction ?? ResourceDirection.Consumes);
     }
 
     // Build a MockHttpMessageHandler that responds to /api/auth/token with a fake JWT
@@ -70,7 +72,7 @@ public class MyceliumClientTests
                 Content = new StringContent("{\"newValue\":42.5}", System.Text.Encoding.UTF8, "application/json")
             });
 
-        var client = CreateMockedClient(mock, "consumes");
+        var client = CreateMockedClient(mock, ResourceDirection.Consumes);
 
         var result = await client.ApplyQuantityAsync("thing-1", "quantity", 5.0m, "TestSubject", "kWh");
 
@@ -87,7 +89,7 @@ public class MyceliumClientTests
                 Content = new StringContent("Thing not found", System.Text.Encoding.UTF8, "text/plain")
             });
 
-        var client = CreateMockedClient(mock, "consumes");
+        var client = CreateMockedClient(mock, ResourceDirection.Consumes);
 
         var act = () => client.ApplyQuantityAsync("nonexistent", "quantity", 5.0m);
         await act.Should().ThrowAsync<KeyNotFoundException>()
@@ -103,14 +105,14 @@ public class MyceliumClientTests
                 Content = new StringContent("Internal error", System.Text.Encoding.UTF8, "text/plain")
             });
 
-        var client = CreateMockedClient(mock, "consumes");
+        var client = CreateMockedClient(mock, ResourceDirection.Consumes);
 
         var act = () => client.ApplyQuantityAsync("thing-1", "quantity", 5.0m);
         await act.Should().ThrowAsync<HttpRequestException>();
     }
 
     [Fact]
-    public async Task ApplyQuantityAsync_ConsumesMode_CallsDecrementEndpoint()
+    public async Task ApplyQuantityAsync_ConsumingDirection_CallsDecrementEndpoint()
     {
         var mock = CreateTokenAwareMock(req =>
             new HttpResponseMessage(HttpStatusCode.OK)
@@ -118,7 +120,7 @@ public class MyceliumClientTests
                 Content = new StringContent("{\"ok\":true}", System.Text.Encoding.UTF8, "application/json")
             });
 
-        var client = CreateMockedClient(mock, "consumes");
+        var client = CreateMockedClient(mock, ResourceDirection.Consumes);
 
         await client.ApplyQuantityAsync("thing-1", "quantity", 5.0m);
 
@@ -128,7 +130,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task ApplyQuantityAsync_ProducesMode_CallsIncrementEndpoint()
+    public async Task ApplyQuantityAsync_ProducingDirection_CallsIncrementEndpoint()
     {
         var mock = CreateTokenAwareMock(req =>
             new HttpResponseMessage(HttpStatusCode.OK)
@@ -136,7 +138,7 @@ public class MyceliumClientTests
                 Content = new StringContent("{\"ok\":true}", System.Text.Encoding.UTF8, "application/json")
             });
 
-        var client = CreateMockedClient(mock, "produces");
+        var client = CreateMockedClient(mock, ResourceDirection.Produces);
 
         await client.ApplyQuantityAsync("thing-1", "quantity", 5.0m);
 
@@ -157,7 +159,7 @@ public class MyceliumClientTests
                 Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json")
             });
 
-        var client = CreateMockedClient(mock, "consumes");
+        var client = CreateMockedClient(mock, ResourceDirection.Consumes);
 
         // Should not throw
         await client.IncrementRelationshipPropertyAsync("rel-1", "total_consumed", 10.0m);
@@ -175,7 +177,7 @@ public class MyceliumClientTests
                 Content = new StringContent("Server error", System.Text.Encoding.UTF8, "text/plain")
             });
 
-        var client = CreateMockedClient(mock, "consumes");
+        var client = CreateMockedClient(mock, ResourceDirection.Consumes);
 
         var act = () => client.IncrementRelationshipPropertyAsync("rel-1", "total_consumed", 10.0m);
         await act.Should().ThrowAsync<HttpRequestException>();
@@ -191,7 +193,7 @@ public class MyceliumClientTests
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
 
-        var client = new MyceliumClient(httpFactory.Object, _logger.Object, "http://localhost:0", "consumes", "my-service-token");
+        var client = new MyceliumClient(httpFactory.Object, _logger.Object, "http://localhost:0", ResourceDirection.Consumes, "my-service-token");
 
         var token = await client.GetTokenAsync();
 
@@ -223,7 +225,7 @@ public class MyceliumClientTests
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(() =>
             new HttpClient(mock, disposeHandler: false) { BaseAddress = new Uri("http://test-mycelium") });
 
-        var client = new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium", "consumes", "my-service-token");
+        var client = new MyceliumClient(httpFactory.Object, _logger.Object, "http://test-mycelium", ResourceDirection.Consumes, "my-service-token");
 
         await client.ApplyQuantityAsync("thing-1", "quantity", 5.0m);
 
@@ -254,7 +256,7 @@ public class MyceliumClientTests
             }
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         });
-        var client = CreateMockedClient(mock, "consumes");
+        var client = CreateMockedClient(mock, ResourceDirection.Consumes);
 
         var ok = await client.RegisterAsync(7102);
 
@@ -266,7 +268,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task RegisterAsync_PortOverload_ProducesMode_RoutesWithCorrectServiceName()
+    public async Task RegisterAsync_PortOverload_ProducingDirection_RoutesWithCorrectServiceName()
     {
         System.Text.Json.JsonElement? capturedBody = null;
         var mock = CreateTokenAwareMock(req =>
@@ -279,7 +281,7 @@ public class MyceliumClientTests
             }
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         });
-        var client = CreateMockedClient(mock, "produces");
+        var client = CreateMockedClient(mock, ResourceDirection.Produces);
 
         await client.RegisterAsync(7103);
 

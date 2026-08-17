@@ -19,26 +19,29 @@ public class MetabolismLaunchSettingsTests
             pairs.Select(pair => new KeyValuePair<string, string?>(pair.Key, pair.Value))).Build();
 
     [Theory]
-    [InlineData(MetabolismLaunchSettings.ConsumesMode)]
-    [InlineData(MetabolismLaunchSettings.ProducesMode)]
-    public void Parse_AcceptsEitherMode(string mode)
+    [InlineData("consumes")]
+    [InlineData("produces")]
+    public void Parse_AcceptsEitherDirection(string argument)
     {
-        var result = MetabolismLaunchSettings.Parse(FlagsWith($"--mode={mode}"));
+        var result = MetabolismLaunchSettings.Parse(FlagsWith($"--mode={argument}"));
 
         result.Should().NotBeNull();
-        result!.Mode.Should().Be(mode);
+        result!.Direction.LaunchArgument.Should().Be(argument);
     }
 
+    // Regression (#6512): the direction decided the arithmetic through a word each reader compared
+    // against its own literal, so a differently-cased argument had to survive as the same direction.
     [Theory]
     [InlineData("CONSUMES")]
-    [InlineData("Produces")]
     [InlineData("cOnSuMeS")]
-    public void Parse_LowercasesTheMode(string mode)
+    public void Parse_ResolvesADifferentlyCasedArgumentToTheSameDirection(string argument)
     {
-        var result = MetabolismLaunchSettings.Parse(FlagsWith($"--mode={mode}"));
+        var result = MetabolismLaunchSettings.Parse(FlagsWith($"--mode={argument}"));
 
         result.Should().NotBeNull();
-        result!.Mode.Should().Be(mode.ToLowerInvariant());
+        result!.Direction.Should().BeSameAs(ResourceDirection.Consumes);
+        result.Direction.TrackingPropertyName.Should().Be("total_consumed");
+        result.Direction.PoolAction.Should().Be("decrements");
     }
 
     [Fact]
@@ -77,7 +80,7 @@ public class MetabolismLaunchSettingsTests
         var result = MetabolismLaunchSettings.Parse(Array.Empty<string>(), configuration);
 
         result.Should().NotBeNull();
-        result!.Mode.Should().Be(MetabolismLaunchSettings.ProducesMode);
+        result!.Direction.Should().BeSameAs(ResourceDirection.Produces);
     }
 
     [Fact]
@@ -88,7 +91,7 @@ public class MetabolismLaunchSettingsTests
         var result = MetabolismLaunchSettings.Parse(FlagsWith("--mode=consumes"), configuration);
 
         result.Should().NotBeNull();
-        result!.Mode.Should().Be(MetabolismLaunchSettings.ConsumesMode);
+        result!.Direction.Should().BeSameAs(ResourceDirection.Consumes);
     }
 
     [Fact]
@@ -97,8 +100,8 @@ public class MetabolismLaunchSettingsTests
         var usage = MetabolismLaunchSettings.UsageMessage;
 
         usage.Should().Contain("--mode")
-            .And.Contain(MetabolismLaunchSettings.ConsumesMode)
-            .And.Contain(MetabolismLaunchSettings.ProducesMode)
+            .And.Contain(ResourceDirection.Consumes.LaunchArgument)
+            .And.Contain(ResourceDirection.Produces.LaunchArgument)
             .And.Contain("--myceliumUrl");
     }
 }

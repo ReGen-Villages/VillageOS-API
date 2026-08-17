@@ -1,5 +1,6 @@
 using System.Text.Json;
 using vos.Service.Metabolism.Models;
+using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -18,10 +19,10 @@ public class HandleRequestProcessorTests
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
         var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
-        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://localhost:0", "consumes");
+        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://localhost:0", ResourceDirection.Consumes);
 
         var engineLogger = new Mock<ILogger<Services.Metabolism>>();
-        _engine = new Services.Metabolism(myceliumClient, engineLogger.Object, "consumes");
+        _engine = new Services.Metabolism(myceliumClient, engineLogger.Object, ResourceDirection.Consumes);
 
         var processorLogger = new Mock<ILogger<HandleRequestProcessor>>();
         _processor = new HandleRequestProcessor(_engine, processorLogger.Object);

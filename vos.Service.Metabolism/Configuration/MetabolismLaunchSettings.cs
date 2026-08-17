@@ -4,11 +4,8 @@ using vos.Service.Shared.Configuration;
 namespace vos.Service.Metabolism.Configuration;
 
 // The common service settings plus the direction this instance moves a quantity in.
-public sealed record MetabolismLaunchSettings(ServiceLaunchSettings Service, string Mode)
+public sealed record MetabolismLaunchSettings(ServiceLaunchSettings Service, ResourceDirection Direction)
 {
-    public const string ConsumesMode = "consumes";
-    public const string ProducesMode = "produces";
-
     public static MetabolismLaunchSettings? Parse(string[]? arguments, IConfiguration? configuration = null)
     {
         var reader = new LaunchSettingReader(arguments, configuration);
@@ -17,14 +14,15 @@ public sealed record MetabolismLaunchSettings(ServiceLaunchSettings Service, str
         if (service is null)
             return null;
 
-        var mode = reader.Read("mode")?.ToLowerInvariant();
-        if (mode is not (ConsumesMode or ProducesMode))
+        var direction = ResourceDirection.Parse(reader.Read("mode"));
+        if (direction is null)
             return null;
 
-        return new MetabolismLaunchSettings(service, mode);
+        return new MetabolismLaunchSettings(service, direction);
     }
 
     public static string UsageMessage => ServiceLaunchSettings.BuildUsageMessage(
-        $" --mode=<{ConsumesMode}|{ProducesMode}>",
-        $"\n  --mode         Whether the service decrements ({ConsumesMode}) or increments ({ProducesMode})");
+        $" --mode=<{string.Join("|", ResourceDirection.All.Select(d => d.LaunchArgument))}>",
+        $"\n  --mode         Whether the service {ResourceDirection.Consumes.PoolAction} "
+        + $"({ResourceDirection.Consumes}) or {ResourceDirection.Produces.PoolAction} ({ResourceDirection.Produces})");
 }

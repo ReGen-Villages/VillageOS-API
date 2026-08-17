@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Moq;
+using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
 using Xunit;
 
@@ -20,7 +21,7 @@ public class DependencyInjectionTests
         public bool GetAllWasCalled { get; private set; }
 
         public StubMetabolism(MyceliumClient myceliumClient, ILogger<Services.Metabolism> logger)
-            : base(myceliumClient, logger, "consumes")
+            : base(myceliumClient, logger, ResourceDirection.Consumes)
         {
         }
 
@@ -36,7 +37,7 @@ public class DependencyInjectionTests
         var httpFactory = new Mock<IHttpClientFactory>();
         httpFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
         var myceliumLogger = new Mock<ILogger<MyceliumClient>>();
-        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://localhost:0", "consumes");
+        var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://localhost:0", ResourceDirection.Consumes);
         var engineLogger = new Mock<ILogger<Services.Metabolism>>();
         return new StubMetabolism(myceliumClient, engineLogger.Object);
     }
