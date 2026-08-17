@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 namespace vos.Service.Shared.Subscriptions;
 
 /// <summary>
-/// One project's half of a compute service: the subjects it has computed for in that model, the
+/// What a compute service holds for one project: the subjects it has computed for in that model, the
 /// subscription carrying that model's changes, and the bearer both are held open with.
 ///
 /// The bearer is replaced before it expires rather than when a call fails. A subscription can sit quiet

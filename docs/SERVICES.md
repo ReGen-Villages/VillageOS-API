@@ -368,7 +368,7 @@ builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
 Pass the handler's own `InputProperties`, which it derives from the list `Compute` reads, so the filter
 cannot come to disagree with the inputs.
 
-Four details make it work:
+What makes it work:
 
 - **Watching the subject is enough.** Mycelium publishes a derived value on the Thing that owns it, so a
   roll-up whose members changed arrives as a property change on the subject, exactly like a param someone
