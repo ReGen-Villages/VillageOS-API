@@ -12,7 +12,7 @@
     "properties": {
       "objectId": { "type": "string", "description": "Id of the (already-existing) entity (thing or relationship) the reading belongs to." },
       "property": { "type": "string", "description": "Name of the property on the entity." },
-      "value": { "description": "The historical value: any JSON scalar (string, number, boolean) or null." },
+      "value": { "description": "The historical value: any JSON scalar (string, number, boolean) or null. The shape allows any scalar; the property's declared type decides whether it can hold the one sent, and a value it cannot hold is refused with 400." },
       "observedAt": { "type": "string", "description": "Observed-time as an ISO-8601 string. Required — sediment is historical, not live." }
     }
   }
