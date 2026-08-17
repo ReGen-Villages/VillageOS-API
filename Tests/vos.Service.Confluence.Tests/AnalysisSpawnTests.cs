@@ -195,6 +195,105 @@ public class AnalysisSpawnTests
     }
 
     [Fact]
+    public async Task Handle_PredicateAnsweredWithoutAnIdentifier_ReportsItRatherThanFailingTheRun()
+    {
+        // A Thing answered without an id cannot be related to, and reading one field off a body that
+        // does not carry it is how a wrong identifier gets used instead of none.
+        var ids = SiteWithOneSource();
+        await using var factory = new ConfluenceWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.Method == HttpMethod.Get && req.RequestUri!.AbsolutePath == "/api/things")
+                return Ok("""{"Name":"runs","Properties":{}}""");
+            if (req.RequestUri!.AbsolutePath == FetchRoute) return Ok("""{"success":true}""");
+            return RouteSubscription(req, ids, OneSourceAndAPipeline())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should()
+            .Contain("\"started\":false").And.Contain("'runs' predicate");
+    }
+
+    [Fact]
+    public async Task Handle_PredicateLookupRefused_ReportsItRatherThanFailingTheRun()
+    {
+        // A refused lookup is not proof the predicate is absent, but the run cannot start an analysis
+        // without it either way, and discovery's own result must survive being unable to.
+        var ids = SiteWithOneSource();
+        await using var factory = new ConfluenceWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.Method == HttpMethod.Get && req.RequestUri!.AbsolutePath == "/api/things")
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            if (req.RequestUri!.AbsolutePath == FetchRoute) return Ok("""{"success":true}""");
+            return RouteSubscription(req, ids, OneSourceAndAPipeline())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("\"unresolved\":[]").And.Contain("\"started\":false");
+    }
+
+    [Fact]
+    public async Task Handle_PredicateLookupCannotBeReached_ReportsItRatherThanFailingTheRun()
+    {
+        var ids = SiteWithOneSource();
+        await using var factory = new ConfluenceWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.Method == HttpMethod.Get && req.RequestUri!.AbsolutePath == "/api/things")
+                throw new HttpRequestException("the model is unreachable");
+            if (req.RequestUri!.AbsolutePath == FetchRoute) return Ok("""{"success":true}""");
+            return RouteSubscription(req, ids, OneSourceAndAPipeline())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("\"started\":false");
+    }
+
+    [Fact]
+    public async Task Handle_RelationshipWriteCannotBeReached_ReportsItRatherThanFailingTheRun()
+    {
+        // The write is the last thing a run does, and it reaches the network. An exception raised
+        // there must not escape as a 500 that throws away observations already written.
+        var ids = SiteWithOneSource();
+        await using var factory = new ConfluenceWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath == "/api/relationships")
+                throw new HttpRequestException("the model is unreachable");
+            if (req.Method == HttpMethod.Get && req.RequestUri!.AbsolutePath == "/api/things")
+                return Ok("{\"Id\":\"" + ids["runs"] + "\",\"Name\":\"runs\",\"Properties\":{}}");
+            if (req.RequestUri!.AbsolutePath == FetchRoute) return Ok("""{"success":true}""");
+            return RouteSubscription(req, ids, OneSourceAndAPipeline())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("OpenMeteo").And.Contain("\"started\":false");
+    }
+
+    [Fact]
     public async Task Handle_ModelHasNoRunsPredicate_ReportsItRatherThanFailingTheRun()
     {
         var ids = SiteWithOneSource();

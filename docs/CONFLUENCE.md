@@ -57,7 +57,9 @@ unresolved list either, because nothing knew to look for it.
 A `DataSource` with no `resolvedBy` edge is **left out** rather than reported as a failure.
 It is not a source that failed — it was never callable, and listing it as unresolved would
 blame a provider for a gap in the model. A `Site` with no `analysedBy` edge is treated the
-same way: nothing was ever going to run, so the run says so and does not call it a failure.
+same way: the run reports it in `analysis.reason` and logs nothing, where a pipeline that
+could not be started logs an error — nothing was ever going to run, so there is no outage
+for an operator to look into.
 
 ## Reading the model
 

@@ -214,6 +214,28 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
+    public void AnalysisPipelineOf_SnapshotHoldingAnUnnamedThing_StillFindsThePipeline()
+    {
+        // A snapshot Thing's name is optional, and this runs on the path that serves a discovery run:
+        // one unnamed Thing anywhere in the snapshot must not stop the site's pipeline being found.
+        var site = Guid.NewGuid();
+        var pipeline = Guid.NewGuid();
+        var analysedBy = Guid.NewGuid();
+        var snapshot = new SnapshotDocument(
+            0,
+            new List<SnapshotThing>
+            {
+                Thing(site, "WillowBend"),
+                Thing(pipeline, "SiteAnalysis"),
+                Thing(analysedBy, CoveringSourceResolver.AnalysedByPredicate),
+                Unnamed(Guid.NewGuid()),
+            },
+            new List<SnapshotRelationship> { Edge(site, analysedBy, pipeline) });
+
+        CoveringSourceResolver.AnalysisPipelineOf(snapshot, site).Should().Be(pipeline);
+    }
+
+    [Fact]
     public void AnalysisPipelineOf_PredicateNameMatchIsCaseInsensitive()
     {
         var model = new ModelBuilder().Relate("WillowBend", "AnalysedBy", "SiteAnalysis");
