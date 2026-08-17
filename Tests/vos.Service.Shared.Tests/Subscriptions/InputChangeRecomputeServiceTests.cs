@@ -570,6 +570,8 @@ public class InputChangeRecomputeServiceTests
 
         public TaskCompletionSource Subscribed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int FailSubscribesBefore { get; set; }
+        public bool FailAddObjects { get; set; }
+        public bool FailUnsubscribe { get; set; }
         public int SubscribeAttempts { get; private set; }
         public List<Guid> Members { get; } = new();
         public event Action? Reconnected;
@@ -597,9 +599,6 @@ public class InputChangeRecomputeServiceTests
                 new SnapshotDocument(0, new List<SnapshotThing>(), new List<SnapshotRelationship>())));
         }
 
-        public bool FailAddObjects { get; set; }
-        public bool FailUnsubscribe { get; set; }
-
         public Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default)
         {
             if (FailAddObjects) throw new HttpRequestException("mycelium refused the membership change");
@@ -614,8 +613,9 @@ public class InputChangeRecomputeServiceTests
 
         public Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default)
         {
-            Unsubscribed = true;
             if (FailUnsubscribe) throw new HttpRequestException("mycelium is already gone");
+
+            Unsubscribed = true;
             return Task.CompletedTask;
         }
 
