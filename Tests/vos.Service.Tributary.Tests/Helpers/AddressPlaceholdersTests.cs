@@ -57,7 +57,7 @@ public class AddressPlaceholdersTests
     }
 
     [Fact]
-    public void Fill_UnfilledPlaceholder_LeavesTheTemplateUnchanged()
+    public void Fill_UnfilledPlaceholder_LeavesTheAddressUnchanged()
     {
         // The caller refuses on `missing`; leaving the text alone keeps a half-filled address from
         // ever being mistaken for a real one.
