@@ -144,6 +144,23 @@ public class MyceliumClientBaseTests
         (await client.GetTokenAsync()).Should().Be("replacement-token");
     }
 
+    // Only a Bearer credential names a model. Anything else on the header is left alone, so the client
+    // falls back to its startup token rather than sending a scheme Mycelium would reject.
+    [Fact]
+    public async Task An_authorization_header_that_is_not_a_bearer_leaves_no_model_token_in_hand()
+    {
+        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK), serviceToken: TestToken);
+
+        string? tokenInsideRequest = null;
+        var pipeline = RequestTokenPipeline(async () => tokenInsideRequest = await client.GetTokenAsync());
+
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Headers.Authorization = "Basic dXNlcjpwYXNzd29yZA==";
+        await pipeline(ctx);
+
+        tokenInsideRequest.Should().Be(TestToken);
+    }
+
     private static RequestDelegate RequestTokenPipeline(Func<Task> terminal)
     {
         var app = new ApplicationBuilder(new ServiceCollection().BuildServiceProvider());
