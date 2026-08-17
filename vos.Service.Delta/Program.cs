@@ -126,8 +126,6 @@ finally
     Log.CloseAndFlush();
 }
 
-// Single-active-model assumption: writes target whichever model Delta's Token is scoped to.
-// /handle does not yet propagate the caller's model, so per-model routing is deferred (Feature #5478).
 static async Task<IResult> HandleRegisterEndpointRequestAsync(
     RegisterEndpointRequest request,
     MyceliumClient myceliumClient,
