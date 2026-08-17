@@ -143,8 +143,10 @@ If the `is`-wire or any property-set fails, Delta runs a **compensating delete**
 to remove the orphaned Thing, so a partial registration never lingers. Success returns the new
 `registeredThingId`, `endpointTemplateId`, and `predicateId`.
 
-> **Single active model.** Writes target whichever model Delta's service token is scoped to. `/handle`
-> does not yet propagate a caller-specified model, so per-model routing is deferred (Feature #5478).
+> **Which model a write lands in.** Delta writes using the bearer on the incoming request, which
+> Mycelium signs with the calling project's model — so one shared Delta registers into the model of
+> whoever called it. A request that arrives without a bearer (`/register` invoked directly) falls back
+> to the token Delta was started with, and writes into the model that token names.
 
 ## Endpoints
 
