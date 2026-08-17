@@ -2,7 +2,6 @@ using System.Text.Json;
 using vos.Auth.Shared;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
-using vos.Service.Phloem.Configuration;
 using vos.Service.Shared.Configuration;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Services;
@@ -10,18 +9,18 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var launchSettings = PhloemLaunchSettings.Parse(args, builder.Configuration);
+var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
 if (launchSettings == null)
 {
-    Console.WriteLine(PhloemLaunchSettings.UsageMessage);
+    Console.WriteLine(ServiceLaunchSettings.UsageMessage);
     Environment.Exit(1);
     return;
 }
 
-var servicePort = launchSettings.Service.Port;
-var myceliumUrl = launchSettings.Service.MyceliumUrl;
-var serviceToken = launchSettings.Service.Token;
-var signingKey = launchSettings.Service.SigningKey;
+var servicePort = launchSettings.Port;
+var myceliumUrl = launchSettings.MyceliumUrl;
+var serviceToken = launchSettings.Token;
+var signingKey = launchSettings.SigningKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 ServiceHost.ConfigureLogging("Phloem", "phloem-.log", writeToFile: !isTestingEnv);
@@ -37,19 +36,16 @@ try
     var authEnabled = !string.IsNullOrEmpty(signingKey);
     if (authEnabled)
     {
-        builder.AddMyceliumTokenAuth(signingKey!, issuer: launchSettings.Service.Issuer, audience: launchSettings.Service.Audience);
+        builder.AddMyceliumTokenAuth(signingKey!, issuer: launchSettings.Issuer, audience: launchSettings.Audience);
         Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            launchSettings.Service.Issuer, launchSettings.Service.Audience);
+            launchSettings.Issuer, launchSettings.Audience);
     }
 
-    // Archetype vocabulary pushed by Mycelium at launch (defaults when an arg is absent).
-    builder.Services.AddSingleton(launchSettings.Model);
     builder.Services.AddSingleton(sp =>
         new MyceliumGateway(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumGateway>>(),
             myceliumUrl,
-            sp.GetRequiredService<PipelineModelOptions>(),
             serviceToken));
     builder.Services.AddSingleton<IMyceliumGateway>(sp => sp.GetRequiredService<MyceliumGateway>());
     builder.Services.AddSingleton<PipelineExecutor>();

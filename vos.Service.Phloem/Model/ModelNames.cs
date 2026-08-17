@@ -1,16 +1,15 @@
 namespace vos.Service.Phloem.Model;
 
-// The fixed model vocabulary the orchestrator reads — the parts that are NOT configurable: the two
-// built-in generic predicates (is, has), property names, and the port-direction values. The
-// configurable archetype names (Connection, Service, Pipeline, …) live in
-// vos.Service.Phloem.Configuration.PipelineModelOptions, pushed from Mycelium's
-// config. This is the same granularity Mycelium uses (it hardcodes "Subdomain" and
-// PredicateNames.Is but takes archetype names from config).
+// The fixed model vocabulary the orchestrator reads: the built-in generic predicates (is, has, of),
+// property names, and the port-direction values. These are the platform's own words, the same ones
+// Mycelium spells out for itself. Which Thing plays which role is not among them — that is read from the
+// flag its archetype carries, in PipelineArchetypes.
 public static class ModelNames
 {
     // Built-in generic predicates
     public const string Is = "is";
     public const string Has = "has";
+    public const string Of = "of";
 
     // Properties
     public const string Subdomain = "Subdomain";

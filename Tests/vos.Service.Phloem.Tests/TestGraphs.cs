@@ -3,6 +3,21 @@ using vos.Service.Phloem.Model;
 
 namespace vos.Service.Phloem.Tests;
 
+// The two built-in predicates and the archetype for each role a pipeline is resolved from. The broker
+// selects the archetypes by the flag each carries, so a snapshot holds all of them whether or not the
+// pipeline in it has a node playing that role.
+public sealed record PipelineVocabulary(
+    GraphThing Is,
+    GraphThing Has,
+    GraphThing Pipeline,
+    GraphThing PipelineNode,
+    GraphThing Connection,
+    GraphThing Service,
+    GraphThing Port,
+    GraphThing PipelineWire,
+    GraphThing PipelineInput,
+    GraphThing PipelineOutput);
+
 // Builds a PipelineGraph programmatically for tests — Things + Relationships with
 // the same shapes Phloem reads from a Mycelium snapshot.
 public sealed class GraphFixture
@@ -22,6 +37,33 @@ public sealed class GraphFixture
         _things[t.Id] = t;
         _byName[name] = t;
         return t;
+    }
+
+    // An archetype carrying the flag that says which role it plays. The name is this fixture's own choice:
+    // nothing in the orchestrator reads it (#6516).
+    public GraphThing Archetype(string name, string roleFlag) => Thing(name, (roleFlag, true));
+
+    public PipelineVocabulary DeclareVocabulary(string namePrefix = "")
+    {
+        var isPredicate = Thing("is");
+        var has = Thing("has");
+        var node = Archetype(namePrefix + "PipelineNode", PipelineArchetypes.PipelineNodeFlag);
+        var input = Archetype(namePrefix + "PipelineInput", PipelineArchetypes.PipelineInputFlag);
+        var output = Archetype(namePrefix + "PipelineOutput", PipelineArchetypes.PipelineOutputFlag);
+        Rel(input, isPredicate, node);  // boundary archetypes ARE pipeline nodes (multiple inheritance)
+        Rel(output, isPredicate, node);
+
+        return new PipelineVocabulary(
+            isPredicate,
+            has,
+            Archetype(namePrefix + "Pipeline", PipelineArchetypes.PipelineFlag),
+            node,
+            Archetype(namePrefix + "PlatformServiceConnection", PipelineArchetypes.ConnectionFlag),
+            Archetype(namePrefix + "Service", PipelineArchetypes.ServiceFlag),
+            Archetype(namePrefix + "Port", PipelineArchetypes.PortFlag),
+            Archetype(namePrefix + "PipelineWire", PipelineArchetypes.PipelineWireFlag),
+            input,
+            output);
     }
 
     public GraphThing Get(string name) => _byName[name];
@@ -46,50 +88,42 @@ public static class TestGraphs
     public static (GraphFixture Fixture, Guid PipelineId) DemoPipeline()
     {
         var fx = new GraphFixture();
-        var isP = fx.Thing("is");
-        var has = fx.Thing("has");
+        var vocabulary = fx.DeclareVocabulary();
         var feeds = fx.Thing("feeds");
-
-        var pipelineArch = fx.Thing("Pipeline");
-        var nodeArch = fx.Thing("PipelineNode");
-        var connArch = fx.Thing("PlatformServiceConnection");
-        var svcArch = fx.Thing("Service");
-        var portArch = fx.Thing("Port");
-        var wireArch = fx.Thing("PipelineWire");
-        fx.Rel(feeds, isP, wireArch); // the feeds predicate is a PipelineWire
+        fx.Rel(feeds, vocabulary.Is, vocabulary.PipelineWire); // the feeds predicate is a pipeline wire
 
         var proto = fx.Thing("EchoProto");
-        fx.Rel(proto, isP, svcArch);
+        fx.Rel(proto, vocabulary.Is, vocabulary.Service);
         var portIn = fx.Thing("p.in", ("direction", "in"), ("type", "string"), ("portName", "message"), ("required", "true"));
         var portOut = fx.Thing("p.out", ("direction", "out"), ("type", "string"), ("portName", "echo"));
-        fx.Rel(portIn, isP, portArch);
-        fx.Rel(portOut, isP, portArch);
-        fx.Rel(proto, has, portIn);
-        fx.Rel(proto, has, portOut);
+        fx.Rel(portIn, vocabulary.Is, vocabulary.Port);
+        fx.Rel(portOut, vocabulary.Is, vocabulary.Port);
+        fx.Rel(proto, vocabulary.Has, portIn);
+        fx.Rel(proto, vocabulary.Has, portOut);
 
         var genSvc = fx.Thing("genSvc");
-        fx.Rel(genSvc, isP, proto);
+        fx.Rel(genSvc, vocabulary.Is, proto);
         var echSvc = fx.Thing("echSvc");
-        fx.Rel(echSvc, isP, proto);
+        fx.Rel(echSvc, vocabulary.Is, proto);
 
         var genConn = fx.Thing("genConn", ("Subdomain", "gen"));
-        fx.Rel(genConn, isP, connArch);
-        fx.Rel(genConn, has, genSvc);
+        fx.Rel(genConn, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(genConn, vocabulary.Has, genSvc);
         var echConn = fx.Thing("echConn", ("Subdomain", "ech"));
-        fx.Rel(echConn, isP, connArch);
-        fx.Rel(echConn, has, echSvc);
+        fx.Rel(echConn, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(echConn, vocabulary.Has, echSvc);
 
         var gen = fx.Thing("Generate");
-        fx.Rel(gen, isP, nodeArch);
-        fx.Rel(gen, has, genConn);
+        fx.Rel(gen, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(gen, vocabulary.Has, genConn);
         var ech = fx.Thing("Echo");
-        fx.Rel(ech, isP, nodeArch);
-        fx.Rel(ech, has, echConn);
+        fx.Rel(ech, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(ech, vocabulary.Has, echConn);
 
         var pipe = fx.Thing("Demo");
-        fx.Rel(pipe, isP, pipelineArch);
-        fx.Rel(pipe, has, gen);
-        fx.Rel(pipe, has, ech);
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, gen);
+        fx.Rel(pipe, vocabulary.Has, ech);
 
         fx.Rel(gen, feeds, ech, ("fromPort", "echo"), ("toPort", "message"));
 
@@ -102,59 +136,47 @@ public static class TestGraphs
     public static (GraphFixture Fixture, Guid PipelineId) BoundaryPipeline()
     {
         var fx = new GraphFixture();
-        var isP = fx.Thing("is");
-        var has = fx.Thing("has");
+        var vocabulary = fx.DeclareVocabulary();
         var feeds = fx.Thing("feeds");
-
-        var pipelineArch = fx.Thing("Pipeline");
-        var nodeArch = fx.Thing("PipelineNode");
-        var connArch = fx.Thing("PlatformServiceConnection");
-        var svcArch = fx.Thing("Service");
-        var portArch = fx.Thing("Port");
-        var wireArch = fx.Thing("PipelineWire");
-        var inArch = fx.Thing("PipelineInput");
-        var outArch = fx.Thing("PipelineOutput");
-        fx.Rel(feeds, isP, wireArch);
-        fx.Rel(inArch, isP, nodeArch);  // boundary archetypes ARE pipeline nodes (multiple inheritance)
-        fx.Rel(outArch, isP, nodeArch);
+        fx.Rel(feeds, vocabulary.Is, vocabulary.PipelineWire);
 
         // Echo service node: message (in) → echo (out).
         var proto = fx.Thing("EchoProto");
-        fx.Rel(proto, isP, svcArch);
+        fx.Rel(proto, vocabulary.Is, vocabulary.Service);
         var portIn = fx.Thing("e.in", ("direction", "in"), ("type", "string"), ("portName", "message"), ("required", "true"));
         var portOut = fx.Thing("e.out", ("direction", "out"), ("type", "string"), ("portName", "echo"));
-        fx.Rel(portIn, isP, portArch);
-        fx.Rel(portOut, isP, portArch);
-        fx.Rel(proto, has, portIn);
-        fx.Rel(proto, has, portOut);
+        fx.Rel(portIn, vocabulary.Is, vocabulary.Port);
+        fx.Rel(portOut, vocabulary.Is, vocabulary.Port);
+        fx.Rel(proto, vocabulary.Has, portIn);
+        fx.Rel(proto, vocabulary.Has, portOut);
         var echSvc = fx.Thing("echSvc");
-        fx.Rel(echSvc, isP, proto);
+        fx.Rel(echSvc, vocabulary.Is, proto);
         var echConn = fx.Thing("echConn", ("Subdomain", "ech"));
-        fx.Rel(echConn, isP, connArch);
-        fx.Rel(echConn, has, echSvc);
+        fx.Rel(echConn, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(echConn, vocabulary.Has, echSvc);
         var ech = fx.Thing("Echo");
-        fx.Rel(ech, isP, nodeArch);
-        fx.Rel(ech, has, echConn);
+        fx.Rel(ech, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(ech, vocabulary.Has, echConn);
 
         // Input boundary node with an output port `seed`.
         var input = fx.Thing("In");
-        fx.Rel(input, isP, inArch);
+        fx.Rel(input, vocabulary.Is, vocabulary.PipelineInput);
         var seedPort = fx.Thing("in.seed", ("direction", "out"), ("type", "string"), ("portName", "seed"));
-        fx.Rel(seedPort, isP, portArch);
-        fx.Rel(input, has, seedPort);
+        fx.Rel(seedPort, vocabulary.Is, vocabulary.Port);
+        fx.Rel(input, vocabulary.Has, seedPort);
 
         // Output boundary node with an input port `result`.
         var output = fx.Thing("Out");
-        fx.Rel(output, isP, outArch);
+        fx.Rel(output, vocabulary.Is, vocabulary.PipelineOutput);
         var resultPort = fx.Thing("out.result", ("direction", "in"), ("type", "string"), ("portName", "result"));
-        fx.Rel(resultPort, isP, portArch);
-        fx.Rel(output, has, resultPort);
+        fx.Rel(resultPort, vocabulary.Is, vocabulary.Port);
+        fx.Rel(output, vocabulary.Has, resultPort);
 
         var pipe = fx.Thing("BoundaryDemo");
-        fx.Rel(pipe, isP, pipelineArch);
-        fx.Rel(pipe, has, input);
-        fx.Rel(pipe, has, ech);
-        fx.Rel(pipe, has, output);
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, input);
+        fx.Rel(pipe, vocabulary.Has, ech);
+        fx.Rel(pipe, vocabulary.Has, output);
 
         fx.Rel(input, feeds, ech, ("fromPort", "seed"), ("toPort", "message"));
         fx.Rel(ech, feeds, output, ("fromPort", "echo"), ("toPort", "result"));
@@ -168,49 +190,20 @@ public static class TestGraphs
     public static (GraphFixture Fixture, Guid PipelineId) FieldMergePipeline()
     {
         var fx = new GraphFixture();
-        var isP = fx.Thing("is");
-        var has = fx.Thing("has");
+        var vocabulary = fx.DeclareVocabulary();
         var feeds = fx.Thing("feeds");
+        fx.Rel(feeds, vocabulary.Is, vocabulary.PipelineWire);
 
-        var pipelineArchetype = fx.Thing("Pipeline");
-        var nodeArchetype = fx.Thing("PipelineNode");
-        var connectionArchetype = fx.Thing("PlatformServiceConnection");
-        var serviceArchetype = fx.Thing("Service");
-        var portArchetype = fx.Thing("Port");
-        var wireArchetype = fx.Thing("PipelineWire");
-        fx.Rel(feeds, isP, wireArchetype);
-
-        var proto = fx.Thing("IOProto");
-        fx.Rel(proto, isP, serviceArchetype);
-        var portIn = fx.Thing("p.in", ("direction", "in"), ("type", "any"), ("portName", "in"));
-        var portOut = fx.Thing("p.out", ("direction", "out"), ("type", "any"), ("portName", "out"));
-        fx.Rel(portIn, isP, portArchetype);
-        fx.Rel(portOut, isP, portArchetype);
-        fx.Rel(proto, has, portIn);
-        fx.Rel(proto, has, portOut);
-
-        GraphThing Node(string name, string subdomain)
-        {
-            var service = fx.Thing($"{name}Svc");
-            fx.Rel(service, isP, proto);
-            var connection = fx.Thing($"{name}Conn", ("Subdomain", subdomain));
-            fx.Rel(connection, isP, connectionArchetype);
-            fx.Rel(connection, has, service);
-            var node = fx.Thing(name);
-            fx.Rel(node, isP, nodeArchetype);
-            fx.Rel(node, has, connection);
-            return node;
-        }
-
-        var a = Node("A", "a");
-        var b = Node("B", "b");
-        var c = Node("C", "c");
+        var proto = InputOutputPrototype(fx, vocabulary, "IOProto");
+        var a = ServiceNode(fx, vocabulary, proto, "A", "a");
+        var b = ServiceNode(fx, vocabulary, proto, "B", "b");
+        var c = ServiceNode(fx, vocabulary, proto, "C", "c");
 
         var pipe = fx.Thing("MergeDemo");
-        fx.Rel(pipe, isP, pipelineArchetype);
-        fx.Rel(pipe, has, a);
-        fx.Rel(pipe, has, b);
-        fx.Rel(pipe, has, c);
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, a);
+        fx.Rel(pipe, vocabulary.Has, b);
+        fx.Rel(pipe, vocabulary.Has, c);
 
         // Both wires target C.in, but land at different to-paths so they deep-merge instead of overwriting.
         fx.Rel(a, feeds, c, ("fromPort", "out"), ("toPort", "in"), ("toPath", "a"));
@@ -224,47 +217,18 @@ public static class TestGraphs
     public static (GraphFixture Fixture, Guid PipelineId) WireTransformPipeline(string transform)
     {
         var fx = new GraphFixture();
-        var isP = fx.Thing("is");
-        var has = fx.Thing("has");
+        var vocabulary = fx.DeclareVocabulary();
         var feeds = fx.Thing("feeds");
+        fx.Rel(feeds, vocabulary.Is, vocabulary.PipelineWire);
 
-        var pipelineArchetype = fx.Thing("Pipeline");
-        var nodeArchetype = fx.Thing("PipelineNode");
-        var connectionArchetype = fx.Thing("PlatformServiceConnection");
-        var serviceArchetype = fx.Thing("Service");
-        var portArchetype = fx.Thing("Port");
-        var wireArchetype = fx.Thing("PipelineWire");
-        fx.Rel(feeds, isP, wireArchetype);
-
-        var proto = fx.Thing("IOProto");
-        fx.Rel(proto, isP, serviceArchetype);
-        var portIn = fx.Thing("p.in", ("direction", "in"), ("type", "any"), ("portName", "in"));
-        var portOut = fx.Thing("p.out", ("direction", "out"), ("type", "any"), ("portName", "out"));
-        fx.Rel(portIn, isP, portArchetype);
-        fx.Rel(portOut, isP, portArchetype);
-        fx.Rel(proto, has, portIn);
-        fx.Rel(proto, has, portOut);
-
-        GraphThing Node(string name, string subdomain)
-        {
-            var service = fx.Thing($"{name}Svc");
-            fx.Rel(service, isP, proto);
-            var connection = fx.Thing($"{name}Conn", ("Subdomain", subdomain));
-            fx.Rel(connection, isP, connectionArchetype);
-            fx.Rel(connection, has, service);
-            var node = fx.Thing(name);
-            fx.Rel(node, isP, nodeArchetype);
-            fx.Rel(node, has, connection);
-            return node;
-        }
-
-        var a = Node("A", "a");
-        var c = Node("C", "c");
+        var proto = InputOutputPrototype(fx, vocabulary, "IOProto");
+        var a = ServiceNode(fx, vocabulary, proto, "A", "a");
+        var c = ServiceNode(fx, vocabulary, proto, "C", "c");
 
         var pipe = fx.Thing("TransformDemo");
-        fx.Rel(pipe, isP, pipelineArchetype);
-        fx.Rel(pipe, has, a);
-        fx.Rel(pipe, has, c);
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, a);
+        fx.Rel(pipe, vocabulary.Has, c);
         fx.Rel(a, feeds, c, ("fromPort", "out"), ("toPort", "in"), ("transform", transform));
 
         return (fx, pipe.Id);
@@ -275,37 +239,30 @@ public static class TestGraphs
     public static (GraphFixture Fixture, Guid PipelineId) ParamBoundPipeline()
     {
         var fx = new GraphFixture();
-        var isP = fx.Thing("is");
-        var has = fx.Thing("has");
-
-        var pipelineArch = fx.Thing("Pipeline");
-        var nodeArch = fx.Thing("PipelineNode");
-        var connArch = fx.Thing("PlatformServiceConnection");
-        var svcArch = fx.Thing("Service");
-        var portArch = fx.Thing("Port");
+        var vocabulary = fx.DeclareVocabulary();
 
         var proto = fx.Thing("EchoProto");
-        fx.Rel(proto, isP, svcArch);
+        fx.Rel(proto, vocabulary.Is, vocabulary.Service);
         var portIn = fx.Thing("p.in", ("direction", "in"), ("type", "string"), ("portName", "message"), ("required", "true"));
         var portOut = fx.Thing("p.out", ("direction", "out"), ("type", "string"), ("portName", "echo"));
-        fx.Rel(portIn, isP, portArch);
-        fx.Rel(portOut, isP, portArch);
-        fx.Rel(proto, has, portIn);
-        fx.Rel(proto, has, portOut);
+        fx.Rel(portIn, vocabulary.Is, vocabulary.Port);
+        fx.Rel(portOut, vocabulary.Is, vocabulary.Port);
+        fx.Rel(proto, vocabulary.Has, portIn);
+        fx.Rel(proto, vocabulary.Has, portOut);
 
         var echSvc = fx.Thing("echSvc");
-        fx.Rel(echSvc, isP, proto);
+        fx.Rel(echSvc, vocabulary.Is, proto);
         var echConn = fx.Thing("echConn", ("Subdomain", "ech"));
-        fx.Rel(echConn, isP, connArch);
-        fx.Rel(echConn, has, echSvc);
+        fx.Rel(echConn, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(echConn, vocabulary.Has, echSvc);
 
         var ech = fx.Thing("Echo", ("paramBindings", "{\"message\":\"greeting\"}"));
-        fx.Rel(ech, isP, nodeArch);
-        fx.Rel(ech, has, echConn);
+        fx.Rel(ech, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(ech, vocabulary.Has, echConn);
 
         var pipe = fx.Thing("ParamDemo");
-        fx.Rel(pipe, isP, pipelineArch);
-        fx.Rel(pipe, has, ech);
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, ech);
 
         return (fx, pipe.Id);
     }
@@ -315,46 +272,29 @@ public static class TestGraphs
     public static (GraphFixture Fixture, Guid PipelineId) SiteAnalysisWaterPipeline()
     {
         var fx = new GraphFixture();
-        var isP = fx.Thing("is");
-        var has = fx.Thing("has");
-
-        var pipelineArch = fx.Thing("Pipeline");
-        var nodeArch = fx.Thing("PipelineNode");
-        var connArch = fx.Thing("PlatformServiceConnection");
-        var svcArch = fx.Thing("Service");
-        var portArch = fx.Thing("Port");
+        var vocabulary = fx.DeclareVocabulary();
 
         var proto = fx.Thing("WaterReserveProto");
-        fx.Rel(proto, isP, svcArch);
-
-        void Port(string name, string direction, bool required = false)
-        {
-            var props = required
-                ? new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name), ("required", "true") }
-                : new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name) };
-            var p = fx.Thing($"p.{name}", props);
-            fx.Rel(p, isP, portArch);
-            fx.Rel(proto, has, p);
-        }
-        Port("population", "in", required: true);
-        Port("perCapitaConsumptionM3", "in", required: true);
-        Port("storageCapacityM3", "in", required: true);
-        Port("daysOfSupply", "out");
+        fx.Rel(proto, vocabulary.Is, vocabulary.Service);
+        NumberPort(fx, vocabulary, proto, "population", "in", required: true);
+        NumberPort(fx, vocabulary, proto, "perCapitaConsumptionM3", "in", required: true);
+        NumberPort(fx, vocabulary, proto, "storageCapacityM3", "in", required: true);
+        NumberPort(fx, vocabulary, proto, "daysOfSupply", "out");
 
         var svc = fx.Thing("waterSvc");
-        fx.Rel(svc, isP, proto);
+        fx.Rel(svc, vocabulary.Is, proto);
         var conn = fx.Thing("waterConn", ("Subdomain", "water-reserve"));
-        fx.Rel(conn, isP, connArch);
-        fx.Rel(conn, has, svc);
+        fx.Rel(conn, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(conn, vocabulary.Has, svc);
 
         var node = fx.Thing("WaterReserve",
             ("paramBindings", "{\"population\":\"population\",\"perCapitaConsumptionM3\":\"perCapitaConsumptionM3\",\"storageCapacityM3\":\"storageCapacityM3\"}"));
-        fx.Rel(node, isP, nodeArch);
-        fx.Rel(node, has, conn);
+        fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(node, vocabulary.Has, conn);
 
         var pipe = fx.Thing("SiteAnalysis");
-        fx.Rel(pipe, isP, pipelineArch);
-        fx.Rel(pipe, has, node);
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, node);
 
         return (fx, pipe.Id);
     }
@@ -365,49 +305,32 @@ public static class TestGraphs
     public static (GraphFixture Fixture, Guid PipelineId) SiteAnalysisEnergyPipeline()
     {
         var fx = new GraphFixture();
-        var isP = fx.Thing("is");
-        var has = fx.Thing("has");
-
-        var pipelineArch = fx.Thing("Pipeline");
-        var nodeArch = fx.Thing("PipelineNode");
-        var connArch = fx.Thing("PlatformServiceConnection");
-        var svcArch = fx.Thing("Service");
-        var portArch = fx.Thing("Port");
+        var vocabulary = fx.DeclareVocabulary();
 
         var proto = fx.Thing("EnergyBalanceProto");
-        fx.Rel(proto, isP, svcArch);
-
-        void Port(string name, string direction, bool required = false)
-        {
-            var props = required
-                ? new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name), ("required", "true") }
-                : new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name) };
-            var p = fx.Thing($"p.{name}", props);
-            fx.Rel(p, isP, portArch);
-            fx.Rel(proto, has, p);
-        }
-        Port("solarPvAreaM2", "in", required: true);
-        Port("solarResourceKwhPerM2PerYear", "in", required: true);
-        Port("moduleEfficiency", "in", required: true);
-        Port("performanceRatio", "in", required: true);
-        Port("otherGenerationMwhPerYear", "in", required: true);
-        Port("annualConsumptionMwhPerYear", "in", required: true);
-        Port("pctOfConsumption", "out");
+        fx.Rel(proto, vocabulary.Is, vocabulary.Service);
+        NumberPort(fx, vocabulary, proto, "solarPvAreaM2", "in", required: true);
+        NumberPort(fx, vocabulary, proto, "solarResourceKwhPerM2PerYear", "in", required: true);
+        NumberPort(fx, vocabulary, proto, "moduleEfficiency", "in", required: true);
+        NumberPort(fx, vocabulary, proto, "performanceRatio", "in", required: true);
+        NumberPort(fx, vocabulary, proto, "otherGenerationMwhPerYear", "in", required: true);
+        NumberPort(fx, vocabulary, proto, "annualConsumptionMwhPerYear", "in", required: true);
+        NumberPort(fx, vocabulary, proto, "pctOfConsumption", "out");
 
         var svc = fx.Thing("energySvc");
-        fx.Rel(svc, isP, proto);
+        fx.Rel(svc, vocabulary.Is, proto);
         var conn = fx.Thing("energyConn", ("Subdomain", "energy-balance"));
-        fx.Rel(conn, isP, connArch);
-        fx.Rel(conn, has, svc);
+        fx.Rel(conn, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(conn, vocabulary.Has, svc);
 
         var node = fx.Thing("EnergyBalance",
             ("paramBindings", "{\"solarPvAreaM2\":\"solarPvAreaM2\",\"solarResourceKwhPerM2PerYear\":\"solarResourceKwhPerM2PerYear\",\"moduleEfficiency\":\"moduleEfficiency\",\"performanceRatio\":\"performanceRatio\",\"otherGenerationMwhPerYear\":\"otherGenerationMwhPerYear\",\"annualConsumptionMwhPerYear\":\"annualConsumptionMwhPerYear\"}"));
-        fx.Rel(node, isP, nodeArch);
-        fx.Rel(node, has, conn);
+        fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(node, vocabulary.Has, conn);
 
         var pipe = fx.Thing("EnergyAnalysis");
-        fx.Rel(pipe, isP, pipelineArch);
-        fx.Rel(pipe, has, node);
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, node);
 
         return (fx, pipe.Id);
     }
@@ -418,41 +341,72 @@ public static class TestGraphs
     public static (GraphFixture Fixture, Guid PipelineId) FanOutPipeline(string onItemError = "fail")
     {
         var fx = new GraphFixture();
-        var isP = fx.Thing("is");
-        var has = fx.Thing("has");
-
-        var pipelineArch = fx.Thing("Pipeline");
-        var nodeArch = fx.Thing("PipelineNode");
-        var connArch = fx.Thing("PlatformServiceConnection");
-        var svcArch = fx.Thing("Service");
-        var portArch = fx.Thing("Port");
+        var vocabulary = fx.DeclareVocabulary();
 
         var proto = fx.Thing("ScoreProto");
-        fx.Rel(proto, isP, svcArch);
+        fx.Rel(proto, vocabulary.Is, vocabulary.Service);
         var pItem = fx.Thing("p.item", ("direction", "in"), ("type", "string"), ("portName", "item"), ("collection", "true"));
         var pWeight = fx.Thing("p.weight", ("direction", "in"), ("type", "number"), ("portName", "weight"));
         var pScore = fx.Thing("p.score", ("direction", "out"), ("type", "string"), ("portName", "score"));
-        fx.Rel(pItem, isP, portArch);
-        fx.Rel(pWeight, isP, portArch);
-        fx.Rel(pScore, isP, portArch);
-        fx.Rel(proto, has, pItem);
-        fx.Rel(proto, has, pWeight);
-        fx.Rel(proto, has, pScore);
+        fx.Rel(pItem, vocabulary.Is, vocabulary.Port);
+        fx.Rel(pWeight, vocabulary.Is, vocabulary.Port);
+        fx.Rel(pScore, vocabulary.Is, vocabulary.Port);
+        fx.Rel(proto, vocabulary.Has, pItem);
+        fx.Rel(proto, vocabulary.Has, pWeight);
+        fx.Rel(proto, vocabulary.Has, pScore);
 
         var svc = fx.Thing("scoreSvc");
-        fx.Rel(svc, isP, proto);
+        fx.Rel(svc, vocabulary.Is, proto);
         var conn = fx.Thing("scoreConn", ("Subdomain", "score"));
-        fx.Rel(conn, isP, connArch);
-        fx.Rel(conn, has, svc);
+        fx.Rel(conn, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(conn, vocabulary.Has, svc);
 
         var node = fx.Thing("Scorer", ("onItemError", onItemError), ("paramBindings", "{\"item\":\"items\",\"weight\":\"w\"}"));
-        fx.Rel(node, isP, nodeArch);
-        fx.Rel(node, has, conn);
+        fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(node, vocabulary.Has, conn);
 
         var pipe = fx.Thing("FanDemo");
-        fx.Rel(pipe, isP, pipelineArch);
-        fx.Rel(pipe, has, node);
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, node);
 
         return (fx, pipe.Id);
+    }
+
+    private static GraphThing InputOutputPrototype(GraphFixture fx, PipelineVocabulary vocabulary, string name)
+    {
+        var proto = fx.Thing(name);
+        fx.Rel(proto, vocabulary.Is, vocabulary.Service);
+        var portIn = fx.Thing("p.in", ("direction", "in"), ("type", "any"), ("portName", "in"));
+        var portOut = fx.Thing("p.out", ("direction", "out"), ("type", "any"), ("portName", "out"));
+        fx.Rel(portIn, vocabulary.Is, vocabulary.Port);
+        fx.Rel(portOut, vocabulary.Is, vocabulary.Port);
+        fx.Rel(proto, vocabulary.Has, portIn);
+        fx.Rel(proto, vocabulary.Has, portOut);
+        return proto;
+    }
+
+    private static GraphThing ServiceNode(
+        GraphFixture fx, PipelineVocabulary vocabulary, GraphThing prototype, string name, string subdomain)
+    {
+        var service = fx.Thing($"{name}Svc");
+        fx.Rel(service, vocabulary.Is, prototype);
+        var connection = fx.Thing($"{name}Conn", ("Subdomain", subdomain));
+        fx.Rel(connection, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(connection, vocabulary.Has, service);
+        var node = fx.Thing(name);
+        fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(node, vocabulary.Has, connection);
+        return node;
+    }
+
+    private static void NumberPort(
+        GraphFixture fx, PipelineVocabulary vocabulary, GraphThing prototype, string name, string direction, bool required = false)
+    {
+        var props = required
+            ? new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name), ("required", "true") }
+            : new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name) };
+        var port = fx.Thing($"p.{name}", props);
+        fx.Rel(port, vocabulary.Is, vocabulary.Port);
+        fx.Rel(prototype, vocabulary.Has, port);
     }
 }

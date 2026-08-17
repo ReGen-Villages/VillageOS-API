@@ -927,8 +927,14 @@ graph LR
   `Subdomain` is the dispatch address Phloem forwards to.
 - **Ports** are first-class `Port` Things on the service **prototype**, resolved by walking the bound
   service's `is`-chain (relationships do **not** inherit through `is`, so ports resolve at read time).
-- A **wire** is a relationship whose predicate **`is PipelineWire`** — identified by archetype, never by the
-  name `"feeds"` — carrying `fromPort`/`toPort`.
+- A **wire** is a relationship whose predicate `is` the wire archetype — identified by the role that
+  archetype is marked with, never by the predicate name `"feeds"` — carrying `fromPort`/`toPort`.
+- **Every role is a flag the archetype carries**, not a name: `__IsPipelineArchetype`,
+  `__IsPipelineNodeArchetype`, `__IsConnectionArchetype`, `__IsServiceArchetype`, `__IsPortArchetype`,
+  `__IsPipelineWireArchetype`, `__IsPipelineInputArchetype`, `__IsPipelineOutputArchetype`,
+  `__IsPipelineRunArchetype`, `__IsNodeRunArchetype`. The names below are only what the seed tool happens
+  to choose. Phloem asks for the marked archetypes through the subscription selector (`markedTypes` for a
+  role's members, `markedArchetypes` for the archetype alone), so renaming any of them changes nothing.
 - Make any seed DAG-ready with the `seed-migrate` tool in the private VillageOS repo (`tools/seed-migrate/pipeline-enable.js`),
   which adds the archetypes, the Phloem Connection, example Echo node services with typed Ports, and a demo Pipeline.
 
@@ -1072,8 +1078,9 @@ and between dispatches Phloem polls the run's `cancelRequested` flag for **coope
 
 *Internals:* `IMyceliumGateway` is the seam between orchestration and HTTP (so `PipelineExecutor` is
 unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the `PipelineDag`,
-`DagValidator` checks it, `MyceliumGateway` is the HTTP implementation. The archetype vocabulary
-(Connection/Service/Pipeline/…) comes from Mycelium's `ServiceModel` config, pushed to Phloem at launch.
+`DagValidator` checks it, `MyceliumGateway` is the HTTP implementation. Which archetype plays which role
+is read from the flag each one carries (`PipelineArchetypes`), so Phloem takes no archetype name at launch
+and a model may call its archetypes anything.
 
 ### 16.4 Creating & running a pipeline
 

@@ -14,6 +14,11 @@ public sealed class GraphThing
         Properties.TryGetValue(name, out var v)
             ? v.ValueKind == JsonValueKind.String ? v.GetString() : v.ToString()
             : null;
+
+    /// <summary>True when the Thing carries this flag set to true. A model says a Thing plays a role by
+    /// marking it; absent, false, and a non-boolean all mean it does not.</summary>
+    public bool CarriesFlag(string name) =>
+        Properties.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.True;
 }
 
 // A relationship: subject –predicate→ target, with unwrapped edge property values.
@@ -33,9 +38,9 @@ public sealed class GraphRelationship
 }
 
 // The pipeline subgraph loaded from a Mycelium subscription snapshot: Things + Relationships, with the
-// model traversals the orchestrator needs. is and has are the built-in generic predicates
-// and are matched by name; every other predicate (e.g. a pipeline wire) is identified by its predicate
-// Thing's archetype via IsOfType — never by predicate-name string.
+// model traversals the orchestrator needs. is and has are the built-in generic predicates and are matched
+// by name; everything else is reached through the flag an archetype carries, so a model may name its
+// archetypes and its wire predicates whatever it likes.
 public sealed class PipelineGraph
 {
     private const string IsPredicate = "is";
@@ -53,19 +58,25 @@ public sealed class PipelineGraph
 
     public GraphThing? Thing(Guid id) => _things.TryGetValue(id, out var t) ? t : null;
 
-    // The Thing acting as a relationship's predicate (predicates are Things).
-    public GraphThing? Predicate(GraphRelationship rel) => Thing(rel.PredicateId);
+    /// <summary>The archetype in this snapshot carrying the given flag, or null when none does. A snapshot
+    /// asked for the marked archetypes carries them whether or not the pipeline in it uses one, so a null
+    /// here says the model marks that role on nothing (#6516).</summary>
+    public GraphThing? ArchetypeCarrying(string roleFlag) =>
+        _things.Values.FirstOrDefault(thing => thing.CarriesFlag(roleFlag));
 
-    // True if thing is (transitively, via is) of the named archetype.
-    public bool IsOfType(GraphThing thing, string archetypeName) =>
-        IsOfType(thing, archetypeName, new HashSet<Guid>());
+    /// <summary>True when the Thing `is` — directly or transitively — an archetype carrying the given flag.
+    /// An archetype does not play its own role, so the walk starts above the Thing.</summary>
+    public bool IsOfArchetypeCarrying(GraphThing thing, string roleFlag) =>
+        IsOfArchetypeCarrying(thing, roleFlag, new HashSet<Guid> { thing.Id });
 
-    private bool IsOfType(GraphThing thing, string archetypeName, HashSet<Guid> seen)
+    private bool IsOfArchetypeCarrying(GraphThing thing, string roleFlag, HashSet<Guid> seen)
     {
-        if (!seen.Add(thing.Id)) return false;
-        if (string.Equals(thing.Name, archetypeName, StringComparison.OrdinalIgnoreCase)) return true;
         foreach (var parent in OutgoingTargets(thing, IsPredicate))
-            if (IsOfType(parent, archetypeName, seen)) return true;
+        {
+            if (!seen.Add(parent.Id)) continue;
+            if (parent.CarriesFlag(roleFlag)) return true;
+            if (IsOfArchetypeCarrying(parent, roleFlag, seen)) return true;
+        }
         return false;
     }
 
@@ -83,28 +94,14 @@ public sealed class PipelineGraph
         }
     }
 
-    // Subjects pointing at target via a predicate matched by name (e.g. the
-    // Connection that has a Service).
-    public IEnumerable<GraphThing> IncomingSubjects(GraphThing target, string predicateName)
-    {
-        foreach (var rel in _relationships)
-        {
-            if (rel.TargetId != target.Id) continue;
-            var predicate = Thing(rel.PredicateId);
-            if (predicate != null && string.Equals(predicate.Name, predicateName, StringComparison.OrdinalIgnoreCase)
-                && Thing(rel.SubjectId) is { } subject)
-                yield return subject;
-        }
-    }
-
-    // Outgoing relationships from subject whose predicate is the given
-    // archetype — the no-hardcoded-predicate way to find wires (predicate is PipelineWire).
-    public IEnumerable<GraphRelationship> OutgoingByPredicateType(GraphThing subject, string predicateArchetype)
+    // Outgoing relationships whose predicate Thing is of an archetype carrying the given flag — how a wire
+    // is found without naming either the predicate or the archetype it comes from.
+    public IEnumerable<GraphRelationship> OutgoingByPredicateCarrying(GraphThing subject, string roleFlag)
     {
         foreach (var rel in _relationships)
         {
             if (rel.SubjectId != subject.Id) continue;
-            if (Thing(rel.PredicateId) is { } predicate && IsOfType(predicate, predicateArchetype))
+            if (Thing(rel.PredicateId) is { } predicate && IsOfArchetypeCarrying(predicate, roleFlag))
                 yield return rel;
         }
     }
