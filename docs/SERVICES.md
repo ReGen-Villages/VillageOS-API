@@ -22,7 +22,8 @@ handlers in Go, Node/TypeScript, Python, and Rust, see
 
 Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`, `Phloem`,
 `WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
-provisions the endpoint-template catalog into Mycelium at startup and validates every endpoint
+provisions the endpoint-template catalog into a model on that model's first registration, and
+validates every endpoint
 registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
 fetch side of the same endpoint story. `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
 site-analysis nodes: `WaterReserve` computes emergency reserve / days-of-supply / %
@@ -767,8 +768,8 @@ it is only shown once. Exchange it for a JWT via `POST /api/auth/token`
   binary (`--mode=consumes|produces`), tick logic.
 - [`MODELBRIDGE.md`](MODELBRIDGE.md) — ModelBridge model⇄DAG bridge node: the
   `read`/`write` modes, the `thingId`/`property` param contract, and a worked example.
-- [`DELTA.md`](DELTA.md) — Delta endpoint-registration service: template-catalog provisioning at
-  startup, the graph-validation rules, and the `/handle` registration contract.
+- [`DELTA.md`](DELTA.md) — Delta endpoint-registration service: per-model template-catalog
+  provisioning, the graph-validation rules, and the `/handle` registration contract.
 - [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) — Delivery contract,
   remaining DI refactors, possible contract-validation phases 5+6.
 

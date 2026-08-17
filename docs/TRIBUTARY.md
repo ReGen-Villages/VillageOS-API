@@ -17,7 +17,7 @@ back here.
 ## The endpoint-template graph
 
 Endpoints are not free-form. Delta provisions a **single-rooted template hierarchy**
-into Mycelium at boot and validates every registration against it (see
+into a model on its first registration, and validates every registration against it (see
 [`DELTA.md`](DELTA.md) and `SERVICES.md`). A registration `is` a template, which `is` the
 root — admissible properties are the union of keys along that chain, and a value
 resolves to the closest ancestor that declares it:

@@ -37,6 +37,11 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
 
     public MockHttpMessageHandler? Handler { get; private set; }
 
+    // A handler answering synchronously runs each Mycelium call to completion on the caller's thread, so
+    // two requests started together still finish one after another and no test can drive them into each
+    // other. Set BEFORE the first CreateClient().
+    public bool AnswerConcurrently { get; set; }
+
     // Base64 HMAC key for inbound-request JWT validation. Null = auth disabled.
     public string? SigningKey { get; set; }
     public string? Issuer { get; set; }
@@ -87,7 +92,9 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<IHttpClientFactory>();
-            Handler = new MockHttpMessageHandler(req => HandlerCallback(req));
+            Handler = AnswerConcurrently
+                ? MockHttpMessageHandler.AnsweringAsynchronously(req => Task.Run(() => HandlerCallback(req)))
+                : new MockHttpMessageHandler(req => HandlerCallback(req));
             services.AddSingleton<IHttpClientFactory>(new PerCallHttpClientFactory(Handler));
 
             services.RemoveAll<IEndpointSeedProvider>();
