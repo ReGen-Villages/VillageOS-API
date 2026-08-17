@@ -56,7 +56,7 @@ public class ConfigCommandHandlerTests
     public async Task Execute_ModeCommand_DispatchesToPropertyModeHandler()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
-            @"{""DefaultMode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
+            @"{""Mode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
         _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode");
@@ -69,7 +69,7 @@ public class ConfigCommandHandlerTests
     public async Task Execute_PropertyModeCommand_DispatchesToPropertyModeHandler()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
-            @"{""DefaultMode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
+            @"{""Mode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
         _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("property-mode");
@@ -82,7 +82,7 @@ public class ConfigCommandHandlerTests
     public async Task Execute_ModeCommand_CaseInsensitive()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
-            @"{""DefaultMode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
+            @"{""Mode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
         _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("MODE");
@@ -93,11 +93,14 @@ public class ConfigCommandHandlerTests
 
     // ========== HandlePropertyModeAsync Tests ==========
 
+    // The fixtures below are the reply the platform actually sends: a field named Mode, and the modes
+    // it accepts. Reading a field it does not send printed an empty default and nothing failed (#6517).
     [Fact]
-    public async Task Mode_WithNoArgs_ShowsCurrentConfig()
+    public async Task Mode_WithNoArgs_ShowsCurrentConfigAndTheModesThePlatformReports()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
-            @"{""DefaultMode"":""RingBuffer"",""RingBufferSize"":200,""SampleRate"":50}");
+            @"{""Mode"":""RingBuffer"",""RingBufferSize"":200,""SampleRate"":50,
+               ""AvailableModes"":[""CurrentOnly"",""RingBuffer"",""Sampled"",""FullHistory""]}");
         _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode");
@@ -106,14 +109,29 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Default Mode:     RingBuffer", output);
         Assert.Contains("Ring Buffer Size: 200", output);
         Assert.Contains("Sample Rate:      50", output);
-        Assert.Contains("Available modes:", output);
+        Assert.Contains("Available modes: CurrentOnly, RingBuffer, Sampled, FullHistory", output);
+    }
+
+    // Regression (#6513): the client used to print a list of modes it was built with, which could
+    // disagree with the platform's.
+    [Fact]
+    public async Task Mode_WithNoArgs_ReportsAModeThisClientWasNeverBuiltWith()
+    {
+        var modeConfig = JsonSerializer.Deserialize<JsonElement>(
+            @"{""Mode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100,
+               ""AvailableModes"":[""CurrentOnly"",""EveryOtherChange""]}");
+        _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
+
+        await ExecuteHandler("mode");
+
+        Assert.Contains("Available modes: CurrentOnly, EveryOtherChange", _writer.ToString());
     }
 
     [Fact]
     public async Task Mode_GetWithNoArgs_ShowsDefaultMode()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
-            @"{""DefaultMode"":""FullHistory"",""RingBufferSize"":100,""SampleRate"":100}");
+            @"{""Mode"":""FullHistory"",""RingBufferSize"":100,""SampleRate"":100}");
         _myceliumMock.Setup(b => b.GetDefaultPropertyModeAsync()).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode get");
@@ -180,7 +198,7 @@ public class ConfigCommandHandlerTests
     public async Task Mode_SetWithModeName_SetsDefaultMode()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
-            @"{""DefaultMode"":""Sampled"",""RingBufferSize"":100,""SampleRate"":50}");
+            @"{""Mode"":""Sampled"",""RingBufferSize"":100,""SampleRate"":50}");
         _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("Sampled", null, null)).ReturnsAsync(modeConfig);
 
         await ExecuteHandler("mode set Sampled");
@@ -195,7 +213,7 @@ public class ConfigCommandHandlerTests
     public async Task Mode_WithValidModeName_SetsDefaultDirectly()
     {
         var modeConfig = JsonSerializer.Deserialize<JsonElement>(
-            @"{""DefaultMode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
+            @"{""Mode"":""CurrentOnly"",""RingBufferSize"":100,""SampleRate"":100}");
         // The mode name gets lowercased in HandlePropertyModeAsync before being passed to SetDefaultModeAsync
         _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("currentonly", null, null)).ReturnsAsync(modeConfig);
 
@@ -205,14 +223,20 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Default property mode set to: CurrentOnly", output);
     }
 
+    // Regression (#6513): a word that is not a subcommand is a mode name, and the platform decides
+    // whether it is one. The client used to refuse it first, from a list of its own.
     [Fact]
-    public async Task Mode_WithUnknownAction_ShowsError()
+    public async Task Mode_WithAWordThatIsNotASubcommand_SendsItAsAModeAndShowsThePlatformsRefusal()
     {
-        await ExecuteHandler("mode invalidaction");
+        _myceliumMock.Setup(b => b.SetDefaultPropertyModeAsync("everyotherchange", null, null))
+            .ThrowsAsync(new HttpRequestException(
+                """400 Bad Request: {"error":"Invalid mode: everyotherchange","availableModes":["CurrentOnly","RingBuffer","Sampled","FullHistory"]}"""));
+
+        await ExecuteHandler("mode everyotherchange");
 
         var output = _writer.ToString();
-        Assert.Contains("Unknown property-mode subcommand: invalidaction", output);
-        Assert.Contains("Use: config mode [get|set]", output);
+        Assert.Contains("Invalid mode: everyotherchange", output);
+        Assert.Contains("CurrentOnly", output);
     }
 
     // ========== Error Handling Tests ==========

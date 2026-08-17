@@ -40,9 +40,7 @@ public class PlantCommandHandlerTests : IDisposable
 
         var output = _writer.ToString();
         Assert.Contains("Usage: plant <file> [mode] [options]", output);
-        Assert.Contains("CurrentOnly", output);
-        Assert.Contains("RingBuffer", output);
-        Assert.Contains("FullHistory", output);
+        Assert.Contains("Run 'config mode' to see the modes this platform accepts.", output);
     }
 
     // ========== Basic Plant Tests ==========
@@ -354,19 +352,24 @@ public class PlantCommandHandlerTests : IDisposable
         Assert.Contains("Configured 1 properties across 1 things", output);
     }
 
+    // Regression (#6513): the client held its own list of modes and silently dropped a word that was
+    // not on it, so a mode the platform accepts and this client had not heard of did nothing at all.
     [Fact]
-    public async Task Execute_WithInvalidMode_OnlyLoadsFile()
+    public async Task Execute_WithAModeThisClientDoesNotKnow_SendsItToThePlatform()
     {
-        var seedContent = @"{""Id"":""00000000-0000-0000-0000-000000000001"",""Name"":""Test"",""Things"":[]}";
+        var seedContent = @"{""Id"":""00000000-0000-0000-0000-000000000001"",""Name"":""Test"",""Things"":[
+            {""Id"":""00000000-0000-0000-0000-000000000002"",""Name"":""Spring"",""Properties"":{""flowRate"":1}}]}";
         var seedPath = CreateSeedFile("test.json", seedContent);
+        var thingId = Guid.Parse("00000000-0000-0000-0000-000000000002");
 
         _myceliumMock.Setup(b => b.SetModelAsync(seedContent)).ReturnsAsync("OK");
+        _myceliumMock.Setup(b => b.GetAllThingsAsync())
+            .ReturnsAsync(JsonDocument.Parse(@"[{""Id"":""00000000-0000-0000-0000-000000000002"",
+                ""Name"":""Spring"",""Properties"":{""flowRate"":{}}}]").RootElement);
 
-        await ExecuteHandler($"{seedPath} InvalidMode");
+        await ExecuteHandler($"{seedPath} EveryOtherChange");
 
-        var output = _writer.ToString();
-        Assert.Contains("Model loaded from", output);
-        Assert.DoesNotContain("Setting all properties", output);
+        _myceliumMock.Verify(b => b.SetPropertyModeAsync(thingId, "flowRate", "EveryOtherChange", null, null), Times.Once);
     }
 
     // ========== ParseArguments Edge Cases ==========
