@@ -14,6 +14,13 @@ public class CoveringSourceResolverTests
         Array.Empty<string>(),
         Array.Empty<Guid>());
 
+    private static SnapshotThing Unnamed(Guid id) => new(
+        id, null, false,
+        new Dictionary<string, SnapshotProperty>(),
+        new Dictionary<string, InheritedPropertySet>(),
+        Array.Empty<string>(),
+        Array.Empty<Guid>());
+
     private static SnapshotRelationship Edge(Guid subject, Guid predicate, Guid target) => new(
         Guid.NewGuid(), null, subject, predicate, target,
         new Dictionary<string, SnapshotProperty>(),
@@ -220,6 +227,45 @@ public class CoveringSourceResolverTests
         var covering = CoveringSourceResolver.Resolve(snapshot, siteId);
 
         covering.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Resolve_ThingsWithNoName_AreStillSelectedAndReportedBlank()
+    {
+        // A snapshot Thing's name is optional, and this runs on the path that serves a discovery
+        // run — a missing name has to read as blank rather than end the run.
+        var site = Guid.NewGuid();
+        var place = Guid.NewGuid();
+        var source = Guid.NewGuid();
+        var endpoint = Guid.NewGuid();
+        var isIn = Guid.NewGuid();
+        var covers = Guid.NewGuid();
+        var resolvedBy = Guid.NewGuid();
+        var snapshot = new SnapshotDocument(
+            0,
+            new List<SnapshotThing>
+            {
+                Thing(site, "WillowBend"),
+                Thing(place, "Portugal"),
+                Unnamed(source),
+                Unnamed(endpoint),
+                Thing(isIn, CoveringSourceResolver.IsInPredicate),
+                Thing(covers, CoveringSourceResolver.CoversPredicate),
+                Thing(resolvedBy, CoveringSourceResolver.ResolvedByPredicate),
+            },
+            new List<SnapshotRelationship>
+            {
+                Edge(site, isIn, place),
+                Edge(source, covers, place),
+                Edge(source, resolvedBy, endpoint),
+            });
+
+        var covering = CoveringSourceResolver.Resolve(snapshot, site);
+
+        covering.Should().ContainSingle();
+        covering[0].Name.Should().BeEmpty();
+        covering[0].EndpointName.Should().BeEmpty();
+        covering[0].EndpointId.Should().Be(endpoint);
     }
 
     [Fact]
