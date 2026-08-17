@@ -119,7 +119,6 @@ public class MyceliumGatewayTests
             .Should().BeEquivalentTo(["is", "has"]);
         selector.TryGetProperty("types", out _).Should().BeFalse();
 
-        // Ports and wires by the flag their archetype carries.
         selector.GetProperty("markedTypes").EnumerateArray().Select(flag => flag.GetString())
             .Should().BeEquivalentTo([PipelineArchetypes.PortFlag, PipelineArchetypes.PipelineWireFlag]);
 
@@ -159,6 +158,36 @@ public class MyceliumGatewayTests
 
         graph.Things.Should().HaveCount(3);
         graph.Thing(pipelineId)!.Name.Should().Be("Demo");
+    }
+
+    // Phloem reads the snapshot once and never streams it, so a subscription left behind is a slice of the
+    // model the broker keeps resolving for a reader that has gone.
+    [Fact]
+    public async Task LoadPipelineSubgraphAsync_ReleasesTheSnapshotSubscription()
+    {
+        var subscriptionId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+                ? Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
+                {
+                    subscriptionId,
+                    snapshot = new { things = Array.Empty<object>(), relationships = Array.Empty<object>() },
+                }))
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        await gateway.LoadPipelineSubgraphAsync(Guid.NewGuid(), CancellationToken.None);
+
+        // The release is deliberately not awaited — the caller gets its graph without waiting on cleanup.
+        var released = await EventuallyAsync(() =>
+            RequestsTo(handler, $"/api/subscriptions/{subscriptionId}", HttpMethod.Delete).Count == 1);
+        released.Should().BeTrue();
+    }
+
+    private static async Task<bool> EventuallyAsync(Func<bool> condition)
+    {
+        for (var attempt = 0; attempt < 100 && !condition(); attempt++)
+            await Task.Delay(20);
+        return condition();
     }
 
     [Fact]

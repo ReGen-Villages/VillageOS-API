@@ -156,6 +156,69 @@ public class PipelineModelTests
     }
 
     [Fact]
+    public void Build_WhenTheThingIsNotAPipeline_Refuses()
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var notAPipeline = fx.Thing("Echo");
+        fx.Rel(notAPipeline, vocabulary.Is, vocabulary.PipelineNode);
+
+        var act = () => PipelineDagBuilder.Build(fx.Build(), notAPipeline.Id);
+
+        act.Should().Throw<PipelineModelException>().WithMessage("*'Echo') is not a pipeline*");
+    }
+
+    [Fact]
+    public void Build_WhenThePipelineHasNoNodes_Refuses()
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var pipe = fx.Thing("Empty");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+
+        var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id);
+
+        act.Should().Throw<PipelineModelException>().WithMessage("*'Empty' has no nodes*");
+    }
+
+    // Without a subdomain there is no address to dispatch the node to, and a run would fail one node at a
+    // time instead of refusing the pipeline.
+    [Fact]
+    public void Build_WhenTheConnectionCarriesNoSubdomain_Refuses()
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var connection = fx.Thing("addressless");
+        fx.Rel(connection, vocabulary.Is, vocabulary.Connection);
+        var node = fx.Thing("Echo");
+        fx.Rel(node, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(node, vocabulary.Has, connection);
+        var pipe = fx.Thing("P");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, node);
+
+        var act = () => PipelineDagBuilder.Build(fx.Build(), pipe.Id);
+
+        act.Should().Throw<PipelineModelException>().WithMessage("*'addressless' for node 'Echo' has no Subdomain*");
+    }
+
+    // A node whose bindings are unreadable runs with none rather than failing the whole pipeline: the
+    // run-param routing is optional, and a required input left unfilled is caught by validation instead.
+    [Fact]
+    public void Build_WhenParamBindingsAreNotReadable_LeavesTheNodeWithNone()
+    {
+        var (fx, pipelineId) = TestGraphs.DemoPipeline();
+        var broken = fx.Thing("Broken", ("paramBindings", "{not json"));
+        fx.Rel(broken, fx.Get("is"), fx.Get("PipelineNode"));
+        fx.Rel(broken, fx.Get("has"), fx.Get("echConn"));
+        fx.Rel(fx.Get("Demo"), fx.Get("has"), broken);
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        dag.Node(broken.Id)!.ParamBindings.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Build_NodeWithoutConnection_Throws()
     {
         var fx = new GraphFixture();
