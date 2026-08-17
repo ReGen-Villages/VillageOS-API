@@ -223,6 +223,21 @@ public class ConfigCommandHandlerTests
         Assert.Contains("Default property mode set to: CurrentOnly", output);
     }
 
+    // The per-property route answers with a field called Mode, like the default-mode route does.
+    // Nothing covered this path, so the field it reads was never checked against a reply (#6517).
+    [Fact]
+    public async Task Mode_SetForOneProperty_PrintsTheModeThePlatformReports()
+    {
+        var thingId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.SetPropertyModeAsync(thingId, "flowRate", "FullHistory", null, null))
+            .ReturnsAsync(JsonSerializer.Deserialize<JsonElement>(
+                @"{""Mode"":""FullHistory"",""RingBufferCapacity"":100,""RingBufferCount"":0}"));
+
+        await ExecuteHandler($"mode set {thingId} flowRate FullHistory");
+
+        Assert.Contains("Set property 'flowRate' mode to FullHistory", _writer.ToString());
+    }
+
     // Regression (#6513): a word that is not a subcommand is a mode name, and the platform decides
     // whether it is one. The client used to refuse it first, from a list of its own.
     [Fact]

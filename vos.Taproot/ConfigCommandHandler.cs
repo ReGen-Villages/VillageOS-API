@@ -99,7 +99,8 @@ namespace vos.Taproot
                     await HandleSetPropertyModeAsync(args);
                     return;
                 default:
-                    await SetDefaultModeAsync(new[] { action }.Concat(args).ToArray());
+                    var (_, ringBufferSize, sampleRate) = ParseModeArgs(args);
+                    await SetDefaultModeInternalAsync(action, ringBufferSize, sampleRate);
                     return;
             }
         }
@@ -199,18 +200,6 @@ namespace vos.Taproot
             _writer.WriteLine("Optional parameters:");
             _writer.WriteLine("  --ringbuffer=N  - Ring buffer size (for RingBuffer mode)");
             _writer.WriteLine("  --samplerate=N  - Sample rate (for Sampled mode)");
-        }
-
-        private async Task SetDefaultModeAsync(string[] args)
-        {
-            if (args.Length == 0)
-            {
-                _writer.WriteLine("Usage: config mode <ModeName> [--ringbuffer=N] [--samplerate=N]");
-                return;
-            }
-
-            var (_, ringBufferSize, sampleRate) = ParseModeArgs(args.Skip(1).ToArray());
-            await SetDefaultModeInternalAsync(args[0], ringBufferSize, sampleRate);
         }
 
         private async Task SetDefaultModeInternalAsync(string mode, int? ringBufferSize, int? sampleRate)
