@@ -857,20 +857,18 @@ The mechanism is already specified for tile pyramids as Feature
 [#5917](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/5917). This design depends
 on it.
 
-### A registration's reshape expression does not ingest
+### A registration's reshape expression now ingests
 
-The ingest branch is chosen on whether the **request** supplied a reshape expression, not on whether
-one is in effect. An expression configured on the registration — the documented, steady-state
-configuration — falls through and returns a transformed body, writing nothing.
+It did not. The ingest branch was chosen on whether the **request** supplied a reshape expression, so
+an expression configured on the registration — the documented, steady-state configuration — returned
+a transformed body and wrote nothing. Supplying it on the request did ingest, but that path also
+persisted the caller's expression onto the registration, so a read mutated its own configuration and
+two consumers of one source overwrote each other.
 
-Supplying it on the request does ingest, but that path also **persists the caller's expression onto
-the registration**, so a read operation mutates its own configuration and two consumers of one source
-overwrite each other.
-
-The tests covering the documented examples exercise the ingest service directly rather than the call
-path, which is why this sits inside a green suite. Raised as Bug
-[#6051](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6051), with the regression
-test required to go through the call path.
+Bug [#6051](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6051) closed both
+halves. The expression **in effect** decides — on the registration or inherited from its template —
+and a request-supplied one reshapes that call alone. The design above depends on this: a source
+registered once, with its reshape on the registration, writes onto the site every time it is called.
 
 ### Only one project can register an endpoint at all
 

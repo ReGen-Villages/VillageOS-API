@@ -37,7 +37,7 @@ public class EsriEndpointTemplateTests
             {
                 ["url"] = "",
                 ["httpMethod"] = "GET",
-                ["responseTransform"] = "$",
+                ["responseTransform"] = "",
                 ["headers"] = "",
                 ["queryParams"] = "",
                 ["requestContentType"] = "",

@@ -531,7 +531,7 @@ public class RegisterEndpointTests
             SeedJson = """
             {
               "things": [
-                { "name": "Endpoint", "properties": { "url": "", "httpMethod": "GET", "responseTransform": "$" } },
+                { "name": "Endpoint", "properties": { "url": "", "httpMethod": "GET", "responseTransform": "" } },
                 { "name": "EsriEndpoint", "properties": { "layer": "" } }
               ],
               "relationships": [ { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" } ]

@@ -183,107 +183,6 @@ public class MyceliumClientTests
         result.Should().NotContainKey("bad");
     }
 
-    // ---------- SetThingPropertyAsync ----------
-
-    [Fact]
-    public async Task SetThingPropertyAsync_WhenMyceliumReturnsSuccess_ReturnsTrue()
-    {
-        var thingId = Guid.NewGuid();
-        var handler = new MockHttpMessageHandler(request =>
-        {
-            if (request.Method == HttpMethod.Put && request.RequestUri!.AbsolutePath == $"/api/things/{thingId}/properties")
-                return new HttpResponseMessage(HttpStatusCode.OK);
-
-            return new HttpResponseMessage(HttpStatusCode.NotFound);
-        });
-
-        var sut = CreateClient(handler);
-        var result = await sut.SetThingPropertyAsync(thingId, "responseTransform", "$$.foo");
-
-        result.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task SetThingPropertyAsync_NonSuccessStatus_ReturnsFalse()
-    {
-        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
-        {
-            Content = new StringContent("upstream rejected", Encoding.UTF8, "text/plain")
-        });
-        var sut = CreateClient(handler);
-
-        (await sut.SetThingPropertyAsync(Guid.NewGuid(), "p", "v")).Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task SetThingPropertyAsync_TransportThrows_ReturnsFalse()
-    {
-        var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("boom"));
-        var sut = CreateClient(handler);
-
-        (await sut.SetThingPropertyAsync(Guid.NewGuid(), "p", "v")).Should().BeFalse();
-    }
-
-    // ---------- SetThingPropertyAsync via ResolveMyceliumValue arms ----------
-    // ResolveMyceliumValue is private. SetThingPropertyAsync calls it on the value passed in
-    // and serializes (resolved, type) into the PUT body. Each test asserts the body shape
-    // to pin the corresponding switch arm.
-
-    // Note: PutAsJsonAsync uses JsonSerializerOptions.Web (camelCase) so property names
-    // serialize as "name"/"type"/"value", not "Name"/"Type"/"Value".
-
-    [Theory]
-    [InlineData("a string value", "System.String", "\"a string value\"")]
-    [InlineData(true, "System.Boolean", "true")]
-    [InlineData(false, "System.Boolean", "false")]
-    [InlineData(42, "System.Int32", "42")]
-    [InlineData(42L, "System.Int64", "42")]
-    [InlineData(3.5, "System.Double", "3.5")]
-    public async Task SetThingPropertyAsync_PlainPrimitive_SerializesExpectedTypeAndValue(
-        object value, string expectedType, string expectedValueJson)
-    {
-        var body = await CaptureSetPropertyBody(value);
-        body.Should().Contain($"\"type\":\"{expectedType}\"");
-        body.Should().Contain($"\"value\":{expectedValueJson}");
-    }
-
-    [Fact]
-    public async Task SetThingPropertyAsync_DecimalValue_SerializesAsDecimal()
-    {
-        var body = await CaptureSetPropertyBody(1.5m);
-        body.Should().Contain("\"type\":\"System.Decimal\"");
-    }
-
-    [Fact]
-    public async Task SetThingPropertyAsync_NullValue_SerializesAsString()
-    {
-        var body = await CaptureSetPropertyBody(null);
-        body.Should().Contain("\"type\":\"System.String\"");
-        body.Should().Contain("\"value\":null");
-    }
-
-    [Fact]
-    public async Task SetThingPropertyAsync_UnknownObjectType_FallsBackToString()
-    {
-        var body = await CaptureSetPropertyBody(new { x = 1 });
-        body.Should().Contain("\"type\":\"System.String\"");
-    }
-
-    [Theory]
-    [InlineData("\"hello\"", "System.String")]
-    [InlineData("42", "System.Int64")]
-    [InlineData("3.5", "System.Double")]
-    [InlineData("true", "System.Boolean")]
-    [InlineData("false", "System.Boolean")]
-    [InlineData("null", "System.String")]
-    [InlineData("[1,2,3]", "System.String")]
-    public async Task SetThingPropertyAsync_JsonElementValue_RoutesByValueKind(string elementJson, string expectedType)
-    {
-        var element = JsonDocument.Parse(elementJson).RootElement;
-        var body = await CaptureSetPropertyBody(element);
-        body.Should().Contain($"\"type\":\"{expectedType}\"");
-    }
-
     // ---------- CreateThingAsync ----------
 
     [Fact]
@@ -434,6 +333,26 @@ public class MyceliumClientTests
             + "Mycelium stamp the whole batch once from the model clock");
     }
 
+    // A reshape's output arrives as JsonElement, so each value kind has to reach Mycelium as the
+    // scalar it stands for rather than its JSON text.
+    [Theory]
+    [InlineData("\"hello\"", "\"hello\"")]
+    [InlineData("42", "42")]
+    [InlineData("3.5", "3.5")]
+    [InlineData("true", "true")]
+    [InlineData("false", "false")]
+    [InlineData("null", "null")]
+    [InlineData("[1,2,3]", "\"[1,2,3]\"")]
+    public async Task SubmitObservationsAsync_JsonElementValue_SerializesByValueKind(
+        string elementJson, string expectedValueJson)
+    {
+        var element = JsonDocument.Parse(elementJson).RootElement;
+
+        var body = await CaptureObservationBody(element);
+
+        body.Should().Contain($"\"value\":{expectedValueJson}");
+    }
+
     [Fact]
     public async Task SubmitObservationsAsync_EmptyBatch_ShortCircuitsToTrue()
     {
@@ -524,22 +443,22 @@ public class MyceliumClientTests
         return null;
     }
 
-    private static async Task<string> CaptureSetPropertyBody(object? value)
+    private static async Task<string> CaptureObservationBody(object? value)
     {
         string capturedBody = string.Empty;
         var thingId = Guid.NewGuid();
         var handler = new MockHttpMessageHandler(req =>
         {
-            if (req.Method == HttpMethod.Put && req.RequestUri!.AbsolutePath == $"/api/things/{thingId}/properties")
+            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath == $"/api/things/{thingId}/observations")
             {
                 capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
-                return new HttpResponseMessage(HttpStatusCode.OK);
+                return JsonResponse("""{"accepted":1}""");
             }
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         });
 
         var sut = CreateClient(handler);
-        await sut.SetThingPropertyAsync(thingId, "p", value);
+        await sut.SubmitObservationsAsync(thingId, new[] { new ObservationSample("p", value) });
         return capturedBody;
     }
 }

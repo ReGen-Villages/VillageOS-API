@@ -25,7 +25,7 @@ public class EndpointSeedGraphResolutionTests
     private static EndpointSeedGraph ThreeLevelGraph() => EndpointSeedGraph.Build(Model(
         new[]
         {
-            Thing("Endpoint", new() { ["url"] = "", ["httpMethod"] = "GET", ["responseTransform"] = "$" }),
+            Thing("Endpoint", new() { ["url"] = "", ["httpMethod"] = "GET", ["responseTransform"] = "" }),
             Thing("EsriEndpoint", new() { ["httpMethod"] = "POST", ["layer"] = "" }),
             Thing("CountyParcels", new() { ["layer"] = "3" }),
         },

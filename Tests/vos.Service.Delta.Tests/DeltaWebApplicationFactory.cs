@@ -55,7 +55,7 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
           "properties": {
             "url": "https://default.example/",
             "httpMethod": "GET",
-            "responseTransform": "$"
+            "responseTransform": ""
           }
         }
       ],
