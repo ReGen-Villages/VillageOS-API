@@ -761,11 +761,10 @@ public class HandleEndpointTests
     public async Task Handle_ConfiguredTimeout_DoesNotBreakSuccessfulCall()
     {
         // A configured timeout resolves and is applied to the outbound client without disrupting a
-        // normal call. End-to-end timeout *enforcement* (cancellation of a slow endpoint) is not
-        // asserted here: the MockHttpMessageHandler returns synchronously and never observes the
-        // client's CancellationToken, so it cannot simulate a real timeout. The TimeSpan mapping is
-        // unit-tested in OutboundRequestTests.ResolveTimeout; this pins that a custom timeout flows
-        // through /handle without error.
+        // normal call. End-to-end enforcement against a slow endpoint is not asserted here — the
+        // factory's handler answers synchronously — though MockHttpMessageHandler.ObservingCancellation
+        // now makes that expressible. The TimeSpan mapping is unit-tested in
+        // OutboundRequestTests.ResolveTimeout; this pins that a custom timeout flows through /handle.
         var thingId = Guid.NewGuid();
         var props = """
         {

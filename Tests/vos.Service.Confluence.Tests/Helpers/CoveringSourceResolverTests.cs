@@ -193,7 +193,7 @@ public class CoveringSourceResolverTests
             CoveringSourceResolver.IsInPredicate,
             CoveringSourceResolver.CoversPredicate,
             CoveringSourceResolver.ResolvedByPredicate);
-        selector.Traverse[1].Direction.Should().Be("incoming");
+        selector.Traverse![1].Direction.Should().Be("incoming");
         selector.IncludeRelationships.Should().BeTrue();
     }
 
