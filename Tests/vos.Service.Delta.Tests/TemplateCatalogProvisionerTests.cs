@@ -12,8 +12,8 @@ using Xunit;
 
 namespace vos.Service.Delta.Tests;
 
-// Unit tests for TemplateCatalogProvisioner (Task #5468) — boot-time idempotent
-// creation of the endpoint-template catalog and its is wiring. The provisioner is exercised
+// Unit tests for TemplateCatalogProvisioner (Task #5468) — idempotent creation of one model's
+// endpoint-template catalog and its is wiring. The provisioner is exercised
 // against a real MyceliumClient over a MockHttpMessageHandler (the repo's
 // mycelium-faking convention), with a small stateful MyceliumStub tracking created things
 // and relationships so we can assert the exact mycelium writes.

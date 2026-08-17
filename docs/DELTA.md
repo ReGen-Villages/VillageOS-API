@@ -67,11 +67,17 @@ effective-property traversal. Construction throws if the seed graph:
 
 An invalid graph throws inside `LoadGraph()` during `app.Build()` wiring — Delta does not start.
 
-## Startup: provisioning the catalog
+## First contact: provisioning the catalog into a model
 
-On `ApplicationStarted`, `TemplateCatalogProvisioner.ProvisionAsync` reflects the seed graph into
-Mycelium so registrations never have to create templates lazily. It is **idempotent** by
-find-or-create by name:
+**A model is provisioned on its first registration, under the bearer that named it.** One Delta
+process answers every project — a second project's call reaches the daemon already running on the
+port both models declare — so a catalog built once at startup would sit in the single model Delta's
+launch token names, and every other project's registration would be refused for a template that is
+not in its model. `ModelTemplateCatalog` holds what each model has, keyed by the `vos:model_id` claim
+the caller's bearer carries.
+
+`TemplateCatalogProvisioner.ProvisionAsync` reflects the seed graph into that model. It is
+**idempotent** by find-or-create by name:
 
 1. Resolve the `is` predicate Thing (a model primitive — never created; if missing, provisioning
    logs and aborts).
@@ -99,14 +105,14 @@ template inherits nothing, so all of its properties stay on the create.
 > API to detect it. The same run leaves that template's narrowed keys unwritten, so it silently
 > keeps the parent's values. Tracked in the code comment on `TemplateCatalogProvisioner`.
 
-Provisioning is best-effort startup work (Mycelium's liveness monitor covers an unusable model)
-and is **skipped under the `Testing` environment** so tests make no Mycelium calls at boot.
+**A model provisions once, and calls that arrive together queue behind it.** Mycelium accepts a
+second Thing carrying a name it already holds, and then answers every lookup for that name with a
+conflict no later run can repair — so two first registrations from one model must not both provision
+it. A failed pass is not remembered: the next registration from that model tries again.
 
-> **Running at startup is itself the gap.** There is no request yet, so the catalog goes to the one
-> model Delta's launch token names, while a registration goes to the model of whoever called. See
-> [Which model a registration lives in](#which-model-a-registration-lives-in) for what that breaks,
-> and Bug [#6525](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6525) for the
-> fix — provision on first contact from a model, under that caller's token.
+**A held Thing id can go stale.** If the `is`-wire on a registration fails, the model's entry is
+discarded before the compensating delete, so the next registration provisions again rather than
+failing against the same missing template forever.
 
 ## Registration: `POST /handle` and `POST /register`
 
@@ -175,12 +181,11 @@ by seeding it. A source every project uses belongs in the seed every project is 
 source one project licenses stays in that project alone, with its credential. The template catalogue
 a registration inherits from belongs to the project's model on the same grounds.
 
-[Startup provisioning](#startup-provisioning-the-catalog) does not follow this yet. It runs before
-any request exists, so it uses the token Delta was launched with and the catalog lands in that one
-model — while one Delta process serves every project, because a second project's call finds the
-daemon already healthy on the port both models declare. A registration from any other model passes
-validation and then fails the "template is provisioned" check with a `500`. Tracked as Bug
-[#6525](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6525).
+The templates a registration is wired to follow it: they are provisioned into the caller's model on
+its [first registration](#first-contact-provisioning-the-catalog-into-a-model), under the same
+bearer. Provisioning at startup instead would have put the whole catalog in the one model Delta's
+launch token names, and every other project's registration would have been refused for a template
+absent from its own model.
 
 ## Endpoints
 
@@ -221,11 +226,12 @@ A parse failure or a graph-validation failure aborts boot.
 
 - Registration handler + lifecycle: `vos.Service.Delta/Program.cs`.
 - Graph model + validation: `vos.Service.Delta/Models/EndpointSeedGraph.cs`.
-- Startup provisioning: `vos.Service.Delta/Services/TemplateCatalogProvisioner.cs`.
+- Provisioning one model: `vos.Service.Delta/Services/TemplateCatalogProvisioner.cs`; which models
+  have been provisioned: `Services/ModelTemplateCatalog.cs`.
 - Mycelium client (Thing/relationship CRUD): `vos.Service.Delta/Services/MyceliumClient.cs`.
 - Seed loading: `vos.Service.Delta/Helpers/EndpointSeedLoader.cs`,
   `Services/FileEndpointSeedProvider.cs`.
 - Launch settings: `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs` (shared).
-- Tests: `Tests/vos.Service.Delta.Tests/` (`RegisterEndpointTests`,
+- Tests: `Tests/vos.Service.Delta.Tests/` (`RegisterEndpointTests`, `PerModelCatalogTests`,
   `TemplateCatalogProvisionerTests`, `EndpointSeedGraph*Tests`, `EsriEndpointTemplateTests`,
   `CompensateAsyncTests`, …).

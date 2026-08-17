@@ -870,18 +870,18 @@ halves. The expression **in effect** decides — on the registration or inherite
 and a request-supplied one reshapes that call alone. The design above depends on this: a source
 registered once, with its reshape on the registration, writes onto the site every time it is called.
 
-### Only one project can register an endpoint at all
+### Only one project could register an endpoint at all — fixed
 
 Delta writes a registration into the model of whoever called it, which is the shape this design
-wants. Its **template catalogue** does not follow: that is provisioned once at startup, under the
-token Delta was launched with, so it lands in a single model. One Delta process serves every project,
-because a second project's call finds the daemon already healthy on the port both models declare.
+wants. Its **template catalogue** did not follow: it was provisioned once at startup, under the token
+Delta was launched with, so it landed in a single model. One Delta process serves every project,
+because a second project's call finds the daemon already healthy on the port both models declare — so
+a registration from any other model passed every validation step and then failed on its template
+being absent, with a 500.
 
-So a registration from any other model passes every validation step and then fails on its template
-being absent, with a 500. Intake cannot register a source for a second project until this is fixed.
-Raised as Bug
-[#6525](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6525); the fix provisions
-per model, on first contact, under the caller's token.
+Delta now provisions a model's catalogue on that model's first registration, under the bearer that
+named it, and remembers which models it has done. Fixed under Bug
+[#6525](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6525).
 
 ---
 

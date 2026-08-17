@@ -67,38 +67,22 @@ try
         app.UseMyceliumModelToken();
     }
 
-    // Find-or-create every template thing at startup so registrations never create templates lazily.
-    // Skipped under tests so they make no mycelium calls at boot.
-    if (!app.Environment.IsEnvironment("Testing"))
-    {
-        var provisioner = new TemplateCatalogProvisioner(
-            app.Services.GetRequiredService<MyceliumClient>(),
-            graph,
-            app.Services.GetRequiredService<ILogger<TemplateCatalogProvisioner>>());
+    // Find-or-create every template thing on a model's first registration, under the token that named
+    // that model. Provisioning at startup instead would put the whole catalog in the one model Delta's
+    // launch token names, and one Delta process answers every project.
+    var provisioner = new TemplateCatalogProvisioner(
+        app.Services.GetRequiredService<MyceliumClient>(),
+        graph,
+        app.Services.GetRequiredService<ILogger<TemplateCatalogProvisioner>>());
+    var templateCatalog = new ModelTemplateCatalog();
 
-        app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
-        {
-            try
-            {
-                await provisioner.ProvisionAsync();
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Error provisioning Delta endpoint-template catalog at startup");
-            }
-        }));
-    }
+    var register = async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
+        await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph, provisioner, templateCatalog);
 
-    var handleEndpoint = app.MapPost("/handle", async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
-    {
-        return await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph);
-    });
+    var handleEndpoint = app.MapPost("/handle", register);
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
-    var registerEndpoint = app.MapPost("/register", async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
-    {
-        return await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph);
-    });
+    var registerEndpoint = app.MapPost("/register", register);
     if (authEnabled) registerEndpoint.RequireAuthorization();
 
     app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Delta" }));
@@ -129,7 +113,9 @@ finally
 static async Task<IResult> HandleRegisterEndpointRequestAsync(
     RegisterEndpointRequest request,
     MyceliumClient myceliumClient,
-    EndpointSeedGraph graph)
+    EndpointSeedGraph graph,
+    TemplateCatalogProvisioner provisioner,
+    ModelTemplateCatalog templateCatalog)
 {
     MyceliumClient.MyceliumThing? registeredThing = null;
     try
@@ -160,15 +146,6 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
             {
                 error = $"Unknown endpoint template '{templateName}'; it does not descend from the root '{graph.Root.Name}'."
             });
-        }
-
-        var isPredicate = await myceliumClient.FindThingByNameAsync("is");
-        if (isPredicate == null)
-        {
-            return Results.Problem(
-                detail: "Missing required 'is' predicate thing in mycelium model.",
-                statusCode: 500,
-                title: "Registration failed");
         }
 
         var allowedSet = graph.AllowedKeys(templateName);
@@ -211,10 +188,24 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         if (!HttpMethodValidator.IsSupportedMethod(normalizedMethod))
             return Results.BadRequest(new { error = $"Unsupported httpMethod: {effectiveMethod}" });
 
-        // Templates are provisioned at boot; a missing one is a provisioning failure, not repaired lazily here.
+        // The registration lands in the model the caller's bearer names, so the template it is wired to
+        // has to be in that same model — provisioned there on the first registration it sends. Resolved
+        // after the validation above so a request that was going to be refused provisions nothing.
+        var callerModelId = ModelScopedBearer.Read(await myceliumClient.GetTokenAsync())?.ModelId
+            ?? ModelTemplateCatalog.UnnamedModel;
+        var catalog = await templateCatalog.ProvisionedForAsync(callerModelId, provisioner.ProvisionAsync);
+        if (catalog == null)
+        {
+            return Results.Problem(
+                detail: "Missing required 'is' predicate thing in mycelium model.",
+                statusCode: 500,
+                title: "Registration failed");
+        }
+
+        // Absent means this model's provisioning pass could not create it; a later pass would create a
+        // second Thing of the same name rather than repair the first, so it is not retried here.
         var templateSeed = graph.Templates[templateName];
-        var templateThing = await myceliumClient.FindThingByNameAsync(templateSeed.Name);
-        if (templateThing == null)
+        if (!catalog.TemplateIdsByName.TryGetValue(templateSeed.Name, out var templateThingId))
         {
             return Results.Problem(
                 detail: $"Endpoint template '{templateSeed.Name}' is not provisioned in mycelium.",
@@ -238,11 +229,15 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
         // Mycelium awaits the is-handler synchronously, so inherited properties exist once this returns.
         var relationshipCreated = await myceliumClient.CreateRelationshipAsync(
             registeredThing.Value.Id,
-            isPredicate.Value.Id,
-            templateThing.Value.Id);
+            catalog.IsPredicateId,
+            templateThingId);
 
         if (!relationshipCreated)
         {
+            // The held ids are the likeliest reason the wire failed — a Thing deleted since it was
+            // provisioned is still named here. Discard them so the next registration provisions again
+            // rather than failing on the same two ids forever.
+            templateCatalog.Forget(callerModelId);
             await CompensateAsync(myceliumClient, registeredThing.Value.Id);
             return Results.Problem(
                 detail: "Failed to create 'is' relationship for registered endpoint.",
@@ -269,8 +264,8 @@ static async Task<IResult> HandleRegisterEndpointRequestAsync(
             success = true,
             message = "Endpoint registered successfully",
             registeredThingId = registeredThing.Value.Id,
-            endpointTemplateId = templateThing.Value.Id,
-            predicateId = isPredicate.Value.Id
+            endpointTemplateId = templateThingId,
+            predicateId = catalog.IsPredicateId
         });
     }
     catch (Exception ex)
