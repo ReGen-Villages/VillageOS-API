@@ -183,17 +183,82 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
+    public void AnalysisPipelineOf_SiteAnalysedByAPipeline_IsThatPipeline()
+    {
+        var model = new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.AnalysedByPredicate, "SiteAnalysis");
+
+        var pipeline = CoveringSourceResolver.AnalysisPipelineOf(model.Build(), model.Id("WillowBend"));
+
+        pipeline.Should().Be(model.Id("SiteAnalysis"));
+    }
+
+    [Fact]
+    public void AnalysisPipelineOf_SiteAnalysedByNothing_IsNull()
+    {
+        // Not a failure: nothing was ever going to run, and reporting it as one would blame the run
+        // for a gap in the model — the same rule a source with no registration is left out under.
+        var model = new ModelBuilder().Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal");
+
+        CoveringSourceResolver.AnalysisPipelineOf(model.Build(), model.Id("WillowBend")).Should().BeNull();
+    }
+
+    [Fact]
+    public void AnalysisPipelineOf_AnotherSitesPipeline_IsNotReturned()
+    {
+        var model = new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")
+            .Relate("Elsewhere", CoveringSourceResolver.AnalysedByPredicate, "SiteAnalysis");
+
+        CoveringSourceResolver.AnalysisPipelineOf(model.Build(), model.Id("WillowBend")).Should().BeNull();
+    }
+
+    [Fact]
+    public void AnalysisPipelineOf_SnapshotHoldingAnUnnamedThing_StillFindsThePipeline()
+    {
+        // A snapshot Thing's name is optional, and this runs on the path that serves a discovery run:
+        // one unnamed Thing anywhere in the snapshot must not stop the site's pipeline being found.
+        var site = Guid.NewGuid();
+        var pipeline = Guid.NewGuid();
+        var analysedBy = Guid.NewGuid();
+        var snapshot = new SnapshotDocument(
+            0,
+            new List<SnapshotThing>
+            {
+                Thing(site, "WillowBend"),
+                Thing(pipeline, "SiteAnalysis"),
+                Thing(analysedBy, CoveringSourceResolver.AnalysedByPredicate),
+                Unnamed(Guid.NewGuid()),
+            },
+            new List<SnapshotRelationship> { Edge(site, analysedBy, pipeline) });
+
+        CoveringSourceResolver.AnalysisPipelineOf(snapshot, site).Should().Be(pipeline);
+    }
+
+    [Fact]
+    public void AnalysisPipelineOf_PredicateNameMatchIsCaseInsensitive()
+    {
+        var model = new ModelBuilder().Relate("WillowBend", "AnalysedBy", "SiteAnalysis");
+
+        CoveringSourceResolver.AnalysisPipelineOf(model.Build(), model.Id("WillowBend"))
+            .Should().Be(model.Id("SiteAnalysis"));
+    }
+
+    [Fact]
     public void SelectorFor_WalksPlacesBeforeCoverage()
     {
-        // Traverse rules compose over the set built so far, so isIn must be first: asking for the
-        // incoming coverage edges before the places exist finds nothing.
+        // Traverse rules compose over the set built so far, so isIn must come before covers: asking
+        // for the incoming coverage edges before the places exist finds nothing. Only that ordering is
+        // pinned — a rule running from the seed set can sit anywhere, and pinning the whole list makes
+        // adding one look like a regression.
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
+        var predicates = selector.Traverse!.Select(rule => rule.Predicate).ToList();
 
-        selector.Traverse!.Select(rule => rule.Predicate).Should().Equal(
-            CoveringSourceResolver.IsInPredicate,
-            CoveringSourceResolver.CoversPredicate,
-            CoveringSourceResolver.ResolvedByPredicate);
-        selector.Traverse![1].Direction.Should().Be("incoming");
+        predicates.IndexOf(CoveringSourceResolver.IsInPredicate)
+            .Should().BeLessThan(predicates.IndexOf(CoveringSourceResolver.CoversPredicate));
+        selector.Traverse!
+            .Single(rule => rule.Predicate == CoveringSourceResolver.CoversPredicate)
+            .Direction.Should().Be("incoming");
         selector.IncludeRelationships.Should().BeTrue();
     }
 
@@ -209,6 +274,7 @@ public class CoveringSourceResolverTests
             CoveringSourceResolver.IsInPredicate,
             CoveringSourceResolver.CoversPredicate,
             CoveringSourceResolver.ResolvedByPredicate,
+            CoveringSourceResolver.AnalysedByPredicate,
         });
     }
 

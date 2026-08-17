@@ -418,8 +418,15 @@ sequenceDiagram
     Tributary->>Tributary: reshape into a reading
     Tributary->>Mycelium: write observation onto the Site
   end
+  Confluence->>Mycelium: WillowBend runs SiteAnalysis
+  Note over Mycelium: `runs` is a handled predicate,<br/>so the edge starts the pipeline
   Confluence-->>Planner: resolved · unresolved, each with a reason
 ```
+
+The analysis starts whatever mixture resolved, including none — a site whose sources were all
+unavailable is the case a planner most needs an answer about. Confluence never calls the
+orchestrator: it writes the edge and the platform dispatches, so there is one way to start an
+analysis rather than two. See [CONFLUENCE.md](CONFLUENCE.md#starting-the-analysis).
 
 Selection is a **graph walk, not a string match**: a source `covers` a Place, the site `isIn` a
 Place, and Places nest. A source cannot be silently skipped because a country was spelled two ways

@@ -8,7 +8,8 @@ namespace vos.Service.Confluence.Services;
 // address may name. Both come from the same snapshot, so a run reads the model once.
 public sealed record SiteCoverage(
     IReadOnlyList<CoveringSource> Covering,
-    IReadOnlyDictionary<string, string> Values);
+    IReadOnlyDictionary<string, string> Values,
+    Guid? AnalysisPipelineId);
 
 // Reads a site's coverage from the model in one scoped snapshot.
 //
@@ -44,7 +45,8 @@ public sealed class CoveringSourceService
         {
             return new SiteCoverage(
                 CoveringSourceResolver.Resolve(subscribed.Snapshot, siteId),
-                SiteValues.Of(subscribed.Snapshot, siteId));
+                SiteValues.Of(subscribed.Snapshot, siteId),
+                CoveringSourceResolver.AnalysisPipelineOf(subscribed.Snapshot, siteId));
         }
         finally
         {

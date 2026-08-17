@@ -16,6 +16,7 @@ public static class CoveringSourceResolver
     public const string CoversPredicate = "covers";
     public const string IsInPredicate = "isIn";
     public const string ResolvedByPredicate = "resolvedBy";
+    public const string AnalysedByPredicate = "analysedBy";
 
     // Place nesting is a handful of levels — a country inside a region inside the root is the deepest
     // shape anyone has needed. Far beyond that, and costing one unused set expansion per level, which
@@ -27,7 +28,8 @@ public static class CoveringSourceResolver
     // the incident pass brings the edges, but neither brings the Thing naming one. The walk below
     // compares those names, so a predicate left out here reads as "covers nothing" — a wrong answer
     // wearing the shape of a valid one.
-    private static readonly string[] PredicatesRead = [IsInPredicate, CoversPredicate, ResolvedByPredicate];
+    private static readonly string[] PredicatesRead =
+        [IsInPredicate, CoversPredicate, ResolvedByPredicate, AnalysedByPredicate];
 
     // Everything in one read: the site's Places, then every source whose coverage reaches one of them.
     // Traverse rules compose over the set built so far, so `isIn` must come first — the same ordering
@@ -42,6 +44,9 @@ public static class CoveringSourceResolver
             // Incoming: the edge runs source -> place, and the set so far holds the places.
             new TraverseRule { Predicate = CoversPredicate, Direction = "incoming" },
             new TraverseRule { Predicate = ResolvedByPredicate },
+            // Runs from the seed, which is in the set throughout, so its position among the rest
+            // does not matter — last keeps it out of the ordering the coverage walk depends on.
+            new TraverseRule { Predicate = AnalysedByPredicate },
         ],
         IncludeRelationships = true,
     };
@@ -71,6 +76,20 @@ public static class CoveringSourceResolver
         }
 
         return covering;
+    }
+
+    // The pipeline the site is analysed by, or null when it names none. A site that names no pipeline
+    // is not a failed discovery — nothing was ever going to run — so the run reports it and does not
+    // treat it as an outage, the same rule a DataSource with no registration is left out under.
+    public static Guid? AnalysisPipelineOf(SnapshotDocument snapshot, Guid siteId)
+    {
+        var namesById = snapshot.Things.ToDictionary(thing => thing.Id, thing => thing.Name ?? string.Empty);
+
+        foreach (var edge in snapshot.Relationships)
+            if (edge.SubjectId == siteId && IsPredicate(namesById, edge.PredicateId, AnalysedByPredicate))
+                return edge.TargetId;
+
+        return null;
     }
 
     // The site's own Place and every Place containing it. A site relates to one Place; the nesting is
