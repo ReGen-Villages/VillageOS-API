@@ -5,10 +5,10 @@ sources cover that site, calls each one through Tributary with the site's coordi
 reports what did and did not resolve. The name is where tributaries meet: many Tributary
 calls converging on one Site.
 
-It runs **before** the analysis pipeline, never inside it. Discovery populates the Site;
-the pipeline reads what discovery wrote. That keeps the pipeline a pure calculation graph
-with no network dependency, so a planner adjusting an assumption reruns the analysis
-instantly and without touching a public data portal again.
+It runs **before** the analysis, never inside it. Discovery populates the Site; the compute
+services read what discovery wrote. That keeps the compute free of any network dependency, so
+a planner adjusting an assumption sees the balances move without touching a public data portal
+again.
 
 ## Coverage is edges, not a word
 
@@ -52,14 +52,20 @@ unresolved list either, because nothing knew to look for it.
 | `isIn` | `Site isIn Place`, `Place isIn Place` | Where the site is, and what contains that. Walked to any depth, so nesting can be as deep as a model wants. |
 | `covers` | `DataSource covers Place` | Where a source applies. Several `covers` edges are fine; the source is still selected once. |
 | `resolvedBy` | `DataSource resolvedBy Endpoint` | Which Tributary registration a call goes through. A relation, not a copied name, so renaming the registration cannot strand the source. |
-| `analysedBy` | `Site analysedBy Pipeline` | Which analysis runs once discovery finishes. A relation for the same reason: a pipeline can be renamed or replaced without touching a site. |
+| `studies` | `SiteStudy studies Site` | The study the analysis computes. Read incoming, because the edge runs from the study to the site. |
+| `has`, `is` | `Connection has Service`, `Service is prototype` | Which service a connection dispatches, and the prototype an analysis edge points at. |
+
+Connections are **not** read by name. Every connection a site analysis starts `is` an archetype
+carrying `__IsSiteAnalysisConnectionArchetype`, and they are asked for by that mark, model-wide —
+the study is not related to them yet, because relating it is what the read is for. Adding a fourth
+balance is a mark in the model, not a change here.
 
 A `DataSource` with no `resolvedBy` edge is **left out** rather than reported as a failure.
 It is not a source that failed — it was never callable, and listing it as unresolved would
-blame a provider for a gap in the model. A `Site` with no `analysedBy` edge is treated the
-same way: the run reports it in `analysis.reason` and logs nothing, where a pipeline that
-could not be started logs an error — nothing was ever going to run, so there is no outage
-for an operator to look into.
+blame a provider for a gap in the model. A `Site` with no study, and a model marking no analysis
+connection, are treated the same way: the run reports it in `analysis.reason` and logs nothing,
+where a service that could not be started logs an error — nothing was ever going to run, so there
+is no outage for an operator to look into.
 
 ## Reading the model
 
@@ -114,25 +120,34 @@ this service.
 
 ## Starting the analysis
 
-**When the run finishes, Confluence writes `Site runs Pipeline`.** `runs` is a handled predicate, so
-creating that edge is what dispatches the pipeline — the orchestrator is never called from here. The
-model carries the trigger, which means there is one way to start an analysis rather than two to keep
-in step, and what started a given run is answerable from the model afterwards rather than only from
-a log.
+**When the run finishes, Confluence relates the site's study to each compute service** — one
+`SiteStudy -connection-> prototype` edge per marked connection. A connection bound to a service is a
+handled predicate, so creating that edge is what dispatches it; no compute service is called from
+here. The model carries the trigger, which means there is one way to start an analysis rather than
+two to keep in step, and what started a given analysis is answerable from the model afterwards rather
+than only from a log.
+
+**The subject is the study, never the site.** A compute service reads its inputs off the study, so an
+edge naming the site would dispatch the service against a Thing carrying none of them.
+
+**The edge is written once.** Dispatch makes the service compute and start watching the study, so
+every later change to an input recomputes on its own. Discovery does not have to run again for a
+balance to stay current.
 
 **It starts whatever mixture resolved, including none.** A site whose sources were all unavailable is
 exactly the case a planner needs an answer about; an analysis that only ran when everything succeeded
 would go quiet precisely when something had gone wrong. The balances report against what discovery
 left them, and `unresolved` says what is missing and why.
 
-**Discovery runs before the analysis, never inside it.** That is what keeps the pipeline a pure
-calculation graph with no network dependency: a planner adjusting an assumption reruns it instantly
-and touches no public data portal again, because the values are already on the Site.
+**Discovery runs before the analysis, never inside it.** That is what keeps the compute free of any
+network dependency: a planner adjusting an assumption sees the balances move without touching a
+public data portal again, because the values are already on the Site. It matters more here than it
+would under a graph run once per request, because a reactive chain re-fires on every input change.
 
 **A failure to start does not lose the report.** The observations are written by the time the
-analysis is asked for, so a site naming no pipeline, a model with no `runs` predicate, or a refused
+analysis is asked for, so a site with no study, a model marking no analysis connection, or a refused
 relationship write are each reported in `analysis.reason` with the discovery report intact beside
-them.
+them. A write that fails for one connection names that connection.
 
 ## Pointers
 

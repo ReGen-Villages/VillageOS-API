@@ -94,6 +94,25 @@ public class SubscriptionClientTests
     }
 
     [Fact]
+    public async Task SubscribeAsync_sends_marked_types_under_the_name_the_broker_binds()
+    {
+        // A selector field the broker does not bind is dropped silently, and the read then answers with
+        // everything the traversal reached and none of what was asked for by mark — a short answer
+        // wearing the shape of a complete one.
+        HttpRequestMessage? captured = null;
+        var body = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (client, _) = Build(req => { captured = req; return Json(body); });
+
+        await client.SubscribeAsync(new SubscriptionSelector { MarkedTypes = ["__IsPumpArchetype"] });
+
+        (await captured!.Content!.ReadAsStringAsync())
+            .Should().Contain("\"markedTypes\":[\"__IsPumpArchetype\"]");
+    }
+
+    [Fact]
     public async Task RemoveObjectsAsync_sends_delete_with_ids()
     {
         HttpRequestMessage? captured = null;
