@@ -138,7 +138,11 @@ public class PerSiteIngestTests
         var response = await client.PostAsJsonAsync("/handle", CallFor(Guid.NewGuid(), "39.4", "-8.2"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("\"observationsSubmitted\":0");
+        var summary = await response.Content.ReadAsStringAsync();
+        summary.Should().Contain("\"observationsSubmitted\":0");
+        // Nothing was written, so nothing was touched — the same answer the name path gives, and the
+        // difference between "no data" and a successful ingest of none.
+        summary.Should().Contain("\"entitiesTouched\":0");
         recorder.ObservedOn.Should().BeEmpty();
     }
 

@@ -130,9 +130,7 @@ public class ObservationIngestService
             // The reading consumed by creation is captured as each property's seed Fact; every
             // remaining reading becomes an observation on the entity's series.
             var toObserve = created ? entityReadings.Skip(1) : entityReadings;
-            var samples = toObserve
-                .SelectMany(r => r.Properties.Select(kv => new ObservationSample(kv.Key, kv.Value, r.ObservedAt)))
-                .ToList();
+            var samples = SamplesOf(toObserve);
 
             if (samples.Count > 0)
             {
@@ -152,19 +150,24 @@ public class ObservationIngestService
     // was not created by the same fetch.
     private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(Guid subjectId, List<Reading> readings)
     {
-        var samples = readings
-            .SelectMany(reading => reading.Properties.Select(
-                value => new ObservationSample(value.Key, value.Value, reading.ObservedAt)))
-            .ToList();
+        var samples = SamplesOf(readings);
 
+        // Nothing written is nothing touched. The name path counts an entity only once it has one to
+        // write to, and a summary claiming otherwise reads as a successful ingest of no data.
         if (samples.Count == 0)
-            return new ObservationIngestResult(true, 1, 0, null, null);
+            return new ObservationIngestResult(true, 0, 0, null, null);
 
         if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples))
             return new ObservationIngestResult(false, 1, 0, "Failed to submit observations for entity.", null);
 
         return new ObservationIngestResult(true, 1, samples.Count, null, null);
     }
+
+    private static List<ObservationSample> SamplesOf(IEnumerable<Reading> readings) =>
+        readings
+            .SelectMany(reading => reading.Properties.Select(
+                value => new ObservationSample(value.Key, value.Value, reading.ObservedAt)))
+            .ToList();
 
     private static bool TryNormalizeJson(string input, out string normalized)
     {
@@ -259,7 +262,8 @@ public class ObservationIngestService
             observedAt = parsed;
         }
 
-        readings.Add(new Reading(named ? nameProp.GetString() ?? string.Empty : string.Empty, props, observedAt));
+        var name = named ? nameProp.GetString() ?? string.Empty : string.Empty;
+        readings.Add(new Reading(name, props, observedAt));
         return true;
     }
 

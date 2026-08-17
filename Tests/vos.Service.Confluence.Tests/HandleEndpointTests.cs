@@ -40,6 +40,8 @@ public class HandleEndpointTests
     public async Task Handle_CallsEveryCoveringSource_AndReportsThemResolved()
     {
         var ids = TwoSourceNames();
+        // Sources are fetched concurrently, so the callback runs on two threads at once and an
+        // unsynchronised Add loses one of them — the test then fails about once in five runs.
         var fetched = new List<string>();
         await using var factory = new ConfluenceWebApplicationFactory();
         await factory.InitializeAsync();
@@ -47,7 +49,7 @@ public class HandleEndpointTests
         {
             if (req.RequestUri!.AbsolutePath == FetchRoute)
             {
-                fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                lock (fetched) fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Ok("""{"success":true}""");
             }
             return RouteSubscription(req, ids, TwoCoveringSources())
@@ -111,7 +113,7 @@ public class HandleEndpointTests
         {
             if (req.RequestUri!.AbsolutePath == FetchRoute)
             {
-                bodies.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                lock (bodies) bodies.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Ok("""{"success":true}""");
             }
             return RouteSubscription(req, ids, TwoCoveringSources(),
