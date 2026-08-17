@@ -20,7 +20,8 @@ public class SnapshotParserTests
           "snapshot": {
             "things": [
               { "id": "{{pipe}}", "name": "Demo", "properties": { "Subdomain": { "value": "gen", "type": "vos.String" } } },
-              { "id": "{{arch}}", "name": "Pipeline", "properties": {} },
+              { "id": "{{arch}}", "name": "Pipeline",
+                "properties": { "__IsPipelineArchetype": { "value": true, "type": "vos.Boolean" } } },
               { "id": "{{isPred}}", "name": "is", "properties": {} }
             ],
             "relationships": [
@@ -35,7 +36,7 @@ public class SnapshotParserTests
 
         graph.Things.Should().HaveCount(3);
         graph.Thing(pipe)!.PropertyString("Subdomain").Should().Be("gen");
-        // the is-relationship is readable as a type membership
-        graph.IsOfType(graph.Thing(pipe)!, "Pipeline").Should().BeTrue();
+        // the is-relationship is readable as the role the archetype above it is marked with
+        graph.IsOfArchetypeCarrying(graph.Thing(pipe)!, PipelineArchetypes.PipelineFlag).Should().BeTrue();
     }
 }

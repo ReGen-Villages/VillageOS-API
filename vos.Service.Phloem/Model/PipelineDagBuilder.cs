@@ -1,5 +1,4 @@
 using System.Text.Json;
-using vos.Service.Phloem.Configuration;
 
 namespace vos.Service.Phloem.Model;
 
@@ -12,29 +11,31 @@ public sealed class PipelineModelException : Exception
 
 // Resolves a loaded PipelineGraph + pipelineId into a PipelineDag:
 // nodes, their dispatch subdomain (node has Connection, Subdomain property), ports (walk the
-// bound service's is-chain), and wires (predicate is PipelineWire, carrying fromPort/toPort).
-// Archetype names come from PipelineModelOptions (config), never literals.
+// bound service's is-chain), and wires (the predicate is of the wire archetype, carrying fromPort/toPort).
+// Every role is read from the flag its archetype carries, never from a name.
 public static class PipelineDagBuilder
 {
-    public static PipelineDag Build(PipelineGraph graph, Guid pipelineId, PipelineModelOptions model)
+    public static PipelineDag Build(PipelineGraph graph, Guid pipelineId)
     {
+        PipelineArchetypes.RequireRolesAreMarked(graph);
+
         var pipeline = graph.Thing(pipelineId)
             ?? throw new PipelineModelException($"Pipeline {pipelineId} not found in the loaded subgraph.");
-        if (!graph.IsOfType(pipeline, model.Pipeline))
-            throw new PipelineModelException($"Thing {pipelineId} ('{pipeline.Name}') is not a {model.Pipeline}.");
+        if (!graph.IsOfArchetypeCarrying(pipeline, PipelineArchetypes.PipelineFlag))
+            throw new PipelineModelException($"Thing {pipelineId} ('{pipeline.Name}') is not a pipeline.");
 
         var nodeThings = graph.OutgoingTargets(pipeline, ModelNames.Has)
-            .Where(t => graph.IsOfType(t, model.PipelineNode))
+            .Where(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.PipelineNodeFlag))
             .ToList();
         if (nodeThings.Count == 0)
-            throw new PipelineModelException($"Pipeline '{pipeline.Name}' has no {model.PipelineNode}s.");
+            throw new PipelineModelException($"Pipeline '{pipeline.Name}' has no nodes.");
 
         var nodeIds = nodeThings.Select(n => n.Id).ToHashSet();
-        var nodes = nodeThings.Select(n => BuildNode(graph, n, model)).ToList();
+        var nodes = nodeThings.Select(n => BuildNode(graph, n)).ToList();
 
         var wires = new List<DagWire>();
         foreach (var nodeThing in nodeThings)
-            foreach (var rel in graph.OutgoingByPredicateType(nodeThing, model.PipelineWire))
+            foreach (var rel in graph.OutgoingByPredicateCarrying(nodeThing, PipelineArchetypes.PipelineWireFlag))
             {
                 if (!nodeIds.Contains(rel.TargetId)) continue; // ignore wires leaving the pipeline
                 wires.Add(new DagWire(
@@ -56,26 +57,26 @@ public static class PipelineDagBuilder
         };
     }
 
-    private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing, PipelineModelOptions model)
+    private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing)
     {
         // Boundary nodes (#5873) bind no Connection/Service: they declare their own ports (has → Port) and
         // are an Input source (params → outputs) or an Output sink (inputs → run result).
-        if (graph.IsOfType(nodeThing, model.PipelineInput))
-            return BuildBoundaryNode(graph, nodeThing, model, DagNodeKind.Input);
-        if (graph.IsOfType(nodeThing, model.PipelineOutput))
-            return BuildBoundaryNode(graph, nodeThing, model, DagNodeKind.Output);
+        if (graph.IsOfArchetypeCarrying(nodeThing, PipelineArchetypes.PipelineInputFlag))
+            return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Input);
+        if (graph.IsOfArchetypeCarrying(nodeThing, PipelineArchetypes.PipelineOutputFlag))
+            return BuildBoundaryNode(graph, nodeThing, DagNodeKind.Output);
 
         var connection = graph.OutgoingTargets(nodeThing, ModelNames.Has)
-            .FirstOrDefault(t => graph.IsOfType(t, model.Connection))
-            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' binds no {model.Connection} (has → {model.Connection}).");
+            .FirstOrDefault(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.ConnectionFlag))
+            ?? throw new PipelineModelException($"Node '{nodeThing.Name}' binds no service connection.");
 
         var subdomain = connection.PropertyString(ModelNames.Subdomain);
         if (string.IsNullOrWhiteSpace(subdomain))
-            throw new PipelineModelException($"{model.Connection} '{connection.Name}' for node '{nodeThing.Name}' has no {ModelNames.Subdomain}.");
+            throw new PipelineModelException($"Connection '{connection.Name}' for node '{nodeThing.Name}' has no {ModelNames.Subdomain}.");
 
         var service = graph.OutgoingTargets(connection, ModelNames.Has)
-            .FirstOrDefault(t => graph.IsOfType(t, model.Service))
-            ?? throw new PipelineModelException($"{model.Connection} '{connection.Name}' binds no {model.Service} (has → {model.Service}).");
+            .FirstOrDefault(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.ServiceFlag))
+            ?? throw new PipelineModelException($"Connection '{connection.Name}' binds no service.");
 
         return new DagNode
         {
@@ -83,7 +84,7 @@ public static class PipelineDagBuilder
             Name = nodeThing.Name,
             Subdomain = subdomain!,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
-            Ports = ResolvePorts(graph, service, model).ToList(),
+            Ports = ResolvePorts(graph, service).ToList(),
             ParamBindings = ParseParamBindings(nodeThing),
             OnItemError = string.Equals(nodeThing.PropertyString(ModelNames.OnItemError), ModelNames.OnItemErrorContinue, StringComparison.OrdinalIgnoreCase)
                 ? ModelNames.OnItemErrorContinue
@@ -94,7 +95,7 @@ public static class PipelineDagBuilder
     // A boundary node (#5873): ports are declared on the node itself (its own has → Port chain),
     // there is no dispatch subdomain, and its DagNodeKind tells the executor to seed from params
     // (Input) or collect into the run result (Output).
-    private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, PipelineModelOptions model, DagNodeKind kind)
+    private static DagNode BuildBoundaryNode(PipelineGraph graph, GraphThing nodeThing, DagNodeKind kind)
     {
         return new DagNode
         {
@@ -103,7 +104,7 @@ public static class PipelineDagBuilder
             Kind = kind,
             Subdomain = string.Empty,
             Params = new Dictionary<string, JsonElement>(nodeThing.Properties, StringComparer.Ordinal),
-            Ports = ResolvePorts(graph, nodeThing, model).ToList(),
+            Ports = ResolvePorts(graph, nodeThing).ToList(),
             ParamBindings = ParseParamBindings(nodeThing),
         };
     }
@@ -135,7 +136,7 @@ public static class PipelineDagBuilder
 
     // Collect Port child-Things by walking the service's is-chain — relationships do not
     // inherit through is, so ports resolve at read time at each level of the chain.
-    private static IEnumerable<DagPort> ResolvePorts(PipelineGraph graph, GraphThing service, PipelineModelOptions model)
+    private static IEnumerable<DagPort> ResolvePorts(PipelineGraph graph, GraphThing service)
     {
         var seen = new HashSet<Guid>();
         var stack = new Stack<GraphThing>();
@@ -144,7 +145,8 @@ public static class PipelineDagBuilder
         {
             var current = stack.Pop();
             if (!seen.Add(current.Id)) continue;
-            foreach (var portThing in graph.OutgoingTargets(current, ModelNames.Has).Where(t => graph.IsOfType(t, model.Port)))
+            foreach (var portThing in graph.OutgoingTargets(current, ModelNames.Has)
+                         .Where(t => graph.IsOfArchetypeCarrying(t, PipelineArchetypes.PortFlag)))
                 yield return new DagPort(
                     portThing.PropertyString(ModelNames.PortName) ?? portThing.Name,
                     portThing.PropertyString(ModelNames.Direction) ?? ModelNames.DirectionIn,
