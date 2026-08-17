@@ -112,7 +112,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task ApplyQuantityAsync_ConsumesMode_CallsDecrementEndpoint()
+    public async Task ApplyQuantityAsync_ConsumingDirection_CallsDecrementEndpoint()
     {
         var mock = CreateTokenAwareMock(req =>
             new HttpResponseMessage(HttpStatusCode.OK)
@@ -130,7 +130,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task ApplyQuantityAsync_ProducesMode_CallsIncrementEndpoint()
+    public async Task ApplyQuantityAsync_ProducingDirection_CallsIncrementEndpoint()
     {
         var mock = CreateTokenAwareMock(req =>
             new HttpResponseMessage(HttpStatusCode.OK)
@@ -268,7 +268,7 @@ public class MyceliumClientTests
     }
 
     [Fact]
-    public async Task RegisterAsync_PortOverload_ProducesMode_RoutesWithCorrectServiceName()
+    public async Task RegisterAsync_PortOverload_ProducingDirection_RoutesWithCorrectServiceName()
     {
         System.Text.Json.JsonElement? capturedBody = null;
         var mock = CreateTokenAwareMock(req =>
