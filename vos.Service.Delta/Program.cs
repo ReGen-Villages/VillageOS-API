@@ -76,16 +76,13 @@ try
         app.Services.GetRequiredService<ILogger<TemplateCatalogProvisioner>>());
     var templateCatalog = new ModelTemplateCatalog();
 
-    var handleEndpoint = app.MapPost("/handle", async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
-    {
-        return await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph, provisioner, templateCatalog);
-    });
+    var register = async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
+        await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph, provisioner, templateCatalog);
+
+    var handleEndpoint = app.MapPost("/handle", register);
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
-    var registerEndpoint = app.MapPost("/register", async (RegisterEndpointRequest request, MyceliumClient myceliumClient) =>
-    {
-        return await HandleRegisterEndpointRequestAsync(request, myceliumClient, graph, provisioner, templateCatalog);
-    });
+    var registerEndpoint = app.MapPost("/register", register);
     if (authEnabled) registerEndpoint.RequireAuthorization();
 
     app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Delta" }));
