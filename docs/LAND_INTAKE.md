@@ -404,20 +404,27 @@ that time. The site now carries a solar figure that came from somewhere, with a 
 ```mermaid
 sequenceDiagram
   participant Planner
+  participant Confluence
   participant Mycelium
   participant Tributary
   participant Provider as Outside provider
-  Planner->>Mycelium: Discover data for this site
-  Mycelium->>Mycelium: select sources whose coverage<br/>includes the site's country
-  loop each covering source, in parallel
-    Mycelium->>Tributary: call <source> with lat/lng
+  Planner->>Confluence: Discover data for this site
+  Confluence->>Mycelium: which sources cover this site?
+  Mycelium-->>Confluence: sources reached by walking<br/>isIn and covers edges
+  loop each covering source, bounded concurrency
+    Confluence->>Tributary: call <source> with the site's lat/lng
     Tributary->>Provider: HTTP request
     Provider-->>Tributary: response
     Tributary->>Tributary: reshape into a reading
     Tributary->>Mycelium: write observation onto the Site
   end
-  Mycelium-->>Planner: resolved: 6 · unresolved: 1 (timeout)
+  Confluence-->>Planner: resolved · unresolved, each with a reason
 ```
+
+Selection is a **graph walk, not a string match**: a source `covers` a Place, the site `isIn` a
+Place, and Places nest. A source cannot be silently skipped because a country was spelled two ways
+— see [CONFLUENCE.md](CONFLUENCE.md). Coverage selection lives in a service rather than in Mycelium,
+which carries no intake vocabulary.
 
 **Partial failure is normal and must be tolerated.** Public data portals go down. One source failing
 leaves its value undiscovered; it does not stop the others and it does not abort the run. The run
