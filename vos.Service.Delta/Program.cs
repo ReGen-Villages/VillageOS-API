@@ -64,7 +64,7 @@ try
     {
         app.UseAuthentication();
         app.UseAuthorization();
-        app.UseMyceliumRequestToken();
+        app.UseMyceliumModelToken();
     }
 
     // Find-or-create every template thing at startup so registrations never create templates lazily.

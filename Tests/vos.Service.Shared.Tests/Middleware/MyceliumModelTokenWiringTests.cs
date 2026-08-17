@@ -8,13 +8,13 @@ namespace vos.Service.Shared.Tests.Middleware;
 // back to the daemon's startup token and the service reads and writes in whichever model launched it.
 // Omitting the middleware breaks nothing at run time with a single model loaded, so this pins the
 // convention across every service rather than the behaviour of any one of them.
-public class MyceliumRequestTokenWiringTests
+public class MyceliumModelTokenWiringTests
 {
     private const string HandleRoute = "\"/handle\"";
-    private const string Middleware = "UseMyceliumRequestToken";
+    private const string Middleware = "UseMyceliumModelToken";
 
     [Fact]
-    public void EveryServiceExposingHandle_InstallsTheRequestTokenMiddleware()
+    public void EveryServiceExposingHandle_InstallsTheModelTokenMiddleware()
     {
         var exposingHandle = Services()
             .Where(service => service.WholeServiceSource.Contains(HandleRoute))

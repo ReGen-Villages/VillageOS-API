@@ -20,6 +20,7 @@ public abstract class MyceliumClientBase
     protected readonly ILogger Logger;
     public string MyceliumUrl { get; }
     private readonly string? _serviceToken;
+    private readonly Func<Task<string?>>? _tokenProvider;
 
     public Guid HandlerId { get; } = Guid.NewGuid();
 
@@ -46,18 +47,26 @@ public abstract class MyceliumClientBase
         }
     }
 
-    protected MyceliumClientBase(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null)
+    protected MyceliumClientBase(
+        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
+        Func<Task<string?>>? tokenProvider = null)
     {
         HttpClientFactory = httpClientFactory;
         Logger = logger;
         MyceliumUrl = myceliumUrl;
         _serviceToken = serviceToken;
+        _tokenProvider = tokenProvider;
     }
 
     public async Task<string?> GetTokenAsync()
     {
-        if (!string.IsNullOrEmpty(MyceliumRequestToken.Current))
-            return MyceliumRequestToken.Current;
+        // A client built with a provider speaks for one model whatever else is in hand, so it is asked
+        // first: a subscription's own calls must never be re-pointed by the request a caller is inside.
+        if (_tokenProvider != null)
+            return await _tokenProvider();
+
+        if (!string.IsNullOrEmpty(MyceliumModelToken.Current))
+            return MyceliumModelToken.Current;
 
         if (!string.IsNullOrEmpty(_serviceToken))
             return _serviceToken;

@@ -368,7 +368,7 @@ builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
 Pass the handler's own `InputProperties`, which it derives from the list `Compute` reads, so the filter
 cannot come to disagree with the inputs.
 
-Three details make it work:
+Four details make it work:
 
 - **Watching the subject is enough.** Mycelium publishes a derived value on the Thing that owns it, so a
   roll-up whose members changed arrives as a property change on the subject, exactly like a param someone
@@ -379,6 +379,13 @@ Three details make it work:
 - **A reconnect recomputes.** A derived value is published live-only and never enters the journal, so a
   resumed stream does not replay one. `ISubscriptionClient.Reconnected` fires after the stream re-establishes
   a dropped connection, and every watched subject is recomputed rather than trusted.
+- **Each project is followed separately.** Mycelium binds a subscription to one model when it creates it, and
+  a change event names no model — so one subscription cannot carry every project a shared daemon serves. The
+  service holds one per model instead. It learns which model a subject belongs to from the bearer on the
+  `/handle` call that watched it, trades that bearer at `POST /api/auth/service-token` for one that outlasts
+  the subscription, and replaces it before it expires. Every recompute then runs under its own model's token,
+  so a handler writes its results back into the project the subject lives in without knowing there is more
+  than one. A project whose token cannot be extended does not take the others down with it.
 
 The contract-validation wiring is the canonical reference in
 `vos.Service.Metabolism/Program.cs` +

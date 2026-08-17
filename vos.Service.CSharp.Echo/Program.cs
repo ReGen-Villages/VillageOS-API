@@ -78,7 +78,7 @@ if (authEnabled)
 {
     app.UseAuthentication();
     app.UseAuthorization();
-    app.UseMyceliumRequestToken();
+    app.UseMyceliumModelToken();
 }
 
 app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>

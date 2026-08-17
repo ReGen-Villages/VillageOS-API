@@ -112,7 +112,7 @@ public class MyceliumClientBaseTests
     private static RequestDelegate RequestTokenPipeline(Func<Task> terminal)
     {
         var app = new ApplicationBuilder(new ServiceCollection().BuildServiceProvider());
-        app.UseMyceliumRequestToken();
+        app.UseMyceliumModelToken();
         app.Run(_ => terminal());
         return app.Build();
     }
