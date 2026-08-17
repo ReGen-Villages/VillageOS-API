@@ -278,6 +278,34 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
+    public void AnalysisOf_ServiceTypedByAThingThatIsNotAnArchetype_IsNotATrigger()
+    {
+        // A service `is` its prototype, and a prototype is a type. Pointing the analysis edge at an
+        // ordinary Thing that happens to sit on an `is` edge would dispatch against a member.
+        var model = StudyOf("WillowBend")
+            .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
+            .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
+            .Relate("balancesEnergy service", CoveringSourceResolver.IsPredicateName, "not a type");
+        model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnalysisOf_IsChainThatLoops_DoesNotHang()
+    {
+        // The walk climbs the is chain, and a model can be edited into a cycle. It has to terminate on
+        // the path that serves a discovery run rather than spin.
+        var model = StudyOf("WillowBend")
+            .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "roundabout")
+            .Relate("roundabout", CoveringSourceResolver.IsPredicateName, "balancesEnergy");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Should().BeEmpty();
+    }
+
+    [Fact]
     public void AnalysisOf_MarkThroughAnIntermediateArchetype_IsStillFound()
     {
         // A model may put its own archetype between a connection and the marked one. The mark is
