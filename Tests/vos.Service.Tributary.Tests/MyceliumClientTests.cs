@@ -433,16 +433,6 @@ public class MyceliumClientTests
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
 
-    private static HttpResponseMessage? RouteEndpoint(HttpRequestMessage req, Guid thingId, string effectiveProps)
-    {
-        if (req.RequestUri!.AbsolutePath == "/api/things"
-            && req.RequestUri.Query.Contains("name=EP"))
-            return JsonResponse($$"""{"Id":"{{thingId}}","Name":"EP"}""");
-        if (req.RequestUri.AbsolutePath == $"/api/things/{thingId}/properties")
-            return JsonResponse(effectiveProps);
-        return null;
-    }
-
     private static async Task<string> CaptureObservationBody(object? value)
     {
         string capturedBody = string.Empty;
