@@ -1,9 +1,7 @@
 namespace vos.Service.Tributary.Services;
 
-// The outcome of an endpoint call, free of any HTTP-framework (IResult) type so it can be
-// consumed by both the legacy /handle endpoint (which maps it back to the exact HTTP shapes it
-// always returned) and the pipeline DAG node (Feature #5628). Exactly one of Error,
-// Ingest, or Content is set.
+// The outcome of an endpoint call, free of any HTTP-framework (IResult) type so the calling
+// service maps it to its own response shape. Exactly one of Error, Ingest, or Content is set.
 public sealed class EndpointCallResult
 {
     public EndpointCallError? Error { get; private init; }

@@ -36,7 +36,7 @@ public class EsriTileEndpointTemplateTests
             {
                 ["url"] = "",
                 ["httpMethod"] = "GET",
-                ["responseTransform"] = "$",
+                ["responseTransform"] = "",
                 ["headers"] = "",
                 ["queryParams"] = "",
                 ["requestContentType"] = "",

@@ -11,6 +11,8 @@ public class EndpointCallRequest
     [JsonPropertyName("body")]
     public JsonElement Body { get; set; }
 
+    // Reshapes this call only, in place of whatever the endpoint has in effect. It is never written
+    // back to the endpoint Thing, so it cannot change what a later caller of the same source gets.
     [JsonPropertyName("responseTransform")]
     public string? ResponseTransform { get; set; }
 }

@@ -79,8 +79,8 @@ value and whether it is expected to be overridden.
 |------|---------|----------|
 | **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible via `AllowedKeys`; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token) |
 | **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParam`, `pageSizeParam`, `hasMorePath`, `itemsPath` |
-| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParam` (token), `responseTransform` ($) |
-| **optional** | May be absent entirely; the feature is simply off. | `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize` |
+| **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParam` (token) |
+| **optional** | May be absent entirely; the feature is simply off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize` |
 
 Which *mechanisms* apply is not in the table because it is not a property: an endpoint
 reaches `TokenExchangeAuth`, `OffsetPaging`, or `BinaryResponse` through its template's
@@ -134,7 +134,7 @@ a child template that extends `Endpoint` and restates only the keys it narrows:
 {
   "things": [
     { "name": "Endpoint", "properties": {
-        "url": "", "httpMethod": "GET", "responseTransform": "$",
+        "url": "", "httpMethod": "GET", "responseTransform": "",
         "headers": "", "queryParams": "", "requestContentType": "",
         "timeout": "" } },
     { "name": "EsriEndpoint", "properties": {
@@ -186,8 +186,8 @@ byte-level read (`ReadAsByteArrayAsync`) wrapped in a base64 JSON envelope:
   (`Convert.FromBase64String` and write the file).
 - Combinations that presuppose a decodable string body are rejected up front with a 400:
   a binary body cannot be combined with a `responseTransform` (declared on the endpoint
-  or supplied on the request — the override is refused *before* it persists), nor with
-  `OffsetPaging`.
+  or supplied on the request), nor with `OffsetPaging`. The root template leaves
+  `responseTransform` blank, so a tile registration inherits no expression to clash with.
 - Reaching no kind through `readsBodyAs` keeps the plain text body; `JsonResponse` is the
   explicit spelling of the same default.
 
@@ -247,6 +247,13 @@ Tributary's contract is **fetch-and-shape**:
    every reading's values are then written as **observations** on that entity's property series
    (`POST /api/things/{id}/observations`). So Things scale with the number of entities, not
    readings — the readings live in the time-series tier (Canopy → Sapwood), not the structural graph.
+
+**What decides ingest** is the expression *in effect*: the one on the registration, or the one it
+inherits from its template. An endpoint with none fetches and returns the body unchanged — a plain
+pass-through registration is a legitimate use, not a misconfiguration. A `responseTransform` on the
+`/handle` request reshapes **that call only** and is never written back to the endpoint Thing, so one
+caller's reshape cannot change what a later caller of the same source receives. Either way the
+expression is compiled before the outbound call, so one that cannot parse costs the source nothing.
 
 Every step runs under one token, so the endpoint Thing and the entities its readings name are always
 in the same model. That is why a registration belongs to the project that fetches against it, and why
