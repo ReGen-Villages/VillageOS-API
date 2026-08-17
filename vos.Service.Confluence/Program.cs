@@ -67,6 +67,13 @@ try
             sp.GetRequiredService<ISourceFetcher>(),
             launchSettings.MaxConcurrentSources,
             sp.GetRequiredService<ILogger<DiscoveryRunner>>()));
+    builder.Services.AddSingleton(sp =>
+        new MyceliumRelationshipClient(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<MyceliumRelationshipClient>>(),
+            myceliumUrl,
+            serviceToken));
+    builder.Services.AddSingleton<AnalysisSpawner>();
 
     var app = builder.Build();
 
@@ -81,6 +88,7 @@ try
         DiscoveryRequest request,
         CoveringSourceService coveringSources,
         DiscoveryRunner runner,
+        AnalysisSpawner analysis,
         HttpContext httpContext) =>
     {
         if (request.SiteId == Guid.Empty)
@@ -96,6 +104,12 @@ try
         var report = await runner.RunAsync(
             request.SiteId, coverage.Covering, coverage.Values, httpContext.RequestAborted);
 
+        // Whatever mixture resolved, including none. The analysis reports against what discovery left
+        // it, and a site whose sources were all unavailable is exactly the case a planner needs the
+        // analysis to say something about rather than silently never running.
+        var spawn = await analysis.SpawnAsync(
+            request.SiteId, coverage.AnalysisPipelineId, httpContext.RequestAborted);
+
         return Results.Ok(new
         {
             siteId = report.SiteId,
@@ -104,7 +118,8 @@ try
             {
                 source = outcome.Source,
                 reason = outcome.Reason
-            })
+            }),
+            analysis = new { started = spawn.Started, reason = spawn.Reason }
         });
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();

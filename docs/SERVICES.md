@@ -26,7 +26,8 @@ provisions the endpoint-template catalog into a model on that model's first regi
 validates every endpoint
 registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
 fetch side of the same endpoint story; `Confluence` resolves a site against every source
-covering it and calls Tributary for each (see [`CONFLUENCE.md`](CONFLUENCE.md)). `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
+covering it, calls Tributary for each, and then starts the site's analysis by writing
+`Site runs Pipeline` (see [`CONFLUENCE.md`](CONFLUENCE.md)). `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
 site-analysis nodes: `WaterReserve` computes emergency reserve / days-of-supply / %
 consumption (feeding the 14-day resilience range); `EnergyBalance` computes solar + other
 generation vs consumption → % of consumption and net-positive. Besides the DAG-node path (wired ports),

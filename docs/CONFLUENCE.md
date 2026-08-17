@@ -45,17 +45,19 @@ the repository's *things and relations, not strings* rule applied to the one pla
 getting it wrong is invisible: a source that is never selected cannot appear in the
 unresolved list either, because nothing knew to look for it.
 
-## The three predicates
+## The predicates it reads
 
 | Predicate | Reads | Why |
 |---|---|---|
 | `isIn` | `Site isIn Place`, `Place isIn Place` | Where the site is, and what contains that. Walked to any depth, so nesting can be as deep as a model wants. |
 | `covers` | `DataSource covers Place` | Where a source applies. Several `covers` edges are fine; the source is still selected once. |
 | `resolvedBy` | `DataSource resolvedBy Endpoint` | Which Tributary registration a call goes through. A relation, not a copied name, so renaming the registration cannot strand the source. |
+| `analysedBy` | `Site analysedBy Pipeline` | Which analysis runs once discovery finishes. A relation for the same reason: a pipeline can be renamed or replaced without touching a site. |
 
 A `DataSource` with no `resolvedBy` edge is **left out** rather than reported as a failure.
 It is not a source that failed — it was never callable, and listing it as unresolved would
-blame a provider for a gap in the model.
+blame a provider for a gap in the model. A `Site` with no `analysedBy` edge is treated the
+same way: nothing was ever going to run, so the run says so and does not call it a failure.
 
 ## Reading the model
 
@@ -78,7 +80,8 @@ halves:
 { "siteId": "…",
   "resolved":   ["OpenMeteo", "Copernicus"],
   "unresolved": [ { "source": "NationalFloodPortal",
-                    "reason": "503: portal is down for maintenance" } ] }
+                    "reason": "503: portal is down for maintenance" } ],
+  "analysis":   { "started": true, "reason": null } }
 ```
 
 **Partial failure is normal and is tolerated.** Public data portals go down, and an intake that
@@ -106,6 +109,28 @@ named by `--fetcherSubdomain`, which resolves the registration, fills the addres
 reshapes the response and writes the observation onto the Site. Which service fetches is
 configuration rather than a name in code, so a deployment can point it elsewhere without editing
 this service.
+
+## Starting the analysis
+
+**When the run finishes, Confluence writes `Site runs Pipeline`.** `runs` is a handled predicate, so
+creating that edge is what dispatches the pipeline — the orchestrator is never called from here. The
+model carries the trigger, which means there is one way to start an analysis rather than two to keep
+in step, and what started a given run is answerable from the model afterwards rather than only from
+a log.
+
+**It starts whatever mixture resolved, including none.** A site whose sources were all unavailable is
+exactly the case a planner needs an answer about; an analysis that only ran when everything succeeded
+would go quiet precisely when something had gone wrong. The balances report against what discovery
+left them, and `unresolved` says what is missing and why.
+
+**Discovery runs before the analysis, never inside it.** That is what keeps the pipeline a pure
+calculation graph with no network dependency: a planner adjusting an assumption reruns it instantly
+and touches no public data portal again, because the values are already on the Site.
+
+**A failure to start does not lose the report.** The observations are written by the time the
+analysis is asked for, so a site naming no pipeline, a model with no `runs` predicate, or a refused
+relationship write are each reported in `analysis.reason` with the discovery report intact beside
+them.
 
 ## Pointers
 
