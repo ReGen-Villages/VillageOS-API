@@ -8,11 +8,6 @@ public class PlantCommandHandler
     private readonly string _arg;
     private readonly MyceliumClient _mycelium;
 
-    private static readonly HashSet<string> ValidModes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "currentonly", "ringbuffer", "sampled", "fullhistory"
-    };
-
     public PlantCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
     {
         _arg = arg ?? string.Empty;
@@ -130,7 +125,8 @@ public class PlantCommandHandler
             {
                 filePath = token;
             }
-            else if (mode == null && IsValidMode(token))
+            // The second positional word is the mode, whatever it says: the platform decides.
+            else if (mode == null)
             {
                 mode = token;
             }
@@ -146,8 +142,6 @@ public class PlantCommandHandler
                int.TryParse(arg.Substring(prefix.Length), out value);
     }
 
-    private static bool IsValidMode(string mode) => ValidModes.Contains(mode);
-
     private static string GetStringProperty(JsonElement element, string name)
     {
         if (element.TryGetProperty(name, out var prop))
@@ -161,11 +155,8 @@ public class PlantCommandHandler
         _writer.WriteLine();
         _writer.WriteLine("Arguments:");
         _writer.WriteLine("  <file>              Path to the seed JSON file");
-        _writer.WriteLine("  [mode]              Optional temporal mode for all properties:");
-        _writer.WriteLine("                        CurrentOnly  - No versioning (fastest)");
-        _writer.WriteLine("                        RingBuffer   - Keep last N values");
-        _writer.WriteLine("                        Sampled      - Keep every Nth change");
-        _writer.WriteLine("                        FullHistory  - Complete audit trail");
+        _writer.WriteLine("  [mode]              Optional temporal mode for all properties.");
+        _writer.WriteLine("                      Run 'config mode' to see the modes this platform accepts.");
         _writer.WriteLine();
         _writer.WriteLine("Options:");
         _writer.WriteLine("  --ringbuffer=N      Ring buffer size (for RingBuffer mode, default: 100)");

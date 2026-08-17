@@ -461,7 +461,7 @@ public class MyceliumClient
             Encoding.UTF8,
             "application/json");
         var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/config/property-mode", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -485,8 +485,20 @@ public class MyceliumClient
             Encoding.UTF8,
             "application/json");
         var response = await _httpClient.PutAsync($"{_myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(propertyName)}/mode", content);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    // A refused mode is answered with the modes the platform accepts, and the default status-code
+    // check throws that body away — leaving the operator "400 (Bad Request)" and nothing to act on.
+    internal static async Task EnsureSuccessCarryingTheReasonAsync(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode) return;
+
+        var body = (await response.Content.ReadAsStringAsync()).Trim();
+        throw new HttpRequestException(body.Length == 0
+            ? $"{(int)response.StatusCode} {response.ReasonPhrase}"
+            : $"{(int)response.StatusCode} {response.ReasonPhrase}: {body}");
     }
 
     public virtual async Task<JsonElement> GetModelAtTimeAsync(DateTime? timestamp = null)

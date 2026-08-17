@@ -1277,6 +1277,44 @@ public class MyceliumClientTests
     private static HttpResponseMessage TokenResponse(string token)
         => JsonResponse($"{{\"token\":\"{token}\"}}");
 
+    // Regression (#6513): the platform answers a refused mode with the modes it accepts, and the
+    // default status-code check discards that body — leaving the operator a bare "400 (Bad Request)".
+    [Fact]
+    public async Task EnsureSuccessCarryingTheReason_OnRefusal_KeepsWhatThePlatformSaid()
+    {
+        var refusal = new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent(
+                """{"error":"Invalid mode: everyotherchange","availableModes":["CurrentOnly","FullHistory"]}""",
+                Encoding.UTF8, "application/json"),
+        };
+
+        var act = () => MyceliumClient.EnsureSuccessCarryingTheReasonAsync(refusal);
+
+        (await act.Should().ThrowAsync<HttpRequestException>()).Which.Message
+            .Should().Contain("400")
+            .And.Contain("Invalid mode: everyotherchange")
+            .And.Contain("CurrentOnly");
+    }
+
+    [Fact]
+    public async Task EnsureSuccessCarryingTheReason_OnRefusalWithNoBody_StillNamesTheStatus()
+    {
+        var refusal = new HttpResponseMessage(HttpStatusCode.Forbidden) { Content = new StringContent("") };
+
+        var act = () => MyceliumClient.EnsureSuccessCarryingTheReasonAsync(refusal);
+
+        (await act.Should().ThrowAsync<HttpRequestException>()).Which.Message.Should().Contain("403");
+    }
+
+    [Fact]
+    public async Task EnsureSuccessCarryingTheReason_OnSuccess_DoesNotThrow()
+    {
+        var act = () => MyceliumClient.EnsureSuccessCarryingTheReasonAsync(JsonResponse("""{"Mode":"CurrentOnly"}"""));
+
+        await act.Should().NotThrowAsync();
+    }
+
     private static JsonElement ReadJsonBody(HttpRequestMessage req)
     {
         var raw = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();

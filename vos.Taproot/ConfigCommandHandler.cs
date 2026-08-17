@@ -64,47 +64,45 @@ namespace vos.Taproot
             var action = args[0].ToLowerInvariant();
             var remainingArgs = args.Skip(1).ToArray();
 
-            if (await TryExecuteModeActionAsync(action, remainingArgs))
-                return;
-
-            HandleUnknownModeAction(action);
+            await ExecuteModeActionAsync(action, remainingArgs);
         }
 
         private async Task ShowCurrentModeConfigAsync()
         {
             var result = await _mycelium.GetDefaultPropertyModeAsync();
             _writer.WriteLine("Property Mode Configuration:");
-            _writer.WriteLine($"  Default Mode:     {GetStringProperty(result, "DefaultMode")}");
+            _writer.WriteLine($"  Default Mode:     {GetStringProperty(result, "Mode")}");
             _writer.WriteLine($"  Ring Buffer Size: {GetIntProperty(result, "RingBufferSize")}");
             _writer.WriteLine($"  Sample Rate:      {GetIntProperty(result, "SampleRate")}");
             _writer.WriteLine();
-            _writer.WriteLine("Available modes: CurrentOnly, RingBuffer, Sampled, FullHistory");
+            _writer.WriteLine($"Available modes: {AvailableModes(result)}");
         }
 
-        private async Task<bool> TryExecuteModeActionAsync(string action, string[] args)
+        // The platform reports which modes it accepts; printing anything else would be this client's
+        // guess at another component's vocabulary.
+        private static string AvailableModes(System.Text.Json.JsonElement result) =>
+            result.TryGetProperty("AvailableModes", out var modes)
+            && modes.ValueKind == System.Text.Json.JsonValueKind.Array
+                ? string.Join(", ", modes.EnumerateArray().Select(m => m.GetString()))
+                : "(not reported)";
+
+        // Anything that is not a subcommand is taken as a mode name and sent on. The platform owns
+        // the list of modes and names them when it refuses one, so a copy here could only disagree.
+        private async Task ExecuteModeActionAsync(string action, string[] args)
         {
             switch (action)
             {
                 case "get":
                     await HandleGetPropertyModeAsync(args);
-                    return true;
+                    return;
                 case "set":
                     await HandleSetPropertyModeAsync(args);
-                    return true;
+                    return;
                 default:
-                    if (IsValidMode(action))
-                    {
-                        await SetDefaultModeAsync(new[] { action }.Concat(args).ToArray());
-                        return true;
-                    }
-                    return false;
+                    var (_, ringBufferSize, sampleRate) = ParseModeArgs(args);
+                    await SetDefaultModeInternalAsync(action, ringBufferSize, sampleRate);
+                    return;
             }
-        }
-
-        private void HandleUnknownModeAction(string action)
-        {
-            _writer.WriteLine($"Unknown property-mode subcommand: {action}");
-            _writer.WriteLine("Use: config mode [get|set] or config mode <ModeName>");
         }
 
         private async Task HandleGetPropertyModeAsync(string[] args)
@@ -127,7 +125,7 @@ namespace vos.Taproot
         private async Task ShowDefaultModeAsync()
         {
             var result = await _mycelium.GetDefaultPropertyModeAsync();
-            _writer.WriteLine($"Default property mode: {GetStringProperty(result, "DefaultMode")}");
+            _writer.WriteLine($"Default property mode: {GetStringProperty(result, "Mode")}");
         }
 
         private async Task ShowPropertyModeAsync(string thingNameOrId, string propertyName)
@@ -204,22 +202,10 @@ namespace vos.Taproot
             _writer.WriteLine("  --samplerate=N  - Sample rate (for Sampled mode)");
         }
 
-        private async Task SetDefaultModeAsync(string[] args)
-        {
-            if (args.Length == 0)
-            {
-                _writer.WriteLine("Usage: config mode <ModeName> [--ringbuffer=N] [--samplerate=N]");
-                return;
-            }
-
-            var (_, ringBufferSize, sampleRate) = ParseModeArgs(args.Skip(1).ToArray());
-            await SetDefaultModeInternalAsync(args[0], ringBufferSize, sampleRate);
-        }
-
         private async Task SetDefaultModeInternalAsync(string mode, int? ringBufferSize, int? sampleRate)
         {
             var result = await _mycelium.SetDefaultPropertyModeAsync(mode, ringBufferSize, sampleRate);
-            _writer.WriteLine($"Default property mode set to: {GetStringProperty(result, "DefaultMode")}");
+            _writer.WriteLine($"Default property mode set to: {GetStringProperty(result, "Mode")}");
             _writer.WriteLine($"  Ring Buffer Size: {GetIntProperty(result, "RingBufferSize")}");
             _writer.WriteLine($"  Sample Rate: {GetIntProperty(result, "SampleRate")}");
         }
@@ -250,13 +236,6 @@ namespace vos.Taproot
                    int.TryParse(arg.Substring(prefix.Length), out value);
         }
 
-        private static readonly HashSet<string> ValidModes = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "currentonly", "ringbuffer", "sampled", "fullhistory"
-        };
-
-        private static bool IsValidMode(string mode) => ValidModes.Contains(mode);
-
         private static string GetStringProperty(System.Text.Json.JsonElement element, string name)
         {
             if (element.TryGetProperty(name, out var prop))
@@ -282,11 +261,7 @@ namespace vos.Taproot
             _writer.WriteLine("  config mode set <ModeName>                       - Set default property mode");
             _writer.WriteLine("  config mode set <thing> <property> <ModeName>    - Set mode for specific property");
             _writer.WriteLine();
-            _writer.WriteLine("Available modes:");
-            _writer.WriteLine("  CurrentOnly   - No versioning, fastest writes (default)");
-            _writer.WriteLine("  RingBuffer    - Keep last N values in circular buffer");
-            _writer.WriteLine("  Sampled       - Keep every Nth change");
-            _writer.WriteLine("  FullHistory   - Full temporal versioning (original behavior)");
+            _writer.WriteLine("Run 'config mode' to see the modes this platform accepts.");
             _writer.WriteLine();
             _writer.WriteLine("Options:");
             _writer.WriteLine("  --ringbuffer=N   Ring buffer size for RingBuffer mode (default: 100)");
