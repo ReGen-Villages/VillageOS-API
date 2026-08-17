@@ -125,8 +125,7 @@ public class PlantCommandHandler
             {
                 filePath = token;
             }
-            // The second positional word is the mode, whatever it says. The platform decides whether
-            // it is one, and names the modes it accepts when it refuses.
+            // The second positional word is the mode, whatever it says: the platform decides.
             else if (mode == null)
             {
                 mode = token;
