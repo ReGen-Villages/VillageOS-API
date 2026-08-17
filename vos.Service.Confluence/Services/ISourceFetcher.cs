@@ -5,6 +5,7 @@ namespace vos.Service.Confluence.Services;
 public interface ISourceFetcher
 {
     Task<SourceOutcome> FetchAsync(
+        Guid siteId,
         string sourceName,
         string endpointName,
         IReadOnlyDictionary<string, string> addressParameters,

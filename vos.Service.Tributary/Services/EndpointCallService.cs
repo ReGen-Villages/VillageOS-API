@@ -463,7 +463,8 @@ public sealed class EndpointCallService
 
             if (reshape != null && status is >= 200 and < 300)
             {
-                var ingestResult = await _observationService.CreateObservationsAsync(thing.Value.Id, reshape, body);
+                var ingestResult = await _observationService.CreateObservationsAsync(
+                    thing.Value.Id, reshape, body, request.SubjectId);
                 if (!ingestResult.Success)
                     return Json(400, new { error = ingestResult.Error, detail = ingestResult.Detail }, ingestResult.Error ?? "Observation ingest failed.");
 

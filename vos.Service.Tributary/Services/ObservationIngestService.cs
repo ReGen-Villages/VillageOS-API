@@ -71,13 +71,20 @@ public class ObservationIngestService
         }
     }
 
-    public async Task<ObservationIngestResult> CreateObservationsAsync(Guid endpointThingId, JsonataTransform query, string body)
+    // subjectId names the Thing the call was about, for a registration serving many subjects. Every
+    // reading is then observed onto it and the reading's own name is not used to find or create
+    // anything — the caller knows which subject it asked about, and the expression cannot.
+    public async Task<ObservationIngestResult> CreateObservationsAsync(
+        Guid endpointThingId, JsonataTransform query, string body, Guid? subjectId = null)
     {
         if (!TryTransform(body, query, out var transformed, out var transformError))
             return new ObservationIngestResult(false, 0, 0, "Endpoint response transform failed", transformError);
 
-        if (!TryParseReadings(transformed, out var readings, out var parseError))
+        if (!TryParseReadings(transformed, subjectId != null, out var readings, out var parseError))
             return new ObservationIngestResult(false, 0, 0, "Transformed output is not a valid reading array.", parseError);
+
+        if (subjectId != null)
+            return await ObserveOntoSubjectAsync(subjectId.Value, readings);
 
         // Things scale with entities, observations with readings — so group by entity name and
         // touch each entity's structure once.
@@ -139,6 +146,26 @@ public class ObservationIngestService
         return new ObservationIngestResult(true, entitiesTouched, observationsSubmitted, null, null);
     }
 
+    // The subject already exists — the caller read it out of the model to make the call — so nothing
+    // is created here and every reading becomes an observation on its series. That also means no
+    // `observed` edge is written, which is what already happens for any entity a fetch lands on that
+    // was not created by the same fetch.
+    private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(Guid subjectId, List<Reading> readings)
+    {
+        var samples = readings
+            .SelectMany(reading => reading.Properties.Select(
+                value => new ObservationSample(value.Key, value.Value, reading.ObservedAt)))
+            .ToList();
+
+        if (samples.Count == 0)
+            return new ObservationIngestResult(true, 1, 0, null, null);
+
+        if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples))
+            return new ObservationIngestResult(false, 1, 0, "Failed to submit observations for entity.", null);
+
+        return new ObservationIngestResult(true, 1, samples.Count, null, null);
+    }
+
     private static bool TryNormalizeJson(string input, out string normalized)
     {
         try
@@ -154,7 +181,8 @@ public class ObservationIngestService
         }
     }
 
-    private static bool TryParseReadings(string json, out List<Reading> readings, out string error)
+    private static bool TryParseReadings(
+        string json, bool subjectSupplied, out List<Reading> readings, out string error)
     {
         readings = new List<Reading>();
         error = string.Empty;
@@ -173,7 +201,7 @@ public class ObservationIngestService
         using (doc)
         {
             if (doc.RootElement.ValueKind == JsonValueKind.Object)
-                return TryParseReading(doc.RootElement, readings, out error);
+                return TryParseReading(doc.RootElement, subjectSupplied, readings, out error);
 
             if (doc.RootElement.ValueKind != JsonValueKind.Array)
             {
@@ -183,7 +211,7 @@ public class ObservationIngestService
 
             foreach (var element in doc.RootElement.EnumerateArray())
             {
-                if (!TryParseReading(element, readings, out error))
+                if (!TryParseReading(element, subjectSupplied, readings, out error))
                     return false;
             }
         }
@@ -191,7 +219,8 @@ public class ObservationIngestService
         return true;
     }
 
-    private static bool TryParseReading(JsonElement element, List<Reading> readings, out string error)
+    private static bool TryParseReading(
+        JsonElement element, bool subjectSupplied, List<Reading> readings, out string error)
     {
         error = string.Empty;
 
@@ -201,7 +230,10 @@ public class ObservationIngestService
             return false;
         }
 
-        if (!element.TryGetProperty("name", out var nameProp) || nameProp.ValueKind != JsonValueKind.String)
+        // A call that names its subject has already said what the reading is about, so the
+        // expression need not repeat it — and when it does, the caller's subject is the one used.
+        var named = element.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String;
+        if (!named && !subjectSupplied)
         {
             error = "Reading is missing a string 'name' property.";
             return false;
@@ -227,7 +259,7 @@ public class ObservationIngestService
             observedAt = parsed;
         }
 
-        readings.Add(new Reading(nameProp.GetString() ?? string.Empty, props, observedAt));
+        readings.Add(new Reading(named ? nameProp.GetString() ?? string.Empty : string.Empty, props, observedAt));
         return true;
     }
 

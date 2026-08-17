@@ -412,7 +412,7 @@ sequenceDiagram
   Confluence->>Mycelium: which sources cover this site?
   Mycelium-->>Confluence: sources reached by walking<br/>isIn and covers edges
   loop each covering source, bounded concurrency
-    Confluence->>Tributary: call <source> with the site's lat/lng
+    Confluence->>Tributary: call <source> with the site's lat/lng<br/>and the site as the subject
     Tributary->>Provider: HTTP request
     Provider-->>Tributary: response
     Tributary->>Tributary: reshape into a reading
