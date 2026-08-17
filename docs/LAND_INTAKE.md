@@ -353,12 +353,10 @@ resolves to the nearest ancestor that sets it. **Delta** validates all of that a
 and refuses anything that does not fit, so a broken configuration fails immediately rather than at
 3am during a run.
 
-**Registrations live in each project's own model — settled, not open.** A model is the boundary of
-every read, so an endpoint and the Site its readings name have to be in the same one; and a
-registration that authenticates carries the upstream credential, which no other project should be
-able to read. A source every project uses is a seed entry, so a per-project copy costs nothing to
-create. [`DELTA.md`](DELTA.md#which-model-a-registration-lives-in) records the decision and what
-follows from it in full.
+**A registration lives in the project's own model, not in a catalogue shared between projects.** A
+model is the boundary of every read, so an endpoint and the Site its readings name have to be in the
+same one. [`DELTA.md`](DELTA.md#which-model-a-registration-lives-in) records the decision and what
+forces it.
 
 ### A registration, in full
 
@@ -832,7 +830,7 @@ The main finding from designing this: most of it is already built.
 
 ## 11. Gaps found while designing this
 
-Checking the code rather than the documentation changed the design in three places. All three are
+Checking the code rather than the documentation changed the design in the places below. Each is
 tracked under Feature
 [#6050](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6050).
 
@@ -873,6 +871,19 @@ The tests covering the documented examples exercise the ingest service directly 
 path, which is why this sits inside a green suite. Raised as Bug
 [#6051](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6051), with the regression
 test required to go through the call path.
+
+### Only one project can register an endpoint at all
+
+Delta writes a registration into the model of whoever called it, which is the shape this design
+wants. Its **template catalogue** does not follow: that is provisioned once at startup, under the
+token Delta was launched with, so it lands in a single model. One Delta process serves every project,
+because a second project's call finds the daemon already healthy on the port both models declare.
+
+So a registration from any other model passes every validation step and then fails on its template
+being absent, with a 500. Intake cannot register a source for a second project until this is fixed.
+Raised as Bug
+[#6525](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6525); the fix provisions
+per model, on first contact, under the caller's token.
 
 ---
 

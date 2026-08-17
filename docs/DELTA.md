@@ -102,6 +102,12 @@ template inherits nothing, so all of its properties stay on the create.
 Provisioning is best-effort startup work (Mycelium's liveness monitor covers an unusable model)
 and is **skipped under the `Testing` environment** so tests make no Mycelium calls at boot.
 
+> **Running at startup is itself the gap.** There is no request yet, so the catalog goes to the one
+> model Delta's launch token names, while a registration goes to the model of whoever called. See
+> [Which model a registration lives in](#which-model-a-registration-lives-in) for what that breaks,
+> and Bug [#6525](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6525) for the
+> fix — provision on first contact from a model, under that caller's token.
+
 ## Registration: `POST /handle` and `POST /register`
 
 Both routes share one handler. The request body is a `RegisterEndpointRequest` — a Thing-create
@@ -165,9 +171,9 @@ across. Everything else follows from that:
   catalogue in which every project reads every other project's credentials.
 
 **Registering a common source per project is a seed entry, not repeated work.** A project is created
-by seeding it, and the templates a registration inherits from belong to that project's model in the
-same way. A source every project uses belongs in the seed every project is created from; a source
-one project licenses stays in that project alone, with its credential.
+by seeding it. A source every project uses belongs in the seed every project is created from; a
+source one project licenses stays in that project alone, with its credential. The template catalogue
+a registration inherits from belongs to the project's model on the same grounds.
 
 [Startup provisioning](#startup-provisioning-the-catalog) does not follow this yet. It runs before
 any request exists, so it uses the token Delta was launched with and the catalog lands in that one
