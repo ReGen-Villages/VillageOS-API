@@ -79,7 +79,7 @@ try
     {
         app.UseAuthentication();
         app.UseAuthorization();
-        app.UseMyceliumRequestToken();
+        app.UseMyceliumModelToken();
     }
 
     app.UseRequestContractValidation();

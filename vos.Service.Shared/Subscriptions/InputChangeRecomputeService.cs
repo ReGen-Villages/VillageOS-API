@@ -4,6 +4,10 @@ using Microsoft.Extensions.Logging;
 
 namespace vos.Service.Shared.Subscriptions;
 
+/// <summary>Builds the subscription client one model's follower speaks through. The token is asked for per
+/// call rather than fixed at construction, because a follower replaces its own before it expires.</summary>
+public delegate ISubscriptionClient SubscriptionClientFactory(Func<Task<string?>> currentToken);
+
 public static class InputChangeRecomputeRegistration
 {
     /// <summary>Wire the subscription that keeps a compute service's results current. The handler type is
@@ -13,19 +17,25 @@ public static class InputChangeRecomputeRegistration
         IReadOnlySet<string> inputProperties, Func<THandler, Guid, CancellationToken, Task> recompute)
         where THandler : notnull
     {
-        services.AddSingleton<ISubscriptionClient>(provider => new SubscriptionClient(
+        services.AddSingleton<IServiceTokenExchange>(provider => new ServiceTokenExchange(
             provider.GetRequiredService<IHttpClientFactory>(),
-            provider.GetRequiredService<ILogger<SubscriptionClient>>(), myceliumUrl, serviceToken));
+            provider.GetRequiredService<ILogger<ServiceTokenExchange>>(), myceliumUrl));
+
+        services.AddSingleton<SubscriptionClientFactory>(provider => currentToken => new SubscriptionClient(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            provider.GetRequiredService<ILogger<SubscriptionClient>>(), myceliumUrl, tokenProvider: currentToken));
 
         services.AddSingleton(provider => new RecomputeInputs(serviceName, inputProperties,
             (subjectId, cancellationToken) =>
                 recompute(provider.GetRequiredService<THandler>(), subjectId, cancellationToken)));
 
         services.AddSingleton(provider => new InputChangeRecomputeService(
-            provider.GetRequiredService<ISubscriptionClient>(),
+            provider.GetRequiredService<SubscriptionClientFactory>(),
+            provider.GetRequiredService<IServiceTokenExchange>(),
             provider.GetRequiredService<RecomputeInputs>(),
             provider.GetRequiredService<IHostEnvironment>(),
-            provider.GetRequiredService<ILogger<InputChangeRecomputeService>>()));
+            provider.GetRequiredService<ILogger<InputChangeRecomputeService>>(),
+            serviceToken));
 
         return services.AddHostedService(provider => provider.GetRequiredService<InputChangeRecomputeService>());
     }
@@ -42,8 +52,15 @@ public sealed record RecomputeInputs(
     Func<Guid, CancellationToken, Task> RecomputeAsync);
 
 /// <summary>
-/// Keeps a compute service's results current: watch each subject it has computed for, and recompute when
-/// one of that service's inputs moves.
+/// Keeps a compute service's results current across every project it serves.
+///
+/// A subscription is bound to one model when Mycelium creates it, and a change event says nothing about
+/// which model it came from. A daemon shared by several projects therefore cannot follow them all through
+/// one subscription — it holds one per model instead, each opened with a token for that model.
+///
+/// The model is learned where it is already known: a service starts watching a subject inside the /handle
+/// call that made it compute, and the bearer on that call names the caller's model. That bearer expires in
+/// minutes, so it is exchanged for one that outlasts the subscription and replaced before it lapses.
 ///
 /// Watching the subject alone covers both ways an input moves, because Mycelium publishes a derived value
 /// on the Thing that owns it: a param someone edited arrives as a property change on the subject, and a
@@ -54,35 +71,63 @@ public sealed record RecomputeInputs(
 /// </summary>
 public sealed class InputChangeRecomputeService : IHostedService
 {
-    private static readonly int[] BackoffMilliseconds = { 0, 1000, 2000, 5000, 10000 };
-
-    private readonly ISubscriptionClient _subscriptions;
+    private readonly SubscriptionClientFactory _subscriptionClientFor;
+    private readonly IServiceTokenExchange _tokenExchange;
     private readonly RecomputeInputs _inputs;
     private readonly IHostEnvironment _environment;
     private readonly ILogger _logger;
-    private readonly HashSet<Guid> _watched = new();
+    private readonly string? _startupToken;
+    private readonly TimeSpan _replacementLeadTime;
+    private readonly TimeSpan _replacementCheckInterval;
 
-    private Guid _subscriptionId;
+    private readonly Dictionary<Guid, ModelFollower> _followers = new();
+    private readonly object _followersLock = new();
+
     private CancellationTokenSource? _cancellation;
+    private bool _started;
 
     public InputChangeRecomputeService(
-        ISubscriptionClient subscriptions, RecomputeInputs inputs, IHostEnvironment environment, ILogger logger)
+        SubscriptionClientFactory subscriptionClientFor, IServiceTokenExchange tokenExchange,
+        RecomputeInputs inputs, IHostEnvironment environment, ILogger logger, string? startupToken = null,
+        TimeSpan? replacementLeadTime = null, TimeSpan? replacementCheckInterval = null)
     {
-        _subscriptions = subscriptions;
+        _subscriptionClientFor = subscriptionClientFor;
+        _tokenExchange = tokenExchange;
         _inputs = inputs;
         _environment = environment;
         _logger = logger;
+        _startupToken = startupToken;
+        _replacementLeadTime = replacementLeadTime ?? TimeSpan.FromHours(2);
+        _replacementCheckInterval = replacementCheckInterval ?? TimeSpan.FromMinutes(15);
     }
 
-    /// <summary>Start following a subject. Called when the service computes for one, so the set grows from
-    /// the dispatches the service already receives rather than from a discovery rule of its own.</summary>
+    /// <summary>Start following a subject, in the model the work in hand belongs to. Called when the service
+    /// computes for one, so the set grows from the dispatches the service already receives rather than from
+    /// a discovery rule of its own.</summary>
     public void Watch(Guid subjectId)
     {
-        lock (_watched)
-            if (!_watched.Add(subjectId)) return;
+        var bearer = ModelScopedBearer.Read(MyceliumModelToken.Current ?? _startupToken);
+        if (bearer is null)
+        {
+            _logger.LogWarning(
+                "{Service}: no model-scoped token is in hand, so {SubjectId} cannot be followed and its results will go stale",
+                _inputs.ServiceName, subjectId);
+            return;
+        }
 
-        if (_subscriptionId != Guid.Empty)
-            _ = AddToMembershipAsync(subjectId);
+        ModelFollower follower;
+        lock (_followersLock)
+        {
+            if (!_followers.TryGetValue(bearer.ModelId, out var existing))
+            {
+                existing = NewFollower(bearer);
+                _followers[bearer.ModelId] = existing;
+                if (_started) existing.Start(_cancellation!.Token);
+            }
+            follower = existing;
+        }
+
+        follower.Watch(subjectId);
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -90,107 +135,34 @@ public sealed class InputChangeRecomputeService : IHostedService
         // Tests run against a synthetic Mycelium URL — don't open a real subscription.
         if (_environment.IsEnvironment("Testing")) return Task.CompletedTask;
 
-        _subscriptions.Reconnected += OnReconnected;
         _cancellation = new CancellationTokenSource();
-        _ = RunAsync(_cancellation.Token); // long-running; not tied to StartAsync's token
+
+        lock (_followersLock)
+        {
+            _started = true;
+            foreach (var follower in _followers.Values)
+                follower.Start(_cancellation.Token);
+        }
+
         return Task.CompletedTask;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        _subscriptions.Reconnected -= OnReconnected;
         _cancellation?.Cancel();
-        if (_subscriptionId == Guid.Empty) return;
 
-        try { await _subscriptions.UnsubscribeAsync(_subscriptionId, cancellationToken); }
-        catch (Exception ex) { _logger.LogDebug(ex, "{Service}: unsubscribe on shutdown failed", _inputs.ServiceName); }
-    }
-
-    private async Task RunAsync(CancellationToken cancellationToken)
-    {
-        var subscription = await SubscribeWithRetryAsync(cancellationToken);
-        if (subscription is null) return;
-
-        _subscriptionId = subscription.SubscriptionId;
-        foreach (var subjectId in Snapshot())
-            await AddToMembershipAsync(subjectId);
-
-        _logger.LogInformation("{Service} is following its inputs on Mycelium ({SubscriptionId}) from {Watermark}",
-            _inputs.ServiceName, _subscriptionId, subscription.Watermark);
-
-        try
+        List<ModelFollower> followers;
+        lock (_followersLock)
         {
-            await foreach (var change in _subscriptions.StreamAsync(_subscriptionId, subscription.Watermark, cancellationToken))
-            {
-                if (!change.IsPropertyChange || change.PropertyName is null) continue;
-                if (!_inputs.InputProperties.Contains(change.PropertyName)) continue;
-
-                bool watching;
-                lock (_watched) watching = _watched.Contains(change.EntityId);
-                if (watching) await RecomputeAsync(change.EntityId, change.PropertyName, cancellationToken);
-            }
+            _started = false;
+            followers = _followers.Values.ToList();
         }
-        catch (OperationCanceledException) { /* shutting down */ }
+
+        foreach (var follower in followers)
+            await follower.StopAsync(cancellationToken);
     }
 
-    private async Task<SubscribeResult?> SubscribeWithRetryAsync(CancellationToken cancellationToken)
-    {
-        for (var attempt = 0; !cancellationToken.IsCancellationRequested; attempt++)
-        {
-            try { return await _subscriptions.SubscribeAsync(new SubscriptionSelector(), cancellationToken); }
-            catch (OperationCanceledException) { return null; }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "{Service}: subscribe failed (attempt {Attempt}); retrying",
-                    _inputs.ServiceName, attempt + 1);
-                try { await Task.Delay(BackoffMilliseconds[Math.Min(attempt, BackoffMilliseconds.Length - 1)], cancellationToken); }
-                catch (OperationCanceledException) { return null; }
-            }
-        }
-        return null;
-    }
-
-    private void OnReconnected()
-    {
-        var subjects = Snapshot();
-        _logger.LogInformation(
-            "{Service} resumed its Mycelium stream and is recomputing {Count} subject(s): a derived value is "
-            + "published live-only, so any that moved while the stream was down was not replayed",
-            _inputs.ServiceName, subjects.Count);
-
-        var cancellationToken = _cancellation?.Token ?? CancellationToken.None;
-        foreach (var subjectId in subjects)
-            _ = RecomputeAsync(subjectId, "reconnect", cancellationToken);
-    }
-
-    private async Task RecomputeAsync(Guid subjectId, string reason, CancellationToken cancellationToken)
-    {
-        try { await _inputs.RecomputeAsync(subjectId, cancellationToken); }
-        catch (OperationCanceledException) { /* shutting down */ }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "{Service}: recompute of {SubjectId} after '{Reason}' failed",
-                _inputs.ServiceName, subjectId, reason);
-        }
-    }
-
-    private async Task AddToMembershipAsync(Guid subjectId)
-    {
-        try
-        {
-            await _subscriptions.AddObjectsAsync(
-                _subscriptionId, new SubscriptionSelector { Ids = new List<Guid> { subjectId } },
-                _cancellation?.Token ?? CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "{Service}: could not follow {SubjectId}; its results will go stale",
-                _inputs.ServiceName, subjectId);
-        }
-    }
-
-    private List<Guid> Snapshot()
-    {
-        lock (_watched) return _watched.ToList();
-    }
+    private ModelFollower NewFollower(ModelScopedBearer seed) => new(
+        seed, _subscriptionClientFor, _tokenExchange, _inputs, _logger,
+        _replacementLeadTime, _replacementCheckInterval);
 }

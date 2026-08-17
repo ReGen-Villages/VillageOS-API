@@ -80,7 +80,7 @@ try
     {
         app.UseAuthentication();
         app.UseAuthorization();
-        app.UseMyceliumRequestToken();
+        app.UseMyceliumModelToken();
     }
 
     var handleEndpoint = app.MapPost("/handle", async (

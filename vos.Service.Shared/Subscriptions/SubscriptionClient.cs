@@ -29,8 +29,10 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
 
     public event Action? Reconnected;
 
-    public SubscriptionClient(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+    public SubscriptionClient(
+        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
+        Func<Task<string?>>? tokenProvider = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, tokenProvider)
     {
     }
 

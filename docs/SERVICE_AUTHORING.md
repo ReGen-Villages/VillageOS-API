@@ -164,7 +164,9 @@ When a `SigningKey` is supplied, validate the Bearer JWT on `/handle` and `/shut
 
 Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT carrying `iss`/`aud` and the request's `vos:model_id`; the platform validates this same HS256 JWT before dispatch, so your handler should apply the identical checks. Reject with 401 on any failure.
 
-**Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the startup JWT from `Token` — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` get this for free: add `app.UseMyceliumRequestToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the current request's bearer.
+**Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the startup JWT from `Token` — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` get this for free: add `app.UseMyceliumModelToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the bearer of the work in hand.
+
+**Work that outlives the request.** A request bearer expires in 5 minutes, so anything you keep open past the call — a change subscription, most obviously — cannot lean on it. Exchange it at `POST /api/auth/service-token` for one naming the same model with a full lifetime, and replace that before it expires; a subscription can sit quiet for longer than a token lives, and once it has lapsed there is no valid token left to ask with. `AddInputChangeRecompute` does all of this for you, including running each recompute under its own model's token so your handler writes back where the subject actually lives.
 
 ## Deregistration & health
 
@@ -179,6 +181,6 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 - [ ] Get a token (the `Token` setting or `/api/auth/token`) and `POST /api/mycelium/register`
 - [ ] Serve `/handle`, `/health`, `/stats`, `/shutdown`
 - [ ] Validate the inbound HS256 JWT when a `SigningKey` is set (iss/aud/exp, 30s skew)
-- [ ] Add `app.UseMyceliumRequestToken()` so `/handle` callbacks use the request's model token
+- [ ] Add `app.UseMyceliumModelToken()` so `/handle` callbacks use the request's model token
 - [ ] Deregister on shutdown
 - [ ] Add tests for arg parsing + JWT validation (see any reference example)

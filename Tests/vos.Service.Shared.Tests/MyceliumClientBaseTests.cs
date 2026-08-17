@@ -109,10 +109,45 @@ public class MyceliumClientBaseTests
             "outside a /handle request the startup token still applies");
     }
 
+    // A subscription belongs to one model for as long as it is open, and its calls can be made from
+    // inside a /handle request for a different one — the follower that opened it also adds subjects to
+    // it from there. Its own token therefore has to win, or the subscription would be re-pointed at
+    // whichever project the caller happened to be in.
+    [Fact]
+    public async Task GetTokenAsync_PrefersTheClientsOwnProvider_OverTheAmbientRequestToken()
+    {
+        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK),
+            serviceToken: TestToken, tokenProvider: () => Task.FromResult<string?>("this-clients-own-token"));
+
+        string? tokenInsideRequest = null;
+        var pipeline = RequestTokenPipeline(async () => tokenInsideRequest = await client.GetTokenAsync());
+
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Headers.Authorization = "Bearer some-other-models-token";
+        await pipeline(ctx);
+
+        tokenInsideRequest.Should().Be("this-clients-own-token");
+    }
+
+    // The provider is asked on every call rather than read once, so a follower that replaces its bearer
+    // does not have to rebuild the client — and a stale one is never sent after a replacement.
+    [Fact]
+    public async Task GetTokenAsync_AsksTheProviderEachTime_SoAReplacementTakesEffect()
+    {
+        var current = "first-token";
+        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.OK),
+            serviceToken: null, tokenProvider: () => Task.FromResult<string?>(current));
+
+        (await client.GetTokenAsync()).Should().Be("first-token");
+        current = "replacement-token";
+
+        (await client.GetTokenAsync()).Should().Be("replacement-token");
+    }
+
     private static RequestDelegate RequestTokenPipeline(Func<Task> terminal)
     {
         var app = new ApplicationBuilder(new ServiceCollection().BuildServiceProvider());
-        app.UseMyceliumRequestToken();
+        app.UseMyceliumModelToken();
         app.Run(_ => terminal());
         return app.Build();
     }
@@ -283,12 +318,13 @@ public class MyceliumClientBaseTests
 
     private static (TestableMyceliumClient client, MockHttpMessageHandler handler) BuildClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
-        string? serviceToken)
+        string? serviceToken,
+        Func<Task<string?>>? tokenProvider = null)
     {
         var handler = new MockHttpMessageHandler(respond);
         var httpClient = new HttpClient(handler);
         var factory = new TestHttpClientFactory(httpClient);
-        var client = new TestableMyceliumClient(factory, NullLogger.Instance, MyceliumUrl, serviceToken);
+        var client = new TestableMyceliumClient(factory, NullLogger.Instance, MyceliumUrl, serviceToken, tokenProvider);
         return (client, handler);
     }
 

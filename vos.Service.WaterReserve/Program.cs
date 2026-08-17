@@ -68,7 +68,7 @@ try
     {
         app.UseAuthentication();
         app.UseAuthorization();
-        app.UseMyceliumRequestToken();
+        app.UseMyceliumModelToken();
     }
 
     var handle = app.MapPost("/handle", async (HttpContext ctx, WaterReserveNode node, WaterReserveReactiveHandler reactive,

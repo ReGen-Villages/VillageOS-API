@@ -10,8 +10,10 @@ namespace vos.Service.Shared.Tests;
 // both Throw and Log paths regardless of the test assembly's build configuration.
 internal sealed class TestableMyceliumClient : MyceliumClientBase
 {
-    public TestableMyceliumClient(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+    public TestableMyceliumClient(
+        IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
+        Func<Task<string?>>? tokenProvider = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, tokenProvider)
     {
     }
 
