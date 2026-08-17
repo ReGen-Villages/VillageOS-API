@@ -353,6 +353,13 @@ resolves to the nearest ancestor that sets it. **Delta** validates all of that a
 and refuses anything that does not fit, so a broken configuration fails immediately rather than at
 3am during a run.
 
+**Registrations live in each project's own model — settled, not open.** A model is the boundary of
+every read, so an endpoint and the Site its readings name have to be in the same one; and a
+registration that authenticates carries the upstream credential, which no other project should be
+able to read. A source every project uses is a seed entry, so a per-project copy costs nothing to
+create. [`DELTA.md`](DELTA.md#which-model-a-registration-lives-in) records the decision and what
+follows from it in full.
+
 ### A registration, in full
 
 ```jsonc
@@ -902,13 +909,12 @@ debugging session otherwise.
 
 | # | Question | Recommendation |
 |---|---|---|
-| 1 | **Where do registrations live** when each project has its own model? | One shared catalogue model. An open-data source is global reference data; duplicating it per project means re-registering everything on every new project for no benefit. If that holds, multi-tenant routing stops being a dependency. |
-| 2 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
-| 3 | **Map library** — Leaflet or MapLibre? | Leaflet is smaller and is what the current tool uses; MapLibre gives vector tiles and better styling. Story-level decision. |
-| 4 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
-| 5 | **Retention** for submissions that are never promoted. | Decide before there is anything in the intake model, not after. |
-| 6 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own front door, so it is a natural follow-up. |
-| 7 | **What triggers discovery** — planner action, arrival of a submission, or a schedule? | All three eventually. Build one path and let each be a caller of it, rather than a branch inside it. |
+| 1 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
+| 2 | **Map library** — Leaflet or MapLibre? | Leaflet is smaller and is what the current tool uses; MapLibre gives vector tiles and better styling. Story-level decision. |
+| 3 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
+| 4 | **Retention** for submissions that are never promoted. | Decide before there is anything in the intake model, not after. |
+| 5 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own front door, so it is a natural follow-up. |
+| 6 | **What triggers discovery** — planner action, arrival of a submission, or a schedule? | All three eventually. Build one path and let each be a caller of it, rather than a branch inside it. |
 
 ---
 

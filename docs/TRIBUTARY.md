@@ -248,6 +248,11 @@ Tributary's contract is **fetch-and-shape**:
    (`POST /api/things/{id}/observations`). So Things scale with the number of entities, not
    readings — the readings live in the time-series tier (Canopy → Sapwood), not the structural graph.
 
+All three steps run under one token, so the endpoint Thing and the entities its readings name are
+always in the same model. That is why a registration belongs to the project that fetches against it
+and there is no shared catalogue model — see
+[`DELTA.md`](DELTA.md#which-model-a-registration-lives-in).
+
 Tributary keeps **no state about the data** and computes **no derived values**. Anything
 time-evolving or calculated — simulations, rates, accumulations, consumes/produces
 dynamics — is **Metabolism's** job: a stateful daemon running persistent loops over

@@ -143,11 +143,38 @@ If the `is`-wire or any property-set fails, Delta runs a **compensating delete**
 to remove the orphaned Thing, so a partial registration never lingers. Success returns the new
 `registeredThingId`, `endpointTemplateId`, and `predicateId`.
 
-> **Which model a registration lands in.** The write uses the bearer on the incoming request, which
-> Mycelium signs with the calling project's model — so one shared Delta registers into the model of
-> whoever called it. [Startup provisioning](#startup-provisioning-the-catalog) is the exception: it
-> runs before any request exists, so it uses the token Delta was started with and the catalog lands
-> in the model that token names.
+## Which model a registration lives in
+
+**A registration lives in the project's own model. There is no shared catalogue model.**
+
+A model is the boundary of every read and every write. Mycelium binds one model per request from the
+`vos:model_id` claim on the bearer, and an `/api/…` call resolves entirely inside it — nothing reads
+across. Everything else follows from that:
+
+- **Delta writes where the caller points.** `/handle` and `/register` call Mycelium back with the
+  bearer that arrived, so one shared Delta registers into the model of whoever called it.
+- **Tributary reads the endpoint and writes the observations under one token, in one call.** The
+  endpoint Thing and the Site the readings name must therefore sit in the same model. A registration
+  parked in a catalogue model could not ingest onto a project's Site at all.
+- **No daemon can reach a second model.** `POST /api/auth/service-token` reads the model, service and
+  scope from the caller's own claims and takes nothing from the request, so holding a token for one
+  project buys no reach into another. That refusal is deliberate; a shared catalogue would need a
+  cross-model authorization rule built on purpose to undo it.
+- **Credentials decide it on their own.** A registration under `TokenExchangeAuth` carries
+  `tokenRequest` — a username and password for the upstream. A catalogue every project reads is a
+  catalogue in which every project reads every other project's credentials.
+
+**Registering a common source per project is a seed entry, not repeated work.** A project is created
+by seeding it, and the templates a registration inherits from belong to that project's model in the
+same way. A source every project uses belongs in the seed every project is created from; a source
+one project licenses stays in that project alone, with its credential.
+
+[Startup provisioning](#startup-provisioning-the-catalog) does not follow this yet. It runs before
+any request exists, so it uses the token Delta was launched with and the catalog lands in that one
+model — while one Delta process serves every project, because a second project's call finds the
+daemon already healthy on the port both models declare. A registration from any other model passes
+validation and then fails the "template is provisioned" check with a `500`. Tracked as Bug
+[#6525](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6525).
 
 ## Endpoints
 
