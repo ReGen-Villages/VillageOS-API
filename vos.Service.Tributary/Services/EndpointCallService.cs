@@ -233,7 +233,7 @@ public sealed class EndpointCallService
         {
             var unfilled = $"Endpoint url has placeholders with no value in addressParameters: "
                 + $"{string.Join(", ", unfilledPlaceholders)}.";
-            return Json(400, new { error = unfilled, missing = unfilledPlaceholders }, unfilled);
+            return Json(400, new { error = unfilled, unfilledPlaceholders }, unfilled);
         }
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out var endpointUri))
