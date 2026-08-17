@@ -1,3 +1,4 @@
+using System.Text.Json;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Confluence.Helpers;
@@ -113,14 +114,14 @@ public static class CoveringSourceResolver
         if (StudyOf(snapshot, namesById, siteId) is not { } studyId) return null;
 
         var triggers = new List<AnalysisTrigger>();
-        foreach (var connection in snapshot.Things)
+        foreach (var connectionId in MembersOfArchetypesCarrying(
+                     snapshot, thingsById, namesById, SiteAnalysisConnectionFlag))
         {
-            if (!IsOfArchetypeCarrying(snapshot, thingsById, namesById, connection.Id, SiteAnalysisConnectionFlag))
-                continue;
-            if (ServicePrototypeOf(snapshot, thingsById, namesById, connection.Id) is not { } prototypeId)
+            if (ServicePrototypeOf(snapshot, thingsById, namesById, connectionId) is not { } prototypeId)
                 continue;
 
-            triggers.Add(new AnalysisTrigger(connection.Name ?? string.Empty, connection.Id, prototypeId));
+            triggers.Add(new AnalysisTrigger(
+                thingsById[connectionId].Name ?? string.Empty, connectionId, prototypeId));
         }
 
         // Ordered by name so a run writes its edges the same way twice, which is what makes the log of
@@ -129,14 +130,22 @@ public static class CoveringSourceResolver
         return new SiteAnalysis(studyId, triggers);
     }
 
+    // The one study of the site. More than one is refused rather than picked between: relationship order
+    // is not defined, so choosing would analyse a different study on different runs and report neither
+    // choice. Null means none, which the caller reports as nothing to compute.
     private static Guid? StudyOf(
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid siteId)
     {
+        Guid? found = null;
         foreach (var edge in snapshot.Relationships)
-            if (edge.TargetId == siteId && IsPredicate(namesById, edge.PredicateId, StudiesPredicate))
-                return edge.SubjectId;
+        {
+            if (edge.TargetId != siteId) continue;
+            if (!IsPredicate(namesById, edge.PredicateId, StudiesPredicate)) continue;
+            if (found != null && found != edge.SubjectId) return null;
+            found = edge.SubjectId;
+        }
 
-        return null;
+        return found;
     }
 
     // A connection binds its service through `has`, and the service `is` the prototype the analysis edge
@@ -162,36 +171,42 @@ public static class CoveringSourceResolver
         return null;
     }
 
-    // True when the Thing `is` — directly or transitively — an archetype carrying the flag. An archetype
-    // does not play its own role, so the walk starts above the Thing.
-    private static bool IsOfArchetypeCarrying(
+    // Every Thing that `is` — directly or through intermediate types — an archetype carrying the flag.
+    // Walked outwards from the marked archetypes rather than upwards from each Thing, so the snapshot's
+    // relationships are read once per level instead of once per Thing.
+    //
+    // An archetype does not play its own role, so a marked archetype is not among its own members, and
+    // an intermediate type between a member and the mark is a type rather than a connection.
+    private static List<Guid> MembersOfArchetypesCarrying(
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
-        IReadOnlyDictionary<Guid, string> namesById, Guid thingId, string flag)
+        IReadOnlyDictionary<Guid, string> namesById, string flag)
     {
-        var seen = new HashSet<Guid> { thingId };
-        var frontier = new Queue<Guid>();
-        frontier.Enqueue(thingId);
+        var reached = new HashSet<Guid>(snapshot.Things.Where(thing => CarriesFlag(thing, flag))
+            .Select(thing => thing.Id));
+        var members = new List<Guid>();
+        var frontier = new Queue<Guid>(reached);
 
         while (frontier.Count > 0)
         {
             var current = frontier.Dequeue();
             foreach (var edge in snapshot.Relationships)
             {
-                if (edge.SubjectId != current) continue;
+                if (edge.TargetId != current) continue;
                 if (!IsPredicate(namesById, edge.PredicateId, IsPredicateName)) continue;
-                if (!seen.Add(edge.TargetId)) continue;
-                if (thingsById.TryGetValue(edge.TargetId, out var ancestor) && CarriesFlag(ancestor, flag))
-                    return true;
-                frontier.Enqueue(edge.TargetId);
+                if (!reached.Add(edge.SubjectId)) continue;
+
+                frontier.Enqueue(edge.SubjectId);
+                if (thingsById.TryGetValue(edge.SubjectId, out var member) && !member.IsArchetype)
+                    members.Add(edge.SubjectId);
             }
         }
 
-        return false;
+        return members;
     }
 
     private static bool CarriesFlag(SnapshotThing thing, string flag) =>
         thing.Properties.TryGetValue(flag, out var property)
-        && property.Value.ValueKind == System.Text.Json.JsonValueKind.True;
+        && property.Value.ValueKind == JsonValueKind.True;
 
     // The site's own Place and every Place containing it. A site relates to one Place; the nesting is
     // what makes a source covering the root cover every site under it without naming any of them.

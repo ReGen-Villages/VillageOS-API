@@ -337,6 +337,45 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
+    public void AnalysisOf_SiteWithTwoStudies_IsRefusedRatherThanPickedBetween()
+    {
+        // Relationship order is not defined, so choosing would analyse a different study on different
+        // runs and report neither choice.
+        var model = StudyOf("WillowBend")
+            .Relate("SecondStudy", CoveringSourceResolver.StudiesPredicate, "WillowBend");
+        MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend")).Should().BeNull();
+    }
+
+    [Fact]
+    public void AnalysisOf_TheSameStudyRelatedTwice_IsStillThatStudy()
+    {
+        // A duplicate edge is one study named twice, not two studies. Refusing it would take an analysis
+        // away over a redundancy that changes no answer.
+        var model = StudyOf("WillowBend")
+            .Relate("WillowBendStudy", CoveringSourceResolver.StudiesPredicate, "WillowBend");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .StudyId.Should().Be(model.Id("WillowBendStudy"));
+    }
+
+    [Fact]
+    public void AnalysisOf_TheMarkedArchetypeItself_IsNotATrigger()
+    {
+        // A type does not play its own role. Dispatching the archetype would relate the study to the
+        // vocabulary rather than to a service.
+        var model = StudyOf("WillowBend")
+            .Relate("SiteAnalysisConnection", CoveringSourceResolver.HasPredicate, "some service")
+            .Relate("some service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
+        model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        model.Archetype("EnergyBalance prototype");
+
+        CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
+            .Triggers.Should().BeEmpty();
+    }
+
+    [Fact]
     public void AnalysisOf_SnapshotHoldingAnUnnamedThing_StillFindsTheStudy()
     {
         // A snapshot Thing's name is optional, and this runs on the path that serves a discovery run:
