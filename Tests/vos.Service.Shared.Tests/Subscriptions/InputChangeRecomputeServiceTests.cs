@@ -233,6 +233,33 @@ public class InputChangeRecomputeServiceTests
         await harness.Exchange.WaitForCallsAsync(atLeast: 3);
     }
 
+    // Replacing the stored bearer is only half of it. The subscription's own calls — a reconnect, adding
+    // a subject — have to start using the replacement, or the follower renews a token it never sends.
+    [Fact]
+    public async Task A_replaced_bearer_is_what_the_subscriptions_own_calls_then_use()
+    {
+        await using var harness = await Harness.StartedAsync(
+            replacementLeadTime: TimeSpan.FromHours(2), replacementCheckInterval: TimeSpan.FromMilliseconds(20));
+        harness.Exchange.IssueExpiringIn = TimeSpan.FromMinutes(30);
+
+        await harness.WatchAsync(Study, ModelOne);
+        await harness.Exchange.WaitForCallsAsync(atLeast: 3);
+
+        harness.ClientFor(ModelOne).CurrentToken.Should().Be(harness.Exchange.Issued[^1]);
+    }
+
+    [Fact]
+    public async Task Stopping_unsubscribes_every_model_being_followed()
+    {
+        var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne);
+        await harness.WatchAsync(OtherStudy, ModelTwo);
+
+        await harness.DisposeAsync();
+
+        harness.Clients.Should().AllSatisfy(client => client.Unsubscribed.Should().BeTrue());
+    }
+
     [Fact]
     public async Task A_bearer_with_plenty_of_life_left_is_not_replaced()
     {
@@ -493,6 +520,12 @@ public class InputChangeRecomputeServiceTests
         /// real one learns it. The provider is a completed task, so nothing blocks here.</summary>
         public Guid ModelId => ModelScopedBearer.Read(_currentToken().GetAwaiter().GetResult())!.ModelId;
 
+        /// <summary>What this client would put on its next call. The follower is asked afresh each time,
+        /// so a replacement shows up here without the client being rebuilt.</summary>
+        public string? CurrentToken => _currentToken().GetAwaiter().GetResult();
+
+        public bool Unsubscribed { get; private set; }
+
         public TaskCompletionSource Subscribed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int FailSubscribesBefore { get; set; }
         public int SubscribeAttempts { get; private set; }
@@ -532,7 +565,11 @@ public class InputChangeRecomputeServiceTests
         public Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default) =>
             Task.CompletedTask;
 
-        public Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default)
+        {
+            Unsubscribed = true;
+            return Task.CompletedTask;
+        }
 
         public async IAsyncEnumerable<ModelChangeEvent> StreamAsync(
             Guid subscriptionId, long fromSequence,
