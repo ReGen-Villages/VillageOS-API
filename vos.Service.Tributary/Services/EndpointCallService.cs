@@ -226,6 +226,16 @@ public sealed class EndpointCallService
         if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(method))
             return Json(400, new { error = "Endpoint url/httpMethod must be non-empty strings." }, "Endpoint url/httpMethod must be non-empty strings.");
 
+        // Before the address is parsed, so an address still carrying a placeholder cannot become a
+        // Uri that looks callable.
+        url = AddressPlaceholders.Fill(url!, request.AddressParameters, out var unfilledPlaceholders);
+        if (unfilledPlaceholders.Count > 0)
+        {
+            var unfilled = $"Endpoint url has placeholders with no value in addressParameters: "
+                + $"{string.Join(", ", unfilledPlaceholders)}.";
+            return Json(400, new { error = unfilled, unfilledPlaceholders }, unfilled);
+        }
+
         if (!Uri.TryCreate(url, UriKind.Absolute, out var endpointUri))
             return Json(400, new { error = $"Invalid endpoint url: {url}" }, $"Invalid endpoint url: {url}");
 

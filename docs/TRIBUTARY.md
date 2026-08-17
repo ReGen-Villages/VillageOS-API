@@ -93,6 +93,37 @@ The `EsriEndpoint` template is the worked example: it restates only the keys it 
 `itemsPath=features`, …). A registration then supplies only the required-structural
 blanks (`url`, `tokenUrl`, `tokenRequest`). The full template JSON is below.
 
+## Per-call address parameters
+
+A `url` may carry named placeholders in braces, which the caller fills through
+`addressParameters` on the `/handle` request. One registration then serves every address in a
+set — a tile pyramid, or a point query at each site's coordinates — instead of one registration
+per address:
+
+```jsonc
+// registration:  "url": "https://tiles.example/tile/{z}/{y}/{x}.png"
+{ "endpointName": "ExampleTiles",
+  "addressParameters": { "z": "9", "y": "271", "x": "301" } }
+// called:  https://tiles.example/tile/9/271/301.png
+```
+
+The substitution is **generic**: it knows the placeholder names only as text, so nothing about
+tiles, zoom levels or coordinates appears in the code. The rules:
+
+- A placeholder with no supplied value **refuses the call before the source is contacted**, naming
+  every unfilled placeholder rather than the first. An address still carrying a placeholder is
+  never called — the fill runs before the address is parsed, so it cannot become a URL that merely
+  looks valid.
+- A supplied value that no placeholder names is **ignored**. One caller passes a shared set of
+  values to sources whose addresses take different placeholders, so an unused value is ordinary
+  rather than a mistake.
+- Names match case-insensitively, like every other property map here.
+- Values are **escaped as they are substituted**, so a value carrying a reserved character cannot
+  add a query parameter or a path segment of its own.
+- Like the reshape override, parameters belong to **that call alone** — nothing is written back, and
+  the catalogue does not grow a registration per address.
+- Paging walks the *filled* address, so placeholders compose with `OffsetPaging`.
+
 ## Token-exchange auth + offset paging
 
 Tributary stays source-agnostic: it has **generic** capabilities — a token-exchange
@@ -216,9 +247,10 @@ token exchange or paging — and adds only the kind edge and the optional negoti
 ```
 
 `BinaryResponse` requires nothing — reading bytes needs no configuration — so a
-registration owes only the `url` (fixed-URL for now: one registration per tile;
-per-request `{z}/{y}/{x}` templating is tracked as #5917). Tile **metadata** endpoints
-(`f=json` service descriptions) are ordinary JSON endpoints and need none of this.
+registration owes only the `url`, whose `{z}/{y}/{x}` placeholders the caller fills per
+request (see *Per-call address parameters*), so one registration serves the whole
+pyramid. Tile **metadata** endpoints (`f=json` service descriptions) are ordinary JSON
+endpoints and need none of this.
 
 **Model placement: transient passthrough.** A tile is a stateless fetch response. It is
 never persisted as a Thing, an observation, or a Fact — binary cannot be a scalar

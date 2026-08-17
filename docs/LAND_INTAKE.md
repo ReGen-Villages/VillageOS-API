@@ -375,8 +375,8 @@ forces it.
 
 Three parts do the work:
 
-- **`url`** with `{lat}` / `{lng}` placeholders, filled in per call. One registration serves every
-  site. *(This substitution does not exist yet — see [§11](#11-gaps-found-while-designing-this).)*
+- **`url`** with `{lat}` / `{lng}` placeholders, filled in per call from the `addressParameters` the
+  caller supplies. One registration serves every site.
 - **`coverage`** — where this source applies. `global`, or a set of countries.
 - **`responseTransform`** — a **JSONata** expression, which is a small language for reshaping JSON.
   It turns whatever the provider returns into a **reading**.
@@ -850,19 +850,17 @@ The first draft of this design had the pipeline fanning out over fetch nodes. Th
 correction is an improvement: the pipeline becomes a pure calculation graph with no network
 dependency, so re-running it is instant and free.
 
-### The address cannot be parameterised per call
+### The address can now be parameterised per call
 
-The outbound call resolves its address entirely from the registration. The only per-call inputs are a
-request body — which is only attached for methods that carry one, so not for a plain lookup — and a
-transform override.
+It could not. The outbound call resolved its address entirely from the registration, so "fetch the
+solar figure at *these* coordinates" could not be expressed and you would have needed one
+registration per site, growing the catalogue with every submission.
 
-So "fetch the solar figure at *these* coordinates" cannot currently be expressed. Without generic
-placeholder substitution into the address template, you would need one registration per site, and the
-catalogue would grow with every submission.
-
-The mechanism is already specified for tile pyramids as Feature
-[#5917](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/5917). This design depends
-on it.
+Feature [#5917](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/5917) closed it.
+The stored address carries named placeholders and the caller supplies `addressParameters` for them,
+per call. The substitution is generic — it knows the names only as text — so the same mechanism
+serves a tile pyramid and a point query at a site's coordinates. See
+[TRIBUTARY.md](TRIBUTARY.md#per-call-address-parameters).
 
 ### A registration's reshape expression now ingests
 
