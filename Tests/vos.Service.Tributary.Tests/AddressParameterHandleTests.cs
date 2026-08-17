@@ -8,7 +8,7 @@ namespace vos.Service.Tributary.Tests;
 
 // One registration serving many addresses, driven through /handle (Feature #5917). The unit-level
 // substitution rules live in Helpers/AddressTemplateTests; these pin what the call path does with
-// them — which address goes on the wire, and what is refused before anything is dialled.
+// them — which address goes on the wire, and what is refused before anything is called.
 public class AddressParameterHandleTests
 {
     private const string TileEndpointProperties = """
@@ -22,12 +22,12 @@ public class AddressParameterHandleTests
     public async Task Handle_AddressParameters_FillTheStoredAddress()
     {
         var thingId = Guid.NewGuid();
-        Uri? dialled = null;
+        Uri? requested = null;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            if (req.RequestUri!.Host == "tiles.test") { dialled = req.RequestUri; return Json("{\"ok\":true}"); }
+            if (req.RequestUri!.Host == "tiles.test") { requested = req.RequestUri; return Json("{\"ok\":true}"); }
             return RouteFindThing(req, thingId, "EP")
                 ?? RouteEffectiveProperties(req, thingId, TileEndpointProperties)
                 ?? RouteKindsFromProperties(req, thingId, TileEndpointProperties)
@@ -42,15 +42,15 @@ public class AddressParameterHandleTests
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        dialled.Should().NotBeNull();
-        dialled!.AbsoluteUri.Should().Be("https://tiles.test/tile/9/271/301.png");
+        requested.Should().NotBeNull();
+        requested!.AbsoluteUri.Should().Be("https://tiles.test/tile/9/271/301.png");
     }
 
     [Fact]
     public async Task Handle_TwoCallsWithDifferentParameters_ReachTwoAddressesFromOneRegistration()
     {
         var thingId = Guid.NewGuid();
-        var dialled = new List<string>();
+        var requested = new List<string>();
         var registrationWrites = 0;
         var thingsCreated = 0;
         await using var factory = new TributaryWebApplicationFactory();
@@ -59,7 +59,7 @@ public class AddressParameterHandleTests
         {
             if (req.RequestUri!.Host == "tiles.test")
             {
-                dialled.Add(req.RequestUri.AbsoluteUri);
+                requested.Add(req.RequestUri.AbsoluteUri);
                 return Json("{\"ok\":true}");
             }
             if (req.Method == HttpMethod.Put && req.RequestUri.AbsolutePath == $"/api/things/{thingId}/properties")
@@ -89,7 +89,7 @@ public class AddressParameterHandleTests
             response.StatusCode.Should().Be(HttpStatusCode.OK);
         }
 
-        dialled.Should().Equal(
+        requested.Should().Equal(
             "https://tiles.test/tile/9/271/301.png",
             "https://tiles.test/tile/9/272/301.png");
         registrationWrites.Should().Be(0, "a per-call address must not become part of the registration");
@@ -122,7 +122,7 @@ public class AddressParameterHandleTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("z").And.Contain("x");
-        outboundCalls.Should().Be(0, "an address still carrying a placeholder must never be dialled");
+        outboundCalls.Should().Be(0, "an address still carrying a placeholder must never be called");
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class AddressParameterHandleTests
         // A discovery run passes one site's values to every covering source; a source whose address
         // takes none of them must still be called rather than refused.
         var thingId = Guid.NewGuid();
-        Uri? dialled = null;
+        Uri? requested = null;
         var props = """
         {
           "Endpoint.url":        {"Value":"https://api.test/fixed?f=json"},
@@ -160,7 +160,7 @@ public class AddressParameterHandleTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            if (req.RequestUri!.Host == "api.test") { dialled = req.RequestUri; return Json("{\"ok\":true}"); }
+            if (req.RequestUri!.Host == "api.test") { requested = req.RequestUri; return Json("{\"ok\":true}"); }
             return RouteFindThing(req, thingId, "EP")
                 ?? RouteEffectiveProperties(req, thingId, props)
                 ?? RouteKindsFromProperties(req, thingId, props)
@@ -175,14 +175,50 @@ public class AddressParameterHandleTests
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        dialled!.AbsoluteUri.Should().Be("https://api.test/fixed?f=json");
+        requested!.AbsoluteUri.Should().Be("https://api.test/fixed?f=json");
+    }
+
+    [Fact]
+    public async Task Handle_ParameterNameCaseDiffersFromThePlaceholder_StillFills()
+    {
+        // The values arrive deserialized from the request body, which gives an ordinal dictionary.
+        // Only a call-path test can catch the lookup silently disagreeing with every other property
+        // map in this service — a unit test is free to hand the helper a comparer no caller uses.
+        var thingId = Guid.NewGuid();
+        Uri? requested = null;
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/{Site}/summary"},
+          "Endpoint.httpMethod": {"Value":"GET"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test") { requested = req.RequestUri; return Json("{\"ok\":true}"); }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new
+        {
+            endpointName = "EP",
+            addressParameters = new Dictionary<string, string> { ["site"] = "willow" }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        requested!.AbsoluteUri.Should().Be("https://api.test/willow/summary");
     }
 
     [Fact]
     public async Task Handle_ParameterValue_IsEscapedIntoTheAddress()
     {
         var thingId = Guid.NewGuid();
-        Uri? dialled = null;
+        Uri? requested = null;
         var props = """
         {
           "Endpoint.url":        {"Value":"https://api.test/lookup?name={name}"},
@@ -193,7 +229,7 @@ public class AddressParameterHandleTests
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            if (req.RequestUri!.Host == "api.test") { dialled = req.RequestUri; return Json("{\"ok\":true}"); }
+            if (req.RequestUri!.Host == "api.test") { requested = req.RequestUri; return Json("{\"ok\":true}"); }
             return RouteFindThing(req, thingId, "EP")
                 ?? RouteEffectiveProperties(req, thingId, props)
                 ?? RouteKindsFromProperties(req, thingId, props)
@@ -208,7 +244,7 @@ public class AddressParameterHandleTests
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        dialled!.Query.Should().Be("?name=a%26admin%3Dtrue");
+        requested!.Query.Should().Be("?name=a%26admin%3Dtrue");
     }
 
     [Fact]
@@ -216,7 +252,7 @@ public class AddressParameterHandleTests
     {
         // Paging rewrites the query per page; it must walk the filled address, not the template.
         var thingId = Guid.NewGuid();
-        var dialled = new List<string>();
+        var requested = new List<string>();
         var props = """
         {
           "Endpoint.url":        {"Value":"https://features.test/{layer}/query"},
@@ -233,7 +269,7 @@ public class AddressParameterHandleTests
         {
             if (req.RequestUri!.Host == "features.test")
             {
-                dialled.Add(req.RequestUri.AbsolutePath);
+                requested.Add(req.RequestUri.AbsolutePath);
                 return req.RequestUri.Query.Contains("resultOffset=1")
                     ? Json("{\"features\":[],\"exceededTransferLimit\":false}")
                     : Json("{\"features\":[{\"id\":1}],\"exceededTransferLimit\":true}");
@@ -252,6 +288,6 @@ public class AddressParameterHandleTests
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        dialled.Should().HaveCountGreaterThan(1).And.OnlyContain(path => path == "/3/query");
+        requested.Should().HaveCountGreaterThan(1).And.OnlyContain(path => path == "/3/query");
     }
 }

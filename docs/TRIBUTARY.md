@@ -86,6 +86,13 @@ Which *mechanisms* apply is not in the table because it is not a property: an en
 reaches `TokenExchangeAuth`, `OffsetPaging`, or `BinaryResponse` through its template's
 role edges, and the kinds themselves name the required-structural keys above.
 
+The `EsriEndpoint` template is the worked example: it restates only the keys it narrows
+(`httpMethod=POST`, form-encoded `requestContentType`), reaches `TokenExchangeAuth` and
+`OffsetPaging`, and fixes the ArcGIS field names as canonical-defaults
+(`tokenPath=token`, `expiryUnit=epochMillis`, `hasMorePath=exceededTransferLimit`,
+`itemsPath=features`, …). A registration then supplies only the required-structural
+blanks (`url`, `tokenUrl`, `tokenRequest`). The full template JSON is below.
+
 ## Per-call address parameters
 
 A `url` may carry named placeholders in braces, which the caller fills through
@@ -97,7 +104,7 @@ per address:
 // registration:  "url": "https://tiles.example/tile/{z}/{y}/{x}.png"
 { "endpointName": "ExampleTiles",
   "addressParameters": { "z": "9", "y": "271", "x": "301" } }
-// dialled:  https://tiles.example/tile/9/271/301.png
+// called:  https://tiles.example/tile/9/271/301.png
 ```
 
 The substitution is **generic**: it knows the placeholder names only as text, so nothing about
@@ -105,23 +112,17 @@ tiles, zoom levels or coordinates appears in the code. The rules:
 
 - A placeholder with no supplied value **refuses the call before the source is contacted**, naming
   every unfilled placeholder rather than the first. An address still carrying a placeholder is
-  never dialled — the fill runs before the address is parsed, so it cannot become a URL that merely
+  never called — the fill runs before the address is parsed, so it cannot become a URL that merely
   looks valid.
 - A supplied value that no placeholder names is **ignored**. One caller passes a shared set of
   values to sources whose addresses take different placeholders, so an unused value is ordinary
   rather than a mistake.
+- Names match case-insensitively, like every other property map here.
 - Values are **escaped as they are substituted**, so a value carrying a reserved character cannot
   add a query parameter or a path segment of its own.
 - Like the reshape override, parameters belong to **that call alone** — nothing is written back, and
   the catalogue does not grow a registration per address.
 - Paging walks the *filled* address, so placeholders compose with `OffsetPaging`.
-
-The `EsriEndpoint` template is the worked example: it restates only the keys it narrows
-(`httpMethod=POST`, form-encoded `requestContentType`), reaches `TokenExchangeAuth` and
-`OffsetPaging`, and fixes the ArcGIS field names as canonical-defaults
-(`tokenPath=token`, `expiryUnit=epochMillis`, `hasMorePath=exceededTransferLimit`,
-`itemsPath=features`, …). A registration then supplies only the required-structural
-blanks (`url`, `tokenUrl`, `tokenRequest`). The full template JSON is below.
 
 ## Token-exchange auth + offset paging
 

@@ -6,8 +6,10 @@ namespace vos.Service.Tributary.Tests.Helpers;
 
 public class AddressTemplateTests
 {
+    // Ordinal, because that is what a deserialized request body hands the helper. Building these with
+    // a case-insensitive comparer would let the helper's own lookup be wrong and still pass.
     private static Dictionary<string, string> Values(params (string Name, string Value)[] pairs) =>
-        pairs.ToDictionary(p => p.Name, p => p.Value, StringComparer.OrdinalIgnoreCase);
+        pairs.ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal);
 
     [Fact]
     public void Fill_SubstitutesEveryPlaceholder()
