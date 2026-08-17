@@ -4,7 +4,13 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Confluence.Services;
 
-// Which sources cover a site, read from the model in one scoped snapshot.
+// What one model read answers: which sources cover the site, and the site's own values a source's
+// address may name. Both come from the same snapshot, so a run reads the model once.
+public sealed record SiteCoverage(
+    IReadOnlyList<CoveringSource> Covering,
+    IReadOnlyDictionary<string, string> Values);
+
+// Reads a site's coverage from the model in one scoped snapshot.
 //
 // Null means the read failed, never that the site is covered by nothing. Collapsing the two would
 // report a gateway outage as "no source covers this site", which is the silently-short list this
@@ -20,7 +26,7 @@ public sealed class CoveringSourceService
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<CoveringSource>?> ForSiteAsync(Guid siteId, CancellationToken cancellationToken)
+    public async Task<SiteCoverage?> ForSiteAsync(Guid siteId, CancellationToken cancellationToken)
     {
         SubscribeResult subscribed;
         try
@@ -36,7 +42,9 @@ public sealed class CoveringSourceService
 
         try
         {
-            return CoveringSourceResolver.Resolve(subscribed.Snapshot, siteId);
+            return new SiteCoverage(
+                CoveringSourceResolver.Resolve(subscribed.Snapshot, siteId),
+                SiteValues.Of(subscribed.Snapshot, siteId));
         }
         finally
         {

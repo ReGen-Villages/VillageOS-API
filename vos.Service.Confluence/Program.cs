@@ -1,33 +1,35 @@
 using vos.Auth.Shared;
+using vos.Service.Confluence.Configuration;
 using vos.Service.Confluence.Models;
 using vos.Service.Confluence.Services;
 using vos.Service.Shared;
-using vos.Service.Shared.Configuration;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Subscriptions;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
+var launchSettings = ConfluenceLaunchSettings.Parse(args, builder.Configuration);
 if (launchSettings == null)
 {
-    Console.WriteLine(ServiceLaunchSettings.UsageMessage);
+    Console.WriteLine(ConfluenceLaunchSettings.UsageMessage);
     Environment.Exit(1);
     return;
 }
 
-var servicePort = launchSettings.Port;
-var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
-var signingKey = launchSettings.SigningKey;
+var servicePort = launchSettings.Service.Port;
+var myceliumUrl = launchSettings.Service.MyceliumUrl;
+var serviceToken = launchSettings.Service.Token;
+var signingKey = launchSettings.Service.SigningKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 ServiceHost.ConfigureLogging("Confluence", "confluence-.log", writeToFile: !isTestingEnv);
 
 try
 {
-    Log.Information("VillageOS Confluence Service - Port: {Port}, Mycelium: {MyceliumUrl}", servicePort, myceliumUrl);
+    Log.Information(
+        "VillageOS Confluence Service - Port: {Port}, Mycelium: {MyceliumUrl}, fetching through {Subdomain}",
+        servicePort, myceliumUrl, launchSettings.FetcherSubdomain);
 
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
@@ -38,10 +40,10 @@ try
     {
         builder.AddMyceliumTokenAuth(
             signingKey!,
-            issuer: launchSettings.Issuer,
-            audience: launchSettings.Audience);
+            issuer: launchSettings.Service.Issuer,
+            audience: launchSettings.Service.Audience);
         Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
-            launchSettings.Issuer, launchSettings.Audience);
+            launchSettings.Service.Issuer, launchSettings.Service.Audience);
     }
 
     // Coverage is edges, so the only read this service makes is a scoped snapshot.
@@ -52,6 +54,19 @@ try
             myceliumUrl,
             serviceToken));
     builder.Services.AddSingleton<CoveringSourceService>();
+    builder.Services.AddSingleton<ISourceFetcher>(sp =>
+        new EndpointServiceSourceFetcher(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<EndpointServiceSourceFetcher>>(),
+            myceliumUrl,
+            serviceToken,
+            launchSettings.FetcherSubdomain,
+            launchSettings.SourceTimeout));
+    builder.Services.AddSingleton(sp =>
+        new DiscoveryRunner(
+            sp.GetRequiredService<ISourceFetcher>(),
+            launchSettings.MaxConcurrentSources,
+            sp.GetRequiredService<ILogger<DiscoveryRunner>>()));
 
     var app = builder.Build();
 
@@ -65,26 +80,30 @@ try
     var handleEndpoint = app.MapPost("/handle", async (
         DiscoveryRequest request,
         CoveringSourceService coveringSources,
+        DiscoveryRunner runner,
         HttpContext httpContext) =>
     {
         if (request.SiteId == Guid.Empty)
             return Results.Json(new { error = "Request must include a siteId." }, statusCode: 400);
 
-        var covering = await coveringSources.ForSiteAsync(request.SiteId, httpContext.RequestAborted);
-        if (covering == null)
+        var coverage = await coveringSources.ForSiteAsync(request.SiteId, httpContext.RequestAborted);
+        if (coverage == null)
             return Results.Problem(
                 detail: "Failed to read which sources cover the site. Refusing rather than reporting that none do.",
                 statusCode: 502,
                 title: "Coverage resolution failed");
 
+        var report = await runner.RunAsync(
+            request.SiteId, coverage.Covering, coverage.Values, httpContext.RequestAborted);
+
         return Results.Ok(new
         {
-            siteId = request.SiteId,
-            covering = covering.Select(source => new
+            siteId = report.SiteId,
+            resolved = report.Resolved.Select(outcome => outcome.Source),
+            unresolved = report.Unresolved.Select(outcome => new
             {
-                dataSourceId = source.DataSourceId,
-                name = source.Name,
-                endpointName = source.EndpointName
+                source = outcome.Source,
+                reason = outcome.Reason
             })
         });
     });

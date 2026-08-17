@@ -1,34 +1,58 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using FluentAssertions;
 using Xunit;
 using static vos.Service.Confluence.Tests.ModelSnapshotStub;
 
 namespace vos.Service.Confluence.Tests;
 
-// The /handle surface in vos.Service.Confluence/Program.cs. The coverage rules themselves are pinned
-// in Helpers/CoveringSourceResolverTests; these cover what the endpoint does with them, including the
-// two failures a caller cannot tell apart from the answer alone.
+// The /handle surface in vos.Service.Confluence/Program.cs, driven end to end: read the model, call
+// each covering source through the fetching service, report both halves. The coverage rules are
+// pinned in Helpers/CoveringSourceResolverTests and the run's own behaviour in
+// Services/DiscoveryRunnerTests; these cover what the endpoint composes from them.
 public class HandleEndpointTests
 {
+    // The subdomain the run forwards a fetch to, left at its default by the test host.
+    private const string FetchRoute = "/api/endpoints/tributary";
+
     private static Dictionary<string, Guid> Names(params string[] names) =>
         names.ToDictionary(name => name, _ => Guid.NewGuid(), StringComparer.Ordinal);
 
+    private static HttpResponseMessage Ok(string body) =>
+        new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+
+    private static Edge[] TwoCoveringSources() =>
+    [
+        new Edge("WillowBend", "isIn", "Portugal"),
+        new Edge("Portugal", "isIn", "Earth"),
+        new Edge("NationalFloodPortal", "covers", "Portugal"),
+        new Edge("NationalFloodPortal", "resolvedBy", "NationalFloodPortalEndpoint"),
+        new Edge("OpenMeteo", "covers", "Earth"),
+        new Edge("OpenMeteo", "resolvedBy", "OpenMeteoEndpoint"),
+    ];
+
+    private static Dictionary<string, Guid> TwoSourceNames() => Names(
+        "WillowBend", "Portugal", "Earth", "isIn", "covers", "resolvedBy",
+        "NationalFloodPortal", "NationalFloodPortalEndpoint", "OpenMeteo", "OpenMeteoEndpoint");
+
     [Fact]
-    public async Task Handle_ReturnsEverySourceCoveringTheSite()
+    public async Task Handle_CallsEveryCoveringSource_AndReportsThemResolved()
     {
-        var ids = Names("WillowBend", "Portugal", "Earth", "isIn", "covers", "resolvedBy",
-            "NationalFloodPortal", "NationalFloodPortalEndpoint", "OpenMeteo", "OpenMeteoEndpoint");
+        var ids = TwoSourceNames();
+        var fetched = new List<string>();
         await using var factory = new ConfluenceWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteSubscription(req, ids,
-            new Edge("WillowBend", "isIn", "Portugal"),
-            new Edge("Portugal", "isIn", "Earth"),
-            new Edge("NationalFloodPortal", "covers", "Portugal"),
-            new Edge("NationalFloodPortal", "resolvedBy", "NationalFloodPortalEndpoint"),
-            new Edge("OpenMeteo", "covers", "Earth"),
-            new Edge("OpenMeteo", "resolvedBy", "OpenMeteoEndpoint"))
-            ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.AbsolutePath == FetchRoute)
+            {
+                fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                return Ok("""{"success":true}""");
+            }
+            return RouteSubscription(req, ids, TwoCoveringSources())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
@@ -36,25 +60,95 @@ public class HandleEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("NationalFloodPortal").And.Contain("OpenMeteo");
-        body.Should().Contain("NationalFloodPortalEndpoint");
+        body.Should().Contain("\"unresolved\":[]");
+        fetched.Should().HaveCount(2);
+        // The fetch names the registration, never the source — one is a planner's word for a
+        // provider, the other is what the fetching service resolves.
+        string.Join(" ", fetched).Should()
+            .Contain("NationalFloodPortalEndpoint").And.Contain("OpenMeteoEndpoint");
     }
 
     [Fact]
-    public async Task Handle_SiteNoSourceCovers_ReturnsAnEmptyListRatherThanAnError()
+    public async Task Handle_OneSourceFailing_StillIngestsTheOthersAndReportsTheReason()
     {
-        // Covered by nothing is a real answer about the model, not a failure.
-        var ids = Names("WillowBend", "Portugal", "isIn", "covers", "resolvedBy");
+        var ids = TwoSourceNames();
         await using var factory = new ConfluenceWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteSubscription(req, ids,
-            new Edge("WillowBend", "isIn", "Portugal"))
-            ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.AbsolutePath == FetchRoute)
+            {
+                var body = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return body.Contains("NationalFloodPortalEndpoint")
+                    ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                    {
+                        Content = new StringContent("portal is down for maintenance", Encoding.UTF8, "text/plain")
+                    }
+                    : Ok("""{"success":true}""");
+            }
+            return RouteSubscription(req, ids, TwoCoveringSources())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, "one provider being down is not the run failing");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("\"resolved\":[\"OpenMeteo\"]");
+        body.Should().Contain("NationalFloodPortal").And.Contain("503");
+        body.Should().Contain("portal is down for maintenance", "the provider's own words are the most useful reason");
+    }
+
+    [Fact]
+    public async Task Handle_PassesTheSitesOwnValuesToEverySource()
+    {
+        var ids = TwoSourceNames();
+        var bodies = new List<string>();
+        await using var factory = new ConfluenceWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.AbsolutePath == FetchRoute)
+            {
+                bodies.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                return Ok("""{"success":true}""");
+            }
+            return RouteSubscription(req, ids, TwoCoveringSources(),
+                       siteValues: new Dictionary<string, string> { ["lat"] = "-25.75", ["lng"] = "28.19" })
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("\"covering\":[]");
+        bodies.Should().HaveCount(2);
+        bodies.Should().OnlyContain(body => body.Contains("-25.75") && body.Contains("28.19"));
+    }
+
+    [Fact]
+    public async Task Handle_SiteNoSourceCovers_ReportsBothHalvesEmptyRatherThanAnError()
+    {
+        // Covered by nothing is a real answer about the model, not a failure.
+        var ids = Names("WillowBend", "Portugal", "isIn", "covers", "resolvedBy");
+        var fetches = 0;
+        await using var factory = new ConfluenceWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.AbsolutePath == FetchRoute) { fetches++; return Ok("{}"); }
+            return RouteSubscription(req, ids, new Edge("WillowBend", "isIn", "Portugal"))
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("\"resolved\":[]").And.Contain("\"unresolved\":[]");
+        fetches.Should().Be(0);
     }
 
     [Fact]

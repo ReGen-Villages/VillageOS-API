@@ -10,9 +10,6 @@ the pipeline reads what discovery wrote. That keeps the pipeline a pure calculat
 with no network dependency, so a planner adjusting an assumption reruns the analysis
 instantly and without touching a public data portal again.
 
-> Today Confluence answers *which sources cover this site*. Calling them, reporting
-> what did and did not resolve, and spawning the pipeline follow under #6052.
-
 ## Coverage is edges, not a word
 
 A source declares where it applies by relating to a **Place** Thing, and a site relates to
@@ -71,6 +68,44 @@ Tributary endpoint kinds hit; see [`TRIBUTARY.md`](TRIBUTARY.md).
 A failed read returns **502**, never an empty list. An unreachable gateway must not read as
 "no source covers this site" — the two answers look identical to a caller and only one of
 them is true.
+
+## The run
+
+`POST /handle { siteId }` resolves the site against every covering source and answers with both
+halves:
+
+```jsonc
+{ "siteId": "…",
+  "resolved":   ["OpenMeteo", "Copernicus"],
+  "unresolved": [ { "source": "NationalFloodPortal",
+                    "reason": "503: portal is down for maintenance" } ] }
+```
+
+**Partial failure is normal and is tolerated.** Public data portals go down, and an intake that
+aborted because one provider was unavailable would be abandoned. A source that fails leaves its
+value undiscovered, does not stop the others, and appears in `unresolved` with a reason — carrying
+the provider's own words where there are any, because that is the most useful thing a planner can
+be told about why a value is missing. Reporting what did *not* resolve matters as much as reporting
+what did: a quietly short list is the failure of the tool being replaced.
+
+**The site's own values go to every source.** Whatever the Site carries — coordinates, elevation,
+climate zone — is passed as the address parameters of every call. A source's address takes only the
+placeholders it names and the fetcher ignores the rest, so one set of values serves a source wanting
+coordinates, one wanting elevation, and one wanting neither, with no per-source arrangement here.
+Inherited values are left out: a value from an archetype is a default for a *kind* of site, and
+calling a provider with a default location would return a confident reading about somewhere else.
+
+**Bounds.** Sources resolve concurrently up to `--maxConcurrentSources`, so a site covered by many
+sources cannot open a burst of connections that reads as abuse. Any one source is bounded by
+`--sourceTimeoutSeconds`: a provider that accepts the connection and then goes quiet is more common
+than one that refuses outright, and it must not hold up the run. A run cancelled by its caller is
+never reported as a timeout — that would put a fabricated outage in front of a planner.
+
+**Fetching is not done here.** Confluence asks Mycelium to forward each call to the endpoint service
+named by `--fetcherSubdomain`, which resolves the registration, fills the address placeholders,
+reshapes the response and writes the observation onto the Site. Which service fetches is
+configuration rather than a name in code, so a deployment can point it elsewhere without editing
+this service.
 
 ## Pointers
 

@@ -2,7 +2,7 @@ namespace vos.Tests.Shared;
 
 public sealed class MockHttpMessageHandler : HttpMessageHandler
 {
-    private readonly Func<HttpRequestMessage, Task<HttpResponseMessage>> _handler;
+    private readonly Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> _handler;
     private readonly List<HttpRequestMessage> _requests = new();
     private readonly Lock _requestsLock = new();
 
@@ -18,7 +18,7 @@ public sealed class MockHttpMessageHandler : HttpMessageHandler
 
     public MockHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
     {
-        _handler = request => Task.FromResult(handler(request));
+        _handler = (request, _) => Task.FromResult(handler(request));
     }
 
     /// <summary>For a subject whose calls should be able to overlap. A handler that answers synchronously
@@ -27,9 +27,15 @@ public sealed class MockHttpMessageHandler : HttpMessageHandler
     /// <remarks>Named rather than a second constructor: a lambda body can satisfy both delegate types, so
     /// the overload made every existing call site ambiguous.</remarks>
     public static MockHttpMessageHandler AnsweringAsynchronously(
-        Func<HttpRequestMessage, Task<HttpResponseMessage>> handler) => new(handler);
+        Func<HttpRequestMessage, Task<HttpResponseMessage>> handler) => new((request, _) => handler(request));
 
-    private MockHttpMessageHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler)
+    /// <summary>For a subject that bounds how long a call may take. HttpClient applies its timeout by
+    /// passing a token down to the handler and awaiting it, so a handler that ignores that token hangs
+    /// rather than timing out — which is why a slow upstream could not be expressed here before.</summary>
+    public static MockHttpMessageHandler ObservingCancellation(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler) => new(handler);
+
+    private MockHttpMessageHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler)
     {
         _handler = handler;
     }
@@ -39,6 +45,6 @@ public sealed class MockHttpMessageHandler : HttpMessageHandler
         lock (_requestsLock)
             _requests.Add(request);
 
-        return await _handler(request);
+        return await _handler(request, cancellationToken);
     }
 }
