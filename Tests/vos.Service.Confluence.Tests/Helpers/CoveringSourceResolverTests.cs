@@ -361,18 +361,24 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
-    public void AnalysisOf_TheMarkedArchetypeItself_IsNotATrigger()
+    public void AnalysisOf_IntermediateArchetypeBindingItsOwnService_IsNotATrigger()
     {
-        // A type does not play its own role. Dispatching the archetype would relate the study to the
-        // vocabulary rather than to a service.
+        // A type between a connection and the mark may bind a service of its own as a template. It is
+        // still a type, and dispatching it would make the edge's predicate an archetype rather than a
+        // connection — so only the member below it is a trigger.
         var model = StudyOf("WillowBend")
-            .Relate("SiteAnalysisConnection", CoveringSourceResolver.HasPredicate, "some service")
-            .Relate("some service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
+            .Relate("PlatformAnalysisConnection", CoveringSourceResolver.IsPredicateName, "SiteAnalysisConnection")
+            .Relate("PlatformAnalysisConnection", CoveringSourceResolver.HasPredicate, "template service")
+            .Relate("template service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype")
+            .Relate("balancesEnergy", CoveringSourceResolver.IsPredicateName, "PlatformAnalysisConnection")
+            .Relate("balancesEnergy", CoveringSourceResolver.HasPredicate, "balancesEnergy service")
+            .Relate("balancesEnergy service", CoveringSourceResolver.IsPredicateName, "EnergyBalance prototype");
+        model.Archetype("PlatformAnalysisConnection");
         model.Archetype("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag);
         model.Archetype("EnergyBalance prototype");
 
         CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
-            .Triggers.Should().BeEmpty();
+            .Triggers.Select(trigger => trigger.ConnectionName).Should().Equal("balancesEnergy");
     }
 
     [Fact]
