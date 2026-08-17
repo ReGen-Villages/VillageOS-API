@@ -35,12 +35,19 @@ public class PerSiteIngestTests
         public List<string> ThingsCreated { get; } = new();
     }
 
+    // answerFirst is consulted before the standard routes, so a test that needs one answer changed —
+    // a refused observation, a Thing the name path must find — says only that.
     private static TributaryWebApplicationFactory FactoryOver(
-        Recorder recorder, Guid endpointId, string properties)
+        Recorder recorder,
+        Guid endpointId,
+        string properties,
+        Func<HttpRequestMessage, HttpResponseMessage?>? answerFirst = null)
     {
         var factory = new TributaryWebApplicationFactory();
         factory.HandlerCallback = req =>
         {
+            if (answerFirst?.Invoke(req) is { } answered) return answered;
+
             var path = req.RequestUri!.AbsolutePath;
             if (req.Method == HttpMethod.Post && path.EndsWith("/observations"))
             {
@@ -149,20 +156,11 @@ public class PerSiteIngestTests
     [Fact]
     public async Task Handle_SubjectSuppliedAndTheObservationIsRefused_ReportsTheFailure()
     {
-        var endpointId = Guid.NewGuid();
-        var factory = new TributaryWebApplicationFactory();
-        factory.HandlerCallback = req =>
-        {
-            var path = req.RequestUri!.AbsolutePath;
-            if (req.Method == HttpMethod.Post && path.EndsWith("/observations"))
-                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
-            if (req.RequestUri.Host == "api.test") return Json("""{"mm":3.4}""");
-            return RouteFindThing(req, endpointId, "EP")
-                ?? RouteEffectiveProperties(req, endpointId, SiteEndpointProperties)
-                ?? RouteKindsFromProperties(req, endpointId, SiteEndpointProperties)
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        await using var _ = factory;
+        var recorder = new Recorder();
+        await using var factory = FactoryOver(recorder, Guid.NewGuid(), SiteEndpointProperties,
+            req => req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath.EndsWith("/observations")
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                : null);
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
@@ -199,25 +197,9 @@ public class PerSiteIngestTests
         // The name path is what every existing registration uses, and a subject is only supplied by a
         // caller serving many. Nothing about this changes for a registration that serves one.
         var recorder = new Recorder();
-        var endpointId = Guid.NewGuid();
         var willowBend = Guid.NewGuid();
-        var factory = new TributaryWebApplicationFactory();
-        factory.HandlerCallback = req =>
-        {
-            var path = req.RequestUri!.AbsolutePath;
-            if (req.Method == HttpMethod.Post && path.EndsWith("/observations"))
-            {
-                recorder.ObservedOn.Add(Guid.Parse(path.Split('/')[3]));
-                return Json("""{"accepted":1}""");
-            }
-            if (req.RequestUri.Host == "api.test") return Json("""{"mm":3.4}""");
-            return RouteFindThing(req, endpointId, "EP")
-                ?? RouteFindThing(req, willowBend, "WillowBend")
-                ?? RouteEffectiveProperties(req, endpointId, SiteEndpointProperties)
-                ?? RouteKindsFromProperties(req, endpointId, SiteEndpointProperties)
-                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
-        };
-        await using var _ = factory;
+        await using var factory = FactoryOver(recorder, Guid.NewGuid(), SiteEndpointProperties,
+            req => RouteFindThing(req, willowBend, "WillowBend"));
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
