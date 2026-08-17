@@ -78,9 +78,10 @@ public class InputChangeRecomputeServiceTests
     public async Task A_subject_watched_before_the_subscription_opened_is_still_followed()
     {
         var harness = new Harness();
-        await harness.WatchAsync(Study, ModelOne);
+        await harness.WatchAsync(Study, ModelOne, waitForSubscription: false);
 
         await harness.StartAsync();
+        await harness.WaitForSubscriptionAsync(ModelOne);
 
         harness.ClientFor(ModelOne).Members.Should().Contain(Study);
         await harness.DisposeAsync();
@@ -246,6 +247,44 @@ public class InputChangeRecomputeServiceTests
         await harness.Exchange.WaitForCallsAsync(atLeast: 3);
 
         harness.ClientFor(ModelOne).CurrentToken.Should().Be(harness.Exchange.Issued[^1]);
+    }
+
+    // The membership pass that runs as the subscription opens is awaited, so an escaping failure there
+    // kills the stream loop before it starts and the whole model stops being followed. The follower logs
+    // that the subject's results will go stale and carries on instead.
+    //
+    // Deliberately the opening pass rather than a later Watch: that one is fire-and-forget, so an
+    // escaping exception is swallowed by the unobserved task and proves nothing about the guard.
+    [Fact]
+    public async Task A_subject_that_cannot_be_added_as_the_subscription_opens_leaves_the_model_still_followed()
+    {
+        var harness = new Harness();
+        await harness.WatchAsync(Study, ModelOne, waitForSubscription: false);
+        harness.ClientFor(ModelOne).FailAddObjects = true;
+
+        await harness.StartAsync();
+        await harness.WaitForSubscriptionAsync(ModelOne);
+        await harness.ClientFor(ModelOne).EmitAsync(Study, "population");
+
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study,
+            "a refused membership change must not stop the model being followed");
+        await harness.DisposeAsync();
+    }
+
+    // One model's unsubscribe failing during shutdown must not stop the others being stopped, so the
+    // failure is swallowed. Mycelium is often already gone by the time a daemon gets here.
+    [Fact]
+    public async Task An_unsubscribe_that_fails_does_not_stop_the_other_models_being_stopped()
+    {
+        var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne);
+        await harness.WatchAsync(OtherStudy, ModelTwo);
+        harness.ClientFor(ModelOne).FailUnsubscribe = true;
+
+        var stopping = async () => await harness.DisposeAsync();
+
+        await stopping.Should().NotThrowAsync();
+        harness.ClientFor(ModelTwo).Unsubscribed.Should().BeTrue();
     }
 
     [Fact]
@@ -418,7 +457,8 @@ public class InputChangeRecomputeServiceTests
         public Task StartAsync() => Service.StartAsync(CancellationToken.None);
 
         /// <summary>Watch a subject the way /handle does: under the bearer that arrived with the call.</summary>
-        public async Task WatchAsync(Guid subjectId, Guid modelId, TimeSpan? expiresIn = null)
+        public async Task WatchAsync(
+            Guid subjectId, Guid modelId, TimeSpan? expiresIn = null, bool waitForSubscription = true)
         {
             var bearer = TestTokens.For(modelId, DateTimeOffset.UtcNow.Add(expiresIn ?? TimeSpan.FromMinutes(5)));
             await MyceliumModelToken.ActingForAsync(bearer, () =>
@@ -427,7 +467,9 @@ public class InputChangeRecomputeServiceTests
                 return Task.CompletedTask;
             });
 
-            await WaitForSubscriptionAsync(modelId);
+            // Watching before the service starts opens no subscription, so waiting for one would only
+            // burn the deadline.
+            if (waitForSubscription) await WaitForSubscriptionAsync(modelId);
         }
 
         public async Task WaitForSubscriptionAsync(Guid modelId)
@@ -555,8 +597,13 @@ public class InputChangeRecomputeServiceTests
                 new SnapshotDocument(0, new List<SnapshotThing>(), new List<SnapshotRelationship>())));
         }
 
+        public bool FailAddObjects { get; set; }
+        public bool FailUnsubscribe { get; set; }
+
         public Task<AddObjectsResult> AddObjectsAsync(Guid subscriptionId, SubscriptionSelector selector, CancellationToken ct = default)
         {
+            if (FailAddObjects) throw new HttpRequestException("mycelium refused the membership change");
+
             lock (Members) Members.AddRange(selector.Ids ?? new List<Guid>());
             return Task.FromResult(new AddObjectsResult(0,
                 new SnapshotDocument(0, new List<SnapshotThing>(), new List<SnapshotRelationship>())));
@@ -568,6 +615,7 @@ public class InputChangeRecomputeServiceTests
         public Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default)
         {
             Unsubscribed = true;
+            if (FailUnsubscribe) throw new HttpRequestException("mycelium is already gone");
             return Task.CompletedTask;
         }
 
