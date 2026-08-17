@@ -8,7 +8,7 @@ namespace vos.Service.Confluence.Tests.Services;
 
 public class DiscoveryRunnerTests
 {
-    private static CoveringSource Source(string name) => new(Guid.NewGuid(), name, name + "Endpoint");
+    private static CoveringSource Source(string name) => new(name, name + "Endpoint");
 
     private static IReadOnlyList<CoveringSource> Sources(params string[] names) =>
         names.Select(Source).ToList();
@@ -18,10 +18,10 @@ public class DiscoveryRunnerTests
     // A fetcher a test drives by name, so a scenario reads as "this one fails, that one is slow".
     private sealed class ScriptedFetcher : ISourceFetcher
     {
-        private readonly Func<string, CancellationToken, Task<SourceOutcome>> _respond;
+        private readonly Func<string, Task<SourceOutcome>> _respond;
         private int _inFlight;
 
-        public ScriptedFetcher(Func<string, CancellationToken, Task<SourceOutcome>> respond) => _respond = respond;
+        public ScriptedFetcher(Func<string, Task<SourceOutcome>> respond) => _respond = respond;
 
         public int PeakInFlight { get; private set; }
         public List<string> Called { get; } = new();
@@ -35,7 +35,7 @@ public class DiscoveryRunnerTests
             lock (Called) PeakInFlight = Math.Max(PeakInFlight, now);
             try
             {
-                return await _respond(sourceName, cancellationToken);
+                return await _respond(sourceName);
             }
             finally
             {
@@ -53,7 +53,7 @@ public class DiscoveryRunnerTests
     [Fact]
     public async Task RunAsync_CallsEverySourceCoveringTheSite()
     {
-        var fetcher = new ScriptedFetcher((name, _) => Resolved(name));
+        var fetcher = new ScriptedFetcher(name => Resolved(name));
 
         var report = await Runner(fetcher).RunAsync(
             Guid.NewGuid(), Sources("OpenMeteo", "FloodPortal", "Copernicus"), NoParameters, default);
@@ -69,7 +69,7 @@ public class DiscoveryRunnerTests
     {
         // The requirement that decides whether this is usable at all: public data portals go down,
         // and an intake that aborted because one provider was unavailable would be abandoned.
-        var fetcher = new ScriptedFetcher((name, _) => name == "FloodPortal"
+        var fetcher = new ScriptedFetcher(name => name == "FloodPortal"
             ? Task.FromResult(new SourceOutcome(name, false, "503 from the provider"))
             : Resolved(name));
 
@@ -86,7 +86,7 @@ public class DiscoveryRunnerTests
     {
         // The fetcher reports a failed source rather than throwing, but it reaches the network. An
         // exception raised on one source's behalf must not be handed to the caller of the run.
-        var fetcher = new ScriptedFetcher((name, _) => name == "Broken"
+        var fetcher = new ScriptedFetcher(name => name == "Broken"
             ? throw new HttpRequestException("connection reset")
             : Resolved(name));
 
@@ -102,7 +102,7 @@ public class DiscoveryRunnerTests
     [Fact]
     public async Task RunAsync_EveryUnresolvedSource_CarriesAReason()
     {
-        var fetcher = new ScriptedFetcher((name, _) => name switch
+        var fetcher = new ScriptedFetcher(name => name switch
         {
             "TimedOut" => throw new TaskCanceledException("timed out"),
             "Refused" => Task.FromResult(new SourceOutcome(name, false, "404 from the provider")),
@@ -121,7 +121,7 @@ public class DiscoveryRunnerTests
     {
         // A site covered by many sources must not open a burst of connections that reads as abuse.
         var release = new TaskCompletionSource();
-        var fetcher = new ScriptedFetcher(async (name, _) =>
+        var fetcher = new ScriptedFetcher(async name =>
         {
             await release.Task;
             return new SourceOutcome(name, true, null);
@@ -130,7 +130,15 @@ public class DiscoveryRunnerTests
 
         var run = Runner(fetcher, maxConcurrent: 3)
             .RunAsync(Guid.NewGuid(), sources, NoParameters, default);
-        while (fetcher.Called.Count < 3) await Task.Delay(5);
+        // Bounded, and generously: a wait with no bound hangs the suite rather than failing it when
+        // the runner admits too few, and CI agents are far slower than a development machine.
+        var waited = TimeSpan.Zero;
+        while (fetcher.Called.Count < 3 && waited < TimeSpan.FromSeconds(10))
+        {
+            await Task.Delay(5);
+            waited += TimeSpan.FromMilliseconds(5);
+        }
+        fetcher.Called.Count.Should().BeGreaterThanOrEqualTo(3, "three may run at once");
         await Task.Delay(50);
         release.SetResult();
         var report = await run;
@@ -142,7 +150,7 @@ public class DiscoveryRunnerTests
     [Fact]
     public async Task RunAsync_NoCoveringSources_ReportsBothHalvesEmpty()
     {
-        var fetcher = new ScriptedFetcher((name, _) => Resolved(name));
+        var fetcher = new ScriptedFetcher(name => Resolved(name));
 
         var report = await Runner(fetcher).RunAsync(Guid.NewGuid(), Sources(), NoParameters, default);
 
