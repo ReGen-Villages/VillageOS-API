@@ -382,6 +382,43 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
+    public void AnalysisOf_IsEdgeFromAThingOutsideTheSnapshot_IsSkipped()
+    {
+        // Incident edges arrive for every Thing in the set, including ones whose other end was not
+        // selected. Reading a connection that is not there would dispatch against a Thing this run
+        // knows nothing about.
+        var site = Guid.NewGuid();
+        var study = Guid.NewGuid();
+        var studies = Guid.NewGuid();
+        var isEdge = Guid.NewGuid();
+        var marked = Guid.NewGuid();
+        var snapshot = new SnapshotDocument(
+            0,
+            new List<SnapshotThing>
+            {
+                Thing(site, "WillowBend"),
+                Thing(study, "WillowBendStudy"),
+                Thing(studies, CoveringSourceResolver.StudiesPredicate),
+                Thing(isEdge, CoveringSourceResolver.IsPredicateName),
+                new(marked, "SiteAnalysisConnection", true,
+                    new Dictionary<string, SnapshotProperty>
+                    {
+                        [CoveringSourceResolver.SiteAnalysisConnectionFlag] =
+                            new(JsonDocument.Parse("true").RootElement, null, null),
+                    },
+                    new Dictionary<string, InheritedPropertySet>(),
+                    Array.Empty<string>(), Array.Empty<Guid>()),
+            },
+            new List<SnapshotRelationship>
+            {
+                Edge(study, studies, site),
+                Edge(Guid.NewGuid(), isEdge, marked),
+            });
+
+        CoveringSourceResolver.AnalysisOf(snapshot, site)!.Triggers.Should().BeEmpty();
+    }
+
+    [Fact]
     public void AnalysisOf_SnapshotHoldingAnUnnamedThing_StillFindsTheStudy()
     {
         // A snapshot Thing's name is optional, and this runs on the path that serves a discovery run:
