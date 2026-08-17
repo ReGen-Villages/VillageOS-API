@@ -9,8 +9,8 @@ namespace vos.Service.Tributary.Tests;
 
 // Tests for the /handle endpoint in vos.Service.Tributary/Program.cs.
 // Each test wires up a per-scenario HandlerCallback on the factory so Mycelium calls
-// (FindThingByNameAsync, GetEffectivePropertiesAsync, SetThingPropertyAsync, CreateThing,
-// CreateRelationship) AND the outbound endpoint call all resolve through the same handler.
+// (FindThingByNameAsync, GetEffectivePropertiesAsync, CreateThing, CreateRelationship,
+// SubmitObservations) AND the outbound endpoint call all resolve through the same handler.
 public class HandleEndpointTests
 {
     // ---------- Request validation ----------
@@ -347,17 +347,11 @@ public class HandleEndpointTests
           "{{transformKey}}":    {"Value":"{\"name\": \"ExampleSite\", \"properties\": {\"precipitation\": hourly.precipitation[0]}, \"observedAt\": hourly.time[0]}"}
         }
         """;
-        var registrationWrites = 0;
         string? observations = null;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            if (req.Method == HttpMethod.Put && req.RequestUri!.AbsolutePath == $"/api/things/{thingId}/properties")
-            {
-                registrationWrites++;
-                return Json("{}");
-            }
             if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath == $"/api/things/{siteId}/observations")
             {
                 observations = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
@@ -380,7 +374,6 @@ public class HandleEndpointTests
         body.Should().Contain("\"entitiesTouched\":1").And.Contain("\"observationsSubmitted\":1");
         observations.Should().NotBeNull();
         observations!.Should().Contain("\"property\":\"precipitation\"").And.Contain("\"value\":3.4");
-        registrationWrites.Should().Be(0);
     }
 
     [Fact]
