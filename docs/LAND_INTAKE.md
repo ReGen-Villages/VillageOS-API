@@ -353,6 +353,11 @@ resolves to the nearest ancestor that sets it. **Delta** validates all of that a
 and refuses anything that does not fit, so a broken configuration fails immediately rather than at
 3am during a run.
 
+**A registration lives in the project's own model, not in a catalogue shared between projects.** A
+model is the boundary of every read, so an endpoint and the Site its readings name have to be in the
+same one. [`DELTA.md`](DELTA.md#which-model-a-registration-lives-in) records the decision and what
+forces it.
+
 ### A registration, in full
 
 ```jsonc
@@ -825,7 +830,7 @@ The main finding from designing this: most of it is already built.
 
 ## 11. Gaps found while designing this
 
-Checking the code rather than the documentation changed the design in three places. All three are
+Checking the code rather than the documentation changed the design in the places below. Each is
 tracked under Feature
 [#6050](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6050).
 
@@ -867,6 +872,19 @@ path, which is why this sits inside a green suite. Raised as Bug
 [#6051](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6051), with the regression
 test required to go through the call path.
 
+### Only one project can register an endpoint at all
+
+Delta writes a registration into the model of whoever called it, which is the shape this design
+wants. Its **template catalogue** does not follow: that is provisioned once at startup, under the
+token Delta was launched with, so it lands in a single model. One Delta process serves every project,
+because a second project's call finds the daemon already healthy on the port both models declare.
+
+So a registration from any other model passes every validation step and then fails on its template
+being absent, with a 500. Intake cannot register a source for a second project until this is fixed.
+Raised as Bug
+[#6525](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6525); the fix provisions
+per model, on first contact, under the caller's token.
+
 ---
 
 ## 12. Handling personal data
@@ -902,13 +920,12 @@ debugging session otherwise.
 
 | # | Question | Recommendation |
 |---|---|---|
-| 1 | **Where do registrations live** when each project has its own model? | One shared catalogue model. An open-data source is global reference data; duplicating it per project means re-registering everything on every new project for no benefit. If that holds, multi-tenant routing stops being a dependency. |
-| 2 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
-| 3 | **Map library** — Leaflet or MapLibre? | Leaflet is smaller and is what the current tool uses; MapLibre gives vector tiles and better styling. Story-level decision. |
-| 4 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
-| 5 | **Retention** for submissions that are never promoted. | Decide before there is anything in the intake model, not after. |
-| 6 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own front door, so it is a natural follow-up. |
-| 7 | **What triggers discovery** — planner action, arrival of a submission, or a schedule? | All three eventually. Build one path and let each be a caller of it, rather than a branch inside it. |
+| 1 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
+| 2 | **Map library** — Leaflet or MapLibre? | Leaflet is smaller and is what the current tool uses; MapLibre gives vector tiles and better styling. Story-level decision. |
+| 3 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
+| 4 | **Retention** for submissions that are never promoted. | Decide before there is anything in the intake model, not after. |
+| 5 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own front door, so it is a natural follow-up. |
+| 6 | **What triggers discovery** — planner action, arrival of a submission, or a schedule? | All three eventually. Build one path and let each be a caller of it, rather than a branch inside it. |
 
 ---
 
