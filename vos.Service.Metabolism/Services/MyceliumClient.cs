@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using vos.Service.Metabolism.Configuration;
 using vos.Service.Shared;
 
 namespace vos.Service.Metabolism.Services;
@@ -11,18 +12,18 @@ namespace vos.Service.Metabolism.Services;
 // (Phase 5c, #5558).
 public class MyceliumClient : MyceliumClientBase
 {
-    private readonly string _mode;
+    private readonly ResourceDirection _direction;
 
-    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string mode, string? serviceToken = null)
+    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, ResourceDirection direction, string? serviceToken = null)
         : base(httpClientFactory, logger, myceliumUrl, serviceToken)
     {
-        _mode = mode;
+        _direction = direction;
     }
 
     // Registers this handler with Mycelium.
     public Task<bool> RegisterAsync(int port)
-        => RegisterAsync(port, $"Metabolism-{_mode}",
-            $"dotnet run --project vos.Service.Metabolism -- --port={port} --myceliumUrl={MyceliumUrl} --mode={_mode}");
+        => RegisterAsync(port, $"Metabolism-{_direction.LaunchArgument}",
+            $"dotnet run --project vos.Service.Metabolism -- --port={port} --myceliumUrl={MyceliumUrl} --mode={_direction.LaunchArgument}");
 
     private const string ApplyQuantitySchemaId = "https://villageos/contracts/apply-quantity-request.schema.json";
     private const string RelationshipIncrementSchemaId = "https://villageos/contracts/relationship-property-increment-request.schema.json";
@@ -35,10 +36,9 @@ public class MyceliumClient : MyceliumClientBase
     protected virtual object BuildIncrementRelationshipPayload(decimal amount) =>
         new { amount };
 
-    // Applies the resource operation (increment or decrement) based on mode.
     public async Task<JsonElement?> ApplyQuantityAsync(string thingId, string propertyPath, decimal amount, string? subjectName = null, string? unit = null)
     {
-        var action = _mode == "consumes" ? "decrements" : "increments";
+        var action = _direction.PoolAction;
 
         var payload = BuildApplyQuantityPayload(amount, subjectName, unit);
         var json = JsonSerializer.Serialize(payload);

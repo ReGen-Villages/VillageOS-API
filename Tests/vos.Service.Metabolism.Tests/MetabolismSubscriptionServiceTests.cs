@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using vos.Service.Metabolism.Models;
+using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
@@ -18,8 +19,8 @@ public class MetabolismSubscriptionServiceTests
     private sealed class RecordingMetabolism : Services.Metabolism
     {
         public RecordingMetabolism()
-            : base(new MyceliumClient(Mock.Of<IHttpClientFactory>(), NullLogger<MyceliumClient>.Instance, "http://localhost:0", "produces"),
-                   NullLogger<Services.Metabolism>.Instance, "produces") { }
+            : base(new MyceliumClient(Mock.Of<IHttpClientFactory>(), NullLogger<MyceliumClient>.Instance, "http://localhost:0", ResourceDirection.Produces),
+                   NullLogger<Services.Metabolism>.Instance, ResourceDirection.Produces) { }
 
         public ConcurrentQueue<(string rel, string prop, object? val)> Updates { get; } = new();
         public override void UpdateProperty(string relationshipId, string propertyName, object? newValue)

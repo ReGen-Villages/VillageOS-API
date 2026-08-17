@@ -22,17 +22,17 @@ if (launchSettings == null)
 
 var servicePort = launchSettings.Service.Port;
 var myceliumUrl = launchSettings.Service.MyceliumUrl;
-var mode = launchSettings.Mode;
+var direction = launchSettings.Direction;
 var serviceToken = launchSettings.Service.Token;
 var signingKey = launchSettings.Service.SigningKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Metabolism", $"metabolism-{mode}-.log", writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Metabolism", $"metabolism-{direction.LaunchArgument}-.log", writeToFile: !isTestingEnv);
 
 try
 {
     Log.Information("VOS '{Mode}' Metabolism Service — Port: {Port}, Mycelium: {MyceliumUrl}",
-        mode, servicePort, myceliumUrl);
+        direction, servicePort, myceliumUrl);
 
     builder.Host.UseSerilog();
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
@@ -55,12 +55,12 @@ try
         new MyceliumClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumClient>>(),
-            myceliumUrl, mode, serviceToken));
+            myceliumUrl, direction, serviceToken));
     builder.Services.AddSingleton(sp =>
         new Metabolism(
             sp.GetRequiredService<MyceliumClient>(),
             sp.GetRequiredService<ILogger<Metabolism>>(),
-            mode));
+            direction));
     builder.Services.AddSingleton<HandleRequestProcessor>();
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>
         new SubscriptionClient(
@@ -95,7 +95,7 @@ try
             try
             {
                 Log.Information("Shutting down '{Mode}' handler — stopping {Count} simulation(s), {Requests} registration(s) processed",
-                    mode, metabolism.GetAll().Count(), requestCount);
+                    direction, metabolism.GetAll().Count(), requestCount);
                 await metabolism.StopAllAsync();
                 await myceliumClient.DeregisterAsync();
             }
@@ -107,7 +107,7 @@ try
     }
 
     app.MapMetabolismEndpoints(
-        mode,
+        direction,
         () => requestCount, () => requestCount++,
         authEnabled: !string.IsNullOrEmpty(signingKey));
 

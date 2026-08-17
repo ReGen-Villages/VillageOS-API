@@ -1,3 +1,4 @@
+using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Models;
 using vos.Service.Metabolism.Services;
 using vos.Service.Shared.Middleware;
@@ -9,11 +10,13 @@ public static class EndpointMapper
 {
     public static WebApplication MapMetabolismEndpoints(
         this WebApplication app,
-        string mode,
+        ResourceDirection direction,
         Func<int> getRequestCount,
         Action incrementRequestCount,
         bool authEnabled = false)
     {
+        var mode = direction.LaunchArgument;
+
         var handleEndpoint = app.MapPost("/handle", (HandleRequest request, HandleRequestProcessor processor) =>
         {
             incrementRequestCount();
