@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
-using vos.Service.Phloem.Configuration;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
 
@@ -17,14 +16,12 @@ public sealed class PipelineExecutor
         new Dictionary<string, JsonElement>();
 
     private readonly IMyceliumGateway _gateway;
-    private readonly PipelineModelOptions _model;
     private readonly ILogger<PipelineExecutor> _logger;
     private readonly int _maxConcurrency;
 
-    public PipelineExecutor(IMyceliumGateway gateway, PipelineModelOptions model, ILogger<PipelineExecutor> logger, int maxConcurrency = 4)
+    public PipelineExecutor(IMyceliumGateway gateway, ILogger<PipelineExecutor> logger, int maxConcurrency = 4)
     {
         _gateway = gateway;
-        _model = model;
         _logger = logger;
         _maxConcurrency = Math.Max(1, maxConcurrency);
     }
@@ -40,7 +37,7 @@ public sealed class PipelineExecutor
         try
         {
             var graph = await _gateway.LoadPipelineSubgraphAsync(pipelineId, cancellationToken);
-            dag = PipelineDagBuilder.Build(graph, pipelineId, _model);
+            dag = PipelineDagBuilder.Build(graph, pipelineId);
         }
         catch (PipelineModelException ex)
         {

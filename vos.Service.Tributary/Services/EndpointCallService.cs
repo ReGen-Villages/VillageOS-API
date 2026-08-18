@@ -10,10 +10,9 @@ using vos.Service.Shared.Validation;
 namespace vos.Service.Tributary.Services;
 
 // Resolves an endpoint Thing's effective properties and performs the outbound HTTP call — auth-kinds,
-// offset paging, binary response envelopes, and optional JSONata response transform / observation
-// ingest. Extracted verbatim from the original /handle lambda so both the HTTP endpoint and the
-// pipeline DAG node (TributaryNode, Feature #5628) run the identical path. Returns a framework-free
-// EndpointCallResult; callers map it to their own response type.
+// offset paging, binary response envelopes, and the optional JSONata reshape whose output is ingested
+// as observations. Returns a framework-free EndpointCallResult; callers map it to their own response
+// type.
 public sealed class EndpointCallService
 {
     private readonly MyceliumClient _mycelium;
@@ -90,9 +89,6 @@ public sealed class EndpointCallService
         }
     }
 
-    // Checked at two points on the same run, so it is written once. The two checks are not redundant:
-    // a transform can arrive on the request or be declared on the endpoint, and only the second is
-    // known once the endpoint's own properties have resolved.
     private const string BinaryTransformClash =
         "A binary body cannot be combined with a response transform: there is no text to transform.";
 
@@ -161,26 +157,6 @@ public sealed class EndpointCallService
                     JsonBodyMechanism, BinaryBodyMechanism);
         }
 
-        var hasOverrideTransform = !string.IsNullOrWhiteSpace(request.ResponseTransform);
-        if (binaryResponse && hasOverrideTransform)
-            return Json(400, new { error = BinaryTransformClash }, BinaryTransformClash);
-        JsonataTransform? overrideQuery = null;
-        if (hasOverrideTransform)
-        {
-            try
-            {
-                overrideQuery = new JsonataTransform(request.ResponseTransform!);
-            }
-            catch (Exception ex)
-            {
-                return Json(400, new { error = "Invalid responseTransform JSONata expression.", detail = ex.Message }, "Invalid responseTransform JSONata expression.");
-            }
-
-            var setOverride = await _mycelium.SetThingPropertyAsync(thing.Value.Id, "responseTransform", request.ResponseTransform);
-            if (!setOverride)
-                return Problem(502, "Endpoint update failed", "Failed to persist responseTransform override to endpoint thing.");
-        }
-
         List<string>? urlConflicts = null;
         List<string>? methodConflicts = null;
         List<string>? transformConflicts = null;
@@ -199,16 +175,13 @@ public sealed class EndpointCallService
                 "Endpoint thing is missing required properties: url, httpMethod");
         }
 
-        string? responseTransform = null;
+        string? registeredTransform = null;
         if (EffectivePropertyResolver.TryGetEffectiveProperty(effective, "responseTransform", out var transformElement, out transformConflicts))
         {
-            responseTransform = transformElement.ValueKind == JsonValueKind.String
+            registeredTransform = transformElement.ValueKind == JsonValueKind.String
                 ? transformElement.GetString()
                 : transformElement.ToString();
         }
-
-        if (!string.IsNullOrWhiteSpace(responseTransform))
-            _logger.LogInformation("Endpoint {EndpointName} responseTransform: {Transform}", request.EndpointName, responseTransform);
 
         if (transformConflicts != null)
             return Json(400, new
@@ -217,14 +190,51 @@ public sealed class EndpointCallService
                 conflicts = new { responseTransform = transformConflicts }
             }, "Endpoint thing has ambiguous properties for responseTransform.");
 
-        if (binaryResponse && !string.IsNullOrWhiteSpace(responseTransform))
+        // What the endpoint reshapes with on this call. A request-supplied expression wins for this
+        // call alone and is never written back: Tributary reads a source, and a read that rewrote
+        // its own registration would change what every later caller of that source receives.
+        var reshapeExpression = string.IsNullOrWhiteSpace(request.ResponseTransform)
+            ? registeredTransform
+            : request.ResponseTransform;
+
+        if (!string.IsNullOrWhiteSpace(registeredTransform))
+            _logger.LogInformation("Endpoint {EndpointName} responseTransform: {Transform}", request.EndpointName, registeredTransform);
+
+        if (binaryResponse && !string.IsNullOrWhiteSpace(reshapeExpression))
             return Json(400, new { error = BinaryTransformClash }, BinaryTransformClash);
+
+        // Compiled before the outbound call so an expression that cannot parse costs the source
+        // nothing, whichever side supplied it.
+        JsonataTransform? reshape = null;
+        if (!string.IsNullOrWhiteSpace(reshapeExpression))
+        {
+            try
+            {
+                reshape = new JsonataTransform(reshapeExpression!);
+            }
+            catch (Exception ex)
+            {
+                return Json(400,
+                    new { error = "Invalid responseTransform JSONata expression.", detail = ex.Message },
+                    "Invalid responseTransform JSONata expression.");
+            }
+        }
 
         var url = urlElement.ValueKind == JsonValueKind.String ? urlElement.GetString() : urlElement.ToString();
         var method = methodElement.ValueKind == JsonValueKind.String ? methodElement.GetString() : methodElement.ToString();
 
         if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(method))
             return Json(400, new { error = "Endpoint url/httpMethod must be non-empty strings." }, "Endpoint url/httpMethod must be non-empty strings.");
+
+        // Before the address is parsed, so an address still carrying a placeholder cannot become a
+        // Uri that looks callable.
+        url = AddressPlaceholders.Fill(url!, request.AddressParameters, out var unfilledPlaceholders);
+        if (unfilledPlaceholders.Count > 0)
+        {
+            var unfilled = $"Endpoint url has placeholders with no value in addressParameters: "
+                + $"{string.Join(", ", unfilledPlaceholders)}.";
+            return Json(400, new { error = unfilled, unfilledPlaceholders }, unfilled);
+        }
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out var endpointUri))
             return Json(400, new { error = $"Invalid endpoint url: {url}" }, $"Invalid endpoint url: {url}");
@@ -451,32 +461,14 @@ public sealed class EndpointCallService
                     _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, cancellationToken);
             }
 
-            if (hasOverrideTransform && overrideQuery != null && status is >= 200 and < 300)
+            if (reshape != null && status is >= 200 and < 300)
             {
-                var ingestResult = await _observationService.CreateObservationsAsync(thing.Value.Id, overrideQuery, body);
+                var ingestResult = await _observationService.CreateObservationsAsync(thing.Value.Id, reshape, body);
                 if (!ingestResult.Success)
                     return Json(400, new { error = ingestResult.Error, detail = ingestResult.Detail }, ingestResult.Error ?? "Observation ingest failed.");
 
                 return EndpointCallResult.Ingested(new IngestSummary(
                     thing.Value.Id, ingestResult.EntitiesTouched, ingestResult.ObservationsSubmitted));
-            }
-
-            if (!string.IsNullOrWhiteSpace(responseTransform) && status is >= 200 and < 300)
-            {
-                JsonataTransform propertyQuery;
-                try
-                {
-                    propertyQuery = new JsonataTransform(responseTransform!);
-                }
-                catch (Exception ex)
-                {
-                    return Problem(502, "Endpoint response transform failed", ex.Message);
-                }
-
-                if (!_observationService.TryTransform(body, propertyQuery, out var transformed, out var transformError))
-                    return Problem(502, "Endpoint response transform failed", transformError);
-
-                return EndpointCallResult.Body(transformed, "application/json");
             }
 
             return EndpointCallResult.Body(body, contentType ?? "application/json");

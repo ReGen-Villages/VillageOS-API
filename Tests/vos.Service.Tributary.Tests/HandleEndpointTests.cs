@@ -9,8 +9,8 @@ namespace vos.Service.Tributary.Tests;
 
 // Tests for the /handle endpoint in vos.Service.Tributary/Program.cs.
 // Each test wires up a per-scenario HandlerCallback on the factory so Mycelium calls
-// (FindThingByNameAsync, GetEffectivePropertiesAsync, SetThingPropertyAsync, CreateThing,
-// CreateRelationship) AND the outbound endpoint call all resolve through the same handler.
+// (FindThingByNameAsync, GetEffectivePropertiesAsync, CreateThing, CreateRelationship,
+// SubmitObservations) AND the outbound endpoint call all resolve through the same handler.
 public class HandleEndpointTests
 {
     // ---------- Request validation ----------
@@ -77,12 +77,23 @@ public class HandleEndpointTests
     public async Task Handle_InvalidOverrideTransform_Returns400()
     {
         var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"GET"}
+        }
+        """;
+        var outboundCalls = 0;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = req => RouteFindThing(req, thingId, "EP")
-            ?? RouteEffectiveProperties(req, thingId, EmptyProps())
-            ?? RouteKindsFromProperties(req, thingId, EmptyProps())
-            ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test") { outboundCalls++; return Json("{\"ok\":true}"); }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new
@@ -93,34 +104,7 @@ public class HandleEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await response.Content.ReadAsStringAsync()).Should().Contain("Invalid responseTransform");
-    }
-
-    [Fact]
-    public async Task Handle_OverrideTransformPersistFails_Returns502()
-    {
-        var thingId = Guid.NewGuid();
-        await using var factory = new TributaryWebApplicationFactory();
-        await factory.InitializeAsync();
-        factory.HandlerCallback = req =>
-        {
-            return RouteFindThing(req, thingId, "EP")
-                ?? RouteEffectiveProperties(req, thingId, EmptyProps())
-            ?? RouteKindsFromProperties(req, thingId, EmptyProps())
-                ?? (req.Method == HttpMethod.Put
-                    && req.RequestUri!.AbsolutePath == $"/api/things/{thingId}/properties"
-                    ? new HttpResponseMessage(HttpStatusCode.BadRequest)
-                    : new HttpResponseMessage(HttpStatusCode.NotFound));
-        };
-        using var client = factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/handle", new
-        {
-            endpointName = "EP",
-            responseTransform = "{\"v\":1}"
-        });
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("Failed to persist responseTransform");
+        outboundCalls.Should().Be(0, "an expression that cannot compile is refused before the source is called");
     }
 
     // ---------- TryGetEffectiveProperty branches ----------
@@ -275,14 +259,16 @@ public class HandleEndpointTests
     }
 
     [Fact]
-    public async Task Handle_GetEndpointWithStoredTransform_ReturnsTransformedBody()
+    public async Task Handle_BlankTransformDeclaredOnTheTemplate_ReturnsRawBody()
     {
+        // A blank value makes the key admissible for a registration without supplying an
+        // expression, so the root template can declare it and a plain fetch still passes through.
         var thingId = Guid.NewGuid();
         var props = """
         {
-          "Endpoint.url":              {"Value":"https://api.test/data"},
-          "Endpoint.httpMethod":       {"Value":"GET"},
-          "Endpoint.responseTransform":{"Value":"{\"v\":value}"}
+          "Endpoint.url":               {"Value":"https://api.test/data"},
+          "Endpoint.httpMethod":        {"Value":"GET"},
+          "Endpoint.responseTransform": {"Value":""}
         }
         """;
         await using var factory = new TributaryWebApplicationFactory();
@@ -301,7 +287,7 @@ public class HandleEndpointTests
         var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Be("{\"v\":42}");
+        (await response.Content.ReadAsStringAsync()).Should().Be("{\"value\":42}");
     }
 
     [Fact]
@@ -342,8 +328,56 @@ public class HandleEndpointTests
         sentBody!.Should().Contain("\"hello\"").And.Contain("\"world\"");
     }
 
+    // ---------- The reshape expression in effect drives ingest (Bug #6051) ----------
+
+    // Tributary cannot tell an own property from an inherited one, and must not try: Mycelium's
+    // resolved view qualifies an inherited key with the template that declares it, and both
+    // spellings arrive through the same suffix match.
+    [Theory]
+    [InlineData("responseTransform")]
+    [InlineData("Endpoint.responseTransform")]
+    public async Task Handle_TransformOnTheEndpoint_IngestsOntoTheNamedThing(string transformKey)
+    {
+        var thingId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var props = $$"""
+        {
+          "Endpoint.url":        {"Value":"https://api.test/forecast"},
+          "Endpoint.httpMethod": {"Value":"GET"},
+          "{{transformKey}}":    {"Value":"{\"name\": \"ExampleSite\", \"properties\": {\"precipitation\": hourly.precipitation[0]}, \"observedAt\": hourly.time[0]}"}
+        }
+        """;
+        string? observations = null;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath == $"/api/things/{siteId}/observations")
+            {
+                observations = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                return Json("""{"accepted":1}""");
+            }
+            if (req.RequestUri!.Host == "api.test")
+                return Json("""{"hourly":{"time":["2026-07-09T00:00"],"precipitation":[3.4]}}""");
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteFindThing(req, siteId, "ExampleSite")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("\"entitiesTouched\":1").And.Contain("\"observationsSubmitted\":1");
+        observations.Should().NotBeNull();
+        observations!.Should().Contain("\"property\":\"precipitation\"").And.Contain("\"value\":3.4");
+    }
+
     [Fact]
-    public async Task Handle_OverrideTransformWith2xx_CreatesObservations()
+    public async Task Handle_OverrideTransform_IngestsAndLeavesTheRegistrationUnchanged()
     {
         var thingId = Guid.NewGuid();
         var observedId = Guid.NewGuid();
@@ -354,29 +388,27 @@ public class HandleEndpointTests
           "Endpoint.httpMethod": {"Value":"GET"}
         }
         """;
+        var registrationWrites = 0;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            // Persist override
             if (req.Method == HttpMethod.Put && req.RequestUri!.AbsolutePath == $"/api/things/{thingId}/properties")
+            {
+                registrationWrites++;
                 return new HttpResponseMessage(HttpStatusCode.OK);
-            // Find "observed" predicate
+            }
             if (req.RequestUri!.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
                 && req.RequestUri.Query.Contains("name=observed"))
                 return Json($$"""{"Id":"{{observedId}}","Name":"observed"}""");
-            // Create entity thing
             if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
                 return Json($$"""{"Id":"{{createdId}}","Name":"Obs"}""");
-            // Set property mode (best-effort) + submit observations
             if (req.RequestUri.AbsolutePath.Contains("/mode") && req.Method == HttpMethod.Put)
                 return new HttpResponseMessage(HttpStatusCode.OK);
             if (req.RequestUri.AbsolutePath.EndsWith("/observations") && req.Method == HttpMethod.Post)
                 return Json("""{"accepted":1}""");
-            // Create relationship
             if (req.RequestUri.AbsolutePath == "/api/relationships" && req.Method == HttpMethod.Post)
                 return new HttpResponseMessage(HttpStatusCode.OK);
-            // Endpoint call
             if (req.RequestUri.Host == "api.test")
                 return Json("{\"raw\":true}");
             return RouteFindThing(req, thingId, "EP")
@@ -396,6 +428,9 @@ public class HandleEndpointTests
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("\"success\":true");
         body.Should().Contain("\"entitiesTouched\":1");
+        registrationWrites.Should().Be(0,
+            "an expression supplied on the request reshapes that call only — persisting it would "
+            + "change what every later caller of the same source receives");
     }
 
     [Fact]
@@ -437,11 +472,8 @@ public class HandleEndpointTests
     }
 
     [Fact]
-    public async Task Handle_StoredTransformIsInvalidJsonata_Returns502()
+    public async Task Handle_TransformOnTheEndpointIsInvalidJsonata_Returns400BeforeCalling()
     {
-        // ResponseTransform is persisted on the thing (not in request), but is unparseable.
-        // SetThingPropertyAsync path is not hit (no override on request). The stored value
-        // fails the JsonataTransform ctor in the catch-bound try, which returns 502.
         var thingId = Guid.NewGuid();
         var props = """
         {
@@ -450,12 +482,12 @@ public class HandleEndpointTests
           "Endpoint.responseTransform":{"Value":"{ definitely not @ jsonata"}
         }
         """;
+        var outboundCalls = 0;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
-            if (req.RequestUri!.Host == "api.test")
-                return Json("{\"x\":1}");
+            if (req.RequestUri!.Host == "api.test") { outboundCalls++; return Json("{\"x\":1}"); }
             return RouteFindThing(req, thingId, "EP")
                 ?? RouteEffectiveProperties(req, thingId, props)
                 ?? RouteKindsFromProperties(req, thingId, props)
@@ -465,14 +497,14 @@ public class HandleEndpointTests
 
         var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("transform failed");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Invalid responseTransform");
+        outboundCalls.Should().Be(0, "a registration that cannot compile is refused before the source is called");
     }
 
     [Fact]
-    public async Task Handle_StoredTransformOnNonJsonBody_Returns502()
+    public async Task Handle_TransformOnTheEndpointOverNonJsonBody_Returns400()
     {
-        // Stored transform exists, endpoint returns non-JSON → TryTransform fails → 502.
         var thingId = Guid.NewGuid();
         var props = """
         {
@@ -499,7 +531,8 @@ public class HandleEndpointTests
 
         var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("transform failed");
     }
 
     [Fact]
@@ -728,11 +761,10 @@ public class HandleEndpointTests
     public async Task Handle_ConfiguredTimeout_DoesNotBreakSuccessfulCall()
     {
         // A configured timeout resolves and is applied to the outbound client without disrupting a
-        // normal call. End-to-end timeout *enforcement* (cancellation of a slow endpoint) is not
-        // asserted here: the MockHttpMessageHandler returns synchronously and never observes the
-        // client's CancellationToken, so it cannot simulate a real timeout. The TimeSpan mapping is
-        // unit-tested in OutboundRequestTests.ResolveTimeout; this pins that a custom timeout flows
-        // through /handle without error.
+        // normal call. End-to-end enforcement against a slow endpoint is not asserted here — the
+        // factory's handler answers synchronously — though MockHttpMessageHandler.ObservingCancellation
+        // now makes that expressible. The TimeSpan mapping is unit-tested in
+        // OutboundRequestTests.ResolveTimeout; this pins that a custom timeout flows through /handle.
         var thingId = Guid.NewGuid();
         var props = """
         {

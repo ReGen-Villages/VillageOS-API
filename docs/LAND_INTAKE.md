@@ -47,7 +47,7 @@ The design below keeps the sequence and fixes all three, by expressing intake in
 VillageOS already has rather than as a standalone tool.
 
 **The one-line version:** a planner draws a parcel, the platform fetches what is publicly known
-about that location, a pipeline computes the balances, and everything — the answers, the fetched
+about that location, reactive services compute the balances, and everything — the answers, the fetched
 values, the results, and where each came from — lives in the model.
 
 ---
@@ -107,20 +107,17 @@ flowchart LR
   subgraph svc["Services (each a small program)"]
     TB["<b>Tributary</b><br/>fetches outside data"]
     D["<b>Delta</b><br/>registers data sources"]
-    P["<b>Phloem</b><br/>runs pipelines"]
-    MB["<b>ModelBridge</b><br/>moves a value between<br/>the model and a pipeline"]
-    C["<b>Compute services</b><br/>energy, water, food"]
+    C["<b>Compute services</b><br/>land · energy · water · food"]
   end
   T --> M
   TR --> M
-  M --> TB & D & P & MB & C
+  M --> TB & D & C
 ```
 
 **Mycelium** — the broker. It holds the models, serves the API, authenticates every caller, and
 starts and supervises the services. Everything goes through it.
 
-**Trellis** — the web GUI. Has a graph view, a 3D building viewer, a dashboard, and a visual pipeline
-editor.
+**Trellis** — the web GUI. Has a graph view, a 3D building viewer, and a dashboard.
 
 **Taproot** — the command-line client.
 
@@ -136,32 +133,35 @@ is described entirely by configuration, never by code written for that provider.
 
 **Delta** — the service that validates and registers those provider descriptions.
 
-**Phloem** — the orchestrator that runs pipelines.
+**Compute service** — a microservice that reads its inputs off one Thing, computes, and writes its
+outputs back onto the same Thing. Energy, water, land allocation and food each are one.
 
-**ModelBridge** — a tiny service that reads one property out of the model into a pipeline, or writes
-one pipeline value back onto a Thing.
+### How a calculation is started and kept current
 
-### Pipelines
-
-A **pipeline** (or **DAG**, for directed acyclic graph — a flow chart with no loops) is a calculation
-expressed as boxes and arrows.
+A calculation is **not** a graph of boxes and wires here. It is a service that reads and writes one
+Thing, started by an edge and kept current by a subscription.
 
 ```mermaid
 flowchart LR
-  A["node: Land allocation"] -->|"wire<br/>productiveHa → productiveLandHa"| B["node: Food balance"]
-  B --> C["node: Publish"]
+  ST["<b>SiteStudy</b><br/>inputs · outputs"] -->|"balancesEnergy<br/><i>(a connection, so the edge dispatches)</i>"| SV["EnergyBalance"]
+  SV -.->|"reads inputs, writes outputs"| ST
 ```
 
-- **Node** — one box. Each node is a microservice call.
-- **Port** — a named, typed input or output socket on a node. `population` in, `daysOfSupply` out.
-- **Wire** — an arrow from one node's output port to another's input port. The editor refuses to
-  connect ports whose types do not match.
-- **Run parameter** — a value supplied when the pipeline is started, rather than coming down a wire.
-  Used for assumptions a planner might want to vary.
-- **Run** — one execution. Every node's status and outputs are recorded, so you can replay it.
+- **Handled predicate** — a predicate Thing bound to a service. Creating a relationship whose
+  predicate is one dispatches that service, handing it the subject. The model carries the trigger.
+- **Connection** — the Thing that binds a predicate to a service. It is the predicate in the edge
+  above, which is why relating a study to a service is what starts it.
+- **Effective properties** — a Thing's own values plus everything it inherits through its `is` chain.
+  A service reads these, so an assumption declared once on a shared archetype reaches every study.
+- **Input-change subscription** — a service watches the Thing it computed and recomputes when one of
+  its *declared inputs* moves. It watches its inputs rather than the Thing itself because it writes
+  its outputs there too, and reacting to those would recompute forever.
+- **Recompute round limit** — a bound on a chain where one computed value feeds another. Land
+  allocation writes footprints that the balances read, so the cascade settles or stops and names what
+  was still moving.
 
-A pipeline is itself stored as Things and relationships, which is why it can be edited visually,
-saved, and versioned like any other data.
+Nothing has to be re-run: a planner changing an assumption changes a property, and every balance that
+declared it as an input recomputes.
 
 ---
 
@@ -181,9 +181,9 @@ flowchart TB
     SEL["Select sources<br/>covering this site"] --> FETCH["Tributary calls each<br/>with the site's coordinates"]
   end
 
-  subgraph P3["③ ANALYSIS — a pipeline does the arithmetic"]
+  subgraph P3["③ ANALYSIS — reactive services do the arithmetic"]
     direction LR
-    READ["Read values<br/>from the model"] --> CALC["Land split →<br/>energy · food · water"] --> WRITE["Write<br/>results back"]
+    READ["Read the study"] --> CALC["Land split →<br/>energy · food · water"] --> WRITE["Write results<br/>onto the study"]
   end
 
   DASH["Operations dashboard<br/>reads it all back"]
@@ -221,7 +221,7 @@ toggled on or off and given a share.
 ### The map and the parcel
 
 This is the only genuinely new user-interface capability. Trellis has three canvases already — a
-graph view, a 3D building viewer, and the pipeline editor — and none of them can show a map or accept
+graph view, a 3D building viewer, and a pipeline editor — and none of them can show a map or accept
 a geographic coordinate.
 
 Two ways to get a boundary:
@@ -353,6 +353,11 @@ resolves to the nearest ancestor that sets it. **Delta** validates all of that a
 and refuses anything that does not fit, so a broken configuration fails immediately rather than at
 3am during a run.
 
+**A registration lives in the project's own model, not in a catalogue shared between projects.** A
+model is the boundary of every read, so an endpoint and the Site its readings name have to be in the
+same one. [`DELTA.md`](DELTA.md#which-model-a-registration-lives-in) records the decision and what
+forces it.
+
 ### A registration, in full
 
 ```jsonc
@@ -370,8 +375,8 @@ and refuses anything that does not fit, so a broken configuration fails immediat
 
 Three parts do the work:
 
-- **`url`** with `{lat}` / `{lng}` placeholders, filled in per call. One registration serves every
-  site. *(This substitution does not exist yet — see [§11](#11-gaps-found-while-designing-this).)*
+- **`url`** with `{lat}` / `{lng}` placeholders, filled in per call from the `addressParameters` the
+  caller supplies. One registration serves every site.
 - **`coverage`** — where this source applies. `global`, or a set of countries.
 - **`responseTransform`** — a **JSONata** expression, which is a small language for reshaping JSON.
   It turns whatever the provider returns into a **reading**.
@@ -399,20 +404,35 @@ that time. The site now carries a solar figure that came from somewhere, with a 
 ```mermaid
 sequenceDiagram
   participant Planner
+  participant Confluence
   participant Mycelium
   participant Tributary
   participant Provider as Outside provider
-  Planner->>Mycelium: Discover data for this site
-  Mycelium->>Mycelium: select sources whose coverage<br/>includes the site's country
-  loop each covering source, in parallel
-    Mycelium->>Tributary: call <source> with lat/lng
+  Planner->>Confluence: Discover data for this site
+  Confluence->>Mycelium: which sources cover this site?
+  Mycelium-->>Confluence: sources reached by walking<br/>isIn and covers edges
+  loop each covering source, bounded concurrency
+    Confluence->>Tributary: call <source> with the site's lat/lng
     Tributary->>Provider: HTTP request
     Provider-->>Tributary: response
     Tributary->>Tributary: reshape into a reading
     Tributary->>Mycelium: write observation onto the Site
   end
-  Mycelium-->>Planner: resolved: 6 · unresolved: 1 (timeout)
+  Confluence->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
+  Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the edge starts it
+  Confluence-->>Planner: resolved · unresolved, each with a reason
 ```
+
+The analysis starts whatever mixture resolved, including none — a site whose sources were all
+unavailable is the case a planner most needs an answer about. Confluence never calls a compute
+service: it writes the edges and the platform dispatches, so there is one way to start an analysis
+rather than two. The subject is the study, because that is where a service reads its inputs.
+See [CONFLUENCE.md](CONFLUENCE.md#starting-the-analysis).
+
+Selection is a **graph walk, not a string match**: a source `covers` a Place, the site `isIn` a
+Place, and Places nest. A source cannot be silently skipped because a country was spelled two ways
+— see [CONFLUENCE.md](CONFLUENCE.md). Coverage selection lives in a service rather than in Mycelium,
+which carries no intake vocabulary.
 
 **Partial failure is normal and must be tolerated.** Public data portals go down. One source failing
 leaves its value undiscovered; it does not stop the others and it does not abort the run. The run
@@ -437,56 +457,65 @@ flagged as needing a manual read, so the gap is visible rather than implied by a
 
 ## 6. Phase three — analysis
 
-The pipeline reads what is in the model, computes, and writes results back. It makes no outside
-calls.
+The compute services read what is in the model, compute, and write their results back onto the study.
+They make no outside calls.
+
+Each balance is a **reactive service**, not a node in a graph. A relationship whose subject is the
+study and whose predicate is the connection bound to the service is what dispatches it: the service
+reads the study's effective properties, computes, writes its outputs back as Facts, and starts
+watching the study. Every later change to an input recomputes on its own.
 
 ```mermaid
 flowchart TB
-  R["<b>Read from the model</b><br/>area · programme split · population · household size<br/>solar resource · rainfall <i>(discovered)</i>"]
+  R["<b>On the study</b><br/>area · programme split · population · household size<br/>solar resource · rainfall <i>(discovered)</i>"]
   LA["<b>Land allocation</b><br/>shares → areas, plus the built and productive footprints"]
   EB["<b>Energy<br/>balance</b>"]
   FB["<b>Food<br/>balance</b>"]
   RH["<b>Rainwater<br/>harvest</b>"]
-  W["<b>Merge and write the results onto the Site</b>"]
+  W["<b>Outputs on the study, judged by its ExpectedRanges</b>"]
 
   R --> LA
-  LA -->|"residential ha"| EB
-  LA -->|"productive ha"| FB
-  LA -->|"built + productive ha"| RH
+  LA -->|"built + productive area"| EB
+  LA -->|"productive area"| FB
+  LA -->|"built + productive area"| RH
   EB --> W
   FB --> W
   RH --> W
 ```
 
-The three balances have no dependency on each other, so Phloem runs them at the same time.
+The arrows are property reads and writes on one Thing, not wires. Land allocation writes the two
+footprints; the three balances read them and re-fire. Nothing sequences them — each recomputes when an
+input it declared moves, and the cascade is bounded by the model's recompute round limit.
 
-**Assumptions are run parameters, not wired values.** Yield per hectare, runoff coefficient, energy
-per person, water per person — these are judgement calls a planner will want to vary. Making them run
-parameters means trying a different figure is a re-run, not an edit to the graph. Everything derived
-from the submission or from discovery arrives over a wire, so it stays traceable.
+**Assumptions are inherited, not supplied per run.** Yield per hectare, runoff coefficient, energy per
+person, water per person — these are judgement calls a planner will want to vary, and they live on the
+shared `SiteStudy` archetype. A study inherits them through its `is` edge, so correcting one is an edit
+to the model rather than a redeploy, and a planner varying one sees the balances move without asking
+for anything to run again. That last point is why this shape was chosen over a graph run once per
+request.
 
-**A missing discovered value is reported, not defaulted.** If rainfall did not resolve, the water
-balance says so. A balance computed against a silently substituted number is worse than no answer,
-because it looks like an answer.
+**A missing discovered value is reported, not defaulted.** If rainfall did not resolve, the balance
+that needs it leaves its output unwritten, and the study's "not assessed" range holds. A balance
+computed against a silently substituted number is worse than no answer, because it looks like an
+answer.
 
-### What a node call looks like
+### What a service call looks like
 
-Every node speaks the same envelope. Inputs by port name in, outputs by port name back:
+A dispatched relationship names the study; the service answers with what it wrote:
 
 ```jsonc
-// Phloem → the node                        // the node → Phloem
+// Mycelium → the service                   // the service → Mycelium
 {                                            {
-  "runId":  "…",                               "success": true,
-  "nodeId": "…",                               "outputs": {
-  "inputs": {                                    "peopleFed": 73,
-    "productiveLandHa": 8.16,                    "selfSufficiencyPct": 22.9
-    "yieldPeoplePerHa": 9,                     },
-    "population": 320                          "error": null
-  }                                          }
-}
+  "relationshipId": "…",                       "success": true,
+  "subjectId": "…",   // the study             "outputs": {
+  "targetId":  "…",                              "peopleFed": 73,
+  "properties": { }                              "pctOfPopulationFed": 22.9
+}                                              }
+                                             }
 ```
 
-That is the whole contract. Any language can implement it.
+The inputs are not in the body. The service reads them off the study by name, which is what lets an
+assumption declared on the shared archetype resolve without the caller knowing where it came from.
 
 ---
 
@@ -712,7 +741,7 @@ sequenceDiagram
   participant Trellis
   participant Mycelium
   participant Service
-  Trellis->>Mycelium: POST /api/endpoints/phloem<br/>Authorization: Bearer …
+  Trellis->>Mycelium: POST /api/endpoints/&lt;service&gt;<br/>Authorization: Bearer …
   Mycelium->>Mycelium: check token · check policy<br/>resolve the model from the token
   Mycelium->>Mycelium: find the service by its routing label<br/>(read live from the model)
   Mycelium->>Service: start it if not running,<br/>then forward the body to /handle
@@ -724,7 +753,7 @@ This gives a lot for free: one authentication system, model scoping, services st
 per-route traffic statistics, and — importantly — the services themselves never listen on a public
 address. They are reachable only from the machine Mycelium runs on.
 
-**Authenticated planner work needs nothing new.** Trellis posts to this route and the pipeline runs.
+**Authenticated planner work needs nothing new.** Trellis posts to this route and the service runs.
 
 **A signed-in submission goes through the intake service too.** Not because it has to — a signed-in
 wizard could compose the fragment itself — but because then there would be two mappings from a
@@ -804,10 +833,11 @@ The main finding from designing this: most of it is already built.
 
 | Capability | Status |
 |---|---|
-| Energy balance calculation | **Exists** as a pipeline node |
-| Water storage calculation | **Exists** as a pipeline node |
-| Running a graph of calculations, with live progress and cancel | **Exists** (Phloem) |
-| Reading and writing model values from a pipeline | **Exists** (ModelBridge) |
+| Energy balance calculation | **Exists** as a reactive service |
+| Water storage calculation | **Exists** as a reactive service |
+| Dispatching a service by relating a Thing to it | **Exists** (handled predicates) |
+| Recomputing a service's outputs when its inputs move | **Exists** (input-change subscription) |
+| Bounding a chain where one computed value feeds another | **Exists** (recompute round limit) |
 | Fetching outside data as configuration, reshaping it, ingesting onto a Thing | **Exists** (Tributary) |
 | Validating and registering data sources | **Exists** (Delta) |
 | Rendering a report from a spec stored in the model | **Exists** (operations dashboard) |
@@ -817,55 +847,65 @@ The main finding from designing this: most of it is already built.
 | — | |
 | A map, and drawing a parcel on it | **New** — the only new UI capability |
 | The intake wizard | **New** |
-| Rainwater harvest, food balance, land allocation nodes | **New** — three small services |
+| Rainwater harvest, food balance, land allocation | **New** — three small reactive services |
 | Anonymous submission: rate limits, size caps, bot checks, the staging model | **New** — hardening around the service that already composes |
-| Land-intake archetypes, registrations, pipeline, dashboard spec | **New** — but data, not code |
+| Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 
 ---
 
 ## 11. Gaps found while designing this
 
-Checking the code rather than the documentation changed the design in three places. All three are
+Checking the code rather than the documentation changed the design in the places below. Each is
 tracked under Feature
 [#6050](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6050).
 
-### The fetcher is not a pipeline node, and should not be
+### The fetcher is not a step inside the calculation, and should not be
 
 It was briefly, and that was deliberately reversed. Tributary is a **spawner**: it populates the
-model, and pipelines read what it wrote.
+model, and the compute services read what it wrote.
 
-The first draft of this design had the pipeline fanning out over fetch nodes. That was wrong, and the
-correction is an improvement: the pipeline becomes a pure calculation graph with no network
-dependency, so re-running it is instant and free.
+The first draft of this design had the analysis fanning out over fetch steps. That was wrong, and the
+correction is an improvement: the compute has no network dependency, so varying an assumption costs
+nothing and re-hits no public data portal. That matters more under the reactive shape than it would
+have under a graph run once per request, because a reactive chain re-fires on every input change.
 
-### The address cannot be parameterised per call
+### The address can now be parameterised per call
 
-The outbound call resolves its address entirely from the registration. The only per-call inputs are a
-request body — which is only attached for methods that carry one, so not for a plain lookup — and a
-transform override.
+It could not. The outbound call resolved its address entirely from the registration, so "fetch the
+solar figure at *these* coordinates" could not be expressed and you would have needed one
+registration per site, growing the catalogue with every submission.
 
-So "fetch the solar figure at *these* coordinates" cannot currently be expressed. Without generic
-placeholder substitution into the address template, you would need one registration per site, and the
-catalogue would grow with every submission.
+Feature [#5917](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/5917) closed it.
+The stored address carries named placeholders and the caller supplies `addressParameters` for them,
+per call. The substitution is generic — it knows the names only as text — so the same mechanism
+serves a tile pyramid and a point query at a site's coordinates. See
+[TRIBUTARY.md](TRIBUTARY.md#per-call-address-parameters).
 
-The mechanism is already specified for tile pyramids as Feature
-[#5917](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/5917). This design depends
-on it.
+### A registration's reshape expression now ingests
 
-### A registration's reshape expression does not ingest
+It did not. The ingest branch was chosen on whether the **request** supplied a reshape expression, so
+an expression configured on the registration — the documented, steady-state configuration — returned
+a transformed body and wrote nothing. Supplying it on the request did ingest, but that path also
+persisted the caller's expression onto the registration, so a read mutated its own configuration and
+two consumers of one source overwrote each other.
 
-The ingest branch is chosen on whether the **request** supplied a reshape expression, not on whether
-one is in effect. An expression configured on the registration — the documented, steady-state
-configuration — falls through and returns a transformed body, writing nothing.
+Bug [#6051](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6051) closed both
+halves. The expression **in effect** decides — on the registration or inherited from its template —
+and a request-supplied one reshapes that call alone. The design above depends on this: a source
+registered once, with its reshape on the registration, writes onto the site every time it is called.
 
-Supplying it on the request does ingest, but that path also **persists the caller's expression onto
-the registration**, so a read operation mutates its own configuration and two consumers of one source
-overwrite each other.
+### Only one project could register an endpoint at all — fixed
 
-The tests covering the documented examples exercise the ingest service directly rather than the call
-path, which is why this sits inside a green suite. Raised as Bug
-[#6051](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6051), with the regression
-test required to go through the call path.
+Delta writes a registration into the model of whoever called it, which is the shape this design
+wants. Its **template catalogue** did not follow: it was provisioned once at startup, under the token
+Delta was launched with, so it landed in a single model. One Delta process serves every project,
+because a second project's call finds the daemon already healthy on the port both models declare — so
+a registration from any other model passed every validation step and then failed on its template
+being absent, with a 500.
+
+Delta now provisions a model's catalogue on that model's first registration, under the bearer that
+named it, and remembers which models it has done. Fixed under Bug
+[#6525](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6525).
 
 ---
 
@@ -902,13 +942,12 @@ debugging session otherwise.
 
 | # | Question | Recommendation |
 |---|---|---|
-| 1 | **Where do registrations live** when each project has its own model? | One shared catalogue model. An open-data source is global reference data; duplicating it per project means re-registering everything on every new project for no benefit. If that holds, multi-tenant routing stops being a dependency. |
-| 2 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
-| 3 | **Map library** — Leaflet or MapLibre? | Leaflet is smaller and is what the current tool uses; MapLibre gives vector tiles and better styling. Story-level decision. |
-| 4 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
-| 5 | **Retention** for submissions that are never promoted. | Decide before there is anything in the intake model, not after. |
-| 6 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own front door, so it is a natural follow-up. |
-| 7 | **What triggers discovery** — planner action, arrival of a submission, or a schedule? | All three eventually. Build one path and let each be a caller of it, rather than a branch inside it. |
+| 1 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
+| 2 | **Map library** — Leaflet or MapLibre? | Leaflet is smaller and is what the current tool uses; MapLibre gives vector tiles and better styling. Story-level decision. |
+| 3 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
+| 4 | **Retention** for submissions that are never promoted. | Decide before there is anything in the intake model, not after. |
+| 5 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own front door, so it is a natural follow-up. |
+| 6 | **What triggers discovery** — planner action, arrival of a submission, or a schedule? | All three eventually. Build one path and let each be a caller of it, rather than a branch inside it. |
 
 ---
 
@@ -918,11 +957,9 @@ debugging session otherwise.
 |---|---|
 | [TRIBUTARY.md](TRIBUTARY.md) | The fetcher — templates, auth modes, paging, and the proven site-ingest examples |
 | [DELTA.md](DELTA.md) | How registrations are validated and provisioned |
-| [SERVICES.md](SERVICES.md) | Section 14 for endpoint services, section 16 for pipelines and the node envelope |
-| [MODELBRIDGE.md](MODELBRIDGE.md) | Moving a value between the model and a pipeline |
+| [SERVICES.md](SERVICES.md) | Section 14 for endpoint services and how a handled predicate dispatches one |
 | [SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) | The wire contract, and the fact / observation / fragment write kinds |
-| [TRELLIS.md](TRELLIS.md) | The GUI — pipeline editor in section 7.4, operations dashboard in section 16 |
-| [PIPELINE_PLAYGROUND.md](PIPELINE_PLAYGROUND.md) | Worked example DAGs, including the existing combined site analysis |
+| [TRELLIS.md](TRELLIS.md) | The GUI — operations dashboard in section 16 |
 
 ---
 

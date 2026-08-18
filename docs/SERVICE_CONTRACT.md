@@ -88,6 +88,8 @@ Body is a selector:
   "ids":   ["<guid>"],                // seed objects
   "names": ["Pump-01"],               // seed by name
   "types": ["Pump"],                  // seed by type (transitive `is`)
+  "markedTypes": ["__IsPortArchetype"],       // same, by the flag the archetype carries
+  "markedArchetypes": ["__IsPortArchetype"],  // the archetype itself, without its members
   "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],
   "includeIsAncestors": true,         // default true (keeps inherited values correct)
   "includeRelationships": true
@@ -115,9 +117,19 @@ the slice **by shape** and get exactly that closure. Recipes:
 | Specific objects by id | `{ "ids": ["<guid>", …] }` |
 | By name | `{ "names": ["Pump-01"] }` |
 | Every Thing of a type (transitive `is`) | `{ "types": ["Pump"] }` |
+| The same, without knowing what the model calls the type | `{ "markedTypes": ["__IsPumpArchetype"] }` |
+| Just the archetype playing a role, to write `X is Y` | `{ "markedArchetypes": ["__IsPumpArchetype"] }` |
 | A type **and** its neighbours along an edge | `{ "types": ["Battery"], "traverse": [{ "predicate": "powers", "direction": "outgoing", "depth": 1 }] }` |
 | Drop inherited type-default values | add `"includeIsAncestors": false` |
 | Things only, no relationships | add `"includeRelationships": false` |
+
+**Selecting by mark rather than by name.** An archetype's role is a boolean flag it carries, so a handler
+can ask for the role instead of the name the model happens to have given it — and keep working when that
+model renames it. `markedTypes` returns the archetype and every Thing that `is` it; `markedArchetypes`
+returns the archetype alone, which is what a handler needs when it only has to write an `is` edge to it.
+Asking for a role with many members through `markedArchetypes` is the difference between one Thing and
+every instance ever recorded. Both scan the Things once, so they cost more than `types`, which answers
+from the name index.
 
 `traverse.direction` is `outgoing` \| `incoming` \| `both`; `depth` walks N hops. Fields combine —
 the closure is the union of all seeds, then the traversal and `is`-ancestor expansion. Every
@@ -338,6 +350,14 @@ a stored write would only be overwritten on the next pass.
 **Gating.** A property declares which kinds it accepts (`AllowedWriteKinds`: `Both` / `FactOnly` /
 `ObservationOnly`). Writing the wrong kind is rejected with **405** — a Fact to an `ObservationOnly`
 property, or an observation to a `FactOnly` one. An unknown thing/property is **404**.
+
+**A property holds only what its declared type can hold.** A value the type cannot hold is refused
+with **400** on every write kind, naming the property, the Thing, the value and the type expected —
+and nothing is written. Widths convert freely (`10` into a `vos.Decimal`, `"3.5"` into a
+`vos.Double`), but a boolean written to a property declared as a number is refused, as is a number
+written to a `vos.Boolean`: .NET converts `true` to 1 and any non-zero number to `true`, so without
+the refusal a quantity nobody measured reaches the model looking like real data and every roll-up
+over that property counts it. Write `1` if that is what you mean.
 
 **Runnable demo.** Every reference handler exposes `POST /demo/write-kinds { "thingId": "<existing>" }`,
 which performs one of each kind against a Thing whose `status` accepts Facts and `temperature`/`flow`

@@ -219,14 +219,15 @@ public class EsriHandleTests
     public async Task Handle_OffsetPaging_AggregatesAllPagesBeforeTransform()
     {
         // pageSize=2: offset 0 returns [1,2] with exceededTransferLimit=true; offset 2 returns [3] not
-        // exceeded. The stored responseTransform counts items, so correct aggregation yields 3 — a
+        // exceeded. The reshape counts items onto the site, so correct aggregation observes 3 — a
         // single (non-paginated) fetch would see only the first page (2).
         var thingId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
         var props = """
         {
           "Endpoint.url":               {"Value":"https://features.test/query"},
           "Endpoint.httpMethod":        {"Value":"GET"},
-          "Endpoint.responseTransform": {"Value":"$count(features)"},
+          "Endpoint.responseTransform": {"Value":"{\"name\": \"ExampleSite\", \"properties\": {\"featureCount\": $count(features)}}"},
           "Esri.pagingKind":            {"Value":"offset"},
           "Esri.offsetParam":           {"Value":"resultOffset"},
           "Esri.pageSizeParam":         {"Value":"resultRecordCount"},
@@ -235,6 +236,7 @@ public class EsriHandleTests
           "Esri.itemsPath":             {"Value":"features"}
         }
         """;
+        string? observations = null;
         await using var factory = new TributaryWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
@@ -245,7 +247,14 @@ public class EsriHandleTests
                     ? Json("{\"features\":[{\"attributes\":{\"OBJECTID\":3}}],\"exceededTransferLimit\":false}")
                     : Json("{\"features\":[{\"attributes\":{\"OBJECTID\":1}},{\"attributes\":{\"OBJECTID\":2}}],\"exceededTransferLimit\":true}");
             }
-            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+            if (req.Method == HttpMethod.Post && req.RequestUri.AbsolutePath == $"/api/things/{siteId}/observations")
+            {
+                observations = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+                return Json("""{"accepted":1}""");
+            }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteFindThing(req, siteId, "ExampleSite")
+                ?? RouteEffectiveProperties(req, thingId, props)
                 ?? RouteKindsFromProperties(req, thingId, props)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
@@ -254,7 +263,8 @@ public class EsriHandleTests
         var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Be("3");
+        observations.Should().NotBeNull();
+        observations!.Should().Contain("\"property\":\"featureCount\"").And.Contain("\"value\":3");
     }
 
 }

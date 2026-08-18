@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using vos.Service.Phloem.Configuration;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using vos.Service.Shared;
@@ -16,46 +15,34 @@ namespace vos.Service.Phloem.Services;
 public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 {
     private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Guid> _archetypeIdByRoleFlag = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, byte> _createdNodeRuns = new();
-    private readonly PipelineModelOptions _model;
 
-    public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, PipelineModelOptions model, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
-    {
-        _model = model;
-    }
+    public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, string? serviceToken = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken) { }
 
     public Task<bool> RegisterAsync(int port) => RegisterAsync(port, "Phloem", "endpoint-service");
 
     public async Task<PipelineGraph> LoadPipelineSubgraphAsync(Guid pipelineId, CancellationToken cancellationToken)
     {
-        // Pull the whole structural closure in one snapshot. The selector explicitly includes the built-in
-        // is/has predicate Things (by name) and every Port/PipelineWire Thing (by archetype) because
-        // includeRelationships does NOT pull predicate Things, and includeIsAncestors does NOT pull a
-        // prototype's has-children (its ports). See SelectorResolver.
+        // Pull the whole structural closure in one snapshot. Three things the traversal will not reach on
+        // its own are asked for outright: the built-in is/has predicate Things, because includeRelationships
+        // does not pull predicate Things; every Port and wire Thing, because includeIsAncestors does not
+        // pull a prototype's has-children; and the archetype for each role, so that one missing from the
+        // snapshot means the model marks it on nothing rather than that this pipeline plays that role
+        // nowhere. See SelectorResolver.
         var selector = new
         {
             ids = new[] { pipelineId },
             names = new[] { ModelNames.Is, ModelNames.Has },
-            types = new[] { _model.Port, _model.PipelineWire },
+            markedTypes = new[] { PipelineArchetypes.PortFlag, PipelineArchetypes.PipelineWireFlag },
+            markedArchetypes = PipelineArchetypes.DagRoleFlags,
             traverse = new[] { new { predicate = ModelNames.Has, direction = "outgoing", depth = 8 } },
             includeIsAncestors = true,
             includeRelationships = true,
         };
 
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
-        var response = await client.PostAsync($"{MyceliumUrl}/api/subscriptions",
-            new StringContent(JsonSerializer.Serialize(selector), Encoding.UTF8, "application/json"), cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-        var graph = SnapshotParser.Parse(root);
-
-        // Tidy up the snapshot subscription — Phloem reads once and does not stream here.
-        if (root.TryGetProperty("subscriptionId", out var subId) && subId.ValueKind == JsonValueKind.String)
-            _ = TryUnsubscribeAsync(subId.GetString()!);
-
-        return graph;
+        return await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(30), cancellationToken);
     }
 
     public async Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken)
@@ -67,8 +54,9 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
             ["startedUtc"] = DateTime.UtcNow.ToString("o"),
         }, cancellationToken);
 
-        await RelateAsync(runId, "is", await ResolveByNameAsync(_model.PipelineRun, cancellationToken), cancellationToken);
-        await RelateAsync(runId, "of", pipelineId, cancellationToken);
+        await RelateAsync(runId, ModelNames.Is,
+            await ArchetypeCarryingAsync(PipelineArchetypes.PipelineRunFlag, cancellationToken), cancellationToken);
+        await RelateAsync(runId, ModelNames.Of, pipelineId, cancellationToken);
     }
 
     public async Task SetNodeRunStatusAsync(Guid runId, Guid nodeId, string nodeName, string status, string? error, CancellationToken cancellationToken, int? index = null, int total = 0)
@@ -89,8 +77,9 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
                 properties["total"] = total.ToString();
             }
             await CreateThingWithIdAsync(nodeRunId, index is int x ? $"NodeRun {nodeName} #{x}" : $"NodeRun {nodeName}", properties, cancellationToken);
-            await RelateAsync(nodeRunId, "is", await ResolveByNameAsync(_model.NodeRun, cancellationToken), cancellationToken);
-            await RelateAsync(runId, "has", nodeRunId, cancellationToken);
+            await RelateAsync(nodeRunId, ModelNames.Is,
+                await ArchetypeCarryingAsync(PipelineArchetypes.NodeRunFlag, cancellationToken), cancellationToken);
+            await RelateAsync(runId, ModelNames.Has, nodeRunId, cancellationToken);
             return;
         }
 
@@ -132,6 +121,45 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     }
 
     // --- helpers ---
+
+    private async Task<PipelineGraph> LoadSnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(timeout);
+        var response = await client.PostAsync($"{MyceliumUrl}/api/subscriptions",
+            new StringContent(JsonSerializer.Serialize(selector), Encoding.UTF8, "application/json"), cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        var graph = SnapshotParser.Parse(root);
+
+        // Tidy up the snapshot subscription — Phloem reads once and does not stream here.
+        if (root.TryGetProperty("subscriptionId", out var subId) && subId.ValueKind == JsonValueKind.String)
+            _ = TryUnsubscribeAsync(subId.GetString()!);
+
+        return graph;
+    }
+
+    // The archetype playing a role, found by the flag it carries rather than by a name this orchestrator
+    // was told (#6516). Asked for on its own: markedTypes would answer with every Thing that already `is`
+    // one, which for a run archetype is every run ever recorded. An archetype cannot change role while the
+    // process lives, and this runs once per node run, so the answer is kept.
+    private async Task<Guid> ArchetypeCarryingAsync(string roleFlag, CancellationToken cancellationToken)
+    {
+        if (_archetypeIdByRoleFlag.TryGetValue(roleFlag, out var cached)) return cached;
+
+        var selector = new
+        {
+            markedArchetypes = new[] { roleFlag },
+            includeIsAncestors = false,
+            includeRelationships = false,
+        };
+        var graph = await LoadSnapshotAsync(selector, TimeSpan.FromSeconds(15), cancellationToken);
+
+        var archetype = graph.ArchetypeCarrying(roleFlag)
+            ?? throw new InvalidOperationException($"The model marks no archetype with {roleFlag} = true.");
+        _archetypeIdByRoleFlag[roleFlag] = archetype.Id;
+        return archetype.Id;
+    }
 
     private async Task CreateThingWithIdAsync(Guid id, string name, IReadOnlyDictionary<string, object?> properties, CancellationToken cancellationToken)
     {

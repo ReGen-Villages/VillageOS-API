@@ -20,11 +20,14 @@ reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
-Today's .NET services: `Echo`, `Tributary`, `Delta`, `Metabolism`, `Phloem`,
+Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `Metabolism`, `Phloem`,
 `WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
-provisions the endpoint-template catalog into Mycelium at startup and validates every endpoint
+provisions the endpoint-template catalog into a model on that model's first registration, and
+validates every endpoint
 registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
-fetch side of the same endpoint story. `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
+fetch side of the same endpoint story; `Confluence` resolves a site against every source
+covering it, calls Tributary for each, and then starts the site's analysis by relating its
+`SiteStudy` to each marked compute connection (see [`CONFLUENCE.md`](CONFLUENCE.md)). `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
 site-analysis nodes: `WaterReserve` computes emergency reserve / days-of-supply / %
 consumption (feeding the 14-day resilience range); `EnergyBalance` computes solar + other
 generation vs consumption → % of consumption and net-positive. Besides the DAG-node path (wired ports),
@@ -767,8 +770,8 @@ it is only shown once. Exchange it for a JWT via `POST /api/auth/token`
   binary (`--mode=consumes|produces`), tick logic.
 - [`MODELBRIDGE.md`](MODELBRIDGE.md) — ModelBridge model⇄DAG bridge node: the
   `read`/`write` modes, the `thingId`/`property` param contract, and a worked example.
-- [`DELTA.md`](DELTA.md) — Delta endpoint-registration service: template-catalog provisioning at
-  startup, the graph-validation rules, and the `/handle` registration contract.
+- [`DELTA.md`](DELTA.md) — Delta endpoint-registration service: per-model template-catalog
+  provisioning, the graph-validation rules, and the `/handle` registration contract.
 - [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) — Delivery contract,
   remaining DI refactors, possible contract-validation phases 5+6.
 
@@ -927,8 +930,14 @@ graph LR
   `Subdomain` is the dispatch address Phloem forwards to.
 - **Ports** are first-class `Port` Things on the service **prototype**, resolved by walking the bound
   service's `is`-chain (relationships do **not** inherit through `is`, so ports resolve at read time).
-- A **wire** is a relationship whose predicate **`is PipelineWire`** — identified by archetype, never by the
-  name `"feeds"` — carrying `fromPort`/`toPort`.
+- A **wire** is a relationship whose predicate `is` the wire archetype — identified by the role that
+  archetype is marked with, never by the predicate name `"feeds"` — carrying `fromPort`/`toPort`.
+- **Every role is a flag the archetype carries**, not a name: `__IsPipelineArchetype`,
+  `__IsPipelineNodeArchetype`, `__IsConnectionArchetype`, `__IsServiceArchetype`, `__IsPortArchetype`,
+  `__IsPipelineWireArchetype`, `__IsPipelineInputArchetype`, `__IsPipelineOutputArchetype`,
+  `__IsPipelineRunArchetype`, `__IsNodeRunArchetype`. The names below are only what the seed tool happens
+  to choose. Phloem asks for the marked archetypes through the subscription selector (`markedTypes` for a
+  role's members, `markedArchetypes` for the archetype alone), so renaming any of them changes nothing.
 - Make any seed DAG-ready with the `seed-migrate` tool in the private VillageOS repo (`tools/seed-migrate/pipeline-enable.js`),
   which adds the archetypes, the Phloem Connection, example Echo node services with typed Ports, and a demo Pipeline.
 
@@ -1072,8 +1081,9 @@ and between dispatches Phloem polls the run's `cancelRequested` flag for **coope
 
 *Internals:* `IMyceliumGateway` is the seam between orchestration and HTTP (so `PipelineExecutor` is
 unit-tested without a network); `PipelineGraph` + `PipelineDagBuilder` build the `PipelineDag`,
-`DagValidator` checks it, `MyceliumGateway` is the HTTP implementation. The archetype vocabulary
-(Connection/Service/Pipeline/…) comes from Mycelium's `ServiceModel` config, pushed to Phloem at launch.
+`DagValidator` checks it, `MyceliumGateway` is the HTTP implementation. Which archetype plays which role
+is read from the flag each one carries (`PipelineArchetypes`), so Phloem takes no archetype name at launch
+and a model may call its archetypes anything.
 
 ### 16.4 Creating & running a pipeline
 

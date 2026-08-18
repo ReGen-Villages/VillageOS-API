@@ -1,7 +1,6 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using vos.Service.Phloem.Configuration;
 using vos.Service.Phloem.Execution;
 using vos.Service.Phloem.Model;
 using Xunit;
@@ -27,7 +26,7 @@ public class PipelineExecutorTests
                 _ => NodeFail("unexpected subdomain"),
             },
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
@@ -49,7 +48,7 @@ public class PipelineExecutorTests
         {
             OnDispatch = (subdomain, _) => subdomain == "gen" ? NodeFail("generate boom") : NodeOk(("echo", "x")),
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
@@ -63,8 +62,9 @@ public class PipelineExecutorTests
     [Fact]
     public async Task RunAsync_UnknownPipeline_ReturnsFailureNotThrow()
     {
-        var gateway = new FakeGateway(new GraphFixture().Build()); // empty graph
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var (fx, _) = TestGraphs.DemoPipeline();
+        var gateway = new FakeGateway(fx.Build());
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var result = await executor.RunAsync(Guid.NewGuid(), default, CancellationToken.None);
 
@@ -84,7 +84,7 @@ public class PipelineExecutorTests
             // Cancel becomes true once the first node has run — checked before the next level dispatches.
             CancelRequested = _ => gateway.Dispatched.Contains("gen"),
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
@@ -109,7 +109,7 @@ public class PipelineExecutorTests
                 _ => NodeFail("unexpected subdomain"),
             },
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
@@ -133,7 +133,7 @@ public class PipelineExecutorTests
                 return NodeOk(("echo", seenMessage ?? ""));
             },
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var runParams = JsonSerializer.SerializeToElement(new { greeting = "hello" });
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
@@ -156,7 +156,7 @@ public class PipelineExecutorTests
                 return NodeOk(("daysOfSupply", "14"));
             },
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         // 730 residents x 50 m3/yr = 36,500/yr; 1,400 m3 stored = 14 days of supply.
         var runParams = JsonSerializer.SerializeToElement(new { population = 730.0, perCapitaConsumptionM3 = 50.0, storageCapacityM3 = 1400.0 });
@@ -185,7 +185,7 @@ public class PipelineExecutorTests
                 return NodeOk(("pctOfConsumption", "112"), ("netPositive", "true"));
             },
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var runParams = JsonSerializer.SerializeToElement(new
         {
@@ -223,7 +223,7 @@ public class PipelineExecutorTests
                 return NodeOk(("score", item.ToUpperInvariant()));
             },
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
         var runParams = JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c" }, w = 10 });
 
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
@@ -245,7 +245,7 @@ public class PipelineExecutorTests
             OnDispatch = (_, envelope) =>
                 envelope.GetProperty("inputs").GetProperty("item").GetString() == "b" ? NodeFail("boom") : NodeOk(("score", "ok")),
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
         var runParams = JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c" }, w = 1 });
 
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
@@ -266,7 +266,7 @@ public class PipelineExecutorTests
                 return item == "b" ? NodeFail("boom") : NodeOk(("score", item.ToUpperInvariant()));
             },
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
         var runParams = JsonSerializer.SerializeToElement(new { items = new[] { "a", "b", "c" }, w = 1 });
 
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
@@ -297,7 +297,7 @@ public class PipelineExecutorTests
                 _ => NodeFail("unexpected subdomain"),
             },
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
@@ -329,7 +329,7 @@ public class PipelineExecutorTests
                 _ => NodeFail("unexpected subdomain"),
             },
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
@@ -343,7 +343,7 @@ public class PipelineExecutorTests
     {
         var (fx, pipelineId) = TestGraphs.WireTransformPipeline("this is ( not valid jsonata");
         var gateway = new FakeGateway(fx.Build()) { OnDispatch = (_, _) => NodeOk(("out", "x")) };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var result = await executor.RunAsync(pipelineId, default, CancellationToken.None);
 
@@ -362,7 +362,7 @@ public class PipelineExecutorTests
         {
             OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var runParams = JsonSerializer.SerializeToElement(new { seed = "hi" });
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);
@@ -382,7 +382,7 @@ public class PipelineExecutorTests
         {
             OnDispatch = (sub, env) => sub == "ech" ? NodeOk(("echo", InputValue(env, "message"))) : NodeFail("unexpected subdomain"),
         };
-        var executor = new PipelineExecutor(gateway, new PipelineModelOptions(), NullLogger<PipelineExecutor>.Instance);
+        var executor = new PipelineExecutor(gateway, NullLogger<PipelineExecutor>.Instance);
 
         var runParams = JsonSerializer.SerializeToElement(new { seed = "world" });
         var result = await executor.RunAsync(pipelineId, runParams, CancellationToken.None);

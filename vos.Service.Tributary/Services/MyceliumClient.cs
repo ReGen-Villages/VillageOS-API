@@ -90,36 +90,6 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         }
     }
 
-    public async Task<bool> SetThingPropertyAsync(Guid thingId, string name, object? value)
-    {
-        try
-        {
-            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-            var (resolved, type) = ResolveMyceliumValue(value);
-            var payload = new
-            {
-                Name = name,
-                Type = type,
-                Value = resolved
-            };
-
-            var response = await client.PutAsJsonAsync($"{MyceliumUrl}/api/things/{thingId}/properties", payload);
-            if (response.IsSuccessStatusCode)
-                return true;
-
-            var error = await response.Content.ReadAsStringAsync();
-            Logger.LogWarning(
-                "Failed to set property {PropName} on thing {ThingId}. Status: {StatusCode}. Error: {Error}",
-                name, thingId, response.StatusCode, error);
-            return false;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error setting property {PropName} on thing {ThingId}", name, thingId);
-            return false;
-        }
-    }
-
     public async Task<bool> SubmitObservationsAsync(Guid thingId, IReadOnlyList<ObservationSample> samples)
     {
         if (samples.Count == 0) return true;
@@ -130,7 +100,7 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
             // the whole batch once from the model clock rather than this process's wall clock.
             var payload = samples.Select(s =>
             {
-                var value = ResolveMyceliumValue(s.Value).Value;
+                var value = ResolveObservationValue(s.Value);
                 return s.ObservedAt is { } at
                     ? (object)new { property = s.Property, value, observedAt = at }
                     : new { property = s.Property, value };
@@ -246,33 +216,22 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         return false;
     }
 
-    private static (object? Value, string Type) ResolveMyceliumValue(object? value)
+    // A reshaped reading carries whatever the source's JSON held. Unwrap the element to the scalar
+    // the observation route stores; a shape it has no scalar for keeps its own JSON text.
+    private static object? ResolveObservationValue(object? value)
     {
-        if (value is JsonElement je)
-        {
-            return je.ValueKind switch
-            {
-                JsonValueKind.String => (je.GetString(), "System.String"),
-                JsonValueKind.Number when je.TryGetInt64(out var l) => (l, "System.Int64"),
-                JsonValueKind.Number => (je.GetDouble(), "System.Double"),
-                JsonValueKind.True => (true, "System.Boolean"),
-                JsonValueKind.False => (false, "System.Boolean"),
-                JsonValueKind.Null => (null, "System.String"),
-                _ => (je.GetRawText(), "System.String")
-            };
-        }
+        if (value is not JsonElement element)
+            return value;
 
-        var type = value switch
+        return element.ValueKind switch
         {
-            string => "System.String",
-            int => "System.Int32",
-            long => "System.Int64",
-            double => "System.Double",
-            decimal => "System.Decimal",
-            bool => "System.Boolean",
-            _ => "System.String"
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number when element.TryGetInt64(out var whole) => whole,
+            JsonValueKind.Number => element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Null => null,
+            _ => element.GetRawText()
         };
-
-        return (value, type);
     }
 }

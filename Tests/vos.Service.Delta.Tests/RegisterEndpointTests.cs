@@ -234,18 +234,18 @@ public class RegisterEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Unsupported httpMethod");
     }
 
-    // ---------- Template resolution (provisioned at boot, Task #5468) ----------
+    // ---------- Template resolution ----------
 
     [Fact]
-    public async Task Handle_TemplateNotProvisioned_Returns500()
+    public async Task Handle_TemplateCannotBeProvisioned_Returns500AndLeavesNoEndpointBehind()
     {
-        // Boot-time provisioning (Task #5468) creates the template things; the handler only resolves
-        // them, never creates them. If the nominated template is absent, registration fails fast —
-        // the handler makes no thing-creation POST for the template.
+        // A registration provisions this model's catalog on first contact. A template Mycelium refuses
+        // to create leaves the registration nothing to descend from, so it is refused before an
+        // endpoint thing is made rather than wired to nothing.
         await using var factory = new DeltaWebApplicationFactory();
         await factory.InitializeAsync();
         var isId = Guid.NewGuid();
-        var templatePosted = false;
+        var thingsPosted = new List<string>();
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.AbsolutePath == "/api/things"
@@ -253,8 +253,7 @@ public class RegisterEndpointTests
                 && req.RequestUri.Query.Contains("name=is"))
                 return Json("{\"Id\":\"" + isId + "\",\"Name\":\"is\",\"Properties\":{}}");
             if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
-                templatePosted = true;
-            // Template lookup → null (not provisioned).
+                thingsPosted.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();
@@ -263,7 +262,7 @@ public class RegisterEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
         (await response.Content.ReadAsStringAsync()).Should().Contain("not provisioned");
-        templatePosted.Should().BeFalse("the handler must not lazily create the template");
+        thingsPosted.Should().NotContain(posted => posted.Contains("MyEndpoint"));
     }
 
     [Fact]
@@ -282,8 +281,8 @@ public class RegisterEndpointTests
             if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Get
                 && req.RequestUri.Query.Contains("name=Endpoint"))
                 return Json("{\"Id\":\"" + defaultId + "\",\"Name\":\"Endpoint\",\"Properties\":{}}");
-            // Template is pre-provisioned at boot (Task #5468); its lookup succeeds, so the only
-            // POST here is the registered-thing creation → fail.
+            // The template already exists in this model, so the only POST here is the registered-thing
+            // creation → fail.
             if (req.RequestUri.AbsolutePath == "/api/things" && req.Method == HttpMethod.Post)
             {
                 creationCount++;
@@ -531,7 +530,7 @@ public class RegisterEndpointTests
             SeedJson = """
             {
               "things": [
-                { "name": "Endpoint", "properties": { "url": "", "httpMethod": "GET", "responseTransform": "$" } },
+                { "name": "Endpoint", "properties": { "url": "", "httpMethod": "GET", "responseTransform": "" } },
                 { "name": "EsriEndpoint", "properties": { "layer": "" } }
               ],
               "relationships": [ { "subject": "EsriEndpoint", "predicate": "is", "target": "Endpoint" } ]
@@ -651,14 +650,14 @@ public class RegisterEndpointTests
         propertySets.Should().Contain(s => s.Contains("\"name\":\"timeout\""));
     }
 
-    // ---------- Boot provisioning isolation (Task #5468) ----------
+    // ---------- Starting up touches no model ----------
 
     [Fact]
-    public async Task Boot_UnderTestingEnvironment_DoesNotProvisionTemplates()
+    public async Task Boot_BeforeAnyRegistration_TouchesNoModel()
     {
-        // The boot-time TemplateCatalogProvisioner is gated on app.Environment != "Testing", so
-        // building the host under the WebApplicationFactory must make zero mycelium calls at startup.
-        // A regression that ran provisioning in tests would pollute every other test's request flow.
+        // Provisioning belongs to a registration, which is the only thing that names a model. Starting
+        // Delta must therefore reach Mycelium not at all — a startup call could only be aimed at the
+        // model its launch token names, which is the one project a shared Delta must not favour.
         await using var factory = new DeltaWebApplicationFactory();
         await factory.InitializeAsync();
         var myceliumCalls = 0;
@@ -669,9 +668,9 @@ public class RegisterEndpointTests
         };
 
         using var client = factory.CreateClient();
-        await Task.Delay(100); // give any (erroneously-registered) startup hook a chance to fire
+        (await client.GetAsync("/health")).StatusCode.Should().Be(HttpStatusCode.OK);
 
-        myceliumCalls.Should().Be(0, "boot-time provisioning must not run under the Testing environment");
+        myceliumCalls.Should().Be(0);
     }
 
     // ---------- /health and /shutdown ----------

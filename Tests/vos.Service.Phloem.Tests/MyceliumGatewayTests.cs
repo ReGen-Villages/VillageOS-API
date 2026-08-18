@@ -2,8 +2,8 @@ using System.Net;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using vos.Service.Phloem.Configuration;
 using vos.Service.Phloem.Execution;
+using vos.Service.Phloem.Model;
 using vos.Service.Phloem.Services;
 using vos.Tests.Shared;
 using Xunit;
@@ -22,34 +22,59 @@ public class MyceliumGatewayTests
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
     {
-        var handler = new MockHttpMessageHandler(respond ?? RespondToAnythingByName);
+        var handler = new MockHttpMessageHandler(respond ?? RespondLikeAModelThatMarksItsArchetypes);
         var gateway = new MyceliumGateway(
             new PerCallHttpClientFactory(handler),
             NullLogger<MyceliumGateway>.Instance,
             MyceliumUrl,
-            new PipelineModelOptions(),
             "svc-token");
         return (gateway, handler);
     }
 
-    // Name lookups answer with an id so the calls under test get past resolution; everything else succeeds.
-    private static HttpResponseMessage RespondToAnythingByName(HttpRequestMessage request)
+    // A broker holding a model that marks its run archetypes and answers every predicate name, so the calls
+    // under test get past resolution; everything else succeeds.
+    private static HttpResponseMessage RespondLikeAModelThatMarksItsArchetypes(HttpRequestMessage request)
     {
         var uri = request.RequestUri!;
         if (uri.AbsolutePath == "/api/things" && uri.Query.Contains("name="))
         {
             var name = Uri.UnescapeDataString(uri.Query.Split("name=")[1]);
-            var id = name switch
-            {
-                "NodeRun" => NodeRunArchetypeId,
-                "PipelineRun" => PipelineRunArchetypeId,
-                _ => PredicateId,
-            };
-            return Json(HttpStatusCode.OK, $$"""{"id":"{{id}}","name":"{{name}}"}""");
+            return Json(HttpStatusCode.OK, $$"""{"id":"{{PredicateId}}","name":"{{name}}"}""");
+        }
+
+        if (uri.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post)
+        {
+            var selector = request.Content!.ReadAsStringAsync().Result;
+            if (selector.Contains(PipelineArchetypes.PipelineRunFlag))
+                return MarkedArchetypeSnapshot(PipelineRunArchetypeId, PipelineArchetypes.PipelineRunFlag);
+            if (selector.Contains(PipelineArchetypes.NodeRunFlag))
+                return MarkedArchetypeSnapshot(NodeRunArchetypeId, PipelineArchetypes.NodeRunFlag);
+            return Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""");
         }
 
         return new HttpResponseMessage(HttpStatusCode.OK);
     }
+
+    private static HttpResponseMessage MarkedArchetypeSnapshot(Guid archetypeId, string roleFlag) =>
+        Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
+        {
+            snapshot = new
+            {
+                things = new[]
+                {
+                    new
+                    {
+                        id = archetypeId,
+                        name = "whatever this model calls it",
+                        properties = new Dictionary<string, object>
+                        {
+                            [roleFlag] = new { value = true, type = "vos.Boolean" },
+                        },
+                    },
+                },
+                relationships = Array.Empty<object>(),
+            },
+        }));
 
     private static HttpResponseMessage Json(HttpStatusCode status, string json) =>
         new(status) { Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json") };
@@ -88,8 +113,19 @@ public class MyceliumGatewayTests
         selector.GetProperty("ids")[0].GetString().Should().Be(pipelineId.ToString());
         selector.GetProperty("includeRelationships").GetBoolean().Should().BeTrue();
         selector.GetProperty("includeIsAncestors").GetBoolean().Should().BeTrue();
+        // The only names on the selector are the two built-in predicates: an archetype name asked for here
+        // is what stopped finding anything the moment a model renamed one (#6516).
         selector.GetProperty("names").EnumerateArray().Select(name => name.GetString())
-            .Should().Contain(["is", "has"]);
+            .Should().BeEquivalentTo(["is", "has"]);
+        selector.TryGetProperty("types", out _).Should().BeFalse();
+
+        selector.GetProperty("markedTypes").EnumerateArray().Select(flag => flag.GetString())
+            .Should().BeEquivalentTo([PipelineArchetypes.PortFlag, PipelineArchetypes.PipelineWireFlag]);
+
+        // And the archetype for every role, so one missing from the snapshot means the model marks it
+        // nowhere rather than that this pipeline has no node playing it.
+        selector.GetProperty("markedArchetypes").EnumerateArray().Select(flag => flag.GetString())
+            .Should().BeEquivalentTo(PipelineArchetypes.DagRoleFlags);
     }
 
     [Fact]
@@ -122,6 +158,36 @@ public class MyceliumGatewayTests
 
         graph.Things.Should().HaveCount(3);
         graph.Thing(pipelineId)!.Name.Should().Be("Demo");
+    }
+
+    // Phloem reads the snapshot once and never streams it, so a subscription left behind is a slice of the
+    // model the broker keeps resolving for a reader that has gone.
+    [Fact]
+    public async Task LoadPipelineSubgraphAsync_ReleasesTheSnapshotSubscription()
+    {
+        var subscriptionId = Guid.NewGuid();
+        var (gateway, handler) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post
+                ? Json(HttpStatusCode.OK, JsonSerializer.Serialize(new
+                {
+                    subscriptionId,
+                    snapshot = new { things = Array.Empty<object>(), relationships = Array.Empty<object>() },
+                }))
+                : new HttpResponseMessage(HttpStatusCode.OK));
+
+        await gateway.LoadPipelineSubgraphAsync(Guid.NewGuid(), CancellationToken.None);
+
+        // The release is deliberately not awaited — the caller gets its graph without waiting on cleanup.
+        var released = await EventuallyAsync(() =>
+            RequestsTo(handler, $"/api/subscriptions/{subscriptionId}", HttpMethod.Delete).Count == 1);
+        released.Should().BeTrue();
+    }
+
+    private static async Task<bool> EventuallyAsync(Func<bool> condition)
+    {
+        for (var attempt = 0; attempt < 100 && !condition(); attempt++)
+            await Task.Delay(20);
+        return condition();
     }
 
     [Fact]
@@ -303,9 +369,10 @@ public class MyceliumGatewayTests
         result.Body.Should().Be("upstream is down");
     }
 
-    // Archetype and predicate ids never change during a run, so looking one up twice is wasted work.
+    // An archetype cannot change role while the process lives, so asking the broker twice is wasted work —
+    // and this runs once per node run.
     [Fact]
-    public async Task TheGatewayLooksUpAModelNameOnceAndReusesIt()
+    public async Task TheGatewayResolvesARoleArchetypeOnceAndReusesIt()
     {
         var runId = Guid.NewGuid();
         var (gateway, handler) = NewGateway();
@@ -313,24 +380,41 @@ public class MyceliumGatewayTests
         await gateway.SetNodeRunStatusAsync(runId, Guid.NewGuid(), "First", RunStatus.Running, null, CancellationToken.None);
         await gateway.SetNodeRunStatusAsync(runId, Guid.NewGuid(), "Second", RunStatus.Running, null, CancellationToken.None);
 
-        var nodeRunLookups = handler.Requests.Count(request =>
-            request.RequestUri!.AbsolutePath == "/api/things"
-            && request.RequestUri.Query.Contains("name=NodeRun"));
+        var nodeRunLookups = 0;
+        foreach (var request in RequestsTo(handler, "/api/subscriptions", HttpMethod.Post))
+            if ((await request.Content!.ReadAsStringAsync()).Contains(PipelineArchetypes.NodeRunFlag))
+                nodeRunLookups++;
         nodeRunLookups.Should().Be(1);
     }
 
+    // The run archetype is asked for on its own. Through markedTypes the answer would have carried every
+    // Thing that already is one — every run the model has ever recorded.
     [Fact]
-    public async Task WhenAModelNameIsNotInTheGraph_TheFailureSaysWhichOne()
+    public async Task ResolvingARoleArchetype_AsksForTheArchetypeWithoutItsMembers()
+    {
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        var lookup = await ReadJson(RequestsTo(handler, "/api/subscriptions", HttpMethod.Post).Single());
+        lookup.GetProperty("markedArchetypes").EnumerateArray().Select(flag => flag.GetString())
+            .Should().BeEquivalentTo([PipelineArchetypes.PipelineRunFlag]);
+        lookup.TryGetProperty("markedTypes", out _).Should().BeFalse();
+        lookup.GetProperty("includeIsAncestors").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task WhenTheModelMarksNoRunArchetype_TheFailureNamesTheFlag()
     {
         var (gateway, _) = NewGateway(request =>
-            request.RequestUri!.AbsolutePath == "/api/things" && request.RequestUri.Query.Contains("name=")
-                ? Json(HttpStatusCode.OK, "[]")
+            request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                ? Json(HttpStatusCode.OK, """{"snapshot":{"things":[],"relationships":[]}}""")
                 : new HttpResponseMessage(HttpStatusCode.OK));
 
         var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
         (await creating.Should().ThrowAsync<InvalidOperationException>())
-            .WithMessage("*PipelineRun*");
+            .WithMessage($"*{PipelineArchetypes.PipelineRunFlag}*");
     }
 
     private static async Task<JsonElement> ReadJson(HttpRequestMessage request) =>

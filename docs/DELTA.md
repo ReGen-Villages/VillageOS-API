@@ -67,11 +67,17 @@ effective-property traversal. Construction throws if the seed graph:
 
 An invalid graph throws inside `LoadGraph()` during `app.Build()` wiring — Delta does not start.
 
-## Startup: provisioning the catalog
+## First contact: provisioning the catalog into a model
 
-On `ApplicationStarted`, `TemplateCatalogProvisioner.ProvisionAsync` reflects the seed graph into
-Mycelium so registrations never have to create templates lazily. It is **idempotent** by
-find-or-create by name:
+**A model is provisioned on its first registration, under the bearer that named it.** One Delta
+process answers every project — a second project's call reaches the daemon already running on the
+port both models declare — so a catalog built once at startup would sit in the single model Delta's
+launch token names, and every other project's registration would be refused for a template that is
+not in its model. `ModelTemplateCatalog` holds what each model has, keyed by the `vos:model_id` claim
+the caller's bearer carries.
+
+`TemplateCatalogProvisioner.ProvisionAsync` reflects the seed graph into that model. It is
+**idempotent** by find-or-create by name:
 
 1. Resolve the `is` predicate Thing (a model primitive — never created; if missing, provisioning
    logs and aborts).
@@ -99,8 +105,14 @@ template inherits nothing, so all of its properties stay on the create.
 > API to detect it. The same run leaves that template's narrowed keys unwritten, so it silently
 > keeps the parent's values. Tracked in the code comment on `TemplateCatalogProvisioner`.
 
-Provisioning is best-effort startup work (Mycelium's liveness monitor covers an unusable model)
-and is **skipped under the `Testing` environment** so tests make no Mycelium calls at boot.
+**A model provisions once, and calls that arrive together queue behind it.** Mycelium accepts a
+second Thing carrying a name it already holds, and then answers every lookup for that name with a
+conflict no later run can repair — so two first registrations from one model must not both provision
+it. A failed pass is not remembered: the next registration from that model tries again.
+
+**A held Thing id can go stale.** If the `is`-wire on a registration fails, the model's entry is
+discarded before the compensating delete, so the next registration provisions again rather than
+failing against the same missing template forever.
 
 ## Registration: `POST /handle` and `POST /register`
 
@@ -143,11 +155,37 @@ If the `is`-wire or any property-set fails, Delta runs a **compensating delete**
 to remove the orphaned Thing, so a partial registration never lingers. Success returns the new
 `registeredThingId`, `endpointTemplateId`, and `predicateId`.
 
-> **Which model a registration lands in.** The write uses the bearer on the incoming request, which
-> Mycelium signs with the calling project's model — so one shared Delta registers into the model of
-> whoever called it. [Startup provisioning](#startup-provisioning-the-catalog) is the exception: it
-> runs before any request exists, so it uses the token Delta was started with and the catalog lands
-> in the model that token names.
+## Which model a registration lives in
+
+**A registration lives in the project's own model. There is no shared catalogue model.**
+
+A model is the boundary of every read and every write. Mycelium binds one model per request from the
+`vos:model_id` claim on the bearer, and an `/api/…` call resolves entirely inside it — nothing reads
+across. Everything else follows from that:
+
+- **Delta writes where the caller points.** `/handle` and `/register` call Mycelium back with the
+  bearer that arrived, so one shared Delta registers into the model of whoever called it.
+- **Tributary reads the endpoint and writes the observations under one token, in one call.** The
+  endpoint Thing and the Site the readings name must therefore sit in the same model. A registration
+  parked in a catalogue model could not ingest onto a project's Site at all.
+- **No daemon can reach a second model.** `POST /api/auth/service-token` reads the model, service and
+  scope from the caller's own claims and takes nothing from the request, so holding a token for one
+  project buys no reach into another. That refusal is deliberate; a shared catalogue would need a
+  cross-model authorization rule built on purpose to undo it.
+- **Credentials decide it on their own.** A registration under `TokenExchangeAuth` carries
+  `tokenRequest` — a username and password for the upstream. A catalogue every project reads is a
+  catalogue in which every project reads every other project's credentials.
+
+**Registering a common source per project is a seed entry, not repeated work.** A project is created
+by seeding it. A source every project uses belongs in the seed every project is created from; a
+source one project licenses stays in that project alone, with its credential. The template catalogue
+a registration inherits from belongs to the project's model on the same grounds.
+
+The templates a registration is wired to follow it: they are provisioned into the caller's model on
+its [first registration](#first-contact-provisioning-the-catalog-into-a-model), under the same
+bearer. Provisioning at startup instead would have put the whole catalog in the one model Delta's
+launch token names, and every other project's registration would have been refused for a template
+absent from its own model.
 
 ## Endpoints
 
@@ -188,11 +226,12 @@ A parse failure or a graph-validation failure aborts boot.
 
 - Registration handler + lifecycle: `vos.Service.Delta/Program.cs`.
 - Graph model + validation: `vos.Service.Delta/Models/EndpointSeedGraph.cs`.
-- Startup provisioning: `vos.Service.Delta/Services/TemplateCatalogProvisioner.cs`.
+- Provisioning one model: `vos.Service.Delta/Services/TemplateCatalogProvisioner.cs`; which models
+  have been provisioned: `Services/ModelTemplateCatalog.cs`.
 - Mycelium client (Thing/relationship CRUD): `vos.Service.Delta/Services/MyceliumClient.cs`.
 - Seed loading: `vos.Service.Delta/Helpers/EndpointSeedLoader.cs`,
   `Services/FileEndpointSeedProvider.cs`.
 - Launch settings: `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs` (shared).
-- Tests: `Tests/vos.Service.Delta.Tests/` (`RegisterEndpointTests`,
+- Tests: `Tests/vos.Service.Delta.Tests/` (`RegisterEndpointTests`, `PerModelCatalogTests`,
   `TemplateCatalogProvisionerTests`, `EndpointSeedGraph*Tests`, `EsriEndpointTemplateTests`,
   `CompensateAsyncTests`, …).

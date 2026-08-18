@@ -2,10 +2,10 @@ using vos.Service.Delta.Models;
 
 namespace vos.Service.Delta.Services;
 
-// Idempotently provisions the endpoint-template catalog into Mycelium at startup. Idempotency rests on
+// Idempotently provisions the endpoint-template catalog into one model. Idempotency rests on
 // find-or-create by name; a template's is edge is created only when the thing was newly created
 // this run. The is predicate is a model primitive and is never created — if missing, provisioning
-// logs and aborts (best-effort startup; Mycelium's liveness monitor covers an unusable model).
+// logs and returns null, and the caller refuses the registration.
 // A template is provisioned in three steps rather than one, because the order decides how Mycelium
 // stores a key the template narrows: create the thing with the keys no ancestor declares, wire its
 // is edge, then write the narrowed keys, which by then resolve as inherited and are stored as
@@ -30,13 +30,13 @@ public sealed class TemplateCatalogProvisioner
         _logger = logger;
     }
 
-    public async Task ProvisionAsync()
+    public async Task<ProvisionedCatalog?> ProvisionAsync()
     {
         var isPredicate = await _myceliumClient.FindThingByNameAsync("is");
         if (isPredicate == null)
         {
             _logger.LogError("Cannot provision endpoint templates: mycelium model has no 'is' predicate thing.");
-            return;
+            return null;
         }
 
         // Ascending chain length is a valid topological order: a template's chain is strictly longer
@@ -117,6 +117,8 @@ public sealed class TemplateCatalogProvisioner
             "Endpoint template catalog provisioned: {Created} thing(s) created, {Wired} 'is' relationship(s) wired, "
             + "{KindEdges} kind edge(s) wired, {Total} template(s) total.",
             createdCount, wiredCount, kindEdges, _graph.Templates.Count);
+
+        return new ProvisionedCatalog(isPredicate.Value.Id, idByName);
     }
 
     // Mints each kind and each role predicate find-or-create, then relates every template to the kind
