@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -11,6 +12,11 @@ namespace vos.Service.Confluence.Tests;
 // each covering source through the fetching service, report both halves. The coverage rules are
 // pinned in Helpers/CoveringSourceResolverTests and the run's own behaviour in
 // Services/DiscoveryRunnerTests; these cover what the endpoint composes from them.
+//
+// A run resolves its sources in parallel, so the handler callback below is entered on several threads
+// at once. Anything a test collects from it has to be a concurrent collection: a plain List loses an
+// entry often enough to red a build about once in six runs, and it reds as a wrong count rather than
+// as a race.
 public class HandleEndpointTests
 {
     // The subdomain the run forwards a fetch to, left at its default by the test host.
@@ -40,16 +46,14 @@ public class HandleEndpointTests
     public async Task Handle_CallsEveryCoveringSource_AndReportsThemResolved()
     {
         var ids = TwoSourceNames();
-        // Sources are fetched concurrently, so the callback runs on two threads at once and an
-        // unsynchronised Add drops one of them at random.
-        var fetched = new List<string>();
+        var fetched = new ConcurrentBag<string>();
         await using var factory = new ConfluenceWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.AbsolutePath == FetchRoute)
             {
-                lock (fetched) fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Ok("""{"success":true}""");
             }
             return RouteSubscription(req, ids, TwoCoveringSources())
@@ -106,14 +110,14 @@ public class HandleEndpointTests
     public async Task Handle_PassesTheSitesOwnValuesToEverySource()
     {
         var ids = TwoSourceNames();
-        var bodies = new List<string>();
+        var bodies = new ConcurrentBag<string>();
         await using var factory = new ConfluenceWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
             if (req.RequestUri!.AbsolutePath == FetchRoute)
             {
-                lock (bodies) bodies.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                bodies.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Ok("""{"success":true}""");
             }
             return RouteSubscription(req, ids, TwoCoveringSources(),

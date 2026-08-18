@@ -351,6 +351,14 @@ a stored write would only be overwritten on the next pass.
 `ObservationOnly`). Writing the wrong kind is rejected with **405** — a Fact to an `ObservationOnly`
 property, or an observation to a `FactOnly` one. An unknown thing/property is **404**.
 
+**A property holds only what its declared type can hold.** A value the type cannot hold is refused
+with **400** on every write kind, naming the property, the Thing, the value and the type expected —
+and nothing is written. Widths convert freely (`10` into a `vos.Decimal`, `"3.5"` into a
+`vos.Double`), but a boolean written to a property declared as a number is refused, as is a number
+written to a `vos.Boolean`: .NET converts `true` to 1 and any non-zero number to `true`, so without
+the refusal a quantity nobody measured reaches the model looking like real data and every roll-up
+over that property counts it. Write `1` if that is what you mean.
+
 **Runnable demo.** Every reference handler exposes `POST /demo/write-kinds { "thingId": "<existing>" }`,
 which performs one of each kind against a Thing whose `status` accepts Facts and `temperature`/`flow`
 accept Observations.
