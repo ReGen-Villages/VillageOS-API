@@ -107,16 +107,24 @@ public class ProgrammeSplitReaderTests
     [Fact]
     public void An_unmarked_edge_from_the_allocation_is_not_mistaken_for_its_category()
     {
-        // An allocation can point at more than one Thing. Following whatever it points at first would
-        // read a note or an author as the category and mark the parcel by it.
-        var model = WillowBend()
+        // An allocation can point at more than one Thing, and the unmarked edge can come first. Following
+        // whatever it points at would read a note as the category and mark the parcel by it.
+        var model = new ModelBuilder()
+            .With("categorizedAs", (ProgrammeSplitReader.CategoryFlag, true))
+            .With("residential", (ProgrammeSplitReader.BuiltFootprintFlag, true))
+            .With("parcel", (ProgrammeSplitReader.ParcelAreaProperty, 10.0))
+            .With("housing", (ProgrammeSplitReader.SharePctProperty, 100.0))
             .With("someNote")
-            .With("recordedBy");
-        model.Relate("housing", "recordedBy", "someNote");
+            .Relate("study", "studies", "WillowBend")
+            .Relate("WillowBend", "has", "parcel")
+            .Relate("WillowBend", "has", "housing")
+            .Relate("housing", "recordedBy", "someNote")
+            .Relate("housing", "categorizedAs", "residential");
 
         var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
 
-        split.Categories.Select(category => category.Name).Should().BeEquivalentTo("residential", "food-and-agriculture");
+        split.Categories.Single().Name.Should().Be("residential");
+        split.Categories.Single().IsBuilt.Should().BeTrue();
         split.Uncategorised.Should().BeEmpty();
     }
 
