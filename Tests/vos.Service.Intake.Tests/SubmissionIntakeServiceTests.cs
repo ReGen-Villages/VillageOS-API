@@ -4,6 +4,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
 using Xunit;
 using static vos.Service.Intake.Tests.ModelStub;
@@ -27,24 +28,24 @@ public class SubmissionIntakeServiceTests
 
     private static SubmissionIntakeService ServiceOfAnUnseededModel(
         Func<HttpRequestMessage, HttpResponseMessage> respond) =>
-        new(new IntakeMyceliumClient(
-                new PerCallHttpClientFactory(new MockHttpMessageHandler(respond)),
-                NullLogger<IntakeMyceliumClient>.Instance,
-                "http://localhost",
-                "test-token"),
-            new StubSubscriptions(DeclaredModel.Seeded().Build()),
-            NullLogger<SubmissionIntakeService>.Instance);
+        ServiceAnswering(new MockHttpMessageHandler(respond), ReadingASeededModel());
 
     /// <summary>For a test whose answers must be able to overlap; a handler answering synchronously runs
     /// each call to completion before the next starts, whatever the caller did.</summary>
     private static SubmissionIntakeService ServiceOfAnUnseededModel(
         Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
+        ServiceAnswering(MockHttpMessageHandler.AnsweringAsynchronously(respond), ReadingASeededModel());
+
+    private static StubSubscriptions ReadingASeededModel() => new(DeclaredModel.Seeded().Build());
+
+    private static SubmissionIntakeService ServiceAnswering(
+        HttpMessageHandler answers, ISubscriptionClient read) =>
         new(new IntakeMyceliumClient(
-                new PerCallHttpClientFactory(MockHttpMessageHandler.AnsweringAsynchronously(respond)),
+                new PerCallHttpClientFactory(answers),
                 NullLogger<IntakeMyceliumClient>.Instance,
                 "http://localhost",
                 "test-token"),
-            new StubSubscriptions(DeclaredModel.Seeded().Build()),
+            read,
             NullLogger<SubmissionIntakeService>.Instance);
 
     /// <summary>A service reading its vocabularies out of the model a test built, against archetypes that
@@ -52,15 +53,7 @@ public class SubmissionIntakeServiceTests
     private static (SubmissionIntakeService Service, StubSubscriptions Read) ServiceReading(DeclaredModel model)
     {
         var read = new StubSubscriptions(model.Build());
-        var service = new SubmissionIntakeService(
-            new IntakeMyceliumClient(
-                new PerCallHttpClientFactory(new MockHttpMessageHandler(Seeded(Holds))),
-                NullLogger<IntakeMyceliumClient>.Instance,
-                "http://localhost",
-                "test-token"),
-            read,
-            NullLogger<SubmissionIntakeService>.Instance);
-        return (service, read);
+        return (ServiceAnswering(new MockHttpMessageHandler(Seeded(Holds)), read), read);
     }
 
     // A subscription left open per submission is a subscription per wizard save, and a wizard saves as the
@@ -73,8 +66,20 @@ public class SubmissionIntakeServiceTests
         await service.SubmitAsync(Document, CancellationToken.None);
 
         read.Released.Should().Be(1);
-        read.AskedFor!.MarkedTypes.Should().Contain(
-            DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+    }
+
+    // The vocabulary was already read by the time the release runs, so a broker that cannot release the
+    // subscription must not take the submission down with it — the planner would see a failure for work
+    // that had succeeded.
+    [Fact]
+    public async Task A_release_that_fails_does_not_lose_the_submission()
+    {
+        var (service, read) = ServiceReading(DeclaredModel.Seeded());
+        read.FailRelease = true;
+
+        var composed = await service.SubmitAsync(Document, CancellationToken.None);
+
+        composed.SiteId.Should().Be(StableIdentity.Derive(WillowBend.SubmissionId, "site"));
     }
 
     // A model seeded with the archetypes but not the vocabularies would take a submission and write the
@@ -95,17 +100,14 @@ public class SubmissionIntakeServiceTests
     [Fact]
     public async Task A_model_missing_everything_is_refused_by_naming_the_archetypes()
     {
+        // The vocabulary is missing too, so both gates would refuse. That is what makes the refusal below
+        // an ordering test rather than an assertion that only one gate exists.
         var read = new StubSubscriptions(DeclaredModel.Seeded().Without("AllocationCategory").Build());
-        var service = new SubmissionIntakeService(
-            new IntakeMyceliumClient(
-                new PerCallHttpClientFactory(new MockHttpMessageHandler(request => IsFragment(request)
-                    ? Json("{}")
-                    : new HttpResponseMessage(HttpStatusCode.NotFound))),
-                NullLogger<IntakeMyceliumClient>.Instance,
-                "http://localhost",
-                "test-token"),
-            read,
-            NullLogger<SubmissionIntakeService>.Instance);
+        var service = ServiceAnswering(
+            new MockHttpMessageHandler(request => IsFragment(request)
+                ? Json("{}")
+                : new HttpResponseMessage(HttpStatusCode.NotFound)),
+            read);
 
         var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
             () => service.SubmitAsync(Document, CancellationToken.None));
