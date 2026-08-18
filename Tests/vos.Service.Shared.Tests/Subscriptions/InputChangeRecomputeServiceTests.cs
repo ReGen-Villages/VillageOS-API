@@ -21,6 +21,8 @@ public class InputChangeRecomputeServiceTests
 {
     private static readonly Guid Study = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid OtherStudy = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static readonly Guid Allocation = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static readonly Guid SecondAllocation = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
     private static readonly Guid ModelOne = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid ModelTwo = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
@@ -50,6 +52,123 @@ public class InputChangeRecomputeServiceTests
     }
 
     [Fact]
+    public async Task A_change_on_a_Thing_the_subject_reads_from_recomputes_the_subject()
+    {
+        // Land allocation reads the programme split off the allocations beside the study, not off the
+        // study. Watching only what it wrote would leave a planner's edit changing nothing (#6539).
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+
+        await harness.ClientFor(ModelOne).EmitAsync(Allocation, "population");
+
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study,
+            "the subject is recomputed, never the Thing whose change was noticed");
+    }
+
+    [Fact]
+    public async Task A_Thing_read_by_the_subject_joins_the_subscription()
+    {
+        // A change is only delivered for a Thing the subscription covers, so registering the subject
+        // alone would leave the follower waiting for an event that never arrives.
+        await using var harness = await Harness.StartedAsync();
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+
+        harness.ClientFor(ModelOne).Members.Should().Contain(new[] { Study, Allocation });
+    }
+
+    [Fact]
+    public async Task Two_subjects_reading_one_Thing_are_both_recomputed()
+    {
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+        await harness.WatchAsync(OtherStudy, ModelOne, alsoOn: [Allocation]);
+
+        await harness.ClientFor(ModelOne).EmitAsync(Allocation, "population");
+
+        var recomputed = new[] { (await harness.NextRecomputeAsync()).SubjectId,
+                                 (await harness.NextRecomputeAsync()).SubjectId };
+        recomputed.Should().BeEquivalentTo(new[] { Study, OtherStudy });
+    }
+
+    [Fact]
+    public async Task Watching_again_with_a_different_set_stops_following_the_Thing_that_left_it()
+    {
+        // The set is re-registered on every recompute, because a planner can add or remove an
+        // allocation. A Thing that is no longer read must stop recomputing the subject.
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [SecondAllocation]);
+
+        await harness.ClientFor(ModelOne).EmitAsync(Allocation, "population");
+        await harness.ClientFor(ModelOne).EmitAsync(SecondAllocation, "population");
+
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study);
+        harness.Recomputes.Should().HaveCount(1, "only the Thing still read should have recomputed it");
+    }
+
+    [Fact]
+    public async Task A_Thing_no_subject_reads_any_more_leaves_the_subscription()
+    {
+        // It would otherwise keep arriving on the stream to be read and dropped, and a service that
+        // re-registers on every recompute would grow its membership for the life of the model.
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [SecondAllocation]);
+
+        await harness.EventuallyAsync(() => !harness.ClientFor(ModelOne).Members.Contains(Allocation));
+        harness.ClientFor(ModelOne).Members.Should().Contain(new[] { Study, SecondAllocation });
+    }
+
+    [Fact]
+    public async Task A_refused_release_leaves_the_subject_still_followed()
+    {
+        // What this pins is that a refused release does not wedge the follower: the subject keeps
+        // recomputing on the Things it still reads. It does not prove the guard inside the release —
+        // that call is fire-and-forget, so removing the catch leaves this passing, the same reason the
+        // add-membership guard is tested through the opening pass instead. The guard stays for the log
+        // line and for consistency with that one, not because a test can fail without it.
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+        harness.ClientFor(ModelOne).FailRemoveObjects = true;
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [SecondAllocation]);
+
+        await harness.ClientFor(ModelOne).EmitAsync(SecondAllocation, "population");
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study);
+    }
+
+    [Fact]
+    public async Task A_Thing_another_subject_still_reads_stays_in_the_subscription()
+    {
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+        await harness.WatchAsync(OtherStudy, ModelOne, alsoOn: [Allocation]);
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: []);
+
+        await harness.ClientFor(ModelOne).EmitAsync(Allocation, "population");
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(OtherStudy);
+        harness.ClientFor(ModelOne).Members.Should().Contain(Allocation);
+    }
+
+    [Fact]
+    public async Task A_reconnect_recomputes_each_subject_once_not_each_Thing_it_reads()
+    {
+        // A derived value is published live-only, so what moved while the stream was down was never
+        // replayed. Recomputing per watched Thing would run the same subject once per allocation.
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation, SecondAllocation]);
+
+        harness.ClientFor(ModelOne).RaiseReconnected();
+
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study);
+        harness.Recomputes.Should().HaveCount(1, "one subject, however many Things it reads");
+    }
+
+    [Fact]
     public async Task A_change_on_a_subject_the_service_never_computed_for_is_ignored()
     {
         await using var harness = await Harness.StartedAsync();
@@ -72,6 +191,21 @@ public class InputChangeRecomputeServiceTests
 
         (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study,
             "a derived value is live-only, so one that moved while the stream was down was never replayed");
+    }
+
+    [Fact]
+    public async Task A_Thing_read_before_the_subscription_opened_joins_it_too()
+    {
+        // The opening pass registers what was already watched. Registering only the subjects there
+        // would leave a change on an allocation undelivered, and nothing would look wrong.
+        var harness = new Harness();
+        await harness.WatchAsync(Study, ModelOne, waitForSubscription: false, alsoOn: [Allocation]);
+
+        await harness.StartAsync();
+        await harness.WaitForSubscriptionAsync(ModelOne);
+
+        harness.ClientFor(ModelOne).Members.Should().Contain(new[] { Study, Allocation });
+        await harness.DisposeAsync();
     }
 
     [Fact]
@@ -458,12 +592,13 @@ public class InputChangeRecomputeServiceTests
 
         /// <summary>Watch a subject the way /handle does: under the bearer that arrived with the call.</summary>
         public async Task WatchAsync(
-            Guid subjectId, Guid modelId, TimeSpan? expiresIn = null, bool waitForSubscription = true)
+            Guid subjectId, Guid modelId, TimeSpan? expiresIn = null, bool waitForSubscription = true,
+            Guid[]? alsoOn = null)
         {
             var bearer = TestTokens.For(modelId, DateTimeOffset.UtcNow.Add(expiresIn ?? TimeSpan.FromMinutes(5)));
             await MyceliumModelToken.ActingForAsync(bearer, () =>
             {
-                Service.Watch(subjectId);
+                Service.Watch(subjectId, alsoOn ?? []);
                 return Task.CompletedTask;
             });
 
@@ -490,6 +625,15 @@ public class InputChangeRecomputeServiceTests
 
         public FakeSubscriptionClient ClientFor(Guid modelId) =>
             Clients.Single(client => client.ModelId == modelId);
+
+        /// <summary>Membership changes are fire-and-forget, so a test waits for the state rather than for
+        /// a call it cannot await.</summary>
+        public async Task EventuallyAsync(Func<bool> settled)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < deadline && !settled()) await Task.Delay(10);
+            settled().Should().BeTrue("the follower should have settled within the deadline");
+        }
 
         public async Task<Recompute> NextRecomputeAsync() =>
             await _observed.Reader.ReadAsync(new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token);
@@ -571,6 +715,7 @@ public class InputChangeRecomputeServiceTests
         public TaskCompletionSource Subscribed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int FailSubscribesBefore { get; set; }
         public bool FailAddObjects { get; set; }
+        public bool FailRemoveObjects { get; set; }
         public bool FailUnsubscribe { get; set; }
         public int SubscribeAttempts { get; private set; }
         public List<Guid> Members { get; } = new();
@@ -608,8 +753,13 @@ public class InputChangeRecomputeServiceTests
                 new SnapshotDocument(0, new List<SnapshotThing>(), new List<SnapshotRelationship>())));
         }
 
-        public Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default) =>
-            Task.CompletedTask;
+        public Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default)
+        {
+            if (FailRemoveObjects) throw new HttpRequestException("mycelium refused the membership change");
+
+            lock (Members) foreach (var id in objectIds) Members.Remove(id);
+            return Task.CompletedTask;
+        }
 
         public Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default)
         {

@@ -359,8 +359,8 @@ switch (HandleRequestRouter.Classify(root, out var subjectId))
 **Staying current (#6155).** A dispatch computes once. `InputChangeRecomputeService`
 (`vos.Service.Shared.Subscriptions`) keeps the result current afterwards: `/handle` calls
 `Watch(subjectId)` for the subject it just computed, and the service recomputes whenever one of its
-**input** properties on that subject moves. The set of subjects grows from the dispatches the service
-already receives, so no discovery rule of its own. One line wires it:
+**input** properties moves on a Thing it follows. The set of subjects grows from the dispatches the
+service already receives, so no discovery rule of its own. One line wires it:
 
 ```csharp
 builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
@@ -373,15 +373,24 @@ cannot come to disagree with the inputs.
 
 What makes it work:
 
-- **Watching the subject is enough.** Mycelium publishes a derived value on the Thing that owns it, so a
-  roll-up whose members changed arrives as a property change on the subject, exactly like a param someone
-  edited. There is no need to subscribe to member Things.
+- **Watching the subject is enough when every input is on it.** Mycelium publishes a derived value on the
+  Thing that owns it, so a roll-up whose members changed arrives as a property change on the subject,
+  exactly like a param someone edited. `EnergyBalance` and `WaterReserve` read nothing else, so they pass
+  no second argument.
+- **A service computing from other Things names them (#6539).** `Watch(subjectId, readsFrom)` also follows
+  the Things the result is computed from, and a change on any of them recomputes **the subject**, never the
+  Thing that changed. Land allocation reads the programme split off the allocations beside the study, and
+  a roll-up cannot stand in for them: moving share between two categories leaves both a `Sum` and a sorted
+  `Set` unchanged while the split they stand for has changed. Re-registering replaces what a subject reads,
+  because a planner can add or remove one — so a service passes its current set on every recompute, and a
+  Thing no subject reads any more leaves the subscription rather than arriving to be read and dropped.
 - **Only inputs trigger it.** A compute service writes its outputs onto the same subject it watches, so
   reacting to every change there would recompute forever. Each handler exposes `InputProperties`, and the
   wiring passes that same set, so the filter cannot drift from what the handler reads.
 - **A reconnect recomputes.** A derived value is published live-only and never enters the journal, so a
   resumed stream does not replay one. `ISubscriptionClient.Reconnected` fires after the stream re-establishes
-  a dropped connection, and every watched subject is recomputed rather than trusted.
+  a dropped connection, and every watched subject is recomputed rather than trusted — **each subject once**,
+  however many Things it reads.
 - **Each project is followed separately.** Mycelium binds a subscription to one model when it creates it, and
   a change event names no model — so one subscription cannot carry every project a shared daemon serves. The
   service holds one per model instead. It learns which model a subject belongs to from the bearer on the

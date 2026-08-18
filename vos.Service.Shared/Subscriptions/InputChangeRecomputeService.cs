@@ -104,7 +104,9 @@ public sealed class InputChangeRecomputeService : IHostedService
     /// <summary>Start following a subject, in the model the work in hand belongs to. Called when the service
     /// computes for one, so the set grows from the dispatches the service already receives rather than from
     /// a discovery rule of its own.</summary>
-    public void Watch(Guid subjectId)
+    /// <summary>Follow a subject, and every Thing its result is computed from when those are not the
+    /// subject itself. A service reading only what it writes passes none.</summary>
+    public void Watch(Guid subjectId, params Guid[] readsFrom)
     {
         var bearer = ModelScopedBearer.Read(MyceliumModelToken.Current ?? _startupToken);
         if (bearer is null)
@@ -127,7 +129,7 @@ public sealed class InputChangeRecomputeService : IHostedService
             follower = existing;
         }
 
-        follower.Watch(subjectId);
+        follower.Watch(subjectId, readsFrom);
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
