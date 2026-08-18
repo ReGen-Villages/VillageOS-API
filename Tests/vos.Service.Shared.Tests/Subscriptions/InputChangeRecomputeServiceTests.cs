@@ -670,7 +670,16 @@ public class InputChangeRecomputeServiceTests
         private readonly HashSet<Guid> _refused = new();
         private readonly object _lock = new();
 
-        public TimeSpan IssueExpiringIn { get; set; } = TimeSpan.FromHours(24);
+        // Locked like the two lists, because a test changes it while the replacement loop is running
+        // and needs the next issue to honour it — an unsynchronised field leaves that to chance.
+        private TimeSpan _issueExpiringIn = TimeSpan.FromHours(24);
+
+        public TimeSpan IssueExpiringIn
+        {
+            get { lock (_lock) return _issueExpiringIn; }
+            set { lock (_lock) _issueExpiringIn = value; }
+        }
+
         public IReadOnlyList<string> Calls { get { lock (_lock) return _calls.ToList(); } }
         public IReadOnlyList<string> Issued { get { lock (_lock) return _issued.ToList(); } }
 
