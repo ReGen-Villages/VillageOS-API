@@ -36,6 +36,25 @@ public class WaterReserveReactiveHandlerTests
         new(new TestHttpClientFactory(new HttpClient(handler)), NullLogger<WaterReserveReactiveHandler>.Instance,
             "http://mycelium", serviceToken: "test-token");
 
+    // #6549: the same reader serves both services now, so the refusal names its input here too.
+    [Fact]
+    public async Task Refusing_a_null_input_names_which_input_it_was()
+    {
+        var withNull = AnchorInputs.Replace(
+            "\"storageCapacityM3\": { \"Value\": 900 }",
+            "\"storageCapacityM3\": { \"Value\": null }");
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(withNull, Encoding.UTF8, "application/json"),
+        });
+
+        var thrown = await Assert.ThrowsAnyAsync<Exception>(() => NewHandler(handler).RecomputeAsync(Anchor));
+
+        Assert.Contains("storageCapacityM3", thrown.Message);
+        Assert.Contains("WaterReserve", thrown.Message);
+        Assert.Contains("no value", thrown.Message);
+    }
+
     [Fact]
     public async Task Reads_inputs_computes_and_writes_days_of_supply_onto_the_anchor()
     {
