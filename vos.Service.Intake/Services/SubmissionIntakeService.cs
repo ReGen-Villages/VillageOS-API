@@ -1,10 +1,12 @@
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
 /// <summary>The single path from what a wizard collected to what the model holds.</summary>
-public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium)
+public sealed class SubmissionIntakeService(
+    IntakeMyceliumClient mycelium, ISubscriptionClient subscriptions, ILogger<SubmissionIntakeService> logger)
 {
     // Every archetype a submission points its Things at. Order matters only to the refusal, which reports
     // missing names in it.
@@ -54,9 +56,35 @@ public sealed class SubmissionIntakeService(IntakeMyceliumClient mycelium)
             found[SubmissionFragmentComposer.HazardAssessmentArchetypeName]!.Value,
             found[SubmissionFragmentComposer.DataSourceArchetypeName]!.Value);
 
-        var composed = SubmissionFragmentComposer.Compose(submission, predicates, archetypes);
+        // After the archetype gate rather than beside the lookups above. Both refuse an unseeded model, and
+        // run together the one that answered first would decide which of the two refusals the planner saw.
+        var vocabulary = await ReadDeclaredVocabularyAsync(cancellation);
+
+        var composed = SubmissionFragmentComposer.Compose(submission, predicates, archetypes, vocabulary);
         await mycelium.ApplyFragmentAsync(composed.Fragment, cancellation);
         return composed;
+    }
+
+    // The vocabularies a submitted word is resolved against, read from the model on every submission: a
+    // term added to the model has to reach the next submission, and a copy held here would be the list in
+    // code this read exists to remove.
+    private async Task<DeclaredVocabulary> ReadDeclaredVocabularyAsync(CancellationToken cancellation)
+    {
+        var subscribed = await subscriptions.SubscribeAsync(DeclaredVocabularyReader.Selector(), cancellation);
+        try
+        {
+            return DeclaredVocabularyReader.Read(subscribed.Snapshot);
+        }
+        finally
+        {
+            // The read already succeeded; failing to release the subscription must not lose it.
+            try { await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId, cancellation); }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Intake could not release the subscription {SubscriptionId}",
+                    subscribed.SubscriptionId);
+            }
+        }
     }
 
     // An archetype is never minted here. A model missing one was not seeded from the analysis templates,

@@ -278,15 +278,15 @@ the work.
     "householdSize": 2.4
   },
   "parcel": {                                 // left out until a boundary has been drawn
-    "boundarySource": "drawn-by-hand",        // or imported-from-file, or generated-from-stated-area
+    "boundarySource": "drawn-by-hand",        // a term the model declares, not free text
     "boundary": [
       { "latitude": 39.4990248, "longitude": -8.4165190 }
       // …at least three corners
     ]
   },
   "allocations": [                            // shares are taken as given and normalised later
-    { "category": "Residential", "sharePct": 22, "allocatedAreaHectares": 5.28 },
-    { "category": "Food and agriculture", "sharePct": 34, "allocatedAreaHectares": 8.16 }
+    { "category": "residential", "sharePct": 22, "allocatedAreaHectares": 5.28 },
+    { "category": "food-and-agriculture", "sharePct": 34, "allocatedAreaHectares": 8.16 }
     // …one entry per category, each naming a category only once
   ],
   "hazards": [                                // no level here: that is read from the source
@@ -534,6 +534,9 @@ flowchart LR
   HA["<b>HazardAssessment</b><br/>type · level · date"]
   DS["<b>DataSource</b><br/>which source · coverage<br/>last resolved"]
 
+  BS["<b>BoundarySource</b><br/>drawn-by-hand · imported-from-file<br/>generated-from-stated-area"]
+  AC["<b>AllocationCategory</b><br/>residential · food-and-agriculture<br/>…one Thing per category"]
+
   PR -->|has| CO
   PR -->|has| SI
   SI -->|has| PA
@@ -542,7 +545,17 @@ flowchart LR
   SI -->|has| DS
   HA -->|has| DS
   ST -->|studies| SI
+  PA -->|obtainedBy| BS
+  AL -->|categorizedAs| AC
 ```
+
+**A category and a boundary source are Things, and a submission relates to them.** Both vocabularies are
+declared in the model, so a project whose programme divides differently adds a Thing rather than changing
+a service. The composer resolves the submitted word against what the model declares and refuses one that
+matches nothing, naming the terms the model holds. It finds each vocabulary by a mark its archetype
+carries and writes the edge through the predicate the model marks, never by either name — so a model that
+renames one keeps working, and land allocation reads the category's footprint flags off the Thing at the
+end of the edge.
 
 The design decisions worth stating:
 
@@ -585,7 +598,8 @@ Using a synthetic example throughout — **Willow Bend**, a fictional 24-hectare
 | Willow Bend Site Study *(SiteStudy)* | `pctOfConsumption` | 90.8 | Fact — computed |
 | Parcel-01 *(Parcel)* | `boundary` | GeoJSON polygon | Fact |
 | | `measuredAreaHectares` | 23.4 | Fact |
-| | `boundarySource` | `drawn-by-hand` | Fact |
+| | `obtainedBy` → `drawn-by-hand` | an edge to the Thing | Relationship |
+| | `boundarySource` | `drawn-by-hand` | Fact — the same value as a word, until its readers follow the edge |
 
 The stated area is what the planner asserted. The measured area is what the boundary actually
 encloses. The solar figure is an observation because it was sampled from a provider on a date and

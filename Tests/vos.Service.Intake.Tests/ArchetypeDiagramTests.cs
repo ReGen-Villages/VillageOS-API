@@ -28,10 +28,18 @@ public class ArchetypeDiagramTests
     public void Every_edge_in_the_archetype_diagram_names_a_predicate_the_composer_writes()
     {
         var diagram = ArchetypeDiagram();
+
+        // The first two are named by the composer, so a diagram drawing something else draws an edge no
+        // submission writes. The last two are not: the composer finds them by the mark the model puts on
+        // them, so the names here are the land-intake template's rather than this service's. A template
+        // that renamed one leaves the drawing describing a spelling the model no longer uses, and breaks
+        // nothing at runtime — which is why they are listed apart rather than folded in.
         var composed = new[]
         {
             SubmissionFragmentComposer.HasPredicateName,
             SubmissionFragmentComposer.StudiesPredicateName,
+            "categorizedAs",
+            "obtainedBy",
         };
 
         var drawn = LabelledArrow.Matches(diagram)

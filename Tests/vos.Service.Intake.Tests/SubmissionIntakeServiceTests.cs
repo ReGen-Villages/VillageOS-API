@@ -28,20 +28,92 @@ public class SubmissionIntakeServiceTests
     private static SubmissionIntakeService ServiceOfAnUnseededModel(
         Func<HttpRequestMessage, HttpResponseMessage> respond) =>
         new(new IntakeMyceliumClient(
-            new PerCallHttpClientFactory(new MockHttpMessageHandler(respond)),
-            NullLogger<IntakeMyceliumClient>.Instance,
-            "http://localhost",
-            "test-token"));
+                new PerCallHttpClientFactory(new MockHttpMessageHandler(respond)),
+                NullLogger<IntakeMyceliumClient>.Instance,
+                "http://localhost",
+                "test-token"),
+            new StubSubscriptions(DeclaredModel.Seeded().Build()),
+            NullLogger<SubmissionIntakeService>.Instance);
 
     /// <summary>For a test whose answers must be able to overlap; a handler answering synchronously runs
     /// each call to completion before the next starts, whatever the caller did.</summary>
     private static SubmissionIntakeService ServiceOfAnUnseededModel(
         Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
         new(new IntakeMyceliumClient(
-            new PerCallHttpClientFactory(MockHttpMessageHandler.AnsweringAsynchronously(respond)),
-            NullLogger<IntakeMyceliumClient>.Instance,
-            "http://localhost",
-            "test-token"));
+                new PerCallHttpClientFactory(MockHttpMessageHandler.AnsweringAsynchronously(respond)),
+                NullLogger<IntakeMyceliumClient>.Instance,
+                "http://localhost",
+                "test-token"),
+            new StubSubscriptions(DeclaredModel.Seeded().Build()),
+            NullLogger<SubmissionIntakeService>.Instance);
+
+    /// <summary>A service reading its vocabularies out of the model a test built, against archetypes that
+    /// answer.</summary>
+    private static (SubmissionIntakeService Service, StubSubscriptions Read) ServiceReading(DeclaredModel model)
+    {
+        var read = new StubSubscriptions(model.Build());
+        var service = new SubmissionIntakeService(
+            new IntakeMyceliumClient(
+                new PerCallHttpClientFactory(new MockHttpMessageHandler(Seeded(Holds))),
+                NullLogger<IntakeMyceliumClient>.Instance,
+                "http://localhost",
+                "test-token"),
+            read,
+            NullLogger<SubmissionIntakeService>.Instance);
+        return (service, read);
+    }
+
+    // A subscription left open per submission is a subscription per wizard save, and a wizard saves as the
+    // planner types.
+    [Fact]
+    public async Task The_vocabulary_read_releases_its_subscription()
+    {
+        var (service, read) = ServiceReading(DeclaredModel.Seeded());
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        read.Released.Should().Be(1);
+        read.AskedFor!.MarkedTypes.Should().Contain(
+            DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+    }
+
+    // A model seeded with the archetypes but not the vocabularies would take a submission and write the
+    // words back with no edge, which is the state land allocation reads as every allocation uncategorised.
+    [Fact]
+    public async Task A_model_holding_the_archetypes_but_not_the_vocabularies_is_refused()
+    {
+        var (service, _) = ServiceReading(DeclaredModel.Seeded().Without("AllocationCategory"));
+
+        var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
+            () => service.SubmitAsync(Document, CancellationToken.None));
+
+        refusal.Message.Should().Contain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+    }
+
+    // Both gates refuse an unseeded model. Read after the archetypes rather than beside them, so which
+    // refusal a planner sees is settled here rather than by which call answered first.
+    [Fact]
+    public async Task A_model_missing_everything_is_refused_by_naming_the_archetypes()
+    {
+        var read = new StubSubscriptions(DeclaredModel.Seeded().Without("AllocationCategory").Build());
+        var service = new SubmissionIntakeService(
+            new IntakeMyceliumClient(
+                new PerCallHttpClientFactory(new MockHttpMessageHandler(request => IsFragment(request)
+                    ? Json("{}")
+                    : new HttpResponseMessage(HttpStatusCode.NotFound))),
+                NullLogger<IntakeMyceliumClient>.Instance,
+                "http://localhost",
+                "test-token"),
+            read,
+            NullLogger<SubmissionIntakeService>.Instance);
+
+        var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
+            () => service.SubmitAsync(Document, CancellationToken.None));
+
+        refusal.Message.Should().Contain(SubmissionFragmentComposer.SiteArchetypeName)
+            .And.NotContain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+        read.AskedFor.Should().BeNull("the archetype gate refuses before anything is read");
+    }
 
     // The posted document is read inside the responder: the client disposes the request content once the
     // call returns, so reading it afterwards finds nothing.

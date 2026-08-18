@@ -1,3 +1,4 @@
+using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Tests;
@@ -34,6 +35,31 @@ public static class WillowBend
         new(SiteArchetypeId, SiteStudyArchetypeId, ParcelArchetypeId, ProjectArchetypeId, ContactArchetypeId,
             ProgrammeAllocationArchetypeId, HazardAssessmentArchetypeId, DataSourceArchetypeId);
 
+    public static readonly Guid CategorizedAsPredicateId = new("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    public static readonly Guid ObtainedByPredicateId = new("dddddddd-dddd-dddd-dddd-dddddddddddd");
+
+    /// <summary>The two vocabularies the land-intake template declares, under the names it declares them
+    /// with. A submission names a term as the model spells it; how the term is displayed is the wizard's
+    /// business and never reaches here.</summary>
+    public static readonly string[] AllocationCategoryNames =
+    [
+        "residential", "food-and-agriculture", "green-water-and-restoration", "commercial-and-retail",
+        "community-education-and-health", "mobility-and-infrastructure",
+    ];
+
+    public static readonly string[] BoundarySourceNames =
+        ["drawn-by-hand", "imported-from-file", "generated-from-stated-area"];
+
+    public static DeclaredVocabulary KnownVocabulary => new(
+        Declared(CategorizedAsPredicateId, "categorizedAs", AllocationCategoryNames),
+        Declared(ObtainedByPredicateId, "obtainedBy", BoundarySourceNames));
+
+    public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
+
+    private static DeclaredTerms Declared(Guid predicateId, string predicateName, IEnumerable<string> terms) =>
+        new(new DeclaredTerm(predicateName, predicateId),
+            [.. terms.Select(name => new DeclaredTerm(name, TermId(name)))]);
+
     public static Submission Submission() => new()
     {
         SubmissionId = SubmissionId,
@@ -60,16 +86,17 @@ public static class WillowBend
             Population = 320,
             HouseholdSize = 2.4,
         },
-        // The programme from LAND_INTAKE.md §8. The shares add to 100 there, but nothing in the producer
-        // requires it — they are normalised across the chosen categories further down the analysis.
+        // The programme from LAND_INTAKE.md §8, each category named as the model declares it. The shares add
+        // to 100 there, but nothing in the producer requires it — they are normalised across the chosen
+        // categories further down the analysis.
         Allocations =
         [
-            new SubmittedAllocation { Category = "Residential", SharePct = 22, AllocatedAreaHectares = 5.28 },
-            new SubmittedAllocation { Category = "Food and agriculture", SharePct = 34, AllocatedAreaHectares = 8.16 },
-            new SubmittedAllocation { Category = "Green, water and restoration", SharePct = 20, AllocatedAreaHectares = 4.80 },
-            new SubmittedAllocation { Category = "Commercial and retail", SharePct = 8, AllocatedAreaHectares = 1.92 },
-            new SubmittedAllocation { Category = "Community, education and health", SharePct = 9, AllocatedAreaHectares = 2.16 },
-            new SubmittedAllocation { Category = "Mobility and infrastructure", SharePct = 7, AllocatedAreaHectares = 1.68 },
+            new SubmittedAllocation { Category = "residential", SharePct = 22, AllocatedAreaHectares = 5.28 },
+            new SubmittedAllocation { Category = "food-and-agriculture", SharePct = 34, AllocatedAreaHectares = 8.16 },
+            new SubmittedAllocation { Category = "green-water-and-restoration", SharePct = 20, AllocatedAreaHectares = 4.80 },
+            new SubmittedAllocation { Category = "commercial-and-retail", SharePct = 8, AllocatedAreaHectares = 1.92 },
+            new SubmittedAllocation { Category = "community-education-and-health", SharePct = 9, AllocatedAreaHectares = 2.16 },
+            new SubmittedAllocation { Category = "mobility-and-infrastructure", SharePct = 7, AllocatedAreaHectares = 1.68 },
         ],
         // Two hazards read off one portal, so the source is one Thing both hang off. LAND_INTAKE.md §8
         // calls a level without a source a recollection rather than an assessment, so neither is here.

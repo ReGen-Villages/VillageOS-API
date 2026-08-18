@@ -15,6 +15,11 @@ public sealed class SubscriptionSelector
     // Every Thing that `is` an archetype carrying one of these flags. Reaches Things the traversal cannot,
     // which is what a reader needs when it is about to create the edge the traversal would have followed.
     public List<string>? MarkedTypes { get; set; }
+
+    // The Things carrying one of these flags and none of their members. What a caller wants when it needs
+    // an id to write an edge with — a predicate, or an archetype to point `is` at — and would otherwise
+    // have to take the whole membership to reach it.
+    public List<string>? MarkedArchetypes { get; set; }
     public List<TraverseRule>? Traverse { get; set; }
     public bool IncludeIsAncestors { get; set; } = true;
     public bool IncludeRelationships { get; set; } = true;
