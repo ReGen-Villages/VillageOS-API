@@ -46,6 +46,24 @@ public class EnergyBalanceNodeTests
         response.Outputs.Should().BeEmpty();
     }
 
+    // #6549: a port wired to a withheld roll-up arrives present-but-null, which is not the same as absent.
+    // Reading it with GetDouble() raised .NET's own "target element has type 'Null'" — a message naming no
+    // port, which is the failure this change exists to remove on the reactive side.
+    [Fact]
+    public async Task HandleNodeAsync_null_input_names_the_port()
+    {
+        var node = BuildNode();
+        var root = Envelope("""
+            {"solarPvAreaM2":100000,"solarResourceKwhPerM2PerYear":1000,"moduleEfficiency":0.20,"performanceRatio":1.0,
+             "otherGenerationMwhPerYear":null,"annualConsumptionMwhPerYear":18743}
+            """);
+
+        var response = await node.HandleNodeAsync(root);
+
+        response.Success.Should().BeFalse();
+        response.Error.Should().Contain("otherGenerationMwhPerYear");
+    }
+
     [Fact]
     public void Ports_advertise_generation_inputs_and_net_positive_output()
     {
