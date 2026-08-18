@@ -382,7 +382,8 @@ What makes it work:
   Thing that changed. Land allocation reads the programme split off the allocations beside the study, and
   a roll-up cannot stand in for them: moving share between two categories leaves both a `Sum` and a sorted
   `Set` unchanged while the split they stand for has changed. Re-registering replaces what a subject reads,
-  because a planner can add or remove one — so a service passes its current set on every recompute.
+  because a planner can add or remove one — so a service passes its current set on every recompute, and a
+  Thing no subject reads any more leaves the subscription rather than arriving to be read and dropped.
 - **Only inputs trigger it.** A compute service writes its outputs onto the same subject it watches, so
   reacting to every change there would recompute forever. Each handler exposes `InputProperties`, and the
   wiring passes that same set, so the filter cannot drift from what the handler reads.
