@@ -1,8 +1,10 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using System.Web;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Tests;
 
@@ -14,11 +16,28 @@ public static class ModelStub
     public static bool IsFragment(HttpRequestMessage request) =>
         request.RequestUri!.AbsolutePath == "/api/model/fragment";
 
+    /// <summary>The scoped read the vocabularies are resolved through. A subscription is released by a
+    /// DELETE under the same path, which the name-lookup answer serves well enough.</summary>
+    private static bool IsSubscriptionRead(HttpRequestMessage request) =>
+        request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/subscriptions";
+
     public static HttpResponseMessage Json(string body) =>
         new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
-    public static HttpResponseMessage Holds(HttpRequestMessage request) =>
-        IsFragment(request) ? Json("{}") : Json($$"""{"Id":"{{Guid.NewGuid()}}","Name":"predicate"}""");
+    public static HttpResponseMessage Holds(HttpRequestMessage request)
+    {
+        if (IsFragment(request)) return Json("{}");
+        if (IsSubscriptionRead(request)) return Json(DeclaredVocabularyAnswer);
+        return Json($$"""{"Id":"{{Guid.NewGuid()}}","Name":"predicate"}""");
+    }
+
+    /// <summary>What the scoped read answers with: a model declaring both vocabularies, serialised the way
+    /// the broker serialises it, so the tests that go through the real client exercise the real reading.
+    /// </summary>
+    public static string DeclaredVocabularyAnswer =>
+        JsonSerializer.Serialize(
+            new SubscribeResult(Guid.NewGuid(), 0, DeclaredModel.Seeded().Build()),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
     private static readonly string[] ArchetypeNames =
     [

@@ -28,11 +28,19 @@ public class ArchetypeDiagramTests
     public void Every_edge_in_the_archetype_diagram_names_a_predicate_the_composer_writes()
     {
         var diagram = ArchetypeDiagram();
-        var composed = new[]
+
+        var namedByTheComposer = new[]
         {
             SubmissionFragmentComposer.HasPredicateName,
             SubmissionFragmentComposer.StudiesPredicateName,
         };
+
+        // Written by the composer but never named by it: it finds each by the mark the model puts on it, so
+        // these are the land-intake template's spellings rather than this service's. A template that renamed
+        // one leaves the drawing describing a spelling the model no longer uses and breaks nothing at
+        // runtime, which is why they are kept apart from the two above.
+        var spelledByTheTemplate = new[] { "categorizedAs", "obtainedBy" };
+        var mayBeDrawn = namedByTheComposer.Concat(spelledByTheTemplate).ToList();
 
         var drawn = LabelledArrow.Matches(diagram)
             .Select(match => match.Groups["predicate"].Value)
@@ -42,8 +50,8 @@ public class ArchetypeDiagramTests
         drawn.Should().HaveCount(Arrow.Matches(diagram).Count,
             "Mermaid draws an arrow several ways and carries its label two ways, so an edge this test "
             + "cannot read a label from has to fail here rather than go unchecked");
-        drawn.Distinct().Where(predicate => !composed.Contains(predicate)).Should().BeEmpty(
-            $"the diagram may only draw predicates the model holds — {string.Join(", ", composed)}");
+        drawn.Distinct().Where(predicate => !mayBeDrawn.Contains(predicate)).Should().BeEmpty(
+            $"the diagram may only draw predicates the model holds — {string.Join(", ", mayBeDrawn)}");
     }
 
     private static string ArchetypeDiagram()

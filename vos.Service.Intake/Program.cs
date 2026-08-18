@@ -4,6 +4,7 @@ using vos.Service.Intake;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Configuration;
 using vos.Service.Shared.Hosting;
+using vos.Service.Shared.Subscriptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,6 +46,13 @@ try
         new IntakeMyceliumClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<IntakeMyceliumClient>>(),
+            myceliumUrl,
+            serviceToken));
+
+    builder.Services.AddSingleton<ISubscriptionClient>(sp =>
+        new SubscriptionClient(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<SubscriptionClient>>(),
             myceliumUrl,
             serviceToken));
 

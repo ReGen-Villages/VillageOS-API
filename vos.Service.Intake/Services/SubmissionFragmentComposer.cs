@@ -33,6 +33,13 @@ namespace vos.Service.Intake.Services;
 /// goes silent. That is the intended reading — a submission is composed against the whole set — but it means
 /// a name added here narrows which models the reference says anything about.
 /// </para>
+/// <para>
+/// The two vocabularies a submission uses — what an allocation is for, and how a boundary was obtained —
+/// are neither named nor listed here. A submitted word is resolved against the Things the model declares
+/// (see <see cref="DeclaredVocabularyReader"/>) and written as an edge to the one it names, so a project
+/// that adds a term edits the model and deploys nothing. The word is still written beside the edge as a
+/// property, and goes when its readers follow the edge (#6510).
+/// </para>
 /// </remarks>
 public static class SubmissionFragmentComposer
 {
@@ -50,11 +57,9 @@ public static class SubmissionFragmentComposer
     public const string HazardAssessmentArchetypeName = "HazardAssessment";
     public const string DataSourceArchetypeName = "DataSource";
 
-    private static readonly IReadOnlyList<string> BoundarySources =
-        ["drawn-by-hand", "imported-from-file", "generated-from-stated-area"];
-
     public static ComposedSubmission Compose(
-        Submission submission, ResolvedPredicates predicates, ResolvedArchetypes archetypes)
+        Submission submission, ResolvedPredicates predicates, ResolvedArchetypes archetypes,
+        DeclaredVocabulary vocabulary)
     {
         var submissionId = Required(submission.SubmissionId, "submissionId",
             "every identifier derives from it, so a submission posted twice without one would build a second site");
@@ -118,38 +123,53 @@ public static class SubmissionFragmentComposer
                 + "so there is nowhere to put one on its own.");
         }
 
+        // An edge to a term the model declares, through the predicate the model marks for that vocabulary.
+        // Never minted: the term and the predicate both come from the model, and a predicate invented here
+        // would carry no mark, so the readers that follow it by mark would never find the edge.
+        void RelateToTerm(NamedThing subject, DeclaredTerms declared, DeclaredTerm term) =>
+            Relate(subject,
+                new PredicateIdentity(declared.Predicate.Name, declared.Predicate.Id, Minted: false),
+                new NamedThing(term.Id, term.Name));
+
         Guid? parcelId = null;
         if (submission.Parcel is { } parcel)
         {
+            var obtainedBy = Resolve(vocabulary.BoundarySources, "parcel.boundarySource",
+                Required(parcel.BoundarySource, "parcel.boundarySource",
+                    "a square generated from a stated area is not evidence and must not read as a surveyed boundary"));
+
             var parcelThing = new NamedThing(StableIdentity.Derive(submissionId, "parcel"), $"{siteName} Parcel-01");
             parcelId = parcelThing.Id;
-            things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
+            things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel, obtainedBy.Name)));
             Relate(siteThing, predicates.Has, parcelThing);
             BeArchetype(parcelThing, archetypes.Parcel, ParcelArchetypeName);
+            RelateToTerm(parcelThing, vocabulary.BoundarySources, obtainedBy);
         }
 
-        var categoriesAlreadyGiven = new Dictionary<string, string>();
+        var categoriesAlreadyGiven = new Dictionary<Guid, string>();
         foreach (var allocation in submission.Allocations ?? [])
         {
-            var category = Required(allocation.Category, "allocation.category",
+            var submitted = Required(allocation.Category, "allocation.category",
                 "an allocation is a share of the land put to some named use").Trim();
+            var category = Resolve(vocabulary.AllocationCategories, "allocation.category", submitted);
 
             // Identity comes from the category rather than from a position in the list, so a wizard that
-            // reorders them re-posts onto the same Things. Case and surrounding space are not part of what
-            // the planner meant, so they are not part of what identifies it either.
-            var key = Key(category);
-            if (categoriesAlreadyGiven.TryGetValue(key, out var alreadyGiven))
+            // reorders them re-posts onto the same Things. It comes from the resolved term rather than the
+            // word submitted, so two spellings of one category are one share and not two.
+            if (categoriesAlreadyGiven.TryGetValue(category.Id, out var alreadyGiven))
                 throw new SubmissionError(
-                    $"'allocations' gives '{alreadyGiven}' and '{category}' as separate shares of one "
+                    $"'allocations' gives '{alreadyGiven}' and '{submitted}' as separate shares of one "
                     + "category: they disagree about it and nothing here can say which was meant.");
-            categoriesAlreadyGiven[key] = category;
+            categoriesAlreadyGiven[category.Id] = submitted;
 
             var allocationThing = new NamedThing(
-                StableIdentity.Derive(submissionId, $"allocation:{key}"), $"{siteName} {category}");
+                StableIdentity.Derive(submissionId, $"allocation:{Key(category.Name)}"),
+                $"{siteName} {category.Name}");
             things.Add(new FragmentThing(allocationThing.Id, allocationThing.Name,
-                AllocationProperties(allocation with { Category = category })));
+                AllocationProperties(allocation with { Category = category.Name })));
             Relate(siteThing, predicates.Has, allocationThing);
             BeArchetype(allocationThing, archetypes.ProgrammeAllocation, ProgrammeAllocationArchetypeName);
+            RelateToTerm(allocationThing, vocabulary.AllocationCategories, category);
         }
 
         // A source named by two hazards is one Thing both hang off, not one each. Identity comes from the
@@ -243,6 +263,10 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
+    // The category is written as the model declares it rather than as it was typed, so the property cannot
+    // read differently from the Thing the edge beside it reaches. It goes once its readers follow that
+    // edge (#6510).
+    //
     // The share is written as given. Shares are normalised across the chosen categories further down the
     // analysis, so a set that does not reach a hundred is a wizard part-filled, and judging whether they add
     // up is a range's work on the study rather than this service's.
@@ -271,7 +295,10 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
-    private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
+    // The source is written as the model declares it rather than as it was typed, so the property beside
+    // the edge cannot read differently from the Thing the edge reaches. The property goes once its readers
+    // follow that edge (#6510).
+    private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel, string boundarySource)
     {
         var boundary = parcel.Boundary
             ?? throw new SubmissionError("'parcel.boundary' is missing: a parcel is the boundary it encloses. "
@@ -280,18 +307,33 @@ public static class SubmissionFragmentComposer
             throw new SubmissionError(
                 $"'parcel.boundary' has {boundary.Count} corner(s): a boundary needs at least three.");
 
-        var source = Required(parcel.BoundarySource, "parcel.boundarySource",
-            "a square generated from a stated area is not evidence and must not read as a surveyed boundary");
-        if (!BoundarySources.Contains(source))
-            throw new SubmissionError(
-                $"'parcel.boundarySource' is '{source}': it must be one of {string.Join(", ", BoundarySources)}.");
-
         return new Dictionary<string, TypedValue>
         {
             ["measuredAreaHectares"] = TypedValue.Written(VosTypeNames.Double, BoundaryGeometry.MeasureHectares(boundary)),
             ["boundary"] = TypedValue.Written(VosTypeNames.GeoJson, BoundaryGeometry.ToGeoJson(boundary)),
-            ["boundarySource"] = TypedValue.Written(VosTypeNames.String, source),
+            ["boundarySource"] = TypedValue.Written(VosTypeNames.String, boundarySource),
         };
+    }
+
+    // A word the model does not declare is refused by naming what the model does declare, so a planner is
+    // corrected by the vocabulary the analysis will actually read rather than by whatever list this service
+    // was compiled with. A term added to the model needs no change here.
+    private static DeclaredTerm Resolve(DeclaredTerms declared, string field, string submitted)
+    {
+        var byKey = new Dictionary<string, DeclaredTerm>();
+        foreach (var term in declared.Terms)
+            if (!byKey.TryAdd(Key(term.Name), term))
+                throw new ModelNotSeededError(
+                    $"this model declares '{byKey[Key(term.Name)].Name}' and '{term.Name}' as separate terms, "
+                    + $"and a submitted '{field}' cannot say which of them it means.");
+
+        if (byKey.TryGetValue(Key(submitted), out var found))
+            return found;
+
+        throw new SubmissionError(declared.Terms.Count == 0
+            ? $"'{field}' is '{submitted}', and this model declares no term to resolve it against."
+            : $"'{field}' is '{submitted}': the model declares "
+              + string.Join(", ", declared.Terms.Select(term => $"'{term.Name}'")) + ".");
     }
 
     private static void Write(IDictionary<string, TypedValue> properties, string name, string typeInfo, object? value)
@@ -300,7 +342,8 @@ public static class SubmissionFragmentComposer
             properties[name] = TypedValue.Written(typeInfo, value);
     }
 
-    // What identifies a Thing a planner named, as against how they happened to type it. Case and surrounding
+    // What a planner named, as against how they happened to type it — which is both what a submitted word is
+    // matched to a declared term by and what identifies the Thing it mints. Case and surrounding
     // space are not part of what they meant, so a wizard that re-posts with either changed lands on the Thing
     // it landed on before rather than building a second beside it.
     private static string Key(string named) => named.Trim().ToLowerInvariant();
