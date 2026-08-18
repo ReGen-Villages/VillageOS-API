@@ -634,9 +634,14 @@ defined in exactly one place:
   sheds rainwater.
 - **Productive footprint** = food and agriculture = **8.16 ha** — the land that grows food.
 
-Which categories roll into which footprint is **configuration on the node**, not a hardcoded list of
-category names. A different project with a different programme vocabulary must not need a code
-change.
+Which categories roll into which footprint is **a flag each category carries in the model**, not a list
+of names in the service. A category marked `__IsBuiltFootprintCategory` sheds rainwater into the built
+footprint and one marked `__IsProductiveFootprintCategory` grows food into the productive one, so a
+project whose programme divides differently moves a flag rather than changing a service.
+
+A category may carry both — a roofed growing area is hard surface the rain runs off *and* land that
+grows food — so the two footprints can overlap and together exceed the parcel. What must sum to the
+parcel is the per-category areas.
 
 ### Energy
 
