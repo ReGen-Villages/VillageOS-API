@@ -24,7 +24,9 @@ public sealed class LandAllocationReactiveHandler : MyceliumClientBase
         : base(httpClientFactory, logger, myceliumUrl, serviceToken) =>
         _subscriptions = new SubscriptionClient(httpClientFactory, logger, myceliumUrl, serviceToken);
 
-    internal LandAllocationReactiveHandler(
+    /// <summary>The subscription client is supplied rather than built, so a test can hand it a snapshot
+    /// instead of a broker.</summary>
+    public LandAllocationReactiveHandler(
         IHttpClientFactory httpClientFactory, ILogger<LandAllocationReactiveHandler> logger,
         string myceliumUrl, string? serviceToken, ISubscriptionClient subscriptions)
         : base(httpClientFactory, logger, myceliumUrl, serviceToken) => _subscriptions = subscriptions;
