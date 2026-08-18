@@ -148,6 +148,21 @@ public class InputChangeRecomputeServiceTests
     }
 
     [Fact]
+    public async Task A_Thing_read_before_the_subscription_opened_joins_it_too()
+    {
+        // The opening pass registers what was already watched. Registering only the subjects there
+        // would leave a change on an allocation undelivered, and nothing would look wrong.
+        var harness = new Harness();
+        await harness.WatchAsync(Study, ModelOne, waitForSubscription: false, alsoOn: [Allocation]);
+
+        await harness.StartAsync();
+        await harness.WaitForSubscriptionAsync(ModelOne);
+
+        harness.ClientFor(ModelOne).Members.Should().Contain(new[] { Study, Allocation });
+        await harness.DisposeAsync();
+    }
+
+    [Fact]
     public async Task A_subject_watched_before_the_subscription_opened_is_still_followed()
     {
         var harness = new Harness();
