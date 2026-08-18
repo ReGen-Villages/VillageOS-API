@@ -123,6 +123,21 @@ public class InputChangeRecomputeServiceTests
     }
 
     [Fact]
+    public async Task A_refused_release_leaves_the_subject_still_followed()
+    {
+        // The release is fire-and-forget, so an escaping exception would surface as an unobserved task
+        // rather than as anything an operator could act on — and the subject must keep recomputing.
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+        harness.ClientFor(ModelOne).FailRemoveObjects = true;
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [SecondAllocation]);
+
+        await harness.ClientFor(ModelOne).EmitAsync(SecondAllocation, "population");
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study);
+    }
+
+    [Fact]
     public async Task A_Thing_another_subject_still_reads_stays_in_the_subscription()
     {
         await using var harness = await Harness.StartedAsync();
@@ -697,6 +712,7 @@ public class InputChangeRecomputeServiceTests
         public TaskCompletionSource Subscribed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int FailSubscribesBefore { get; set; }
         public bool FailAddObjects { get; set; }
+        public bool FailRemoveObjects { get; set; }
         public bool FailUnsubscribe { get; set; }
         public int SubscribeAttempts { get; private set; }
         public List<Guid> Members { get; } = new();
@@ -736,6 +752,8 @@ public class InputChangeRecomputeServiceTests
 
         public Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default)
         {
+            if (FailRemoveObjects) throw new HttpRequestException("mycelium refused the membership change");
+
             lock (Members) foreach (var id in objectIds) Members.Remove(id);
             return Task.CompletedTask;
         }
