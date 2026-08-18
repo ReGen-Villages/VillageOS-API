@@ -380,7 +380,13 @@ public class InputChangeRecomputeServiceTests
         await harness.WatchAsync(Study, ModelOne);
         await harness.Exchange.WaitForCallsAsync(atLeast: 3);
 
-        harness.ClientFor(ModelOne).CurrentToken.Should().Be(harness.Exchange.Issued[^1]);
+        // The follower stores a replacement only after the exchange has already recorded issuing it,
+        // and the loop keeps replacing every check — so the stored bearer and the last issued one are
+        // never both still true at one instant. Issuing outside the lead time ends the replacements,
+        // and what the follower settles on is then a fixed answer rather than a sampled one.
+        harness.Exchange.IssueExpiringIn = TimeSpan.FromHours(24);
+
+        await harness.WaitForCurrentTokenToBeTheLastIssuedAsync(ModelOne);
     }
 
     // The membership pass that runs as the subscription opens is awaited, so an escaping failure there
@@ -623,6 +629,22 @@ public class InputChangeRecomputeServiceTests
             }
         }
 
+        /// <summary>Waits for the follower to settle on the last bearer the exchange issued. Only
+        /// meaningful once the exchange has begun issuing outside the lead time, because until then
+        /// there is always another replacement coming and no answer stays true.</summary>
+        public async Task WaitForCurrentTokenToBeTheLastIssuedAsync(Guid modelId)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (ClientFor(modelId).CurrentToken == Exchange.Issued[^1]) return;
+                await Task.Delay(10);
+            }
+
+            ClientFor(modelId).CurrentToken.Should().Be(Exchange.Issued[^1],
+                "the subscription's own calls must use the replacement, not the bearer it was seeded with");
+        }
+
         public FakeSubscriptionClient ClientFor(Guid modelId) =>
             Clients.Single(client => client.ModelId == modelId);
 
@@ -648,7 +670,16 @@ public class InputChangeRecomputeServiceTests
         private readonly HashSet<Guid> _refused = new();
         private readonly object _lock = new();
 
-        public TimeSpan IssueExpiringIn { get; set; } = TimeSpan.FromHours(24);
+        // Locked like the two lists, because a test changes it while the replacement loop is running
+        // and needs the next issue to honour it — an unsynchronised field leaves that to chance.
+        private TimeSpan _issueExpiringIn = TimeSpan.FromHours(24);
+
+        public TimeSpan IssueExpiringIn
+        {
+            get { lock (_lock) return _issueExpiringIn; }
+            set { lock (_lock) _issueExpiringIn = value; }
+        }
+
         public IReadOnlyList<string> Calls { get { lock (_lock) return _calls.ToList(); } }
         public IReadOnlyList<string> Issued { get { lock (_lock) return _issued.ToList(); } }
 
@@ -657,16 +688,20 @@ public class InputChangeRecomputeServiceTests
         public Task<ModelScopedBearer?> ExchangeAsync(string bearer, CancellationToken cancellationToken = default)
         {
             var model = ModelScopedBearer.Read(bearer)!.ModelId;
-            lock (_lock)
-            {
-                _calls.Add(bearer);
-                if (_refused.Contains(model)) return Task.FromResult<ModelScopedBearer?>(null);
-            }
 
             // Distinct from every other issue for the same model, so a test can tell one from the next.
             var extended = TestTokens.For(model, DateTimeOffset.UtcNow.Add(IssueExpiringIn),
                 scope: $"endpoint:test:{Guid.NewGuid():N}");
-            lock (_lock) _issued.Add(extended);
+
+            // One lock for both, so a test that waits on the call count never reads an Issued list
+            // the call is missing from. Minting before the refusal check is what allows it, and a
+            // discarded token costs a fake nothing.
+            lock (_lock)
+            {
+                _calls.Add(bearer);
+                if (_refused.Contains(model)) return Task.FromResult<ModelScopedBearer?>(null);
+                _issued.Add(extended);
+            }
 
             return Task.FromResult(ModelScopedBearer.Read(extended));
         }
