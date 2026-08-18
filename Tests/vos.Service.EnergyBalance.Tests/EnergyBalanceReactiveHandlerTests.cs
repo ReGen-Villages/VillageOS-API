@@ -79,6 +79,51 @@ public class EnergyBalanceReactiveHandlerTests
         Assert.Equal(110.5, outputs.PctOfConsumption, 3);
     }
 
+    // #6549: the platform withholds a roll-up whose member type resolves to nothing rather than answering
+    // zero, so a required input can now arrive present-but-null. The refusal has to say which one — six
+    // inputs are read here, and "not numeric: Null" names none of them.
+    [Fact]
+    public async Task Refusing_a_null_input_names_which_input_it_was()
+    {
+        var withNullRollup = AnchorInputs.Replace(
+            "\"otherGenerationMwhPerYear\": { \"Value\": 100 }",
+            "\"otherGenerationMwhPerYear\": { \"Value\": null }");
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(withNullRollup, Encoding.UTF8, "application/json"),
+        });
+        var reactive = new EnergyBalanceReactiveHandler(
+            new TestHttpClientFactory(new HttpClient(handler)), NullLogger<EnergyBalanceReactiveHandler>.Instance,
+            "http://mycelium", serviceToken: "test-token");
+
+        var thrown = await Assert.ThrowsAnyAsync<Exception>(() => reactive.RecomputeAsync(Anchor));
+
+        Assert.Contains("otherGenerationMwhPerYear", thrown.Message);
+        // Present-with-no-value has its own message: it says the input is on the study but empty, and names
+        // the platform behaviour that empties it, so an operator is not left reading "not numeric: Null".
+        Assert.Contains("no value", thrown.Message);
+        Assert.Contains("roll-up", thrown.Message);
+    }
+
+    [Fact]
+    public async Task Refusing_a_non_numeric_input_names_which_input_it_was()
+    {
+        var withText = AnchorInputs.Replace(
+            "\"annualConsumptionMwhPerYear\": { \"Value\": 4000 }",
+            "\"annualConsumptionMwhPerYear\": { \"Value\": \"unmeasured\" }");
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(withText, Encoding.UTF8, "application/json"),
+        });
+        var reactive = new EnergyBalanceReactiveHandler(
+            new TestHttpClientFactory(new HttpClient(handler)), NullLogger<EnergyBalanceReactiveHandler>.Instance,
+            "http://mycelium", serviceToken: "test-token");
+
+        var thrown = await Assert.ThrowsAnyAsync<Exception>(() => reactive.RecomputeAsync(Anchor));
+
+        Assert.Contains("annualConsumptionMwhPerYear", thrown.Message);
+    }
+
     [Fact]
     public async Task Fails_when_a_required_input_is_missing_from_the_anchor()
     {

@@ -28,6 +28,19 @@ public class WaterReserveNodeTests
         ((double)response.Outputs["emergencyReserveM3"]!).Should().Be(100000);
     }
 
+    // #6549: present-but-null is not absent, and reading it straight through named no port.
+    [Fact]
+    public async Task HandleNodeAsync_null_input_names_the_port()
+    {
+        var node = BuildNode();
+        var root = Envelope("""{"population":1000,"perCapitaConsumptionM3":50,"storageCapacityM3":null}""");
+
+        var response = await node.HandleNodeAsync(root);
+
+        response.Success.Should().BeFalse();
+        response.Error.Should().Contain("storageCapacityM3");
+    }
+
     [Fact]
     public async Task HandleNodeAsync_missing_input_reports_failure_not_exception()
     {

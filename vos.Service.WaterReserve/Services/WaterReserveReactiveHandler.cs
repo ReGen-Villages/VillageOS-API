@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 using vos.Service.Shared;
@@ -31,8 +30,9 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
 
         var props = await FetchEffectivePropertiesAsync(client, studyId, cancellationToken);
+        var inputs = new StudyInputs(props, "WaterReserve");
         var result = WaterReserveCalculator.Compute(new WaterReserveInputs(
-            Number(props, Inputs[0]), Number(props, Inputs[1]), Number(props, Inputs[2])));
+            inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2])));
 
         await WriteAsync(client, studyId, "daysOfSupply", result.DaysOfSupply, cancellationToken);
         await WriteAsync(client, studyId, "emergencyReserveM3", result.EmergencyReserveM3, cancellationToken);
@@ -57,28 +57,4 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
             throw new HttpRequestException($"WaterReserve could not write {thingId}.{property} ({(int)response.StatusCode} {response.StatusCode})");
     }
 
-    private static double Number(JsonElement props, string name)
-    {
-        if (props.ValueKind == JsonValueKind.Object)
-            foreach (var p in props.EnumerateObject())
-                if (string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
-                    return ExtractDouble(p.Value);
-        throw new KeyNotFoundException($"WaterReserve input '{name}' is not on the study.");
-    }
-
-    // The route returns each property as { "Value": <v>, ... } (case-insensitive key).
-    private static double ExtractDouble(JsonElement envelope)
-    {
-        var value = envelope;
-        if (envelope.ValueKind == JsonValueKind.Object)
-            foreach (var field in envelope.EnumerateObject())
-                if (string.Equals(field.Name, "Value", StringComparison.OrdinalIgnoreCase)) { value = field.Value; break; }
-
-        return value.ValueKind switch
-        {
-            JsonValueKind.Number => value.GetDouble(),
-            JsonValueKind.String when double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d) => d,
-            _ => throw new InvalidOperationException($"WaterReserve input value is not numeric: {value.ValueKind}"),
-        };
-    }
 }

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using vos.Service.Shared.DagNode;
 
 namespace vos.Service.WaterReserve.Services;
@@ -38,7 +39,10 @@ public sealed class WaterReserveNode : DagNodeService
             ("daysOfSupply", result.DaysOfSupply)));
     }
 
+    // Matched on the value kind rather than read straight through: a port wired to a withheld roll-up
+    // arrives present-but-null, and GetDouble() answers that with .NET's own message, which names no port.
     private static double Number(NodeContext context, string port) =>
-        context.Input(port)?.GetDouble()
-        ?? throw new InvalidOperationException($"WaterReserve node requires a numeric '{port}' input.");
+        context.Input(port) is { ValueKind: JsonValueKind.Number } value
+            ? value.GetDouble()
+            : throw new InvalidOperationException($"WaterReserve node requires a numeric '{port}' input.");
 }
