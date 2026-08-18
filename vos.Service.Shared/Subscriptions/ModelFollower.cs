@@ -53,17 +53,12 @@ internal sealed class ModelFollower
     /// what the subject reads, because a planner can add or remove one of them.</summary>
     public void Watch(Guid subjectId, IReadOnlyCollection<Guid> readsFrom)
     {
-        List<Guid> joined;
+        List<Guid> joined, abandoned;
         lock (_watchedLock)
         {
             var reads = new HashSet<Guid>(readsFrom) { subjectId };
             joined = reads.Where(thing => !_subjectsByWatched.ContainsKey(thing)).ToList();
-
-            if (_readBySubject.TryGetValue(subjectId, out var previous))
-                foreach (var left in previous.Where(thing => !reads.Contains(thing)))
-                    if (_subjectsByWatched.TryGetValue(left, out var subjects)
-                        && subjects.Remove(subjectId) && subjects.Count == 0)
-                        _subjectsByWatched.Remove(left);
+            abandoned = ReleaseWhatTheSubjectNoLongerReads(subjectId, reads);
 
             foreach (var thing in reads)
             {
@@ -78,6 +73,26 @@ internal sealed class ModelFollower
         if (_subscriptionId == Guid.Empty) return;
         foreach (var thing in joined)
             _ = AddToMembershipAsync(thing);
+        if (abandoned.Count > 0)
+            _ = RemoveFromMembershipAsync(abandoned);
+    }
+
+    /// <summary>Drops the subject from everything it has stopped reading, and answers with the Things no
+    /// subject reads any more. Held under the caller's lock.</summary>
+    private List<Guid> ReleaseWhatTheSubjectNoLongerReads(Guid subjectId, HashSet<Guid> reads)
+    {
+        var abandoned = new List<Guid>();
+        if (!_readBySubject.TryGetValue(subjectId, out var previous)) return abandoned;
+
+        foreach (var thing in previous.Where(thing => !reads.Contains(thing)))
+            if (_subjectsByWatched.TryGetValue(thing, out var subjects)
+                && subjects.Remove(subjectId) && subjects.Count == 0)
+            {
+                _subjectsByWatched.Remove(thing);
+                abandoned.Add(thing);
+            }
+
+        return abandoned;
     }
 
     public void Start(CancellationToken cancellationToken)
@@ -235,6 +250,24 @@ internal sealed class ModelFollower
 
     /// <summary>Every Thing whose changes have to reach this follower, which is what the subscription
     /// covers. Wider than the subjects: a subject is recomputed, the Things it reads only report.</summary>
+    /// <summary>A Thing no subject reads any more keeps arriving on the stream until the subscription is
+    /// told to drop it, and a service that re-registers per recompute would otherwise grow its membership
+    /// for the lifetime of the model.</summary>
+    private async Task RemoveFromMembershipAsync(IReadOnlyCollection<Guid> things)
+    {
+        try
+        {
+            await _subscriptions.RemoveObjectsAsync(
+                _subscriptionId, things, _cancellation?.Token ?? CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogDebug(exception,
+                "{Service}: could not stop following {Count} Thing(s) in model {ModelId}; their changes will be read and ignored",
+                _inputs.ServiceName, things.Count, ModelId);
+        }
+    }
+
     private List<Guid> WatchedThings()
     {
         lock (_watchedLock) return _subjectsByWatched.Keys.ToList();

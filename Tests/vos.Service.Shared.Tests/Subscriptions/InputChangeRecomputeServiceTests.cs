@@ -109,6 +109,34 @@ public class InputChangeRecomputeServiceTests
     }
 
     [Fact]
+    public async Task A_Thing_no_subject_reads_any_more_leaves_the_subscription()
+    {
+        // It would otherwise keep arriving on the stream to be read and dropped, and a service that
+        // re-registers on every recompute would grow its membership for the life of the model.
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [SecondAllocation]);
+
+        await harness.EventuallyAsync(() => !harness.ClientFor(ModelOne).Members.Contains(Allocation));
+        harness.ClientFor(ModelOne).Members.Should().Contain(new[] { Study, SecondAllocation });
+    }
+
+    [Fact]
+    public async Task A_Thing_another_subject_still_reads_stays_in_the_subscription()
+    {
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+        await harness.WatchAsync(OtherStudy, ModelOne, alsoOn: [Allocation]);
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: []);
+
+        await harness.ClientFor(ModelOne).EmitAsync(Allocation, "population");
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(OtherStudy);
+        harness.ClientFor(ModelOne).Members.Should().Contain(Allocation);
+    }
+
+    [Fact]
     public async Task A_reconnect_recomputes_each_subject_once_not_each_Thing_it_reads()
     {
         // A derived value is published live-only, so what moved while the stream was down was never
@@ -580,6 +608,15 @@ public class InputChangeRecomputeServiceTests
         public FakeSubscriptionClient ClientFor(Guid modelId) =>
             Clients.Single(client => client.ModelId == modelId);
 
+        /// <summary>Membership changes are fire-and-forget, so a test waits for the state rather than for
+        /// a call it cannot await.</summary>
+        public async Task EventuallyAsync(Func<bool> settled)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < deadline && !settled()) await Task.Delay(10);
+            settled().Should().BeTrue("the follower should have settled within the deadline");
+        }
+
         public async Task<Recompute> NextRecomputeAsync() =>
             await _observed.Reader.ReadAsync(new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token);
 
@@ -697,8 +734,11 @@ public class InputChangeRecomputeServiceTests
                 new SnapshotDocument(0, new List<SnapshotThing>(), new List<SnapshotRelationship>())));
         }
 
-        public Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default) =>
-            Task.CompletedTask;
+        public Task RemoveObjectsAsync(Guid subscriptionId, IEnumerable<Guid> objectIds, CancellationToken ct = default)
+        {
+            lock (Members) foreach (var id in objectIds) Members.Remove(id);
+            return Task.CompletedTask;
+        }
 
         public Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default)
         {
