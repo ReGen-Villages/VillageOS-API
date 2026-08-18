@@ -35,8 +35,7 @@ public class PerSiteIngestTests
         public List<string> ThingsCreated { get; } = new();
     }
 
-    // answerFirst is consulted before the standard routes, so a test that needs one answer changed —
-    // a refused observation, a Thing the name path must find — says only that.
+    // Consulted before the standard routes, so a test needing one answer changed says only that.
     private static TributaryWebApplicationFactory FactoryOver(
         Recorder recorder,
         Guid endpointId,
@@ -147,8 +146,8 @@ public class PerSiteIngestTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var summary = await response.Content.ReadAsStringAsync();
         summary.Should().Contain("\"observationsSubmitted\":0");
-        // Nothing was written, so nothing was touched — the same answer the name path gives, and the
-        // difference between "no data" and a successful ingest of none.
+        // This path resolves nothing, so with nothing written there is nothing to count. The name
+        // path answers 1 here instead, because it did resolve one — pinned alongside its own tests.
         summary.Should().Contain("\"entitiesTouched\":0");
         recorder.ObservedOn.Should().BeEmpty();
     }

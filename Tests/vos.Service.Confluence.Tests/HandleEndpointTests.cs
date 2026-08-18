@@ -41,7 +41,7 @@ public class HandleEndpointTests
     {
         var ids = TwoSourceNames();
         // Sources are fetched concurrently, so the callback runs on two threads at once and an
-        // unsynchronised Add loses one of them — the test then fails about once in five runs.
+        // unsynchronised Add drops one of them at random.
         var fetched = new List<string>();
         await using var factory = new ConfluenceWebApplicationFactory();
         await factory.InitializeAsync();

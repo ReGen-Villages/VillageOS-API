@@ -21,15 +21,10 @@ public class EndpointCallRequest
     [JsonPropertyName("addressParameters")]
     public Dictionary<string, string>? AddressParameters { get; set; }
 
-    // The Thing this call's readings are about. Supplied when one registration serves many subjects:
-    // the address already varies per call, and without this the reading's destination would still be
-    // whatever name the registration's expression carries, so every subject's values would land on
-    // one Thing.
-    //
-    // An id rather than a name, because the caller already holds the Thing it asked about. A name
-    // would have to be resolved, a name matching two Things is refused as ambiguous and reads back as
-    // absent, and the ingest creates what it cannot find — so a name would answer a duplicate by
-    // quietly minting a third.
+    // The Thing this call's readings are about, for a registration serving many subjects. The
+    // address varies per call but a reshape expression does not, so without this every subject's
+    // values land on the one Thing that expression names. An id rather than a name because a name
+    // matching two Things reads back as absent, and this ingest creates what it cannot find.
     [JsonPropertyName("subjectId")]
     public Guid? SubjectId { get; set; }
 }

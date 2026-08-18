@@ -71,9 +71,8 @@ public class ObservationIngestService
         }
     }
 
-    // subjectId names the Thing the call was about, for a registration serving many subjects. Every
-    // reading is then observed onto it and the reading's own name is not used to find or create
-    // anything — the caller knows which subject it asked about, and the expression cannot.
+    // A supplied subjectId takes the reading's own name out of play entirely: nothing is resolved
+    // or created from it, whether or not the expression produced one.
     public async Task<ObservationIngestResult> CreateObservationsAsync(
         Guid endpointThingId, JsonataTransform query, string body, Guid? subjectId = null)
     {
@@ -144,16 +143,16 @@ public class ObservationIngestService
         return new ObservationIngestResult(true, entitiesTouched, observationsSubmitted, null, null);
     }
 
-    // The subject already exists — the caller read it out of the model to make the call — so nothing
-    // is created here and every reading becomes an observation on its series. That also means no
-    // `observed` edge is written, which is what already happens for any entity a fetch lands on that
-    // was not created by the same fetch.
+    // Nothing is created here, so no `observed` edge is written either — the same as any fetch
+    // landing on an entity that already existed, and the reason a value discovered this way cannot
+    // yet be walked back to the source that produced it.
     private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(Guid subjectId, List<Reading> readings)
     {
         var samples = SamplesOf(readings);
 
-        // Nothing written is nothing touched. The name path counts an entity only once it has one to
-        // write to, and a summary claiming otherwise reads as a successful ingest of no data.
+        // Nothing resolved, nothing created, nothing written — so nothing to report. This is
+        // deliberately not what the name path answers: that one counts the entity it resolved even
+        // when the reading gave it no values, because resolving is work this path never does.
         if (samples.Count == 0)
             return new ObservationIngestResult(true, 0, 0, null, null);
 
