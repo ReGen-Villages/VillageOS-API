@@ -280,9 +280,24 @@ endpoints and need none of this.
 
 **Model placement: transient passthrough.** A tile is a stateless fetch response. It is
 never persisted as a Thing, an observation, or a Fact — binary cannot be a scalar
-observation, and a base64 Fact would bloat the replay log. The envelope is returned and
-forgotten; the same request refetches upstream. Keeping fetched responses on local disk
-(config-driven, TTL-bounded) is the planned fast-follow #5918.
+observation, and a base64 Fact would bloat the replay log. The model keeps nothing; when
+a deployment wants repeated fetches answered without contacting the source again, that is
+the `DiskCache` kind below — a file on the service's disk, not model state.
+
+**Caching to local disk.** An endpoint that reaches the **`DiskCache`** kind through
+`cachesBy` serves a repeated fetch from the service's disk while the entry is younger
+than **`cacheTtl`** (seconds — the kind requires it, so caching without a stated
+retention is refused; the TTL is also where Esri's terms-of-use retention limit lives).
+The cache key is the fully-resolved address — placeholders filled, query attached — plus
+the Accept header, since the same address can answer with different formats. Entries are
+**real files with real extensions** under `cache/{endpointName}/` (`.png`, `.jpg`,
+`.webp`, `.tif`, `.pbf`, `.json` via a generic media-type map; an unknown type falls back
+to `.bin` plus a `.meta.json` sidecar carrying the exact Content-Type), so a cached tile
+opens in any viewer. Expired entries simply miss and are overwritten by the next fetch —
+no sweeper. Combinations the cache cannot answer honestly are refused up front: offset
+paging, a credentialed (`TokenExchangeAuth`) call, and a request with an outbound body
+(none of which are part of the key). The cache root is deployment configuration
+(`CacheDirectory`, default `cache/` under the service's working directory).
 
 Graph composition is pinned by `EsriTileEndpointTemplateTests` (Delta); behavior by
 `BinaryResponseKindTests` and `AcceptHeaderTests` (Tributary).
