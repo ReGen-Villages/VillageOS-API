@@ -105,6 +105,34 @@ public class ProgrammeSplitReaderTests
     }
 
     [Fact]
+    public void An_unmarked_edge_from_the_allocation_is_not_mistaken_for_its_category()
+    {
+        // An allocation can point at more than one Thing. Following whatever it points at first would
+        // read a note or an author as the category and mark the parcel by it.
+        var model = WillowBend()
+            .With("someNote")
+            .With("recordedBy");
+        model.Relate("housing", "recordedBy", "someNote");
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.Categories.Select(category => category.Name).Should().BeEquivalentTo("residential", "food-and-agriculture");
+        split.Uncategorised.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_footprint_flag_set_to_false_is_a_category_declining_the_role()
+    {
+        // A flag is a property, so it can hold false. That says "not this role", which is different from
+        // silence and must not read as marked.
+        var model = WillowBend().With("residential", (ProgrammeSplitReader.BuiltFootprintFlag, false));
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.Categories.Single(category => category.Name == "residential").IsBuilt.Should().BeFalse();
+    }
+
+    [Fact]
     public void An_allocation_naming_no_category_is_carried_as_a_gap_not_dropped()
     {
         // Allocating the rest would silently describe a different parcel than the one submitted.
