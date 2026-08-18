@@ -20,7 +20,7 @@ reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
-Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `Metabolism`, `Phloem`,
+Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `LandAllocation`, `Metabolism`, `Phloem`,
 `WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
 provisions the endpoint-template catalog into a model on that model's first registration, and
 validates every endpoint
