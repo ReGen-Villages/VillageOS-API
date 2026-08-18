@@ -114,7 +114,10 @@ never reported as a timeout — that would put a fabricated outage in front of a
 
 **Fetching is not done here.** Confluence asks Mycelium to forward each call to the endpoint service
 named by `--fetcherSubdomain`, which resolves the registration, fills the address placeholders,
-reshapes the response and writes the observation onto the Site. Which service fetches is
+reshapes the response and writes the observation onto the Site. **Each call names the site as its
+subject**, so the reading lands on the site the run is for rather than on whatever entity the shared
+registration's expression names — see
+[`TRIBUTARY.md`](TRIBUTARY.md#naming-the-subject-a-call-is-about). Which service fetches is
 configuration rather than a name in code, so a deployment can point it elsewhere without editing
 this service.
 

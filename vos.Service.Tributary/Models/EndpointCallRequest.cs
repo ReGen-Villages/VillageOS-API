@@ -20,4 +20,11 @@ public class EndpointCallRequest
     // every address in a set. Like the reshape override, they belong to this call alone.
     [JsonPropertyName("addressParameters")]
     public Dictionary<string, string>? AddressParameters { get; set; }
+
+    // The Thing this call's readings are about, for a registration serving many subjects. The
+    // address varies per call but a reshape expression does not, so without this every subject's
+    // values land on the one Thing that expression names. An id rather than a name because a name
+    // matching two Things reads back as absent, and this ingest creates what it cannot find.
+    [JsonPropertyName("subjectId")]
+    public Guid? SubjectId { get; set; }
 }

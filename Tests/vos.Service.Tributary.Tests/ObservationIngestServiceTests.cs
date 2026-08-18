@@ -336,6 +336,27 @@ public class ObservationIngestServiceTests
         result.Error.Should().Contain("submit observations");
     }
 
+    [Fact]
+    public async Task NameResolvedAndTheReadingCarriesNoValues_StillCountsTheEntityItResolved()
+    {
+        // The name path counts the entity it resolved, whether or not the reading gave it anything
+        // to write. The subject path resolves nothing and so counts nothing — the two summaries
+        // deliberately differ, and PerSiteIngestTests pins the other half.
+        var entityId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("S").Returns(new MyceliumClient.MyceliumThing(entityId, "S"));
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
+            new JsonataTransform("{\"name\":\"S\",\"properties\":{}}"), "{\"x\":1}");
+
+        result.Success.Should().BeTrue();
+        result.EntitiesTouched.Should().Be(1);
+        result.ObservationsSubmitted.Should().Be(0);
+        await client.DidNotReceive().SubmitObservationsAsync(
+            Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ObservationSample>>());
+    }
+
     private static ObservationIngestService CreateService()
     {
         var client = Substitute.For<IEndpointMyceliumClient>();

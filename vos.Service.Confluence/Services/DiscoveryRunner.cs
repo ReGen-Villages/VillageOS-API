@@ -41,7 +41,7 @@ public sealed class DiscoveryRunner
             async (index, token) =>
             {
                 var source = covering[index];
-                outcomes[index] = await FetchOneAsync(source, addressParameters, token);
+                outcomes[index] = await FetchOneAsync(siteId, source, addressParameters, token);
             });
 
         var resolved = outcomes.Where(outcome => outcome.Resolved).ToList();
@@ -58,6 +58,7 @@ public sealed class DiscoveryRunner
     // caller of this run must not be handed an exception raised on one source's behalf. Catching
     // here is what keeps one provider from ending the run for every other.
     private async Task<SourceOutcome> FetchOneAsync(
+        Guid siteId,
         CoveringSource source,
         IReadOnlyDictionary<string, string> addressParameters,
         CancellationToken cancellationToken)
@@ -65,7 +66,7 @@ public sealed class DiscoveryRunner
         try
         {
             return await _fetcher.FetchAsync(
-                source.Name, source.EndpointName, addressParameters, cancellationToken);
+                siteId, source.Name, source.EndpointName, addressParameters, cancellationToken);
         }
         catch (Exception exception)
         {
