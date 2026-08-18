@@ -21,6 +21,8 @@ public class InputChangeRecomputeServiceTests
 {
     private static readonly Guid Study = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static readonly Guid OtherStudy = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static readonly Guid Allocation = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+    private static readonly Guid SecondAllocation = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
     private static readonly Guid ModelOne = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid ModelTwo = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
@@ -47,6 +49,77 @@ public class InputChangeRecomputeServiceTests
 
         (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study, "only the input should have triggered one");
         harness.Recomputes.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task A_change_on_a_Thing_the_subject_reads_from_recomputes_the_subject()
+    {
+        // Land allocation reads the programme split off the allocations beside the study, not off the
+        // study. Watching only what it wrote would leave a planner's edit changing nothing (#6539).
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+
+        await harness.ClientFor(ModelOne).EmitAsync(Allocation, "population");
+
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study,
+            "the subject is recomputed, never the Thing whose change was noticed");
+    }
+
+    [Fact]
+    public async Task A_Thing_read_by_the_subject_joins_the_subscription()
+    {
+        // A change is only delivered for a Thing the subscription covers, so registering the subject
+        // alone would leave the follower waiting for an event that never arrives.
+        await using var harness = await Harness.StartedAsync();
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+
+        harness.ClientFor(ModelOne).Members.Should().Contain(new[] { Study, Allocation });
+    }
+
+    [Fact]
+    public async Task Two_subjects_reading_one_Thing_are_both_recomputed()
+    {
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+        await harness.WatchAsync(OtherStudy, ModelOne, alsoOn: [Allocation]);
+
+        await harness.ClientFor(ModelOne).EmitAsync(Allocation, "population");
+
+        var recomputed = new[] { (await harness.NextRecomputeAsync()).SubjectId,
+                                 (await harness.NextRecomputeAsync()).SubjectId };
+        recomputed.Should().BeEquivalentTo(new[] { Study, OtherStudy });
+    }
+
+    [Fact]
+    public async Task Watching_again_with_a_different_set_stops_following_the_Thing_that_left_it()
+    {
+        // The set is re-registered on every recompute, because a planner can add or remove an
+        // allocation. A Thing that is no longer read must stop recomputing the subject.
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
+
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [SecondAllocation]);
+
+        await harness.ClientFor(ModelOne).EmitAsync(Allocation, "population");
+        await harness.ClientFor(ModelOne).EmitAsync(SecondAllocation, "population");
+
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study);
+        harness.Recomputes.Should().HaveCount(1, "only the Thing still read should have recomputed it");
+    }
+
+    [Fact]
+    public async Task A_reconnect_recomputes_each_subject_once_not_each_Thing_it_reads()
+    {
+        // A derived value is published live-only, so what moved while the stream was down was never
+        // replayed. Recomputing per watched Thing would run the same subject once per allocation.
+        await using var harness = await Harness.StartedAsync();
+        await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation, SecondAllocation]);
+
+        harness.ClientFor(ModelOne).RaiseReconnected();
+
+        (await harness.NextRecomputeAsync()).SubjectId.Should().Be(Study);
+        harness.Recomputes.Should().HaveCount(1, "one subject, however many Things it reads");
     }
 
     [Fact]
@@ -458,12 +531,13 @@ public class InputChangeRecomputeServiceTests
 
         /// <summary>Watch a subject the way /handle does: under the bearer that arrived with the call.</summary>
         public async Task WatchAsync(
-            Guid subjectId, Guid modelId, TimeSpan? expiresIn = null, bool waitForSubscription = true)
+            Guid subjectId, Guid modelId, TimeSpan? expiresIn = null, bool waitForSubscription = true,
+            Guid[]? alsoOn = null)
         {
             var bearer = TestTokens.For(modelId, DateTimeOffset.UtcNow.Add(expiresIn ?? TimeSpan.FromMinutes(5)));
             await MyceliumModelToken.ActingForAsync(bearer, () =>
             {
-                Service.Watch(subjectId);
+                Service.Watch(subjectId, alsoOn ?? []);
                 return Task.CompletedTask;
             });
 

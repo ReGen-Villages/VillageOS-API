@@ -21,7 +21,11 @@ internal sealed class ModelFollower
     private readonly TimeSpan _replacementCheckInterval;
     private readonly ISubscriptionClient _subscriptions;
 
-    private readonly HashSet<Guid> _watched = new();
+    // A watched Thing names every subject whose result its changes invalidate, and each subject names
+    // what it reads, so re-registering a subject can stop following what it no longer reads. A service
+    // that reads only the Thing it computes has one entry mapping that Thing to itself.
+    private readonly Dictionary<Guid, HashSet<Guid>> _subjectsByWatched = new();
+    private readonly Dictionary<Guid, HashSet<Guid>> _readBySubject = new();
     private readonly object _watchedLock = new();
 
     private ModelScopedBearer _bearer;
@@ -45,13 +49,35 @@ internal sealed class ModelFollower
 
     public Guid ModelId => _bearer.ModelId;
 
-    public void Watch(Guid subjectId)
+    /// <summary>Follow a subject and every Thing its result is computed from. Re-registering replaces
+    /// what the subject reads, because a planner can add or remove one of them.</summary>
+    public void Watch(Guid subjectId, IReadOnlyCollection<Guid> readsFrom)
     {
+        List<Guid> joined;
         lock (_watchedLock)
-            if (!_watched.Add(subjectId)) return;
+        {
+            var reads = new HashSet<Guid>(readsFrom) { subjectId };
+            joined = reads.Where(thing => !_subjectsByWatched.ContainsKey(thing)).ToList();
 
-        if (_subscriptionId != Guid.Empty)
-            _ = AddToMembershipAsync(subjectId);
+            if (_readBySubject.TryGetValue(subjectId, out var previous))
+                foreach (var left in previous.Where(thing => !reads.Contains(thing)))
+                    if (_subjectsByWatched.TryGetValue(left, out var subjects)
+                        && subjects.Remove(subjectId) && subjects.Count == 0)
+                        _subjectsByWatched.Remove(left);
+
+            foreach (var thing in reads)
+            {
+                if (!_subjectsByWatched.TryGetValue(thing, out var subjects))
+                    _subjectsByWatched[thing] = subjects = new HashSet<Guid>();
+                subjects.Add(subjectId);
+            }
+
+            _readBySubject[subjectId] = reads;
+        }
+
+        if (_subscriptionId == Guid.Empty) return;
+        foreach (var thing in joined)
+            _ = AddToMembershipAsync(thing);
     }
 
     public void Start(CancellationToken cancellationToken)
@@ -89,8 +115,8 @@ internal sealed class ModelFollower
         if (subscription is null) return;
 
         _subscriptionId = subscription.SubscriptionId;
-        foreach (var subjectId in Snapshot())
-            await AddToMembershipAsync(subjectId);
+        foreach (var thing in WatchedThings())
+            await AddToMembershipAsync(thing);
 
         _logger.LogInformation(
             "{Service} is following its inputs in model {ModelId} on Mycelium ({SubscriptionId}) from {Watermark}",
@@ -103,9 +129,14 @@ internal sealed class ModelFollower
                 if (!change.IsPropertyChange || change.PropertyName is null) continue;
                 if (!_inputs.InputProperties.Contains(change.PropertyName)) continue;
 
-                bool watching;
-                lock (_watchedLock) watching = _watched.Contains(change.EntityId);
-                if (watching) await RecomputeAsync(change.EntityId, change.PropertyName, cancellationToken);
+                List<Guid> subjects;
+                lock (_watchedLock)
+                    subjects = _subjectsByWatched.TryGetValue(change.EntityId, out var found)
+                        ? found.ToList()
+                        : new List<Guid>();
+
+                foreach (var subjectId in subjects)
+                    await RecomputeAsync(subjectId, change.PropertyName, cancellationToken);
             }
         }
         catch (OperationCanceledException) { /* shutting down */ }
@@ -162,7 +193,7 @@ internal sealed class ModelFollower
 
     private void OnReconnected()
     {
-        var subjects = Snapshot();
+        var subjects = Subjects();
         _logger.LogInformation(
             "{Service} resumed its Mycelium stream for model {ModelId} and is recomputing {Count} subject(s): a derived "
             + "value is published live-only, so any that moved while the stream was down was not replayed",
@@ -202,8 +233,15 @@ internal sealed class ModelFollower
         }
     }
 
-    private List<Guid> Snapshot()
+    /// <summary>Every Thing whose changes have to reach this follower, which is what the subscription
+    /// covers. Wider than the subjects: a subject is recomputed, the Things it reads only report.</summary>
+    private List<Guid> WatchedThings()
     {
-        lock (_watchedLock) return _watched.ToList();
+        lock (_watchedLock) return _subjectsByWatched.Keys.ToList();
+    }
+
+    private List<Guid> Subjects()
+    {
+        lock (_watchedLock) return _readBySubject.Keys.ToList();
     }
 }
