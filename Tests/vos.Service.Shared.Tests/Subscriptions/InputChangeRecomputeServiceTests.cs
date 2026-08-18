@@ -125,8 +125,11 @@ public class InputChangeRecomputeServiceTests
     [Fact]
     public async Task A_refused_release_leaves_the_subject_still_followed()
     {
-        // The release is fire-and-forget, so an escaping exception would surface as an unobserved task
-        // rather than as anything an operator could act on — and the subject must keep recomputing.
+        // What this pins is that a refused release does not wedge the follower: the subject keeps
+        // recomputing on the Things it still reads. It does not prove the guard inside the release —
+        // that call is fire-and-forget, so removing the catch leaves this passing, the same reason the
+        // add-membership guard is tested through the opening pass instead. The guard stays for the log
+        // line and for consistency with that one, not because a test can fail without it.
         await using var harness = await Harness.StartedAsync();
         await harness.WatchAsync(Study, ModelOne, alsoOn: [Allocation]);
         harness.ClientFor(ModelOne).FailRemoveObjects = true;
