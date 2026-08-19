@@ -85,9 +85,8 @@ public class RainwaterHarvestReactiveHandlerTests
             && request.Uri == $"http://mycelium{MyceliumRoutes.ThingProperties(Study)}");
     }
 
-    // A string-valued input is parsed rather than read straight off the JSON number. The values come from
-    // the model rather than from a person, so the dot is a decimal point wherever the machine is set: under
-    // a comma-decimal region "8.88" would otherwise read as 888 and no error would be raised.
+    // The same worked example with every figure written as text, which goes through a parse rather than
+    // straight off the JSON number. TestCulture explains what a comma-decimal region does to it.
     [Fact]
     public async Task A_string_valued_input_reads_the_same_whatever_the_regional_format()
     {
@@ -146,10 +145,10 @@ public class RainwaterHarvestReactiveHandlerTests
         failure.Message.Should().Contain(RainwaterHarvestReactiveHandler.HarvestOutput);
     }
 
-    // The declared set and what Compute reads are held together by nothing but care. Declaring a name the
-    // arithmetic never reads recomputes for a change that cannot move the answer; reading one that was
-    // never declared leaves the answer stale until something else happens to wake it. The two below say
-    // the sets are equal without restating either.
+    // Nothing checks that the declared set and the set Compute reads are the same set. A name declared
+    // but never read recomputes for a change that cannot move the answer; a name read but never
+    // declared leaves the answer stale until something else happens to wake it. The two below say the
+    // sets are equal without restating either.
     [Fact]
     public async Task A_study_carrying_exactly_the_declared_inputs_computes()
     {
@@ -175,8 +174,8 @@ public class RainwaterHarvestReactiveHandlerTests
     public static TheoryData<string> DeclaredInputs =>
         new(RainwaterHarvestReactiveHandler.InputProperties.ToArray());
 
-    // It writes all five outputs onto the study it watches, so one of them in the set that wakes it is a
-    // service that recomputes forever rather than one that computes a wrong number.
+    // It writes all five outputs onto the study it watches, so a set holding one of them would recompute
+    // forever rather than compute a wrong number.
     [Fact]
     public void None_of_the_outputs_it_writes_can_wake_it()
     {

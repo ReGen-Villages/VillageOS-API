@@ -203,9 +203,8 @@ public class LandAllocationReactiveHandlerTests
         failure.Message.Should().Contain(LandAllocationReactiveHandler.AllocatedAreaOutput);
     }
 
-    // The constructor the service itself uses, where every test above hands in a subscription client
-    // instead. A handler that has not computed yet reports nothing to follow, which is why the dispatch
-    // that starts a study is what registers the watch rather than the subscription opening on its own.
+    // Through the constructor the service itself uses, where every test above hands in a subscription
+    // client instead.
     [Fact]
     public void A_handler_that_has_not_computed_yet_has_read_from_nothing()
     {

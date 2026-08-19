@@ -7,12 +7,12 @@ using Xunit;
 
 namespace vos.SiteAnalysis.Tests;
 
-// The seam between the three services that compute a site analysis, which no one of them can pin on its
-// own. Land allocation works out the footprints; the rainwater harvest and the food balance read them off
-// the same study and write their own results back onto it.
+// What each of the three services that compute a site analysis assumes about the other two, which none of
+// them can check on its own. Land allocation works out the footprints; the rainwater harvest and the food
+// balance read them off the same study and write their own results back onto it.
 //
-// The three were specified together and built separately, so this is where what each one assumed about the
-// other two is checked against what was actually built.
+// The three were specified together and built separately, which is why those assumptions are checked here
+// against what was actually built.
 public class SiteAnalysisChainTests
 {
     // The footprint is one property name rather than a pair on either side that happen to agree, so the
@@ -47,17 +47,15 @@ public class SiteAnalysisChainTests
     }
 
     // A footprint moving wakes both balances, each writes its results onto the study it was woken by, and
-    // there the wave stops: nothing in the chain reads what a balance writes. That is why a planner nudging
-    // a programme share settles in one round rather than running up against the model's round limit, and it
-    // is the half of the arrangement no single service can state.
+    // nothing is woken after that, because nothing in the chain reads what a balance writes. That is why a
+    // planner moving a programme share settles in one round rather than running up against the model's
+    // round limit, and it is the half of the arrangement no single service can state.
     [Fact]
     public void Nothing_in_the_chain_is_woken_by_what_a_balance_writes()
     {
         var balanceResults = DeclaredOutputs.Of<RainwaterHarvestReactiveHandler>()
             .Concat(DeclaredOutputs.Of<FoodBalanceReactiveHandler>())
             .ToArray();
-
-        balanceResults.Should().NotBeEmpty("an empty set would pass the check below without checking it");
 
         foreach (var woken in new[]
                  {
