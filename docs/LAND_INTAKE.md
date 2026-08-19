@@ -703,39 +703,43 @@ are displayed together.
 
 ### Water
 
-Two different questions, and the platform currently answers only the second.
+Two different questions, and a service each.
 
-**Catchment — how much rain can we capture?** *(new node)*
+**Catchment — how much rain can we capture?** *(`RainwaterHarvest`)*
 
 ```text
   Harvest          = 8.88 ha built × 0.7 m rain × 0.8 runoff      = 49,728 m³/yr
 
-  Domestic demand  = 320 × 120 L/day × 365                        = 14,016 m³/yr
+  Domestic demand  = 320 × 55 m³/person/yr                        = 17,600 m³/yr
   Irrigation       = 8.16 ha × 5,000 m³/ha/yr                     = 40,800 m³/yr
-  Total demand                                                    = 54,816 m³/yr
+  Total demand                                                    = 58,400 m³/yr
 
-  Self-sufficiency = 49,728 ÷ 54,816                              = 91%
+  Self-sufficiency = 49,728 ÷ 58,400                              = 85%
 ```
 
-That single 91% hides the most useful fact on the page. Split it:
+That single 85% hides the most useful fact on the page. Split it:
 
 ```text
-  Against domestic demand alone   49,728 ÷ 14,016  =  355%   ← comfortable
+  Against domestic demand alone   49,728 ÷ 17,600  =  283%   ← comfortable
   Against irrigation alone        49,728 ÷ 40,800  =  122%   ← the constraint
 ```
 
 Willow Bend has abundant drinking water and a marginal irrigation position. A site with the same
-overall 91% could be the exact opposite. **This is why the node reports its demand components
-separately** — the combined percentage is not actionable.
+overall 85% could be the exact opposite. **This is why the service writes its demand components as
+separate outputs** — the combined percentage is not actionable.
 
-**Storage — how long does the tank last?** *(existing node)*
+The domestic figure is `perCapitaConsumptionM3` on the shared study archetype — the same water-per-person
+assumption the storage question reads. Two services asking two questions of one figure is what keeps a
+correction to it from having to be made twice.
+
+**Storage — how long does the tank last?** *(`WaterReserve`)*
 
 ```text
-  Annual consumption = 320 × 43.8 m³/person/yr                    = 14,016 m³/yr
-  Days of supply     = 3,000 m³ storage ÷ (14,016 ÷ 365)          = 78 days
+  Annual consumption = 320 × 55 m³/person/yr                      = 17,600 m³/yr
+  Days of supply     = 3,000 m³ storage ÷ (17,600 ÷ 365)          = 62 days
 ```
 
-Different inputs, different outputs, different question. Hence a sibling node rather than more ports
+Different inputs, different outputs, different question. Hence a sibling service rather than more inputs
 on the existing one.
 
 ### Hazards
@@ -862,7 +866,7 @@ The main finding from designing this: most of it is already built.
 |---|---|
 | Energy balance calculation | **Exists** as a reactive service |
 | Water storage calculation | **Exists** as a reactive service |
-| Land allocation, and the food balance above it | **Exists** as reactive services |
+| Land allocation, and the food balance and rainwater harvest above it | **Exists** as reactive services |
 | Dispatching a service by relating a Thing to it | **Exists** (handled predicates) |
 | Recomputing a service's outputs when its inputs move | **Exists** (input-change subscription) |
 | Bounding a chain where one computed value feeds another | **Exists** (recompute round limit) |
@@ -875,7 +879,6 @@ The main finding from designing this: most of it is already built.
 | — | |
 | A map, and drawing a parcel on it | **New** — the only new UI capability |
 | The intake wizard | **New** |
-| Rainwater harvest | **New** — a small reactive service |
 | Anonymous submission: rate limits, size caps, bot checks, the staging model | **New** — hardening around the service that already composes |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 

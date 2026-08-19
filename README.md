@@ -54,6 +54,7 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 | vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure) |
 | vos.Service.LandAllocation | Production | Turns a site's programme split into a per-category area and the built and productive footprints, written back onto the study and its allocations |
 | vos.Service.FoodBalance | Production | Reads the productive footprint and the yield the shared study archetype declares, and writes how many residents that land feeds and what share of the population that is |
+| vos.Service.RainwaterHarvest | Production | Reads the built footprint, the site's rainfall and the runoff the shared study archetype declares, and writes the volume captured in a year against domestic and irrigation demand reported separately |
 | vos.Service.ModelBridge | Production | Generic bridge between a pipeline DAG and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
 | vos.Service.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline DAG node |
 | vos.Service.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
