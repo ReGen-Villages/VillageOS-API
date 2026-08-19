@@ -12,20 +12,6 @@ public class EnergyBalanceReactiveHandlerTests
 {
     private static readonly Guid Anchor = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
-    private sealed record Recorded(HttpMethod Method, string Uri, string Body);
-
-    private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
-    {
-        public readonly List<Recorded> Requests = new();
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct);
-            Requests.Add(new Recorded(request.Method, request.RequestUri!.ToString(), body));
-            return responder(request);
-        }
-    }
-
     // area 13500 * resource 1600 * eff 0.2 / 1000 = 4320 solar; + 100 other = 4420 total; / 4000 consumption * 100 = 110.5%.
     private const string AnchorInputs = """
         { "solarPvAreaM2": { "Value": 13500 }, "solarResourceKwhPerM2PerYear": { "Value": 1600 },
@@ -36,7 +22,7 @@ public class EnergyBalanceReactiveHandlerTests
     [Fact]
     public async Task Reads_inputs_computes_and_writes_outputs_onto_the_anchor()
     {
-        var handler = new RecordingHandler(req => req.Method == HttpMethod.Get
+        var handler = new RecordingHttpMessageHandler(req => req.Method == HttpMethod.Get
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(AnchorInputs, Encoding.UTF8, "application/json") }
             : new HttpResponseMessage(HttpStatusCode.OK));
 
@@ -66,7 +52,7 @@ public class EnergyBalanceReactiveHandlerTests
               "moduleEfficiency": { "Value": "0.2" }, "performanceRatio": { "Value": "1.0" },
               "otherGenerationMwhPerYear": { "Value": "100" }, "annualConsumptionMwhPerYear": { "Value": "4000" } }
             """;
-        var handler = new RecordingHandler(req => req.Method == HttpMethod.Get
+        var handler = new RecordingHttpMessageHandler(req => req.Method == HttpMethod.Get
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(stringInputs, Encoding.UTF8, "application/json") }
             : new HttpResponseMessage(HttpStatusCode.OK));
 
@@ -88,7 +74,7 @@ public class EnergyBalanceReactiveHandlerTests
         var withNullRollup = AnchorInputs.Replace(
             "\"otherGenerationMwhPerYear\": { \"Value\": 100 }",
             "\"otherGenerationMwhPerYear\": { \"Value\": null }");
-        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        var handler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(withNullRollup, Encoding.UTF8, "application/json"),
         });
@@ -111,7 +97,7 @@ public class EnergyBalanceReactiveHandlerTests
         var withText = AnchorInputs.Replace(
             "\"annualConsumptionMwhPerYear\": { \"Value\": 4000 }",
             "\"annualConsumptionMwhPerYear\": { \"Value\": \"unmeasured\" }");
-        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        var handler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(withText, Encoding.UTF8, "application/json"),
         });
@@ -127,7 +113,7 @@ public class EnergyBalanceReactiveHandlerTests
     [Fact]
     public async Task Fails_when_a_required_input_is_missing_from_the_anchor()
     {
-        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        var handler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("""{ "moduleEfficiency": { "Value": 0.2 } }""", Encoding.UTF8, "application/json"),
         });
