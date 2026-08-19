@@ -127,18 +127,14 @@ public class FoodBalanceReactiveHandlerTests
         failure.Message.Should().Contain(FoodBalanceReactiveHandler.PeopleFedOutput);
     }
 
-    // The set the subscription filters on and the set Compute reads have to be the same set, and nothing
-    // holds them together at compile time. Declaring one the arithmetic never reads leaves the service
-    // recomputing for a change that cannot move its answer; reading one that was never declared leaves the
-    // answer stale until something else happens to wake it, which is the failure nobody sees.
-    //
-    // The pair below says it without restating the names: a study carrying exactly the declared inputs
-    // computes, so nothing undeclared is read, and dropping any one of them is refused, so nothing declared
-    // goes unread.
+    // The declared set and what Compute reads are held together by nothing but care. Declaring a name the
+    // arithmetic never reads recomputes for a change that cannot move the answer; reading one that was
+    // never declared leaves the answer stale until something else happens to wake it. The two below say
+    // the sets are equal without restating either.
     [Fact]
     public async Task A_study_carrying_exactly_the_declared_inputs_computes()
     {
-        var http = Serving(StudyCarrying(FoodBalanceReactiveHandler.InputProperties));
+        var http = Serving(EffectiveProperties.Carrying(FoodBalanceReactiveHandler.InputProperties));
 
         var outputs = await NewHandler(http).RecomputeAsync(Study);
 
@@ -149,7 +145,7 @@ public class FoodBalanceReactiveHandlerTests
     [MemberData(nameof(DeclaredInputs))]
     public async Task Leaving_out_any_declared_input_refuses_the_recompute_by_name(string omitted)
     {
-        var http = Serving(StudyCarrying(
+        var http = Serving(EffectiveProperties.Carrying(
             FoodBalanceReactiveHandler.InputProperties.Where(name => name != omitted)));
 
         var refusal = await Assert.ThrowsAsync<KeyNotFoundException>(() => NewHandler(http).RecomputeAsync(Study));
@@ -163,13 +159,9 @@ public class FoodBalanceReactiveHandlerTests
     // It writes both outputs onto the study it watches, so one of them in the set that wakes it is a
     // service that recomputes forever rather than one that computes a wrong number.
     [Fact]
-    public void Neither_output_it_writes_can_wake_it()
+    public void None_of_the_outputs_it_writes_can_wake_it()
     {
         FoodBalanceReactiveHandler.InputProperties.Should()
             .NotIntersectWith(DeclaredOutputs.Of<FoodBalanceReactiveHandler>());
     }
-
-    // Every input at one leaves the arithmetic defined: one hectare feeding one of one resident.
-    private static string StudyCarrying(IEnumerable<string> inputs) =>
-        "{" + string.Join(",", inputs.Select(name => $"\"{name}\": {{ \"Value\": 1 }}")) + "}";
 }

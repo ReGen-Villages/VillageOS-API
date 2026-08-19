@@ -11,6 +11,7 @@ Cross-project test helpers used by every `Tests/*.Tests/` project. Class library
   - `TestCulture.CommaDecimal` proves that **reading** a value ignores the regional format. Under `nl-NL` the string `"30.5"` parses as `305` unless the invariant culture is used — the dot reads as a thousands separator and no error is raised. A test that does not force this passes on an en-US build agent and only fails on a machine already set to a comma-decimal region.
   - `TestCulture.Display` pins output that **is** meant to follow the operator's region, so an assertion like `"4.0%"` names the culture it expects. It is `en-US` rather than the invariant culture, whose percent pattern inserts a space before the sign (`"4.0 %"`).
 - `DeclaredOutputs.Of<THandler>()` — the property names a compute handler writes, read off the handler's public string constants. Use it wherever a test needs the whole output set: a list restated in the test stays one short the day an output is added, and the assertion it was making quietly stops covering the new one.
+- `EffectiveProperties.Carrying(names)` — a study's effective properties in the shape the broker answers with, every value set to one. Use it when the test is about **which** properties a handler reads rather than what it computes from them.
 
 ## Deferred decision: mocking library convergence
 

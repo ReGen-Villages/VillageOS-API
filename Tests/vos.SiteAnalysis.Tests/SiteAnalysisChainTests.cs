@@ -35,7 +35,7 @@ public class SiteAnalysisChainTests
     // And the arithmetic behind each balance takes the figure under that same name, so the unit cannot be
     // reinterpreted between the property the handler read and the calculation it fed.
     [Fact]
-    public void Each_balances_arithmetic_takes_the_footprint_under_that_same_name()
+    public void The_arithmetic_behind_each_balance_takes_the_footprint_under_that_same_name()
     {
         TakenBy<RainwaterHarvestInputs>().Should().Contain(new[]
         {

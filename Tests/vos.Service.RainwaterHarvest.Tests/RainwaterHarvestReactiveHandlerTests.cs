@@ -146,18 +146,14 @@ public class RainwaterHarvestReactiveHandlerTests
         failure.Message.Should().Contain(RainwaterHarvestReactiveHandler.HarvestOutput);
     }
 
-    // The set the subscription filters on and the set Compute reads have to be the same set, and nothing
-    // holds them together at compile time. Declaring one the arithmetic never reads leaves the service
-    // recomputing for a change that cannot move its answer; reading one that was never declared leaves the
-    // answer stale until something else happens to wake it, which is the failure nobody sees.
-    //
-    // The pair below says it without restating the names: a study carrying exactly the declared inputs
-    // computes, so nothing undeclared is read, and dropping any one of them is refused, so nothing declared
-    // goes unread.
+    // The declared set and what Compute reads are held together by nothing but care. Declaring a name the
+    // arithmetic never reads recomputes for a change that cannot move the answer; reading one that was
+    // never declared leaves the answer stale until something else happens to wake it. The two below say
+    // the sets are equal without restating either.
     [Fact]
     public async Task A_study_carrying_exactly_the_declared_inputs_computes()
     {
-        var http = Serving(StudyCarrying(RainwaterHarvestReactiveHandler.InputProperties));
+        var http = Serving(EffectiveProperties.Carrying(RainwaterHarvestReactiveHandler.InputProperties));
 
         var outputs = await NewHandler(http).RecomputeAsync(Study);
 
@@ -168,7 +164,7 @@ public class RainwaterHarvestReactiveHandlerTests
     [MemberData(nameof(DeclaredInputs))]
     public async Task Leaving_out_any_declared_input_refuses_the_recompute_by_name(string omitted)
     {
-        var http = Serving(StudyCarrying(
+        var http = Serving(EffectiveProperties.Carrying(
             RainwaterHarvestReactiveHandler.InputProperties.Where(name => name != omitted)));
 
         var refusal = await Assert.ThrowsAsync<KeyNotFoundException>(() => NewHandler(http).RecomputeAsync(Study));
@@ -187,8 +183,4 @@ public class RainwaterHarvestReactiveHandlerTests
         RainwaterHarvestReactiveHandler.InputProperties.Should()
             .NotIntersectWith(DeclaredOutputs.Of<RainwaterHarvestReactiveHandler>());
     }
-
-    // Every input at one leaves the arithmetic defined: ten cubic metres captured against two of demand.
-    private static string StudyCarrying(IEnumerable<string> inputs) =>
-        "{" + string.Join(",", inputs.Select(name => $"\"{name}\": {{ \"Value\": 1 }}")) + "}";
 }
