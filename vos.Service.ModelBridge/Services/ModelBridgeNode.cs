@@ -73,7 +73,7 @@ public sealed class ModelBridgeNode : DagNodeService
             ?? throw new InvalidOperationException("ModelBridge write requires a 'value' input.");
 
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-        var path = $"{MyceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}/facts";
+        var path = $"{MyceliumUrl}{MyceliumRoutes.ThingPropertyFacts(thingId, property)}";
         var response = await client.PostAsJsonAsync(path, new { value }, cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException(

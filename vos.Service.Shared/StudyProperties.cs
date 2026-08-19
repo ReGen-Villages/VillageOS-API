@@ -7,9 +7,10 @@ namespace vos.Service.Shared;
 /// against, and write a computed value back as a Fact — onto that study, or onto a Thing beside it whose
 /// own result it is. Bound to the service making them, so every refusal names itself.
 ///
-/// <para>Shared rather than copied into each handler: the pair sat in three of them, identical but for
-/// the name in the message, which is the shape where one gets fixed and the others are left as they
-/// were. <see cref="StudyInputs"/> was shared out of the same handlers for the same reason.</para>
+/// <para>Shared rather than copied into each handler: both calls sat in EnergyBalance and WaterReserve
+/// and the write in LandAllocation, identical but for the name in the message, which is the shape where
+/// one gets fixed and the others are left as they were. <see cref="StudyInputs"/> was shared out of the
+/// same handlers for the same reason.</para>
 ///
 /// <para>The client is supplied rather than built per call, unlike
 /// <see cref="MyceliumClientBase.SetFactAsync"/>: a recompute writes several outputs and would otherwise
@@ -31,7 +32,7 @@ public sealed class StudyProperties(HttpClient client, string myceliumUrl, strin
 
     public async Task WriteAsync(Guid thingId, string property, object value, CancellationToken cancellationToken = default)
     {
-        var path = $"{myceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}/facts";
+        var path = $"{myceliumUrl}{MyceliumRoutes.ThingPropertyFacts(thingId, property)}";
         var response = await client.PostAsJsonAsync(path, new { value }, cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException(

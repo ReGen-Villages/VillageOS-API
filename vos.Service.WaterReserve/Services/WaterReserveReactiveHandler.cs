@@ -22,7 +22,6 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
     // rather than restated, so the filter cannot come to disagree with what Compute reads.
     public static readonly IReadOnlySet<string> InputProperties = new HashSet<string>(Inputs, StringComparer.Ordinal);
 
-    // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.
     public async Task<WaterReserveOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
         var properties = new StudyProperties(
