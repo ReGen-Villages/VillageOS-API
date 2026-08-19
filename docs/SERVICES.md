@@ -20,7 +20,7 @@ reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
-Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `LandAllocation`, `Metabolism`, `Phloem`,
+Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `FoodBalance`, `LandAllocation`, `Metabolism`, `Phloem`,
 `WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
 provisions the endpoint-template catalog into a model on that model's first registration, and
 validates every endpoint
@@ -33,7 +33,11 @@ consumption (feeding the 14-day resilience range); `EnergyBalance` computes sola
 generation vs consumption → % of consumption and net-positive. Besides the DAG-node path (wired ports),
 both also run **reactively** (#5839) — a graph `/handle` whose subject is the SiteStudy makes the service
 read its inputs off the study's effective properties, compute, and write its outputs back as Facts, so the
-study's judge ranges re-evaluate (no pipeline). `ModelBridge` (#5866) is a generic
+study's judge ranges re-evaluate (no pipeline). `LandAllocation` (#6023) and `FoodBalance` (#6022) are
+the same shape with the reactive half only: land allocation turns the programme split into a per-category
+area and the built and productive footprints, and the food balance reads that productive footprint and
+the yield the shared study archetype declares to work out people fed and the share of the population
+that is. `ModelBridge` (#5866) is a generic
 **model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET the
 Thing's properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
 It lets a compute node read a roll-up / SiteStudy param and write its result back over ordinary node→node

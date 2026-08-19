@@ -508,8 +508,8 @@ A dispatched relationship names the study; the service answers with what it wrot
 {                                            {
   "relationshipId": "…",                       "success": true,
   "subjectId": "…",   // the study             "outputs": {
-  "targetId":  "…",                              "peopleFed": 73,
-  "properties": { }                              "pctOfPopulationFed": 22.9
+  "targetId":  "…",                              "peopleFed": 20.4,
+  "properties": { }                              "pctOfPopulationFed": 6.375
 }                                              }
                                              }
 ```
@@ -682,13 +682,21 @@ module efficiency multiplied by performance ratio. The port name should say so; 
 ### Food
 
 ```text
-  People fed       = 8.16 ha × 9 people/ha                        = 73 people
-  Self-sufficiency = 73 ÷ 320                                     = 23%
+  People fed       = 8.16 ha × 2.5 people/ha/yr                   = 20.4 people
+  Share of the population fed = 20.4 ÷ 320                        = 6.4%
 ```
 
-Two lines of arithmetic, and still worth being a node — because as a node the yield assumption is
-visible on the canvas, the area is traceable back down the wire to the parcel, and a re-run with a
-different assumption is recorded in the run history. A number in a spreadsheet has none of that.
+The yield is `peopleFedPerHectarePerYear` on the shared study archetype: regenerative mixed farming
+producing a full diet supports roughly two to three people per hectare. Correcting it there moves the
+answer for every study.
+
+Two lines of arithmetic, and still worth being a service — because the result then carries which yield
+assumption produced it and which parcel area it read, and it moves on its own when either changes. A
+number worked out in a page carries neither.
+
+Neither figure is rounded where it is computed. People fed is conceptually a whole number, but rounding
+20.4 to 20 leaves it disagreeing with the 6.4% worked out from it, so the rounding belongs where the two
+are displayed together.
 
 > Yield-per-hectare is a coarse abstraction that hides crop mix, climate and diet. That is fine for
 > an intake-stage estimate and should be labelled as such wherever it is displayed.
@@ -854,6 +862,7 @@ The main finding from designing this: most of it is already built.
 |---|---|
 | Energy balance calculation | **Exists** as a reactive service |
 | Water storage calculation | **Exists** as a reactive service |
+| Land allocation, and the food balance above it | **Exists** as reactive services |
 | Dispatching a service by relating a Thing to it | **Exists** (handled predicates) |
 | Recomputing a service's outputs when its inputs move | **Exists** (input-change subscription) |
 | Bounding a chain where one computed value feeds another | **Exists** (recompute round limit) |
@@ -866,7 +875,7 @@ The main finding from designing this: most of it is already built.
 | — | |
 | A map, and drawing a parcel on it | **New** — the only new UI capability |
 | The intake wizard | **New** |
-| Rainwater harvest, food balance, land allocation | **New** — three small reactive services |
+| Rainwater harvest | **New** — a small reactive service |
 | Anonymous submission: rate limits, size caps, bot checks, the staging model | **New** — hardening around the service that already composes |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 
