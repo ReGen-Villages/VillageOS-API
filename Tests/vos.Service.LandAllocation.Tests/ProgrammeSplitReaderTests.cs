@@ -44,6 +44,18 @@ public class ProgrammeSplitReaderTests
             return this;
         }
 
+        /// <summary>Strip a Thing's name, keeping the id it is already related through. The snapshot
+        /// carries a name the platform always sets, so a null one reaches the reader only from a payload
+        /// that omitted it — which the reader still has to answer for.</summary>
+        public ModelBuilder Nameless(string name)
+        {
+            var id = Id(name);
+            var existing = _things.Single(thing => thing.Id == id);
+            _things.Remove(existing);
+            _things.Add(existing with { Name = null });
+            return this;
+        }
+
         public SnapshotDocument Build() => new(0, _things, _edges);
 
         private static SnapshotThing Thing(Guid id, string name, Dictionary<string, SnapshotProperty> properties) =>
@@ -205,6 +217,140 @@ public class ProgrammeSplitReaderTests
         var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
 
         split.Categories.Single(category => category.Name == "residential").SharePct.Should().Be(40.5);
+    }
+
+    // A share that is present and unreadable is not a Thing that turns out not to be an allocation. Reading
+    // the two the same way divides the parcel between whatever is left and reports it as a whole split
+    // (Bug #6576), where the balance beside this one refuses an input it cannot read and names it.
+    [Fact]
+    public void A_share_that_cannot_be_read_is_refused_by_name_rather_than_dropped()
+    {
+        var model = WillowBend().With("housing", (ProgrammeSplitReader.SharePctProperty, "two fifths"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(
+            () => ProgrammeSplitReader.Read(model.Build(), model.Id("study")));
+
+        refusal.Message.Should().Contain(ProgrammeSplitReader.SharePctProperty).And.Contain("housing");
+    }
+
+    // Text that does not parse is one way to be unreadable; a value of another shape altogether is the
+    // other, and both are the property being present and saying nothing the split can use.
+    [Fact]
+    public void A_share_that_is_not_a_figure_at_all_is_refused_the_same_way()
+    {
+        var model = WillowBend().With("housing", (ProgrammeSplitReader.SharePctProperty, true));
+
+        var refusal = Assert.Throws<InvalidOperationException>(
+            () => ProgrammeSplitReader.Read(model.Build(), model.Id("study")));
+
+        refusal.Message.Should().Contain(ProgrammeSplitReader.SharePctProperty);
+    }
+
+    [Fact]
+    public void A_parcel_area_that_cannot_be_read_is_refused_rather_than_read_as_no_area()
+    {
+        var model = WillowBend().With("parcel", (ProgrammeSplitReader.ParcelAreaProperty, "twenty-four"));
+
+        var refusal = Assert.Throws<InvalidOperationException>(
+            () => ProgrammeSplitReader.Read(model.Build(), model.Id("study")));
+
+        refusal.Message.Should().Contain(ProgrammeSplitReader.ParcelAreaProperty).And.Contain("parcel");
+    }
+
+    // A Thing beside the allocations that simply has no share is what the reader is walking past, and it
+    // stays silent for that.
+    [Fact]
+    public void A_Thing_the_site_holds_that_is_no_allocation_is_walked_past()
+    {
+        var model = WillowBend().With("hazard-assessment", ("hazardLevel", "low"));
+        model.Relate("WillowBend", "has", "hazard-assessment");
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.Categories.Should().HaveCount(2);
+        split.Uncategorised.Should().BeEmpty();
+    }
+
+    // A name is what a refusal has to give an operator to find the allocation with, and the platform always
+    // sets one. If a payload arrives without it the id has to stand in, because a refusal naming nothing
+    // leaves the split unfixable.
+    [Fact]
+    public void An_allocation_with_no_name_is_reported_as_the_gap_it_is_by_its_id()
+    {
+        var model = WillowBend().With("orphan", (ProgrammeSplitReader.SharePctProperty, 15.0)).Nameless("orphan");
+        model.Relate("WillowBend", "has", "orphan");
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.Uncategorised.Should().ContainSingle().Which.Should().Be(model.Id("orphan").ToString());
+    }
+
+    // Two nameless categories would otherwise share one key, and the second would take the first's area.
+    [Fact]
+    public void A_category_with_no_name_is_told_from_another_by_its_id()
+    {
+        var model = WillowBend()
+            .With("first-unnamed").Nameless("first-unnamed")
+            .With("second-unnamed").Nameless("second-unnamed")
+            .With("north", (ProgrammeSplitReader.SharePctProperty, 10.0))
+            .With("south", (ProgrammeSplitReader.SharePctProperty, 30.0));
+        model.Relate("WillowBend", "has", "north").Relate("north", "categorizedAs", "first-unnamed")
+             .Relate("WillowBend", "has", "south").Relate("south", "categorizedAs", "second-unnamed");
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.Categories.Select(category => category.Name).Should().Contain(new[]
+        {
+            model.Id("first-unnamed").ToString(), model.Id("second-unnamed").ToString(),
+        });
+    }
+
+    // The predicate names the reader has to match are the two structural ones. A predicate Thing the
+    // snapshot does not carry cannot be either of them, and an unnamed one matches nothing.
+    [Fact]
+    public void An_edge_through_an_unnamed_predicate_reaches_no_site()
+    {
+        var model = WillowBend().Nameless("studies");
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.Categories.Should().BeEmpty();
+        split.ReadsFrom.Should().BeEmpty();
+    }
+
+    // A scoped snapshot holds the Things the traversal reached, and an edge can name a predicate that is
+    // not among them. It cannot be one of the two the reader matches by name, so it reaches nothing.
+    [Fact]
+    public void An_edge_naming_a_predicate_the_snapshot_does_not_carry_reaches_nothing()
+    {
+        var model = WillowBend();
+        var absent = model.Build() with
+        {
+            Relationships = [.. model.Build().Relationships, new SnapshotRelationship(
+                Guid.NewGuid(), null, model.Id("WillowBend"), Guid.NewGuid(), model.Id("parcel"),
+                new Dictionary<string, SnapshotProperty>(), new Dictionary<string, InheritedPropertySet>(), [])],
+        };
+
+        var split = ProgrammeSplitReader.Read(absent, model.Id("study"));
+
+        split.ReadsFrom.Should().BeEquivalentTo(new[]
+        {
+            model.Id("parcel"), model.Id("housing"), model.Id("growing"),
+        });
+    }
+
+    // The site holds more than its parcel and its allocations, and only what hangs off it by `has` is the
+    // split. An edge from the site through any other predicate is not walked.
+    [Fact]
+    public void An_edge_from_the_site_through_another_predicate_is_not_part_of_the_split()
+    {
+        var model = WillowBend().With("shadow", (ProgrammeSplitReader.SharePctProperty, 90.0));
+        model.Relate("WillowBend", "wasSurveyedBy", "shadow");
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.ReadsFrom.Should().NotContain(model.Id("shadow"));
+        split.Categories.Should().HaveCount(2);
     }
 
     [Fact]
