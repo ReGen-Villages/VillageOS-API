@@ -1,5 +1,3 @@
-using System.Net.Http.Json;
-using System.Text.Json;
 using vos.Service.Shared;
 
 namespace vos.Service.EnergyBalance.Services;
@@ -34,35 +32,18 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
     // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.
     public async Task<EnergyBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+        var study = new StudyProperties(
+            await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "EnergyBalance");
 
-        var props = await FetchEffectivePropertiesAsync(client, studyId, cancellationToken);
-        var inputs = new StudyInputs(props, "EnergyBalance");
+        var inputs = await study.ReadAsync(studyId, cancellationToken);
         var result = EnergyBalanceCalculator.Compute(new EnergyBalanceInputs(
             inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2]),
             inputs.Number(Inputs[3]), inputs.Number(Inputs[4]), inputs.Number(Inputs[5])));
 
-        await WriteAsync(client, studyId, "pctOfConsumption", result.PctOfConsumption, cancellationToken);
-        await WriteAsync(client, studyId, "netPositive", result.NetPositive, cancellationToken);
-        await WriteAsync(client, studyId, "solarGenerationMwhPerYear", result.SolarGenerationMwhPerYear, cancellationToken);
-        await WriteAsync(client, studyId, "totalGenerationMwhPerYear", result.TotalGenerationMwhPerYear, cancellationToken);
+        await study.WriteAsync(studyId, "pctOfConsumption", result.PctOfConsumption, cancellationToken);
+        await study.WriteAsync(studyId, "netPositive", result.NetPositive, cancellationToken);
+        await study.WriteAsync(studyId, "solarGenerationMwhPerYear", result.SolarGenerationMwhPerYear, cancellationToken);
+        await study.WriteAsync(studyId, "totalGenerationMwhPerYear", result.TotalGenerationMwhPerYear, cancellationToken);
         return result;
     }
-
-    private async Task<JsonElement> FetchEffectivePropertiesAsync(HttpClient client, Guid thingId, CancellationToken cancellationToken)
-    {
-        var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}", cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"EnergyBalance could not read the study {thingId} ({(int)response.StatusCode} {response.StatusCode})");
-        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-    }
-
-    private async Task WriteAsync(HttpClient client, Guid thingId, string property, object value, CancellationToken cancellationToken)
-    {
-        var path = $"{MyceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}/facts";
-        var response = await client.PostAsJsonAsync(path, new { value }, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"EnergyBalance could not write {thingId}.{property} ({(int)response.StatusCode} {response.StatusCode})");
-    }
-
 }
