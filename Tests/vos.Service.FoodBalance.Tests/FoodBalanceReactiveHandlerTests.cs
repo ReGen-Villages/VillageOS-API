@@ -99,6 +99,16 @@ public class FoodBalanceReactiveHandlerTests
     }
 
     [Fact]
+    public async Task A_study_the_broker_will_not_hand_over_is_raised_naming_the_study()
+    {
+        var http = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var failure = await Assert.ThrowsAsync<HttpRequestException>(() => NewHandler(http).RecomputeAsync(Study));
+
+        failure.Message.Should().Contain(Study.ToString()).And.Contain("FoodBalance");
+    }
+
+    [Fact]
     public async Task A_refused_write_is_raised_rather_than_reported_as_a_computed_study()
     {
         var http = new RecordingHandler(request => request.Method == HttpMethod.Get

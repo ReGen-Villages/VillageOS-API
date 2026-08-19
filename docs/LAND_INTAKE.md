@@ -683,7 +683,7 @@ module efficiency multiplied by performance ratio. The port name should say so; 
 
 ```text
   People fed       = 8.16 ha × 2.5 people/ha/yr                   = 20.4 people
-  Share of the population fed = 20.4 ÷ 320                        = 6.4%
+  Population fed   = 20.4 ÷ 320                                   = 6.4%
 ```
 
 The yield is `peopleFedPerHectarePerYear` on the shared study archetype: regenerative mixed farming
