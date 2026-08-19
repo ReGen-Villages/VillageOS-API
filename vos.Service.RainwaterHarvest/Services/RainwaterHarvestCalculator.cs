@@ -13,7 +13,7 @@ public sealed record RainwaterHarvestOutputs(
     double HarvestM3PerYear,
     double DomesticDemandM3PerYear,
     double IrrigationDemandM3PerYear,
-    double TotalDemandM3PerYear,
+    double TotalWaterDemandM3PerYear,
     double PctOfWaterDemand);
 
 // How much rain the hard surface can capture in a year, and how far that goes against what the site
@@ -37,13 +37,13 @@ public static class RainwaterHarvestCalculator
 
         var domesticDemand = input.PopulationResidents * input.PerCapitaConsumptionM3PerYear;
         var irrigationDemand = input.ProductiveFootprintHectares * input.IrrigationDemandM3PerHectarePerYear;
-        var totalDemand = domesticDemand + irrigationDemand;
+        var totalWaterDemand = domesticDemand + irrigationDemand;
 
         // A site that drinks nothing and irrigates nothing is not short of water, which is a share of
         // nothing rather than a division.
-        var pctOfWaterDemand = totalDemand > 0 ? harvest / totalDemand * 100.0 : 0.0;
+        var pctOfWaterDemand = totalWaterDemand > 0 ? harvest / totalWaterDemand * 100.0 : 0.0;
 
         return new RainwaterHarvestOutputs(
-            harvest, domesticDemand, irrigationDemand, totalDemand, pctOfWaterDemand);
+            harvest, domesticDemand, irrigationDemand, totalWaterDemand, pctOfWaterDemand);
     }
 }

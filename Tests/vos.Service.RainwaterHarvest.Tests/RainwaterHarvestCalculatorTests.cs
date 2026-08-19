@@ -35,7 +35,7 @@ public class RainwaterHarvestCalculatorTests
 
         result.DomesticDemandM3PerYear.Should().BeApproximately(17600, 1e-9);
         result.IrrigationDemandM3PerYear.Should().BeApproximately(40800, 1e-9);
-        result.TotalDemandM3PerYear.Should().BeApproximately(58400, 1e-9);
+        result.TotalWaterDemandM3PerYear.Should().BeApproximately(58400, 1e-9);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class RainwaterHarvestCalculatorTests
 
         result.DomesticDemandM3PerYear.Should().Be(0);
         result.IrrigationDemandM3PerYear.Should().Be(0);
-        result.TotalDemandM3PerYear.Should().Be(0);
+        result.TotalWaterDemandM3PerYear.Should().Be(0);
         result.PctOfWaterDemand.Should().Be(0);
     }
 
@@ -89,7 +89,7 @@ public class RainwaterHarvestCalculatorTests
         var result = RainwaterHarvestCalculator.Compute(WillowBend with { BuiltFootprintHectares = 0 });
 
         result.HarvestM3PerYear.Should().Be(0);
-        result.TotalDemandM3PerYear.Should().BeApproximately(58400, 1e-9);
+        result.TotalWaterDemandM3PerYear.Should().BeApproximately(58400, 1e-9);
         result.PctOfWaterDemand.Should().Be(0);
     }
 
@@ -101,6 +101,6 @@ public class RainwaterHarvestCalculatorTests
         var result = RainwaterHarvestCalculator.Compute(WillowBend with { RunoffCoefficient = 0.4 });
 
         result.HarvestM3PerYear.Should().BeApproximately(24864, 1e-6);
-        result.TotalDemandM3PerYear.Should().BeApproximately(58400, 1e-9);
+        result.TotalWaterDemandM3PerYear.Should().BeApproximately(58400, 1e-9);
     }
 }

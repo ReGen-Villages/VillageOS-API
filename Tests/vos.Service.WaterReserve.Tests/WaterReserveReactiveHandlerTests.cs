@@ -12,27 +12,13 @@ public class WaterReserveReactiveHandlerTests
 {
     private static readonly Guid Anchor = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
-    private sealed record Recorded(HttpMethod Method, string Uri, string Body);
-
-    private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
-    {
-        public readonly List<Recorded> Requests = new();
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct);
-            Requests.Add(new Recorded(request.Method, request.RequestUri!.ToString(), body));
-            return responder(request);
-        }
-    }
-
     // population 300 * perCapita 50 = 15000 annual; storage 900 → daysOfSupply = 900 / (15000/365) ≈ 21.9 days.
     private const string AnchorInputs = """
         { "population": { "Value": 300 }, "perCapitaConsumptionM3": { "Value": 50 },
           "storageCapacityM3": { "Value": 900 } }
         """;
 
-    private static WaterReserveReactiveHandler NewHandler(RecordingHandler handler) =>
+    private static WaterReserveReactiveHandler NewHandler(RecordingHttpMessageHandler handler) =>
         new(new TestHttpClientFactory(new HttpClient(handler)), NullLogger<WaterReserveReactiveHandler>.Instance,
             "http://mycelium", serviceToken: "test-token");
 
@@ -43,7 +29,7 @@ public class WaterReserveReactiveHandlerTests
         var withNull = AnchorInputs.Replace(
             "\"storageCapacityM3\": { \"Value\": 900 }",
             "\"storageCapacityM3\": { \"Value\": null }");
-        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        var handler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(withNull, Encoding.UTF8, "application/json"),
         });
@@ -58,7 +44,7 @@ public class WaterReserveReactiveHandlerTests
     [Fact]
     public async Task Reads_inputs_computes_and_writes_days_of_supply_onto_the_anchor()
     {
-        var handler = new RecordingHandler(req => req.Method == HttpMethod.Get
+        var handler = new RecordingHttpMessageHandler(req => req.Method == HttpMethod.Get
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(AnchorInputs, Encoding.UTF8, "application/json") }
             : new HttpResponseMessage(HttpStatusCode.OK));
 
@@ -79,7 +65,7 @@ public class WaterReserveReactiveHandlerTests
             { "population": { "Value": "300" }, "perCapitaConsumptionM3": { "Value": "50" },
               "storageCapacityM3": { "Value": "900.5" } }
             """;
-        var handler = new RecordingHandler(req => req.Method == HttpMethod.Get
+        var handler = new RecordingHttpMessageHandler(req => req.Method == HttpMethod.Get
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(stringInputs, Encoding.UTF8, "application/json") }
             : new HttpResponseMessage(HttpStatusCode.OK));
 
@@ -91,7 +77,7 @@ public class WaterReserveReactiveHandlerTests
     [Fact]
     public async Task Fails_when_a_required_input_is_missing_from_the_anchor()
     {
-        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        var handler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("""{ "population": { "Value": 300 } }""", Encoding.UTF8, "application/json"),
         });

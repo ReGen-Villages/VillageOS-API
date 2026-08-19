@@ -15,31 +15,17 @@ public class FoodBalanceReactiveHandlerTests
 {
     private static readonly Guid Study = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
-    private sealed record Recorded(HttpMethod Method, string Uri, string Body);
-
-    private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
-    {
-        public readonly List<Recorded> Requests = new();
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            Requests.Add(new Recorded(request.Method, request.RequestUri!.ToString(),
-                request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct)));
-            return responder(request);
-        }
-    }
-
     // 8.16 ha at 2.5 people per hectare feeds 20.4 of the 320 residents — 6.375%.
     private const string WillowBend = """
         { "productiveFootprintHectares": { "Value": 8.16 }, "peopleFedPerHectarePerYear": { "Value": 2.5 },
           "population": { "Value": 320 } }
         """;
 
-    private static FoodBalanceReactiveHandler NewHandler(RecordingHandler http) =>
+    private static FoodBalanceReactiveHandler NewHandler(RecordingHttpMessageHandler http) =>
         new(new TestHttpClientFactory(new HttpClient(http)), NullLogger<FoodBalanceReactiveHandler>.Instance,
             "http://mycelium", serviceToken: "test-token");
 
-    private static RecordingHandler Serving(string properties) =>
+    private static RecordingHttpMessageHandler Serving(string properties) =>
         new(request => request.Method == HttpMethod.Get
             ? new HttpResponseMessage(HttpStatusCode.OK)
             {
@@ -101,7 +87,7 @@ public class FoodBalanceReactiveHandlerTests
     [Fact]
     public async Task A_study_the_broker_will_not_hand_over_is_raised_naming_the_study()
     {
-        var http = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        var http = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
 
         var failure = await Assert.ThrowsAsync<HttpRequestException>(() => NewHandler(http).RecomputeAsync(Study));
 
@@ -111,7 +97,7 @@ public class FoodBalanceReactiveHandlerTests
     [Fact]
     public async Task A_refused_write_is_raised_rather_than_reported_as_a_computed_study()
     {
-        var http = new RecordingHandler(request => request.Method == HttpMethod.Get
+        var http = new RecordingHttpMessageHandler(request => request.Method == HttpMethod.Get
             ? new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(WillowBend, Encoding.UTF8, "application/json"),

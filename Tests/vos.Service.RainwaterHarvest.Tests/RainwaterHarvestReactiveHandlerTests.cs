@@ -15,20 +15,6 @@ public class RainwaterHarvestReactiveHandlerTests
 {
     private static readonly Guid Study = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-    private sealed record Recorded(HttpMethod Method, string Uri, string Body);
-
-    private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
-    {
-        public readonly List<Recorded> Requests = new();
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            Requests.Add(new Recorded(request.Method, request.RequestUri!.ToString(),
-                request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct)));
-            return responder(request);
-        }
-    }
-
     // 8.88 ha of hard surface under 700 mm at 0.8 runoff captures 49,728 m³ against 58,400 m³ of demand —
     // 85.15%, of which 17,600 m³ is drunk and 40,800 m³ irrigated.
     private const string WillowBend = """
@@ -38,11 +24,11 @@ public class RainwaterHarvestReactiveHandlerTests
           "irrigationDemandM3PerHectarePerYear": { "Value": 5000 } }
         """;
 
-    private static RainwaterHarvestReactiveHandler NewHandler(RecordingHandler http) =>
+    private static RainwaterHarvestReactiveHandler NewHandler(RecordingHttpMessageHandler http) =>
         new(new TestHttpClientFactory(new HttpClient(http)), NullLogger<RainwaterHarvestReactiveHandler>.Instance,
             "http://mycelium", serviceToken: "test-token");
 
-    private static RecordingHandler Serving(string properties) =>
+    private static RecordingHttpMessageHandler Serving(string properties) =>
         new(request => request.Method == HttpMethod.Get
             ? new HttpResponseMessage(HttpStatusCode.OK)
             {
@@ -63,7 +49,7 @@ public class RainwaterHarvestReactiveHandlerTests
                      RainwaterHarvestReactiveHandler.HarvestOutput,
                      RainwaterHarvestReactiveHandler.DomesticDemandOutput,
                      RainwaterHarvestReactiveHandler.IrrigationDemandOutput,
-                     RainwaterHarvestReactiveHandler.TotalDemandOutput,
+                     RainwaterHarvestReactiveHandler.TotalWaterDemandOutput,
                      RainwaterHarvestReactiveHandler.PctOfWaterDemandOutput,
                  })
             http.Requests.Should().ContainSingle(request => request.Method == HttpMethod.Post
@@ -81,7 +67,7 @@ public class RainwaterHarvestReactiveHandlerTests
             .Body.Should().Contain("17600");
         http.Requests.Single(request => request.Uri.Contains(RainwaterHarvestReactiveHandler.IrrigationDemandOutput))
             .Body.Should().Contain("40800");
-        http.Requests.Single(request => request.Uri.Contains(RainwaterHarvestReactiveHandler.TotalDemandOutput))
+        http.Requests.Single(request => request.Uri.Contains(RainwaterHarvestReactiveHandler.TotalWaterDemandOutput))
             .Body.Should().Contain("58400");
     }
 
@@ -111,14 +97,14 @@ public class RainwaterHarvestReactiveHandlerTests
 
         var refusal = await Assert.ThrowsAsync<KeyNotFoundException>(() => NewHandler(http).RecomputeAsync(Study));
 
-        refusal.Message.Should().Contain(RainwaterHarvestReactiveHandler.RainfallInput).And.Contain("RainwaterHarvest");
+        refusal.Message.Should().Contain("rainfallMillimetresPerYear").And.Contain("RainwaterHarvest");
         http.Requests.Should().NotContain(request => request.Method == HttpMethod.Post);
     }
 
     [Fact]
     public async Task A_study_the_broker_will_not_hand_over_is_raised_naming_the_study()
     {
-        var http = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        var http = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
 
         var failure = await Assert.ThrowsAsync<HttpRequestException>(() => NewHandler(http).RecomputeAsync(Study));
 
@@ -128,7 +114,7 @@ public class RainwaterHarvestReactiveHandlerTests
     [Fact]
     public async Task A_refused_write_is_raised_rather_than_reported_as_a_computed_study()
     {
-        var http = new RecordingHandler(request => request.Method == HttpMethod.Get
+        var http = new RecordingHttpMessageHandler(request => request.Method == HttpMethod.Get
             ? new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(WillowBend, Encoding.UTF8, "application/json"),
