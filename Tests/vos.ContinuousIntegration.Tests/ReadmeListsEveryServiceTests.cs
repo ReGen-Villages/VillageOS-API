@@ -43,8 +43,8 @@ public class ReadmeListsEveryServiceTests
             + $"project in {nameof(ListedElsewhere)} with why it does not belong in the table.");
     }
 
-    /// <summary>Every service directory, whatever language it is written in — the four non-.NET echo
-    /// services are rows in the same table.</summary>
+    /// <summary>Every service directory, whatever language it is written in — the echo services in Go,
+    /// Node, Python and Rust are rows in the same table.</summary>
     private static IEnumerable<string> ServiceProjectNames(string root) =>
         new DirectoryInfo(root)
             .EnumerateDirectories("vos.Service.*")
