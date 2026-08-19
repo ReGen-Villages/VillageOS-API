@@ -32,18 +32,18 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
     // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.
     public async Task<EnergyBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
-        var study = new StudyProperties(
+        var properties = new StudyProperties(
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "EnergyBalance");
 
-        var inputs = await study.ReadAsync(studyId, cancellationToken);
+        var inputs = await properties.ReadAsync(studyId, cancellationToken);
         var result = EnergyBalanceCalculator.Compute(new EnergyBalanceInputs(
             inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2]),
             inputs.Number(Inputs[3]), inputs.Number(Inputs[4]), inputs.Number(Inputs[5])));
 
-        await study.WriteAsync(studyId, "pctOfConsumption", result.PctOfConsumption, cancellationToken);
-        await study.WriteAsync(studyId, "netPositive", result.NetPositive, cancellationToken);
-        await study.WriteAsync(studyId, "solarGenerationMwhPerYear", result.SolarGenerationMwhPerYear, cancellationToken);
-        await study.WriteAsync(studyId, "totalGenerationMwhPerYear", result.TotalGenerationMwhPerYear, cancellationToken);
+        await properties.WriteAsync(studyId, "pctOfConsumption", result.PctOfConsumption, cancellationToken);
+        await properties.WriteAsync(studyId, "netPositive", result.NetPositive, cancellationToken);
+        await properties.WriteAsync(studyId, "solarGenerationMwhPerYear", result.SolarGenerationMwhPerYear, cancellationToken);
+        await properties.WriteAsync(studyId, "totalGenerationMwhPerYear", result.TotalGenerationMwhPerYear, cancellationToken);
         return result;
     }
 }

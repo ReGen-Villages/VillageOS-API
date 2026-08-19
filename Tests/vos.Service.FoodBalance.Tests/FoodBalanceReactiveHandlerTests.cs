@@ -75,9 +75,9 @@ public class FoodBalanceReactiveHandlerTests
     }
 
     // The yield is a judgement about growing, not about this place, so it is declared on the shared study
-    // archetype and no study owns one. Reading the resolved properties is what makes it arrive anyway.
+    // archetype and no study owns one. Reading the effective properties is what makes it arrive anyway.
     [Fact]
-    public async Task The_read_is_of_the_study_s_resolved_properties_so_an_inherited_assumption_arrives()
+    public async Task The_read_is_of_the_study_s_effective_properties_so_an_inherited_assumption_arrives()
     {
         var http = Serving(WillowBend);
 

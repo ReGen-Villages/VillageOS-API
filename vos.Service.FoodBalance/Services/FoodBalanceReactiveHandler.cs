@@ -32,15 +32,15 @@ public sealed class FoodBalanceReactiveHandler : MyceliumClientBase
 
     public async Task<FoodBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
-        var study = new StudyProperties(
+        var properties = new StudyProperties(
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "FoodBalance");
 
-        var inputs = await study.ReadAsync(studyId, cancellationToken);
+        var inputs = await properties.ReadAsync(studyId, cancellationToken);
         var result = FoodBalanceCalculator.Compute(new FoodBalanceInputs(
             inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2])));
 
-        await study.WriteAsync(studyId, PeopleFedOutput, result.PeopleFed, cancellationToken);
-        await study.WriteAsync(studyId, PctOfPopulationFedOutput, result.PctOfPopulationFed, cancellationToken);
+        await properties.WriteAsync(studyId, PeopleFedOutput, result.PeopleFed, cancellationToken);
+        await properties.WriteAsync(studyId, PctOfPopulationFedOutput, result.PctOfPopulationFed, cancellationToken);
         return result;
     }
 }

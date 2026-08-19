@@ -79,6 +79,10 @@ try
         if (HandleRequestRouter.Classify(root, out var studyId) != HandleRequestKind.RelationshipSubject)
             return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("FoodBalance") });
 
+        // Watched before the compute, not after: this balance is dispatched with the analysis, and the
+        // footprint it reads is written later by a service on the layer below. The first compute
+        // therefore fails on a study whose land has not been allocated yet, and the watch registered
+        // here is what brings the balance back when that footprint arrives.
         following.Watch(studyId);
         var outputs = await reactive.RecomputeAsync(studyId, ctx.RequestAborted);
         return Results.Ok(new { success = true, outputs });

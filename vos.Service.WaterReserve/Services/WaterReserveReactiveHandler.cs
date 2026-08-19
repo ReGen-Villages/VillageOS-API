@@ -25,17 +25,17 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
     // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.
     public async Task<WaterReserveOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
-        var study = new StudyProperties(
+        var properties = new StudyProperties(
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "WaterReserve");
 
-        var inputs = await study.ReadAsync(studyId, cancellationToken);
+        var inputs = await properties.ReadAsync(studyId, cancellationToken);
         var result = WaterReserveCalculator.Compute(new WaterReserveInputs(
             inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2])));
 
-        await study.WriteAsync(studyId, "daysOfSupply", result.DaysOfSupply, cancellationToken);
-        await study.WriteAsync(studyId, "emergencyReserveM3", result.EmergencyReserveM3, cancellationToken);
-        await study.WriteAsync(studyId, "annualConsumptionM3", result.AnnualConsumptionM3, cancellationToken);
-        await study.WriteAsync(studyId, "pctAnnualConsumption", result.PctAnnualConsumption, cancellationToken);
+        await properties.WriteAsync(studyId, "daysOfSupply", result.DaysOfSupply, cancellationToken);
+        await properties.WriteAsync(studyId, "emergencyReserveM3", result.EmergencyReserveM3, cancellationToken);
+        await properties.WriteAsync(studyId, "annualConsumptionM3", result.AnnualConsumptionM3, cancellationToken);
+        await properties.WriteAsync(studyId, "pctAnnualConsumption", result.PctAnnualConsumption, cancellationToken);
         return result;
     }
 }
