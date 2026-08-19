@@ -202,4 +202,27 @@ public class LandAllocationReactiveHandlerTests
 
         failure.Message.Should().Contain(LandAllocationReactiveHandler.AllocatedAreaOutput);
     }
+
+    // Through the constructor the service itself uses, where every test above hands in a subscription
+    // client instead.
+    [Fact]
+    public void A_handler_that_has_not_computed_yet_has_read_from_nothing()
+    {
+        var handler = new LandAllocationReactiveHandler(
+            new TestHttpClientFactory(new HttpClient()),
+            NullLogger<LandAllocationReactiveHandler>.Instance, "http://mycelium", "test-token");
+
+        handler.ReadsFrom.Should().BeEmpty();
+    }
+
+    // This service is the one where writing onto what it follows is unavoidable: the area and the
+    // normalised share land on the allocations it names as the Things it read from, so a change to either
+    // arrives as a change on a followed Thing. The share a planner set is what may wake it; the share it
+    // worked out from that is not.
+    [Fact]
+    public void None_of_the_outputs_it_writes_can_wake_it()
+    {
+        LandAllocationReactiveHandler.InputProperties.Should()
+            .NotIntersectWith(DeclaredOutputs.Of<LandAllocationReactiveHandler>());
+    }
 }

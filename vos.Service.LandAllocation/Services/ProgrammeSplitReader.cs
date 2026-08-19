@@ -59,7 +59,7 @@ public static class ProgrammeSplitReader
     public static ProgrammeSplit Read(SnapshotDocument snapshot, Guid studyId)
     {
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
-        var byFlag = PredicatesCarrying(snapshot);
+        var categoryPredicates = PredicatesCarrying(snapshot, CategoryFlag);
 
         var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
         var siteId = TargetNamed(snapshot, namesById, StudiesPredicate, studyId);
@@ -90,7 +90,7 @@ public static class ProgrammeSplitReader
             if (Number(thing, SharePctProperty) is not { } share) continue;
             readsFrom.Add(id);
 
-            var categoryId = TargetOf(snapshot, byFlag, CategoryFlag, id);
+            var categoryId = TargetOf(snapshot, categoryPredicates, id);
             if (categoryId is null || !thingsById.TryGetValue(categoryId.Value, out var category))
             {
                 uncategorised.Add(thing.Name ?? id.ToString());
@@ -109,10 +109,10 @@ public static class ProgrammeSplitReader
     }
 
     private static Guid? TargetOf(
-        SnapshotDocument snapshot, IReadOnlyDictionary<string, HashSet<Guid>> byFlag, string flag, Guid subjectId)
+        SnapshotDocument snapshot, IReadOnlySet<Guid> markedPredicates, Guid subjectId)
     {
         foreach (var edge in snapshot.Relationships)
-            if (edge.SubjectId == subjectId && Carries(byFlag, flag, edge.PredicateId))
+            if (edge.SubjectId == subjectId && markedPredicates.Contains(edge.PredicateId))
                 return edge.TargetId;
 
         return null;
@@ -132,27 +132,19 @@ public static class ProgrammeSplitReader
         namesById.TryGetValue(predicateId, out var predicate)
         && string.Equals(predicate, name, StringComparison.OrdinalIgnoreCase);
 
-    private static bool Carries(
-        IReadOnlyDictionary<string, HashSet<Guid>> byFlag, string flag, Guid predicateId) =>
-        byFlag.TryGetValue(flag, out var marked) && marked.Contains(predicateId);
-
-    // The snapshot carries the predicate Things because the traversal named their flags, so the marks are
+    // The snapshot carries the predicate Things because the traversal named their flag, so the marks are
     // resolved here once rather than per edge.
-    private static Dictionary<string, HashSet<Guid>> PredicatesCarrying(SnapshotDocument snapshot)
-    {
-        var byFlag = new Dictionary<string, HashSet<Guid>>(StringComparer.Ordinal) { [CategoryFlag] = [] };
-
-        foreach (var thing in snapshot.Things)
-            foreach (var (flag, marked) in byFlag)
-                if (Marked(thing, flag)) marked.Add(thing.Id);
-
-        return byFlag;
-    }
+    private static IReadOnlySet<Guid> PredicatesCarrying(SnapshotDocument snapshot, string flag) =>
+        snapshot.Things.Where(thing => Marked(thing, flag)).Select(thing => thing.Id).ToHashSet();
 
     private static bool Marked(SnapshotThing thing, string flag) =>
         thing.Properties.TryGetValue(flag, out var property)
         && property.Value.ValueKind == System.Text.Json.JsonValueKind.True;
 
+    /// <summary>Null means the Thing does not carry the property at all, which is how the walk tells a
+    /// parcel from an allocation from anything else the site holds. A value it does carry and cannot read
+    /// is refused rather than answered as absent: reading the two the same way drops the allocation and
+    /// divides the parcel between the rest as though the split were whole (#6576).</summary>
     private static double? Number(SnapshotThing thing, string name)
     {
         if (!thing.Properties.TryGetValue(name, out var property)) return null;
@@ -162,7 +154,9 @@ public static class ProgrammeSplitReader
             System.Text.Json.JsonValueKind.String when double.TryParse(
                 property.Value.GetString(), System.Globalization.NumberStyles.Any,
                 System.Globalization.CultureInfo.InvariantCulture, out var parsed) => parsed,
-            _ => null,
+            _ => throw new InvalidOperationException(
+                $"'{thing.Name ?? thing.Id.ToString()}' carries '{name}' as {property.Value}, which is not a "
+                + "number. The split is worked out from it and cannot be guessed at."),
         };
     }
 }

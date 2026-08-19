@@ -73,6 +73,23 @@ public class FoodBalanceReactiveHandlerTests
             && request.Uri == $"http://mycelium{MyceliumRoutes.ThingProperties(Study)}");
     }
 
+    // The same worked example with every figure written as text, which goes through a parse rather than
+    // straight off the JSON number. TestCulture explains what a comma-decimal region does to it.
+    [Fact]
+    public async Task A_string_valued_input_reads_the_same_whatever_the_regional_format()
+    {
+        var http = Serving("""
+            { "productiveFootprintHectares": { "Value": "8.16" }, "peopleFedPerHectarePerYear": { "Value": "2.5" },
+              "population": { "Value": "320" } }
+            """);
+
+        var outputs = await TestCulture.InAsync(
+            TestCulture.CommaDecimal, () => NewHandler(http).RecomputeAsync(Study));
+
+        outputs.PeopleFed.Should().BeApproximately(20.4, 1e-9);
+        outputs.PctOfPopulationFed.Should().BeApproximately(6.375, 1e-9);
+    }
+
     [Fact]
     public async Task An_input_the_study_does_not_carry_is_refused_by_name()
     {
@@ -109,13 +126,41 @@ public class FoodBalanceReactiveHandlerTests
         failure.Message.Should().Contain(FoodBalanceReactiveHandler.PeopleFedOutput);
     }
 
-    // The productive footprint is land allocation's output, so a re-run of that service carries through
-    // to this balance on its own. Neither of this service's own outputs may be in the set: it writes both
-    // onto the study it watches, and watching them would recompute forever.
+    // Nothing checks that the declared set and the set Compute reads are the same set. A name declared
+    // but never read recomputes for a change that cannot move the answer; a name read but never
+    // declared leaves the answer stale until something else happens to wake it. The two below say the
+    // sets are equal without restating either.
     [Fact]
-    public void The_footprint_wakes_a_recompute_and_this_service_s_own_outputs_do_not()
+    public async Task A_study_carrying_exactly_the_declared_inputs_computes()
     {
-        FoodBalanceReactiveHandler.InputProperties.Should().BeEquivalentTo(
-            ["productiveFootprintHectares", "peopleFedPerHectarePerYear", "population"]);
+        var http = Serving(EffectiveProperties.Carrying(FoodBalanceReactiveHandler.InputProperties));
+
+        var outputs = await NewHandler(http).RecomputeAsync(Study);
+
+        outputs.PctOfPopulationFed.Should().BePositive();
+    }
+
+    [Theory]
+    [MemberData(nameof(DeclaredInputs))]
+    public async Task Leaving_out_any_declared_input_refuses_the_recompute_by_name(string omitted)
+    {
+        var http = Serving(EffectiveProperties.Carrying(
+            FoodBalanceReactiveHandler.InputProperties.Where(name => name != omitted)));
+
+        var refusal = await Assert.ThrowsAsync<KeyNotFoundException>(() => NewHandler(http).RecomputeAsync(Study));
+
+        refusal.Message.Should().Contain(omitted);
+    }
+
+    public static TheoryData<string> DeclaredInputs =>
+        new(FoodBalanceReactiveHandler.InputProperties.ToArray());
+
+    // It writes both outputs onto the study it watches, so a set holding one of them would recompute
+    // forever rather than compute a wrong number.
+    [Fact]
+    public void None_of_the_outputs_it_writes_can_wake_it()
+    {
+        FoodBalanceReactiveHandler.InputProperties.Should()
+            .NotIntersectWith(DeclaredOutputs.Of<FoodBalanceReactiveHandler>());
     }
 }
