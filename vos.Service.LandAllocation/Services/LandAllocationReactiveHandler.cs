@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using vos.Service.Shared;
 using vos.Service.Shared.Subscriptions;
 
@@ -56,16 +55,18 @@ public sealed class LandAllocationReactiveHandler : MyceliumClientBase
         var result = LandAllocationCalculator.Compute(
             new LandAllocationInputs(split.ParcelAreaHectares, split.Categories));
 
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
+        var properties = new StudyProperties(
+            await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30)), MyceliumUrl, "LandAllocation");
+
         foreach (var (category, area) in result.AreaByCategory)
         {
             var allocationId = split.AllocationIdByCategory[category];
-            await WriteAsync(client, allocationId, AllocatedAreaOutput, area, cancellationToken);
-            await WriteAsync(client, allocationId, NormalisedShareOutput, result.NormalisedSharePct[category], cancellationToken);
+            await properties.WriteAsync(allocationId, AllocatedAreaOutput, area, cancellationToken);
+            await properties.WriteAsync(allocationId, NormalisedShareOutput, result.NormalisedSharePct[category], cancellationToken);
         }
 
-        await WriteAsync(client, studyId, BuiltFootprintOutput, result.BuiltFootprintHectares, cancellationToken);
-        await WriteAsync(client, studyId, ProductiveFootprintOutput, result.ProductiveFootprintHectares, cancellationToken);
+        await properties.WriteAsync(studyId, BuiltFootprintOutput, result.BuiltFootprintHectares, cancellationToken);
+        await properties.WriteAsync(studyId, ProductiveFootprintOutput, result.ProductiveFootprintHectares, cancellationToken);
         return result;
     }
 
@@ -87,15 +88,5 @@ public sealed class LandAllocationReactiveHandler : MyceliumClientBase
                     subscribed.SubscriptionId);
             }
         }
-    }
-
-    private async Task WriteAsync(
-        HttpClient client, Guid thingId, string property, double value, CancellationToken cancellationToken)
-    {
-        var path = $"{MyceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}/facts";
-        var response = await client.PostAsJsonAsync(path, new { value }, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException(
-                $"LandAllocation could not write {thingId}.{property} ({(int)response.StatusCode} {response.StatusCode})");
     }
 }

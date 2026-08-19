@@ -1,5 +1,3 @@
-using System.Net.Http.Json;
-using System.Text.Json;
 using vos.Service.Shared;
 
 namespace vos.Service.WaterReserve.Services;
@@ -24,37 +22,19 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
     // rather than restated, so the filter cannot come to disagree with what Compute reads.
     public static readonly IReadOnlySet<string> InputProperties = new HashSet<string>(Inputs, StringComparer.Ordinal);
 
-    // Read the study's inputs, compute, and write the outputs back onto it. Returns the outputs.
     public async Task<WaterReserveOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
     {
-        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+        var properties = new StudyProperties(
+            await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "WaterReserve");
 
-        var props = await FetchEffectivePropertiesAsync(client, studyId, cancellationToken);
-        var inputs = new StudyInputs(props, "WaterReserve");
+        var inputs = await properties.ReadAsync(studyId, cancellationToken);
         var result = WaterReserveCalculator.Compute(new WaterReserveInputs(
             inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2])));
 
-        await WriteAsync(client, studyId, "daysOfSupply", result.DaysOfSupply, cancellationToken);
-        await WriteAsync(client, studyId, "emergencyReserveM3", result.EmergencyReserveM3, cancellationToken);
-        await WriteAsync(client, studyId, "annualConsumptionM3", result.AnnualConsumptionM3, cancellationToken);
-        await WriteAsync(client, studyId, "pctAnnualConsumption", result.PctAnnualConsumption, cancellationToken);
+        await properties.WriteAsync(studyId, "daysOfSupply", result.DaysOfSupply, cancellationToken);
+        await properties.WriteAsync(studyId, "emergencyReserveM3", result.EmergencyReserveM3, cancellationToken);
+        await properties.WriteAsync(studyId, "annualConsumptionM3", result.AnnualConsumptionM3, cancellationToken);
+        await properties.WriteAsync(studyId, "pctAnnualConsumption", result.PctAnnualConsumption, cancellationToken);
         return result;
     }
-
-    private async Task<JsonElement> FetchEffectivePropertiesAsync(HttpClient client, Guid thingId, CancellationToken cancellationToken)
-    {
-        var response = await client.GetAsync($"{MyceliumUrl}{MyceliumRoutes.ThingProperties(thingId)}", cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"WaterReserve could not read the study {thingId} ({(int)response.StatusCode} {response.StatusCode})");
-        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-    }
-
-    private async Task WriteAsync(HttpClient client, Guid thingId, string property, object value, CancellationToken cancellationToken)
-    {
-        var path = $"{MyceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}/facts";
-        var response = await client.PostAsJsonAsync(path, new { value }, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"WaterReserve could not write {thingId}.{property} ({(int)response.StatusCode} {response.StatusCode})");
-    }
-
 }

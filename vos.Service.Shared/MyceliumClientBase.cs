@@ -204,7 +204,7 @@ public abstract class MyceliumClientBase
 
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
         var response = await client.PostAsync(
-            $"{MyceliumUrl}/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}/facts",
+            $"{MyceliumUrl}{MyceliumRoutes.ThingPropertyFacts(thingId, property)}",
             new StringContent(json, Encoding.UTF8, "application/json"));
 
         if (response.StatusCode == HttpStatusCode.Created)

@@ -9,5 +9,9 @@ public static class MyceliumRoutes
     // because resolved is the unmarked default; the authored buckets are the ones that carry a qualifier.
     public static string ThingProperties(Guid thingId) => $"/api/things/{thingId}/properties";
 
-    public static string ThingProperties(string thingId) => $"/api/things/{thingId}/properties";
+    // Where a Fact asserting one of a Thing's properties is posted. The property is escaped here so a
+    // caller cannot forget to: it is a name from the model, and one containing a slash or a space would
+    // otherwise be posted to a route that does not exist.
+    public static string ThingPropertyFacts(Guid thingId, string property) =>
+        $"/api/things/{thingId}/properties/{Uri.EscapeDataString(property)}/facts";
 }

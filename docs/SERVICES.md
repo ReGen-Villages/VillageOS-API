@@ -20,7 +20,7 @@ reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
-Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `LandAllocation`, `Metabolism`, `Phloem`,
+Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `FoodBalance`, `LandAllocation`, `Metabolism`, `Phloem`,
 `WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
 provisions the endpoint-template catalog into a model on that model's first registration, and
 validates every endpoint
@@ -33,7 +33,11 @@ consumption (feeding the 14-day resilience range); `EnergyBalance` computes sola
 generation vs consumption → % of consumption and net-positive. Besides the DAG-node path (wired ports),
 both also run **reactively** (#5839) — a graph `/handle` whose subject is the SiteStudy makes the service
 read its inputs off the study's effective properties, compute, and write its outputs back as Facts, so the
-study's judge ranges re-evaluate (no pipeline). `ModelBridge` (#5866) is a generic
+study's judge ranges re-evaluate (no pipeline). `LandAllocation` (#6023) and `FoodBalance` (#6022) are
+the same shape with the reactive half only: land allocation turns the programme split into a per-category
+area and the built and productive footprints, and the food balance reads that productive footprint and
+the yield the shared study archetype declares to work out people fed and the share of the population
+that is. `ModelBridge` (#5866) is a generic
 **model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET the
 Thing's properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
 It lets a compute node read a roll-up / SiteStudy param and write its result back over ordinary node→node
@@ -635,6 +639,7 @@ Both live in `vos.Service.Shared` and are covered once, thoroughly, in
 |---|---|
 | `Configuration/ServiceLaunchSettingsTests.cs` | Required settings, port bounds, every optional flag, configuration and environment fallback, a flag beating configuration, exact flag matching |
 | `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, refusal and token failure returning false, withdrawal, a supplied token short-circuiting the token call |
+| `MyceliumRoutesTests.cs` | The routes every service builds its requests from, and that a property name which would otherwise change the path is escaped into one segment |
 | `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, withdrawal on shutdown, a failing broker not stopping the service serving |
 | `DagNode/HandleRequestRouterTests.cs` | Which shape a `/handle` body is, and what an unusable one is answered with |
 
