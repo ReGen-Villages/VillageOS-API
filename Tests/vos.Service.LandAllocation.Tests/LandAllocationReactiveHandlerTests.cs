@@ -202,4 +202,15 @@ public class LandAllocationReactiveHandlerTests
 
         failure.Message.Should().Contain(LandAllocationReactiveHandler.AllocatedAreaOutput);
     }
+
+    // This service is the one where writing onto what it follows is unavoidable: the area and the
+    // normalised share land on the allocations it names as the Things it read from, so a change to either
+    // arrives as a change on a followed Thing. The share a planner set is what may wake it; the share it
+    // worked out from that is not.
+    [Fact]
+    public void None_of_the_outputs_it_writes_can_wake_it()
+    {
+        LandAllocationReactiveHandler.InputProperties.Should()
+            .NotIntersectWith(DeclaredOutputs.Of<LandAllocationReactiveHandler>());
+    }
 }

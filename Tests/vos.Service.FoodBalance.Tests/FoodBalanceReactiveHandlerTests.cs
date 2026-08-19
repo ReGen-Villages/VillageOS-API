@@ -73,6 +73,24 @@ public class FoodBalanceReactiveHandlerTests
             && request.Uri == $"http://mycelium{MyceliumRoutes.ThingProperties(Study)}");
     }
 
+    // A string-valued input is parsed rather than read straight off the JSON number. The values come from
+    // the model rather than from a person, so the dot is a decimal point wherever the machine is set: under
+    // a comma-decimal region "8.16" would otherwise read as 816 and no error would be raised.
+    [Fact]
+    public async Task A_string_valued_input_reads_the_same_whatever_the_regional_format()
+    {
+        var http = Serving("""
+            { "productiveFootprintHectares": { "Value": "8.16" }, "peopleFedPerHectarePerYear": { "Value": "2.5" },
+              "population": { "Value": "320" } }
+            """);
+
+        var outputs = await TestCulture.InAsync(
+            TestCulture.CommaDecimal, () => NewHandler(http).RecomputeAsync(Study));
+
+        outputs.PeopleFed.Should().BeApproximately(20.4, 1e-9);
+        outputs.PctOfPopulationFed.Should().BeApproximately(6.375, 1e-9);
+    }
+
     [Fact]
     public async Task An_input_the_study_does_not_carry_is_refused_by_name()
     {
@@ -109,13 +127,49 @@ public class FoodBalanceReactiveHandlerTests
         failure.Message.Should().Contain(FoodBalanceReactiveHandler.PeopleFedOutput);
     }
 
-    // The productive footprint is land allocation's output, so a re-run of that service carries through
-    // to this balance on its own. Neither of this service's own outputs may be in the set: it writes both
-    // onto the study it watches, and watching them would recompute forever.
+    // The set the subscription filters on and the set Compute reads have to be the same set, and nothing
+    // holds them together at compile time. Declaring one the arithmetic never reads leaves the service
+    // recomputing for a change that cannot move its answer; reading one that was never declared leaves the
+    // answer stale until something else happens to wake it, which is the failure nobody sees.
+    //
+    // The pair below says it without restating the names: a study carrying exactly the declared inputs
+    // computes, so nothing undeclared is read, and dropping any one of them is refused, so nothing declared
+    // goes unread.
     [Fact]
-    public void The_footprint_wakes_a_recompute_and_this_service_s_own_outputs_do_not()
+    public async Task A_study_carrying_exactly_the_declared_inputs_computes()
     {
-        FoodBalanceReactiveHandler.InputProperties.Should().BeEquivalentTo(
-            ["productiveFootprintHectares", "peopleFedPerHectarePerYear", "population"]);
+        var http = Serving(StudyCarrying(FoodBalanceReactiveHandler.InputProperties));
+
+        var outputs = await NewHandler(http).RecomputeAsync(Study);
+
+        outputs.PctOfPopulationFed.Should().BePositive();
     }
+
+    [Theory]
+    [MemberData(nameof(DeclaredInputs))]
+    public async Task Leaving_out_any_declared_input_refuses_the_recompute_by_name(string omitted)
+    {
+        var http = Serving(StudyCarrying(
+            FoodBalanceReactiveHandler.InputProperties.Where(name => name != omitted)));
+
+        var refusal = await Assert.ThrowsAsync<KeyNotFoundException>(() => NewHandler(http).RecomputeAsync(Study));
+
+        refusal.Message.Should().Contain(omitted);
+    }
+
+    public static TheoryData<string> DeclaredInputs =>
+        new(FoodBalanceReactiveHandler.InputProperties.ToArray());
+
+    // It writes both outputs onto the study it watches, so one of them in the set that wakes it is a
+    // service that recomputes forever rather than one that computes a wrong number.
+    [Fact]
+    public void Neither_output_it_writes_can_wake_it()
+    {
+        FoodBalanceReactiveHandler.InputProperties.Should()
+            .NotIntersectWith(DeclaredOutputs.Of<FoodBalanceReactiveHandler>());
+    }
+
+    // Every input at one leaves the arithmetic defined: one hectare feeding one of one resident.
+    private static string StudyCarrying(IEnumerable<string> inputs) =>
+        "{" + string.Join(",", inputs.Select(name => $"\"{name}\": {{ \"Value\": 1 }}")) + "}";
 }

@@ -85,6 +85,26 @@ public class RainwaterHarvestReactiveHandlerTests
             && request.Uri == $"http://mycelium{MyceliumRoutes.ThingProperties(Study)}");
     }
 
+    // A string-valued input is parsed rather than read straight off the JSON number. The values come from
+    // the model rather than from a person, so the dot is a decimal point wherever the machine is set: under
+    // a comma-decimal region "8.88" would otherwise read as 888 and no error would be raised.
+    [Fact]
+    public async Task A_string_valued_input_reads_the_same_whatever_the_regional_format()
+    {
+        var http = Serving("""
+            { "builtFootprintHectares": { "Value": "8.88" }, "rainfallMillimetresPerYear": { "Value": "700" },
+              "runoffCoefficient": { "Value": "0.8" }, "population": { "Value": "320" },
+              "perCapitaConsumptionM3": { "Value": "55" }, "productiveFootprintHectares": { "Value": "8.16" },
+              "irrigationDemandM3PerHectarePerYear": { "Value": "5000" } }
+            """);
+
+        var outputs = await TestCulture.InAsync(
+            TestCulture.CommaDecimal, () => NewHandler(http).RecomputeAsync(Study));
+
+        outputs.HarvestM3PerYear.Should().BeApproximately(49728, 1e-6);
+        outputs.PctOfWaterDemand.Should().BeApproximately(85.150684931, 1e-9);
+    }
+
     [Fact]
     public async Task An_input_the_study_does_not_carry_is_refused_by_name()
     {
@@ -126,17 +146,49 @@ public class RainwaterHarvestReactiveHandlerTests
         failure.Message.Should().Contain(RainwaterHarvestReactiveHandler.HarvestOutput);
     }
 
-    // Both footprints are land allocation's outputs, so a re-run of that service carries through to this
-    // balance on its own. None of this service's own outputs may be in the set: it writes all five onto
-    // the study it watches, and watching them would recompute forever.
+    // The set the subscription filters on and the set Compute reads have to be the same set, and nothing
+    // holds them together at compile time. Declaring one the arithmetic never reads leaves the service
+    // recomputing for a change that cannot move its answer; reading one that was never declared leaves the
+    // answer stale until something else happens to wake it, which is the failure nobody sees.
+    //
+    // The pair below says it without restating the names: a study carrying exactly the declared inputs
+    // computes, so nothing undeclared is read, and dropping any one of them is refused, so nothing declared
+    // goes unread.
     [Fact]
-    public void A_footprint_wakes_a_recompute_and_this_service_s_own_outputs_do_not()
+    public async Task A_study_carrying_exactly_the_declared_inputs_computes()
     {
-        RainwaterHarvestReactiveHandler.InputProperties.Should().BeEquivalentTo(
-        [
-            "builtFootprintHectares", "productiveFootprintHectares", "rainfallMillimetresPerYear",
-            "runoffCoefficient", "population", "perCapitaConsumptionM3",
-            "irrigationDemandM3PerHectarePerYear",
-        ]);
+        var http = Serving(StudyCarrying(RainwaterHarvestReactiveHandler.InputProperties));
+
+        var outputs = await NewHandler(http).RecomputeAsync(Study);
+
+        outputs.TotalWaterDemandM3PerYear.Should().BePositive();
     }
+
+    [Theory]
+    [MemberData(nameof(DeclaredInputs))]
+    public async Task Leaving_out_any_declared_input_refuses_the_recompute_by_name(string omitted)
+    {
+        var http = Serving(StudyCarrying(
+            RainwaterHarvestReactiveHandler.InputProperties.Where(name => name != omitted)));
+
+        var refusal = await Assert.ThrowsAsync<KeyNotFoundException>(() => NewHandler(http).RecomputeAsync(Study));
+
+        refusal.Message.Should().Contain(omitted);
+    }
+
+    public static TheoryData<string> DeclaredInputs =>
+        new(RainwaterHarvestReactiveHandler.InputProperties.ToArray());
+
+    // It writes all five outputs onto the study it watches, so one of them in the set that wakes it is a
+    // service that recomputes forever rather than one that computes a wrong number.
+    [Fact]
+    public void None_of_the_outputs_it_writes_can_wake_it()
+    {
+        RainwaterHarvestReactiveHandler.InputProperties.Should()
+            .NotIntersectWith(DeclaredOutputs.Of<RainwaterHarvestReactiveHandler>());
+    }
+
+    // Every input at one leaves the arithmetic defined: ten cubic metres captured against two of demand.
+    private static string StudyCarrying(IEnumerable<string> inputs) =>
+        "{" + string.Join(",", inputs.Select(name => $"\"{name}\": {{ \"Value\": 1 }}")) + "}";
 }
