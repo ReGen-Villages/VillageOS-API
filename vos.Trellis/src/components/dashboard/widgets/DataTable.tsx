@@ -4,7 +4,7 @@ import type { ResolveContext, Row } from '../../../api/dashboardApi';
 import { asRows, filterRows } from '../../../api/dashboardApi';
 import { useBinding } from '../../../hooks/useDashboard';
 import { useElementHeight } from '../../../hooks/useElementHeight';
-import { formatNumber, badgeTone } from './format';
+import { formatNumber, badgeTone, columnMaxima } from './format';
 
 /* One body row of the visibleRows cap: the 1.5 line box at the table font, plus the py-2 padding
    and bottom border of the cells below. In em, so the cap follows the font size — which is why
@@ -59,6 +59,10 @@ export function DataTable({
 }) {
   const { loading, value } = useBinding(rowsBinding, ctx);
   const [headerRef, headerHeight] = useElementHeight();
+  /* Measured from whichever row is at the top of the window, and only until a height comes back:
+     the row at the top is a different element after every scroll that moves the window, so keeping
+     it observed would tear down and rebuild an observer once per row crossed. Rows are one line of
+     a fixed size, so one measurement holds for all of them. */
   const [bodyRowRef, measuredRowHeight] = useElementHeight();
   const [firstVisibleRow, setFirstVisibleRow] = useState(0);
   const resolved = rowsProp ?? asRows(value);
@@ -86,13 +90,7 @@ export function DataTable({
     return copy;
   }, [rows, sort, columns]);
 
-  const maxByKey = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const c of columns) {
-      if (c.render === 'agebar') m[c.key] = Math.max(1, ...rows.map((r) => Number(r[c.key]) || 0));
-    }
-    return m;
-  }, [rows, columns]);
+  const maxByKey = useMemo(() => columnMaxima(rows, columns), [rows, columns]);
 
   /* Only a capped table owns a scroll container of a known height, so only a capped table can say
      which rows are in view. Sorting and searching stay over the whole list: what a row cap bounds is
@@ -158,7 +156,7 @@ export function DataTable({
             {shown.map((r, i) => (
               <tr
                 key={(r.id as string) ?? i}
-                ref={windowed && i === 0 ? bodyRowRef : undefined}
+                ref={windowed && i === 0 && !measuredRowHeight ? bodyRowRef : undefined}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
                 className={`hover:bg-zinc-50 dark:hover:bg-zinc-700/40 ${onRowClick ? 'cursor-pointer' : ''}`}
               >

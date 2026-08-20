@@ -214,6 +214,18 @@ describe('DataTable row window (Bug 6583)', () => {
     expect(rowNames(container.querySelector('.overflow-x-auto') as HTMLElement)).toContain('Location 0');
   });
 
+  it('stops re-measuring once a row height comes back, rather than once per row crossed', () => {
+    const scroller = renderLongTable();
+    act(() => observer.report({ height: REPORTED_ROW_HEIGHT }));
+    const afterMeasuring = observer.observed.length;
+
+    scrollTo(scroller, 100 * REPORTED_ROW_HEIGHT);
+    scrollTo(scroller, 200 * REPORTED_ROW_HEIGHT);
+    scrollTo(scroller, 300 * REPORTED_ROW_HEIGHT);
+
+    expect(observer.observed).toHaveLength(afterMeasuring);
+  });
+
   it('renders every row when the list fits inside the cap', () => {
     const scroller = renderTable({ visibleRows: 10, rowCount: 12, sortKey: 'units', sortDir: 'asc' });
 
