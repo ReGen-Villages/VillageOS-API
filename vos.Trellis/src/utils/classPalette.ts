@@ -29,7 +29,7 @@ export const BUCKET_COLORS: Record<ClassBucket, string> = {
   other:      '#94a3b8', // mid-gray slate-400
 };
 
-// Default table for IFC seeds; only classes vos.Tools.IfcIngest actually emits.
+// Default table for IFC seeds; only classes vos.Tools.ModelIngest actually emits.
 const IFC_BUCKET_TABLE: Record<string, ClassBucket> = {
   IfcSite: 'spatial',
   IfcBuilding: 'spatial',

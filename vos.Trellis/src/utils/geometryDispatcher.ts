@@ -7,7 +7,7 @@
  * { typeInfo: "vos.IfcGeometry", value: {...} } which is unwrapped by
  * propertyMapper to just the IFC mesh data object.
  *
- * Newer models ingested via vos.Tools.IfcIngest do NOT carry inline
+ * Newer models ingested via vos.Tools.ModelIngest do NOT carry inline
  * geometry — their geometry lives in the .frag artifact rendered by
  * BimFragmentsViewer. This parser remains only for the Graph page's
  * BuildingDetail3D tab, which displays a single element's inline mesh

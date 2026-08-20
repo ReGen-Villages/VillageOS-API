@@ -8,7 +8,7 @@ public enum IngestMode
     NewModel,
 }
 
-// What the IfcIngest runner reports back after parsing + applying the IFC.
+// What the ModelIngest runner reports back after parsing + applying the IFC.
 public record IngestRunResult(
     bool Success,
     int ThingsCreated,

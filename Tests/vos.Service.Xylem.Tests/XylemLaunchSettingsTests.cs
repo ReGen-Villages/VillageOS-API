@@ -20,7 +20,7 @@ public class XylemLaunchSettingsTests
 
     [Fact]
     public void Parse_WhenACommonSettingIsMissing_ReturnsNull() =>
-        XylemLaunchSettings.Parse(["--ifcIngestDll=/tools/ingest.dll"]).Should().BeNull();
+        XylemLaunchSettings.Parse(["--modelIngestDll=/tools/ingest.dll"]).Should().BeNull();
 
     [Fact]
     public void Parse_CarriesTheCommonSettingsThrough()
@@ -36,10 +36,10 @@ public class XylemLaunchSettingsTests
     [Fact]
     public void Parse_ReadsTheIngestToolPath()
     {
-        var result = XylemLaunchSettings.Parse(FlagsWith("--ifcIngestDll=/tools/vos.Tools.IfcIngest.dll"));
+        var result = XylemLaunchSettings.Parse(FlagsWith("--modelIngestDll=/tools/vos.Tools.ModelIngest.dll"));
 
         result.Should().NotBeNull();
-        result!.IfcIngestDll.Should().Be("/tools/vos.Tools.IfcIngest.dll");
+        result!.ModelIngestDll.Should().Be("/tools/vos.Tools.ModelIngest.dll");
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class XylemLaunchSettingsTests
         var result = XylemLaunchSettings.Parse(RequiredFlags);
 
         result.Should().NotBeNull();
-        result!.IfcIngestDll.Should().BeNull();
+        result!.ModelIngestDll.Should().BeNull();
     }
 
     [Fact]
@@ -87,12 +87,12 @@ public class XylemLaunchSettingsTests
     {
         var configuration = ConfigurationFrom(
             ("Port", "7100"), ("MyceliumUrl", "http://mycelium"),
-            ("IfcIngestDll", "/configured/ingest.dll"), ("MaxUploadMb", "32"));
+            ("ModelIngestDll", "/configured/ingest.dll"), ("MaxUploadMb", "32"));
 
         var result = XylemLaunchSettings.Parse(Array.Empty<string>(), configuration);
 
         result.Should().NotBeNull();
-        result!.IfcIngestDll.Should().Be("/configured/ingest.dll");
+        result!.ModelIngestDll.Should().Be("/configured/ingest.dll");
         result.MaxUploadBytes.Should().Be(32L * 1024 * 1024);
     }
 
@@ -101,7 +101,7 @@ public class XylemLaunchSettingsTests
     {
         var usage = XylemLaunchSettings.UsageMessage;
 
-        usage.Should().Contain("--ifcIngestDll")
+        usage.Should().Contain("--modelIngestDll")
             .And.Contain("--maxUploadMb")
             .And.Contain("--myceliumUrl");
     }
