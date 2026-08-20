@@ -29,12 +29,11 @@ describe('verdictSentence', () => {
     expect(verdictSentence('not assessed', { value: null, target: null })).toBe('not assessed');
   });
 
-  // A missing figure must never read as a measurement of zero.
-  it('never substitutes a zero for a figure the verdict does not have', () => {
-    const sentence = verdictSentence('{value} of consumption', { value: null, target: 100 }, 'pct100');
-
-    expect(sentence).not.toContain('0');
-    expect(sentence).toBe('of consumption');
+  // A missing figure must never read as a measurement of zero, and `formatNumber` would render one
+  // as the dash it uses for an absent number if it were handed one.
+  it('never substitutes a zero or a dash for a figure the verdict does not have', () => {
+    expect(verdictSentence('{value} of consumption', { value: null, target: 100 }, 'pct100'))
+      .toBe('of consumption');
   });
 
   it('shows a real zero as a zero', () => {

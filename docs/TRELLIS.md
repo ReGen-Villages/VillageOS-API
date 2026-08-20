@@ -1477,10 +1477,13 @@ Every word of the sentence is the model's. Trellis substitutes `{value}` and
 `{target}`, formats both with the row's `format` and `unit` so one sentence
 cannot mix units, and lays the result out. A placeholder the verdict has no
 figure for is dropped along with the space beside it, which is how one wording
-serves a balance that was assessed and one that never was. A row whose binding
-reports no verdict at all is left unsaid rather than filled with a dash — Trellis
-has no wording of its own to put there, and a placeholder would read as an
-answer.
+serves a balance that was assessed and one that never was.
+
+Where there is no wording there is no line. A row whose binding reports no
+verdict, and a verdict carrying no wording — which is what a row bound to
+something other than a `verdict` binding resolves to — are both left unsaid
+rather than filled with a dash or drawn as a blank line. Trellis has no wording
+of its own to put there, and a placeholder would read as an answer.
 
 **Cost.** One range read per Thing per refresh, shared across every verdict row
 on the page the way state reads are — several rows judging one study ask once

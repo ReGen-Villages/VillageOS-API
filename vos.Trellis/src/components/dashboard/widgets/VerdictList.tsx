@@ -1,6 +1,6 @@
 import type { VerdictRow, VerdictWidget } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
-import { asRows } from '../../../api/dashboardApi';
+import { asRows, nullableNumber } from '../../../api/dashboardApi';
 import { useBindings } from '../../../hooks/useDashboard';
 import { WidgetCard } from './WidgetCard';
 import { verdictSentence } from './verdictSentence';
@@ -32,25 +32,30 @@ export function VerdictList({ widget, ctx }: { widget: VerdictWidget; ctx: Resol
 }
 
 function VerdictRowView({ row, verdicts }: { row: VerdictRow; verdicts: Row[] }) {
+  const sentences = verdicts
+    .map((verdict) => ({
+      state: String(verdict.state),
+      sentence: verdictSentence(
+        typeof verdict.reads === 'string' ? verdict.reads : '',
+        { value: nullableNumber(verdict.value), target: nullableNumber(verdict.target) },
+        row.format,
+        row.unit,
+      ),
+    }))
+    // A row bound to something other than a verdict resolves to rows with no wording on them. There
+    // is no sentence to read, so it draws none rather than a run of empty lines.
+    .filter((read) => read.sentence !== '');
+
   return (
     <div>
       <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         {row.label}
       </div>
-      {verdicts.map((verdict) => (
-        <p key={String(verdict.state)} className="text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-200">
-          {verdictSentence(
-            String(verdict.reads ?? ''),
-            { value: numberOrNull(verdict.value), target: numberOrNull(verdict.target) },
-            row.format,
-            row.unit,
-          )}
+      {sentences.map((read) => (
+        <p key={read.state} className="text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-200">
+          {read.sentence}
         </p>
       ))}
     </div>
   );
-}
-
-function numberOrNull(value: unknown): number | null {
-  return typeof value === 'number' && !isNaN(value) ? value : null;
 }

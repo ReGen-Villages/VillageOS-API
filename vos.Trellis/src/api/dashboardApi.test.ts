@@ -1165,6 +1165,45 @@ describe('verdict binding', () => {
     expect(rows[0].target).toBe(90);
   });
 
+  // The verdict is the model's answer and the target only decorates it, so losing the range read
+  // must not cost the reader the verdict as well.
+  it('still reads every verdict when the range read fails outright', async () => {
+    holding('EnergyShortOfTarget');
+    vi.mocked(rangeApi.getAll).mockRejectedValue(new Error('broker unreachable'));
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+
+    expect(rows).toEqual([{
+      state: 'EnergyShortOfTarget',
+      reads: ENERGY_STATES[1].reads,
+      property: null,
+      operator: null,
+      target: null,
+      value: null,
+    }]);
+  });
+
+  // Not the same as the withheld verdict: here a range did judge the balance, and the value it
+  // judged is not on the study to show.
+  it('names the target but no value when the study carries no value for the judged property', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({})) as Row[];
+
+    expect(rows[0]).toMatchObject({ property: 'pctOfConsumption', target: 100, value: null });
+  });
+
+  it('reports no verdict when the spec names a thing the model does not hold', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(
+      { kind: 'verdict', thing: 'no-such-study', states: ENERGY_STATES } as Binding,
+      studyContext({ pctOfConsumption: 73 }),
+    );
+
+    expect(rows).toEqual([]);
+  });
+
   it('names no target when the range that judged the study cannot be read', async () => {
     holding('EnergyShortOfTarget');
     vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([]));

@@ -319,7 +319,10 @@ function thingRanges(thingId: string, ctx: ResolveContext): Promise<ThingRangesR
   return request;
 }
 
-function nullableNumber(value: unknown): number | null {
+/** A cell value as a number, or null where it has none — `num`'s rule about what counts as a number,
+ *  kept in one place so a widget reading a resolved row cannot answer that question differently from
+ *  the resolver that filled it. */
+export function nullableNumber(value: unknown): number | null {
   const asNumber = num(value);
   return isNaN(asNumber) ? null : asNumber;
 }

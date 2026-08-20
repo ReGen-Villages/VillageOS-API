@@ -109,6 +109,22 @@ describe('VerdictList', () => {
     expect(screen.queryByText('—')).not.toBeInTheDocument();
   });
 
+  // A row bound to something other than a verdict resolves to rows with no wording on them. There is
+  // no sentence to read, so the row shows its label and nothing — not a run of empty lines.
+  it('leaves out a verdict carrying no wording rather than drawing an empty line for it', () => {
+    const { container } = render(
+      <VerdictList
+        widget={widgetWith({
+          label: 'Food',
+          verdicts: bind([{ state: 'FoodAssessed', property: null, operator: null, target: null, value: null }]),
+        })}
+        ctx={{} as ResolveContext}
+      />,
+    );
+
+    expect(container.querySelectorAll('p')).toHaveLength(0);
+  });
+
   it('reads each balance of a several-row widget under its own label', () => {
     draw(widgetWith(
       {
