@@ -27,7 +27,7 @@
  *   clashes                  → red (alert!)
  *
  * Names match exactly what the IFC ingest pipeline emits (verified against
- * vos.Tools.IfcIngest/Pipeline/*RelationshipExtractor.cs).
+ * vos.Tools.ModelIngest/Pipeline/*RelationshipExtractor.cs).
  */
 export const CURATED_PREDICATE_COLORS: Record<string, string> = {
   // ── containment / hierarchy (green family) ───────────────────────────

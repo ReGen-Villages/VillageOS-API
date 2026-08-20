@@ -1,7 +1,7 @@
 import { apiClient } from './client';
 
 /** Result of an ingest — the Xylem service's response shape. */
-export interface IfcIngestResult {
+export interface ModelIngestResult {
   success: boolean;
   thingsCreated: number;
   thingsUpdated: number;
@@ -19,7 +19,7 @@ export const ingestApi = {
   configured: () => ingestUrl().length > 0,
 
   /** Upload an IFC to the Xylem ingestion service, which parses it and applies the graph to the model. */
-  upload: async (file: File, name: string, mode: IngestMode): Promise<IfcIngestResult> => {
+  upload: async (file: File, name: string, mode: IngestMode): Promise<ModelIngestResult> => {
     const base = ingestUrl();
     if (!base) throw new Error('Ingestion service URL is not configured (set VITE_INGEST_URL).');
 

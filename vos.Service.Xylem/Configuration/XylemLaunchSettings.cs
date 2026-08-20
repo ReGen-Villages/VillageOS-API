@@ -8,8 +8,8 @@ namespace vos.Service.Xylem.Configuration;
 // needs the ingest toolchain locally.
 public sealed record XylemLaunchSettings(
     ServiceLaunchSettings Service,
-    // Path to the built IfcIngest entry assembly (invoked via `dotnet <dll>`); lives in the private repo.
-    string? IfcIngestDll,
+    // Path to the built ModelIngest entry assembly (invoked via `dotnet <dll>`); lives in the private repo.
+    string? ModelIngestDll,
     long MaxUploadBytes)
 {
     public const long DefaultMaxUploadBytes = 512L * 1024 * 1024;
@@ -25,7 +25,7 @@ public sealed record XylemLaunchSettings(
 
         return new XylemLaunchSettings(
             service,
-            reader.Read("ifcIngestDll"),
+            reader.Read("modelIngestDll"),
             ReadMaxUploadBytes(reader));
     }
 
@@ -38,7 +38,7 @@ public sealed record XylemLaunchSettings(
     }
 
     public static string UsageMessage => ServiceLaunchSettings.BuildUsageMessage(
-        " [--ifcIngestDll=<path/to/vos.Tools.IfcIngest.dll>] [--maxUploadMb=<n>]",
-        "\n  --ifcIngestDll Path to the built IfcIngest entry assembly" +
+        " [--modelIngestDll=<path/to/vos.Tools.ModelIngest.dll>] [--maxUploadMb=<n>]",
+        "\n  --modelIngestDll Path to the built ModelIngest entry assembly" +
         "\n  --maxUploadMb  Largest upload accepted, in megabytes");
 }

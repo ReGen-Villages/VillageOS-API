@@ -5,13 +5,13 @@ using FluentAssertions;
 
 namespace vos.Service.Xylem.Tests;
 
-public class IfcIngestRunnerTests
+public class ModelIngestRunnerTests
 {
     [Fact]
     public async Task RunAsync_missing_tool_reports_a_clear_error_without_spawning()
     {
-        var runner = new IfcIngestRunner("/no/such/IfcIngest.dll", "http://localhost:5000", "tok",
-            NullLogger<IfcIngestRunner>.Instance);
+        var runner = new ModelIngestRunner("/no/such/ModelIngest.dll", "http://localhost:5000", "tok",
+            NullLogger<ModelIngestRunner>.Instance);
 
         var r = await runner.RunAsync("/tmp/whatever.ifc", "Demo", default);
 
@@ -22,8 +22,8 @@ public class IfcIngestRunnerTests
     [Fact]
     public void The_ingest_process_is_handed_its_token_through_the_environment()
     {
-        var startInfo = new IfcIngestRunner("/tools/IfcIngest.dll", "http://localhost:5000", "the.service.jwt",
-            NullLogger<IfcIngestRunner>.Instance).BuildStartInfo("/tmp/model.ifc", "Demo");
+        var startInfo = new ModelIngestRunner("/tools/ModelIngest.dll", "http://localhost:5000", "the.service.jwt",
+            NullLogger<ModelIngestRunner>.Instance).BuildStartInfo("/tmp/model.ifc", "Demo");
 
         startInfo.Environment["Token"].Should().Be("the.service.jwt");
         startInfo.ArgumentList.Should().NotContain("--token").And.NotContain("the.service.jwt");
@@ -32,8 +32,8 @@ public class IfcIngestRunnerTests
     [Fact]
     public void An_absent_token_leaves_the_ingest_process_without_one()
     {
-        var startInfo = new IfcIngestRunner("/tools/IfcIngest.dll", "http://localhost:5000", null,
-            NullLogger<IfcIngestRunner>.Instance).BuildStartInfo("/tmp/model.ifc", "Demo");
+        var startInfo = new ModelIngestRunner("/tools/ModelIngest.dll", "http://localhost:5000", null,
+            NullLogger<ModelIngestRunner>.Instance).BuildStartInfo("/tmp/model.ifc", "Demo");
 
         startInfo.Environment.Should().NotContainKey("Token");
     }
@@ -44,6 +44,6 @@ public class IfcIngestRunnerTests
     [InlineData("no count line here", 0, 0)]
     public void ParseCounts_reads_the_totals(string stdout, int things, int rels)
     {
-        IfcIngestRunner.ParseCounts(stdout).Should().Be((things, rels));
+        ModelIngestRunner.ParseCounts(stdout).Should().Be((things, rels));
     }
 }
