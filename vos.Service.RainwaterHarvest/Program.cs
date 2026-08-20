@@ -54,7 +54,7 @@ try
     // Recompute when an input moves. Both footprints are among them, so a re-run of land allocation
     // carries through to this balance without anything dispatching it again.
     builder.Services.AddInputChangeRecompute<RainwaterHarvestReactiveHandler>(
-        "RainwaterHarvest", myceliumUrl, serviceToken, RainwaterHarvestReactiveHandler.InputProperties,
+        "RainwaterHarvest", myceliumUrl, serviceToken, handler => handler.WatchedProperties,
         (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
 
     builder.Services.AddMyceliumRegistration("RainwaterHarvest", servicePort);

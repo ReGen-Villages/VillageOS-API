@@ -14,7 +14,8 @@ public static class InputChangeRecomputeRegistration
     /// resolved per recompute rather than captured, so it follows whatever the container holds.</summary>
     public static IServiceCollection AddInputChangeRecompute<THandler>(
         this IServiceCollection services, string serviceName, string myceliumUrl, string? serviceToken,
-        IReadOnlySet<string> inputProperties, Func<THandler, Guid, CancellationToken, Task> recompute)
+        Func<THandler, IReadOnlySet<string>> inputProperties,
+        Func<THandler, Guid, CancellationToken, Task> recompute)
         where THandler : notnull
     {
         services.AddSingleton<IServiceTokenExchange>(provider => new ServiceTokenExchange(
@@ -25,7 +26,8 @@ public static class InputChangeRecomputeRegistration
             provider.GetRequiredService<IHttpClientFactory>(),
             provider.GetRequiredService<ILogger<SubscriptionClient>>(), myceliumUrl, tokenProvider: currentToken));
 
-        services.AddSingleton(provider => new RecomputeInputs(serviceName, inputProperties,
+        services.AddSingleton(provider => new RecomputeInputs(serviceName,
+            () => inputProperties(provider.GetRequiredService<THandler>()),
             (subjectId, cancellationToken) =>
                 recompute(provider.GetRequiredService<THandler>(), subjectId, cancellationToken)));
 
@@ -45,10 +47,12 @@ public static class InputChangeRecomputeRegistration
 /// subject, and how to recompute one.</summary>
 /// <param name="ServiceName">Names the service in log lines.</param>
 /// <param name="InputProperties">Only these trigger a recompute. A service also writes its outputs onto
-/// the subject it watches, so reacting to every change on that subject would recompute forever.</param>
+/// the subject it watches, so reacting to every change on that subject would recompute forever. Asked for
+/// per change rather than fixed here, because a service whose inputs are named by the model learns them
+/// when it first computes and a set captured at startup would answer for a model it has never read.</param>
 public sealed record RecomputeInputs(
     string ServiceName,
-    IReadOnlySet<string> InputProperties,
+    Func<IReadOnlySet<string>> InputProperties,
     Func<Guid, CancellationToken, Task> RecomputeAsync);
 
 /// <summary>

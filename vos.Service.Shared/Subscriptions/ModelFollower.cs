@@ -142,7 +142,7 @@ internal sealed class ModelFollower
             await foreach (var change in _subscriptions.StreamAsync(_subscriptionId, subscription.Watermark, cancellationToken))
             {
                 if (!change.IsPropertyChange || change.PropertyName is null) continue;
-                if (!_inputs.InputProperties.Contains(change.PropertyName)) continue;
+                if (!_inputs.InputProperties().Contains(change.PropertyName)) continue;
 
                 List<Guid> subjects;
                 lock (_watchedLock)

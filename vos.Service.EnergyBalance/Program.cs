@@ -57,7 +57,7 @@ try
 
     // Recompute when an input moves, so a study's result never presents a stale number as current.
     builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
-        "EnergyBalance", myceliumUrl, serviceToken, EnergyBalanceReactiveHandler.InputProperties,
+        "EnergyBalance", myceliumUrl, serviceToken, _ => EnergyBalanceReactiveHandler.InputProperties,
         (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
 
     builder.Services.AddMyceliumRegistration("EnergyBalance", servicePort);

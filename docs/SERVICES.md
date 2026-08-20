@@ -39,10 +39,14 @@ the same shape with the reactive half only: land allocation turns the programme 
 area and the built and productive footprints, and the food balance reads that productive footprint and
 the yield the shared study archetype declares to work out people fed and the share of the population
 that is. The rainwater harvest reads the built footprint, the site's rainfall and the runoff coefficient
-to work out the volume captured in a year, and measures it against domestic and irrigation demand
-reported as separate figures — irrigation usually dwarfs domestic demand, so a combined percentage
-cannot tell a site with abundant drinking water and a marginal irrigation position from one that is
-uniformly short. `ModelBridge` (#5866) is a generic
+to work out the volume captured in a year, then serves each demand the **model** declares in the order it
+declares: drinking water first, irrigation from what is left. Each demand reports what it asked for, the
+share of it covered and the volume still short. The harvest is one body of water, so measuring it against
+each demand on its own would count the same cubic metre twice — and a combined percentage cannot tell a
+site with abundant drinking water and a marginal irrigation position from one that is uniformly short.
+Which demands there are, their order, and the properties each is read from and written to are Things in
+the shared analysis template, not a list in this service: a demand is a quantity times a rate, so a third
+one is a template edit. `ModelBridge` (#5866) is a generic
 **model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET the
 Thing's properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
 It lets a compute node read a roll-up / SiteStudy param and write its result back over ordinary node→node

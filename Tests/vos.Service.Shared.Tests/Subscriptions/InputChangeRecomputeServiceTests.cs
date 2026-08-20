@@ -510,6 +510,22 @@ public class InputChangeRecomputeServiceTests
         spy.Recorded.Should().ContainSingle().Which.Should().Be(Study);
     }
 
+    // The set is read off the handler the container holds, not off one captured when the service was
+    // registered. A service whose inputs are named by the model has none to state until it has read one,
+    // so a set captured here would answer for a model it never saw.
+    [Fact]
+    public void AddInputChangeRecompute_asks_the_registered_handler_for_its_inputs_each_time()
+    {
+        using var provider = Registered(out var spy);
+        var inputs = provider.GetRequiredService<RecomputeInputs>();
+
+        inputs.InputProperties().Should().BeEquivalentTo(new[] { "population" });
+
+        spy.InputProperties = new HashSet<string>(StringComparer.Ordinal) { "population", "rainfallMillimetresPerYear" };
+
+        inputs.InputProperties().Should().BeEquivalentTo(new[] { "population", "rainfallMillimetresPerYear" });
+    }
+
     private static ServiceProvider Registered() => Registered(out _);
 
     private static ServiceProvider Registered(out RecomputeSpy spy)
@@ -522,7 +538,7 @@ public class InputChangeRecomputeServiceTests
         services.AddSingleton(spy);
         services.AddInputChangeRecompute<RecomputeSpy>(
             "TestCompute", "http://mycelium", serviceToken: null,
-            new HashSet<string>(StringComparer.Ordinal) { "population" },
+            handler => handler.InputProperties,
             (handler, subjectId, _) => handler.RecordAsync(subjectId));
 
         return services.BuildServiceProvider();
@@ -531,6 +547,8 @@ public class InputChangeRecomputeServiceTests
     private sealed class RecomputeSpy
     {
         public List<Guid> Recorded { get; } = new();
+        public IReadOnlySet<string> InputProperties { get; set; } =
+            new HashSet<string>(StringComparer.Ordinal) { "population" };
         public Task RecordAsync(Guid subjectId) { Recorded.Add(subjectId); return Task.CompletedTask; }
     }
 
@@ -558,7 +576,7 @@ public class InputChangeRecomputeServiceTests
             var failNext = failFirstRecompute;
             var inputs = new RecomputeInputs(
                 "TestCompute",
-                new HashSet<string>(StringComparer.Ordinal) { "population", "storageCapacityM3" },
+                () => new HashSet<string>(StringComparer.Ordinal) { "population", "storageCapacityM3" },
                 (subjectId, _) =>
                 {
                     var observed = new Recompute(subjectId, MyceliumModelToken.Current);

@@ -19,14 +19,15 @@ public class SiteAnalysisChainTests
     // value a balance reads is the value land allocation wrote and there is no step between them that could
     // convert it. The unit is in the name, which is what makes a move from hectares to square metres a
     // rename both sides have to follow rather than a silent factor of ten thousand.
+    //
+    // The harvest reaches the productive footprint through the model instead: it is the quantity its
+    // irrigation demand is sized by, so the name is the template's and the platform repository is where a
+    // demand naming a property no study declares is caught.
     [Fact]
     public void Each_balance_reads_the_footprints_under_the_names_land_allocation_writes_them()
     {
-        RainwaterHarvestReactiveHandler.InputProperties.Should().Contain(new[]
-        {
-            LandAllocationReactiveHandler.BuiltFootprintOutput,
-            LandAllocationReactiveHandler.ProductiveFootprintOutput,
-        });
+        RainwaterHarvestReactiveHandler.InputProperties.Should()
+            .Contain(LandAllocationReactiveHandler.BuiltFootprintOutput);
 
         FoodBalanceReactiveHandler.InputProperties.Should()
             .Contain(LandAllocationReactiveHandler.ProductiveFootprintOutput);
@@ -37,11 +38,7 @@ public class SiteAnalysisChainTests
     [Fact]
     public void The_arithmetic_behind_each_balance_takes_the_footprint_under_that_same_name()
     {
-        TakenBy<RainwaterHarvestInputs>().Should().Contain(new[]
-        {
-            LandAllocationReactiveHandler.BuiltFootprintOutput,
-            LandAllocationReactiveHandler.ProductiveFootprintOutput,
-        });
+        TakenBy<RainwaterHarvestInputs>().Should().Contain(LandAllocationReactiveHandler.BuiltFootprintOutput);
 
         TakenBy<FoodBalanceInputs>().Should().Contain(LandAllocationReactiveHandler.ProductiveFootprintOutput);
     }
@@ -50,6 +47,10 @@ public class SiteAnalysisChainTests
     // nothing is woken after that, because nothing in the chain reads what a balance writes. That is why a
     // planner moving a programme share settles in one round rather than running up against the model's
     // round limit, and it is the half of the arrangement no single service can state.
+    //
+    // The harvest's per-demand results are named by the model rather than declared here, so this covers
+    // the three it names itself; the handler refuses a demand writing onto anything it wakes on, which is
+    // the same guarantee for the rest.
     [Fact]
     public void Nothing_in_the_chain_is_woken_by_what_a_balance_writes()
     {
