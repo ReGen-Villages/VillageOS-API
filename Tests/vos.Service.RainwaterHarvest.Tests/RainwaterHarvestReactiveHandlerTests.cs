@@ -69,12 +69,14 @@ public class RainwaterHarvestReactiveHandlerTests
     private sealed class StubSubscriptions(SnapshotDocument snapshot) : ISubscriptionClient
     {
         public bool Released { get; private set; }
+        public bool FailRelease { get; set; }
 
         public Task<SubscribeResult> SubscribeAsync(SubscriptionSelector selector, CancellationToken ct = default) =>
             Task.FromResult(new SubscribeResult(Guid.NewGuid(), 0, snapshot));
 
         public Task UnsubscribeAsync(Guid subscriptionId, CancellationToken ct = default)
         {
+            if (FailRelease) throw new HttpRequestException("mycelium is already gone");
             Released = true;
             return Task.CompletedTask;
         }
@@ -290,18 +292,57 @@ public class RainwaterHarvestReactiveHandlerTests
         http.Requests.Should().NotContain(request => request.Method == HttpMethod.Post);
     }
 
+    private static RainwaterHarvestReactiveHandler NewHandler(
+        RecordingHttpMessageHandler http, StubSubscriptions subscriptions) =>
+        new(new TestHttpClientFactory(new HttpClient(http)), NullLogger<RainwaterHarvestReactiveHandler>.Instance,
+            "http://mycelium", "test-token", subscriptions);
+
     [Fact]
     public async Task The_subscription_it_read_the_demands_through_is_released()
     {
         var subscriptions = new StubSubscriptions(TheShippedVocabulary);
-        var handler = new RainwaterHarvestReactiveHandler(
-            new TestHttpClientFactory(new HttpClient(Serving(WillowBend))),
-            NullLogger<RainwaterHarvestReactiveHandler>.Instance,
-            "http://mycelium", "test-token", subscriptions);
 
-        await handler.RecomputeAsync(Study);
+        await NewHandler(Serving(WillowBend), subscriptions).RecomputeAsync(Study);
 
         subscriptions.Released.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task The_subscription_is_released_even_when_the_demands_cannot_be_read()
+    {
+        var subscriptions = new StubSubscriptions(new SnapshotDocument(0, [TheArchetype], []));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => NewHandler(Serving(WillowBend), subscriptions).RecomputeAsync(Study));
+
+        subscriptions.Released.Should().BeTrue("a read that fails still holds a subscription open");
+    }
+
+    // The harvest is computed and written before the release is even attempted, so a broker that has
+    // already gone must not turn a study that was answered into a study that failed.
+    [Fact]
+    public async Task A_recompute_that_succeeded_is_not_lost_because_the_subscription_could_not_be_released()
+    {
+        var http = Serving(WillowBend);
+        var subscriptions = new StubSubscriptions(TheShippedVocabulary) { FailRelease = true };
+
+        var outputs = await NewHandler(http, subscriptions).RecomputeAsync(Study);
+
+        outputs.HarvestM3PerYear.Should().BeApproximately(49728, 1e-6);
+        http.Requests.Should().Contain(request => request.Method == HttpMethod.Post);
+    }
+
+    // Through the constructor the service itself uses, where every test above hands in a subscription
+    // client instead. Until it has read a model it wakes only on what it reads itself, which is the set a
+    // follower is registered with before the first dispatch arrives.
+    [Fact]
+    public void A_handler_that_has_not_computed_yet_wakes_only_on_what_it_reads_itself()
+    {
+        var handler = new RainwaterHarvestReactiveHandler(
+            new TestHttpClientFactory(new HttpClient()),
+            NullLogger<RainwaterHarvestReactiveHandler>.Instance, "http://mycelium", "test-token");
+
+        handler.WatchedProperties.Should().BeEquivalentTo(RainwaterHarvestReactiveHandler.InputProperties);
     }
 
     // It writes all three of these onto the study it watches, so a set holding one of them would recompute

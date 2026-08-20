@@ -158,6 +158,99 @@ public class WaterDemandComponentReaderTests
         refusal.Message.Should().Contain("domestic-demand").And.Contain(field);
     }
 
+    // A field the component never states at all, rather than one it states as nothing. The archetype
+    // declares each of them empty, so a member that says nothing inherits an empty name — and a snapshot
+    // carrying neither has to refuse for the same reason rather than read past it.
+    [Theory]
+    [InlineData("demandQuantityProperty")]
+    [InlineData("shortfallProperty")]
+    public void A_component_that_never_states_a_property_at_all_is_refused_the_same_way(string field)
+    {
+        var absent = Domestic1;
+        absent.Remove(field);
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => WaterDemandComponentReader.Read(
+            Snapshot(TheArchetype, Overriding(Domestic, "domestic-demand", absent))));
+
+        refusal.Message.Should().Contain("domestic-demand").And.Contain(field);
+    }
+
+    // A name of nothing but spaces is a name of nothing: the study has no such property, so the demand
+    // would be sized by nothing or written nowhere exactly as an empty one would.
+    [Fact]
+    public void A_property_name_of_nothing_but_spaces_is_refused_like_an_empty_one()
+    {
+        var blank = Domestic1;
+        blank["demandRateProperty"] = Value("   ");
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => WaterDemandComponentReader.Read(
+            Snapshot(TheArchetype, Overriding(Domestic, "domestic-demand", blank))));
+
+        refusal.Message.Should().Contain("demandRateProperty");
+    }
+
+    // A Thing carries no name of its own in the platform, and a refusal that named nothing would leave a
+    // reader with a model to search by hand. It falls back to the identifier, which is enough to find it.
+    [Fact]
+    public void A_demand_with_no_name_is_still_identified_in_what_it_is_refused_for()
+    {
+        var blank = Domestic1;
+        blank["demandProperty"] = Value(string.Empty);
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => WaterDemandComponentReader.Read(
+            Snapshot(TheArchetype, new SnapshotThing(
+                Domestic, null, false, blank, new Dictionary<string, InheritedPropertySet>(), [], []))));
+
+        refusal.Message.Should().Contain(Domestic.ToString());
+    }
+
+    // A value of the wrong kind is refused rather than read as absent. Reading the two the same way is
+    // how a split silently short by one describes a different parcel (Bug #6576 in land allocation); here
+    // it would drop a demand out of the queue and hand its water to the one behind it.
+    [Fact]
+    public void A_place_in_the_queue_that_is_not_a_number_is_refused_rather_than_read_as_absent()
+    {
+        var misspelled = Domestic1;
+        misspelled["servingOrder"] = Value("first");
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => WaterDemandComponentReader.Read(
+            Snapshot(TheArchetype, Overriding(Domestic, "domestic-demand", misspelled))));
+
+        refusal.Message.Should().Contain("domestic-demand").And.Contain("servingOrder");
+    }
+
+    [Fact]
+    public void A_property_name_that_is_not_text_is_refused_rather_than_read_as_absent()
+    {
+        var misspelled = Domestic1;
+        misspelled["coverageProperty"] = Value(3);
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => WaterDemandComponentReader.Read(
+            Snapshot(TheArchetype, Overriding(Domestic, "domestic-demand", misspelled))));
+
+        refusal.Message.Should().Contain("domestic-demand").And.Contain("coverageProperty");
+    }
+
+    // A component whose values reach it through more than one type it `is`. Stopping at the first source
+    // that does not carry the name would read the rest of the component as blank.
+    [Fact]
+    public void A_value_is_found_whichever_type_the_component_states_it_over()
+    {
+        var carried = Domestic1;
+        var elsewhere = new Dictionary<string, SnapshotProperty> { ["servingOrder"] = carried["servingOrder"] };
+        carried.Remove("servingOrder");
+
+        var components = WaterDemandComponentReader.Read(Snapshot(TheArchetype, new SnapshotThing(
+            Domestic, "domestic-demand", false, new Dictionary<string, SnapshotProperty>(),
+            new Dictionary<string, InheritedPropertySet>
+            {
+                ["Somewhere"] = new("Somewhere", elsewhere),
+                ["WaterDemandComponent"] = new("WaterDemandComponent", carried),
+            }, [], [])));
+
+        components.Should().ContainSingle().Which.QuantityProperty.Should().Be("population");
+    }
+
     [Fact]
     public void A_component_that_states_no_place_in_the_queue_is_refused_rather_than_served_first()
     {
