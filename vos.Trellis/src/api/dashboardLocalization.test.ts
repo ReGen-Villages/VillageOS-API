@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { localizeSpec } from './dashboardLocalization';
-import type { DashboardSpec, FunnelWidget, KpiWidget, LeaderboardWidget, TableWidget } from '../types/dashboard';
+import type {
+  Binding,
+  DashboardSpec,
+  FunnelWidget,
+  KpiWidget,
+  LeaderboardWidget,
+  TableWidget,
+  VerdictWidget,
+} from '../types/dashboard';
 
 /** A spec exercising every widget type plus a detail card. The base strings are
  *  deliberately plain English; `translations.es` renders them in Spanish. One
@@ -191,5 +199,76 @@ describe('localizeSpec', () => {
     delete base.translations;
     const spec = localizeSpec(base, 'es');
     expect(spec).toBe(base);
+  });
+});
+
+// The verdict wording is the only display text the spec vocabulary keeps on a binding, so the
+// invariant that binding values pass through untouched has to bend for it — and only for it.
+describe('localizeSpec over a verdict widget', () => {
+  function verdictSpec(): DashboardSpec {
+    return {
+      title: 'Analysis',
+      sections: [
+        {
+          widgets: [
+            {
+              type: 'verdict',
+              title: 'Balances',
+              hint: 'as judged',
+              rows: [
+                {
+                  label: 'Energy',
+                  unit: 'days',
+                  verdicts: {
+                    kind: 'verdict',
+                    states: [
+                      { state: 'EnergyShortOfTarget', reads: 'short of the {target} target' },
+                      { state: 'EnergyNotAssessed', reads: 'not assessed' },
+                    ],
+                  },
+                },
+              ],
+            } satisfies VerdictWidget,
+          ],
+        },
+      ],
+      translations: {
+        es: {
+          Balances: 'Balances energéticos',
+          'as judged': 'según se juzga',
+          Energy: 'Energía',
+          days: 'días',
+          'short of the {target} target': 'por debajo del objetivo de {target}',
+          EnergyShortOfTarget: 'NUNCA',
+        },
+      },
+    };
+  }
+
+  const localized = localizeSpec(verdictSpec(), 'es').sections[0].widgets[0] as VerdictWidget;
+  const binding = localized.rows[0].verdicts as Extract<Binding, { kind: 'verdict' }>;
+
+  it('translates the wording each verdict reads as', () => {
+    expect(binding.states[0].reads).toBe('por debajo del objetivo de {target}');
+  });
+
+  it('leaves the placeholders in place for the figures to fill', () => {
+    expect(binding.states[0].reads).toContain('{target}');
+  });
+
+  it('falls back to the base wording a locale does not carry', () => {
+    expect(binding.states[1].reads).toBe('not assessed');
+  });
+
+  // A state name is model vocabulary the platform resolves against, never display text.
+  it('never rewrites the state name, even when a translation entry matches it', () => {
+    expect(binding.states[0].state).toBe('EnergyShortOfTarget');
+  });
+
+  it('translates the widget and row labels around it', () => {
+    expect(localized.title).toBe('Balances energéticos');
+    expect(localized.hint).toBe('según se juzga');
+    expect(localized.rows[0].label).toBe('Energía');
+    expect(localized.rows[0].unit).toBe('días');
   });
 });

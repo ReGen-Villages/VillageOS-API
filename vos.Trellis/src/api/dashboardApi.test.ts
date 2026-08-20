@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type {
+  VosThing,
+  VosRelationship,
+  RangeDto,
+  ThingRangesResponse,
+  CriteriaComparisonDto,
+} from '../types/vos';
 import type { Binding } from '../types/dashboard';
 
 vi.mock('./stateApi', () => ({
@@ -10,8 +16,13 @@ vi.mock('./client', () => ({
   apiClient: { post: vi.fn() },
 }));
 
+vi.mock('./rangeApi', () => ({
+  rangeApi: { getAll: vi.fn() },
+}));
+
 import { stateApi } from './stateApi';
 import { apiClient } from './client';
+import { rangeApi } from './rangeApi';
 import {
   discoverDashboards,
   scopeEntities,
@@ -22,6 +33,7 @@ import {
   filterRows,
   asNumber,
   type ResolveContext,
+  type Row,
 } from './dashboardApi';
 
 /** These fixtures are bare graphs, so stamp the declaration a real model carries the way
@@ -1011,5 +1023,177 @@ describe('service bindings carry the selected scope', () => {
     await resolveBinding({ ...binding, body: { view: 'visit-schedule' }, select: 'rows' }, ctxFor('vil1'));
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', { view: 'visit-schedule' });
+  });
+});
+
+// ---- verdict binding (#6473) --------------------------------------------
+// The target a balance is judged against comes from the range that judges it, never from the spec:
+// a view restating 14 days says the wrong thing the day the range moves.
+describe('verdict binding', () => {
+  const ENERGY_STATES = [
+    { state: 'EnergyNetPositive', reads: '{value} of assumed consumption — meets the {target} target' },
+    { state: 'EnergyShortOfTarget', reads: '{value} of assumed consumption — short of the {target} target' },
+    { state: 'EnergyNotAssessed', reads: 'not assessed' },
+  ];
+
+  function range(Name: string, Criteria: string, comparisons: CriteriaComparisonDto[]): RangeDto {
+    return { Name, Criteria, IsInherited: true, ActiveBindings: 0, Bindings: [], Comparisons: comparisons };
+  }
+
+  const ENERGY_RANGES: RangeDto[] = [
+    range('EnergyNetPositive', 'pctOfConsumption IS KNOWN AND pctOfConsumption >= 100',
+      [{ PropertyName: 'pctOfConsumption', Operator: '>=', Value: 100 }]),
+    range('EnergyShortOfTarget', 'pctOfConsumption IS KNOWN AND pctOfConsumption < 100',
+      [{ PropertyName: 'pctOfConsumption', Operator: '<', Value: 100 }]),
+    range('EnergyNotAssessed', 'pctOfConsumption IS UNKNOWN', []),
+  ];
+
+  /** The judge-ranges sit on the SiteStudy archetype, so every study reads them as inherited. */
+  function rangesResponse(ranges: RangeDto[]): ThingRangesResponse {
+    return {
+      ThingId: 'study1',
+      ThingName: 'Site Study',
+      OwnRanges: [],
+      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', InheritedAt: '', Ranges: ranges, Inherited: [] }],
+    };
+  }
+
+  function studyContext(properties: Record<string, unknown>): ResolveContext {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true },
+      { Id: 'study1', Name: 'Site Study', Properties: properties },
+    ];
+    const relationships: VosRelationship[] = [
+      { Id: 'r1', Name: 'study1 is arch-study', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
+    ];
+    return { idx: buildModelIndex(things, relationships), scopeId: 'study1' };
+  }
+
+  function holding(...states: string[]) {
+    vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) =>
+      ({ Things: states.includes(state) ? [{ Id: 'study1', Name: 'Site Study', Properties: {} }] : [] }) as never,
+    );
+  }
+
+  const binding = { kind: 'verdict', thing: 'study1', states: ENERGY_STATES } as Binding;
+
+  beforeEach(() => {
+    vi.mocked(rangeApi.getAll).mockReset().mockResolvedValue(rangesResponse(ENERGY_RANGES));
+  });
+
+  it('names the target a clearing value was judged against', async () => {
+    holding('EnergyNetPositive');
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 112 })) as Row[];
+
+    expect(rows).toEqual([{
+      state: 'EnergyNetPositive',
+      reads: ENERGY_STATES[0].reads,
+      property: 'pctOfConsumption',
+      operator: '>=',
+      target: 100,
+      value: 112,
+    }]);
+  });
+
+  it('names the target a value that fell short was judged against', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+
+    expect(rows).toEqual([{
+      state: 'EnergyShortOfTarget',
+      reads: ENERGY_STATES[1].reads,
+      property: 'pctOfConsumption',
+      operator: '<',
+      target: 100,
+      value: 73,
+    }]);
+  });
+
+  // The states exist so a site nobody assessed is not read as a site that failed.
+  it('reports a withheld verdict as withheld, with no target and no value', async () => {
+    holding('EnergyNotAssessed');
+
+    const rows = await resolveBinding(binding, studyContext({})) as Row[];
+
+    expect(rows).toEqual([{
+      state: 'EnergyNotAssessed',
+      reads: ENERGY_STATES[2].reads,
+      property: null,
+      operator: null,
+      target: null,
+      value: null,
+    }]);
+  });
+
+  it('reports no verdict at all when the study holds none of the candidates', async () => {
+    holding();
+
+    expect(await resolveBinding(binding, studyContext({ pctOfConsumption: 73 }))).toEqual([]);
+  });
+
+  // Ranges are independent criteria, so several can hold together.
+  it('reports every verdict the study holds, not the first', async () => {
+    holding('EnergyNetPositive', 'EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 100 })) as Row[];
+
+    expect(rows.map((r) => r.state)).toEqual(['EnergyNetPositive', 'EnergyShortOfTarget']);
+  });
+
+  // The side a borderline value falls on is the range's answer, never one the view recomputes.
+  it('takes the verdict from the state the study holds, not from comparing the value itself', async () => {
+    holding('EnergyNetPositive');
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 100 })) as Row[];
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].state).toBe('EnergyNetPositive');
+  });
+
+  it('names the moved target when the range moves, with no change to the spec', async () => {
+    holding('EnergyShortOfTarget');
+    vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([
+      range('EnergyShortOfTarget', 'pctOfConsumption IS KNOWN AND pctOfConsumption < 90',
+        [{ PropertyName: 'pctOfConsumption', Operator: '<', Value: 90 }]),
+    ]));
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+
+    expect(rows[0].target).toBe(90);
+  });
+
+  it('names no target when the range that judged the study cannot be read', async () => {
+    holding('EnergyShortOfTarget');
+    vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([]));
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+
+    expect(rows[0]).toMatchObject({ state: 'EnergyShortOfTarget', target: null, value: null });
+  });
+
+  // A results page reads several balances of one study, whose judge-ranges all sit on its archetype.
+  it('asks for one study\'s ranges once however many balances a refresh reads', async () => {
+    holding('EnergyShortOfTarget');
+    const shared: ResolveContext = {
+      ...studyContext({ pctOfConsumption: 73 }),
+      stateMembers: new Map(),
+      thingRanges: new Map(),
+    };
+
+    await resolveBinding(binding, shared);
+    await resolveBinding(binding, shared);
+
+    expect(vi.mocked(rangeApi.getAll)).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the ranges of the selected scope entity when the spec names no thing', async () => {
+    holding('EnergyShortOfTarget');
+
+    await resolveBinding({ kind: 'verdict', states: ENERGY_STATES } as Binding, studyContext({ pctOfConsumption: 73 }));
+
+    expect(rangeApi.getAll).toHaveBeenCalledWith('study1');
   });
 });

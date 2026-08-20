@@ -43,7 +43,7 @@ export function useResolveContext(
   nonce = 0,
 ): ResolveContext {
   return useMemo(
-    () => ({ idx, scopeId, compareArchetype, nonce, stateMembers: new Map() }),
+    () => ({ idx, scopeId, compareArchetype, nonce, stateMembers: new Map(), thingRanges: new Map() }),
     [idx, scopeId, compareArchetype, nonce],
   );
 }

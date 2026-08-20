@@ -107,6 +107,16 @@ export interface PropertyBindingDto {
   DeviationSeverity?: number;
 }
 
+/** What a range's criteria compare against, read by the platform from the parsed criteria. Empty
+ *  where the criteria name no threshold — a presence test, a pattern, or two properties compared
+ *  with each other. */
+export interface CriteriaComparisonDto {
+  PropertyName: string;
+  /** The operator as the criteria language writes it, e.g. ">=". */
+  Operator: string;
+  Value: unknown;
+}
+
 export interface RangeDto {
   Name: string;
   Criteria: string;
@@ -114,6 +124,7 @@ export interface RangeDto {
   InheritedFromId?: string;
   ActiveBindings: number;
   Bindings: PropertyBindingDto[];
+  Comparisons: CriteriaComparisonDto[];
 }
 
 export interface InheritedRangeSetDto {
