@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
   ThingRangeSummary,
+  ThingRangesResponse,
   RelationshipRangesResponse,
   RelationshipStates,
   RangeDto,
@@ -13,7 +14,7 @@ export const rangeApi = {
     apiClient.get<ThingRangeSummary>(`/api/things/${thingId}/range-summary`),
 
   getAll: (thingId: string) =>
-    apiClient.get<RangeDto[]>(`/api/things/${thingId}/ranges`),
+    apiClient.get<ThingRangesResponse>(`/api/things/${thingId}/ranges`),
 
   get: (thingId: string, rangeName: string) =>
     apiClient.get<RangeDto>(`/api/things/${thingId}/ranges/${encodeURIComponent(rangeName)}`),

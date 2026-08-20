@@ -13,6 +13,7 @@
  * label that happens to match a binding value can never corrupt resolution.
  */
 import type {
+  Binding,
   BulletWidget,
   DashboardSection,
   DashboardSpec,
@@ -25,6 +26,7 @@ import type {
   RelationSpec,
   TableColumn,
   TableWidget,
+  VerdictWidget,
   Widget,
 } from '../types/dashboard';
 import { primarySubtag } from '../i18n/languages';
@@ -52,6 +54,14 @@ export function makeSpecTranslator(spec: DashboardSpec, locale: string): SpecTra
 
 function localizeColumns(columns: TableColumn[] | undefined, tr: SpecTranslator): TableColumn[] | undefined {
   return columns?.map((column) => ({ ...column, label: tr(column.label) }));
+}
+
+/** The wording a verdict reads as is the one display string the vocabulary keeps on a binding, so
+ *  it is translated where every other binding value is not. The state name beside it stays as the
+ *  model wrote it: that one is resolved against the platform's derived states. */
+function localizeVerdicts(binding: Binding, tr: SpecTranslator): Binding {
+  if (binding.kind !== 'verdict') return binding;
+  return { ...binding, states: binding.states.map((c) => ({ ...c, reads: tr(c.reads) })) };
 }
 
 function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
@@ -114,6 +124,20 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
         title: tr(widget.title),
         hint: tr(widget.hint),
         metrics: widget.metrics.map((metric) => ({ ...metric, label: tr(metric.label) })),
+      };
+      return w;
+    }
+    case 'verdict': {
+      const w: VerdictWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        rows: widget.rows.map((row) => ({
+          ...row,
+          label: tr(row.label),
+          unit: tr(row.unit),
+          verdicts: localizeVerdicts(row.verdicts, tr),
+        })),
       };
       return w;
     }

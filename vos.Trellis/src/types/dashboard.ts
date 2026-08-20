@@ -85,6 +85,21 @@ export type Binding =
    *  the rows of one table share those answers, so a status column over a roster costs one
    *  request per listed state per refresh, not one request per row. */
   | { kind: 'stateOf'; states: string[]; thing?: string }
+  /** Which of the listed verdicts a Thing holds, each carrying the target its range judged against.
+   *  Resolves to one row per verdict held, with keys `state`, `reads`, `property`, `operator`,
+   *  `target` and `value`.
+   *
+   *  Unlike `stateOf`, every candidate the Thing holds is reported rather than the first: ranges are
+   *  independent criteria and several can hold at once, and a single-valued answer would hide that.
+   *
+   *  `property`, `operator` and `target` come from the range's own comparison, so the target named is
+   *  the one the model tests and moving it in the model moves what the view says. A range that
+   *  compares nothing — the criteria for a balance nobody assessed — reports them as null, which is
+   *  how a withheld verdict stays distinct from a failed one. `value` is the Thing's own value for
+   *  the property that comparison names, so the figure shown is the figure that was judged.
+   *
+   *  Costs one range read per Thing per refresh, shared across every verdict binding on the page. */
+  | { kind: 'verdict'; states: VerdictCandidate[]; thing?: string }
   /** One binding divided by another — a rate the aggregate ops cannot express, because a ratio of
    *  sums is not a sum of ratios. Resolves to null when the denominator is zero or non-numeric. */
   | { kind: 'ratio'; numerator: Binding; denominator: Binding }
@@ -144,6 +159,20 @@ export interface RelationStep {
   /** Drop reached Things currently in this derived state — how a walk skips the work already
    *  finished and keeps only what is still open. */
   notInState?: string;
+}
+
+/**
+ * A derived state a `verdict` binding asks about, with how it reads in words.
+ *
+ * The wording is the model's, never Trellis's — a client that supplied "falls short of" would be
+ * naming a domain it must stay out of, and would say it in one language for every model. `{value}`
+ * and `{target}` are substituted with the judged figure and the target the range tested it against,
+ * formatted by the row that renders them; a placeholder the verdict has no figure for is dropped
+ * along with the space beside it, which is how the same wording serves an unassessed balance.
+ */
+export interface VerdictCandidate {
+  state: string;
+  reads: string;
 }
 
 export interface PropertyFilter {
@@ -314,6 +343,24 @@ export interface ExceptionWidget {
   note?: string;
 }
 
+/** One judged quantity read as a sentence: what was measured, what it was judged against, and the
+ *  verdict in the model's own words. A row shows every verdict its binding reports. */
+export interface VerdictRow {
+  label: string;
+  verdicts: Binding;
+  /** Applied to both the judged figure and the target, so a sentence cannot show them in
+   *  different units. */
+  format?: NumberFormat;
+  unit?: string;
+}
+
+export interface VerdictWidget {
+  type: 'verdict';
+  title?: string;
+  hint?: string;
+  rows: VerdictRow[];
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -321,6 +368,7 @@ export type Widget =
   | TableWidget
   | GanttWidget
   | LeaderboardWidget
+  | VerdictWidget
   | ExceptionWidget;
 
 export interface DashboardSection {

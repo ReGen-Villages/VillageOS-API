@@ -1051,7 +1051,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
@@ -1420,6 +1420,76 @@ sharing and do cost one request per row. Everything else — `related`,
 `property`, `aggregate`, `ratio` — reads the client-side model index and calls
 nothing.
 
+### Reading a judged value as a sentence
+
+A dashboard figure says what a number is. It does not say what the number was
+judged against, or whether that is good news. The `verdict` widget and the
+`verdict` binding say both, in the model's own words.
+
+**Where the target comes from.** The range that judges the value. A range
+authored as criteria — `daysOfSupply IS KNOWN AND daysOfSupply >= 14` — reports
+the comparison it makes, and the binding reads the property, the operator and
+the number out of that report. So the target a sentence names is the one the
+model tests, and moving the threshold in the model moves what the page says with
+no change to the spec and none to Trellis. A spec that wrote `14` in its own text
+would go on saying 14 the day the range moved.
+
+**Where the verdict comes from.** The derived states the Thing holds. The
+binding never compares the value itself, so a value sitting exactly on a
+threshold falls on the side the range puts it. Every candidate the Thing holds is
+reported, not the first — ranges are independent criteria and several can hold at
+once, unlike `stateOf`, which is single-valued because a status cell has to be.
+
+**A verdict with no figure is not a verdict of zero.** A range whose criteria
+compare nothing — the criteria for a value nothing has computed — reports no
+comparison, and the row then carries no property, no target and no value. The
+wording stands on its own. This is the distinction that matters most in the
+widget: a balance nobody assessed must not read as a balance that failed, and a
+missing figure rendered as `0` would destroy it while looking correct.
+
+```jsonc
+{
+  "type": "verdict",
+  "title": "Balances",
+  "rows": [
+    {
+      "label": "Water",
+      "format": "decimal1",
+      "unit": "days",
+      "verdicts": {
+        "kind": "verdict",
+        "states": [
+          { "state": "WaterResilient",
+            "reads": "{value} of supply — clears the {target} target" },
+          { "state": "WaterShortOfTarget",
+            "reads": "{value} of supply — short of the {target} target" },
+          // No placeholders: nothing computed this balance, so there is no figure to show.
+          { "state": "WaterNotAssessed",
+            "reads": "not assessed — no rainfall figure was resolved for this site" }
+        ]
+      }
+    }
+  ]
+}
+```
+
+Every word of the sentence is the model's. Trellis substitutes `{value}` and
+`{target}`, formats both with the row's `format` and `unit` so one sentence
+cannot mix units, and lays the result out. A placeholder the verdict has no
+figure for is dropped along with the space beside it, which is how one wording
+serves a balance that was assessed and one that never was.
+
+Where there is no wording there is no line. A row whose binding reports no
+verdict, and a verdict carrying no wording — which is what a row bound to
+something other than a `verdict` binding resolves to — are both left unsaid
+rather than filled with a dash or drawn as a blank line. Trellis has no wording
+of its own to put there, and a placeholder would read as an answer.
+
+**Cost.** One range read per Thing per refresh, shared across every verdict row
+on the page the way state reads are — several rows judging one study ask once
+between them. A failed range read leaves the verdicts readable without the
+targets they name, rather than failing the row.
+
 ### Translating a dashboard spec (i18n)
 
 The config-driven operations dashboard (`OperationsPage`) renders every label
@@ -1491,8 +1561,15 @@ and per widget — KPI `title` / `unit` / `targetLabel` / `sparkBaselineLabel` /
 `sublabel`; table & funnel-drill column `label`s and the table `title` / `hint`;
 bullet `title` and each row `label`; gantt `title` / `hint` / `ticks`;
 leaderboard `title` / `hint` and each metric `label`; exception-bar `title` /
-`hint` / `note` and each bucket `label`; and in `detail`, each property-group
-`label` and each relation `label` (nested relations included).
+`hint` / `note` and each bucket `label`; verdict `title` / `hint`, each row
+`label` / `unit`, and the `reads` wording of each candidate its binding lists;
+and in `detail`, each property-group `label` and each relation `label` (nested
+relations included).
+
+`reads` is the one display string the vocabulary keeps on a binding rather than
+on a widget, and it is looked up for exactly that reason: it is the sentence a
+reader reads. The `state` name beside it is not — that one is resolved against
+the platform's derived states, and translating it would break the lookup.
 
 **Which strings are never looked up** (model vocabulary and identifiers — a
 `translations` entry matching one of these is ignored, so it can never corrupt

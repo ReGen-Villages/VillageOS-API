@@ -10,7 +10,7 @@
  * temporalApi / a model-side service). The binding *values* — state names,
  * archetypes, properties — come from the model, never from this file.
  */
-import type { VosThing, VosRelationship, ThingsInStateResponse } from '../types/vos';
+import type { VosThing, VosRelationship, ThingsInStateResponse, ThingRangesResponse } from '../types/vos';
 import {
   DASHBOARD_ARCHETYPE,
   DASHBOARD_SPEC_PROPERTY,
@@ -25,8 +25,10 @@ import {
 } from '../types/dashboard';
 import { stateApi } from './stateApi';
 import { temporalApi } from './temporalApi';
+import { rangeApi } from './rangeApi';
 import { apiClient } from './client';
 import { effectiveProperties } from '../utils/propertyMapper';
+import { findRange } from '../utils/rangeHelpers';
 
 const IS_PREDICATE = 'is';
 /** The spec's reference to "the compare entity currently selected in the scope switcher". */
@@ -286,6 +288,8 @@ export interface ResolveContext {
    *  the context's own — a map outliving the generation would serve a membership the model has
    *  since moved past. */
   stateMembers?: Map<string, Promise<ThingsInStateResponse>>;
+  /** The range reads of one refresh generation, shared and scoped exactly as `stateMembers` is. */
+  thingRanges?: Map<string, Promise<ThingRangesResponse | null>>;
 }
 
 function thingsInState(state: string, ctx: ResolveContext): Promise<ThingsInStateResponse> {
@@ -301,6 +305,26 @@ function thingsInState(state: string, ctx: ResolveContext): Promise<ThingsInStat
 
 async function stateMemberIds(state: string, ctx: ResolveContext): Promise<Set<string>> {
   return new Set((await thingsInState(state, ctx)).Things?.map((t) => t.Id) ?? []);
+}
+
+/** A Thing's ranges, own and inherited, shared across the widgets of one refresh the way state
+ *  reads are. A study's judge-ranges sit on its archetype, so several verdict rows on one page ask
+ *  about one Thing and would otherwise each fetch the same answer. A failed read resolves to null
+ *  rather than rejecting: a verdict the model holds still reads, without the target it names. */
+function thingRanges(thingId: string, ctx: ResolveContext): Promise<ThingRangesResponse | null> {
+  const inFlight = ctx.thingRanges?.get(thingId);
+  if (inFlight) return inFlight;
+  const request = rangeApi.getAll(thingId).catch(() => null);
+  ctx.thingRanges?.set(thingId, request);
+  return request;
+}
+
+/** A cell value as a number, or null where it has none — `num`'s rule about what counts as a number,
+ *  kept in one place so a widget reading a resolved row cannot answer that question differently from
+ *  the resolver that filled it. */
+export function nullableNumber(value: unknown): number | null {
+  const asNumber = num(value);
+  return isNaN(asNumber) ? null : asNumber;
 }
 
 /** Members reachable from the scope entity by following a predicate transitively.
@@ -520,6 +544,32 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         if ((await stateMemberIds(state, ctx)).has(t.Id)) return state;
       }
       return null;
+    }
+
+    case 'verdict': {
+      const judged = referencedThing(binding.thing, ctx);
+      if (!judged) return [];
+      // Asked all at once rather than in turn: unlike `stateOf` there is no priority order to stop
+      // early on, so asking in turn would cost one round trip per candidate for no answer it changes.
+      const membership = await Promise.all(binding.states.map((c) => stateMemberIds(c.state, ctx)));
+      const held = binding.states.filter((_, i) => membership[i].has(judged.Id));
+      if (!held.length) return [];
+
+      const ranges = await thingRanges(judged.Id, ctx);
+      const properties = effectiveProperties(judged, ctx.idx);
+      return held.map((candidate) => {
+        // The first comparison, because a judge-range tests one value; a range that tests none —
+        // the criteria for a balance nobody assessed — leaves the whole sentence without a figure.
+        const judgedAgainst = ranges ? findRange(candidate.state, ranges)?.Comparisons?.[0] : undefined;
+        return {
+          state: candidate.state,
+          reads: candidate.reads,
+          property: judgedAgainst ? judgedAgainst.PropertyName : null,
+          operator: judgedAgainst ? judgedAgainst.Operator : null,
+          target: judgedAgainst ? nullableNumber(judgedAgainst.Value) : null,
+          value: judgedAgainst ? nullableNumber(properties[judgedAgainst.PropertyName]) : null,
+        };
+      });
     }
 
     case 'compareEntities': {
