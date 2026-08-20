@@ -100,6 +100,58 @@ describe('discovery', () => {
   });
 });
 
+/** A model publishing dashboards under the given Thing names, and nothing else. */
+function dashboardModel(names: string[]): { things: VosThing[]; relationships: VosRelationship[] } {
+  const spec = JSON.stringify({ title: 'T', sections: [] });
+  const things: VosThing[] = [
+    { Id: 'is', Name: 'is', Properties: {} },
+    { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
+    ...names.map((Name, i) => ({ Id: `dash-${i}`, Name, Properties: { spec } })),
+  ];
+  const relationships: VosRelationship[] = names.map((_, i) => ({
+    Id: `dash-${i}-is`,
+    Name: `dash-${i} is Dashboard`,
+    SubjectId: `dash-${i}`,
+    PredicateId: 'is',
+    TargetId: 'arch-dash',
+    Properties: {},
+  }));
+  return { things: declared(things, relationships), relationships };
+}
+
+function routeKeys(names: string[]): string[] {
+  const { things, relationships } = dashboardModel(names);
+  return discoverDashboards(things, relationships).map((d) => d.routeKey);
+}
+
+describe('dashboard order and addresses (Story 6582)', () => {
+  it('orders dashboards by name, whatever order the archetype walk answered in', () => {
+    const { things, relationships } = dashboardModel(['Reserves', 'Arrays', 'Springs']);
+
+    expect(discoverDashboards(things, relationships).map((d) => d.name)).toEqual([
+      'Arrays',
+      'Reserves',
+      'Springs',
+    ]);
+  });
+
+  it('derives an address from the name, running the words together', () => {
+    expect(routeKeys(['Site catchments'])).toEqual(['site-catchments']);
+  });
+
+  it('folds accents onto their base letters rather than dropping the word', () => {
+    expect(routeKeys(['Réservoirs'])).toEqual(['reservoirs']);
+  });
+
+  it('keeps a distinct address for each of two names that reduce to the same one', () => {
+    expect(routeKeys(['Spring flow', 'Spring-flow']).sort()).toEqual(['dash-0', 'dash-1']);
+  });
+
+  it('falls back to the Thing id where a name leaves nothing an address can carry', () => {
+    expect(routeKeys(['المصادر'])).toEqual(['dash-0']);
+  });
+});
+
 // Bug #5942: archetypes are subtyped (Resident is Party, GardenPlot is Location),
 // so membership must be transitive over the is-chain and count instances only.
 describe('thingIdsOfArchetype (transitive, instances-only)', () => {

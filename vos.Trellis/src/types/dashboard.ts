@@ -254,7 +254,9 @@ export interface TableWidget {
   /** Column key to sort by initially. */
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
-  /** Cap the table body at this many rows; further rows scroll vertically under the pinned header. */
+  /** Cap the table body at this many rows; further rows scroll vertically under the pinned header.
+   *  Only the rows inside that window reach the document, so the cap is also what lets a roster
+   *  binding drop its `limit` — sorting and searching still run over every row it returned. */
   visibleRows?: number;
   /** Show a search box above the table that filters its rows. */
   searchable?: boolean;
@@ -408,6 +410,10 @@ export type SpecTranslations = Record<string, Record<string, string>>;
 export interface DashboardSpec {
   title: string;
   subtitle?: string;
+  /** Name of the icon the navigation entry draws, from the set Trellis renders with — the same
+   *  presentation vocabulary the spec already carries as colours and number formats. A spec that
+   *  names none, or names one Trellis cannot draw, gets a generic icon rather than no entry. */
+  icon?: string;
   compare?: CompareConfig;
   sections: DashboardSection[];
   /** Re-resolve every binding on this cadence, on top of the live-event refresh. Time-anchored
@@ -424,6 +430,10 @@ export interface DashboardSpec {
 export interface DashboardDescriptor {
   id: string;
   name: string;
+  /** The URL segment this dashboard answers to, under `/operations`. Derived from the Thing's name
+   *  so a link survives a reseeded model, and language-independent so an address does not change
+   *  when the reader's language does. */
+  routeKey: string;
   spec: DashboardSpec;
 }
 

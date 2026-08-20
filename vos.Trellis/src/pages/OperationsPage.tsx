@@ -8,15 +8,12 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard } from 'lucide-react';
+import { Navigate, useParams } from 'react-router-dom';
 import { useTranslation, Trans } from 'react-i18next';
 import { useModelStore } from '../stores/modelStore';
 import { useSse } from '../hooks/useSse';
-import { useResolveContext } from '../hooks/useDashboard';
-import {
-  buildModelIndex,
-  discoverDashboardsFromIndex,
-  scopeEntities as computeScopeEntities,
-} from '../api/dashboardApi';
+import { useDashboards, useModelIndex, useResolveContext } from '../hooks/useDashboard';
+import { scopeEntities as computeScopeEntities } from '../api/dashboardApi';
 import { localizeSpec } from '../api/dashboardLocalization';
 import type { DashboardSection } from '../types/dashboard';
 import { WidgetRenderer } from '../components/dashboard/widgets/WidgetRenderer';
@@ -50,17 +47,13 @@ function useIsWide(minWidth = 1024): boolean {
 }
 
 export function OperationsPage() {
-  const things = useModelStore((s) => s.things);
-  const relationships = useModelStore((s) => s.relationships);
   const loaded = useModelStore((s) => s.loaded);
   const { on, connected } = useSse();
 
-  // One shared index per model change, reused by discovery, scope, and resolution —
-  // instead of rebuilding it (over the whole model) three separate times.
-  const idx = useMemo(() => buildModelIndex(things, relationships), [things, relationships]);
-  const dashboards = useMemo(() => discoverDashboardsFromIndex(idx), [idx]);
-  const [selected, setSelected] = useState(0);
-  const dashboard = dashboards[Math.min(selected, Math.max(0, dashboards.length - 1))];
+  const idx = useModelIndex();
+  const dashboards = useDashboards();
+  const { dashboardKey } = useParams();
+  const dashboard = dashboards.find((d) => d.routeKey === dashboardKey);
   const { t, i18n } = useTranslation();
   const spec = useMemo(
     () => (dashboard ? localizeSpec(dashboard.spec, i18n.language) : undefined),
@@ -101,6 +94,11 @@ export function OperationsPage() {
   if (!loaded) {
     return <Centered>{t('modelPage.loading')}</Centered>;
   }
+  // An address naming no dashboard the model publishes — `/operations` itself, or a link to a
+  // dashboard since renamed — settles on the first one, and says so in the address bar.
+  if (!dashboard && dashboards.length > 0) {
+    return <Navigate to={`/operations/${dashboards[0].routeKey}`} replace />;
+  }
   if (!spec) {
     return (
       <Centered>
@@ -133,19 +131,6 @@ export function OperationsPage() {
             <h2 className="text-xl font-bold text-zinc-900 dark:text-white leading-tight">{spec.title}</h2>
             {spec.subtitle && <div className="text-xs text-zinc-400 dark:text-zinc-500">{spec.subtitle}</div>}
           </div>
-          {dashboards.length > 1 && (
-            <select
-              value={selected}
-              onChange={(e) => setSelected(Number(e.target.value))}
-              className="ml-2 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1"
-            >
-              {dashboards.map((d, i) => (
-                <option key={d.id} value={i}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          )}
         </div>
 
         <div className="flex items-center gap-3">
