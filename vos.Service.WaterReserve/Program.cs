@@ -57,7 +57,7 @@ try
 
     // Recompute when an input moves, so a study's result never presents a stale number as current.
     builder.Services.AddInputChangeRecompute<WaterReserveReactiveHandler>(
-        "WaterReserve", myceliumUrl, serviceToken, WaterReserveReactiveHandler.InputProperties,
+        "WaterReserve", myceliumUrl, serviceToken, _ => WaterReserveReactiveHandler.InputProperties,
         (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
 
     builder.Services.AddMyceliumRegistration("WaterReserve", servicePort);

@@ -55,7 +55,7 @@ try
     // writes to — the split lives on the allocations beside it — so the handler names those Things when
     // it watches (#6539), and re-names them on every recompute because a planner can add or remove one.
     builder.Services.AddInputChangeRecompute<LandAllocationReactiveHandler>(
-        "LandAllocation", myceliumUrl, serviceToken, LandAllocationReactiveHandler.InputProperties,
+        "LandAllocation", myceliumUrl, serviceToken, _ => LandAllocationReactiveHandler.InputProperties,
         (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
 
     builder.Services.AddMyceliumRegistration("LandAllocation", servicePort);

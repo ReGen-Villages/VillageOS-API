@@ -1,28 +1,36 @@
 namespace vos.Service.RainwaterHarvest.Services;
 
+/// <summary>One demand the harvest has to serve, sized as a quantity times a rate: residents times cubic
+/// metres a person a year, growing hectares times cubic metres a hectare a year. Which demands there are
+/// and the order they arrive in is the model's answer, read before this is called.</summary>
+public sealed record DemandToServe(string Name, double Quantity, double Rate);
+
+/// <summary>What one demand asked for, how much of it the harvest reached, and what is left uncovered.
+/// A shortfall is zero when the demand is met and never negative — a surplus is read off the harvest
+/// against the whole demand, not off a component that has already been filled.</summary>
+public sealed record ServedDemand(
+    string Name, double DemandM3PerYear, double PctCovered, double ShortfallM3PerYear);
+
 public sealed record RainwaterHarvestInputs(
     double BuiltFootprintHectares,
     double RainfallMillimetresPerYear,
     double RunoffCoefficient,
-    double PopulationResidents,
-    double PerCapitaConsumptionM3PerYear,
-    double ProductiveFootprintHectares,
-    double IrrigationDemandM3PerHectarePerYear);
+    IReadOnlyList<DemandToServe> Demands);
 
 public sealed record RainwaterHarvestOutputs(
     double HarvestM3PerYear,
-    double DomesticDemandM3PerYear,
-    double IrrigationDemandM3PerYear,
     double TotalWaterDemandM3PerYear,
-    double PctOfWaterDemand);
+    double PctOfWaterDemand,
+    IReadOnlyList<ServedDemand> Served);
 
-// How much rain the hard surface can capture in a year, and how far that goes against what the site
-// drinks and what it irrigates.
+// How much rain the hard surface can capture in a year, and how far that goes against each demand the
+// site puts on it.
 //
-// The two demand components are separate outputs, and that is the whole point of the service. Irrigation
-// usually dwarfs domestic demand, so a site with abundant drinking water and a marginal irrigation
-// position reports the same combined percentage as one that is uniformly short — and the two call for
-// opposite decisions. The tool this replaces reported only the combined figure.
+// The harvest is one body of water. Measuring it against each demand on its own would count the same
+// cubic metre once per demand — Willow Bend would read 282% of its drinking water and 122% of its
+// irrigation while holding less than either pair of figures claims. So the demands are served in turn:
+// each takes what it needs from what is left, and the coverages then describe one volume rather than
+// several claims on it.
 //
 // A hectare is ten thousand square metres and a millimetre of rain is a thousandth of a metre, so the
 // two conversions leave a factor of ten between hectare-millimetres and cubic metres.
@@ -35,15 +43,25 @@ public static class RainwaterHarvestCalculator
         var harvest = input.BuiltFootprintHectares * input.RainfallMillimetresPerYear
                       * input.RunoffCoefficient * CubicMetresPerHectareMillimetre;
 
-        var domesticDemand = input.PopulationResidents * input.PerCapitaConsumptionM3PerYear;
-        var irrigationDemand = input.ProductiveFootprintHectares * input.IrrigationDemandM3PerHectarePerYear;
-        var totalWaterDemand = domesticDemand + irrigationDemand;
+        var served = new List<ServedDemand>(input.Demands.Count);
+        var unclaimed = harvest;
+        var totalWaterDemand = 0.0;
 
-        // A site that drinks nothing and irrigates nothing is not short of water, which is a share of
-        // nothing rather than a division.
-        var pctOfWaterDemand = totalWaterDemand > 0 ? harvest / totalWaterDemand * 100.0 : 0.0;
+        foreach (var demand in input.Demands)
+        {
+            var size = demand.Quantity * demand.Rate;
+            var taken = Math.Min(unclaimed, size);
+            unclaimed -= taken;
+            totalWaterDemand += size;
 
-        return new RainwaterHarvestOutputs(
-            harvest, domesticDemand, irrigationDemand, totalWaterDemand, pctOfWaterDemand);
+            // A demand of nothing is met by nothing, which is a share of nothing rather than a division.
+            // Reported as zero rather than as the infinity or the not-a-number the division would give,
+            // either of which a range would read as a verdict.
+            served.Add(new ServedDemand(demand.Name, size,
+                size > 0 ? taken / size * 100.0 : 0.0, size - taken));
+        }
+
+        return new RainwaterHarvestOutputs(harvest, totalWaterDemand,
+            totalWaterDemand > 0 ? harvest / totalWaterDemand * 100.0 : 0.0, served);
     }
 }

@@ -522,7 +522,7 @@ public class InputChangeRecomputeServiceTests
         services.AddSingleton(spy);
         services.AddInputChangeRecompute<RecomputeSpy>(
             "TestCompute", "http://mycelium", serviceToken: null,
-            new HashSet<string>(StringComparer.Ordinal) { "population" },
+            _ => new HashSet<string>(StringComparer.Ordinal) { "population" },
             (handler, subjectId, _) => handler.RecordAsync(subjectId));
 
         return services.BuildServiceProvider();
@@ -558,7 +558,7 @@ public class InputChangeRecomputeServiceTests
             var failNext = failFirstRecompute;
             var inputs = new RecomputeInputs(
                 "TestCompute",
-                new HashSet<string>(StringComparer.Ordinal) { "population", "storageCapacityM3" },
+                () => new HashSet<string>(StringComparer.Ordinal) { "population", "storageCapacityM3" },
                 (subjectId, _) =>
                 {
                     var observed = new Recompute(subjectId, MyceliumModelToken.Current);

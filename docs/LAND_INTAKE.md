@@ -717,16 +717,25 @@ Two different questions, and a service each.
   Self-sufficiency = 49,728 ÷ 58,400                              = 85%
 ```
 
-That single 85% hides the most useful fact on the page. Split it:
+That single 85% hides the most useful fact on the page. It cannot be split by measuring the harvest
+against each demand on its own — one body of water serves both, so that counts the same cubic metre twice
+and reports 283% and 122%, which between them claim nearly four times the water there is.
+
+The demands are served in the order the model states: drinking water first, irrigation from what is left.
 
 ```text
-  Against domestic demand alone   49,728 ÷ 17,600  =  283%   ← comfortable
-  Against irrigation alone        49,728 ÷ 40,800  =  122%   ← the constraint
+  Domestic     takes 17,600 of the 49,728        covered 100%,  short      0 m³/yr
+  Irrigation   takes the 32,128 left, of 40,800  covered  79%,  short  8,672 m³/yr
 ```
 
-Willow Bend has abundant drinking water and a marginal irrigation position. A site with the same
-overall 85% could be the exact opposite. **This is why the service writes its demand components as
-separate outputs** — the combined percentage is not actionable.
+Willow Bend has abundant drinking water and a marginal irrigation position, and the study now says so
+with a figure a planner can act on: 8,672 m³ a year has to come from somewhere else. A site with the same
+overall 85% could be the exact opposite.
+
+**Which demands there are, the order they are served in, and the properties each is read from and written
+to are Things in the shared analysis template**, not a list inside the service. Every demand is a quantity
+times a rate — residents times cubic metres a person, growing hectares times cubic metres a hectare — so a
+third demand is a template edit rather than a service change and a redeploy.
 
 The domestic figure is `perCapitaConsumptionM3` on the shared study archetype — the same water-per-person
 assumption the storage question reads. Two services asking two questions of one figure is what keeps a

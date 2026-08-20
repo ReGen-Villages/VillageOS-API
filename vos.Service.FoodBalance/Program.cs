@@ -54,7 +54,7 @@ try
     // Recompute when an input moves. The productive footprint is one of them, so a re-run of land
     // allocation carries through to this balance without anything dispatching it again.
     builder.Services.AddInputChangeRecompute<FoodBalanceReactiveHandler>(
-        "FoodBalance", myceliumUrl, serviceToken, FoodBalanceReactiveHandler.InputProperties,
+        "FoodBalance", myceliumUrl, serviceToken, _ => FoodBalanceReactiveHandler.InputProperties,
         (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
 
     builder.Services.AddMyceliumRegistration("FoodBalance", servicePort);
