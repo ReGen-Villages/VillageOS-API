@@ -1051,7 +1051,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations` | `OperationsPage` | Config-driven operations dashboard. Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
@@ -1288,6 +1288,63 @@ Four components on `DashboardPage`:
 Service health badges (Healthy/Unhealthy/Unreachable/Unknown) and the
 running/stopped pill follow the color scheme documented in
 [Section 7.2](#72-services).
+
+### A model's dashboards in the navigation
+
+A model publishes as many `Dashboard` Things as it likes, and each one is a page a
+reader needs to find, link to, and come back to. Three things follow.
+
+**One sidebar entry per dashboard.** Where the sidebar shows a single **Operations**
+entry for a model that publishes no dashboard, a model that publishes some gets one
+entry each in its place, ordered by name. The entry is labelled with the dashboard's
+`title`, translated like every other display string in the spec, so the navigation
+reads in the reader's language.
+
+**Each entry draws the icon its spec names.** `DashboardSpec` takes an optional
+top-level `icon`, the name of an icon in the set Trellis renders with — the
+[lucide](https://lucide.dev/icons) catalogue, in that catalogue's own spelling
+(`clipboard-list`, `arrow-left-right`). This is presentation vocabulary the spec
+carries exactly as it already carries colours and number formats; Trellis holds no
+list of the names it will accept, so a model can name any icon in the set without a
+change here. A spec naming none — or naming one the set does not have — gets a
+generic icon, never a missing entry.
+
+```jsonc
+{
+  "title": "Catchments",
+  "icon": "droplet",
+  "sections": [ /* … */ ]
+}
+```
+
+**The route names the dashboard.** A dashboard lives at `/operations/{key}`, where
+the key is the `Dashboard` Thing's name run together as a URL segment (`Site
+catchments` → `site-catchments`); accents fold onto their base letters, and a name
+that leaves nothing a segment can carry falls back to the Thing's id, as do two
+names that would reduce to the same key. So a page can be linked to, opened in a
+second tab, and returned to after a reload. `/operations` on its own, and any
+address naming a dashboard the model no longer publishes, settle on the first one
+and say so in the address bar.
+
+The sidebar and the page read **one** model index between them (`useModelIndex`),
+and the dashboards it found are parsed once and remembered on it. Discovery walks
+the whole model, so two readers holding their own index would walk it twice on every
+model change.
+
+### The rows a table renders
+
+A `table` widget given `visibleRows` scrolls its body under a pinned header — and
+renders only the rows inside that window, plus a few above and below, with sized
+spacer rows holding the rest of the scroll height. What a table puts in the document
+therefore stops growing with the row count, which is what lets a roster binding drop
+its `limit`: the page stays responsive over an archetype of any size, and **sorting
+and searching still run over every row the binding returned**, not over the rows on
+screen.
+
+The window needs a row height, which it takes from a rendered row measured with a
+`ResizeObserver`, falling back to the height the cap's own CSS implies until one is
+measured. A table with no `visibleRows` has no bounded container to measure against
+and renders every row, as before.
 
 ### Columns beyond a Thing's own properties
 

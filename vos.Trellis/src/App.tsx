@@ -39,6 +39,7 @@ function AuthenticatedApp() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/operations" element={<OperationsPage />} />
+            <Route path="/operations/:dashboardKey" element={<OperationsPage />} />
             <Route path="/graph" element={<GraphPage />} />
             <Route path="/temporal" element={<TemporalPage />} />
             <Route path="/properties" element={<PropertySearchPage />} />

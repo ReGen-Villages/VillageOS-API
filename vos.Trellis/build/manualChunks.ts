@@ -34,6 +34,15 @@ export function pickChunk(id: string): string | undefined {
     return 'vendor-react';
   }
 
+  // The icon set is kept out of `vendor` because a model names the icon for each dashboard it
+  // publishes, so every icon has to be present rather than only the ones this source names. Folded
+  // into `vendor` it takes that chunk past the size warning; on its own it stays legible in the
+  // build output as what it is. It is loaded with the first page either way — the app's own icons
+  // come from the same modules — so this splits the bytes out, it does not defer them.
+  if (id.includes('node_modules/lucide-react/dist/esm/icons/')) {
+    return 'vendor-icons';
+  }
+
   if (id.includes('node_modules/')) {
     return 'vendor';
   }

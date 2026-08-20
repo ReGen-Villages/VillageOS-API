@@ -13,6 +13,16 @@ import { formatNumber, badgeTone } from './format';
    depend on the data, so no constant is right for every table. */
 const BODY_ROW_HEIGHT = '(1.5em + 1rem + 1px)';
 
+/* The same box in pixels at the `text-[12.5px]` the scroll container sets, which is what the row
+   window assumes until a rendered row reports its own height — and what it keeps assuming where no
+   ResizeObserver reports one. Being a few pixels out only shifts the window by less than the
+   overscan absorbs; the spacers use the same number, so the scroll height stays consistent with it. */
+const ESTIMATED_BODY_ROW_HEIGHT = 12.5 * 1.5 + 16 + 1;
+
+/* Rows kept in the document on each side of the cap, so a scroll of a frame's worth reveals a row
+   that is already there rather than a gap. */
+const OVERSCAN_ROWS = 6;
+
 /** Sortable, generic data table driven by a rows binding + column spec.
  *  Rows can come from a `rowsBinding` (resolved here) or be passed in directly
  *  via `rows` (e.g. the funnel's cross-stage search results). */
@@ -47,6 +57,8 @@ export function DataTable({
 }) {
   const { loading, value } = useBinding(rowsBinding, ctx);
   const [headerRef, headerHeight] = useElementHeight();
+  const [bodyRowRef, measuredRowHeight] = useElementHeight();
+  const [scrollTop, setScrollTop] = useState(0);
   const resolved = rowsProp ?? asRows(value);
   const rows = useMemo(() => filterRows(resolved, query, searchKeys), [resolved, query, searchKeys]);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({
@@ -80,6 +92,18 @@ export function DataTable({
     return m;
   }, [rows, columns]);
 
+  /* Only a capped table owns a scroll container of a known height, so only a capped table can say
+     which rows are in view. Sorting and searching stay over the whole list: what a row cap bounds is
+     the document, never the rows a reader can reach. */
+  const rowHeight = measuredRowHeight || ESTIMATED_BODY_ROW_HEIGHT;
+  const windowSize = visibleRows ? visibleRows + 2 * OVERSCAN_ROWS : 0;
+  const windowed = windowSize > 0 && sorted.length > windowSize;
+  const firstShown = windowed
+    ? Math.min(Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN_ROWS), sorted.length - windowSize)
+    : 0;
+  const shown = windowed ? sorted.slice(firstShown, firstShown + windowSize) : sorted;
+  const rowsBelow = sorted.length - firstShown - shown.length;
+
   function toggleSort(key: string, numeric?: boolean) {
     setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: numeric ? -1 : 1 }));
   }
@@ -97,6 +121,7 @@ export function DataTable({
       <div
         className={`overflow-x-auto text-[12.5px] ${visibleRows ? 'overflow-y-auto' : ''}`}
         style={visibleRows ? { maxHeight: `calc(${headerHeight}px + ${visibleRows} * ${BODY_ROW_HEIGHT})` } : undefined}
+        onScroll={windowed ? (e) => setScrollTop(e.currentTarget.scrollTop) : undefined}
       >
         <table className="w-full border-collapse" style={{ minWidth }}>
           <thead>
@@ -116,9 +141,11 @@ export function DataTable({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((r, i) => (
+            <SpacerRow height={firstShown * rowHeight} columnCount={columns.length} />
+            {shown.map((r, i) => (
               <tr
                 key={(r.id as string) ?? i}
+                ref={windowed && i === 0 ? bodyRowRef : undefined}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
                 className={`hover:bg-zinc-50 dark:hover:bg-zinc-700/40 ${onRowClick ? 'cursor-pointer' : ''}`}
               >
@@ -134,11 +161,23 @@ export function DataTable({
                 ))}
               </tr>
             ))}
+            <SpacerRow height={rowsBelow * rowHeight} columnCount={columns.length} />
           </tbody>
         </table>
       </div>
       {footnote && <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-2">{footnote}</div>}
     </div>
+  );
+}
+
+/** Stands in for the rows outside the window, so the scrollbar measures the whole list. Hidden from
+ *  assistive technology, which reads the rows themselves and has nothing to read here. */
+function SpacerRow({ height, columnCount }: { height: number; columnCount: number }) {
+  if (height <= 0) return null;
+  return (
+    <tr aria-hidden="true">
+      <td colSpan={columnCount} style={{ height, padding: 0, border: 0 }} />
+    </tr>
   );
 }
 

@@ -65,6 +65,10 @@ export interface ModelIndex {
    *  discarded with the index it belongs to. The walk is over a hierarchy that cannot change
    *  without a new index, and a per-row binding repeats the same question once per row. */
   archetypeMembers: Map<string, Set<string>>;
+  /** The model's dashboards, parsed the first time they are asked for and discarded with the index.
+   *  The navigation and the page both ask, and a spec is JSON in a property — parsing every one of
+   *  them twice per model change is work neither reader needs done again. */
+  dashboards: DashboardDescriptor[] | null;
 }
 
 export function buildModelIndex(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
@@ -111,7 +115,22 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
     predicateNameToId, predicateIdToName, isChildren, archetypeIds, isParents,
     archetypeMembers: new Map(),
     adjacencyByPredicate: new Map(),
+    dashboards: null,
   };
+}
+
+/** The one index built for a given model, shared by everything that reads it. Two components hold
+ *  the same model arrays and would otherwise each walk the whole model on every change; sharing one
+ *  index also shares the answers it remembers as they are asked for. */
+let sharedIndex: { things: VosThing[]; relationships: VosRelationship[]; index: ModelIndex } | null = null;
+
+export function modelIndexFor(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
+  if (sharedIndex && sharedIndex.things === things && sharedIndex.relationships === relationships) {
+    return sharedIndex.index;
+  }
+  const index = buildModelIndex(things, relationships);
+  sharedIndex = { things, relationships, index };
+  return index;
 }
 
 /** Thing id → the ids one predicate reaches from it, in the asked-for direction. */
@@ -178,15 +197,39 @@ export function thingsOfArchetype(archetype: string, idx: ModelIndex): VosThing[
 
 /** Discover dashboards from an already-built model index. Prefer this on the hot path
  *  so the caller can share one index across discovery, scope, and binding resolution
- *  instead of rebuilding it three times per model change. */
+ *  instead of rebuilding it three times per model change.
+ *
+ *  Ordered by name: the archetype walk answers in no order a reader chose, so without this a
+ *  dashboard's position in the navigation would move whenever the model changed. */
 export function discoverDashboardsFromIndex(idx: ModelIndex): DashboardDescriptor[] {
-  const out: DashboardDescriptor[] = [];
-  for (const t of thingsOfArchetype(DASHBOARD_ARCHETYPE, idx)) {
-    const raw = effectiveProperties(t, idx)[DASHBOARD_SPEC_PROPERTY];
-    const spec = parseSpec(raw);
-    if (spec) out.push({ id: t.Id, name: t.Name, spec });
+  if (idx.dashboards) return idx.dashboards;
+  const found: { thing: VosThing; spec: DashboardSpec }[] = [];
+  for (const thing of thingsOfArchetype(DASHBOARD_ARCHETYPE, idx)) {
+    const spec = parseSpec(effectiveProperties(thing, idx)[DASHBOARD_SPEC_PROPERTY]);
+    if (spec) found.push({ thing, spec });
   }
+  found.sort((a, b) => a.thing.Name.localeCompare(b.thing.Name));
+  const slugs = found.map((d) => slugOf(d.thing.Name));
+  const out = found.map((d, i) => ({
+    id: d.thing.Id,
+    name: d.thing.Name,
+    routeKey: slugs[i] && slugs.indexOf(slugs[i]) === slugs.lastIndexOf(slugs[i]) ? slugs[i] : d.thing.Id,
+    spec: d.spec,
+  }));
+  idx.dashboards = out;
   return out;
+}
+
+/** A Thing's name reduced to what a URL segment can carry: accents folded onto their base letters,
+ *  everything else run together with single hyphens. Empty when the name is written in a script
+ *  this leaves nothing of, which is why the caller keeps the Thing's id as the fallback. */
+function slugOf(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 export function discoverDashboards(
