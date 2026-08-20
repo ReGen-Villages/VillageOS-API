@@ -197,6 +197,23 @@ describe('DataTable row window (Bug 6583)', () => {
     expect(rowNames(scroller)).toEqual(['Location 480']);
   });
 
+  it('follows the container back to the top when a search narrows the list inside the cap', () => {
+    const rows: Row[] = Array.from({ length: 500 }, (_, i) => ({ id: `location-${i}`, name: `Location ${i}`, units: i }));
+    const table = (query?: string) => (
+      <DataTable columns={columns} rows={rows} ctx={{} as ResolveContext} visibleRows={10} sortKey="units" sortDir="asc" query={query} />
+    );
+    const { container, rerender } = render(table());
+    const scroller = container.querySelector('.overflow-x-auto') as HTMLElement;
+    act(() => observer.report({ height: REPORTED_ROW_HEIGHT }));
+    scrollTo(scroller, 300 * REPORTED_ROW_HEIGHT);
+
+    rerender(table('Location 480'));
+    scrollTo(scroller, 0);
+    rerender(table());
+
+    expect(rowNames(container.querySelector('.overflow-x-auto') as HTMLElement)).toContain('Location 0');
+  });
+
   it('renders every row when the list fits inside the cap', () => {
     const scroller = renderTable({ visibleRows: 10, rowCount: 12, sortKey: 'units', sortDir: 'asc' });
 

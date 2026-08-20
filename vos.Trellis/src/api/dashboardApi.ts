@@ -119,17 +119,23 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
   };
 }
 
+/** Keyed on the two arrays a model is held in, so an index — and everything it went on to
+ *  remember — is collected with the model it describes rather than outliving it. */
+const indexesByModel = new WeakMap<VosThing[], WeakMap<VosRelationship[], ModelIndex>>();
+
 /** The one index built for a given model, shared by everything that reads it. Two components hold
  *  the same model arrays and would otherwise each walk the whole model on every change; sharing one
  *  index also shares the answers it remembers as they are asked for. */
-let sharedIndex: { things: VosThing[]; relationships: VosRelationship[]; index: ModelIndex } | null = null;
-
 export function modelIndexFor(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
-  if (sharedIndex && sharedIndex.things === things && sharedIndex.relationships === relationships) {
-    return sharedIndex.index;
+  let byRelationships = indexesByModel.get(things);
+  if (!byRelationships) {
+    byRelationships = new WeakMap();
+    indexesByModel.set(things, byRelationships);
   }
+  const built = byRelationships.get(relationships);
+  if (built) return built;
   const index = buildModelIndex(things, relationships);
-  sharedIndex = { things, relationships, index };
+  byRelationships.set(relationships, index);
   return index;
 }
 
@@ -210,10 +216,12 @@ export function discoverDashboardsFromIndex(idx: ModelIndex): DashboardDescripto
   }
   found.sort((a, b) => a.thing.Name.localeCompare(b.thing.Name));
   const slugs = found.map((d) => slugOf(d.thing.Name));
+  const bearers = new Map<string, number>();
+  for (const slug of slugs) bearers.set(slug, (bearers.get(slug) ?? 0) + 1);
   const out = found.map((d, i) => ({
     id: d.thing.Id,
     name: d.thing.Name,
-    routeKey: slugs[i] && slugs.indexOf(slugs[i]) === slugs.lastIndexOf(slugs[i]) ? slugs[i] : d.thing.Id,
+    routeKey: slugs[i] && bearers.get(slugs[i]) === 1 ? slugs[i] : d.thing.Id,
     spec: d.spec,
   }));
   idx.dashboards = out;

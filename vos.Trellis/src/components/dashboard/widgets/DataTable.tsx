@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type UIEvent } from 'react';
 import type { Binding, TableColumn } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
 import { asRows, filterRows } from '../../../api/dashboardApi';
@@ -13,14 +13,16 @@ import { formatNumber, badgeTone } from './format';
    depend on the data, so no constant is right for every table. */
 const BODY_ROW_HEIGHT = '(1.5em + 1rem + 1px)';
 
-/* The same box in pixels at the `text-[12.5px]` the scroll container sets, which is what the row
-   window assumes until a rendered row reports its own height — and what it keeps assuming where no
-   ResizeObserver reports one. Being a few pixels out only shifts the window by less than the
-   overscan absorbs; the spacers use the same number, so the scroll height stays consistent with it. */
+/* The same box in pixels at the `text-[12.5px]` the scroll container sets. The row window assumes
+   it until a rendered row reports its own height, and keeps assuming it where no ResizeObserver
+   reports one — without an assumption the first paint of a long list would put every row in the
+   document, which is the cost this exists to avoid. The spacers assume the same number, so they
+   place the window exactly; only the rows actually rendered can drift, which is why being a few
+   pixels out stays inside the overscan however far the list is scrolled. */
 const ESTIMATED_BODY_ROW_HEIGHT = 12.5 * 1.5 + 16 + 1;
 
-/* Rows kept in the document on each side of the cap, so a scroll of a frame's worth reveals a row
-   that is already there rather than a gap. */
+/* Rows kept in the document above and below the cap, so a small scroll reveals a row that is
+   already there rather than a gap waiting for the next render. */
 const OVERSCAN_ROWS = 6;
 
 /** Sortable, generic data table driven by a rows binding + column spec.
@@ -58,7 +60,7 @@ export function DataTable({
   const { loading, value } = useBinding(rowsBinding, ctx);
   const [headerRef, headerHeight] = useElementHeight();
   const [bodyRowRef, measuredRowHeight] = useElementHeight();
-  const [scrollTop, setScrollTop] = useState(0);
+  const [firstVisibleRow, setFirstVisibleRow] = useState(0);
   const resolved = rowsProp ?? asRows(value);
   const rows = useMemo(() => filterRows(resolved, query, searchKeys), [resolved, query, searchKeys]);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({
@@ -99,10 +101,21 @@ export function DataTable({
   const windowSize = visibleRows ? visibleRows + 2 * OVERSCAN_ROWS : 0;
   const windowed = windowSize > 0 && sorted.length > windowSize;
   const firstShown = windowed
-    ? Math.min(Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN_ROWS), sorted.length - windowSize)
+    ? Math.min(Math.max(0, firstVisibleRow - OVERSCAN_ROWS), sorted.length - windowSize)
     : 0;
   const shown = windowed ? sorted.slice(firstShown, firstShown + windowSize) : sorted;
   const rowsBelow = sorted.length - firstShown - shown.length;
+
+  /* The position is kept as a row index, not as the pixel offset it is read from: a scroll within
+     one row leaves it unchanged and costs no render, so scrolling re-renders once per row crossed
+     rather than once per frame.
+
+     Followed whenever a capped table scrolls, not only while it is windowed — a search that narrows
+     the list inside the cap sends the container back to the top, and the remembered position has to
+     come back with it, or clearing the search would show rows the scrollbar disagrees with. */
+  const followScroll = visibleRows
+    ? (event: UIEvent<HTMLDivElement>) => setFirstVisibleRow(Math.floor(event.currentTarget.scrollTop / rowHeight))
+    : undefined;
 
   function toggleSort(key: string, numeric?: boolean) {
     setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: numeric ? -1 : 1 }));
@@ -121,7 +134,7 @@ export function DataTable({
       <div
         className={`overflow-x-auto text-[12.5px] ${visibleRows ? 'overflow-y-auto' : ''}`}
         style={visibleRows ? { maxHeight: `calc(${headerHeight}px + ${visibleRows} * ${BODY_ROW_HEIGHT})` } : undefined}
-        onScroll={windowed ? (e) => setScrollTop(e.currentTarget.scrollTop) : undefined}
+        onScroll={followScroll}
       >
         <table className="w-full border-collapse" style={{ minWidth }}>
           <thead>

@@ -111,10 +111,19 @@ function NavItem({
   );
 }
 
+/* Membership is asked once per navigation entry on every render, against every name the icon set
+   ships — a scan of the list would repeat that walk each time. */
+const ICON_NAMES: ReadonlySet<string> = new Set(iconNames);
+
+/** Declared once so the icon still being fetched is the same element across renders. */
+function GenericIcon() {
+  return <Gauge size={18} />;
+}
+
 /** The icon a spec asks for, loaded on demand so a model can name any icon in the set without
  *  Trellis holding a list of the ones it will accept. A name the set does not have — or none at
  *  all — draws the generic dashboard icon, so the entry is never missing. */
 function SpecIcon({ name }: { name?: string }) {
-  if (!name || !(iconNames as readonly string[]).includes(name)) return <Gauge size={18} />;
-  return <DynamicIcon name={name as IconName} size={18} fallback={() => <Gauge size={18} />} />;
+  if (!name || !ICON_NAMES.has(name)) return <GenericIcon />;
+  return <DynamicIcon name={name as IconName} size={18} fallback={GenericIcon} />;
 }
