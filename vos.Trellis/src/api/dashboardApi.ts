@@ -396,7 +396,7 @@ function referencedThing(ref: string | undefined, ctx: ResolveContext): VosThing
   return ctx.idx.byId.get(ref) ?? ctx.idx.byName.get(ref) ?? null;
 }
 
-/** The Things one step of a `related` path reaches from the Things reached so far. */
+/** The Things one step of a binding's path reaches from the Things reached so far. */
 async function followStep(fromIds: string[], step: RelationStep, ctx: ResolveContext): Promise<string[]> {
   const pid = ctx.idx.predicateNameToId.get(step.predicate);
   if (!pid) return [];
@@ -419,6 +419,32 @@ async function followStep(fromIds: string[], step: RelationStep, ctx: ResolveCon
     ids = ids.filter((id) => !excluded.has(id));
   }
   return ids;
+}
+
+/** The Things a binding reads: the one its reference names, or — when it declares a path — the
+ *  Things that path reaches from there. A page can only be scoped to one Thing, and what it wants
+ *  to say is rarely all on that Thing, so a binding says how to get from the scope to its subject.
+ *
+ *  Ordered by name, so a walk reaching several reads the same on every refresh whatever order the
+ *  relationship list happened to be in. Narrow with a step's `archetype`, `inState` or `notInState`
+ *  when a predicate reaches more than the binding means. */
+async function thingsReached(
+  ref: string | undefined,
+  via: RelationStep[] | undefined,
+  ctx: ResolveContext,
+): Promise<VosThing[]> {
+  const start = referencedThing(ref, ctx);
+  if (!start) return [];
+  if (!via?.length) return [start];
+  let reached = [start.Id];
+  for (const step of via) {
+    reached = await followStep(reached, step, ctx);
+    if (!reached.length) return [];
+  }
+  return reached
+    .map((id) => ctx.idx.byId.get(id))
+    .filter((t): t is VosThing => !!t)
+    .sort((a, b) => a.Name.localeCompare(b.Name));
 }
 
 /** Resolve each computed column once per row, with that row's Thing as the scope — so the binding
@@ -521,19 +547,10 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     }
 
     case 'related': {
-      const start = referencedThing(binding.thing, ctx);
-      if (!start) return null;
-      let reached = [start.Id];
-      for (const step of binding.via) {
-        reached = await followStep(reached, step, ctx);
-        if (!reached.length) return null;
-      }
+      const reached = await thingsReached(binding.thing, binding.via, ctx);
+      if (!reached.length) return null;
       const values = reached
-        .map((id) => {
-          const t = ctx.idx.byId.get(id);
-          if (!t) return null;
-          return binding.property ? effectiveProperties(t, ctx.idx)[binding.property] : t.Name;
-        })
+        .map((t) => (binding.property ? effectiveProperties(t, ctx.idx)[binding.property] : t.Name))
         .filter((v) => v != null && v !== '');
       if (!values.length) return null;
       if (values.length === 1 && typeof values[0] === 'number') return values[0];
@@ -552,29 +569,33 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     }
 
     case 'verdict': {
-      const judged = referencedThing(binding.thing, ctx);
-      if (!judged) return [];
+      const judged = await thingsReached(binding.thing, binding.via, ctx);
+      if (!judged.length) return [];
       // Asked all at once rather than in turn: unlike `stateOf` there is no priority order to stop
       // early on, so asking in turn would cost one round trip per candidate for no answer it changes.
+      // One answer per state serves every judged Thing, so a walk reaching several adds no state reads.
       const membership = await Promise.all(binding.states.map((c) => stateMemberIds(c.state, ctx)));
-      const held = binding.states.filter((_, i) => membership[i].has(judged.Id));
-      if (!held.length) return [];
+      const verdictsOf = await Promise.all(judged.map(async (thing) => {
+        const held = binding.states.filter((_, i) => membership[i].has(thing.Id));
+        if (!held.length) return [];
 
-      const ranges = await thingRanges(judged.Id, ctx);
-      const properties = effectiveProperties(judged, ctx.idx);
-      return held.map((candidate) => {
-        // The first comparison, because a judge-range tests one value; a range that tests none —
-        // the criteria for a balance nobody assessed — leaves the whole sentence without a figure.
-        const judgedAgainst = ranges ? findRange(candidate.state, ranges)?.Comparisons?.[0] : undefined;
-        return {
-          state: candidate.state,
-          reads: candidate.reads,
-          property: judgedAgainst ? judgedAgainst.PropertyName : null,
-          operator: judgedAgainst ? judgedAgainst.Operator : null,
-          target: judgedAgainst ? nullableNumber(judgedAgainst.Value) : null,
-          value: judgedAgainst ? nullableNumber(properties[judgedAgainst.PropertyName]) : null,
-        };
-      });
+        const ranges = await thingRanges(thing.Id, ctx);
+        const properties = effectiveProperties(thing, ctx.idx);
+        return held.map((candidate) => {
+          // The first comparison, because a judge-range tests one value; a range that tests none —
+          // the criteria for a balance nobody assessed — leaves the whole sentence without a figure.
+          const judgedAgainst = ranges ? findRange(candidate.state, ranges)?.Comparisons?.[0] : undefined;
+          return {
+            state: candidate.state,
+            reads: candidate.reads,
+            property: judgedAgainst ? judgedAgainst.PropertyName : null,
+            operator: judgedAgainst ? judgedAgainst.Operator : null,
+            target: judgedAgainst ? nullableNumber(judgedAgainst.Value) : null,
+            value: judgedAgainst ? nullableNumber(properties[judgedAgainst.PropertyName]) : null,
+          };
+        });
+      }));
+      return verdictsOf.flat();
     }
 
     case 'compareEntities': {

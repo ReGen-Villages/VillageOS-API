@@ -1451,6 +1451,16 @@ threshold falls on the side the range puts it. Every candidate the Thing holds i
 reported, not the first — ranges are independent criteria and several can hold at
 once, unlike `stateOf`, which is single-valued because a status cell has to be.
 
+**Which Thing is judged.** `thing`, or the scope entity when the spec names none
+— and `via` walks from there, a path of steps like `related`'s. A page is scoped
+to one Thing, and the Thing a view is about is not always the Thing the ranges
+hang off: a page about a site scopes to the site, because that is where its
+programmes and hazards hang, while the balances are judged on the study that
+studies it. `"via": [{ "predicate": "studies", "direction": "in" }]` is that one
+step. A walk reaching several judged Things reports every one, in name order;
+narrow it with a step's `archetype`, `inState` or `notInState` when a predicate
+reaches more than the row means.
+
 **A verdict with no figure is not a verdict of zero.** A range whose criteria
 compare nothing — the criteria for a value nothing has computed — reports no
 comparison, and the row then carries no property, no target and no value. The
@@ -1496,10 +1506,12 @@ something other than a `verdict` binding resolves to — are both left unsaid
 rather than filled with a dash or drawn as a blank line. Trellis has no wording
 of its own to put there, and a placeholder would read as an answer.
 
-**Cost.** One range read per Thing per refresh, shared across every verdict row
-on the page the way state reads are — several rows judging one study ask once
-between them. A failed range read leaves the verdicts readable without the
-targets they name, rather than failing the row.
+**Cost.** One range read per judged Thing per refresh, shared across every verdict
+row on the page the way state reads are — several rows judging one study ask once
+between them, and a walk reaching several studies asks once per study. The state
+reads are shared whatever the walk reaches, so reaching several costs no extra
+ones. A failed range read leaves the verdicts readable without the targets they
+name, rather than failing the row.
 
 ### Translating a dashboard spec (i18n)
 
