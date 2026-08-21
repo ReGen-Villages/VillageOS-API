@@ -39,7 +39,7 @@ describe('pickChunk (Bug #5359 — vendor split + Bug #5297 — three identity)'
   describe('vendor-map', () => {
     it.each([
       '/repo/node_modules/maplibre-gl/dist/maplibre-gl.js',
-      '/repo/node_modules/@sigma/layer-maplibre/dist/index.js',
+      '/repo/node_modules/maplibre-gl/dist/style-spec/index.js',
     ])('routes %s to vendor-map', (id) => {
       expect(pickChunk(id)).toBe('vendor-map');
     });

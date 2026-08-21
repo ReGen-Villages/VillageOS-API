@@ -15,10 +15,17 @@ import type { VosThing } from '../types/vos';
 import type { BimFragmentsMapping } from '../components/model/BimFragmentsViewer';
 import { sceneVisibilityFor } from '../components/model/sceneVisibility';
 import { ifcGlobalIdOf } from '../utils/ifcIdentity';
+import { modelCentre } from '../utils/modelPosition';
+import { discoverBasemapSources } from '../api/basemapApi';
+import { modelIndexFor } from '../api/dashboardApi';
 
 const BimFragmentsViewer = lazy(() =>
   import('../components/model/BimFragmentsViewer').then((m) => ({ default: m.BimFragmentsViewer })),
 );
+
+// Split so the map library is fetched alongside the inset rather than ahead of the 3D viewer,
+// which is what a reader opening this page came for.
+const MapView = lazy(() => import('../components/map/MapView').then((m) => ({ default: m.MapView })));
 
 type BimFragmentsState =
   | { status: 'loading' }
@@ -110,6 +117,11 @@ export function ModelPage() {
 
   const mapping = useMemo(() => buildMappingFromThings(things), [things]);
   const thingMap = useMemo(() => new Map(things.map((t) => [t.Id, t])), [things]);
+  const centre = useMemo(() => modelCentre(things), [things]);
+  const basemapSources = useMemo(
+    () => discoverBasemapSources(modelIndexFor(things, relationships)),
+    [things, relationships],
+  );
   const handlePick = useCallback((vosGuid: string | null) => selectNode(vosGuid), [selectNode]);
 
   const handleDeleteProperty = useCallback(async (thingId: string, propertyName: string) => {
@@ -148,6 +160,16 @@ export function ModelPage() {
             <div className="absolute top-3 left-3 z-10 w-72 max-w-[80vw] flex flex-col max-h-[calc(100vh-1.5rem)]">
               <TypeFilterPanel />
             </div>
+            {centre && (
+              <div
+                data-testid="model-map-inset"
+                className="absolute bottom-3 right-3 z-10 h-56 w-80 max-w-[80vw] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+              >
+                <Suspense fallback={null}>
+                  <MapView {...centre} sources={basemapSources} />
+                </Suspense>
+              </div>
+            )}
           </div>
           {detailThing && (
             <ResizablePanel>
