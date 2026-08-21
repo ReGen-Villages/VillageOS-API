@@ -1249,16 +1249,10 @@ describe('a Thing reference resolves the same way whichever binding reads it', (
    *  orders apart. */
   function ambiguous(): ResolveContext {
     const things: VosThing[] = [
-      { Id: 'is', Name: 'is', Properties: {} },
-      { Id: 'arch-plot', Name: 'Plot', Properties: {}, IsArchetype: true },
       { Id: AMBIGUOUS, Name: 'Identified plot', Properties: { area: 10 } },
       { Id: 'named-plot', Name: AMBIGUOUS, Properties: { area: 20 } },
     ];
-    const relationships: VosRelationship[] = [
-      { Id: 'r1', Name: 'identified plot is arch-plot', SubjectId: AMBIGUOUS, PredicateId: 'is', TargetId: 'arch-plot', Properties: {} },
-      { Id: 'r2', Name: 'named plot is arch-plot', SubjectId: 'named-plot', PredicateId: 'is', TargetId: 'arch-plot', Properties: {} },
-    ];
-    return { idx: buildModelIndex(things, relationships), scopeId: null };
+    return { idx: buildModelIndex(things, []), scopeId: null };
   }
 
   const series: Binding = { kind: 'timeseries', thing: AMBIGUOUS, property: 'area', op: 'avg', bucket: 'day' };
