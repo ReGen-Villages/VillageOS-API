@@ -1355,7 +1355,8 @@ whichever it saw first, so a name is the weaker of the two answers. `$scope` mea
 the entity selected in the scope switcher, which inside a `computed` column is the
 row's own Thing; `related`, `stateOf` and `verdict` read an omitted `thing` the
 same way. A reference matching neither an id nor a name resolves to nothing, and
-the widget renders as absent rather than as zero.
+the widget renders as absent rather than as zero. `related` and `verdict` carry
+the walk on from there — see their `via`, below.
 
 ### Columns beyond a Thing's own properties
 
