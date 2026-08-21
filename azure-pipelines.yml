@@ -12,7 +12,7 @@
 # ============================================================
 
 # A feature branch is built when its pull request is validated and again after the merge; building
-# every push as well took the pool's single agent a third time for a result nothing waits on.
+# every push as well took an agent from the pool a third time for a result nothing waits on.
 trigger:
   branches:
     include:
@@ -108,9 +108,9 @@ steps:
 # The solution rather than a wildcard over the test projects: a wildcard starts a separate test run
 # per project, and each one loads the runner, starts a test host and waits for the previous project
 # to finish. One run over the solution tests the projects alongside each other instead.
-# maxcpucount caps how many projects test at once. The default is one per processor, which on a pool
-# of one machine that is already short of memory at idle would start more test hosts than it can
-# hold. Four costs no time, because the run lasts as long as its slowest single project either way.
+# maxcpucount caps how many projects test at once. The default is one per processor, which on an
+# agent machine already short of memory at idle would start more test hosts than it can hold. Four
+# costs no time, because the run lasts as long as its slowest single project either way.
 - task: DotNetCoreCLI@2
   displayName: 'Run Tests with Coverage'
   inputs:

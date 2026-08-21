@@ -83,7 +83,8 @@ def problems(build_file_text):
 
     configuration = build_configuration_value(build_file_text)
     if not configuration:
-        found.append('buildConfiguration is not declared by name, so no branch chooses it')
+        found.append(
+            'Nothing in the variables block gives buildConfiguration a value, so no branch chooses it')
     else:
         missing = [name for name in CONFIGURATION_MUST_READ if name not in configuration]
         if missing:

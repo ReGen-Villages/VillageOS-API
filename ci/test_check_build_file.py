@@ -27,8 +27,10 @@ steps:
   displayName: 'Mirror to GitHub'
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
 
-- bash: echo wiki
+- task: SomeTask@1
   displayName: 'Mirror Wiki to GitHub'
+  inputs:
+    script: echo wiki
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
 """
 
@@ -80,15 +82,38 @@ class CheckBuildFileTests(unittest.TestCase):
     def test_a_configuration_nothing_declares_is_reported(self):
         undeclared = COMPLIANT.replace('  - name: buildConfiguration\n', '  - name: somethingElse\n')
 
-        self.assertIn('not declared by name', problems(undeclared)[0])
+        self.assertIn('gives buildConfiguration a value', problems(undeclared)[0])
+
+    def test_a_configuration_declared_with_no_value_is_reported(self):
+        valueless = COMPLIANT[:COMPLIANT.index('    value: $[')]
+
+        self.assertIn('gives buildConfiguration a value', problems(valueless)[0])
+
+    def test_a_build_file_with_no_variables_at_all_is_reported(self):
+        nothing_declared = COMPLIANT.replace('variables:\n', 'notvariables:\n')
+
+        self.assertIn('gives buildConfiguration a value', problems(nothing_declared)[0])
 
     def test_a_publishing_step_with_no_condition_at_all_is_reported(self):
         unconditional = COMPLIANT.replace(
-            "- bash: echo wiki\n  displayName: 'Mirror Wiki to GitHub'\n"
+            "- bash: echo publish\n  displayName: 'Publish Docs to Wiki'\n"
             "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n",
-            "- bash: echo wiki\n  displayName: 'Mirror Wiki to GitHub'\n")
+            "- bash: echo publish\n  displayName: 'Publish Docs to Wiki'\n")
 
-        self.assertIn('publishes from every branch', problems(unconditional)[0])
+        self.assertIn('"Publish Docs to Wiki" has no condition', problems(unconditional)[0])
+
+    def test_a_comment_between_the_name_and_its_value_is_read_through(self):
+        commented = COMPLIANT.replace(
+            '  - name: buildConfiguration\n', '  - name: buildConfiguration\n    # why it is chosen\n')
+
+        self.assertEqual([], problems(commented))
+
+    def test_the_last_step_in_the_file_having_no_condition_is_reported(self):
+        unconditional = COMPLIANT[:COMPLIANT.index(
+            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n"
+            "\n- task: SomeTask@1")] + "\n- task: SomeTask@1\n  displayName: 'Mirror Wiki to GitHub'\n"
+
+        self.assertIn('"Mirror Wiki to GitHub" has no condition', problems(unconditional)[-1])
 
     def test_a_publishing_step_that_disappeared_is_reported(self):
         renamed = COMPLIANT.replace("displayName: 'Mirror Wiki to GitHub'", "displayName: 'Sync wiki'")
