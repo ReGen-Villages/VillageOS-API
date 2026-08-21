@@ -47,9 +47,10 @@ structure, state management, and the API and SSE (Server-Sent Events) layer.
 8. [Real-Time Infrastructure](#19-real-time-infrastructure)
 9. [CLI Command Parity](#20-cli-command-parity)
 10. [Dashboard internals](#21-dashboard-internals)
-11. [Common Components](#22-common-components)
-12. [Seed Files](#23-seed-files)
-13. [Verification](#24-verification)
+11. [The map and its basemap sources](#22-the-map-and-its-basemap-sources)
+12. [Common Components](#23-common-components)
+13. [Seed Files](#24-seed-files)
+14. [Verification](#25-verification)
 
 ---
 
@@ -403,6 +404,10 @@ Panning moves the village across the screen plane — the left/right/up/down are
 Unchecking every type empties the viewport. That case is handled apart from the rest: the panel lists the types the model has Things for, while the Fragments artifact holds every element the IFC had — usually far more. Naming the elements to hide therefore reaches only the ones the model knows, so "no types selected" tells the viewer to show nothing at all rather than handing it a list.
 
 > **Note**: When the Model page is in overhead (plan) camera mode, orbiting is disabled — pan and zoom still work.
+
+**Where the village is:** a map sits in the bottom-right corner, centred on the average position of the Things that carry a latitude and longitude, with a marker on that point and the coordinates beside it. **Recentre** returns the view to the marker after you have panned away.
+
+What the map draws comes from the model, not from Trellis: a model declares the basemaps it offers and the map names each one as a button when there is more than one. A model that declares none says so in place of the map, and the coordinates stay readable. See [§22](#22-the-map-and-its-basemap-sources) for how a model declares one.
 
 ### 6.2 Single-Building 3D View
 
@@ -1064,7 +1069,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 
 ## 17. State Management
 
-Two Zustand stores (plus React Context for auth), all with TypeScript interfaces:
+Zustand stores (plus React Context for auth), all with TypeScript interfaces. A page's own state stays in its own store rather than accumulating in `uiStore`: the map view removed in pull request 292 spread its state through the shared store and had to be deleted whole to get it back out.
 
 ### `uiStore.ts`
 
@@ -1102,6 +1107,13 @@ Auth state is managed via React Context (`AuthContext`) and the `useAuth()` hook
 | State | Type |
 |-------|------|
 | `events` | `ActivityEvent[]` (max 200) |
+
+### `mapStore.ts`
+
+| State | Type | Notes |
+|-------|------|-------|
+| `selectedSourceName` | `string \| null` | The layer the reader chose, held by name — a Thing id means nothing after a model switch |
+| `tilesUnreachable` | `boolean` | Set when the tile source fails to answer; cleared by choosing another layer |
 
 ---
 
@@ -1613,7 +1625,50 @@ Implementation: `localizeSpec(spec, locale)` in
 
 ---
 
-## 22. Common Components
+## 22. The map and its basemap sources
+
+Trellis ships the map. The model supplies what it draws — no provider address, tile server hostname or attribution string appears anywhere in `vos.Trellis`, so changing which imagery a deployment shows is a change to the model and not a rebuild of the client.
+
+### The contract
+
+A model declares Things of archetype `BasemapSource`. The archetype name and the property names below are the whole contract; every value is the model's.
+
+| Property | Required | Meaning |
+|----------|----------|---------|
+| `styleUrl` | one of the two | Address of a vector style document the map loads whole |
+| `tileUrl` | one of the two | Address template of a raster tile pyramid, carrying `{z}`, `{x}` and `{y}` |
+| `attribution` | yes | The credit the source's licence requires the map to display |
+| `maximumZoom` | no | Deepest zoom a raster pyramid has tiles for; defaults in the client |
+
+The Thing's **name** is what the layer switch shows, so a model naming its sources `Streets` and `Satellite` produces exactly those two buttons. Sources are offered in name order, so the same model always opens on the same layer.
+
+### What is refused, and why
+
+`discoverBasemapSources` drops a source rather than drawing it when:
+
+- **it carries no attribution** — a basemap drawn without its credit breaks the terms it is served under, and every provider worth using imposes some;
+- **it carries no address** — there is nothing to draw;
+- **it carries both a `styleUrl` and a `tileUrl`** — the model has said two contradictory things and guessing which was meant would draw the wrong one silently.
+
+A refused source is simply absent from the switch. A model whose sources are all refused shows the no-source message, and the coordinates stay readable either way.
+
+### Reading a source out of the model
+
+Discovery reads **effective** properties, not own ones. Seed normalization (`vos.SeedValidate --fix`) relocates a value that shadows its archetype's declaration into `InheritedOverrides`, so a generated seed carries `Streets` with empty own properties and its address one level down. A reader that looked only at `Properties` would find a model full of sources and offer none of them.
+
+### Where the sources come from
+
+The platform repository ships `vos.Tools.ModelIngest/basemap.template.json`, read alongside the site templates by both site regeneration scripts. It declares the archetype and one source: OpenFreeMap, which needs no account, no key and no registration.
+
+There is deliberately no imagery source in that file. No global high-resolution imagery is free, keyless and licensed for commercial production; the national services that are — USGS NAIP, PDOK, IGN, GSI — each cover one country, so a site's own model declares the imagery for the country it sits in.
+
+### The bundle
+
+`maplibre-gl` is chunked on its own as `vendor-map` by `build/manualChunks.ts`, and `MapView` is lazily imported by the Model page, so the map library is fetched when the map mounts rather than ahead of the 3D viewer a reader opened the page for.
+
+---
+
+## 23. Common Components
 
 | Component | Purpose |
 |-----------|---------|
@@ -1626,7 +1681,7 @@ Implementation: `localizeSpec(spec, locale)` in
 
 ---
 
-## 23. Seed Files
+## 24. Seed Files
 
 Seed files live in `vos.Mycelium/seeds/` and are auto-loaded by Mycelium on startup. They can also be loaded via the CLI (`deserialize` command), the REST API (`POST /api/model`), or the IFC importer.
 
@@ -1682,7 +1737,7 @@ Note: Seeds use UUIDs for relationship Subject/Predicate/Target fields (generate
 
 ---
 
-## 24. Verification
+## 25. Verification
 
 1. **Dev server**: `cd vos.Trellis && npm run dev` — Vite serves at `localhost:5173`
 2. **Type check**: `npx tsc --noEmit` — no errors

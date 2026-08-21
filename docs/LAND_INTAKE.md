@@ -983,7 +983,7 @@ debugging session otherwise.
 | # | Question | Recommendation |
 |---|---|---|
 | 1 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
-| 2 | **Map library** — Leaflet or MapLibre? | Leaflet is smaller and is what the current tool uses; MapLibre gives vector tiles and better styling. Story-level decision. |
+| 2 | ~~**Map library** — Leaflet or MapLibre?~~ **Settled: MapLibre**, added once by the viewer's Phase 0 (#5346) as a component the wizard consumes rather than duplicates. Leaflet cannot tilt or share a WebGL context, so drawing the 3D model on the basemap would have needed a second library. See [TRELLIS.md §22](TRELLIS.md#22-the-map-and-its-basemap-sources). | What remains is not a library question: MapLibre renders tiles, it does not supply them. Imagery for a given site comes from that country's own service and is declared in the model, not chosen here. |
 | 3 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
 | 4 | **Retention** for submissions that are never promoted. | Decide before there is anything in the intake model, not after. |
 | 5 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own front door, so it is a natural follow-up. |

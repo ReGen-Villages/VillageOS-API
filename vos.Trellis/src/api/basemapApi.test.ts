@@ -113,6 +113,48 @@ describe('discoverBasemapSources', () => {
     expect(found.map((s) => s.name)).toEqual(['Aerial', 'Streets']);
   });
 
+  // Seed normalization moves a value that shadows an archetype's declaration out of the Thing's own
+  // properties and into InheritedOverrides, leaving the archetype's valueless declaration as the only
+  // thing under that key on the archetype. A reader that only looked at own properties would find a
+  // model whose sources all declare an address and offer none of them.
+  it('reads a source normalized the way a generated seed carries it', () => {
+    const things = [
+      thing('is', 'is'),
+      {
+        ...thing('arch-basemap', 'BasemapSource', {
+          styleUrl: { typeInfo: 'vos.String' },
+          tileUrl: { typeInfo: 'vos.String' },
+          attribution: { typeInfo: 'vos.String' },
+        }),
+        IsArchetype: true,
+      },
+      {
+        ...thing('src-1', 'Streets'),
+        InheritedOverrides: {
+          'arch-basemap': {
+            SourceId: 'arch-basemap',
+            SourceName: 'BasemapSource',
+            InheritedAt: '2026-07-05T00:00:00+00:00',
+            Properties: {
+              styleUrl: 'https://tiles.example.org/styles/plain',
+              attribution: 'Example data contributors',
+            },
+          },
+        },
+      },
+    ];
+    const relationships = [isEdge('src-1', 'arch-basemap')];
+    expect(discoverBasemapSources(buildModelIndex(things, relationships))).toEqual([
+      {
+        id: 'src-1',
+        name: 'Streets',
+        attribution: 'Example data contributors',
+        kind: 'style',
+        styleUrl: 'https://tiles.example.org/styles/plain',
+      },
+    ]);
+  });
+
   it('takes attribution inherited from the archetype when the source itself does not restate it', () => {
     const things = [
       thing('is', 'is'),
