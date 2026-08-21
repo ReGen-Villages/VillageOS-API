@@ -3,8 +3,11 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const {
+  repositoryDocuments,
   convertMermaid,
   stripLintDirectives,
   githubSlug,
@@ -39,12 +42,22 @@ test('every repository document is either mapped to a page or explicitly exclude
     ...manifest.pages.map((entry) => entry.doc),
     ...manifest.excluded.map((entry) => entry.doc),
   ]);
-  const documents = [
-    ...fs.readdirSync(path.join(REPO_ROOT, 'docs')).filter((f) => f.endsWith('.md')).map((f) => `docs/${f}`),
-    ...fs.readdirSync(REPO_ROOT).filter((f) => f.endsWith('.md')),
-  ];
-  const unaccounted = documents.filter((doc) => !accounted.has(doc));
+  const unaccounted = repositoryDocuments(REPO_ROOT).filter((doc) => !accounted.has(doc));
   assert.deepEqual(unaccounted, [], `add these to wiki-map.json as a page or an exclusion: ${unaccounted}`);
+});
+
+test('a document git ignores is a working note, not a document the repository carries', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: root });
+  fs.writeFileSync(path.join(root, '.gitignore'), '*handoff*.md\n');
+  fs.mkdirSync(path.join(root, 'docs'));
+  fs.writeFileSync(path.join(root, 'docs', 'GUIDE.md'), '# Guide\n');
+  fs.writeFileSync(path.join(root, 'docs', 'a-handoff.md'), '# Handoff\n');
+  fs.writeFileSync(path.join(root, 'README.md'), '# Readme\n');
+
+  assert.deepEqual(repositoryDocuments(root).sort(), ['README.md', 'docs/GUIDE.md']);
+
+  fs.rmSync(root, { recursive: true, force: true });
 });
 
 test('every mapped document exists and every page path is unique', () => {

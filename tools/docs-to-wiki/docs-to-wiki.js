@@ -10,8 +10,25 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const ATTACHMENTS = '.attachments';
+
+/** The markdown a clone of the repository would contain. A file git ignores is a working note
+ *  somebody keeps locally, so the wiki manifest is never expected to account for it. */
+function repositoryDocuments(root) {
+  const documents = [
+    ...fs.readdirSync(path.join(root, 'docs')).filter((f) => f.endsWith('.md')).map((f) => `docs/${f}`),
+    ...fs.readdirSync(root).filter((f) => f.endsWith('.md')),
+  ];
+  const check = spawnSync('git', ['check-ignore', '--stdin'], {
+    cwd: root,
+    input: documents.join('\n'),
+    encoding: 'utf8',
+  });
+  const ignored = new Set(check.stdout.split('\n').filter(Boolean));
+  return documents.filter((doc) => !ignored.has(doc));
+}
 
 /** DevOps renders diagrams from a `::: mermaid` block; the repository uses a fenced block. */
 function convertMermaid(markdown) {
@@ -164,6 +181,7 @@ function generate(repoRoot, outputDirectory) {
 }
 
 module.exports = {
+  repositoryDocuments,
   convertMermaid,
   stripLintDirectives,
   githubSlug,

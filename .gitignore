@@ -150,6 +150,11 @@ tools/migration/
 # Per-developer project guidance (each contributor maintains their own).
 CLAUDE.md
 
+# Handoff notes are working documents passed between sessions, not published documentation.
+# Both spellings, so the rule holds on a filesystem that tells upper and lower case apart.
+*handoff*.md
+*HANDOFF*.md
+
 # Python example venvs
 **/.venv/
 **/__pycache__/
