@@ -385,7 +385,12 @@ function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, i
 
 /** The Thing a binding starts from: the one it names by id or name, or — absent a name, or for the
  *  `$scope` reference — the selected compare entity, which inside a computed column is the row's
- *  own Thing. */
+ *  own Thing.
+ *
+ *  Every binding that names a Thing asks here, so one reference means one Thing wherever a spec
+ *  spends it. The id is tried first because it is exact: Thing names are not unique in this model
+ *  and the index keeps whichever Thing of a name it saw first, so a name is the weaker answer and
+ *  belongs in the fallback. */
 function referencedThing(ref: string | undefined, ctx: ResolveContext): VosThing | null {
   if (!ref || ref === SCOPE_REF) return ctx.scopeId ? (ctx.idx.byId.get(ctx.scopeId) ?? null) : null;
   return ctx.idx.byId.get(ref) ?? ctx.idx.byName.get(ref) ?? null;
@@ -476,7 +481,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         const vals = ents.map((t) => num(effectiveProperties(t, ctx.idx)[binding.property])).filter((n) => !isNaN(n));
         return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
       }
-      const t = ctx.idx.byId.get(binding.thing) ?? ctx.idx.byName.get(binding.thing);
+      const t = referencedThing(binding.thing, ctx);
       return t ? num(effectiveProperties(t, ctx.idx)[binding.property]) : null;
     }
 
@@ -644,7 +649,7 @@ async function resolveTimeseries(
 ): Promise<number[]> {
   try {
     if (binding.thing && binding.property) {
-      const t = ctx.idx.byName.get(binding.thing) ?? ctx.idx.byId.get(binding.thing);
+      const t = referencedThing(binding.thing, ctx);
       if (!t) return [];
       const versions = await temporalApi.getPropertyVersions(t.Id, binding.property);
       const points = (versions?.Versions ?? [])

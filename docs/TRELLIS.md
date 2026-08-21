@@ -1346,6 +1346,17 @@ The window needs a row height, which it takes from a rendered row measured with 
 measured. A table with no `visibleRows` has no bounded container to measure against
 and renders every row, as before.
 
+### The Thing a binding names
+
+`property`, `related`, `stateOf`, `verdict` and `timeseries` all take a `thing`,
+and all read it the same way: as a Thing's id first, then as a Thing's name. The
+id wins because it is exact — **two Things may share a name**, and the index keeps
+whichever it saw first, so a name is the weaker of the two answers. `$scope` means
+the entity selected in the scope switcher, which inside a `computed` column is the
+row's own Thing; `related`, `stateOf` and `verdict` read an omitted `thing` the
+same way. A reference matching neither an id nor a name resolves to nothing, and
+the widget renders as absent rather than as zero.
+
 ### Columns beyond a Thing's own properties
 
 A row from `thingList`, `stateList` or `compareEntities` is

@@ -105,7 +105,8 @@ export type Binding =
   | { kind: 'ratio'; numerator: Binding; denominator: Binding }
   /** One row per compared Thing, carrying the listed numeric properties (leaderboard source). */
   | { kind: 'compareEntities'; properties: string[]; computed?: ComputedColumn[] }
-  /** A bucketed time series from the temporal API. Degrades to [] when history is absent. */
+  /** A bucketed time series from the temporal API over one property of a named/id'd Thing, or of
+   *  the selected scope entity (`$scope`). Degrades to [] when history is absent. */
   | {
       kind: 'timeseries';
       archetype?: string;

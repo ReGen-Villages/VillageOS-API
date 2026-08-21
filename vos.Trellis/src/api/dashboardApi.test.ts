@@ -20,9 +20,14 @@ vi.mock('./rangeApi', () => ({
   rangeApi: { getAll: vi.fn() },
 }));
 
+vi.mock('./temporalApi', () => ({
+  temporalApi: { getPropertyVersions: vi.fn() },
+}));
+
 import { stateApi } from './stateApi';
 import { apiClient } from './client';
 import { rangeApi } from './rangeApi';
+import { temporalApi } from './temporalApi';
 import {
   discoverDashboards,
   scopeEntities,
@@ -1234,5 +1239,50 @@ describe('verdict binding', () => {
     await resolveBinding({ kind: 'verdict', states: ENERGY_STATES } as Binding, studyContext({ pctOfConsumption: 73 }));
 
     expect(rangeApi.getAll).toHaveBeenCalledWith('study1');
+  });
+});
+
+describe('a Thing reference resolves the same way whichever binding reads it', () => {
+  const AMBIGUOUS = 'shared-key';
+
+  /** One Thing's name is another Thing's identifier — the only model that tells the two lookup
+   *  orders apart. */
+  function ambiguous(): ResolveContext {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'arch-plot', Name: 'Plot', Properties: {}, IsArchetype: true },
+      { Id: AMBIGUOUS, Name: 'Identified plot', Properties: { area: 10 } },
+      { Id: 'named-plot', Name: AMBIGUOUS, Properties: { area: 20 } },
+    ];
+    const relationships: VosRelationship[] = [
+      { Id: 'r1', Name: 'identified plot is arch-plot', SubjectId: AMBIGUOUS, PredicateId: 'is', TargetId: 'arch-plot', Properties: {} },
+      { Id: 'r2', Name: 'named plot is arch-plot', SubjectId: 'named-plot', PredicateId: 'is', TargetId: 'arch-plot', Properties: {} },
+    ];
+    return { idx: buildModelIndex(things, relationships), scopeId: null };
+  }
+
+  const series: Binding = { kind: 'timeseries', thing: AMBIGUOUS, property: 'area', op: 'avg', bucket: 'day' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(temporalApi.getPropertyVersions).mockResolvedValue({ Versions: [] } as never);
+  });
+
+  it('reads the Thing the identifier names, not the Thing of that name', async () => {
+    const value = await resolveBinding({ kind: 'property', thing: AMBIGUOUS, property: 'area' }, ambiguous());
+
+    expect(value).toBe(10);
+  });
+
+  it('reads the same Thing for a series as for a property', async () => {
+    await resolveBinding(series, ambiguous());
+
+    expect(temporalApi.getPropertyVersions).toHaveBeenCalledWith(AMBIGUOUS, 'area');
+  });
+
+  it('reads the selected scope entity for a series that names $scope', async () => {
+    await resolveBinding({ ...series, thing: '$scope' } as Binding, { ...ambiguous(), scopeId: 'named-plot' });
+
+    expect(temporalApi.getPropertyVersions).toHaveBeenCalledWith('named-plot', 'area');
   });
 });
