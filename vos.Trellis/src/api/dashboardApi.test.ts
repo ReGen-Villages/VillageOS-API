@@ -1240,33 +1240,41 @@ describe('verdict binding', () => {
     /** A page scoped to the site, which is where a per-submission view has to be scoped: the
      *  programmes and hazards it lists hang off the site, while the ranges that judge its balances
      *  sit on the study one edge away. */
-    function siteContext(studies: { id: string; properties: Record<string, unknown> }[]): ResolveContext {
+    function siteContext(studies: { name: string; properties: Record<string, unknown> }[]): ResolveContext {
       const things: VosThing[] = [
         { Id: 'is', Name: 'is', Properties: {} },
         { Id: 'studies', Name: 'studies', Properties: {} },
         { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true },
         { Id: 'arch-site', Name: 'Site', Properties: {}, IsArchetype: true },
         { Id: 'site1', Name: 'Submitted site', Properties: {} },
-        ...studies.map((s) => ({ Id: s.id, Name: s.id, Properties: s.properties })),
+        ...studies.map((s) => ({ Id: s.name, Name: s.name, Properties: s.properties })),
       ];
       const relationships: VosRelationship[] = [
         { Id: 'r-site', Name: 'site1 is arch-site', SubjectId: 'site1', PredicateId: 'is', TargetId: 'arch-site', Properties: {} },
         ...studies.flatMap((s) => [
-          { Id: `${s.id}-is`, Name: `${s.id} is arch-study`, SubjectId: s.id, PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
-          { Id: `${s.id}-studies`, Name: `${s.id} studies site1`, SubjectId: s.id, PredicateId: 'studies', TargetId: 'site1', Properties: {} },
+          { Id: `${s.name}-is`, Name: `${s.name} is arch-study`, SubjectId: s.name, PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
+          { Id: `${s.name}-studies`, Name: `${s.name} studies site1`, SubjectId: s.name, PredicateId: 'studies', TargetId: 'site1', Properties: {} },
         ]),
       ];
       return { idx: buildModelIndex(things, relationships), scopeId: 'site1' };
     }
 
+    /** The outer `holding` speaks for the study alone; a walk asks about the site and about more
+     *  than one study, so these tests say who is in the state instead. */
+    function membersOf(state: string, ...names: string[]) {
+      vi.mocked(stateApi.getThingsInState).mockImplementation(async (asked: string) =>
+        ({ Things: asked === state ? names.map((name) => ({ Id: name, Name: name, Properties: {} })) : [] }) as never,
+      );
+    }
+
     const toTheStudy = [{ predicate: 'studies', direction: 'in' as const }];
 
     it('judges the study that studies the scoped site', async () => {
-      holding('EnergyShortOfTarget');
+      membersOf('EnergyShortOfTarget', 'study1');
 
       const rows = await resolveBinding(
         { kind: 'verdict', states: ENERGY_STATES, via: toTheStudy } as Binding,
-        siteContext([{ id: 'study1', properties: { pctOfConsumption: 73 } }]),
+        siteContext([{ name: 'study1', properties: { pctOfConsumption: 73 } }]),
       ) as Row[];
 
       expect(rows).toEqual([{
@@ -1282,13 +1290,11 @@ describe('verdict binding', () => {
     // The site is the one holding the state here, so a walk that quietly fell back to where it
     // started would report a verdict instead of nothing.
     it('reports nothing when the walk reaches no Thing', async () => {
-      vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) =>
-        ({ Things: state === 'EnergyShortOfTarget' ? [{ Id: 'site1', Name: 'Submitted site', Properties: {} }] : [] }) as never,
-      );
+      membersOf('EnergyShortOfTarget', 'site1');
 
       const rows = await resolveBinding(
         { kind: 'verdict', states: ENERGY_STATES, via: [{ predicate: 'surveys', direction: 'in' }] } as Binding,
-        siteContext([{ id: 'study1', properties: { pctOfConsumption: 73 } }]),
+        siteContext([{ name: 'study1', properties: { pctOfConsumption: 73 } }]),
       );
 
       expect(rows).toEqual([]);
@@ -1297,19 +1303,13 @@ describe('verdict binding', () => {
     // Asserted in the reverse of the order they are judged in, so the reading is the model's
     // rather than the relationship list's.
     it('judges every study the walk reaches, in name order', async () => {
-      vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) =>
-        ({
-          Things: state === 'EnergyShortOfTarget'
-            ? [{ Id: 'study1', Name: 'study1', Properties: {} }, { Id: 'study2', Name: 'study2', Properties: {} }]
-            : [],
-        }) as never,
-      );
+      membersOf('EnergyShortOfTarget', 'study1', 'study2');
 
       const rows = await resolveBinding(
         { kind: 'verdict', states: ENERGY_STATES, via: toTheStudy } as Binding,
         siteContext([
-          { id: 'study2', properties: { pctOfConsumption: 61 } },
-          { id: 'study1', properties: { pctOfConsumption: 73 } },
+          { name: 'study2', properties: { pctOfConsumption: 61 } },
+          { name: 'study1', properties: { pctOfConsumption: 73 } },
         ]),
       ) as Row[];
 
