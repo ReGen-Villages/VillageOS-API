@@ -6,7 +6,7 @@ The repository is the source of truth. Every wiki page is produced from a file l
 [`wiki-map.json`](wiki-map.json), so a page cannot quietly fall behind the document it is
 built from — which is exactly what happened before this existed.
 
-**Do not edit pages in the wiki browser.** Edits are overwritten on the next develop build,
+**Do not edit pages in the wiki browser.** Edits are overwritten on the next main build,
 and each generated page says so at the top. Edit the document in `docs/` instead.
 
 ## What it does
@@ -56,8 +56,10 @@ content already matches is left alone, so a build that changes no documentation 
 revisions.
 
 The `Publish Docs to Wiki` step in [`azure-pipelines.yml`](../../azure-pipelines.yml) runs both
-scripts on `develop`, **before** the `Mirror Wiki to GitHub` step, so one build carries a
-documentation change from a merge all the way to the public GitHub wiki.
+scripts on `main`, **before** the `Mirror Wiki to GitHub` step, so one build carries a
+documentation change from a merge all the way to the public GitHub wiki. On `main` rather than
+`develop` because that mirror publishes whatever this step left on the project wiki: split across
+two branches, a `main` build would push `develop`'s documentation to the public wiki.
 
 ### Why the API and not git
 
