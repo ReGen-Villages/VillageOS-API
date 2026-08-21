@@ -7,6 +7,7 @@ interface RecordedMap {
   handlers: Map<string, () => void>;
   flyTo: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
+  setStyle: ReturnType<typeof vi.fn>;
 }
 
 const mocks = vi.hoisted(() => {
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => {
     handlers = new Map<string, () => void>();
     flyTo = vi.fn();
     remove = vi.fn();
+    setStyle = vi.fn();
     constructor(options: Record<string, unknown>) {
       this.options = options;
       mapInstances.push(this);
@@ -71,8 +73,8 @@ describe('MapView', () => {
 
   it('opens the map on the given point with the style the model supplied', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
-    expect(maps[0].options.style).toBe('https://tiles.example.org/streets');
     expect(maps[0].options.center).toEqual([-70.64, 41.38]);
+    expect(maps[0].setStyle).toHaveBeenCalledWith('https://tiles.example.org/streets');
     expect(markerPositions).toEqual([[-70.64, 41.38]]);
   });
 
@@ -85,7 +87,14 @@ describe('MapView', () => {
     render(<MapView {...POSITION} sources={[AERIAL, STREETS]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Streets' }));
     expect(useMapStore.getState().selectedSourceName).toBe('Streets');
-    expect(maps.at(-1)!.options.style).toBe('https://tiles.example.org/streets');
+    expect(maps[0].setStyle).toHaveBeenLastCalledWith('https://tiles.example.org/streets');
+  });
+
+  it('swaps the style rather than rebuilding, so a layer switch keeps where the reader had panned to', () => {
+    render(<MapView {...POSITION} sources={[AERIAL, STREETS]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Streets' }));
+    expect(maps).toHaveLength(1);
+    expect(maps[0].remove).not.toHaveBeenCalled();
   });
 
   it('returns the view to the marker when asked to recentre', () => {

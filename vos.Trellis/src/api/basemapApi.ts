@@ -7,6 +7,7 @@
  * page to display, are answers the model gives — no address or credit is written here.
  */
 import type { ModelIndex } from './dashboardApi';
+import type { StyleSpecification } from 'maplibre-gl';
 import { thingsOfArchetype } from './dashboardApi';
 import { effectiveProperties } from '../utils/propertyMapper';
 import {
@@ -18,23 +19,6 @@ import {
   DEFAULT_RASTER_MAXIMUM_ZOOM,
   type BasemapSource,
 } from '../types/basemap';
-
-/** A MapLibre style: either the address of one to fetch, or one built here around a raster pyramid. */
-export type BasemapStyle = string | RasterStyle;
-
-interface RasterStyle {
-  version: 8;
-  sources: {
-    basemap: {
-      type: 'raster';
-      tiles: string[];
-      tileSize: number;
-      maxzoom: number;
-      attribution: string;
-    };
-  };
-  layers: [{ id: 'basemap'; type: 'raster'; source: 'basemap' }];
-}
 
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null;
@@ -48,17 +32,17 @@ export function discoverBasemapSources(index: ModelIndex): BasemapSource[] {
     const styleUrl = text(properties[BASEMAP_STYLE_URL_PROPERTY]);
     const tileUrl = text(properties[BASEMAP_TILE_URL_PROPERTY]);
     if (!attribution) continue;
-    if (!styleUrl === !tileUrl) continue;
+    if (styleUrl && tileUrl) continue;
     if (styleUrl) {
       found.push({ id: thing.Id, name: thing.Name, attribution, kind: 'style', styleUrl });
-    } else {
+    } else if (tileUrl) {
       const stated = properties[BASEMAP_MAXIMUM_ZOOM_PROPERTY];
       found.push({
         id: thing.Id,
         name: thing.Name,
         attribution,
         kind: 'raster',
-        tileUrl: tileUrl!,
+        tileUrl,
         maximumZoom: typeof stated === 'number' ? stated : DEFAULT_RASTER_MAXIMUM_ZOOM,
       });
     }
@@ -67,7 +51,7 @@ export function discoverBasemapSources(index: ModelIndex): BasemapSource[] {
   return found;
 }
 
-export function styleForSource(source: BasemapSource): BasemapStyle {
+export function styleForSource(source: BasemapSource): StyleSpecification | string {
   if (source.kind === 'style') return source.styleUrl;
   return {
     version: 8,

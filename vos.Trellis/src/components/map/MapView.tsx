@@ -8,6 +8,10 @@ import type { BasemapSource } from '../../types/basemap';
 
 const DEFAULT_ZOOM = 15;
 
+// A control sits on the map, not on the page, so its colours follow the tiles underneath rather than
+// the app's theme — light text on this chip would disappear the moment the reader switched to dark.
+const CONTROL_CLASSES = 'rounded bg-white/90 px-2 py-1 text-xs text-zinc-900 shadow';
+
 interface MapViewProps {
   latitude: number;
   longitude: number;
@@ -32,12 +36,12 @@ export function MapView({ latitude, longitude, sources, initialZoom = DEFAULT_ZO
   const selectSource = useMapStore((s) => s.selectSource);
   const reportTilesUnreachable = useMapStore((s) => s.reportTilesUnreachable);
   const selected = resolveSelectedSource(sources, selectedSourceName);
+  const hasSource = selected !== null;
 
   useEffect(() => {
-    if (!container.current || !selected) return;
+    if (!container.current || !hasSource) return;
     const created = new MapLibreMap({
       container: container.current,
-      style: styleForSource(selected),
       center: [longitude, latitude],
       zoom: initialZoom,
     });
@@ -48,7 +52,13 @@ export function MapView({ latitude, longitude, sources, initialZoom = DEFAULT_ZO
       created.remove();
       map.current = null;
     };
-  }, [latitude, longitude, initialZoom, selected, reportTilesUnreachable]);
+  }, [latitude, longitude, initialZoom, hasSource, reportTilesUnreachable]);
+
+  // Swapping the style instead of rebuilding the map leaves the reader where they had panned to,
+  // which is why the map above is built without one.
+  useEffect(() => {
+    if (selected) map.current?.setStyle(styleForSource(selected));
+  }, [selected]);
 
   const coordinates = t('map.coordinates', {
     latitude: latitude.toFixed(5),
@@ -66,7 +76,7 @@ export function MapView({ latitude, longitude, sources, initialZoom = DEFAULT_ZO
 
   return (
     <div className="relative h-full w-full">
-      <div ref={container} className="h-full w-full" data-testid="map-canvas" />
+      <div ref={container} className="h-full w-full" />
       {sources.length > 1 && (
         <div className="absolute top-2 right-2 flex flex-col gap-1" role="group" aria-label={t('map.baseLayer')}>
           {sources.map((source) => (
@@ -75,7 +85,7 @@ export function MapView({ latitude, longitude, sources, initialZoom = DEFAULT_ZO
               type="button"
               onClick={() => selectSource(source.name)}
               aria-pressed={source.name === selected.name}
-              className="rounded bg-white/90 px-2 py-1 text-xs shadow"
+              className={CONTROL_CLASSES}
             >
               {source.name}
             </button>
@@ -85,15 +95,13 @@ export function MapView({ latitude, longitude, sources, initialZoom = DEFAULT_ZO
       <button
         type="button"
         onClick={() => map.current?.flyTo({ center: [longitude, latitude], zoom: initialZoom })}
-        className="absolute bottom-2 right-2 rounded bg-white/90 px-2 py-1 text-xs shadow"
+        className={`absolute bottom-2 right-2 ${CONTROL_CLASSES}`}
       >
         {t('map.recentre')}
       </button>
-      <p className="absolute bottom-2 left-2 rounded bg-white/90 px-2 py-1 font-mono text-xs shadow">
-        {coordinates}
-      </p>
+      <p className={`absolute bottom-2 left-2 font-mono ${CONTROL_CLASSES}`}>{coordinates}</p>
       {tilesUnreachable && (
-        <p role="status" className="absolute top-2 left-2 rounded bg-white/90 px-2 py-1 text-xs shadow">
+        <p role="status" className={`absolute top-2 left-2 ${CONTROL_CLASSES}`}>
           {t('map.tilesUnreachable')}
         </p>
       )}
