@@ -8,11 +8,11 @@
 # - Lints, tests and builds Trellis, the GUI
 # - Publishes test results and code coverage to Azure DevOps
 # - Packages and publishes to NuGet (main branch only)
-# - Mirrors the repo and the wiki to GitHub (develop and main only)
+# - Publishes the docs to the project wiki and mirrors the repo and the wiki to GitHub (main only)
 # ============================================================
 
 # A feature branch is built when its pull request is validated and again after the merge; building
-# every push as well took the pool's single agent a third time for a result nothing waits on.
+# every push as well took an agent from the pool a third time for a result nothing waits on.
 trigger:
   branches:
     include:
@@ -32,11 +32,24 @@ pool:
     - Agent.OS -equals Darwin
 
 variables:
-  buildConfiguration: 'Release'
-  testResultsDirectory: '$(Agent.TempDirectory)/TestResults'
+  # A pull request into main compiles Release as well as the merge itself, because a merge is too
+  # late to learn that Release does not compile. The difference is not only optimization here:
+  # MyceliumClientBase throws on an outbound contract violation in Debug and logs in Release, so
+  # until now the build exercised neither the policy developers run nor a branch that could fail on
+  # it first.
+  #
+  # A runtime expression rather than ${{ }}: the pull-request variables are not populated when a
+  # compile-time expression is evaluated, so the target branch would read as empty on every build.
+  # Replacing the two values a boolean can have is how a configuration name comes out of it, because
+  # Azure Pipelines has no conditional operator.
+  - name: buildConfiguration
+    value: $[ replace(replace(or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main')), 'True', 'Release'), 'False', 'Debug') ]
+  - name: testResultsDirectory
+    value: '$(Agent.TempDirectory)/TestResults'
   # Azure DevOps project-wiki git repo id (from `az devops wiki list`). The wiki
-  # is mirrored from here to the GitHub wiki on develop/main.
-  wikiRepoId: 'de73fcdb-2959-4209-a858-f3d697e8c632'
+  # is mirrored from here to the GitHub wiki on main.
+  - name: wikiRepoId
+    value: 'de73fcdb-2959-4209-a858-f3d697e8c632'
 
 steps:
 # A self-hosted agent keeps its working directory between runs, so a stale file from an earlier
@@ -65,36 +78,12 @@ steps:
     echo "Guard passed: no proprietary engine footprint."
   displayName: 'Guard: no proprietary engine in public repo'
 
-# A widened trigger produces more green builds rather than a failure, so nothing in a build result
-# would look wrong. The platform repo has a test that reads its own build file and fails on that;
-# no test project here reads one, so the check is a step instead.
-- bash: |
-    set -euo pipefail
-    python3 - <<'PY'
-    import sys
-
-    def fail(message):
-        print(f"##[error]{message}")
-        sys.exit(1)
-
-    lines = open("azure-pipelines.yml").read().splitlines()
-    declarations = [i for i, line in enumerate(lines) if line.startswith("trigger:")]
-    if len(declarations) != 1:
-        fail(f"Expected one push trigger in the build file, found {len(declarations)}")
-
-    block = []
-    for line in lines[declarations[0] + 1:]:
-        if line and not line[0].isspace():
-            break
-        block.append(line)
-
-    branches = [line.strip()[2:].strip().strip("'\"") for line in block if line.strip().startswith("- ")]
-    if branches != ["develop", "main"]:
-        fail(f"A push must build develop and main only; the trigger names {branches}")
-
-    print("Guard passed: a push builds develop and main.")
-    PY
-  displayName: 'Guard: a push builds develop and main only'
+# A widened trigger, a configuration that stops following the branch, and a publishing step gated
+# back to develop all produce more green builds rather than a failure, so nothing in a build result
+# would look wrong. ci/check_build_file.py reads the build file and says what has drifted; the same
+# run covers the guard itself, so a check that stopped checking is caught too.
+- script: python3 -m unittest discover -s ci -p 'test_*.py'
+  displayName: 'Guard: the build file matches the branch policy'
 
 - task: UseDotNet@2
   displayName: 'Install .NET SDK'
@@ -119,9 +108,9 @@ steps:
 # The solution rather than a wildcard over the test projects: a wildcard starts a separate test run
 # per project, and each one loads the runner, starts a test host and waits for the previous project
 # to finish. One run over the solution tests the projects alongside each other instead.
-# maxcpucount caps how many projects test at once. The default is one per processor, which on a pool
-# of one machine that is already short of memory at idle would start more test hosts than it can
-# hold. Four costs no time, because the run lasts as long as its slowest single project either way.
+# maxcpucount caps how many projects test at once. The default is one per processor, which on an
+# agent machine already short of memory at idle would start more test hosts than it can hold. Four
+# costs no time, because the run lasts as long as its slowest single project either way.
 - task: DotNetCoreCLI@2
   displayName: 'Run Tests with Coverage'
   inputs:
@@ -327,7 +316,7 @@ steps:
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
 
 # --------------------------------------------
-# MIRROR TO GITHUB (develop and main only)
+# MIRROR TO GITHUB (main only)
 # --------------------------------------------
 # Requires pipeline variable GITHUB_PAT (secret) — fine-grained PAT with
 # Contents:Read+Write on ReGen-Villages/VillageOS-API, or a classic token with repo scope.
@@ -358,19 +347,21 @@ steps:
       commit -m "ci: rewrite wiki links for GitHub mirror" --allow-empty || true
 
     # Fully-qualified ref so the first push to a freshly (re)created empty repo works —
-    # a short ref (HEAD:develop) only resolves when the branch already exists on the remote.
-    git push github "HEAD:refs/heads/$(Build.SourceBranchName)" --force
+    # a short ref (HEAD:main) only resolves when the branch already exists on the remote.
+    git push github "HEAD:refs/heads/main" --force
   displayName: 'Mirror to GitHub'
-  condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   env:
     GITHUB_PAT: $(GITHUB_PAT)
 
 # --------------------------------------------
-# PUBLISH DOCS TO THE PROJECT WIKI (develop only)
+# PUBLISH DOCS TO THE PROJECT WIKI (main only)
 # --------------------------------------------
 # The repository is the source of truth for the wiki: tools/docs-to-wiki generates every page
-# from a document listed in its manifest. This runs before the GitHub mirror below, so a single
-# build carries a documentation change from the merge all the way to the public GitHub wiki.
+# from a document listed in its manifest. This runs before the GitHub wiki mirror below, so a
+# single build carries a documentation change from the merge all the way to the public GitHub
+# wiki — and on main, because that mirror publishes whatever this step left on the project wiki.
+# Left on develop, a main build would push develop's documentation to the public wiki.
 #
 # Prerequisite: AZURE_DEVOPS_PAT needs the Wiki scope, Read & Write. Publishing goes through the
 # wiki REST API rather than git precisely so that is enough: a project wiki is a git repository,
@@ -387,12 +378,12 @@ steps:
     node tools/docs-to-wiki/docs-to-wiki.js "$(Build.SourcesDirectory)" "$OUT"
     node tools/docs-to-wiki/publish-wiki.js "$OUT"
   displayName: 'Publish Docs to Wiki'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   env:
     AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
 
 # --------------------------------------------
-# MIRROR WIKI TO GITHUB (develop and main only)
+# MIRROR WIKI TO GITHUB (main only)
 # --------------------------------------------
 # Repopulates the GitHub wiki from the canonical Azure DevOps project wiki,
 # converting every DevOps-specific link to its GitHub target (see
@@ -448,7 +439,7 @@ steps:
       commit -m "ci: sync wiki from Azure DevOps" || { echo "No wiki changes."; exit 0; }
     git -C "$DEST" push origin HEAD:refs/heads/master --force
   displayName: 'Mirror Wiki to GitHub'
-  condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/main')))
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   env:
     GITHUB_PAT: $(GITHUB_PAT)
     AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
