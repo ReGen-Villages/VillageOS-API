@@ -1,0 +1,165 @@
+import { describe, it, expect } from 'vitest';
+import type { VosThing, VosRelationship } from '../types/vos';
+import { buildModelIndex } from './dashboardApi';
+import { discoverBasemapSources, styleForSource } from './basemapApi';
+import { DEFAULT_RASTER_MAXIMUM_ZOOM } from '../types/basemap';
+
+function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing {
+  return { Id, Name, Properties };
+}
+
+function isEdge(SubjectId: string, TargetId: string): VosRelationship {
+  return {
+    Id: `${SubjectId}-is-${TargetId}`,
+    Name: `${SubjectId} is ${TargetId}`,
+    SubjectId,
+    PredicateId: 'is',
+    TargetId,
+    Properties: {},
+  };
+}
+
+function indexOf(sources: VosThing[], extraEdges: VosRelationship[] = []) {
+  const things = [
+    thing('is', 'is'),
+    { ...thing('arch-basemap', 'BasemapSource'), IsArchetype: true },
+    ...sources,
+  ];
+  const relationships = [...sources.map((s) => isEdge(s.Id, 'arch-basemap')), ...extraEdges];
+  return buildModelIndex(things, relationships);
+}
+
+describe('discoverBasemapSources', () => {
+  it('reads a vector style source', () => {
+    const found = discoverBasemapSources(
+      indexOf([
+        thing('src-1', 'Streets', {
+          styleUrl: 'https://tiles.example.org/styles/plain',
+          attribution: 'Example data contributors',
+        }),
+      ]),
+    );
+    expect(found).toEqual([
+      {
+        id: 'src-1',
+        name: 'Streets',
+        attribution: 'Example data contributors',
+        kind: 'style',
+        styleUrl: 'https://tiles.example.org/styles/plain',
+      },
+    ]);
+  });
+
+  it('reads a raster source and the depth it claims', () => {
+    const [source] = discoverBasemapSources(
+      indexOf([
+        thing('src-1', 'Aerial', {
+          tileUrl: 'https://tiles.example.org/aerial/{z}/{x}/{y}.png',
+          attribution: 'Example national mapping agency',
+          maximumZoom: 17,
+        }),
+      ]),
+    );
+    expect(source).toMatchObject({ kind: 'raster', maximumZoom: 17 });
+  });
+
+  it('falls back to a default depth when the model does not state one', () => {
+    const [source] = discoverBasemapSources(
+      indexOf([
+        thing('src-1', 'Aerial', {
+          tileUrl: 'https://tiles.example.org/aerial/{z}/{x}/{y}.png',
+          attribution: 'Example national mapping agency',
+        }),
+      ]),
+    );
+    expect(source).toMatchObject({ kind: 'raster', maximumZoom: DEFAULT_RASTER_MAXIMUM_ZOOM });
+  });
+
+  it('refuses a source with no attribution, because displaying one bare breaks its licence', () => {
+    expect(
+      discoverBasemapSources(
+        indexOf([thing('src-1', 'Streets', { styleUrl: 'https://tiles.example.org/styles/plain' })]),
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses a source that gives no address', () => {
+    expect(
+      discoverBasemapSources(indexOf([thing('src-1', 'Streets', { attribution: 'Example' })])),
+    ).toEqual([]);
+  });
+
+  it('refuses a source that gives both a style and a tile address, rather than guessing which was meant', () => {
+    expect(
+      discoverBasemapSources(
+        indexOf([
+          thing('src-1', 'Streets', {
+            styleUrl: 'https://tiles.example.org/styles/plain',
+            tileUrl: 'https://tiles.example.org/plain/{z}/{x}/{y}.png',
+            attribution: 'Example',
+          }),
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it('offers sources in name order, so the same model always opens on the same layer', () => {
+    const found = discoverBasemapSources(
+      indexOf([
+        thing('src-2', 'Streets', { styleUrl: 'https://tiles.example.org/s', attribution: 'A' }),
+        thing('src-1', 'Aerial', { tileUrl: 'https://tiles.example.org/{z}/{x}/{y}.png', attribution: 'B' }),
+      ]),
+    );
+    expect(found.map((s) => s.name)).toEqual(['Aerial', 'Streets']);
+  });
+
+  it('takes attribution inherited from the archetype when the source itself does not restate it', () => {
+    const things = [
+      thing('is', 'is'),
+      { ...thing('arch-basemap', 'BasemapSource'), IsArchetype: true },
+      { ...thing('arch-agency', 'AgencyBasemap', { attribution: 'Example national mapping agency' }), IsArchetype: true },
+      thing('src-1', 'Aerial', { tileUrl: 'https://tiles.example.org/{z}/{x}/{y}.png' }),
+    ];
+    const relationships = [isEdge('arch-agency', 'arch-basemap'), isEdge('src-1', 'arch-agency')];
+    const [source] = discoverBasemapSources(buildModelIndex(things, relationships));
+    expect(source.attribution).toBe('Example national mapping agency');
+  });
+});
+
+describe('styleForSource', () => {
+  it('hands a vector style straight to the map', () => {
+    expect(
+      styleForSource({
+        id: 'src-1',
+        name: 'Streets',
+        attribution: 'Example',
+        kind: 'style',
+        styleUrl: 'https://tiles.example.org/styles/plain',
+      }),
+    ).toBe('https://tiles.example.org/styles/plain');
+  });
+
+  it('wraps a raster pyramid in a style that carries its attribution and its depth', () => {
+    const style = styleForSource({
+      id: 'src-1',
+      name: 'Aerial',
+      attribution: 'Example national mapping agency',
+      kind: 'raster',
+      tileUrl: 'https://tiles.example.org/{z}/{x}/{y}.png',
+      maximumZoom: 17,
+    });
+    expect(style).toEqual({
+      version: 8,
+      sources: {
+        basemap: {
+          type: 'raster',
+          tiles: ['https://tiles.example.org/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          maxzoom: 17,
+          attribution: 'Example national mapping agency',
+        },
+      },
+      layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }],
+    });
+  });
+});

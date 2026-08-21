@@ -313,6 +313,13 @@ export const fr: PartialResources = {
     errorTitle: "Échec du chargement de l'artefact Fragments.",
     loadFailed: "Échec du chargement du modèle",
   },
+  map: {
+    baseLayer: "Fond de carte",
+    recentre: "Recentrer",
+    coordinates: "{{latitude}}, {{longitude}}",
+    noSource: "Ce modèle ne définit aucune source de fond de carte.",
+    tilesUnreachable: "Les tuiles de carte n'ont pas pu être chargées.",
+  },
   temporal: {
     title: "Requêtes temporelles",
     tabs: {

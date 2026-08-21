@@ -313,6 +313,13 @@ export const it: PartialResources = {
     errorTitle: "Impossibile caricare l'artefatto Fragments.",
     loadFailed: "Impossibile caricare il modello",
   },
+  map: {
+    baseLayer: "Livello base",
+    recentre: "Ricentra",
+    coordinates: "{{latitude}}, {{longitude}}",
+    noSource: "Questo modello non definisce alcuna sorgente di mappa base.",
+    tilesUnreachable: "Non è stato possibile caricare le tessere della mappa.",
+  },
   temporal: {
     title: "Query temporali",
     tabs: {

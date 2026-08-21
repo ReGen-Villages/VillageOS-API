@@ -313,6 +313,13 @@ export const es: PartialResources = {
     errorTitle: "No se pudo cargar el artefacto Fragments.",
     loadFailed: "Error al cargar el modelo",
   },
+  map: {
+    baseLayer: "Capa base",
+    recentre: "Recentrar",
+    coordinates: "{{latitude}}, {{longitude}}",
+    noSource: "Este modelo no define ninguna fuente de mapa base.",
+    tilesUnreachable: "No se pudieron cargar las teselas del mapa.",
+  },
   temporal: {
     title: "Consultas temporales",
     tabs: {

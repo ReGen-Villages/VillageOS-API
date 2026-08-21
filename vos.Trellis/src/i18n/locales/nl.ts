@@ -313,6 +313,13 @@ export const nl: PartialResources = {
     errorTitle: "Kan het Fragments-artefact niet laden.",
     loadFailed: "Kan model niet laden",
   },
+  map: {
+    baseLayer: "Ondergrond",
+    recentre: "Opnieuw centreren",
+    coordinates: "{{latitude}}, {{longitude}}",
+    noSource: "Dit model definieert geen ondergrondbron.",
+    tilesUnreachable: "Kaarttegels konden niet worden geladen.",
+  },
   temporal: {
     title: "Temporele query's",
     tabs: {
