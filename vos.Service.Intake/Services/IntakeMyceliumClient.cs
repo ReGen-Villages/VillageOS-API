@@ -33,6 +33,24 @@ public sealed class IntakeMyceliumClient(
             : null;
     }
 
+    /// <summary>Whether the model already holds the Thing under this identifier. Asked by identifier rather
+    /// than by name because a name can answer with more than one Thing, and the caller derived this one.
+    /// </summary>
+    public async Task<bool> HoldsThingAsync(Guid identifier, CancellationToken cancellation)
+    {
+        var client = await CreateAuthenticatedClientAsync();
+        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{identifier}", cancellation);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return false;
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException(
+                $"Looking up '{identifier}' failed ({(int)response.StatusCode} {response.StatusCode}).",
+                null, response.StatusCode);
+
+        return true;
+    }
+
     public async Task ApplyFragmentAsync(ModelFragment fragment, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));

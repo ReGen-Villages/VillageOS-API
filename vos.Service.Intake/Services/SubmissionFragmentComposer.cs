@@ -14,7 +14,8 @@ namespace vos.Service.Intake.Services;
 /// archetypes that declare those properties, and this file is the only place it can learn that. What it takes
 /// from the shape below: the property maps, by the names <c>SiteProperties</c>, <c>StudyProperties</c>,
 /// <c>ParcelProperties</c>, <c>ProjectProperties</c>, <c>ContactProperties</c>, <c>AllocationProperties</c>,
-/// <c>HazardProperties</c> and <c>DataSourceProperties</c>, one per Thing; each property, from a
+/// <c>HazardProperties</c>, <c>DataSourceProperties</c> and <c>SubmissionProperties</c>, one per Thing;
+/// each property, from a
 /// <c>Write(properties, …)</c> call or a
 /// <c>["name"] = TypedValue.…</c> entry; the archetypes a submission is composed against, from the
 /// <c>…ArchetypeName</c> constants; and the predicates it may use, from the <c>…PredicateName</c> constants,
@@ -47,6 +48,11 @@ public static class SubmissionFragmentComposer
     public const string StudiesPredicateName = "studies";
     public const string HasPredicateName = "has";
     public const string IsPredicateName = "is";
+    public const string ProposesPredicateName = "proposes";
+
+    /// <summary>What the submission record's identifier is derived under. Public because the service derives
+    /// the same identifier to ask whether the record is already there.</summary>
+    public const string SubmissionRole = "submission";
 
     public const string SiteArchetypeName = "Site";
     public const string SiteStudyArchetypeName = "SiteStudy";
@@ -56,10 +62,13 @@ public static class SubmissionFragmentComposer
     public const string ProgrammeAllocationArchetypeName = "ProgrammeAllocation";
     public const string HazardAssessmentArchetypeName = "HazardAssessment";
     public const string DataSourceArchetypeName = "DataSource";
+    public const string SubmissionArchetypeName = "Submission";
 
+    /// <param name="arrivedAt">When this submission reached the service, or null when the model already
+    /// holds its record and its arrival is already recorded.</param>
     public static ComposedSubmission Compose(
         Submission submission, ResolvedPredicates predicates, ResolvedArchetypes archetypes,
-        DeclaredVocabulary vocabulary)
+        DeclaredVocabulary vocabulary, DateTime? arrivedAt)
     {
         var submissionId = Required(submission.SubmissionId, "submissionId",
             "every identifier derives from it, so a submission posted twice without one would build a second site");
@@ -94,6 +103,18 @@ public static class SubmissionFragmentComposer
         Relate(studyThing, predicates.Studies, siteThing);
         BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
         BeArchetype(studyThing, archetypes.SiteStudy, SiteStudyArchetypeName);
+
+        // The arrival itself, kept where a reviewer can ask about it. It proposes the site rather than
+        // holding it: a promotion carries the group reachable from the site through `has` and `studies`,
+        // and this record belongs to intake — it is resolved after the copy has landed, so a copy of it in
+        // a project model would read as waiting for ever. The record asserts the edge and the site does
+        // not, which is what leaves it behind when the site travels.
+        var submissionThing = new NamedThing(
+            StableIdentity.Derive(submissionId, SubmissionRole), $"{siteName} Submission");
+        things.Add(new FragmentThing(
+            submissionThing.Id, submissionThing.Name, SubmissionProperties(submissionId, arrivedAt)));
+        Relate(submissionThing, predicates.Proposes, siteThing);
+        BeArchetype(submissionThing, archetypes.Submission, SubmissionArchetypeName);
 
         // The project holds the site rather than the other way round: a submission is one planner's
         // undertaking, and the site is what it is about.
@@ -235,6 +256,17 @@ public static class SubmissionFragmentComposer
         Write(properties, "statedAreaHectares", VosTypeNames.Double, site.StatedAreaHectares);
         Write(properties, "population", VosTypeNames.LongInteger, site.Population);
         Write(properties, "householdSize", VosTypeNames.Double, site.HouseholdSize);
+        return properties;
+    }
+
+    // What the submission was called where it was filled in, so a group of Things can be traced back to it.
+    // The disposition a reviewer reaches is an edge written later and never a value here: a submission
+    // arrives with none, which is what reads as waiting.
+    private static Dictionary<string, TypedValue> SubmissionProperties(string submissionId, DateTime? arrivedAt)
+    {
+        var properties = new Dictionary<string, TypedValue>();
+        Write(properties, "submissionId", VosTypeNames.String, submissionId);
+        Write(properties, "submittedAt", VosTypeNames.DateTime, arrivedAt);
         return properties;
     }
 

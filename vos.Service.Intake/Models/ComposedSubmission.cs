@@ -11,14 +11,15 @@ public sealed record PredicateIdentity(string Name, Guid Id, bool Minted);
 /// <summary>The predicates a submission may relate its Things with. These field names are matched to the
 /// <c>…PredicateName</c> constants on <see cref="vos.Service.Intake.Services.SubmissionFragmentComposer"/> by a
 /// tool that reads both files as text; read the remarks there before renaming one.</summary>
-public sealed record ResolvedPredicates(PredicateIdentity Studies, PredicateIdentity Has, PredicateIdentity Is);
+public sealed record ResolvedPredicates(
+    PredicateIdentity Studies, PredicateIdentity Has, PredicateIdentity Is, PredicateIdentity Proposes);
 
 /// <summary>The archetypes a submission's Things point at, as the model that will hold them names them. A
 /// submission carries no property declarations of its own for anything an archetype already declares: it
 /// relates its Things and inherits the rest.</summary>
 public sealed record ResolvedArchetypes(
     Guid Site, Guid SiteStudy, Guid Parcel, Guid Project, Guid Contact, Guid ProgrammeAllocation,
-    Guid HazardAssessment, Guid DataSource);
+    Guid HazardAssessment, Guid DataSource, Guid Submission);
 
 /// <summary>One term a model declares, under the name it declared it with.</summary>
 public sealed record DeclaredTerm(string Name, Guid Id);

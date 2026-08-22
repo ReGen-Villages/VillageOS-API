@@ -13,11 +13,17 @@ public static class WillowBend
     public static readonly Guid StudiesPredicateId = new("11111111-1111-1111-1111-111111111111");
     public static readonly Guid HasPredicateId = new("22222222-2222-2222-2222-222222222222");
     public static readonly Guid IsPredicateId = new("33333333-3333-3333-3333-333333333333");
+    public static readonly Guid ProposesPredicateId = new("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
 
     public static ResolvedPredicates KnownPredicates => new(
         new PredicateIdentity("studies", StudiesPredicateId, Minted: false),
         new PredicateIdentity("has", HasPredicateId, Minted: false),
-        new PredicateIdentity("is", IsPredicateId, Minted: false));
+        new PredicateIdentity("is", IsPredicateId, Minted: false),
+        new PredicateIdentity("proposes", ProposesPredicateId, Minted: false));
+
+    /// <summary>A moment to stamp an arrival with. Fixed, because a test that read the real clock could
+    /// only assert that the value was close to it.</summary>
+    public static readonly DateTime ArrivedAt = new(2026, 8, 22, 9, 30, 0, DateTimeKind.Utc);
 
     /// <summary>The archetypes a model seeded from the shared analysis template and the land-intake
     /// template holds. A submission points its Things at these rather than declaring their properties
@@ -30,10 +36,12 @@ public static class WillowBend
     public static readonly Guid ProgrammeAllocationArchetypeId = new("99999999-9999-9999-9999-999999999999");
     public static readonly Guid HazardAssessmentArchetypeId = new("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     public static readonly Guid DataSourceArchetypeId = new("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    public static readonly Guid SubmissionArchetypeId = new("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     public static ResolvedArchetypes KnownArchetypes =>
         new(SiteArchetypeId, SiteStudyArchetypeId, ParcelArchetypeId, ProjectArchetypeId, ContactArchetypeId,
-            ProgrammeAllocationArchetypeId, HazardAssessmentArchetypeId, DataSourceArchetypeId);
+            ProgrammeAllocationArchetypeId, HazardAssessmentArchetypeId, DataSourceArchetypeId,
+            SubmissionArchetypeId);
 
     public static readonly Guid CategorizedAsPredicateId = new("cccccccc-cccc-cccc-cccc-cccccccccccc");
     public static readonly Guid ObtainedByPredicateId = new("dddddddd-dddd-dddd-dddd-dddddddddddd");
