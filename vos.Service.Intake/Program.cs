@@ -56,6 +56,7 @@ try
             myceliumUrl,
             serviceToken));
 
+    builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddSingleton<SubmissionIntakeService>();
 
     var app = builder.Build();

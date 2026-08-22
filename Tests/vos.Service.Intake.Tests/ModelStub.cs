@@ -28,6 +28,9 @@ public static class ModelStub
     {
         if (IsFragment(request)) return Json("{}");
         if (IsSubscriptionRead(request)) return Json(DeclaredVocabularyAnswer);
+        // A model that answers every name still holds no submission it has not been sent, so a lookup by
+        // identifier is the one thing this stub says no to.
+        if (IsThingLookupById(request)) return NotFound();
         return Json($$"""{"Id":"{{Guid.NewGuid()}}","Name":"predicate"}""");
     }
 
@@ -49,7 +52,17 @@ public static class ModelStub
         SubmissionFragmentComposer.ProgrammeAllocationArchetypeName,
         SubmissionFragmentComposer.HazardAssessmentArchetypeName,
         SubmissionFragmentComposer.DataSourceArchetypeName,
+        SubmissionFragmentComposer.SubmissionArchetypeName,
     ];
+
+    /// <summary>A lookup by identifier rather than by name — how the service asks whether a submission's
+    /// record is already there.</summary>
+    public static bool IsThingLookupById(HttpRequestMessage request) =>
+        request.Method == HttpMethod.Get
+        && request.RequestUri!.AbsolutePath.StartsWith("/api/things/", StringComparison.Ordinal)
+        && Guid.TryParse(request.RequestUri.AbsolutePath["/api/things/".Length..], out _);
+
+    public static HttpResponseMessage NotFound() => new(HttpStatusCode.NotFound);
 
     public static string NameAsked(HttpRequestMessage request) =>
         HttpUtility.ParseQueryString(request.RequestUri!.Query)["name"] ?? "";

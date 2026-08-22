@@ -34,4 +34,5 @@ public static class VosTypeNames
     public const string Boolean = "vos.Boolean";
     public const string String = "vos.String";
     public const string GeoJson = "vos.GeoJson";
+    public const string DateTime = "vos.DateTime";
 }
