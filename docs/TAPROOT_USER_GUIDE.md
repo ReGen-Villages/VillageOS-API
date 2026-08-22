@@ -210,7 +210,7 @@ production** — it disables protection against man-in-the-middle attacks.
 
 **Note:** Where `<thing>`, `<subj>`, `<pred>`, or `<target>` appears, you can use either a GUID or a unique name. Names are case-insensitive. If a name is ambiguous (multiple things have the same name), you must use the GUID.
 
-**Note:** The three `submissions` commands have a page of their own in Trellis — see [Reviewing what has arrived](TRELLIS.md#87-reviewing-what-has-arrived). It reads the same model the same way and calls the same two actions, so the same staging model can be worked from a browser or from here.
+**Note:** The review commands — `list`, `reject` and `promote` — have a page of their own in Trellis, [Reviewing what has arrived](TRELLIS.md#87-reviewing-what-has-arrived). It reads the same model the same way and calls the same two actions, so a staging model can be worked from a browser or from here. `submissions dispose` has no page: the retention pass is run from here.
 
 ### Output Options
 
