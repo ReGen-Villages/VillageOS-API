@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using vos.Service.Shared;
+using vos.Service.Tributary.Helpers;
 
 namespace vos.Service.Tributary.Services;
 
@@ -13,9 +14,15 @@ public record ObservationIngestResult(
 
 // Ingests fetched-and-reshaped readings as time-series observations (Phase 5b hybrid, #5587).
 // Each reading names an entity and carries a bag of property values at an observed time. Entities
-// become structural Things — created once, related to the source endpoint once — so the graph
-// scales with the number of entities, not readings; the readings themselves are written as
-// observations on each entity's property series (Canopy → Sapwood), bounded by PropertyMode.
+// become structural Things — created once, and related to the endpoint that wrote onto them once —
+// so the graph scales with the number of entities, not readings; the readings themselves are written
+// as observations on each entity's property series (Canopy → Sapwood), bounded by PropertyMode.
+//
+// The `observed` edge is what a value can be walked back along to the registration that produced it,
+// and from there to the source through `DataSource resolvedBy Endpoint`. It is written on every ingest
+// that puts values on a Thing, not only on the one that created it — a Thing that already existed is
+// the ordinary case, and an edge written only by whichever fetch happened to be first leaves every
+// later value with no source at all.
 public class ObservationIngestService
 {
     // Retention applied to newly-declared observed properties. Sampled bounds storage
@@ -74,7 +81,8 @@ public class ObservationIngestService
     // A supplied subjectId takes the reading's own name out of play entirely: nothing is resolved
     // or created from it, whether or not the expression produced one.
     public async Task<ObservationIngestResult> CreateObservationsAsync(
-        Guid endpointThingId, JsonataTransform query, string body, Guid? subjectId = null)
+        Guid endpointThingId, JsonataTransform query, string body, Guid? subjectId = null,
+        ObservedEdges? alreadyObserved = null)
     {
         if (!TryTransform(body, query, out var transformed, out var transformError))
             return new ObservationIngestResult(false, 0, 0, "Endpoint response transform failed", transformError);
@@ -82,12 +90,14 @@ public class ObservationIngestService
         if (!TryParseReadings(transformed, subjectId != null, out var readings, out var parseError))
             return new ObservationIngestResult(false, 0, 0, "Transformed output is not a valid reading array.", parseError);
 
+        var provenance = new ProvenanceWriter(
+            _myceliumClient, endpointThingId, alreadyObserved ?? ObservedEdges.None);
+
         if (subjectId != null)
-            return await ObserveOntoSubjectAsync(subjectId.Value, readings);
+            return await ObserveOntoSubjectAsync(subjectId.Value, readings, provenance);
 
         // Things scale with entities, observations with readings — so group by entity name and
         // touch each entity's structure once.
-        MyceliumClient.MyceliumThing? observedPredicate = null;
         var entitiesTouched = 0;
         var observationsSubmitted = 0;
 
@@ -101,7 +111,7 @@ public class ObservationIngestService
             if (entity == null)
             {
                 // First sighting: declare the entity and its observable properties (the first
-                // reading seeds the shape), bound their retention, and link it to the source once.
+                // reading seeds the shape) and bound their retention.
                 entity = await _myceliumClient.CreateThingAsync(name, entityReadings[0].Properties);
                 if (entity == null)
                     return new ObservationIngestResult(false, entitiesTouched, observationsSubmitted,
@@ -110,18 +120,6 @@ public class ObservationIngestService
 
                 foreach (var prop in entityReadings[0].Properties.Keys)
                     await _myceliumClient.SetPropertyModeAsync(entity.Value.Id, prop, DefaultObservationMode);
-
-                observedPredicate ??= await _myceliumClient.FindThingByNameAsync("observed")
-                                      ?? await _myceliumClient.CreateThingAsync("observed");
-                if (observedPredicate == null)
-                    return new ObservationIngestResult(false, entitiesTouched, observationsSubmitted,
-                        "Failed to resolve or create 'observed' predicate.", null);
-
-                var related = await _myceliumClient.CreateRelationshipAsync(
-                    endpointThingId, observedPredicate.Value.Id, entity.Value.Id);
-                if (!related)
-                    return new ObservationIngestResult(false, entitiesTouched, observationsSubmitted,
-                        "Failed to relate entity to endpoint.", name);
             }
 
             entitiesTouched++;
@@ -130,6 +128,16 @@ public class ObservationIngestService
             // remaining reading becomes an observation on the entity's series.
             var toObserve = created ? entityReadings.Skip(1) : entityReadings;
             var samples = SamplesOf(toObserve);
+
+            // Related before the values are written, so a refused edge leaves nothing behind that
+            // cannot be walked back to what produced it. A run that writes neither a seed nor a
+            // sample relates nothing: an edge there would claim a reading that was never taken.
+            if (created || samples.Count > 0)
+            {
+                if (await provenance.EnsureObservedAsync(entity.Value.Id) is { } failure)
+                    return new ObservationIngestResult(false, entitiesTouched, observationsSubmitted,
+                        failure, name);
+            }
 
             if (samples.Count > 0)
             {
@@ -143,23 +151,69 @@ public class ObservationIngestService
         return new ObservationIngestResult(true, entitiesTouched, observationsSubmitted, null, null);
     }
 
-    // Nothing is created here, so no `observed` edge is written either — the same as any fetch
-    // landing on an entity that already existed, and the reason a value discovered this way cannot
-    // yet be walked back to the source that produced it.
-    private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(Guid subjectId, List<Reading> readings)
+    private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(
+        Guid subjectId, List<Reading> readings, ProvenanceWriter provenance)
     {
         var samples = SamplesOf(readings);
 
-        // Nothing resolved, nothing created, nothing written — so nothing to report. This is
-        // deliberately not what the name path answers: that one counts the entity it resolved even
-        // when the reading gave it no values, because resolving is work this path never does.
+        // Nothing resolved, nothing created, nothing written — so nothing to report, and no edge
+        // claiming a source produced a value it did not. This is deliberately not what the name path
+        // answers: that one counts the entity it resolved even when the reading gave it no values,
+        // because resolving is work this path never does.
         if (samples.Count == 0)
             return new ObservationIngestResult(true, 0, 0, null, null);
+
+        if (await provenance.EnsureObservedAsync(subjectId) is { } failure)
+            return new ObservationIngestResult(false, 1, 0, failure, null);
 
         if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples))
             return new ObservationIngestResult(false, 1, 0, "Failed to submit observations for entity.", null);
 
         return new ObservationIngestResult(true, 1, samples.Count, null, null);
+    }
+
+    // Writes the edge saying this endpoint observed a Thing, once per Thing. The edges the endpoint
+    // already carries come from the snapshot the call has already taken, so a second run over the same
+    // site adds no edge and costs no read of its own.
+    private sealed class ProvenanceWriter
+    {
+        private readonly IEndpointMyceliumClient _myceliumClient;
+        private readonly Guid _endpointThingId;
+        private readonly IReadOnlySet<Guid> _alreadyObserved;
+
+        // Resolved on the first Thing that needs it and kept for the rest of the call, so a fetch
+        // declaring several new entities looks the predicate up once.
+        private Guid? _predicateId;
+
+        public ProvenanceWriter(
+            IEndpointMyceliumClient myceliumClient, Guid endpointThingId, ObservedEdges alreadyObserved)
+        {
+            _myceliumClient = myceliumClient;
+            _endpointThingId = endpointThingId;
+            _alreadyObserved = alreadyObserved.ObservedThingIds;
+            _predicateId = alreadyObserved.PredicateId;
+        }
+
+        // Null when the edge is in place. The two failures are named apart because one is a model with
+        // no predicate to relate through and the other is a write the model refused.
+        public async Task<string?> EnsureObservedAsync(Guid thingId)
+        {
+            if (_alreadyObserved.Contains(thingId)) return null;
+
+            if (_predicateId == null)
+            {
+                var predicate = await _myceliumClient.FindThingByNameAsync(ObservedEdges.PredicateName)
+                                ?? await _myceliumClient.CreateThingAsync(ObservedEdges.PredicateName);
+                if (predicate == null)
+                    return $"Failed to resolve or create '{ObservedEdges.PredicateName}' predicate.";
+                _predicateId = predicate.Value.Id;
+            }
+
+            if (!await _myceliumClient.CreateRelationshipAsync(_endpointThingId, _predicateId.Value, thingId))
+                return "Failed to relate entity to endpoint.";
+
+            return null;
+        }
     }
 
     private static List<ObservationSample> SamplesOf(IEnumerable<Reading> readings) =>
