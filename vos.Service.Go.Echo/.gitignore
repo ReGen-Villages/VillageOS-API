@@ -1,1 +1,16 @@
 /service-go-echo
+
+# What a Go build leaves behind. Kept here rather than at the repository root: this repository also
+# holds .NET, Node, Python and Rust, and *.dll, *.so, *.dylib, *.out and *.test at the root would
+# quietly cover a file any of them might one day mean to track. The Rust services scope theirs the
+# same way. Lock files stay tracked — go.sum is committed for the same reason as package-lock.json.
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+go.work
+go.work.sum
