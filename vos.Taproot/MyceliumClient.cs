@@ -311,6 +311,27 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    // Carry a group out of this model into a project model built for it from a template. The token names
+    // the SOURCE, the opposite way round from a graft: the receiving model does not exist when the call
+    // begins. Promoting the same group twice produces one project, because the server derives both the
+    // project model's identifier and the identifiers inside it rather than generating them.
+    public virtual async Task<JsonElement> PromoteAsync(
+        Guid rootThingId, IReadOnlyList<string> followedPredicateNames, string template, string projectName)
+    {
+        await SetAuthHeaderAsync();
+        var body = JsonSerializer.Serialize(new
+        {
+            RootThingId = rootThingId,
+            FollowedPredicateNames = followedPredicateNames,
+            Template = template,
+            ProjectName = projectName,
+        });
+        var content = new StringContent(body, Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model/promote", content);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     // Upload an IFC file to the Xylem ingestion service, which parses it and applies the graph to the
     // model (mode: "merge" | "new-model"). Authenticated with a Mycelium token; returns the service's
     // result JSON ({ success, thingsCreated, thingsUpdated, relationshipsCreated, error }) for both
