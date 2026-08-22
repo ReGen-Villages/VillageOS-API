@@ -122,6 +122,27 @@ public class ObservationIngestServiceTests
     }
 
     [Fact]
+    public async Task SuppliedSubjectAndTheEdgeIsRefused_WritesNoValuesEither()
+    {
+        // The edge goes in before the values, so a refused edge leaves nothing on the site that
+        // cannot be walked back to what produced it.
+        var subjectId = Guid.NewGuid();
+        var observedId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
+        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(false);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var result = await sut.CreateObservationsAsync(
+            Guid.NewGuid(), new JsonataTransform("{\"properties\":{\"v\":1}}"), "{\"x\":1}", subjectId);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("relate entity to endpoint");
+        await client.DidNotReceive().SubmitObservationsAsync(
+            Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ObservationSample>>());
+    }
+
+    [Fact]
     public async Task SubjectAlreadyObserved_WritesNoSecondEdge()
     {
         // Discovery run twice over one site. The values are written again; the edge saying where they
@@ -238,6 +259,8 @@ public class ObservationIngestServiceTests
         result.EntitiesTouched.Should().Be(2); // A and B, each created once
         await client.Received(1).CreateThingAsync("A", Arg.Any<Dictionary<string, object?>>());
         await client.Received(1).CreateThingAsync("B", Arg.Any<Dictionary<string, object?>>());
+        await client.Received(2).CreateRelationshipAsync(endpointThingId, observedId, Arg.Any<Guid>());
+        await client.Received(1).FindThingByNameAsync("observed");
     }
 
     [Fact]

@@ -179,7 +179,10 @@ public class ObservationIngestService
     {
         private readonly IEndpointMyceliumClient _myceliumClient;
         private readonly Guid _endpointThingId;
-        private readonly HashSet<Guid> _observed;
+        private readonly IReadOnlySet<Guid> _alreadyObserved;
+
+        // Resolved on the first Thing that needs it and kept for the rest of the call, so a fetch
+        // declaring several new entities looks the predicate up once.
         private Guid? _predicateId;
 
         public ProvenanceWriter(
@@ -187,7 +190,7 @@ public class ObservationIngestService
         {
             _myceliumClient = myceliumClient;
             _endpointThingId = endpointThingId;
-            _observed = [.. alreadyObserved.ObservedThingIds];
+            _alreadyObserved = alreadyObserved.ObservedThingIds;
             _predicateId = alreadyObserved.PredicateId;
         }
 
@@ -195,7 +198,7 @@ public class ObservationIngestService
         // no predicate to relate through and the other is a write the model refused.
         public async Task<string?> EnsureObservedAsync(Guid thingId)
         {
-            if (_observed.Contains(thingId)) return null;
+            if (_alreadyObserved.Contains(thingId)) return null;
 
             if (_predicateId == null)
             {
@@ -209,7 +212,6 @@ public class ObservationIngestService
             if (!await _myceliumClient.CreateRelationshipAsync(_endpointThingId, _predicateId.Value, thingId))
                 return "Failed to relate entity to endpoint.";
 
-            _observed.Add(thingId);
             return null;
         }
     }
