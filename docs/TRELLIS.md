@@ -625,8 +625,10 @@ Model-level operations (import/export/clear) are available via the CLI or REST A
 
 **Submissions** in the sidebar lists what has arrived in this model, so a reviewer can throw away the
 junk and promote the rest into a project model of its own. It is the same read and the same two
-actions as the `submissions` commands in [the Taproot guide](TAPROOT_USER_GUIDE.md); either can be
-used against the same model.
+actions as `submissions list`, `submissions reject` and `submissions promote` in
+[the Taproot guide](TAPROOT_USER_GUIDE.md); either can be used against the same model. Clearing
+rejected submissions once their period has run is `submissions dispose`, and has no page — it is a
+retention pass rather than something a reviewer decides.
 
 Each row shows when the submission arrived, what it proposes, and what has been decided about it — or
 **Waiting**, which is what no decision reads as. Decided rows leave the queue; **Show decided** brings
@@ -1263,7 +1265,7 @@ Detail panels use dedicated `detailThing` / `detailRelationship` state (React st
 
 ## 20. CLI Command Parity
 
-Every CLI command maps to an inline GUI action — all CRUD operations are performed directly on the Graph page via toolbar buttons, detail panels, and context menus (no separate command page):
+Almost every CLI command maps to an inline GUI action — all CRUD operations are performed directly on the Graph page via toolbar buttons, detail panels, and context menus (no separate command page). Where a command has no GUI element, the table says so and why:
 
 ### Create Operations (GraphPage)
 
@@ -1316,6 +1318,7 @@ Every CLI command maps to an inline GUI action — all CRUD operations are perfo
 | `submissions list` | The queue on the Submissions page; **Show decided** widens it to everything that has arrived |
 | `submissions reject <submission>` | **Reject** on a row |
 | `submissions promote <submission> <template> <predicates> <project name>` | **Promote** on a row → dialog for the template, what travels with the site (chosen from the predicates the model asserts through), and the project name |
+| `submissions dispose <predicates>` | None, by design. The retention pass clears every rejected submission whose period has run; it is not a decision a reviewer makes on a row |
 
 ---
 
