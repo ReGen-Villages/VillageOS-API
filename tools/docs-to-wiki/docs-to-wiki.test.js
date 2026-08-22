@@ -80,6 +80,28 @@ test('a handoff is ignored however it is spelled', () => {
   }
 });
 
+// A handoff is a working note between sessions: it is never committed, so it is in nobody's clone,
+// so a document pointing at one sends its reader nowhere — and these documents are published to the
+// wiki, where the dead link goes with them. Documentation is what the rule is about, so documentation
+// is what this reads: a test naming a filename in an assertion is not a reader being sent anywhere.
+test('no handoff is carried, and no document points at one', () => {
+  const tracked = execFileSync('git', ['ls-files'], { cwd: REPO_ROOT, encoding: 'utf8' })
+    .split('\n')
+    .filter(Boolean);
+
+  const carried = tracked.filter((f) => /handoff/i.test(path.basename(f)));
+  assert.deepEqual(carried, [], `a handoff is never committed: ${carried}`);
+
+  const pointing = [];
+  for (const file of tracked.filter((f) => f.toLowerCase().endsWith('.md'))) {
+    const named = [
+      ...new Set(fs.readFileSync(path.join(REPO_ROOT, file), 'utf8').match(/[\w.\-/]*handoff[\w.\-]*\.md/gi) || []),
+    ];
+    if (named.length) pointing.push(`${file} names ${named.join(', ')}`);
+  }
+  assert.deepEqual(pointing, [], `nothing may link to a handoff — say what the reader needs, or drop the link: ${pointing}`);
+});
+
 test('every mapped document exists and every page path is unique', () => {
   const seen = new Set();
   for (const { doc, page } of manifest.pages) {
