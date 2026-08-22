@@ -731,6 +731,86 @@ public class MyceliumClientTests
         result.GetProperty("thingsCreated").GetInt32().Should().Be(1);
     }
 
+    // ---- Promotion into a project model (VillageOS #6045) ----
+
+    [Fact]
+    public async Task PromoteAsync_PostsWhatTravelsAndWhatToBuildItFrom()
+    {
+        var root = Guid.NewGuid();
+        JsonElement? capturedBody = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            req.Method.Should().Be(HttpMethod.Post);
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/model/promote");
+            capturedBody = ReadJsonBody(req);
+            return JsonResponse("{\"modelId\":\"00000000-0000-0000-0000-0000000000a1\",\"modelName\":\"Willow Bend\"}");
+        });
+
+        var result = await client.PromoteAsync(root, ["has", "studies"], "project.seed.json", "Willow Bend");
+
+        capturedBody!.Value.GetProperty("RootThingId").GetGuid().Should().Be(root);
+        capturedBody.Value.GetProperty("FollowedPredicateNames").EnumerateArray()
+            .Select(name => name.GetString()).Should().Equal("has", "studies");
+        capturedBody.Value.GetProperty("Template").GetString().Should().Be("project.seed.json");
+        capturedBody.Value.GetProperty("ProjectName").GetString().Should().Be("Willow Bend");
+        result.GetProperty("modelName").GetString().Should().Be("Willow Bend");
+    }
+
+    // A promotion the broker refuses says why — the name the project model could not answer, or the
+    // template that is not there. Swallowing it would leave an operator with a silent no-op.
+    [Fact]
+    public async Task PromoteAsync_WhenTheBrokerRefuses_Throws()
+    {
+        var (client, _) = NewClient(req =>
+            req.RequestUri!.AbsolutePath == "/api/auth/token"
+                ? TokenResponse(ServiceToken)
+                : new HttpResponseMessage(HttpStatusCode.BadRequest));
+
+        var refused = async () => await client.PromoteAsync(Guid.NewGuid(), [], "project.seed.json", "Willow Bend");
+
+        await refused.Should().ThrowAsync<HttpRequestException>();
+    }
+
+    // ---- Taking a group out of a model (VillageOS #6656) ----
+
+    [Fact]
+    public async Task PruneAsync_PostsTheRootAndWhatTheWalkFollows()
+    {
+        var root = Guid.NewGuid();
+        JsonElement? capturedBody = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            req.Method.Should().Be(HttpMethod.Post);
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/model/prune");
+            capturedBody = ReadJsonBody(req);
+            return JsonResponse("""{"removed":[{"id":"00000000-0000-0000-0000-0000000000b1","name":"Site"}]}""");
+        });
+
+        var result = await client.PruneAsync(root, ["proposes", "has"]);
+
+        capturedBody!.Value.GetProperty("RootThingId").GetGuid().Should().Be(root);
+        capturedBody.Value.GetProperty("FollowedPredicateNames").EnumerateArray()
+            .Select(name => name.GetString()).Should().Equal("proposes", "has");
+        result.GetProperty("removed").GetArrayLength().Should().Be(1);
+    }
+
+    // A prune the broker refuses says why — a group reaching an archetype, or a root it does not hold.
+    // Swallowing it would report a submission cleared that is still there.
+    [Fact]
+    public async Task PruneAsync_WhenTheBrokerRefuses_Throws()
+    {
+        var (client, _) = NewClient(req =>
+            req.RequestUri!.AbsolutePath == "/api/auth/token"
+                ? TokenResponse(ServiceToken)
+                : new HttpResponseMessage(HttpStatusCode.BadRequest));
+
+        var refused = async () => await client.PruneAsync(Guid.NewGuid(), []);
+
+        await refused.Should().ThrowAsync<HttpRequestException>();
+    }
+
     // ---- IFC ingestion via the Xylem service (US #5843) ----
 
     [Fact]

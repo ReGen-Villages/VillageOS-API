@@ -301,21 +301,6 @@ steps:
   condition: always()
 
 # --------------------------------------------
-# ONLY RUN ON MAIN MERGE
-# --------------------------------------------
-- script: dotnet pack --configuration $(buildConfiguration) --no-build -o ./nupkgs
-  displayName: 'Pack NuGet Package'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-
-- task: DotNetCoreCLI@2
-  displayName: 'Push NuGet Package to Azure Artifacts'
-  inputs:
-    command: 'push'
-    packagesToPush: 'nupkgs/*.nupkg'
-    publishVstsFeed: 'NuGetPackages'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-
-# --------------------------------------------
 # MIRROR TO GITHUB (main only)
 # --------------------------------------------
 # Requires pipeline variable GITHUB_PAT (secret) — fine-grained PAT with

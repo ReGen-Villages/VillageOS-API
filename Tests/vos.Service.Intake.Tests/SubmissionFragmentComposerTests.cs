@@ -17,7 +17,14 @@ public class SubmissionFragmentComposerTests
 
     private static ComposedSubmission Compose(Submission submission, DeclaredVocabulary vocabulary) =>
         SubmissionFragmentComposer.Compose(
-            submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, vocabulary);
+            submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, vocabulary, WillowBend.ArrivedAt);
+
+    private static ComposedSubmission Compose(Submission submission, DateTime? arrivedAt) =>
+        SubmissionFragmentComposer.Compose(
+            submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, WillowBend.KnownVocabulary,
+            arrivedAt);
+
+    private static FragmentThing Record(ComposedSubmission composed) => Named(composed, "Willow Bend Submission");
 
     private static bool Relates(ComposedSubmission composed, Guid subject, Guid predicate, Guid target) =>
         composed.Fragment.Relationships.Any(edge =>
@@ -518,6 +525,60 @@ public class SubmissionFragmentComposerTests
     }
 
     [Fact]
+    public void A_submission_mints_a_record_of_its_own_arrival()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        Record(composed).Properties["submissionId"].Value.Should().Be(WillowBend.SubmissionId);
+        Record(composed).Properties["submittedAt"].Value.Should().Be(WillowBend.ArrivedAt);
+        IsEdgeTo(composed, Record(composed).Id, WillowBend.SubmissionArchetypeId).Should().BeTrue();
+    }
+
+    // A promotion carries the group reachable from the site through `has` and `studies`, and takes with it
+    // every edge a member of that group asserts. The record is resolved after the copy has landed, so a
+    // copy of it would read as waiting for ever — it reaches the site through neither predicate, and the
+    // site does not assert the edge that reaches it.
+    [Fact]
+    public void The_record_proposes_the_site_rather_than_holding_it()
+    {
+        var composed = Compose(WillowBend.Submission());
+        var record = Record(composed);
+
+        Relates(composed, record.Id, WillowBend.ProposesPredicateId, composed.SiteId).Should().BeTrue();
+        Holds(composed, record.Id, composed.SiteId).Should().BeFalse();
+        Relates(composed, composed.SiteId, WillowBend.StudiesPredicateId, record.Id).Should().BeFalse();
+        composed.Fragment.Relationships.Should().NotContain(edge => edge.Target == record.Id,
+            "nothing points at the record, so no group carrying another Thing can reach it");
+    }
+
+    // A wizard saves as the planner fills the form in and a fragment upserts, so a time written on every
+    // save would record the last save rather than the arrival.
+    [Fact]
+    public void A_submission_posted_again_writes_no_arrival_time()
+    {
+        var composed = Compose(WillowBend.Submission(), arrivedAt: null);
+
+        Record(composed).Properties.Should().ContainKey("submissionId").And.NotContainKey("submittedAt");
+    }
+
+    [Fact]
+    public void The_record_of_one_submission_is_one_thing_however_often_it_is_posted()
+    {
+        var first = Compose(WillowBend.Submission(), WillowBend.ArrivedAt);
+        var again = Compose(WillowBend.Submission(), arrivedAt: null);
+
+        Record(again).Id.Should().Be(Record(first).Id);
+    }
+
+    [Fact]
+    public void A_record_carries_no_disposition_when_it_arrives()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        Record(composed).Properties.Keys.Should().BeEquivalentTo("submissionId", "submittedAt");
+    }
+
+    [Fact]
     public void The_same_submission_lands_on_the_same_things_every_time()
     {
         var first = Compose(WillowBend.Submission());
@@ -560,7 +621,8 @@ public class SubmissionFragmentComposerTests
             WillowBend.Submission() with { Parcel = null },
             WillowBend.KnownPredicates with { Studies = minted },
             WillowBend.KnownArchetypes,
-            WillowBend.KnownVocabulary);
+            WillowBend.KnownVocabulary,
+            WillowBend.ArrivedAt);
 
         composed.Fragment.Things.Should().Contain(thing => thing.Id == minted.Id && thing.Name == "studies");
     }

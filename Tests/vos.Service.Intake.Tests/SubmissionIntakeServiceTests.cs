@@ -46,7 +46,14 @@ public class SubmissionIntakeServiceTests
                 "http://localhost",
                 "test-token"),
             read,
-            NullLogger<SubmissionIntakeService>.Instance);
+            NullLogger<SubmissionIntakeService>.Instance,
+            new FakeTimeProvider(WillowBend.ArrivedAt));
+
+    /// <summary>A clock that does not move, so an arrival time can be asserted rather than bounded.</summary>
+    private sealed class FakeTimeProvider(DateTime now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(now, TimeSpan.Zero);
+    }
 
     /// <summary>A service reading its vocabularies out of the model a test built, against archetypes that
     /// answer.</summary>
@@ -246,6 +253,44 @@ public class SubmissionIntakeServiceTests
         composed.Fragment.Relationships.Should()
             .Contain(edge => edge.Predicate == StableIdentity.DerivePredicate("studies"),
                 "the model answers a name it does not hold with an empty body as readily as with a 404");
+    }
+
+    /// <summary>The record this submission's arrival is kept on, under the identifier the service derives to
+    /// ask whether it is already there.</summary>
+    private static Guid RecordIdentity() =>
+        StableIdentity.Derive(WillowBend.SubmissionId, SubmissionFragmentComposer.SubmissionRole);
+
+    private static JsonElement PostedRecord(string fragment) =>
+        JsonDocument.Parse(fragment).RootElement.GetProperty("Things").EnumerateArray()
+            .Single(thing => thing.GetProperty("Id").GetGuid() == RecordIdentity())
+            .GetProperty("Properties");
+
+    // Whether the model already holds the record is the whole difference between an arrival and a save, and
+    // only the service can ask. A wizard saves as the planner fills the form in, and a fragment upserts, so
+    // a time written on every save would record the last save rather than the arrival.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task The_arrival_time_is_written_only_when_the_model_does_not_already_hold_the_record(
+        bool alreadyHeld, bool expectTheTime)
+    {
+        string? captured = null;
+        var service = Service(request =>
+        {
+            if (IsFragment(request))
+                captured = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            if (IsThingLookupById(request) && alreadyHeld)
+                return Json($$"""{"Id":"{{RecordIdentity()}}","Name":"Willow Bend Submission"}""");
+            return Holds(request);
+        });
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        var record = PostedRecord(captured!);
+        record.TryGetProperty("submissionId", out _).Should().BeTrue();
+        record.TryGetProperty("submittedAt", out var stamped).Should().Be(expectTheTime);
+        if (expectTheTime)
+            stamped.GetProperty("value").GetDateTime().Should().Be(WillowBend.ArrivedAt);
     }
 
     [Fact]

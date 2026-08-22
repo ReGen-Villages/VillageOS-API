@@ -108,6 +108,12 @@ namespace vos.Taproot
             _writer.WriteLine("  mycelium status                               - Show Mycelium seed status");
             _writer.WriteLine("  mycelium endpoints                            - List registered endpoint services");
             _writer.WriteLine();
+            _writer.WriteLine("Submissions:");
+            _writer.WriteLine("  submissions list                            - What has arrived, and its state");
+            _writer.WriteLine("  submissions reject <submission>             - Move one to a disposable state");
+            _writer.WriteLine("  submissions promote <submission> <template> <predicates> <project name>");
+            _writer.WriteLine("                                              - Copy one into a project model of its own");
+            _writer.WriteLine();
             _writer.WriteLine("User Management:");
             _writer.WriteLine("  user change-password <userId>               - Change a user's password");
             _writer.WriteLine();
@@ -193,6 +199,7 @@ namespace vos.Taproot
             ["mycelium"] = async (_, a) => await new MyceliumStatusCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["model"] = async (_, a) => await new ModelCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["user"] = async (_, a) => await new UserCommandHandler(a, _reader, _writer, _mycelium).ExecuteAsync(),
+            ["submissions"] = async (_, a) => await new SubmissionsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
         };
 
         public async Task RunAsync()

@@ -28,7 +28,10 @@ public static class EndpointKindResolver
     public static SubscriptionSelector SelectorFor(Guid endpointId) => new()
     {
         Ids = [endpointId],
-        Names = [.. PredicatesRead],
+        // `observed` is named for the provenance read rather than for any kind. The endpoint's own
+        // edges are in this snapshot already, and without the Thing naming them every one of them
+        // reads as some other predicate — so one read answers both questions.
+        Names = [.. PredicatesRead, ObservedEdges.PredicateName],
         Traverse =
         [
             new TraverseRule { Predicate = "is", Depth = TemplateChainDepth },
