@@ -154,9 +154,28 @@ CLAUDE.md
 **/.venv/
 **/__pycache__/
 *.pyc
+# pytest writes its own ignore file inside this directory, which is why an
+# uncovered cache never showed up as an untracked file.
+.pytest_cache/
+*.egg-info/
 
 # Simulator run artifacts (crash-resume checkpoints written via --checkpoint)
 tools/simulator/*.ckpt
+
+# Go build output. The Go service ignores its own binary by name; these cover what
+# any Go project produces, so a second service is covered the day it is created
+# rather than after someone notices stray files. Lock files stay tracked - go.sum
+# is committed for the same reason as package-lock.json and Cargo.lock.
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+go.work
+go.work.sum
 
 # Rust build output (cargo). Each Rust microservice also ignores its own target/,
 # but this covers any orphaned target/ (e.g. left behind by a directory rename).
