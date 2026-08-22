@@ -40,7 +40,7 @@ public class SubmissionsCommandHandlerTests
 
     /// <summary>A model holding one submission. Its predicates and its disposition archetype are named
     /// nothing like the shipped template's, because a reader finds them by their marks.</summary>
-    private void AModelWithOneSubmission(Guid? disposition = null)
+    private void AModelWithOneSubmission(Guid? disposition = null, DateTime? resolvedAt = null)
     {
         _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(new[]
         {
@@ -74,12 +74,19 @@ public class SubmissionsCommandHandlerTests
                     { ["__IsSubmissionDispositionArchetype"] = Held(true) },
                 [RejectedId.ToString()] = new Dictionary<string, object>
                     { ["daysBeforeColdStorage"] = Held(30) },
-                [SubmissionId.ToString()] = new Dictionary<string, object>
-                {
-                    ["submissionId"] = Held("willow-bend-2026-08"),
-                    ["submittedAt"] = Held("2026-08-22T09:30:00Z"),
-                },
+                [SubmissionId.ToString()] = SubmissionProperties(resolvedAt),
             }));
+    }
+
+    private static Dictionary<string, object> SubmissionProperties(DateTime? resolvedAt)
+    {
+        var properties = new Dictionary<string, object>
+        {
+            ["submissionId"] = Held("willow-bend-2026-08"),
+            ["submittedAt"] = Held("2026-08-22T09:30:00Z"),
+        };
+        if (resolvedAt is { } decided) properties["resolvedAt"] = Held(decided.ToString("O"));
+        return properties;
     }
 
     private async Task Run(string arg) =>
@@ -307,6 +314,114 @@ public class SubmissionsCommandHandlerTests
         Assert.Contains("marks no predicate", _writer.ToString());
         _mycelium.Verify(client => client.CreateRelationshipAsync(
             It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    // ── dispose ──────────────────────────────────────────────────────────────
+
+    private void PruneReturnsWhatItTook() =>
+        _mycelium.Setup(client => client.PruneAsync(It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>()))
+            .ReturnsAsync(Parse("""{"removed":[{"id":"11111111-0000-0000-0000-000000000007","name":"Willow Bend Submission"}]}"""));
+
+    private void VerifyNothingWasPruned() =>
+        _mycelium.Verify(client => client.PruneAsync(It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>()), Times.Never);
+
+    [Fact]
+    public async Task A_rejected_submission_whose_period_has_run_is_taken_out_of_the_model()
+    {
+        AModelWithOneSubmission(disposition: RejectedId, resolvedAt: DateTime.UtcNow.AddDays(-31));
+        PruneReturnsWhatItTook();
+
+        await Run("dispose has,studies");
+
+        _mycelium.Verify(client => client.PruneAsync(
+            SubmissionId, It.IsAny<IReadOnlyList<string>>()), Times.Once);
+    }
+
+    // The walk starts at the record of the arrival rather than the site, because the record is intake's
+    // own and a promotion deliberately leaves it behind. Everything the submission minted hangs off the
+    // site, which is reached through the predicate the model marks.
+    [Fact]
+    public async Task Disposal_follows_the_predicates_it_is_given_and_the_one_reaching_the_site()
+    {
+        AModelWithOneSubmission(disposition: RejectedId, resolvedAt: DateTime.UtcNow.AddDays(-31));
+        PruneReturnsWhatItTook();
+
+        await Run("dispose has,studies");
+
+        _mycelium.Verify(client => client.PruneAsync(
+            SubmissionId,
+            It.Is<IReadOnlyList<string>>(followed =>
+                followed.Contains("has") && followed.Contains("studies") && followed.Contains("puts-forward"))),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task A_rejected_submission_whose_period_has_not_run_is_left_where_it_is()
+    {
+        AModelWithOneSubmission(disposition: RejectedId, resolvedAt: DateTime.UtcNow.AddDays(-3));
+
+        await Run("dispose has,studies");
+
+        VerifyNothingWasPruned();
+        Assert.Contains("not yet due", _writer.ToString());
+    }
+
+    // Rob's retention rule: a submission nobody has dealt with is kept indefinitely, so waiting is never
+    // a reason to clear one.
+    [Fact]
+    public async Task A_submission_nobody_has_decided_about_is_never_disposed_of()
+    {
+        AModelWithOneSubmission();
+
+        await Run("dispose has,studies");
+
+        VerifyNothingWasPruned();
+    }
+
+    // A disposition naming no period is kept, which is what makes `promoted` permanent.
+    [Fact]
+    public async Task A_submission_resolved_to_a_disposition_naming_no_period_is_never_disposed_of()
+    {
+        AModelWithOneSubmission(disposition: PromotedId, resolvedAt: DateTime.UtcNow.AddDays(-3650));
+
+        await Run("dispose has,studies");
+
+        VerifyNothingWasPruned();
+    }
+
+    // The period is measured from the decision, so a rejection carrying no instant cannot be judged due.
+    // Clearing it anyway would take a submission on the strength of a value nobody wrote.
+    [Fact]
+    public async Task A_rejected_submission_with_no_recorded_decision_time_is_left_where_it_is()
+    {
+        AModelWithOneSubmission(disposition: RejectedId);
+
+        await Run("dispose has,studies");
+
+        VerifyNothingWasPruned();
+        Assert.Contains("no instant", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Disposal_says_what_it_took()
+    {
+        AModelWithOneSubmission(disposition: RejectedId, resolvedAt: DateTime.UtcNow.AddDays(-31));
+        PruneReturnsWhatItTook();
+
+        await Run("dispose has,studies");
+
+        Assert.Contains("Willow Bend Submission", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Disposal_naming_no_predicates_says_what_it_needs()
+    {
+        AModelWithOneSubmission(disposition: RejectedId, resolvedAt: DateTime.UtcNow.AddDays(-31));
+
+        await Run("dispose");
+
+        VerifyNothingWasPruned();
+        Assert.Contains("Usage: submissions dispose", _writer.ToString());
     }
 
     [Fact]

@@ -1,10 +1,12 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace vos.Taproot;
 
 /// <summary>
-/// What has arrived, and what to do with it: list the submissions in this model, reject one, or promote
-/// one into a project model of its own (VillageOS #6045).
+/// What has arrived, and what to do with it: list the submissions in this model, reject one, promote one
+/// into a project model of its own (VillageOS #6045), or clear the rejections whose period has run
+/// (VillageOS #6657).
 ///
 /// Nothing here names an archetype or a predicate. A submission is whatever asserts an edge through the
 /// predicate the model marks as reaching a proposed site, and the dispositions are the Things under the
@@ -21,6 +23,14 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     /// is the platform's own vocabulary rather than any model's, and nothing marks it.</summary>
     private const string IsPredicateName = "is";
 
+    /// <summary>The period after which a submission resolved to this disposition goes. Which disposition is
+    /// disposable is read off the model as the one naming it, so a model spelling `rejected` differently
+    /// still says what a rejection means.</summary>
+    private const string ColdStoragePeriodProperty = "daysBeforeColdStorage";
+
+    /// <summary>When a submission was decided about, which is what its period is counted from.</summary>
+    private const string ResolvedAtProperty = "resolvedAt";
+
     public async Task ExecuteAsync()
     {
         if (client == null || !CommandParser.TryParseSubcommand(arg, out var subcommand, out var args))
@@ -36,6 +46,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
                 case "list": await ListAsync(); break;
                 case "reject": await RejectAsync(args); break;
                 case "promote": await PromoteAsync(args); break;
+                case "dispose": await DisposeAsync(args); break;
                 default: ShowHelp(); break;
             }
         }
@@ -49,7 +60,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     /// has been decided about it — or nothing, which is what waiting is.</summary>
     private sealed record Submission(
         Guid Id, string Name, string? SubmissionId, string? SubmittedAt,
-        Guid ProposedSite, string? ProposedSiteName, string? Disposition);
+        Guid ProposedSite, string? ProposedSiteName, Guid? Disposition);
 
     private async Task ListAsync()
     {
@@ -64,9 +75,12 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
         writer.WriteLine($"{"Arrived",-22} {"State",-10} {"Submission",-26} {"Proposes",-24} Id");
         foreach (var submission in submissions.OrderBy(one => one.SubmittedAt ?? "", StringComparer.Ordinal))
+        {
+            var state = submission.Disposition is { } decided ? NameOf(model, decided) : "waiting";
             writer.WriteLine(
-                $"{submission.SubmittedAt ?? "unrecorded",-22} {submission.Disposition ?? "waiting",-10} "
+                $"{submission.SubmittedAt ?? "unrecorded",-22} {state,-10} "
                 + $"{submission.SubmissionId ?? submission.Name,-26} {submission.ProposedSiteName ?? "-",-24} {submission.Id}");
+        }
     }
 
     private async Task RejectAsync(string[] args)
@@ -84,7 +98,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             return;
 
         var disposable = DispositionsIn(model)
-            .FirstOrDefault(one => Value(model, one.Id, "daysBeforeColdStorage") != null);
+            .FirstOrDefault(one => Value(model, one.Id, ColdStoragePeriodProperty) != null);
         if (disposable == default)
         {
             writer.WriteLine(
@@ -121,9 +135,105 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         CommandParser.WriteFormattedJson(writer, promoted);
 
         var promotedTerm = DispositionsIn(model)
-            .FirstOrDefault(one => Value(model, one.Id, "daysBeforeColdStorage") == null);
+            .FirstOrDefault(one => Value(model, one.Id, ColdStoragePeriodProperty) == null);
         if (promotedTerm != default)
             await ResolveAsync(model, submission, promotedTerm);
+    }
+
+    /// <summary>
+    /// The retention pass: every rejected submission whose period has run leaves the model, and everything
+    /// it minted goes with it.
+    ///
+    /// The walk starts at the record of the arrival rather than at the site, because that record is intake's
+    /// own and a promotion deliberately leaves it behind. It reaches the site through the predicate the model
+    /// marks, so only what hangs off the site has to be named.
+    ///
+    /// Which submissions are due is the model's answer, not this tool's: the disposition names the period, and
+    /// the submission carries the instant it was decided. A submission nobody has dealt with is kept
+    /// indefinitely, and so is one resolved to a disposition naming no period.
+    /// </summary>
+    private async Task DisposeAsync(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            writer.WriteLine("Usage: submissions dispose <predicates>   - clear every rejected submission whose period has run");
+            writer.WriteLine(
+                "  <predicates> is a comma-separated list saying what belongs with the site, as promote takes "
+                + "it. The predicate reaching the site is added to it: that one the model marks.");
+            return;
+        }
+
+        var model = await ReadModelAsync();
+        if (OneCarrying(model, ProposedSitePredicateFlag) is not { } proposes)
+        {
+            writer.WriteLine($"This model marks no predicate with '{ProposedSitePredicateFlag}'.");
+            return;
+        }
+
+        string[] followed =
+        [
+            .. args[0].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            proposes.Name,
+        ];
+
+        var now = DateTime.UtcNow;
+        var taken = 0;
+        var notYetDue = 0;
+
+        foreach (var submission in SubmissionsIn(model).ToList())
+        {
+            if (submission.Disposition is not { } decided) continue;
+            if (Value(model, decided, ColdStoragePeriodProperty) is not { } period) continue;
+
+            if (!double.TryParse(period, NumberStyles.Any, CultureInfo.InvariantCulture, out var days))
+            {
+                writer.WriteLine(
+                    $"'{NameOf(model, decided)}' names '{period}' as its period, which is not a number of days, "
+                    + $"so {submission.Name} was left where it is.");
+                continue;
+            }
+
+            if (Value(model, submission.Id, ResolvedAtProperty) is not { } when
+                // Assumed universal as well as adjusted to it: the platform writes instants in UTC, and an
+                // instant written without a zone would otherwise be read as the operator's local time.
+                || !DateTime.TryParse(when, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var resolved))
+            {
+                writer.WriteLine(
+                    $"{submission.Name} carries no instant it was decided at, so there is nowhere to count its "
+                    + "period from and it was left where it is.");
+                continue;
+            }
+
+            if (resolved.AddDays(days) > now)
+            {
+                notYetDue++;
+                continue;
+            }
+
+            var removed = await client!.PruneAsync(submission.Id, followed);
+            taken++;
+            foreach (var one in Removed(removed))
+                writer.WriteLine($"  {one}");
+        }
+
+        writer.WriteLine(taken == 0
+            ? "Nothing here is due for disposal."
+            : $"Took {taken} submission(s) out of this model.");
+        if (notYetDue > 0)
+            writer.WriteLine($"{notYetDue} rejected submission(s) not yet due.");
+    }
+
+    /// <summary>What a prune says it took, as the broker named it. Read from the answer rather than from what
+    /// was asked for, because the reach is the broker's to decide and a submission may have grown since.
+    /// </summary>
+    private static IEnumerable<string> Removed(JsonElement pruned)
+    {
+        if (!pruned.TryGetProperty("removed", out var removed) || removed.ValueKind != JsonValueKind.Array)
+            yield break;
+
+        foreach (var one in removed.EnumerateArray())
+            yield return one.TryGetProperty("name", out var name) ? name.GetString() ?? "" : "";
     }
 
     /// <summary>Relate a submission to what was decided about it, and record when. Who decided is the Fact
@@ -138,7 +248,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
         await client!.CreateRelationshipAsync(submission.Id, predicate.Id, disposition.Id);
         await client.SetPropertyAsync(
-            submission.Id, "resolvedAt", "vos.DateTime", DateTime.UtcNow.ToString("O"));
+            submission.Id, ResolvedAtProperty, "vos.DateTime", DateTime.UtcNow.ToString("O"));
     }
 
     private Submission? Identify(ModelSnapshot model, string named)
@@ -195,10 +305,10 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         }
     }
 
-    private static string? DispositionOf(ModelSnapshot model, Guid submission) =>
+    private static Guid? DispositionOf(ModelSnapshot model, Guid submission) =>
         OneCarrying(model, DispositionPredicateFlag) is { } resolvedAs
             ? EdgesThrough(model, resolvedAs.Id).Where(edge => Subject(edge) == submission)
-                .Select(edge => NameOf(model, Target(edge))).FirstOrDefault()
+                .Select(edge => (Guid?)Target(edge)).FirstOrDefault()
             : null;
 
     /// <summary>The Things under the archetype the model marks as holding what a submission can be resolved
@@ -270,6 +380,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         writer.WriteLine("  submissions reject <submission>                       - move one to a disposable state");
         writer.WriteLine("  submissions promote <submission> <template> <predicates> <project name>");
         writer.WriteLine("                                                        - copy one into a project model of its own");
+        writer.WriteLine("  submissions dispose <predicates>                      - clear every rejection whose period has run");
         writer.WriteLine();
         writer.WriteLine("  A submission is identified by its identifier, its name, or the identifier it was");
         writer.WriteLine("  submitted under. A name may contain spaces where it ends the line — which it does");
