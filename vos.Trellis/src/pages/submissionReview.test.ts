@@ -113,6 +113,12 @@ describe('what has arrived', () => {
     expect(unreadable[0]).toMatchObject({ name: 'Meadow Lane arrival', submittedAt: undefined });
   });
 
+  it('falls back to the identifier of a submission the model no longer names', () => {
+    const unnamed = submissionsIn(reading({ things: THINGS.filter((one) => one.Id !== 'arrival-1') }));
+
+    expect(unnamed.find((one) => one.id === 'arrival-1')?.name).toBe('arrival-1');
+  });
+
   it('keeps a submission whose proposed site is not in the model', () => {
     const dangling = submissionsIn(
       reading({ relationships: [...EDGES, edge('e7', 'arrival-1', 'puts-forward', 'gone')] }),
@@ -205,6 +211,15 @@ describe('the order a reviewer works in', () => {
     ]);
 
     expect(ordered.map((one) => one.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('puts an unrecorded arrival first whichever side of a recorded one it starts on', () => {
+    const ordered = byArrival([
+      { id: 'a', name: 'a', proposedSiteId: 'x', submittedAt: '2026-08-20T09:00:00Z' },
+      { id: 'c', name: 'c', proposedSiteId: 'x' },
+    ]);
+
+    expect(ordered.map((one) => one.id)).toEqual(['c', 'a']);
   });
 });
 

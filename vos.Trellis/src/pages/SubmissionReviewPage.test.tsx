@@ -180,6 +180,17 @@ describe('rejecting', () => {
     expect(screen.getByText('sub-0001')).toBeInTheDocument();
   });
 
+  it('writes nothing where the model marks no predicate to write a decision through', async () => {
+    modelAnswers(THINGS, EDGES, { ...PROPERTIES, decided: {} });
+    await shown();
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('marks no predicate')),
+    );
+    expect(relationshipApi.create).not.toHaveBeenCalled();
+  });
+
   it('says what a rejection would mean where no disposition names a period', async () => {
     modelAnswers(THINGS, EDGES, { ...PROPERTIES, binned: {} });
     await shown();
@@ -231,6 +242,47 @@ describe('promoting', () => {
     expect(relationshipApi.create).not.toHaveBeenCalled();
   });
 
+  it('names the project whatever the reviewer calls it, not what the site is called', async () => {
+    await shown();
+    await promoteWith('site-analysis.template.json', 'covers', 'Meadow Lane phase one');
+
+    await waitFor(() =>
+      expect(modelApi.promote).toHaveBeenCalledWith(
+        'meadow',
+        ['covers'],
+        'site-analysis.template.json',
+        'Meadow Lane phase one',
+      ),
+    );
+  });
+
+  it('builds nothing when the dialog is dismissed', async () => {
+    await shown();
+    fireEvent.click(screen.getByRole('button', { name: 'Promote' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(modelApi.promote).not.toHaveBeenCalled();
+  });
+
+  it('builds nothing where the model marks no predicate to write a decision through', async () => {
+    modelAnswers(THINGS, EDGES, { ...PROPERTIES, decided: {} });
+    await shown();
+    await promoteWith('site-analysis.template.json', 'covers', 'Meadow Lane');
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('marks no predicate')));
+    expect(modelApi.promote).not.toHaveBeenCalled();
+  });
+
+  it('builds nothing where the model declares no disposition that keeps a submission', async () => {
+    modelAnswers(THINGS, EDGES, { ...PROPERTIES, 'taken-on': { [COLD_STORAGE_PERIOD_PROPERTY]: held(7) } });
+    await shown();
+    await promoteWith('site-analysis.template.json', 'covers', 'Meadow Lane');
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('keeps a submission')));
+    expect(modelApi.promote).not.toHaveBeenCalled();
+  });
+
   it('offers only the predicates the model asserts through', async () => {
     await shown();
     fireEvent.click(screen.getByRole('button', { name: 'Promote' }));
@@ -238,5 +290,20 @@ describe('promoting', () => {
     expect(await screen.findByLabelText('covers')).toBeInTheDocument();
     expect(screen.getByLabelText('is')).toBeInTheDocument();
     expect(screen.queryByLabelText('has')).not.toBeInTheDocument();
+  });
+
+  it('drops a predicate the reviewer ticked and then unticked', async () => {
+    await shown();
+    fireEvent.click(screen.getByRole('button', { name: 'Promote' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    fireEvent.change(dialog.getByLabelText('Template'), { target: { value: 'site-analysis.template.json' } });
+    fireEvent.click(dialog.getByLabelText('covers'));
+    fireEvent.click(dialog.getByLabelText('is'));
+    fireEvent.click(dialog.getByLabelText('covers'));
+    fireEvent.click(dialog.getByRole('button', { name: 'Promote' }));
+
+    await waitFor(() =>
+      expect(modelApi.promote).toHaveBeenCalledWith('meadow', ['is'], 'site-analysis.template.json', 'Meadow Lane'),
+    );
   });
 });

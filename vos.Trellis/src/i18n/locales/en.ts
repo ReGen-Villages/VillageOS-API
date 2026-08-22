@@ -647,6 +647,7 @@ export const en = {
     noProposedSitePredicate: "This model marks no single predicate as reaching a proposed site, so it holds nothing this page can review.",
     unreadable: "The model's properties could not be read, so what has arrived cannot be listed.",
     noDisposableDisposition: "This model declares no disposition that names a period after which a submission goes, so there is nothing for a rejection to mean here.",
+    noKeptDisposition: "This model declares no disposition that keeps a submission, so a promotion could not be recorded here.",
     noDispositionPredicate: "This model marks no predicate for writing down what was decided about a submission.",
     rejected: "{{submission}} is now '{{disposition}}'.",
     promoted: "Promoted into {{project}}.",

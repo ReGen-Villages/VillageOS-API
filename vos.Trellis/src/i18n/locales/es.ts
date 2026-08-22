@@ -649,6 +649,7 @@ export const es: PartialResources = {
     noProposedSitePredicate: "Este modelo no marca ningún predicado único como camino a un emplazamiento propuesto, así que no contiene nada que esta página pueda revisar.",
     unreadable: "No se pudieron leer las propiedades del modelo, así que no se puede listar lo que ha llegado.",
     noDisposableDisposition: "Este modelo no declara ninguna disposición que nombre un plazo tras el cual se retira un envío, así que aquí un rechazo no significaría nada.",
+    noKeptDisposition: "Este modelo no declara ninguna disposición que conserve un envío, así que aquí no se podría registrar una promoción.",
     noDispositionPredicate: "Este modelo no marca ningún predicado para anotar lo que se decidió sobre un envío.",
     rejected: "{{submission}} ahora es «{{disposition}}».",
     promoted: "Promovido a {{project}}.",

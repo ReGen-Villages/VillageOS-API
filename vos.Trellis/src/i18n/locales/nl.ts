@@ -649,6 +649,7 @@ export const nl: PartialResources = {
     noProposedSitePredicate: "Dit model markeert geen enkel predicaat als weg naar een voorgestelde locatie, dus het bevat niets wat deze pagina kan beoordelen.",
     unreadable: "De eigenschappen van het model konden niet worden gelezen, dus wat er binnen is gekomen kan niet worden opgesomd.",
     noDisposableDisposition: "Dit model verklaart geen beschikking die een termijn noemt waarna een inzending wordt opgeruimd, dus een afwijzing zou hier niets betekenen.",
+    noKeptDisposition: "Dit model verklaart geen beschikking die een inzending behoudt, dus een bevordering zou hier niet kunnen worden vastgelegd.",
     noDispositionPredicate: "Dit model markeert geen predicaat om vast te leggen wat er over een inzending is beslist.",
     rejected: "{{submission}} is nu ‘{{disposition}}’.",
     promoted: "Bevorderd tot {{project}}.",

@@ -649,6 +649,7 @@ export const it: PartialResources = {
     noProposedSitePredicate: "Questo modello non contrassegna un unico predicato come via verso un sito proposto, quindi non contiene nulla che questa pagina possa esaminare.",
     unreadable: "Non è stato possibile leggere le proprietà del modello, quindi non si può elencare ciò che è arrivato.",
     noDisposableDisposition: "Questo modello non dichiara alcuna disposizione che indichi un periodo dopo il quale un invio viene rimosso, quindi qui un rifiuto non significherebbe nulla.",
+    noKeptDisposition: "Questo modello non dichiara alcuna disposizione che conservi un invio, quindi qui una promozione non potrebbe essere annotata.",
     noDispositionPredicate: "Questo modello non contrassegna alcun predicato per annotare ciò che è stato deciso su un invio.",
     rejected: "{{submission}} ora è «{{disposition}}».",
     promoted: "Promosso in {{project}}.",

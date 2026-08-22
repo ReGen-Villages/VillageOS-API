@@ -38,9 +38,9 @@ export function SubmissionReviewPage() {
   const { t } = useTranslation();
   const [reading, setReading] = useState<ModelReading | null>(null);
   const [unreadable, setUnreadable] = useState(false);
-  const [rereadCount, setReread] = useState(0);
+  const [rereadCount, setRereadCount] = useState(0);
   const [showDecided, setShowDecided] = useState(false);
-  const [busySubmissionId, setBusy] = useState<string | null>(null);
+  const [busySubmissionId, setBusySubmissionId] = useState<string | null>(null);
   const [promoting, setPromoting] = useState<Submission | null>(null);
   const [promotions, setPromotions] = useState<Record<string, PromotionResult>>({});
 
@@ -64,18 +64,26 @@ export function SubmissionReviewPage() {
     };
   }, [rereadCount]);
 
+  // Held against the reading rather than recomputed per render: each of these walks every Thing and
+  // every edge in the model, and a render happens on every click.
   const model = reading ?? NOTHING_READ;
   const submissions = useMemo(() => byArrival(submissionsIn(model)), [model]);
-  const marksProposedSite = proposedSitePredicate(model) !== null;
-  const resolvedAs = dispositionPredicate(model);
-  const disposable = disposableDisposition(model);
-  const kept = keptDisposition(model);
   const predicateNames = useMemo(() => predicateNamesIn(model), [model]);
+  const { marksProposedSite, resolvedAs, disposable, kept } = useMemo(
+    () => ({
+      marksProposedSite: proposedSitePredicate(model) !== null,
+      resolvedAs: dispositionPredicate(model),
+      disposable: disposableDisposition(model),
+      kept: keptDisposition(model),
+    }),
+    [model],
+  );
   const listed = showDecided ? submissions : submissions.filter((one) => !one.disposition);
 
-  async function resolve(submission: Submission, disposition: Disposition): Promise<void> {
-    if (!resolvedAs) throw new Error(t('submissionReview.noDispositionPredicate'));
-    await relationshipApi.create(submission.id, resolvedAs, disposition.id);
+  /** Relate a submission to what was decided about it, and record when. Who decided is the Fact the
+   *  write itself lays down, which is the record that cannot be typed in. */
+  async function resolve(submission: Submission, disposition: Disposition, predicate: string): Promise<void> {
+    await relationshipApi.create(submission.id, predicate, disposition.id);
     await thingApi.setProperty(submission.id, RESOLVED_AT, 'vos.DateTime', new Date().toISOString());
   }
 
@@ -84,23 +92,38 @@ export function SubmissionReviewPage() {
       toast.error(t('submissionReview.noDisposableDisposition'));
       return;
     }
-    setBusy(submission.id);
+    if (!resolvedAs) {
+      toast.error(t('submissionReview.noDispositionPredicate'));
+      return;
+    }
+    setBusySubmissionId(submission.id);
     try {
-      await resolve(submission, disposable);
+      await resolve(submission, disposable, resolvedAs);
       toast.success(t('submissionReview.rejected', { submission: submission.name, disposition: disposable.name }));
-      setReread((count) => count + 1);
+      setRereadCount((count) => count + 1);
     } catch (error) {
       toast.error(t('submissionReview.refused', { reason: reasonFor(error) }));
     } finally {
-      setBusy(null);
+      setBusySubmissionId(null);
     }
   }
 
+  // Refused before anything is built rather than after: a project whose submission still reads as
+  // waiting is the trap promoting twice was made idempotent to avoid.
+  //
   // The walk starts at the site the submission proposes, never at the record of the arrival: that
   // record belongs to intake and is resolved after the copy has landed, so a copy of it in a project
   // model would read as waiting for ever.
   async function promote(submission: Submission, plan: PromotionPlan): Promise<void> {
-    setBusy(submission.id);
+    if (!kept) {
+      toast.error(t('submissionReview.noKeptDisposition'));
+      return;
+    }
+    if (!resolvedAs) {
+      toast.error(t('submissionReview.noDispositionPredicate'));
+      return;
+    }
+    setBusySubmissionId(submission.id);
     try {
       const promoted = await modelApi.promote(
         submission.proposedSiteId,
@@ -110,18 +133,22 @@ export function SubmissionReviewPage() {
       );
       setPromotions((already) => ({ ...already, [submission.id]: promoted }));
       setPromoting(null);
-      if (kept) await resolve(submission, kept);
+      await resolve(submission, kept, resolvedAs);
       toast.success(t('submissionReview.promoted', { project: promoted.modelName }));
-      setReread((count) => count + 1);
+      setRereadCount((count) => count + 1);
     } catch (error) {
       toast.error(t('submissionReview.refused', { reason: reasonFor(error) }));
     } finally {
-      setBusy(null);
+      setBusySubmissionId(null);
     }
   }
 
   if (reading === null && !unreadable) {
-    return <Centered>{t('common.loading')}</Centered>;
+    return (
+      <div className="h-full flex items-center justify-center p-8 text-sm text-zinc-500 dark:text-zinc-400">
+        {t('common.loading')}
+      </div>
+    );
   }
 
   return (
@@ -150,7 +177,7 @@ export function SubmissionReviewPage() {
             {t('submissionReview.showDecided')}
           </label>
           <button
-            onClick={() => setReread((count) => count + 1)}
+            onClick={() => setRereadCount((count) => count + 1)}
             className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
           >
             <RefreshCw size={14} />
@@ -291,7 +318,7 @@ function PromoteDialog({
   const { t } = useTranslation();
   const [template, setTemplate] = useState('');
   const [projectName, setProjectName] = useState(submission.proposedSiteName ?? submission.name);
-  const [followed, setFollowed] = useState<string[]>([]);
+  const [travelling, setTravelling] = useState<string[]>([]);
 
   const ready = template.trim().length > 0 && projectName.trim().length > 0;
 
@@ -330,9 +357,9 @@ function PromoteDialog({
             <label key={name} className="inline-flex items-center gap-1.5 text-sm text-zinc-700 dark:text-zinc-200">
               <input
                 type="checkbox"
-                checked={followed.includes(name)}
+                checked={travelling.includes(name)}
                 onChange={(event) =>
-                  setFollowed((chosen) =>
+                  setTravelling((chosen) =>
                     event.target.checked ? [...chosen, name] : chosen.filter((one) => one !== name),
                   )
                 }
@@ -363,7 +390,7 @@ function PromoteDialog({
             onClick={() =>
               onPromote({
                 template: template.trim(),
-                followedPredicateNames: followed,
+                followedPredicateNames: travelling,
                 projectName: projectName.trim(),
               })
             }
@@ -386,13 +413,6 @@ function Notice({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Centered({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="h-full flex items-center justify-center p-8 text-sm text-zinc-500 dark:text-zinc-400">
-      {children}
-    </div>
-  );
-}
 
 function reasonFor(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

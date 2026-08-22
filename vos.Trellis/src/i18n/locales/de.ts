@@ -649,6 +649,7 @@ export const de: PartialResources = {
     noProposedSitePredicate: "Dieses Modell kennzeichnet kein einzelnes Prädikat als Weg zu einem vorgeschlagenen Standort und enthält daher nichts, was diese Seite prüfen kann.",
     unreadable: "Die Eigenschaften des Modells konnten nicht gelesen werden, daher lässt sich nicht auflisten, was eingegangen ist.",
     noDisposableDisposition: "Dieses Modell erklärt keine Verfügung, die eine Frist nennt, nach der eine Einreichung entfernt wird; eine Ablehnung hätte hier also keine Bedeutung.",
+    noKeptDisposition: "Dieses Modell erklärt keine Verfügung, die eine Einreichung behält, daher ließe sich eine Übernahme hier nicht festhalten.",
     noDispositionPredicate: "Dieses Modell kennzeichnet kein Prädikat, um festzuhalten, was über eine Einreichung entschieden wurde.",
     rejected: "{{submission}} ist jetzt „{{disposition}}“.",
     promoted: "In {{project}} übernommen.",
