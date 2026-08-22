@@ -120,6 +120,25 @@ class CheckBuildFileTests(unittest.TestCase):
 
         self.assertIn('no step named "Mirror Wiki to GitHub"', problems(renamed)[0])
 
+    def test_a_step_that_packs_a_library_is_reported(self):
+        packing = COMPLIANT + (
+            "\n- script: dotnet pack --configuration $(buildConfiguration) -o ./nupkgs\n"
+            "  displayName: 'Pack NuGet Package'\n"
+            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n")
+
+        self.assertIn('packs a library', problems(packing)[0])
+
+    def test_a_step_that_pushes_to_a_feed_is_reported(self):
+        pushing = COMPLIANT + (
+            "\n- task: DotNetCoreCLI@2\n"
+            "  displayName: 'Push NuGet Package to Azure Artifacts'\n"
+            "  inputs:\n"
+            "    command: 'push'\n"
+            "    publishVstsFeed: 'NuGetPackages'\n"
+            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n")
+
+        self.assertIn('pushes one to a feed', problems(pushing)[0])
+
 
 if __name__ == '__main__':
     unittest.main()
