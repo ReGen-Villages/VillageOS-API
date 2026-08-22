@@ -17,6 +17,10 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     public const string DispositionArchetypeFlag = "__IsSubmissionDispositionArchetype";
     public const string DispositionPredicateFlag = "__IsSubmissionDispositionPredicate";
 
+    /// <summary>The platform's one canonical predicate, and the only predicate name a reader may hold: it
+    /// is the platform's own vocabulary rather than any model's, and nothing marks it.</summary>
+    private const string IsPredicateName = "is";
+
     public async Task ExecuteAsync()
     {
         if (client == null || !CommandParser.TryParseSubcommand(arg, out var subcommand, out var args))
@@ -44,7 +48,8 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     /// <summary>One submission as a reviewer needs to judge it: when it arrived, what it proposes, and what
     /// has been decided about it — or nothing, which is what waiting is.</summary>
     private sealed record Submission(
-        Guid Id, string Name, string? SubmissionId, string? SubmittedAt, string? Proposes, string? Disposition);
+        Guid Id, string Name, string? SubmissionId, string? SubmittedAt,
+        Guid ProposedSite, string? ProposedSiteName, string? Disposition);
 
     private async Task ListAsync()
     {
@@ -61,7 +66,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         foreach (var submission in submissions.OrderBy(one => one.SubmittedAt ?? "", StringComparer.Ordinal))
             writer.WriteLine(
                 $"{submission.SubmittedAt ?? "unrecorded",-22} {submission.Disposition ?? "waiting",-10} "
-                + $"{submission.SubmissionId ?? submission.Name,-26} {submission.Proposes ?? "-",-24} {submission.Id}");
+                + $"{submission.SubmissionId ?? submission.Name,-26} {submission.ProposedSiteName ?? "-",-24} {submission.Id}");
     }
 
     private async Task RejectAsync(string[] args)
@@ -109,16 +114,10 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         if (Identify(model, args[0]) is not { } submission)
             return;
 
-        var site = ProposedSiteOf(model, submission.Id);
-        if (site == null)
-        {
-            writer.WriteLine($"'{submission.Name}' proposes no site, so there is nothing to promote.");
-            return;
-        }
-
         var followed = args[2].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         // The project's name is whatever is left, so a model can be called what a planner would call it.
-        var promoted = await client!.PromoteAsync(site.Value, followed, args[1], string.Join(' ', args[3..]));
+        var promoted = await client!.PromoteAsync(
+            submission.ProposedSite, followed, args[1], string.Join(' ', args[3..]));
         CommandParser.WriteFormattedJson(writer, promoted);
 
         var promotedTerm = DispositionsIn(model)
@@ -180,6 +179,8 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         if (OneCarrying(model, ProposedSitePredicateFlag) is not { } proposes)
             yield break;
 
+        // One submission per edge: a submission is only a submission because it proposes a site, so the
+        // walk that finds it is also the walk that says which site travels when it is promoted.
         foreach (var edge in EdgesThrough(model, proposes.Id))
         {
             var id = Subject(edge);
@@ -188,16 +189,11 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
                 NameOf(model, id) ?? id.ToString(),
                 Value(model, id, "submissionId"),
                 Value(model, id, "submittedAt"),
+                Target(edge),
                 NameOf(model, Target(edge)),
                 DispositionOf(model, id));
         }
     }
-
-    private static Guid? ProposedSiteOf(ModelSnapshot model, Guid submission) =>
-        OneCarrying(model, ProposedSitePredicateFlag) is { } proposes
-            ? EdgesThrough(model, proposes.Id).Where(edge => Subject(edge) == submission)
-                .Select(edge => (Guid?)Target(edge)).FirstOrDefault()
-            : null;
 
     private static string? DispositionOf(ModelSnapshot model, Guid submission) =>
         OneCarrying(model, DispositionPredicateFlag) is { } resolvedAs
@@ -215,7 +211,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         foreach (var edge in model.Relationships.EnumerateArray())
         {
             if (Target(edge) != archetype.Id) continue;
-            if (NameOf(model, Predicate(edge)) != "is") continue;
+            if (NameOf(model, Predicate(edge)) != IsPredicateName) continue;
             var id = Subject(edge);
             yield return (id, NameOf(model, id) ?? id.ToString());
         }

@@ -257,6 +257,92 @@ public class SubmissionsCommandHandlerTests
             It.IsAny<string>(), It.IsAny<string>()), Times.Once);
     }
 
+    // A model holding submissions but no disposition that names a period has nothing a rejection could
+    // mean. Saying so beats relating the submission to whichever disposition happened to be first.
+    [Fact]
+    public async Task A_model_declaring_no_disposable_disposition_refuses_a_rejection()
+    {
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [ProposesId.ToString()] = new Dictionary<string, object>
+                    { ["__IsProposedSitePredicate"] = Held(true) },
+                [ResolvedAsId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
+                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
+            }));
+
+        await Run($"reject {SubmissionId}");
+
+        Assert.Contains("no disposition that names a period", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    // Marking two predicates would leave a reader with two answers and no way to choose, so it takes none.
+    [Fact]
+    public async Task A_model_marking_the_disposition_predicate_twice_writes_nothing()
+    {
+        AModelWithOneSubmission();
+        var second = new Guid("11111111-0000-0000-0000-00000000000a");
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [ProposesId.ToString()] = new Dictionary<string, object>
+                    { ["__IsProposedSitePredicate"] = Held(true) },
+                [ResolvedAsId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
+                [second.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
+                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
+                [RejectedId.ToString()] = new Dictionary<string, object>
+                    { ["daysBeforeColdStorage"] = Held(30) },
+            }));
+
+        await Run($"reject {SubmissionId}");
+
+        Assert.Contains("marks no predicate", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task A_subcommand_it_does_not_know_shows_what_it_can_do()
+    {
+        AModelWithOneSubmission();
+
+        await Run("archive everything");
+
+        Assert.Contains("Submission review commands:", _writer.ToString());
+    }
+
+    // A broker that refuses says why, and an operator has to see it rather than a silent no-op.
+    [Fact]
+    public async Task A_refusal_from_the_broker_is_reported()
+    {
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.PromoteAsync(
+                It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ThrowsAsync(new HttpRequestException("the project model cannot answer 'Site'"));
+
+        await Run($"promote {SubmissionId} project.seed.json has Willow Bend");
+
+        Assert.Contains("Error:", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task Rejecting_without_naming_a_submission_shows_what_it_needs()
+    {
+        AModelWithOneSubmission();
+
+        await Run("reject");
+
+        Assert.Contains("Usage: submissions reject", _writer.ToString());
+    }
+
     [Fact]
     public async Task Promoting_without_a_template_and_a_name_shows_what_it_needs()
     {
