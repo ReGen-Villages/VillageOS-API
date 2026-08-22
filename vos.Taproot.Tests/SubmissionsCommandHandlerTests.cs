@@ -178,6 +178,38 @@ public class SubmissionsCommandHandlerTests
             It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
 
+    // Thing names are not unique, so a name can answer twice. Picking either would reject or promote a
+    // submission the reviewer did not name.
+    [Fact]
+    public async Task A_name_two_submissions_answer_to_is_refused_without_writing()
+    {
+        var second = new Guid("11111111-0000-0000-0000-000000000009");
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(new[]
+        {
+            Thing(ProposesId, "puts-forward"),
+            Thing(ResolvedAsId, "decided"),
+            Thing(IsId, "is"),
+            Thing(DispositionArchetypeId, "Verdict", isArchetype: true),
+            Thing(RejectedId, "binned"),
+            Thing(SubmissionId, "Willow Bend Submission"),
+            Thing(second, "Willow Bend Submission"),
+            Thing(SiteId, "Willow Bend"),
+        }));
+        _mycelium.Setup(client => client.GetAllRelationshipsAsync()).ReturnsAsync(Json(new[]
+        {
+            Edge(SubmissionId, ProposesId, SiteId),
+            Edge(second, ProposesId, SiteId),
+            Edge(RejectedId, IsId, DispositionArchetypeId),
+        }));
+
+        await Run("reject Willow Bend Submission");
+
+        Assert.Contains("does not say which", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
     // Promotion walks from the site, not from the record of the arrival: the record proposes the site and
     // is deliberately not part of what travels.
     [Fact]
@@ -188,11 +220,11 @@ public class SubmissionsCommandHandlerTests
                 It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(Parse("""{"modelId":"22222222-0000-0000-0000-000000000001"}"""));
 
-        await Run($"promote {SubmissionId} project.seed.json WillowBend");
+        await Run($"promote {SubmissionId} project.seed.json has,studies Willow Bend");
 
         _mycelium.Verify(client => client.PromoteAsync(
             SiteId, It.Is<IReadOnlyList<string>>(followed => followed.Contains("has")),
-            "project.seed.json", "WillowBend"), Times.Once);
+            "project.seed.json", "Willow Bend"), Times.Once);
     }
 
     [Fact]
@@ -203,7 +235,7 @@ public class SubmissionsCommandHandlerTests
                 It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(Parse("""{"modelId":"22222222-0000-0000-0000-000000000001"}"""));
 
-        await Run($"promote {SubmissionId} project.seed.json WillowBend");
+        await Run($"promote {SubmissionId} project.seed.json has,studies Willow Bend");
 
         _mycelium.Verify(client => client.CreateRelationshipAsync(SubmissionId, ResolvedAsId, PromotedId), Times.Once);
     }
@@ -216,7 +248,7 @@ public class SubmissionsCommandHandlerTests
                 It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync(Parse("{}"));
 
-        await Run($"promote {SubmissionId} project.seed.json WillowBend holds,examines");
+        await Run($"promote {SubmissionId} project.seed.json holds,examines Willow Bend");
 
         _mycelium.Verify(client => client.PromoteAsync(
             SiteId,

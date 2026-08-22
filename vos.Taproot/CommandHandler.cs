@@ -111,7 +111,7 @@ namespace vos.Taproot
             _writer.WriteLine("Submissions:");
             _writer.WriteLine("  submissions list                            - What has arrived, and its state");
             _writer.WriteLine("  submissions reject <submission>             - Move one to a disposable state");
-            _writer.WriteLine("  submissions promote <submission> <template> <name> [predicates]");
+            _writer.WriteLine("  submissions promote <submission> <template> <predicates> <project name>");
             _writer.WriteLine("                                              - Copy one into a project model of its own");
             _writer.WriteLine();
             _writer.WriteLine("User Management:");

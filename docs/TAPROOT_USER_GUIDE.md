@@ -202,7 +202,7 @@ production** — it disables protection against man-in-the-middle attacks.
 | `apply <file.json>` | Upsert a fragment (Things + Relationships) into the live model |
 | `submissions list` | What has arrived in this model: when, what it proposes, and what has been decided about it |
 | `submissions reject <submission>` | Move a submission to a disposable state |
-| `submissions promote <submission> <template> <name> [predicates]` | Copy a submission into a project model of its own, built from a template. Promoting twice produces one project |
+| `submissions promote <submission> <template> <predicates> <project name>` | Copy a submission into a project model of its own, built from a template. `<predicates>` is a comma-separated list saying what belongs with the site — the model's vocabulary, named rather than assumed. The project name takes the rest of the line, so it may contain spaces; the submission must therefore be given as an identifier here. Promoting twice produces one project |
 | `ingest <file.ifc> [--new]` | Upload an IFC to the Xylem service to build or merge the model |
 | `pwd` | Show current directory |
 | `cd <path>` | Change directory |

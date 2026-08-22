@@ -73,7 +73,9 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         }
 
         var model = await ReadModelAsync();
-        if (Identify(model, args[0]) is not { } submission)
+        // Everything after the subcommand, because a submission's name is the site's followed by a word and
+        // the parser splits on spaces. Nothing follows it, so there is nothing to take the rest from it.
+        if (Identify(model, string.Join(' ', args)) is not { } submission)
             return;
 
         var disposable = DispositionsIn(model)
@@ -92,13 +94,14 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
     private async Task PromoteAsync(string[] args)
     {
-        if (args.Length < 3)
+        if (args.Length < 4)
         {
+            writer.WriteLine("Usage: submissions promote <submission> <template> <predicates> <project name>");
             writer.WriteLine(
-                "Usage: submissions promote <submission> <template> <project name> [predicate,predicate]");
-            writer.WriteLine(
-                "  The predicates say what belongs with the site. They are the model's own vocabulary, so "
-                + "they are named here rather than assumed. Default: has,studies");
+                "  <predicates> is a comma-separated list saying what belongs with the site. They are the "
+                + "model's own vocabulary, so they are named rather than assumed.");
+            writer.WriteLine("  The submission is given as an identifier here, because the name is what takes");
+            writer.WriteLine("  the rest of the line. Reject takes a name.");
             return;
         }
 
@@ -113,11 +116,9 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             return;
         }
 
-        var followed = args.Length > 3
-            ? args[3].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            : ["has", "studies"];
-
-        var promoted = await client!.PromoteAsync(site.Value, followed, args[1], args[2]);
+        var followed = args[2].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        // The project's name is whatever is left, so a model can be called what a planner would call it.
+        var promoted = await client!.PromoteAsync(site.Value, followed, args[1], string.Join(' ', args[3..]));
         CommandParser.WriteFormattedJson(writer, promoted);
 
         var promotedTerm = DispositionsIn(model)
@@ -271,10 +272,11 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         writer.WriteLine("Submission review commands:");
         writer.WriteLine("  submissions list                                      - what has arrived, and its state");
         writer.WriteLine("  submissions reject <submission>                       - move one to a disposable state");
-        writer.WriteLine("  submissions promote <submission> <template> <name> [predicates]");
+        writer.WriteLine("  submissions promote <submission> <template> <predicates> <project name>");
         writer.WriteLine("                                                        - copy one into a project model of its own");
         writer.WriteLine();
         writer.WriteLine("  A submission is identified by its identifier, its name, or the identifier it was");
-        writer.WriteLine("  submitted under. Promoting twice produces one project.");
+        writer.WriteLine("  submitted under. A name may contain spaces where it ends the line — which it does");
+        writer.WriteLine("  for reject, and does not for promote. Promoting twice produces one project.");
     }
 }
