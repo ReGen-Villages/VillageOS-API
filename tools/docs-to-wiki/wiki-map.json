@@ -19,7 +19,6 @@
   ],
   "excluded": [
     { "doc": "docs/SERVICE_HOST_ROADMAP.md", "why": "Planned work, not reference material. Plans change faster than the wiki should." },
-    { "doc": "docs/trellis-performance-handoff.md", "why": "A handoff between working sessions, not documentation of shipped behaviour." },
     { "doc": "LICENSE-COMMERCIAL.md", "why": "Licence text. It belongs with the source, not on the wiki." }
   ]
 }

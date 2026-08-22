@@ -3,8 +3,11 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { execFileSync, spawnSync } = require('child_process');
 const {
+  repositoryDocuments,
   convertMermaid,
   stripLintDirectives,
   githubSlug,
@@ -39,12 +42,64 @@ test('every repository document is either mapped to a page or explicitly exclude
     ...manifest.pages.map((entry) => entry.doc),
     ...manifest.excluded.map((entry) => entry.doc),
   ]);
-  const documents = [
-    ...fs.readdirSync(path.join(REPO_ROOT, 'docs')).filter((f) => f.endsWith('.md')).map((f) => `docs/${f}`),
-    ...fs.readdirSync(REPO_ROOT).filter((f) => f.endsWith('.md')),
-  ];
-  const unaccounted = documents.filter((doc) => !accounted.has(doc));
+  const unaccounted = repositoryDocuments(REPO_ROOT).filter((doc) => !accounted.has(doc));
   assert.deepEqual(unaccounted, [], `add these to wiki-map.json as a page or an exclusion: ${unaccounted}`);
+});
+
+test('a document git ignores is a working note, not a document the repository carries', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
+  try {
+    execFileSync('git', ['init', '--quiet'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), '*handoff*.md\n');
+    fs.mkdirSync(path.join(root, 'docs'));
+    fs.writeFileSync(path.join(root, 'docs', 'GUIDE.md'), '# Guide\n');
+    fs.writeFileSync(path.join(root, 'docs', 'a-handoff.md'), '# Handoff\n');
+    fs.writeFileSync(path.join(root, 'README.md'), '# Readme\n');
+
+    assert.deepEqual(repositoryDocuments(root).sort(), ['README.md', 'docs/GUIDE.md']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// A handoff may carry a downstream product's vocabulary, so the rule that keeps it out of the
+// repository has to hold on a clone whose filesystem tells upper and lower case apart. gitignore
+// matches those patterns literally, and a developer on macOS never sees the difference.
+test('a handoff is ignored however it is spelled', () => {
+  const ignored = (name) =>
+    spawnSync('git', ['-c', 'core.ignorecase=false', 'check-ignore', '-q', '--no-index', name], {
+      cwd: REPO_ROOT,
+    }).status === 0;
+
+  for (const name of ['handoff.md', 'HANDOFF.md', 'Handoff.md', 'HandOff.md',
+                      'docs/trellis-performance-handoff.md', 'Trellis Performance Handoff.md']) {
+    assert.ok(ignored(name), `a case-sensitive checkout would leave ${name} tracked`);
+  }
+  for (const name of ['README.md', 'docs/TRELLIS.md', 'handoff.txt']) {
+    assert.ok(!ignored(name), `${name} is ignored, and is not a handoff`);
+  }
+});
+
+// A handoff is a working note between sessions: it is never committed, so it is in nobody's clone,
+// so a document pointing at one sends its reader nowhere — and these documents are published to the
+// wiki, where the dead link goes with them. Documentation is what the rule is about, so documentation
+// is what this reads: a test naming a filename in an assertion is not a reader being sent anywhere.
+test('no handoff is carried, and no document points at one', () => {
+  const tracked = execFileSync('git', ['ls-files'], { cwd: REPO_ROOT, encoding: 'utf8' })
+    .split('\n')
+    .filter(Boolean);
+
+  const carried = tracked.filter((f) => /handoff/i.test(path.basename(f)));
+  assert.deepEqual(carried, [], `a handoff is never committed: ${carried}`);
+
+  const pointing = [];
+  for (const file of tracked.filter((f) => f.toLowerCase().endsWith('.md'))) {
+    const named = [
+      ...new Set(fs.readFileSync(path.join(REPO_ROOT, file), 'utf8').match(/[\w.\-/]*handoff[\w.\-]*\.md/gi) || []),
+    ];
+    if (named.length) pointing.push(`${file} names ${named.join(', ')}`);
+  }
+  assert.deepEqual(pointing, [], `nothing may link to a handoff — say what the reader needs, or drop the link: ${pointing}`);
 });
 
 test('every mapped document exists and every page path is unique', () => {

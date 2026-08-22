@@ -206,9 +206,10 @@ steps:
   workingDirectory: tools/wiki-mirror
   condition: always()
 
-# Also the guard against wiki drift: one of these tests fails when a markdown file is in
-# neither list of tools/docs-to-wiki/wiki-map.json, so a new document forces the decision
-# about whether it is published.
+# Also the guard against wiki drift: one of these tests fails when a markdown file the repository
+# carries is in neither list of tools/docs-to-wiki/wiki-map.json, so a new document forces the
+# decision about whether it is published. A file git ignores is a local working note, not a
+# document the wiki could ever publish, so it is not counted.
 - script: node --test
   displayName: 'Test docs-to-wiki converter'
   workingDirectory: tools/docs-to-wiki
