@@ -26,7 +26,9 @@ function repositoryDocuments(root) {
     input: documents.join('\n'),
     encoding: 'utf8',
   });
-  const ignored = new Set(check.stdout.split('\n').filter(Boolean));
+  // Nothing ignored is the safe answer when git cannot be asked: the manifest then has to account
+  // for every file, which fails loudly, where dropping them all would pass in silence.
+  const ignored = new Set((check.stdout || '').split('\n').filter(Boolean));
   return documents.filter((doc) => !ignored.has(doc));
 }
 

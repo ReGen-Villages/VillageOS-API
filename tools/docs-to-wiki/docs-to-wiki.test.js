@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const {
   repositoryDocuments,
   convertMermaid,
@@ -48,16 +48,36 @@ test('every repository document is either mapped to a page or explicitly exclude
 
 test('a document git ignores is a working note, not a document the repository carries', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
-  execFileSync('git', ['init', '--quiet'], { cwd: root });
-  fs.writeFileSync(path.join(root, '.gitignore'), '*handoff*.md\n');
-  fs.mkdirSync(path.join(root, 'docs'));
-  fs.writeFileSync(path.join(root, 'docs', 'GUIDE.md'), '# Guide\n');
-  fs.writeFileSync(path.join(root, 'docs', 'a-handoff.md'), '# Handoff\n');
-  fs.writeFileSync(path.join(root, 'README.md'), '# Readme\n');
+  try {
+    execFileSync('git', ['init', '--quiet'], { cwd: root });
+    fs.writeFileSync(path.join(root, '.gitignore'), '*handoff*.md\n');
+    fs.mkdirSync(path.join(root, 'docs'));
+    fs.writeFileSync(path.join(root, 'docs', 'GUIDE.md'), '# Guide\n');
+    fs.writeFileSync(path.join(root, 'docs', 'a-handoff.md'), '# Handoff\n');
+    fs.writeFileSync(path.join(root, 'README.md'), '# Readme\n');
 
-  assert.deepEqual(repositoryDocuments(root).sort(), ['README.md', 'docs/GUIDE.md']);
+    assert.deepEqual(repositoryDocuments(root).sort(), ['README.md', 'docs/GUIDE.md']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
-  fs.rmSync(root, { recursive: true, force: true });
+// A handoff may carry a downstream product's vocabulary, so the rule that keeps it out of the
+// repository has to hold on a clone whose filesystem tells upper and lower case apart. gitignore
+// matches those patterns literally, and a developer on macOS never sees the difference.
+test('a handoff is ignored however it is spelled', () => {
+  const ignored = (name) =>
+    spawnSync('git', ['-c', 'core.ignorecase=false', 'check-ignore', '-q', '--no-index', name], {
+      cwd: REPO_ROOT,
+    }).status === 0;
+
+  for (const name of ['handoff.md', 'HANDOFF.md', 'Handoff.md', 'HandOff.md',
+                      'docs/trellis-performance-handoff.md', 'Trellis Performance Handoff.md']) {
+    assert.ok(ignored(name), `a case-sensitive checkout would leave ${name} tracked`);
+  }
+  for (const name of ['README.md', 'docs/TRELLIS.md', 'handoff.txt']) {
+    assert.ok(!ignored(name), `${name} is ignored, and is not a handoff`);
+  }
 });
 
 test('every mapped document exists and every page path is unique', () => {
