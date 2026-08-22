@@ -30,9 +30,8 @@ public class ObservedEdgesTests
     [Fact]
     public void SelectorFor_AsksForTheObservedPredicateByName()
     {
-        // Nothing else brings it. Traversal adds the Things an edge points at and the incident pass
-        // adds the edges, but neither adds the Thing naming one — so without this every edge the
-        // endpoint carries reads as some other predicate and a second run writes a parallel edge.
+        // Left out, every edge the endpoint carries reads as some other predicate and a second run
+        // writes a parallel edge. Same trap the kind roles hit, for the same reason.
         var selector = EndpointKindResolver.SelectorFor(Endpoint);
 
         selector.Names.Should().Contain(ObservedEdges.PredicateName);

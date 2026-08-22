@@ -23,9 +23,9 @@ internal static class MyceliumStub
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
     }
 
-    // The predicate the ingest relates through to say which registration wrote onto a Thing. Fixed, so
-    // a test can name the edge it expects without reading it back out of the snapshot it stubbed.
-    internal static readonly Guid ObservedPredicateId = new("0bf1a7ed-0000-4000-8000-000000000001");
+    // The predicate the ingest relates through to say which registration wrote onto a Thing. A model
+    // that has ever been ingested into holds one, so every stubbed snapshot carries it.
+    private static readonly Guid ObservedPredicateId = Guid.NewGuid();
 
     internal static HttpResponseMessage? RouteRelationshipWrite(HttpRequestMessage request)
     {
@@ -90,7 +90,7 @@ internal static class MyceliumStub
 
     // The same snapshot, with the `observed` edges the endpoint already carries — what a real read
     // returns on every run after the first, and what stops a second one writing a parallel edge.
-    internal static HttpResponseMessage? RouteKindsAndObserved(
+    private static HttpResponseMessage? RouteKindsAndObserved(
         HttpRequestMessage request, Guid endpointId, IReadOnlyCollection<Guid> alreadyObserved, params Kind[] kinds)
     {
         var path = request.RequestUri!.AbsolutePath;

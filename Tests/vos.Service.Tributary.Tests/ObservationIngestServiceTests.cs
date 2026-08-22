@@ -122,6 +122,28 @@ public class ObservationIngestServiceTests
     }
 
     [Fact]
+    public async Task PredicateCameFromTheSnapshot_TheEdgeGoesThroughItWithoutALookup()
+    {
+        // Every write onto a site a source has not been asked about before takes this path, so the
+        // lookup it saves is not a rare one.
+        var endpointThingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var observedId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
+        client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var result = await sut.CreateObservationsAsync(
+            endpointThingId, new JsonataTransform("{\"properties\":{\"v\":1}}"), "{\"x\":1}", subjectId,
+            new ObservedEdges(observedId, new HashSet<Guid>()));
+
+        result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
+        await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, subjectId);
+        await client.DidNotReceive().FindThingByNameAsync(Arg.Any<string>());
+    }
+
+    [Fact]
     public async Task SuppliedSubjectAndTheEdgeIsRefused_WritesNoValuesEither()
     {
         // The edge goes in before the values, so a refused edge leaves nothing on the site that
