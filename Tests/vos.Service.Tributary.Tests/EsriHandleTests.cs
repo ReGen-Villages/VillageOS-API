@@ -256,6 +256,7 @@ public class EsriHandleTests
                 ?? RouteFindThing(req, siteId, "ExampleSite")
                 ?? RouteEffectiveProperties(req, thingId, props)
                 ?? RouteKindsFromProperties(req, thingId, props)
+                ?? RouteRelationshipWrite(req)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         using var client = factory.CreateClient();

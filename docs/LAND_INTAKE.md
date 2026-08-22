@@ -416,6 +416,7 @@ sequenceDiagram
     Tributary->>Provider: HTTP request
     Provider-->>Tributary: response
     Tributary->>Tributary: reshape into a reading
+    Tributary->>Mycelium: relate the registration to the Site<br/>through observed, once
     Tributary->>Mycelium: write observation onto the Site
   end
   Confluence->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection

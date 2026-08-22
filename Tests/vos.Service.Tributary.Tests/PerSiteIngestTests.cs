@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Xunit;
 using static vos.Service.Tributary.Tests.MyceliumStub;
@@ -33,6 +34,7 @@ public class PerSiteIngestTests
     {
         public List<Guid> ObservedOn { get; } = new();
         public List<string> ThingsCreated { get; } = new();
+        public List<Guid> RelatedTo { get; } = new();
     }
 
     // Consulted before the standard routes, so a test needing one answer changed says only that.
@@ -58,13 +60,26 @@ public class PerSiteIngestTests
                 recorder.ThingsCreated.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
                 return Json("{\"Id\":\"" + Guid.NewGuid() + "\",\"Name\":\"x\",\"Properties\":{}}");
             }
+            if (req.Method == HttpMethod.Post && path == "/api/relationships")
+            {
+                recorder.RelatedTo.Add(TargetOf(req));
+                return Json("{\"Id\":\"" + Guid.NewGuid() + "\"}");
+            }
             if (req.RequestUri.Host == "api.test") return Json("""{"mm":3.4}""");
+            // The edges written so far come back in the next call's snapshot, the way a real read
+            // returns them — which is what a second call has to see to leave the edge alone.
             return RouteFindThing(req, endpointId, "EP")
                 ?? RouteEffectiveProperties(req, endpointId, properties)
-                ?? RouteKindsFromProperties(req, endpointId, properties)
+                ?? RouteKindsFromProperties(req, endpointId, properties, recorder.RelatedTo)
                 ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         };
         return factory;
+    }
+
+    private static Guid TargetOf(HttpRequestMessage request)
+    {
+        using var written = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+        return written.RootElement.GetProperty("targetId").GetGuid();
     }
 
     private static object CallFor(Guid subjectId, string lat, string lon) => new
@@ -89,6 +104,43 @@ public class PerSiteIngestTests
                 .StatusCode.Should().Be(HttpStatusCode.OK);
 
         recorder.ObservedOn.Should().Equal(willowBend, eastfield);
+    }
+
+    [Fact]
+    public async Task Handle_SubjectSupplied_RelatesTheRegistrationToTheSubjectItWroteOnto()
+    {
+        // A discovered value with no edge back to the registration that fetched it cannot be told
+        // apart from one someone typed in. The registration is what the edge names; the source behind
+        // it is one hop further on, through the `resolvedBy` edge the model already holds.
+        var recorder = new Recorder();
+        var subject = Guid.NewGuid();
+        await using var factory = FactoryOver(recorder, Guid.NewGuid(), SiteEndpointProperties);
+        await factory.InitializeAsync();
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", CallFor(subject, "39.4", "-8.2"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        recorder.RelatedTo.Should().Equal(subject);
+    }
+
+    [Fact]
+    public async Task Handle_CalledTwiceForOneSubject_LeavesOneEdge()
+    {
+        // Discovery runs whenever a site is submitted again. The values are written each time; the
+        // edge saying where they came from is written once.
+        var recorder = new Recorder();
+        var subject = Guid.NewGuid();
+        await using var factory = FactoryOver(recorder, Guid.NewGuid(), SiteEndpointProperties);
+        await factory.InitializeAsync();
+        using var client = factory.CreateClient();
+
+        foreach (var _ in Enumerable.Range(0, 2))
+            (await client.PostAsJsonAsync("/handle", CallFor(subject, "39.4", "-8.2")))
+                .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        recorder.ObservedOn.Should().Equal(subject, subject);
+        recorder.RelatedTo.Should().Equal(subject);
     }
 
     [Fact]
@@ -150,6 +202,7 @@ public class PerSiteIngestTests
         // path answers 1 here instead, because it did resolve one — pinned alongside its own tests.
         summary.Should().Contain("\"entitiesTouched\":0");
         recorder.ObservedOn.Should().BeEmpty();
+        recorder.RelatedTo.Should().BeEmpty("an edge here would say the source produced a value it did not");
     }
 
     [Fact]

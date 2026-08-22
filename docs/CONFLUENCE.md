@@ -121,6 +121,13 @@ registration's expression names — see
 configuration rather than a name in code, so a deployment can point it elsewhere without editing
 this service.
 
+**Every source that resolved stays reachable from the site.** The fetch relates the registration to
+the site through `observed`, so a value on the site leads back to the registration and from there to
+the `DataSource` along the `resolvedBy` edge this service already reads. Nothing here writes that edge;
+it is the ingest's, and it is written once per registration per site however often discovery runs —
+see [`TRIBUTARY.md`](TRIBUTARY.md#which-registration-wrote-a-value). A source that did not resolve
+never reaches the ingest, so it leaves no edge suggesting it did.
+
 ## Starting the analysis
 
 **When the run finishes, Confluence relates the site's study to each compute service** — one

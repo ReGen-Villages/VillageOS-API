@@ -1,4 +1,5 @@
 using vos.Service.Shared;
+using vos.Service.Tributary.Helpers;
 using vos.Service.Tributary.Services;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -82,6 +83,82 @@ public class ObservationIngestServiceTests
     // ---------- CreateObservationsAsync — hybrid ingest (readings -> observations) ----------
 
     [Fact]
+    public async Task ExistingEntity_IsRelatedToTheEndpointThatWroteOntoIt()
+    {
+        var endpointThingId = Guid.NewGuid();
+        var entityId = Guid.NewGuid();
+        var observedId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("Sensor-1").Returns(new MyceliumClient.MyceliumThing(entityId, "Sensor-1"));
+        client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
+        client.CreateRelationshipAsync(endpointThingId, observedId, entityId).Returns(true);
+        client.SubmitObservationsAsync(entityId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var query = new JsonataTransform("{\"name\":\"Sensor-1\",\"properties\":{\"temp\":5.8}}");
+        var result = await sut.CreateObservationsAsync(endpointThingId, query, "{\"x\":1}");
+
+        result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
+        await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, entityId);
+    }
+
+    [Fact]
+    public async Task SuppliedSubject_IsRelatedToTheEndpointThatWroteOntoIt()
+    {
+        var endpointThingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var observedId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.FindThingByNameAsync("observed").Returns(new MyceliumClient.MyceliumThing(observedId, "observed"));
+        client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
+        client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var query = new JsonataTransform("{\"properties\":{\"v\":1}}");
+        var result = await sut.CreateObservationsAsync(endpointThingId, query, "{\"x\":1}", subjectId);
+
+        result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
+        await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, subjectId);
+    }
+
+    [Fact]
+    public async Task SubjectAlreadyObserved_WritesNoSecondEdge()
+    {
+        // Discovery run twice over one site. The values are written again; the edge saying where they
+        // came from is already there, and a second one beside it says nothing the first did not.
+        var endpointThingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var query = new JsonataTransform("{\"properties\":{\"v\":1}}");
+        var result = await sut.CreateObservationsAsync(
+            endpointThingId, query, "{\"x\":1}", subjectId, Already(subjectId));
+
+        result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
+        result.ObservationsSubmitted.Should().Be(1);
+        await client.DidNotReceive().CreateRelationshipAsync(
+            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task SuppliedSubjectAndTheReadingCarriesNoValues_WritesNoEdge()
+    {
+        // A source can answer for a site it holds nothing about. An edge here would say the source
+        // produced a value for the site when it produced none.
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var result = await sut.CreateObservationsAsync(
+            Guid.NewGuid(), new JsonataTransform("{\"properties\":{}}"), "{\"x\":1}", Guid.NewGuid());
+
+        result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
+        await client.DidNotReceive().CreateRelationshipAsync(
+            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
+    }
+
+    [Fact]
     public async Task ExistingEntity_WritesAllReadingsAsObservations_NoThingCreated()
     {
         var endpointThingId = Guid.NewGuid();
@@ -94,7 +171,8 @@ public class ObservationIngestServiceTests
         var query = new JsonataTransform("readings.{\"name\":\"Sensor-1\",\"properties\":{\"temp\":temp},\"observedAt\":at}");
         var upstream = """{"readings":[{"temp":5.8,"at":"2026-03-03T00:00:00Z"},{"temp":6.1,"at":"2026-03-03T01:00:00Z"}]}""";
 
-        var result = await sut.CreateObservationsAsync(endpointThingId, query, upstream);
+        var result = await sut.CreateObservationsAsync(
+            endpointThingId, query, upstream, alreadyObserved: Already(entityId));
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
         result.EntitiesTouched.Should().Be(1);
@@ -173,7 +251,8 @@ public class ObservationIngestServiceTests
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
         var query = new JsonataTransform("{\"name\":\"S\",\"properties\":{\"v\":1},\"observedAt\":\"2026-03-03T12:00:00Z\"}");
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(
+            Guid.NewGuid(), query, "{\"x\":1}", alreadyObserved: Already(entityId));
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
         captured.Should().NotBeNull();
@@ -191,7 +270,8 @@ public class ObservationIngestServiceTests
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
         var query = new JsonataTransform("{\"name\":\"S\",\"properties\":{\"v\":1}}");
-        var result = await sut.CreateObservationsAsync(Guid.NewGuid(), query, "{\"x\":1}");
+        var result = await sut.CreateObservationsAsync(
+            Guid.NewGuid(), query, "{\"x\":1}", alreadyObserved: Already(entityId));
 
         result.Success.Should().BeTrue($"{result.Error} {result.Detail}");
         captured.Should().NotBeNull();
@@ -330,7 +410,8 @@ public class ObservationIngestServiceTests
         var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
 
         var result = await sut.CreateObservationsAsync(Guid.NewGuid(),
-            new JsonataTransform("{\"name\":\"S\",\"properties\":{\"v\":1}}"), "{\"x\":1}");
+            new JsonataTransform("{\"name\":\"S\",\"properties\":{\"v\":1}}"), "{\"x\":1}",
+            alreadyObserved: Already(entityId));
 
         result.Success.Should().BeFalse();
         result.Error.Should().Contain("submit observations");
@@ -355,6 +436,8 @@ public class ObservationIngestServiceTests
         result.ObservationsSubmitted.Should().Be(0);
         await client.DidNotReceive().SubmitObservationsAsync(
             Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ObservationSample>>());
+        await client.DidNotReceive().CreateRelationshipAsync(
+            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
     }
 
     private static ObservationIngestService CreateService()
@@ -363,4 +446,8 @@ public class ObservationIngestServiceTests
         var logger = Substitute.For<ILogger<ObservationIngestService>>();
         return new ObservationIngestService(client, logger);
     }
+
+    // The endpoint is already related to these Things — the ordinary state of every run after the
+    // first. A test about the observations themselves says so rather than stub the edge write.
+    private static ObservedEdges Already(params Guid[] thingIds) => new(Guid.NewGuid(), thingIds.ToHashSet());
 }
