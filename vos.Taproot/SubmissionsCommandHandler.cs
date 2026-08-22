@@ -76,7 +76,9 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         writer.WriteLine($"{"Arrived",-22} {"State",-10} {"Submission",-26} {"Proposes",-24} Id");
         foreach (var submission in submissions.OrderBy(one => one.SubmittedAt ?? "", StringComparer.Ordinal))
         {
-            var state = submission.Disposition is { } decided ? NameOf(model, decided) : "waiting";
+            // "handled" is the model's own word for a submission a disposition has been related to, and is
+            // what a disposition too nameless to display leaves the reader with.
+            var state = submission.Disposition is { } decided ? NameOf(model, decided) ?? "handled" : "waiting";
             writer.WriteLine(
                 $"{submission.SubmittedAt ?? "unrecorded",-22} {state,-10} "
                 + $"{submission.SubmissionId ?? submission.Name,-26} {submission.ProposedSiteName ?? "-",-24} {submission.Id}");
@@ -200,8 +202,8 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var resolved))
             {
                 writer.WriteLine(
-                    $"{submission.Name} carries no instant it was decided at, so there is nowhere to count its "
-                    + "period from and it was left where it is.");
+                    $"{submission.Name} carries no instant this can read as when it was decided, so there is "
+                    + "nowhere to count its period from and it was left where it is.");
                 continue;
             }
 

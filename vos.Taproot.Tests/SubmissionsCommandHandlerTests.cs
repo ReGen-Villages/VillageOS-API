@@ -402,6 +402,57 @@ public class SubmissionsCommandHandlerTests
         Assert.Contains("no instant", _writer.ToString());
     }
 
+    // The period is the model's to name and this reads whatever it holds, so a period that is not a number
+    // of days has to stop the submission going rather than be guessed at.
+    [Fact]
+    public async Task A_period_that_is_not_a_number_of_days_leaves_the_submission_where_it_is()
+    {
+        AModelWithOneSubmission(disposition: RejectedId, resolvedAt: DateTime.UtcNow.AddDays(-31));
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [ProposesId.ToString()] = new Dictionary<string, object>
+                    { ["__IsProposedSitePredicate"] = Held(true) },
+                [ResolvedAsId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
+                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
+                [RejectedId.ToString()] = new Dictionary<string, object>
+                    { ["daysBeforeColdStorage"] = Held("a month or so") },
+                [SubmissionId.ToString()] = SubmissionProperties(DateTime.UtcNow.AddDays(-31)),
+            }));
+
+        await Run("dispose has,studies");
+
+        VerifyNothingWasPruned();
+        Assert.Contains("not a number of days", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task A_decision_time_that_cannot_be_read_leaves_the_submission_where_it_is()
+    {
+        AModelWithOneSubmission(disposition: RejectedId);
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [ProposesId.ToString()] = new Dictionary<string, object>
+                    { ["__IsProposedSitePredicate"] = Held(true) },
+                [ResolvedAsId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
+                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
+                [RejectedId.ToString()] = new Dictionary<string, object>
+                    { ["daysBeforeColdStorage"] = Held(30) },
+                [SubmissionId.ToString()] = new Dictionary<string, object>
+                    { ["resolvedAt"] = Held("last Tuesday") },
+            }));
+
+        await Run("dispose has,studies");
+
+        VerifyNothingWasPruned();
+        Assert.Contains("no instant", _writer.ToString());
+    }
+
     [Fact]
     public async Task Disposal_says_what_it_took()
     {
