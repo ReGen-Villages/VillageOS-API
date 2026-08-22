@@ -155,11 +155,10 @@ function nameIndex(things: readonly VosThing[]): Map<string, string> {
   return new Map(things.map((thing) => [thing.Id, thing.Name]));
 }
 
-/** A property as text, whatever it is written as, because everything here is displayed. */
+/** A property as text, whatever it is written as, because everything here is displayed. A property
+ *  a model declares but never gives a value to reads as absent, which is what it is. */
 function valueOf(reading: ModelReading, thingId: string, property: string): string | undefined {
-  const held = reading.properties[thingId]?.[property];
-  if (held === undefined || held === null) return undefined;
-  const value = typeof held === 'object' && 'Value' in held ? held.Value : held;
+  const value = reading.properties[thingId]?.[property]?.Value;
   if (value === undefined || value === null) return undefined;
   return typeof value === 'string' ? value : String(value);
 }

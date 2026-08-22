@@ -124,6 +124,31 @@ describe('what has arrived', () => {
     });
   });
 
+  it('reads a property a model declares but never gives a value to as absent', () => {
+    const declared = reading({
+      properties: { ...PROPERTIES, 'arrival-1': { submittedAt: { ...held(null) } } },
+    });
+
+    expect(submissionsIn(declared).find((one) => one.id === 'arrival-1')?.submittedAt).toBeUndefined();
+  });
+
+  it('shows a property written as a number, because everything here is displayed', () => {
+    const numbered = reading({
+      properties: { ...PROPERTIES, 'arrival-1': { submissionId: held(17) } },
+    });
+
+    expect(numbered.properties['arrival-1'].submissionId.Value).toBe(17);
+    expect(submissionsIn(numbered).find((one) => one.id === 'arrival-1')?.submissionId).toBe('17');
+  });
+
+  it('reads a decision pointing at a Thing the model no longer holds as no decision at all', () => {
+    const dangling = submissionsIn(
+      reading({ relationships: [...EDGES, edge('e10', 'arrival-1', 'decided', 'gone')] }),
+    );
+
+    expect(dangling.find((one) => one.id === 'arrival-1')?.disposition).toBeUndefined();
+  });
+
   it('names the predicate a decision is written through', () => {
     expect(dispositionPredicate(reading())).toBe('decided');
   });
@@ -143,6 +168,12 @@ describe('what a decision means here', () => {
 
     expect(disposableDisposition(strayEdge)?.id).toBe('binned');
     expect(keptDisposition(strayEdge)?.id).toBe('taken-on');
+  });
+
+  it('falls back to the identifier of a disposition the model no longer names', () => {
+    const unnamed = reading({ things: THINGS.filter((one) => one.Id !== 'taken-on') });
+
+    expect(keptDisposition(unnamed)).toEqual({ id: 'taken-on', name: 'taken-on', disposable: false });
   });
 
   it('has nothing to offer where no archetype is marked as holding dispositions', () => {

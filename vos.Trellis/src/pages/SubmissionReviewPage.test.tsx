@@ -114,6 +114,12 @@ describe('what a reviewer sees', () => {
     expect(screen.getByText('Waiting')).toBeInTheDocument();
   });
 
+  it('reads properties resolved rather than own, because seeding moves own values into overrides', async () => {
+    await shown();
+
+    expect(thingApi.getAllProperties).toHaveBeenCalledWith('effective');
+  });
+
   it('keeps a submission whose detail cannot be read, with what is known', async () => {
     modelAnswers(THINGS, EDGES, { 'puts-forward': PROPERTIES['puts-forward'] });
     await shown();
@@ -161,6 +167,17 @@ describe('rejecting', () => {
 
     fireEvent.click(screen.getByLabelText('Show decided'));
     expect(await screen.findByText('binned')).toBeInTheDocument();
+  });
+
+  it('shows a refusal and leaves the row where it was', async () => {
+    vi.mocked(relationshipApi.create).mockRejectedValue(new Error('Property does not exist on the thing'));
+    await shown();
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Property does not exist on the thing')),
+    );
+    expect(screen.getByText('sub-0001')).toBeInTheDocument();
   });
 
   it('says what a rejection would mean where no disposition names a period', async () => {
