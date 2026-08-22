@@ -193,6 +193,7 @@ namespace vos.Taproot
             ["mycelium"] = async (_, a) => await new MyceliumStatusCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["model"] = async (_, a) => await new ModelCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
             ["user"] = async (_, a) => await new UserCommandHandler(a, _reader, _writer, _mycelium).ExecuteAsync(),
+            ["submissions"] = async (_, a) => await new SubmissionsCommandHandler(a, _writer, _mycelium).ExecuteAsync(),
         };
 
         public async Task RunAsync()
