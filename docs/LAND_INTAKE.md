@@ -885,6 +885,12 @@ Anything anonymous attracts junk, and junk already sitting in a working model is
 Promotion must be idempotent — a planner double-clicking must not create two projects — which means
 deriving the new identifiers from the submission rather than generating fresh ones.
 
+A reviewer does this either from the **Submissions** page in Trellis or from the `submissions`
+commands in Taproot. Both read the same model the same way — by the marks it puts on its own
+vocabulary rather than by any name — and both call the same two actions, so the same staging model
+can be worked from a browser or a terminal. See [the Trellis guide](TRELLIS.md#87-reviewing-what-has-arrived)
+and [the Taproot guide](TAPROOT_USER_GUIDE.md).
+
 ---
 
 ## 10. What exists, what is new
