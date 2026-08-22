@@ -65,8 +65,7 @@ public static class SubmissionFragmentComposer
     public const string SubmissionArchetypeName = "Submission";
 
     /// <param name="arrivedAt">When this submission reached the service, or null when the model already
-    /// holds its record. A wizard saves as the planner fills the form in and a fragment upserts, so a time
-    /// written on every save would record the last save rather than the arrival.</param>
+    /// holds its record and its arrival is already recorded.</param>
     public static ComposedSubmission Compose(
         Submission submission, ResolvedPredicates predicates, ResolvedArchetypes archetypes,
         DeclaredVocabulary vocabulary, DateTime? arrivedAt)
