@@ -16,12 +16,20 @@ DEVELOP = 'refs/heads/develop'
 # same branch.
 PUBLISHING_STEPS = ('Publish Docs to Wiki', 'Mirror to GitHub', 'Mirror Wiki to GitHub')
 
-# A build against main compiles Release, which is what main packs and pushes; everything else
+# A build against main compiles Release, which is what a release is built in; everything else
 # compiles Debug, which is what a developer runs. Both branch variables, because a pull request into
 # main has to compile Release too — a merge is too late to learn that it does not.
 CONFIGURATION_MUST_READ = (
     MAIN, 'Release', 'Debug', 'Build.SourceBranch', 'System.PullRequest.TargetBranch',
 )
+
+# A release is handed over as an archive of the running platform, not as libraries on a package feed:
+# a feed needs a credential scoped for packaging that this organization does not issue, and a
+# consumer wants something to run rather than something to compile against. The steps that packed and
+# pushed outlived that decision, gated to a branch that had never built, so no build result ever
+# showed the contradiction. Read as the absence of packaging anywhere, so a step added later is
+# decided on rather than inherited.
+PACKAGING_MARKERS = ('dotnet pack', 'publishVstsFeed')
 
 
 def indented_block(build_file_text, opening):
@@ -91,6 +99,12 @@ def problems(build_file_text):
             found.append(
                 'A build against main must compile Release and every other build Debug, and '
                 'buildConfiguration never mentions %s' % ', '.join(missing))
+
+    for marker in PACKAGING_MARKERS:
+        if marker in build_file_text:
+            found.append(
+                'The build file names "%s", and a release is handed over as an archive of the '
+                'running platform rather than as libraries on a feed' % marker)
 
     for step in PUBLISHING_STEPS:
         condition = step_condition(build_file_text, step)
