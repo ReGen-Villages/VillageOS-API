@@ -40,7 +40,9 @@ export function SubmissionReviewPage() {
   const [unreadable, setUnreadable] = useState(false);
   const [rereadCount, setRereadCount] = useState(0);
   const [showDecided, setShowDecided] = useState(false);
-  const [busySubmissionId, setBusySubmissionId] = useState<string | null>(null);
+  // One row's decision does not settle another's: a single busy row would let a second decision
+  // re-enable the first row's buttons while its write is still in flight.
+  const [busySubmissionIds, setBusySubmissionIds] = useState<ReadonlySet<string>>(new Set());
   const [promoting, setPromoting] = useState<Submission | null>(null);
   const [promotions, setPromotions] = useState<Record<string, PromotionResult>>({});
 
@@ -84,6 +86,15 @@ export function SubmissionReviewPage() {
   );
   const listed = showDecided ? submissions : submissions.filter((one) => !one.disposition);
 
+  function markBusy(submissionId: string, busy: boolean): void {
+    setBusySubmissionIds((already) => {
+      const next = new Set(already);
+      if (busy) next.add(submissionId);
+      else next.delete(submissionId);
+      return next;
+    });
+  }
+
   /** Relate a submission to what was decided about it, and record when. Who decided is the Fact the
    *  write itself lays down, which is the record that cannot be typed in. */
   async function resolve(submission: Submission, disposition: Disposition, predicate: string): Promise<void> {
@@ -100,15 +111,15 @@ export function SubmissionReviewPage() {
       toast.error(t('submissionReview.noDispositionPredicate'));
       return;
     }
-    setBusySubmissionId(submission.id);
+    markBusy(submission.id, true);
     try {
       await resolve(submission, disposable, resolvedAs);
-      toast.success(t('submissionReview.rejected', { submission: submission.name, disposition: disposable.name }));
+      toast.success(t('submissionReview.rejected', { submission: named(submission), disposition: disposable.name }));
       setRereadCount((count) => count + 1);
     } catch (error) {
       toast.error(t('submissionReview.refused', { reason: reasonFor(error) }));
     } finally {
-      setBusySubmissionId(null);
+      markBusy(submission.id, false);
     }
   }
 
@@ -127,7 +138,7 @@ export function SubmissionReviewPage() {
       toast.error(t('submissionReview.noDispositionPredicate'));
       return;
     }
-    setBusySubmissionId(submission.id);
+    markBusy(submission.id, true);
     try {
       const promoted = await modelApi.promote(
         submission.proposedSiteId,
@@ -143,7 +154,7 @@ export function SubmissionReviewPage() {
     } catch (error) {
       toast.error(t('submissionReview.refused', { reason: reasonFor(error) }));
     } finally {
-      setBusySubmissionId(null);
+      markBusy(submission.id, false);
     }
   }
 
@@ -213,7 +224,7 @@ export function SubmissionReviewPage() {
                   key={submission.id}
                   submission={submission}
                   promotion={promotions[submission.id]}
-                  busy={busySubmissionId === submission.id}
+                  busy={busySubmissionIds.has(submission.id)}
                   onReject={() => void reject(submission)}
                   onPromote={() => setPromoting(submission)}
                 />
@@ -227,7 +238,7 @@ export function SubmissionReviewPage() {
         <PromoteDialog
           submission={promoting}
           predicateNames={predicateNames}
-          busy={busySubmissionId === promoting.id}
+          busy={busySubmissionIds.has(promoting.id)}
           onCancel={() => setPromoting(null)}
           onPromote={(plan) => void promote(promoting, plan)}
         />
@@ -275,7 +286,7 @@ function SubmissionRow({
         </span>
       </td>
       <td className="px-3 py-2 text-zinc-800 dark:text-zinc-100">
-        <div>{submission.submissionId ?? submission.name}</div>
+        <div>{named(submission)}</div>
         {promotion && (
           <div className="text-[11px] text-emerald-600 dark:text-emerald-400">
             {t('submissionReview.promotedInto', { project: promotion.modelName })}
@@ -336,10 +347,10 @@ function PromoteDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <h3 id="promote-dialog-title" className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-          {t('submissionReview.promoteTitle', { submission: submission.submissionId ?? submission.name })}
+          {t('submissionReview.promoteTitle', { submission: named(submission) })}
         </h3>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          {t('submissionReview.promoteBody', { site: submission.proposedSiteName ?? submission.name })}
+          {t('submissionReview.promoteBody', { site: submission.proposedSiteName ?? t('submissionReview.unnamedSite') })}
         </p>
 
         <label className="block mt-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
@@ -417,6 +428,11 @@ function Notice({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** What a reviewer calls a submission: the identifier it was submitted under, or its name where it
+ *  arrived without one. */
+function named(submission: Submission): string {
+  return submission.submissionId ?? submission.name;
+}
 
 function reasonFor(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

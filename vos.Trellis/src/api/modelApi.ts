@@ -2,13 +2,11 @@ import { apiClient } from './client';
 import { unwrapProperties } from '../utils/propertyMapper';
 import type { TemporalSnapshot, VosThing } from '../types/vos';
 
-/** What POST /api/model/promote answers with: the project model the group was carried into, and
- *  where in it the group now hangs. Promoting the same group twice answers the same way, because the
- *  server derives both identifiers rather than generating them. */
+/** The project model a promotion carried the group into. Promoting the same group twice answers with
+ *  the same model, because the server derives its identifier rather than generating one. */
 export interface PromotionResult {
   modelId: string;
   modelName: string;
-  rootThingId: string;
 }
 
 /** Counts returned by POST /api/model/fragment. */

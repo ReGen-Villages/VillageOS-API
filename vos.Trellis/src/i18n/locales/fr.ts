@@ -647,7 +647,7 @@ export const fr: PartialResources = {
     noneWaiting: "Rien n'attend d'être examiné.",
     noneAtAll: "Aucune soumission n'est arrivée dans ce modèle.",
     noProposedSitePredicate: "Ce modèle ne marque aucun prédicat unique comme menant à un site proposé ; il ne contient donc rien que cette page puisse examiner.",
-    unreadable: "Les propriétés du modèle n'ont pas pu être lues, donc ce qui est arrivé ne peut pas être listé.",
+    unreadable: "Ce modèle n'a pas pu être lu, donc ce qui est arrivé ne peut pas être listé.",
     noDisposableDisposition: "Ce modèle ne déclare aucune disposition nommant un délai au terme duquel une soumission est retirée ; un rejet n'aurait donc ici aucun sens.",
     noKeptDisposition: "Ce modèle ne déclare aucune disposition qui conserve une soumission ; une promotion ne pourrait donc pas être consignée ici.",
     noDispositionPredicate: "Ce modèle ne marque aucun prédicat permettant de consigner ce qui a été décidé d'une soumission.",

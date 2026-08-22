@@ -97,11 +97,7 @@ beforeEach(() => {
   modelAnswers();
   vi.mocked(relationshipApi.create).mockResolvedValue({} as VosRelationship);
   vi.mocked(thingApi.setProperty).mockResolvedValue({} as VosThing);
-  vi.mocked(modelApi.promote).mockResolvedValue({
-    modelId: 'project-1',
-    modelName: 'Meadow Lane',
-    rootThingId: 'meadow-copy',
-  });
+  vi.mocked(modelApi.promote).mockResolvedValue({ modelId: 'project-1', modelName: 'Meadow Lane' });
 });
 
 describe('what a reviewer sees', () => {
@@ -213,6 +209,31 @@ describe('rejecting', () => {
       expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('marks no predicate')),
     );
     expect(relationshipApi.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps a row disabled while its own decision is in flight, whatever another row is doing', async () => {
+    let settle: () => void = () => {};
+    vi.mocked(relationshipApi.create).mockReturnValue(
+      new Promise((resolve) => {
+        settle = () => resolve({} as VosRelationship);
+      }),
+    );
+    modelAnswers(
+      [...THINGS, thing('arrival-2', 'Old Quarry arrival'), thing('quarry', 'Old Quarry')],
+      [...EDGES, edge('e6', 'arrival-2', 'puts-forward', 'quarry')],
+      { ...PROPERTIES, 'arrival-2': { submittedAt: held('2026-08-21T09:00:00Z') } },
+    );
+    await shown();
+
+    const rejectOn = (submission: string) =>
+      within(screen.getByText(submission).closest('tr')!).getByRole('button', { name: 'Reject' });
+    fireEvent.click(rejectOn('sub-0001'));
+    fireEvent.click(rejectOn('Old Quarry arrival'));
+
+    await waitFor(() => expect(rejectOn('Old Quarry arrival')).toBeDisabled());
+    expect(rejectOn('sub-0001')).toBeDisabled();
+
+    settle();
   });
 
   it('says what a rejection would mean where no disposition names a period', async () => {

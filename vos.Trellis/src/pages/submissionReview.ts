@@ -1,5 +1,3 @@
-import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
-
 /**
  * What has arrived in this model, and what a reviewer may do about it — the read behind the
  * submission review page.
@@ -10,6 +8,8 @@ import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos'
  * commands read, and a test in this folder reads that handler's source so the page and the command
  * line cannot come to answer the same model differently.
  */
+
+import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
 
 export const PROPOSED_SITE_PREDICATE_FLAG = '__IsProposedSitePredicate';
 export const DISPOSITION_ARCHETYPE_FLAG = '__IsSubmissionDispositionArchetype';

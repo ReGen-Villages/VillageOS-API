@@ -42,7 +42,7 @@ describe('modelApi.applyFragment', () => {
 
 describe('modelApi.promote', () => {
   it('posts the root, what travels with it, the template and the project name', async () => {
-    mockPost.mockResolvedValue({ modelId: 'model-1', modelName: 'Meadow Lane', rootThingId: 'site-1' });
+    mockPost.mockResolvedValue({ modelId: 'model-1', modelName: 'Meadow Lane' });
 
     const result = await modelApi.promote('meadow', ['covers', 'studies'], 'site-analysis.template.json', 'Meadow Lane');
 
@@ -52,7 +52,7 @@ describe('modelApi.promote', () => {
       Template: 'site-analysis.template.json',
       ProjectName: 'Meadow Lane',
     });
-    expect(result).toEqual({ modelId: 'model-1', modelName: 'Meadow Lane', rootThingId: 'site-1' });
+    expect(result).toEqual({ modelId: 'model-1', modelName: 'Meadow Lane' });
   });
 
   it('does not swallow a refusal', async () => {
