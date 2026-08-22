@@ -103,8 +103,8 @@ def problems(build_file_text):
     for marker in PACKAGING_MARKERS:
         if marker in build_file_text:
             found.append(
-                'The build packs a library or pushes one to a feed ("%s"), and a release is handed '
-                'over as an archive instead' % marker)
+                'The build file names "%s", and a release is handed over as an archive of the '
+                'running platform rather than as libraries on a feed' % marker)
 
     for step in PUBLISHING_STEPS:
         condition = step_condition(build_file_text, step)

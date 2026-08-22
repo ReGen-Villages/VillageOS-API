@@ -126,7 +126,7 @@ class CheckBuildFileTests(unittest.TestCase):
             "  displayName: 'Pack NuGet Package'\n"
             "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n")
 
-        self.assertIn('packs a library', problems(packing)[0])
+        self.assertIn('"dotnet pack"', problems(packing)[0])
 
     def test_a_step_that_pushes_to_a_feed_is_reported(self):
         pushing = COMPLIANT + (
@@ -137,7 +137,7 @@ class CheckBuildFileTests(unittest.TestCase):
             "    publishVstsFeed: 'NuGetPackages'\n"
             "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n")
 
-        self.assertIn('pushes one to a feed', problems(pushing)[0])
+        self.assertIn('"publishVstsFeed"', problems(pushing)[0])
 
 
 if __name__ == '__main__':
