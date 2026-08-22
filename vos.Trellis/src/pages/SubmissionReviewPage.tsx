@@ -57,7 +57,11 @@ export function SubmissionReviewPage() {
         setUnreadable(false);
       })
       .catch(() => {
-        if (!abandoned) setUnreadable(true);
+        if (abandoned) return;
+        // What was read before is dropped rather than left on screen under a message saying the
+        // model could not be read. A list that is no longer what the model says is worse than none.
+        setReading(null);
+        setUnreadable(true);
       });
     return () => {
       abandoned = true;

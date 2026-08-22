@@ -126,6 +126,19 @@ describe('what a reviewer sees', () => {
 
     expect(screen.getByText('Meadow Lane arrival')).toBeInTheDocument();
     expect(screen.getByText('Not recorded')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Promote' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Promote Meadow Lane arrival');
+  });
+
+  it('tells an empty model apart from a queue whose work is all done', async () => {
+    modelAnswers(THINGS, EDGES.filter((one) => one.PredicateId !== 'puts-forward'));
+    await shown();
+    expect(screen.getByText(/Nothing is waiting/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Show decided'));
+
+    expect(screen.getByText(/No submissions have arrived/)).toBeInTheDocument();
   });
 
   it('says so where the model marks no predicate as reaching a proposed site', async () => {
@@ -140,6 +153,17 @@ describe('what a reviewer sees', () => {
     await shown();
 
     expect(screen.getByText(/could not be read/)).toBeInTheDocument();
+  });
+
+  it('drops the list a failed re-read replaced, rather than leaving it under the message', async () => {
+    await shown();
+    expect(screen.getByText('sub-0001')).toBeInTheDocument();
+
+    vi.mocked(thingApi.getAll).mockRejectedValue(new Error('no'));
+    fireEvent.click(screen.getByRole('button', { name: /Read again/ }));
+
+    expect(await screen.findByText(/could not be read/)).toBeInTheDocument();
+    expect(screen.queryByText('sub-0001')).not.toBeInTheDocument();
   });
 });
 
@@ -253,6 +277,16 @@ describe('promoting', () => {
         'site-analysis.template.json',
         'Meadow Lane phase one',
       ),
+    );
+  });
+
+  it('offers the submission as the project name where the model no longer names the site', async () => {
+    modelAnswers(THINGS.filter((one) => one.Id !== 'meadow'));
+    await shown();
+    fireEvent.click(screen.getByRole('button', { name: 'Promote' }));
+
+    expect(within(await screen.findByRole('dialog')).getByLabelText('Project name')).toHaveValue(
+      'Meadow Lane arrival',
     );
   });
 
