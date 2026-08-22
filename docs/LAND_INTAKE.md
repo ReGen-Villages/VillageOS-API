@@ -526,6 +526,8 @@ assumption declared on the shared archetype resolve without the caller knowing w
 
 ```mermaid
 flowchart LR
+  SU["<b>Submission</b><br/>submission id · arrived at<br/>resolved at · resolved by"]
+  SD["<b>SubmissionDisposition</b><br/>rejected · promoted"]
   PR["<b>Project</b><br/>name · country · city"]
   CO["<b>Contact</b><br/>name · role<br/>email · phone"]
   SI["<b>Site</b><br/>lat · lng · elevation<br/>climate zone<br/>stated area · population<br/>household size<br/><i>+ discovered values</i>"]
@@ -538,6 +540,8 @@ flowchart LR
   BS["<b>BoundarySource</b><br/>drawn-by-hand · imported-from-file<br/>generated-from-stated-area"]
   AC["<b>AllocationCategory</b><br/>residential · food-and-agriculture<br/>…one Thing per category"]
 
+  SU -->|proposes| SI
+  SU -->|resolvedAs| SD
   PR -->|has| CO
   PR -->|has| SI
   SI -->|has| PA
@@ -568,8 +572,23 @@ identical to a surveyed boundary.
 
 **Everything hangs off its holder by the generic `has` predicate.** Nothing binds a service to these
 edges, so a predicate per pair — `hasParcel`, `hasHazard` — would be vocabulary the platform carries for
-no behaviour. A reader tells a parcel from a hazard by what the target `is`. The one named predicate is
-`studies`, which the site survey already uses to relate a study to the site it is about.
+no behaviour. A reader tells a parcel from a hazard by what the target `is`. Two predicates are named
+instead: `studies`, which the site survey already uses to relate a study to the site it is about, and
+`proposes`, which the arrival record uses to reach the site — for the reason below.
+
+**The arrival is a Thing of its own, and it does not travel.** A `Submission` holds the identifier the
+wizard sent, the time the service accepted it, and — once someone has dealt with it — when and by whom.
+It reaches its site through `proposes` rather than `has`, and it asserts that edge itself. Promotion
+carries the group reachable from the site through `has` and `studies`, together with every edge a member
+of that group asserts; both halves are what leave this record in the staging model where it belongs. A
+copy of it in a project model would read as waiting for ever, because the record is resolved after the
+copy has landed.
+
+**What was decided is a Thing too.** A `SubmissionDisposition` — `rejected`, `promoted` — reached
+through `resolvedAs`, the third declared vocabulary beside the boundary sources and the allocation
+categories. A word would say what was decided and nothing else; a Thing carries what follows from it,
+which is where the retention period below lives. A submission with no disposition is one nobody has
+dealt with, and that is what a reviewer's list is.
 
 **Hazards are Things, not a bag of properties.** There is a fixed vocabulary of hazard types and a
 fixed scale of levels, and modelling each assessment as a Thing lets it carry its date and reach the
@@ -986,7 +1005,7 @@ debugging session otherwise.
 | 1 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
 | 2 | ~~**Map library** — Leaflet or MapLibre?~~ **Settled: MapLibre**, added once by the viewer's Phase 0 (#5346) as a component the wizard consumes rather than duplicates. Leaflet cannot tilt or share a WebGL context, so drawing the 3D model on the basemap would have needed a second library. See [TRELLIS.md §22](TRELLIS.md#22-the-map-and-its-basemap-sources). | What remains is not a library question: MapLibre renders tiles, it does not supply them. Imagery for a given site comes from that country's own service and is declared in the model, not chosen here. |
 | 3 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
-| 4 | **Retention** for submissions that are never promoted. | Decide before there is anything in the intake model, not after. |
+| 4 | ~~**Retention** for submissions that are never promoted.~~ **Settled: every submission is retained.** A rejected one moves to cold storage 30 days after it was rejected; one nobody has dealt with is kept indefinitely. The period lives on the disposition Thing (`daysBeforeColdStorage` on `rejected`), so changing it is a model edit, and a disposition naming no period is kept. | What remains is the mechanism, not the rule. Cold storage in this platform is Heartwood, which holds history — observations and property Facts — not Things, and nothing today moves a Thing out of a live model into it. That belongs with the intake model itself (VillageOS #6044). |
 | 5 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own front door, so it is a natural follow-up. |
 | 6 | **What triggers discovery** — planner action, arrival of a submission, or a schedule? | All three eventually. Build one path and let each be a caller of it, rather than a branch inside it. |
 
