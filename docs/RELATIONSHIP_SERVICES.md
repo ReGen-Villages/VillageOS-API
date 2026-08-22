@@ -100,7 +100,7 @@ flowchart TB
    - `ServicePort` -- port for the daemon to listen on
    - `ServiceArgs` -- extra CLI arguments (e.g., `--mode=consumes`) passed verbatim to the daemon.
    - `RunMode` -- execution mode (only `"daemon"` is supported; defaults to `"daemon"` if unset)
-   - `TokenScope` -- the scope minted into the handler's service JWT (defaults to `"{connectionName}:*"`)
+   - `TokenScope` -- a label describing the reach this handler is *meant* to have, minted into its service JWT as the `vos:scope` claim (defaults to `"{connectionName}:*"`). **It records intent and restricts nothing.** Mycelium authorises by role: a service token reads and writes every Thing in the model it names, whatever its scope says. The one boundary a service token does carry is that model — a handler cannot reach another one.
    - `AutoStart` -- boolean (default `false`). When `true`, Mycelium registers the handler at seed load and invokes it for all existing relationships using this connection. When `false` or absent, the handler is invoked lazily when new relationships are created at runtime
 
 2. **Lazy Startup**: When a relationship using a handler predicate is created, the service broker delegates to the shared daemon lifecycle manager:
@@ -245,7 +245,8 @@ prototype carrying the binary. The predicate Things hold only `trigger`:
 { "Name": "produces", "Properties": { "trigger": "graph" } }
 ```
 
-One shared prototype carries the binary + token scope (both services `is` it):
+One shared prototype carries the binary and the token scope, which describes what this handler is
+for and does not restrict it (both services `is` it):
 
 ```json
 {
