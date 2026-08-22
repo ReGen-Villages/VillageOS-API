@@ -3,27 +3,27 @@ using System.Text.RegularExpressions;
 
 namespace vos.Service.Xylem.Services;
 
-// Production runner: invokes the vos.Tools.IfcIngest tool as a subprocess
-//   dotnet <IfcIngest.dll> --ifc <path> --post <mycelium> --name <model> --profile analysis
+// Production runner: invokes the vos.Tools.ModelIngest tool as a subprocess
+//   dotnet <ModelIngest.dll> --ifc <path> --post <mycelium> --name <model> --profile analysis
 // which parses (Xbim), classifies, and posts the graph to /api/model/fragment (idempotent, stable ids).
 // Purely the subprocess; new-model model preparation is the handler's job. The spawn itself is not unit-
 // tested; the launch it builds, the guard and the count parsing are, and the orchestration by
 // IngestHandlerTests.
-public sealed class IfcIngestRunner : IIfcIngestRunner
+public sealed class ModelIngestRunner : IModelIngestRunner
 {
-    // The IfcIngest CLI prints "Ingested <n> things, <m> relationships." — the only count it surfaces.
-    // Created-vs-updated fidelity needs an IfcIngest enhancement (follow-up); we report totals as created.
+    // The ModelIngest CLI prints "Ingested <n> things, <m> relationships." — the only count it surfaces.
+    // Created-vs-updated fidelity needs a ModelIngest enhancement (follow-up); we report totals as created.
     private static readonly Regex CountLine = new(@"Ingested\s+(\d+)\s+things,\s+(\d+)\s+relationships",
         RegexOptions.Compiled);
 
-    private readonly string _ifcIngestDll;
+    private readonly string _modelIngestDll;
     private readonly string _myceliumUrl;
     private readonly string? _token;
-    private readonly ILogger<IfcIngestRunner> _log;
+    private readonly ILogger<ModelIngestRunner> _log;
 
-    public IfcIngestRunner(string ifcIngestDll, string myceliumUrl, string? token, ILogger<IfcIngestRunner> log)
+    public ModelIngestRunner(string modelIngestDll, string myceliumUrl, string? token, ILogger<ModelIngestRunner> log)
     {
-        _ifcIngestDll = ifcIngestDll;
+        _modelIngestDll = modelIngestDll;
         _myceliumUrl = myceliumUrl;
         _token = token;
         _log = log;
@@ -31,11 +31,11 @@ public sealed class IfcIngestRunner : IIfcIngestRunner
 
     public async Task<IngestRunResult> RunAsync(string ifcPath, string modelName, CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(_ifcIngestDll) || !File.Exists(_ifcIngestDll))
-            return new IngestRunResult(false, 0, 0, 0, $"IfcIngest tool not found at '{_ifcIngestDll}'.");
+        if (string.IsNullOrEmpty(_modelIngestDll) || !File.Exists(_modelIngestDll))
+            return new IngestRunResult(false, 0, 0, 0, $"ModelIngest tool not found at '{_modelIngestDll}'.");
 
         using var proc = Process.Start(BuildStartInfo(ifcPath, modelName));
-        if (proc is null) return new IngestRunResult(false, 0, 0, 0, "Failed to start IfcIngest process.");
+        if (proc is null) return new IngestRunResult(false, 0, 0, 0, "Failed to start ModelIngest process.");
 
         var stdout = await proc.StandardOutput.ReadToEndAsync(ct);
         var stderr = await proc.StandardError.ReadToEndAsync(ct);
@@ -43,7 +43,7 @@ public sealed class IfcIngestRunner : IIfcIngestRunner
 
         if (proc.ExitCode != 0)
         {
-            _log.LogWarning("IfcIngest failed (exit {Code}): {Err}", proc.ExitCode, stderr);
+            _log.LogWarning("ModelIngest failed (exit {Code}): {Err}", proc.ExitCode, stderr);
             return new IngestRunResult(false, 0, 0, 0, string.IsNullOrWhiteSpace(stderr) ? "IFC ingest failed." : stderr.Trim());
         }
 
@@ -63,7 +63,7 @@ public sealed class IfcIngestRunner : IIfcIngestRunner
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-        psi.ArgumentList.Add(_ifcIngestDll);
+        psi.ArgumentList.Add(_modelIngestDll);
         psi.ArgumentList.Add("--ifc"); psi.ArgumentList.Add(ifcPath);
         psi.ArgumentList.Add("--post"); psi.ArgumentList.Add(_myceliumUrl);
         psi.ArgumentList.Add("--name"); psi.ArgumentList.Add(modelName);

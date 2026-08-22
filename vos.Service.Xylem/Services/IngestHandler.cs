@@ -1,13 +1,13 @@
 namespace vos.Service.Xylem.Services;
 
-// Orchestrates one ingest: validate the request, run IfcIngest via the runner, surface the
+// Orchestrates one ingest: validate the request, run ModelIngest via the runner, surface the
 // counts. Kept free of transport/subprocess details so it is fully unit-tested (#5842).
 public class IngestHandler
 {
-    private readonly IIfcIngestRunner _runner;
+    private readonly IModelIngestRunner _runner;
     private readonly IModelPreparer _preparer;
 
-    public IngestHandler(IIfcIngestRunner runner, IModelPreparer preparer)
+    public IngestHandler(IModelIngestRunner runner, IModelPreparer preparer)
     {
         _runner = runner;
         _preparer = preparer;

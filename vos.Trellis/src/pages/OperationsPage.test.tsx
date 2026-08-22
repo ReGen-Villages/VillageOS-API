@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { VosThing, VosRelationship } from '../types/vos';
 
 vi.mock('../hooks/useSse', () => ({
@@ -86,6 +87,22 @@ function seedStore() {
   });
 }
 
+function ShownPath() {
+  return <span data-testid="path">{useLocation().pathname}</span>;
+}
+
+function renderAt(path = '/operations') {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/operations" element={<OperationsPage />} />
+        <Route path="/operations/:dashboardKey" element={<OperationsPage />} />
+      </Routes>
+      <ShownPath />
+    </MemoryRouter>,
+  );
+}
+
 describe('OperationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -97,7 +114,7 @@ describe('OperationsPage', () => {
   });
 
   it('renders the model-resident dashboard title + sections', () => {
-    render(<OperationsPage />);
+    renderAt();
     expect(screen.getByText('Ops')).toBeInTheDocument();
     expect(screen.getByText('Headline')).toBeInTheDocument();
     expect(screen.getByText('Plots by stage')).toBeInTheDocument();
@@ -105,32 +122,32 @@ describe('OperationsPage', () => {
   });
 
   it('offers a scope switcher for the compare archetype', () => {
-    render(<OperationsPage />);
+    renderAt();
     expect(screen.getByText('All sites')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'V-1' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'V-2' })).toBeInTheDocument();
   });
 
   it('resolves a $scope KPI (averaged across sites for "All")', async () => {
-    render(<OperationsPage />);
+    renderAt();
     expect(await screen.findByText('96.5')).toBeInTheDocument(); // (98.9 + 94.1) / 2
   });
 
   it('re-resolves the KPI when a specific site is selected', async () => {
-    render(<OperationsPage />);
+    renderAt();
     await screen.findByText('96.5');
     fireEvent.click(screen.getByRole('button', { name: 'V-1' }));
     expect(await screen.findByText('98.9')).toBeInTheDocument();
   });
 
   it('resolves a stateCount funnel bar from the state endpoint', async () => {
-    render(<OperationsPage />);
+    renderAt();
     expect(await screen.findByText('2')).toBeInTheDocument();
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested');
   });
 
   it('ranks sites in the leaderboard with the winner marked', async () => {
-    render(<OperationsPage />);
+    renderAt();
     expect(await screen.findByText('🏆')).toBeInTheDocument();
     // V-1 / V-2 appear in both the scope switcher and the leaderboard row.
     expect(screen.getAllByText('V-1').length).toBeGreaterThanOrEqual(1);
@@ -139,7 +156,44 @@ describe('OperationsPage', () => {
 
   it('shows guidance when the model has no Dashboard config', () => {
     useModelStore.setState({ things: [], relationships: [], loaded: true });
-    render(<OperationsPage />);
+    renderAt();
     expect(screen.getByText('No dashboard configured')).toBeInTheDocument();
+  });
+});
+
+describe('OperationsPage addressing (Story 6582)', () => {
+  const ROSTER_SPEC = { title: 'Roster', sections: [{ title: 'Rows', widgets: [] }] };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    seedStore();
+    useModelStore.setState((s) => ({
+      things: [...s.things, { Id: 'dash2', Name: 'Roster', Properties: { spec: JSON.stringify(ROSTER_SPEC) } }],
+      relationships: [
+        ...s.relationships,
+        { Id: 'dash2-is', Name: 'dash2 is arch-dash', SubjectId: 'dash2', PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
+      ],
+    }));
+  });
+
+  it('renders the dashboard its address names, not the first one', () => {
+    renderAt('/operations/roster');
+
+    expect(screen.getByText('Roster')).toBeInTheDocument();
+    expect(screen.queryByText('Ops')).toBeNull();
+  });
+
+  it('settles the bare operations address on the first dashboard', () => {
+    renderAt();
+
+    expect(screen.getByTestId('path').textContent).toBe('/operations/operations-dashboard');
+    expect(screen.getByText('Ops')).toBeInTheDocument();
+  });
+
+  it('settles an address naming no known dashboard on the first one', () => {
+    renderAt('/operations/a-dashboard-since-renamed');
+
+    expect(screen.getByTestId('path').textContent).toBe('/operations/operations-dashboard');
+    expect(screen.getByText('Ops')).toBeInTheDocument();
   });
 });

@@ -10,7 +10,7 @@
  * temporalApi / a model-side service). The binding *values* — state names,
  * archetypes, properties — come from the model, never from this file.
  */
-import type { VosThing, VosRelationship, ThingsInStateResponse } from '../types/vos';
+import type { VosThing, VosRelationship, ThingsInStateResponse, ThingRangesResponse } from '../types/vos';
 import {
   DASHBOARD_ARCHETYPE,
   DASHBOARD_SPEC_PROPERTY,
@@ -25,8 +25,10 @@ import {
 } from '../types/dashboard';
 import { stateApi } from './stateApi';
 import { temporalApi } from './temporalApi';
+import { rangeApi } from './rangeApi';
 import { apiClient } from './client';
 import { effectiveProperties } from '../utils/propertyMapper';
+import { findRange } from '../utils/rangeHelpers';
 
 const IS_PREDICATE = 'is';
 /** The spec's reference to "the compare entity currently selected in the scope switcher". */
@@ -65,6 +67,10 @@ export interface ModelIndex {
    *  discarded with the index it belongs to. The walk is over a hierarchy that cannot change
    *  without a new index, and a per-row binding repeats the same question once per row. */
   archetypeMembers: Map<string, Set<string>>;
+  /** The model's dashboards, parsed the first time they are asked for and discarded with the index.
+   *  The navigation and the page both ask, and a spec is JSON in a property — parsing every one of
+   *  them twice per model change is work neither reader needs done again. */
+  dashboards: DashboardDescriptor[] | null;
 }
 
 export function buildModelIndex(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
@@ -111,7 +117,28 @@ export function buildModelIndex(things: VosThing[], relationships: VosRelationsh
     predicateNameToId, predicateIdToName, isChildren, archetypeIds, isParents,
     archetypeMembers: new Map(),
     adjacencyByPredicate: new Map(),
+    dashboards: null,
   };
+}
+
+/** Keyed on the two arrays a model is held in, so an index — and everything it went on to
+ *  remember — is collected with the model it describes rather than outliving it. */
+const indexesByModel = new WeakMap<VosThing[], WeakMap<VosRelationship[], ModelIndex>>();
+
+/** The one index built for a given model, shared by everything that reads it. Two components hold
+ *  the same model arrays and would otherwise each walk the whole model on every change; sharing one
+ *  index also shares the answers it remembers as they are asked for. */
+export function modelIndexFor(things: VosThing[], relationships: VosRelationship[]): ModelIndex {
+  let byRelationships = indexesByModel.get(things);
+  if (!byRelationships) {
+    byRelationships = new WeakMap();
+    indexesByModel.set(things, byRelationships);
+  }
+  const built = byRelationships.get(relationships);
+  if (built) return built;
+  const index = buildModelIndex(things, relationships);
+  byRelationships.set(relationships, index);
+  return index;
 }
 
 /** Thing id → the ids one predicate reaches from it, in the asked-for direction. */
@@ -178,15 +205,41 @@ export function thingsOfArchetype(archetype: string, idx: ModelIndex): VosThing[
 
 /** Discover dashboards from an already-built model index. Prefer this on the hot path
  *  so the caller can share one index across discovery, scope, and binding resolution
- *  instead of rebuilding it three times per model change. */
+ *  instead of rebuilding it three times per model change.
+ *
+ *  Ordered by name: the archetype walk answers in no order a reader chose, so without this a
+ *  dashboard's position in the navigation would move whenever the model changed. */
 export function discoverDashboardsFromIndex(idx: ModelIndex): DashboardDescriptor[] {
-  const out: DashboardDescriptor[] = [];
-  for (const t of thingsOfArchetype(DASHBOARD_ARCHETYPE, idx)) {
-    const raw = effectiveProperties(t, idx)[DASHBOARD_SPEC_PROPERTY];
-    const spec = parseSpec(raw);
-    if (spec) out.push({ id: t.Id, name: t.Name, spec });
+  if (idx.dashboards) return idx.dashboards;
+  const found: { thing: VosThing; spec: DashboardSpec }[] = [];
+  for (const thing of thingsOfArchetype(DASHBOARD_ARCHETYPE, idx)) {
+    const spec = parseSpec(effectiveProperties(thing, idx)[DASHBOARD_SPEC_PROPERTY]);
+    if (spec) found.push({ thing, spec });
   }
+  found.sort((a, b) => a.thing.Name.localeCompare(b.thing.Name));
+  const slugs = found.map((d) => slugOf(d.thing.Name));
+  const bearers = new Map<string, number>();
+  for (const slug of slugs) bearers.set(slug, (bearers.get(slug) ?? 0) + 1);
+  const out = found.map((d, i) => ({
+    id: d.thing.Id,
+    name: d.thing.Name,
+    routeKey: slugs[i] && bearers.get(slugs[i]) === 1 ? slugs[i] : d.thing.Id,
+    spec: d.spec,
+  }));
+  idx.dashboards = out;
   return out;
+}
+
+/** A Thing's name reduced to what a URL segment can carry: accents folded onto their base letters,
+ *  everything else run together with single hyphens. Empty when the name is written in a script
+ *  this leaves nothing of, which is why the caller keeps the Thing's id as the fallback. */
+function slugOf(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 export function discoverDashboards(
@@ -235,6 +288,8 @@ export interface ResolveContext {
    *  the context's own — a map outliving the generation would serve a membership the model has
    *  since moved past. */
   stateMembers?: Map<string, Promise<ThingsInStateResponse>>;
+  /** The range reads of one refresh generation, shared and scoped exactly as `stateMembers` is. */
+  thingRanges?: Map<string, Promise<ThingRangesResponse | null>>;
 }
 
 function thingsInState(state: string, ctx: ResolveContext): Promise<ThingsInStateResponse> {
@@ -250,6 +305,26 @@ function thingsInState(state: string, ctx: ResolveContext): Promise<ThingsInStat
 
 async function stateMemberIds(state: string, ctx: ResolveContext): Promise<Set<string>> {
   return new Set((await thingsInState(state, ctx)).Things?.map((t) => t.Id) ?? []);
+}
+
+/** A Thing's ranges, own and inherited, shared across the widgets of one refresh the way state
+ *  reads are. A study's judge-ranges sit on its archetype, so several verdict rows on one page ask
+ *  about one Thing and would otherwise each fetch the same answer. A failed read resolves to null
+ *  rather than rejecting: a verdict the model holds still reads, without the target it names. */
+function thingRanges(thingId: string, ctx: ResolveContext): Promise<ThingRangesResponse | null> {
+  const inFlight = ctx.thingRanges?.get(thingId);
+  if (inFlight) return inFlight;
+  const request = rangeApi.getAll(thingId).catch(() => null);
+  ctx.thingRanges?.set(thingId, request);
+  return request;
+}
+
+/** A cell value as a number, or null where it has none — `num`'s rule about what counts as a number,
+ *  kept in one place so a widget reading a resolved row cannot answer that question differently from
+ *  the resolver that filled it. */
+export function nullableNumber(value: unknown): number | null {
+  const asNumber = num(value);
+  return isNaN(asNumber) ? null : asNumber;
 }
 
 /** Members reachable from the scope entity by following a predicate transitively.
@@ -310,13 +385,18 @@ function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, i
 
 /** The Thing a binding starts from: the one it names by id or name, or — absent a name, or for the
  *  `$scope` reference — the selected compare entity, which inside a computed column is the row's
- *  own Thing. */
+ *  own Thing.
+ *
+ *  Every binding that names a Thing asks here, so one reference means one Thing wherever a spec
+ *  spends it. The id is tried first because it is exact: Thing names are not unique in this model
+ *  and the index keeps whichever Thing of a name it saw first, so a name is the weaker answer and
+ *  belongs in the fallback. */
 function referencedThing(ref: string | undefined, ctx: ResolveContext): VosThing | null {
   if (!ref || ref === SCOPE_REF) return ctx.scopeId ? (ctx.idx.byId.get(ctx.scopeId) ?? null) : null;
   return ctx.idx.byId.get(ref) ?? ctx.idx.byName.get(ref) ?? null;
 }
 
-/** The Things one step of a `related` path reaches from the Things reached so far. */
+/** The Things one step of a binding's path reaches from the Things reached so far. */
 async function followStep(fromIds: string[], step: RelationStep, ctx: ResolveContext): Promise<string[]> {
   const pid = ctx.idx.predicateNameToId.get(step.predicate);
   if (!pid) return [];
@@ -339,6 +419,32 @@ async function followStep(fromIds: string[], step: RelationStep, ctx: ResolveCon
     ids = ids.filter((id) => !excluded.has(id));
   }
   return ids;
+}
+
+/** The Things a binding reads: the one its reference names, or — when it declares a path — the
+ *  Things that path reaches from there. A page can only be scoped to one Thing, and what it wants
+ *  to say is rarely all on that Thing, so a binding says how to get from the scope to its subject.
+ *
+ *  Ordered by name, so a walk reaching several reads the same on every refresh whatever order the
+ *  relationship list happened to be in. Narrow with a step's `archetype`, `inState` or `notInState`
+ *  when a predicate reaches more than the binding means. */
+async function thingsReached(
+  ref: string | undefined,
+  via: RelationStep[] | undefined,
+  ctx: ResolveContext,
+): Promise<VosThing[]> {
+  const start = referencedThing(ref, ctx);
+  if (!start) return [];
+  if (!via?.length) return [start];
+  let reached = [start.Id];
+  for (const step of via) {
+    reached = await followStep(reached, step, ctx);
+    if (!reached.length) return [];
+  }
+  return reached
+    .map((id) => ctx.idx.byId.get(id))
+    .filter((t): t is VosThing => !!t)
+    .sort((a, b) => a.Name.localeCompare(b.Name));
 }
 
 /** Resolve each computed column once per row, with that row's Thing as the scope — so the binding
@@ -401,7 +507,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         const vals = ents.map((t) => num(effectiveProperties(t, ctx.idx)[binding.property])).filter((n) => !isNaN(n));
         return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
       }
-      const t = ctx.idx.byId.get(binding.thing) ?? ctx.idx.byName.get(binding.thing);
+      const t = referencedThing(binding.thing, ctx);
       return t ? num(effectiveProperties(t, ctx.idx)[binding.property]) : null;
     }
 
@@ -441,19 +547,10 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     }
 
     case 'related': {
-      const start = referencedThing(binding.thing, ctx);
-      if (!start) return null;
-      let reached = [start.Id];
-      for (const step of binding.via) {
-        reached = await followStep(reached, step, ctx);
-        if (!reached.length) return null;
-      }
+      const reached = await thingsReached(binding.thing, binding.via, ctx);
+      if (!reached.length) return null;
       const values = reached
-        .map((id) => {
-          const t = ctx.idx.byId.get(id);
-          if (!t) return null;
-          return binding.property ? effectiveProperties(t, ctx.idx)[binding.property] : t.Name;
-        })
+        .map((t) => (binding.property ? effectiveProperties(t, ctx.idx)[binding.property] : t.Name))
         .filter((v) => v != null && v !== '');
       if (!values.length) return null;
       if (values.length === 1 && typeof values[0] === 'number') return values[0];
@@ -469,6 +566,36 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         if ((await stateMemberIds(state, ctx)).has(t.Id)) return state;
       }
       return null;
+    }
+
+    case 'verdict': {
+      const judged = await thingsReached(binding.thing, binding.via, ctx);
+      if (!judged.length) return [];
+      // Asked all at once rather than in turn: unlike `stateOf` there is no priority order to stop
+      // early on, so asking in turn would cost one round trip per candidate for no answer it changes.
+      // One answer per state serves every judged Thing, so a walk reaching several adds no state reads.
+      const membership = await Promise.all(binding.states.map((c) => stateMemberIds(c.state, ctx)));
+      const verdictsOf = await Promise.all(judged.map(async (thing) => {
+        const held = binding.states.filter((_, i) => membership[i].has(thing.Id));
+        if (!held.length) return [];
+
+        const ranges = await thingRanges(thing.Id, ctx);
+        const properties = effectiveProperties(thing, ctx.idx);
+        return held.map((candidate) => {
+          // The first comparison, because a judge-range tests one value; a range that tests none —
+          // the criteria for a balance nobody assessed — leaves the whole sentence without a figure.
+          const judgedAgainst = ranges ? findRange(candidate.state, ranges)?.Comparisons?.[0] : undefined;
+          return {
+            state: candidate.state,
+            reads: candidate.reads,
+            property: judgedAgainst ? judgedAgainst.PropertyName : null,
+            operator: judgedAgainst ? judgedAgainst.Operator : null,
+            target: judgedAgainst ? nullableNumber(judgedAgainst.Value) : null,
+            value: judgedAgainst ? nullableNumber(properties[judgedAgainst.PropertyName]) : null,
+          };
+        });
+      }));
+      return verdictsOf.flat();
     }
 
     case 'compareEntities': {
@@ -543,7 +670,7 @@ async function resolveTimeseries(
 ): Promise<number[]> {
   try {
     if (binding.thing && binding.property) {
-      const t = ctx.idx.byName.get(binding.thing) ?? ctx.idx.byId.get(binding.thing);
+      const t = referencedThing(binding.thing, ctx);
       if (!t) return [];
       const versions = await temporalApi.getPropertyVersions(t.Id, binding.property);
       const points = (versions?.Versions ?? [])

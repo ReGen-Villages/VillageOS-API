@@ -71,13 +71,19 @@ public class ObservationIngestService
         }
     }
 
-    public async Task<ObservationIngestResult> CreateObservationsAsync(Guid endpointThingId, JsonataTransform query, string body)
+    // A supplied subjectId takes the reading's own name out of play entirely: nothing is resolved
+    // or created from it, whether or not the expression produced one.
+    public async Task<ObservationIngestResult> CreateObservationsAsync(
+        Guid endpointThingId, JsonataTransform query, string body, Guid? subjectId = null)
     {
         if (!TryTransform(body, query, out var transformed, out var transformError))
             return new ObservationIngestResult(false, 0, 0, "Endpoint response transform failed", transformError);
 
-        if (!TryParseReadings(transformed, out var readings, out var parseError))
+        if (!TryParseReadings(transformed, subjectId != null, out var readings, out var parseError))
             return new ObservationIngestResult(false, 0, 0, "Transformed output is not a valid reading array.", parseError);
+
+        if (subjectId != null)
+            return await ObserveOntoSubjectAsync(subjectId.Value, readings);
 
         // Things scale with entities, observations with readings — so group by entity name and
         // touch each entity's structure once.
@@ -123,9 +129,7 @@ public class ObservationIngestService
             // The reading consumed by creation is captured as each property's seed Fact; every
             // remaining reading becomes an observation on the entity's series.
             var toObserve = created ? entityReadings.Skip(1) : entityReadings;
-            var samples = toObserve
-                .SelectMany(r => r.Properties.Select(kv => new ObservationSample(kv.Key, kv.Value, r.ObservedAt)))
-                .ToList();
+            var samples = SamplesOf(toObserve);
 
             if (samples.Count > 0)
             {
@@ -138,6 +142,31 @@ public class ObservationIngestService
 
         return new ObservationIngestResult(true, entitiesTouched, observationsSubmitted, null, null);
     }
+
+    // Nothing is created here, so no `observed` edge is written either — the same as any fetch
+    // landing on an entity that already existed, and the reason a value discovered this way cannot
+    // yet be walked back to the source that produced it.
+    private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(Guid subjectId, List<Reading> readings)
+    {
+        var samples = SamplesOf(readings);
+
+        // Nothing resolved, nothing created, nothing written — so nothing to report. This is
+        // deliberately not what the name path answers: that one counts the entity it resolved even
+        // when the reading gave it no values, because resolving is work this path never does.
+        if (samples.Count == 0)
+            return new ObservationIngestResult(true, 0, 0, null, null);
+
+        if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples))
+            return new ObservationIngestResult(false, 1, 0, "Failed to submit observations for entity.", null);
+
+        return new ObservationIngestResult(true, 1, samples.Count, null, null);
+    }
+
+    private static List<ObservationSample> SamplesOf(IEnumerable<Reading> readings) =>
+        readings
+            .SelectMany(reading => reading.Properties.Select(
+                value => new ObservationSample(value.Key, value.Value, reading.ObservedAt)))
+            .ToList();
 
     private static bool TryNormalizeJson(string input, out string normalized)
     {
@@ -154,7 +183,8 @@ public class ObservationIngestService
         }
     }
 
-    private static bool TryParseReadings(string json, out List<Reading> readings, out string error)
+    private static bool TryParseReadings(
+        string json, bool subjectSupplied, out List<Reading> readings, out string error)
     {
         readings = new List<Reading>();
         error = string.Empty;
@@ -173,7 +203,7 @@ public class ObservationIngestService
         using (doc)
         {
             if (doc.RootElement.ValueKind == JsonValueKind.Object)
-                return TryParseReading(doc.RootElement, readings, out error);
+                return TryParseReading(doc.RootElement, subjectSupplied, readings, out error);
 
             if (doc.RootElement.ValueKind != JsonValueKind.Array)
             {
@@ -183,7 +213,7 @@ public class ObservationIngestService
 
             foreach (var element in doc.RootElement.EnumerateArray())
             {
-                if (!TryParseReading(element, readings, out error))
+                if (!TryParseReading(element, subjectSupplied, readings, out error))
                     return false;
             }
         }
@@ -191,7 +221,8 @@ public class ObservationIngestService
         return true;
     }
 
-    private static bool TryParseReading(JsonElement element, List<Reading> readings, out string error)
+    private static bool TryParseReading(
+        JsonElement element, bool subjectSupplied, List<Reading> readings, out string error)
     {
         error = string.Empty;
 
@@ -201,7 +232,10 @@ public class ObservationIngestService
             return false;
         }
 
-        if (!element.TryGetProperty("name", out var nameProp) || nameProp.ValueKind != JsonValueKind.String)
+        // A call that names its subject has already said what the reading is about, so the
+        // expression need not repeat it — and when it does, the caller's subject is the one used.
+        var named = element.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String;
+        if (!named && !subjectSupplied)
         {
             error = "Reading is missing a string 'name' property.";
             return false;
@@ -227,7 +261,8 @@ public class ObservationIngestService
             observedAt = parsed;
         }
 
-        readings.Add(new Reading(nameProp.GetString() ?? string.Empty, props, observedAt));
+        var name = named ? nameProp.GetString() ?? string.Empty : string.Empty;
+        readings.Add(new Reading(name, props, observedAt));
         return true;
     }
 

@@ -13,11 +13,18 @@ namespace vos.Service.Intake.Tests;
 public class SubmissionFragmentComposerTests
 {
     private static ComposedSubmission Compose(Submission submission) =>
-        SubmissionFragmentComposer.Compose(submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes);
+        Compose(submission, WillowBend.KnownVocabulary);
+
+    private static ComposedSubmission Compose(Submission submission, DeclaredVocabulary vocabulary) =>
+        SubmissionFragmentComposer.Compose(
+            submission, WillowBend.KnownPredicates, WillowBend.KnownArchetypes, vocabulary);
+
+    private static bool Relates(ComposedSubmission composed, Guid subject, Guid predicate, Guid target) =>
+        composed.Fragment.Relationships.Any(edge =>
+            edge.Subject == subject && edge.Predicate == predicate && edge.Target == target);
 
     private static bool IsEdgeTo(ComposedSubmission composed, Guid subject, Guid archetype) =>
-        composed.Fragment.Relationships.Any(edge =>
-            edge.Subject == subject && edge.Predicate == WillowBend.IsPredicateId && edge.Target == archetype);
+        Relates(composed, subject, WillowBend.IsPredicateId, archetype);
 
     private static FragmentThing Thing(ComposedSubmission composed, Guid id) =>
         composed.Fragment.Things.Single(thing => thing.Id == id);
@@ -26,8 +33,7 @@ public class SubmissionFragmentComposerTests
         composed.Fragment.Things.Single(thing => thing.Name == name);
 
     private static bool Holds(ComposedSubmission composed, Guid subject, Guid target) =>
-        composed.Fragment.Relationships.Any(edge =>
-            edge.Subject == subject && edge.Predicate == WillowBend.HasPredicateId && edge.Target == target);
+        Relates(composed, subject, WillowBend.HasPredicateId, target);
 
     // The project holds the site, not the reverse: a submission is one planner's undertaking and the site is
     // what it is about. A reader walking a project's parts finds the site among them.
@@ -107,13 +113,78 @@ public class SubmissionFragmentComposerTests
             IsEdgeTo(composed, thing.Id, WillowBend.ProgrammeAllocationArchetypeId));
     }
 
+    // What land allocation reads to work out which footprint a share belongs to. Without this edge every
+    // allocation reads as uncategorised and the analysis computes nothing, which is what the property beside
+    // it could never fix: a word cannot be walked to and carries no flags.
+    [Fact]
+    public void Each_allocation_reaches_the_category_the_model_declares()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        foreach (var name in WillowBend.AllocationCategoryNames)
+        {
+            var allocation = Allocations(composed)
+                .Single(thing => (string)thing.Properties["allocationCategory"].Value! == name);
+
+            Relates(composed, allocation.Id, WillowBend.CategorizedAsPredicateId, WillowBend.TermId(name))
+                .Should().BeTrue($"'{name}' has to reach the category Thing the model declares");
+        }
+    }
+
+    [Fact]
+    public void The_parcel_reaches_the_way_its_boundary_was_obtained()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        Relates(composed, composed.ParcelId!.Value, WillowBend.ObtainedByPredicateId,
+            WillowBend.TermId("drawn-by-hand")).Should().BeTrue();
+    }
+
+    // The predicate is the model's own, and the readers on the other side follow it by the mark it carries.
+    // A predicate minted here would carry no mark, so the edge would be written and never followed — the
+    // silent half of this failure rather than the loud one.
+    [Fact]
+    public void The_predicates_a_vocabulary_is_reached_through_are_never_minted_into_the_fragment()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        composed.Fragment.Things.Select(thing => thing.Id).Should()
+            .NotContain(WillowBend.CategorizedAsPredicateId).And
+            .NotContain(WillowBend.ObtainedByPredicateId);
+    }
+
+    // Two terms a submitted word cannot be told apart by is a model nothing can resolve against, and picking
+    // either would send two submissions naming one word to two different Things.
+    [Fact]
+    public void A_model_declaring_two_terms_that_differ_only_in_case_is_refused()
+    {
+        var vocabulary = WillowBend.KnownVocabulary with
+        {
+            AllocationCategories = new DeclaredTerms(
+                WillowBend.KnownVocabulary.AllocationCategories.Predicate,
+                [
+                    new DeclaredTerm("residential", WillowBend.TermId("residential")),
+                    new DeclaredTerm("Residential", WillowBend.TermId("Residential")),
+                ]),
+        };
+
+        var refusal = Assert.Throws<ModelNotSeededError>(() => Compose(
+            WillowBend.Submission() with
+            {
+                Allocations = [new SubmittedAllocation { Category = "residential", SharePct = 100 }],
+            },
+            vocabulary));
+
+        refusal.Message.Should().Contain("residential").And.Contain("Residential");
+    }
+
     [Fact]
     public void An_allocation_writes_the_properties_its_archetype_declares()
     {
         var composed = Compose(WillowBend.Submission());
 
         var residential = Allocations(composed)
-            .Single(thing => (string)thing.Properties["allocationCategory"].Value! == "Residential");
+            .Single(thing => (string)thing.Properties["allocationCategory"].Value! == "residential");
         residential.Properties["sharePct"].Value.Should().Be(22.0);
         residential.Properties["allocatedAreaHectares"].Value.Should().Be(5.28);
     }
@@ -125,26 +196,68 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission() with
         {
-            Allocations = [new SubmittedAllocation { Category = "Residential", SharePct = 12 }],
+            Allocations = [new SubmittedAllocation { Category = "residential", SharePct = 12 }],
         });
 
         Allocations(composed).Single().Properties["sharePct"].Value.Should().Be(12.0);
     }
 
-    // Which categories roll into which footprint is configuration on the analysis node, so a project with
-    // its own programme vocabulary must not need a change here.
+    // The vocabulary is the model's, so a project whose programme divides differently declares its own terms
+    // and this service is not rebuilt. The category is unknown to every list anyone could have compiled in
+    // here, and the model declaring it is the whole of what makes it resolve.
     [Fact]
-    public void A_category_outside_any_familiar_vocabulary_is_accepted()
+    public void A_category_this_service_has_never_heard_of_resolves_when_the_model_declares_it()
+    {
+        var silvopasture = new DeclaredTerm("silvopasture", WillowBend.TermId("silvopasture"));
+        var vocabulary = WillowBend.KnownVocabulary with
+        {
+            AllocationCategories = new DeclaredTerms(
+                WillowBend.KnownVocabulary.AllocationCategories.Predicate, [silvopasture]),
+        };
+
+        var composed = Compose(
+            WillowBend.Submission() with
+            {
+                Allocations = [new SubmittedAllocation { Category = "silvopasture", SharePct = 100 }],
+            },
+            vocabulary);
+
+        var allocation = Allocations(composed).Single();
+        allocation.Properties["allocationCategory"].Value.Should().Be("silvopasture");
+        Relates(composed, allocation.Id, WillowBend.CategorizedAsPredicateId, silvopasture.Id).Should().BeTrue();
+    }
+
+    // A word no term matches is refused by naming what the model declares, so a planner is corrected by the
+    // vocabulary the analysis will read rather than by a list this service was compiled with.
+    [Fact]
+    public void A_category_the_model_does_not_declare_is_refused_by_naming_what_it_does()
+    {
+        var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
+        {
+            Allocations = [new SubmittedAllocation { Category = "Silvopasture", SharePct = 100 }],
+        }));
+
+        refusal.Message.Should().Contain("Silvopasture").And.Contain("food-and-agriculture");
+    }
+
+    // A term is named as the model spells it, and case and surrounding space are not part of what a planner
+    // meant by it.
+    [Fact]
+    public void A_category_typed_with_stray_case_and_space_resolves_to_the_term_the_model_declares()
     {
         var composed = Compose(WillowBend.Submission() with
         {
-            Allocations = [new SubmittedAllocation { Category = "Silvopasture", SharePct = 100 }],
+            Allocations = [new SubmittedAllocation { Category = "  Food-And-Agriculture ", SharePct = 100 }],
         });
 
-        Allocations(composed).Single().Properties["allocationCategory"].Value.Should().Be("Silvopasture");
+        var allocation = Allocations(composed).Single();
+        allocation.Properties["allocationCategory"].Value.Should().Be("food-and-agriculture");
+        Relates(composed, allocation.Id, WillowBend.CategorizedAsPredicateId,
+            WillowBend.TermId("food-and-agriculture")).Should().BeTrue();
     }
 
-    // Two shares of one category disagree about it and nothing here can say which was meant.
+    // Two shares of one category disagree about it and nothing here can say which was meant. They are one
+    // category because they resolve to one term, not because they were spelled alike.
     [Fact]
     public void Two_allocations_naming_one_category_are_refused()
     {
@@ -446,7 +559,8 @@ public class SubmissionFragmentComposerTests
         var composed = SubmissionFragmentComposer.Compose(
             WillowBend.Submission() with { Parcel = null },
             WillowBend.KnownPredicates with { Studies = minted },
-            WillowBend.KnownArchetypes);
+            WillowBend.KnownArchetypes,
+            WillowBend.KnownVocabulary);
 
         composed.Fragment.Things.Should().Contain(thing => thing.Id == minted.Id && thing.Name == "studies");
     }

@@ -72,6 +72,12 @@ try
     // tests substitute a fake clock. Singleton so the cache survives across /handle requests.
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddSingleton<TokenExchangeCache>();
+    // The DiskCache kind's store (#5918). One root for the process; entries live under one
+    // directory per endpoint. The root is deployment configuration, not endpoint config.
+    var cacheDirectory = builder.Configuration["CacheDirectory"]
+        ?? Path.Combine(Directory.GetCurrentDirectory(), "cache");
+    builder.Services.AddSingleton(sp =>
+        new DiskResponseCache(cacheDirectory, sp.GetRequiredService<TimeProvider>()));
     builder.Services.AddSingleton<EndpointCallService>();
 
     var app = builder.Build();

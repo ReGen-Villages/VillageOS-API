@@ -1,4 +1,5 @@
-import type { NumberFormat } from '../../../types/dashboard';
+import type { NumberFormat, TableColumn } from '../../../types/dashboard';
+import type { Row } from '../../../api/dashboardApi';
 
 /** Format a numeric value for display per a widget's declared NumberFormat. */
 export function formatNumber(value: number | null | undefined, fmt?: NumberFormat): string {
@@ -62,4 +63,22 @@ export function deltaTone(
   const rising = value > 0;
   const good = direction === 'up-good' ? rising : !rising;
   return good ? 'up' : 'down';
+}
+
+/** The largest value in each `agebar` column, which that column's bars are drawn as a fraction of.
+ *  A loop rather than `Math.max(...values)`: a roster no longer needs a row cap to keep a page
+ *  responsive, so the list reaching here has no bound, and spreading a long one over a call
+ *  overflows the stack somewhere past a hundred thousand rows. */
+export function columnMaxima(rows: Row[], columns: TableColumn[]): Record<string, number> {
+  const maxima: Record<string, number> = {};
+  for (const column of columns) {
+    if (column.render !== 'agebar') continue;
+    let largest = 1;
+    for (const row of rows) {
+      const value = Number(row[column.key]) || 0;
+      if (value > largest) largest = value;
+    }
+    maxima[column.key] = largest;
+  }
+  return maxima;
 }

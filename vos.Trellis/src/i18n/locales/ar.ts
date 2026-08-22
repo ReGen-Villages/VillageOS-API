@@ -399,6 +399,13 @@ export const ar: PartialResources & ArabicPlurals = {
     errorTitle: "تعذّر تحميل عنصر Fragments.",
     loadFailed: "تعذّر تحميل النموذج",
   },
+  map: {
+    baseLayer: "طبقة الأساس",
+    recentre: "إعادة التوسيط",
+    coordinates: "{{latitude}}, {{longitude}}",
+    noSource: "لا يحدّد هذا النموذج أي مصدر لخريطة الأساس.",
+    tilesUnreachable: "تعذّر تحميل مربّعات الخريطة.",
+  },
   temporal: {
     title: "الاستعلامات الزمنية",
     tabs: {

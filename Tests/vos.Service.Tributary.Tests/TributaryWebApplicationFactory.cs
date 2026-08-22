@@ -36,6 +36,10 @@ public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IA
     public string? Issuer { get; set; }
     public string? Audience { get; set; }
 
+    // Root directory for the DiskCache kind's store (#5918). Null = the service default; cache
+    // tests point it at a per-test temp directory so runs cannot see each other's files.
+    public string? CacheDirectory { get; set; }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public new Task DisposeAsync() => base.DisposeAsync().AsTask();
@@ -59,6 +63,7 @@ public class TributaryWebApplicationFactory : WebApplicationFactory<Program>, IA
         if (SigningKey != null) builder.UseSetting("SigningKey", SigningKey);
         if (Issuer != null) builder.UseSetting("Issuer", Issuer);
         if (Audience != null) builder.UseSetting("Audience", Audience);
+        if (CacheDirectory != null) builder.UseSetting("CacheDirectory", CacheDirectory);
 
         builder.ConfigureTestServices(services =>
         {

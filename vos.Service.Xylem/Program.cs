@@ -47,12 +47,12 @@ try
         Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", launchSettings.Service.Issuer, launchSettings.Service.Audience);
     }
 
-    builder.Services.AddSingleton<IIfcIngestRunner>(sp => new IfcIngestRunner(
-        launchSettings.IfcIngestDll ?? "", launchSettings.Service.MyceliumUrl, launchSettings.Service.Token, sp.GetRequiredService<ILogger<IfcIngestRunner>>()));
+    builder.Services.AddSingleton<IModelIngestRunner>(sp => new ModelIngestRunner(
+        launchSettings.ModelIngestDll ?? "", launchSettings.Service.MyceliumUrl, launchSettings.Service.Token, sp.GetRequiredService<ILogger<ModelIngestRunner>>()));
     builder.Services.AddSingleton<IModelPreparer>(sp => new HttpModelPreparer(
         sp.GetRequiredService<IHttpClientFactory>(), launchSettings.Service.MyceliumUrl, launchSettings.Service.Token));
     builder.Services.AddSingleton(sp => new IngestHandler(
-        sp.GetRequiredService<IIfcIngestRunner>(), sp.GetRequiredService<IModelPreparer>()));
+        sp.GetRequiredService<IModelIngestRunner>(), sp.GetRequiredService<IModelPreparer>()));
     builder.Services.AddSingleton<IngestJobStore>();
 
     var app = builder.Build();
@@ -63,7 +63,7 @@ try
         app.UseAuthorization();
     }
 
-    // Accept an uploaded .ifc (multipart: file, name, mode=merge|new-model), run IfcIngest, apply the
+    // Accept an uploaded .ifc (multipart: file, name, mode=merge|new-model), run ModelIngest, apply the
     // graph to the model, and return the counts. Antiforgery is disabled — this is a token-authed
     // service endpoint, not a browser form.
     var ingest = app.MapPost("/ingest", async (HttpRequest req, IngestHandler handler, IngestJobStore jobs, CancellationToken ct) =>

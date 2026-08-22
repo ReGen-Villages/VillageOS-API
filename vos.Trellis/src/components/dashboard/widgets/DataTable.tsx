@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type UIEvent } from 'react';
 import type { Binding, TableColumn } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
 import { asRows, filterRows } from '../../../api/dashboardApi';
 import { useBinding } from '../../../hooks/useDashboard';
 import { useElementHeight } from '../../../hooks/useElementHeight';
-import { formatNumber, badgeTone } from './format';
+import { formatNumber, badgeTone, columnMaxima } from './format';
 
 /* One body row of the visibleRows cap: the 1.5 line box at the table font, plus the py-2 padding
    and bottom border of the cells below. In em, so the cap follows the font size — which is why
@@ -12,6 +12,18 @@ import { formatNumber, badgeTone } from './format';
    header is measured rather than derived: its labels wrap in narrow columns, and column widths
    depend on the data, so no constant is right for every table. */
 const BODY_ROW_HEIGHT = '(1.5em + 1rem + 1px)';
+
+/* The same box in pixels at the `text-[12.5px]` the scroll container sets. The row window assumes
+   it until a rendered row reports its own height, and keeps assuming it where no ResizeObserver
+   reports one — without an assumption the first paint of a long list would put every row in the
+   document, which is the cost this exists to avoid. The spacers assume the same number, so they
+   place the window exactly; only the rows actually rendered can drift, which is why being a few
+   pixels out stays inside the overscan however far the list is scrolled. */
+const ESTIMATED_BODY_ROW_HEIGHT = 12.5 * 1.5 + 16 + 1;
+
+/* Rows kept in the document above and below the cap, so a small scroll reveals a row that is
+   already there rather than a gap waiting for the next render. */
+const OVERSCAN_ROWS = 6;
 
 /** Sortable, generic data table driven by a rows binding + column spec.
  *  Rows can come from a `rowsBinding` (resolved here) or be passed in directly
@@ -47,6 +59,12 @@ export function DataTable({
 }) {
   const { loading, value } = useBinding(rowsBinding, ctx);
   const [headerRef, headerHeight] = useElementHeight();
+  /* Measured from whichever row is at the top of the window, and only until a height comes back:
+     the row at the top is a different element after every scroll that moves the window, so keeping
+     it observed would tear down and rebuild an observer once per row crossed. Rows are one line of
+     a fixed size, so one measurement holds for all of them. */
+  const [bodyRowRef, measuredRowHeight] = useElementHeight();
+  const [firstVisibleRow, setFirstVisibleRow] = useState(0);
   const resolved = rowsProp ?? asRows(value);
   const rows = useMemo(() => filterRows(resolved, query, searchKeys), [resolved, query, searchKeys]);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({
@@ -72,13 +90,30 @@ export function DataTable({
     return copy;
   }, [rows, sort, columns]);
 
-  const maxByKey = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const c of columns) {
-      if (c.render === 'agebar') m[c.key] = Math.max(1, ...rows.map((r) => Number(r[c.key]) || 0));
-    }
-    return m;
-  }, [rows, columns]);
+  const maxByKey = useMemo(() => columnMaxima(rows, columns), [rows, columns]);
+
+  /* Only a capped table owns a scroll container of a known height, so only a capped table can say
+     which rows are in view. Sorting and searching stay over the whole list: what a row cap bounds is
+     the document, never the rows a reader can reach. */
+  const rowHeight = measuredRowHeight || ESTIMATED_BODY_ROW_HEIGHT;
+  const windowSize = visibleRows ? visibleRows + 2 * OVERSCAN_ROWS : 0;
+  const windowed = windowSize > 0 && sorted.length > windowSize;
+  const firstShown = windowed
+    ? Math.min(Math.max(0, firstVisibleRow - OVERSCAN_ROWS), sorted.length - windowSize)
+    : 0;
+  const shown = windowed ? sorted.slice(firstShown, firstShown + windowSize) : sorted;
+  const rowsBelow = sorted.length - firstShown - shown.length;
+
+  /* The position is kept as a row index, not as the pixel offset it is read from: a scroll within
+     one row leaves it unchanged and costs no render, so scrolling re-renders once per row crossed
+     rather than once per frame.
+
+     Followed whenever a capped table scrolls, not only while it is windowed — a search that narrows
+     the list inside the cap sends the container back to the top, and the remembered position has to
+     come back with it, or clearing the search would show rows the scrollbar disagrees with. */
+  const followScroll = visibleRows
+    ? (event: UIEvent<HTMLDivElement>) => setFirstVisibleRow(Math.floor(event.currentTarget.scrollTop / rowHeight))
+    : undefined;
 
   function toggleSort(key: string, numeric?: boolean) {
     setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: numeric ? -1 : 1 }));
@@ -97,6 +132,7 @@ export function DataTable({
       <div
         className={`overflow-x-auto text-[12.5px] ${visibleRows ? 'overflow-y-auto' : ''}`}
         style={visibleRows ? { maxHeight: `calc(${headerHeight}px + ${visibleRows} * ${BODY_ROW_HEIGHT})` } : undefined}
+        onScroll={followScroll}
       >
         <table className="w-full border-collapse" style={{ minWidth }}>
           <thead>
@@ -116,9 +152,11 @@ export function DataTable({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((r, i) => (
+            <SpacerRow height={firstShown * rowHeight} columnCount={columns.length} />
+            {shown.map((r, i) => (
               <tr
                 key={(r.id as string) ?? i}
+                ref={windowed && i === 0 && !measuredRowHeight ? bodyRowRef : undefined}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
                 className={`hover:bg-zinc-50 dark:hover:bg-zinc-700/40 ${onRowClick ? 'cursor-pointer' : ''}`}
               >
@@ -134,11 +172,23 @@ export function DataTable({
                 ))}
               </tr>
             ))}
+            <SpacerRow height={rowsBelow * rowHeight} columnCount={columns.length} />
           </tbody>
         </table>
       </div>
       {footnote && <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-2">{footnote}</div>}
     </div>
+  );
+}
+
+/** Stands in for the rows outside the window, so the scrollbar measures the whole list. Hidden from
+ *  assistive technology, which reads the rows themselves and has nothing to read here. */
+function SpacerRow({ height, columnCount }: { height: number; columnCount: number }) {
+  if (height <= 0) return null;
+  return (
+    <tr aria-hidden="true">
+      <td colSpan={columnCount} style={{ height, padding: 0, border: 0 }} />
+    </tr>
   );
 }
 

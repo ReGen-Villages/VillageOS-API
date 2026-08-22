@@ -1,14 +1,21 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Network, LayoutDashboard, Gauge, Clock, Search, Boxes, Box, Workflow, Terminal, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DynamicIcon, iconNames, type IconName } from 'lucide-react/dynamic';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import { useDashboards } from '../../hooks/useDashboard';
+import { makeSpecTranslator } from '../../api/dashboardLocalization';
 import { SessionControls } from './SessionControls';
+
+/** The route the model's own dashboards live under. Its entry stands in for them while the model
+ *  publishes none, and is replaced by one entry per dashboard once it does. */
+const OPERATIONS_PATH = '/operations';
 
 const links = [
   { to: '/', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-  { to: '/operations', icon: Gauge, labelKey: 'nav.operations' },
+  { to: OPERATIONS_PATH, icon: Gauge, labelKey: 'nav.operations' },
   { to: '/graph', icon: Network, labelKey: 'nav.graph' },
   { to: '/model', icon: Box, labelKey: 'nav.model' },
   { to: '/pipelines', icon: Workflow, labelKey: 'nav.pipelines' },
@@ -21,7 +28,8 @@ const links = [
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { modelName } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dashboards = useDashboards();
 
   return (
     <aside
@@ -50,31 +58,72 @@ export function Sidebar() {
         </button>
       </div>
       <nav className="flex-1 p-2 space-y-1">
-        {links.map(({ to, icon: Icon, labelKey }) => {
-          const label = t(labelKey);
-          return (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                    : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800',
-                )
-              }
-              title={isCollapsed ? label : undefined}
-            >
-              <Icon size={18} />
-              {!isCollapsed && label}
-            </NavLink>
-          );
-        })}
+        {links.map(({ to, icon: Icon, labelKey }) =>
+          to === OPERATIONS_PATH && dashboards.length > 0 ? (
+            dashboards.map((dashboard) => (
+              <NavItem
+                key={dashboard.routeKey}
+                to={`${OPERATIONS_PATH}/${dashboard.routeKey}`}
+                label={makeSpecTranslator(dashboard.spec, i18n.language)(dashboard.spec.title)}
+                icon={<SpecIcon name={dashboard.spec.icon} />}
+                isCollapsed={isCollapsed}
+              />
+            ))
+          ) : (
+            <NavItem key={to} to={to} label={t(labelKey)} icon={<Icon size={18} />} isCollapsed={isCollapsed} />
+          ),
+        )}
       </nav>
       <div className="p-2 border-t border-zinc-200 dark:border-zinc-700">
         <SessionControls isCollapsed={isCollapsed} />
       </div>
     </aside>
   );
+}
+
+function NavItem({
+  to,
+  label,
+  icon,
+  isCollapsed,
+}: {
+  to: string;
+  label: string;
+  icon: ReactNode;
+  isCollapsed: boolean;
+}) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        clsx(
+          'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+          isActive
+            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+            : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800',
+        )
+      }
+      title={isCollapsed ? label : undefined}
+    >
+      {icon}
+      {!isCollapsed && label}
+    </NavLink>
+  );
+}
+
+/* Membership is asked once per navigation entry on every render, against every name the icon set
+   ships — a scan of the list would repeat that walk each time. */
+const ICON_NAMES: ReadonlySet<string> = new Set(iconNames);
+
+/** Declared once so the icon still being fetched is the same element across renders. */
+function GenericIcon() {
+  return <Gauge size={18} />;
+}
+
+/** The icon a spec asks for, loaded on demand so a model can name any icon in the set without
+ *  Trellis holding a list of the ones it will accept. A name the set does not have — or none at
+ *  all — draws the generic dashboard icon, so the entry is never missing. */
+function SpecIcon({ name }: { name?: string }) {
+  if (!name || !ICON_NAMES.has(name)) return <GenericIcon />;
+  return <DynamicIcon name={name as IconName} size={18} fallback={GenericIcon} />;
 }

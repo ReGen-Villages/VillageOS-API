@@ -39,7 +39,7 @@ describe('pickChunk (Bug #5359 — vendor split + Bug #5297 — three identity)'
   describe('vendor-map', () => {
     it.each([
       '/repo/node_modules/maplibre-gl/dist/maplibre-gl.js',
-      '/repo/node_modules/@sigma/layer-maplibre/dist/index.js',
+      '/repo/node_modules/maplibre-gl/dist/style-spec/index.js',
     ])('routes %s to vendor-map', (id) => {
       expect(pickChunk(id)).toBe('vendor-map');
     });
@@ -51,9 +51,21 @@ describe('pickChunk (Bug #5359 — vendor split + Bug #5297 — three identity)'
       '/repo/node_modules/zustand/esm/index.js',
       '/repo/node_modules/date-fns/format/index.js',
       '/repo/node_modules/react-router/dist/index.js',
-      '/repo/node_modules/lucide-react/dist/esm/icons/circle.js',
     ])('routes %s to vendor', (id) => {
       expect(pickChunk(id)).toBe('vendor');
+    });
+  });
+
+  describe('vendor-icons (the set a model names its dashboard icons from)', () => {
+    it.each([
+      '/repo/node_modules/lucide-react/dist/esm/icons/circle.js',
+      '/repo/node_modules/lucide-react/dist/esm/icons/gauge.js',
+    ])('routes %s to vendor-icons', (id) => {
+      expect(pickChunk(id)).toBe('vendor-icons');
+    });
+
+    it('leaves the rest of the icon package in vendor', () => {
+      expect(pickChunk('/repo/node_modules/lucide-react/dist/esm/Icon.js')).toBe('vendor');
     });
   });
 

@@ -107,6 +107,17 @@ export interface PropertyBindingDto {
   DeviationSeverity?: number;
 }
 
+/** What a range's criteria compare a property of the judged Thing against, read by the platform from
+ *  the parsed criteria rather than its text. Empty wherever the criteria name no threshold, which is
+ *  more cases than it looks — a presence test, a pattern, a negated comparison, and two properties
+ *  compared with each other all report nothing rather than a number a reader would take for one. */
+export interface CriteriaComparisonDto {
+  PropertyName: string;
+  /** The operator as the criteria language writes it, e.g. ">=". */
+  Operator: string;
+  Value: unknown;
+}
+
 export interface RangeDto {
   Name: string;
   Criteria: string;
@@ -114,6 +125,7 @@ export interface RangeDto {
   InheritedFromId?: string;
   ActiveBindings: number;
   Bindings: PropertyBindingDto[];
+  Comparisons: CriteriaComparisonDto[];
 }
 
 export interface InheritedRangeSetDto {

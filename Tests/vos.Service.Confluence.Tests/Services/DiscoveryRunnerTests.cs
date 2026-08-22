@@ -26,11 +26,13 @@ public class DiscoveryRunnerTests
         public int PeakInFlight { get; private set; }
         public List<string> Called { get; } = new();
 
+        public List<Guid> Subjects { get; } = new();
+
         public async Task<SourceOutcome> FetchAsync(
-            string sourceName, string endpointName,
+            Guid siteId, string sourceName, string endpointName,
             IReadOnlyDictionary<string, string> addressParameters, CancellationToken cancellationToken)
         {
-            lock (Called) Called.Add(sourceName);
+            lock (Called) { Called.Add(sourceName); Subjects.Add(siteId); }
             var now = Interlocked.Increment(ref _inFlight);
             lock (Called) PeakInFlight = Math.Max(PeakInFlight, now);
             try
@@ -172,13 +174,26 @@ public class DiscoveryRunnerTests
         seen.Should().OnlyContain(values => values["lat"] == "-25.75" && values["lng"] == "28.19");
     }
 
+    [Fact]
+    public async Task RunAsync_TellsEverySourceWhichSiteTheCallIsAbout()
+    {
+        // The fetch writes its reading onto the subject the run names. A source called without it
+        // would land its value on whatever Thing the registration's expression names (Bug #6532).
+        var fetcher = new ScriptedFetcher(source => Task.FromResult(new SourceOutcome(source, true, null)));
+        var site = Guid.NewGuid();
+
+        await Runner(fetcher).RunAsync(site, Sources("OpenMeteo", "FloodPortal"), NoParameters, default);
+
+        fetcher.Subjects.Should().Equal(site, site);
+    }
+
     private sealed class CapturingFetcher : ISourceFetcher
     {
         private readonly List<IReadOnlyDictionary<string, string>> _seen;
         public CapturingFetcher(List<IReadOnlyDictionary<string, string>> seen) => _seen = seen;
 
         public Task<SourceOutcome> FetchAsync(
-            string sourceName, string endpointName,
+            Guid siteId, string sourceName, string endpointName,
             IReadOnlyDictionary<string, string> addressParameters, CancellationToken cancellationToken)
         {
             lock (_seen) _seen.Add(addressParameters);

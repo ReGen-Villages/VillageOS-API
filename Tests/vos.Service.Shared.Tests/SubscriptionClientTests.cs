@@ -113,6 +113,27 @@ public class SubscriptionClientTests
     }
 
     [Fact]
+    public async Task SubscribeAsync_sends_a_traversal_predicate_flag_under_the_name_the_broker_binds()
+    {
+        // A field the broker does not bind is dropped silently, and the traversal then follows nothing
+        // while the read looks ordinary.
+        HttpRequestMessage? captured = null;
+        var body = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (client, _) = Build(req => { captured = req; return Json(body); });
+
+        await client.SubscribeAsync(new SubscriptionSelector
+        {
+            Traverse = [new TraverseRule { PredicateFlag = "__IsBoundarySourcePredicate" }],
+        });
+
+        (await captured!.Content!.ReadAsStringAsync())
+            .Should().Contain("\"predicateFlag\":\"__IsBoundarySourcePredicate\"");
+    }
+
+    [Fact]
     public async Task RemoveObjectsAsync_sends_delete_with_ids()
     {
         HttpRequestMessage? captured = null;

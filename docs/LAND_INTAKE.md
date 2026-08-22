@@ -278,15 +278,15 @@ the work.
     "householdSize": 2.4
   },
   "parcel": {                                 // left out until a boundary has been drawn
-    "boundarySource": "drawn-by-hand",        // or imported-from-file, or generated-from-stated-area
+    "boundarySource": "drawn-by-hand",        // a term the model declares, not free text
     "boundary": [
       { "latitude": 39.4990248, "longitude": -8.4165190 }
       // …at least three corners
     ]
   },
   "allocations": [                            // shares are taken as given and normalised later
-    { "category": "Residential", "sharePct": 22, "allocatedAreaHectares": 5.28 },
-    { "category": "Food and agriculture", "sharePct": 34, "allocatedAreaHectares": 8.16 }
+    { "category": "residential", "sharePct": 22, "allocatedAreaHectares": 5.28 },
+    { "category": "food-and-agriculture", "sharePct": 34, "allocatedAreaHectares": 8.16 }
     // …one entry per category, each naming a category only once
   ],
   "hazards": [                                // no level here: that is read from the source
@@ -412,7 +412,7 @@ sequenceDiagram
   Confluence->>Mycelium: which sources cover this site?
   Mycelium-->>Confluence: sources reached by walking<br/>isIn and covers edges
   loop each covering source, bounded concurrency
-    Confluence->>Tributary: call <source> with the site's lat/lng
+    Confluence->>Tributary: call <source> with the site's lat/lng<br/>and the site as the subject
     Tributary->>Provider: HTTP request
     Provider-->>Tributary: response
     Tributary->>Tributary: reshape into a reading
@@ -508,8 +508,8 @@ A dispatched relationship names the study; the service answers with what it wrot
 {                                            {
   "relationshipId": "…",                       "success": true,
   "subjectId": "…",   // the study             "outputs": {
-  "targetId":  "…",                              "peopleFed": 73,
-  "properties": { }                              "pctOfPopulationFed": 22.9
+  "targetId":  "…",                              "peopleFed": 20.4,
+  "properties": { }                              "pctOfPopulationFed": 6.375
 }                                              }
                                              }
 ```
@@ -534,6 +534,9 @@ flowchart LR
   HA["<b>HazardAssessment</b><br/>type · level · date"]
   DS["<b>DataSource</b><br/>which source · coverage<br/>last resolved"]
 
+  BS["<b>BoundarySource</b><br/>drawn-by-hand · imported-from-file<br/>generated-from-stated-area"]
+  AC["<b>AllocationCategory</b><br/>residential · food-and-agriculture<br/>…one Thing per category"]
+
   PR -->|has| CO
   PR -->|has| SI
   SI -->|has| PA
@@ -542,7 +545,17 @@ flowchart LR
   SI -->|has| DS
   HA -->|has| DS
   ST -->|studies| SI
+  PA -->|obtainedBy| BS
+  AL -->|categorizedAs| AC
 ```
+
+**A category and a boundary source are Things, and a submission relates to them.** Both vocabularies are
+declared in the model, so a project whose programme divides differently adds a Thing rather than changing
+a service. The composer resolves the submitted word against what the model declares and refuses one that
+matches nothing, naming the terms the model holds. It finds each vocabulary by a mark its archetype
+carries and writes the edge through the predicate the model marks, never by either name — so a model that
+renames one keeps working, and land allocation reads the category's footprint flags off the Thing at the
+end of the edge.
 
 The design decisions worth stating:
 
@@ -585,7 +598,8 @@ Using a synthetic example throughout — **Willow Bend**, a fictional 24-hectare
 | Willow Bend Site Study *(SiteStudy)* | `pctOfConsumption` | 90.8 | Fact — computed |
 | Parcel-01 *(Parcel)* | `boundary` | GeoJSON polygon | Fact |
 | | `measuredAreaHectares` | 23.4 | Fact |
-| | `boundarySource` | `drawn-by-hand` | Fact |
+| | `obtainedBy` → `drawn-by-hand` | an edge to the Thing | Relationship |
+| | `boundarySource` | `drawn-by-hand` | Fact — the same value as a word, until its readers follow the edge |
 
 The stated area is what the planner asserted. The measured area is what the boundary actually
 encloses. The solar figure is an observation because it was sampled from a provider on a date and
@@ -634,9 +648,14 @@ defined in exactly one place:
   sheds rainwater.
 - **Productive footprint** = food and agriculture = **8.16 ha** — the land that grows food.
 
-Which categories roll into which footprint is **configuration on the node**, not a hardcoded list of
-category names. A different project with a different programme vocabulary must not need a code
-change.
+Which categories roll into which footprint is **a flag each category carries in the model**, not a list
+of names in the service. A category marked `__IsBuiltFootprintCategory` sheds rainwater into the built
+footprint and one marked `__IsProductiveFootprintCategory` grows food into the productive one, so a
+project whose programme divides differently moves a flag rather than changing a service.
+
+A category may carry both — a roofed growing area is hard surface the rain runs off *and* land that
+grows food — so the two footprints can overlap and together exceed the parcel. What must sum to the
+parcel is the per-category areas.
 
 ### Energy
 
@@ -663,52 +682,73 @@ module efficiency multiplied by performance ratio. The port name should say so; 
 ### Food
 
 ```text
-  People fed       = 8.16 ha × 9 people/ha                        = 73 people
-  Self-sufficiency = 73 ÷ 320                                     = 23%
+  People fed       = 8.16 ha × 2.5 people/ha/yr                   = 20.4 people
+  Population fed   = 20.4 ÷ 320                                   = 6.4%
 ```
 
-Two lines of arithmetic, and still worth being a node — because as a node the yield assumption is
-visible on the canvas, the area is traceable back down the wire to the parcel, and a re-run with a
-different assumption is recorded in the run history. A number in a spreadsheet has none of that.
+The yield is `peopleFedPerHectarePerYear` on the shared study archetype: regenerative mixed farming
+producing a full diet supports roughly two to three people per hectare. Correcting it there moves the
+answer for every study.
+
+Two lines of arithmetic, and still worth being a service — because the result then carries which yield
+assumption produced it and which parcel area it read, and it moves on its own when either changes. A
+number worked out in a page carries neither.
+
+Neither figure is rounded where it is computed. People fed is conceptually a whole number, but rounding
+20.4 to 20 leaves it disagreeing with the 6.4% worked out from it, so the rounding belongs where the two
+are displayed together.
 
 > Yield-per-hectare is a coarse abstraction that hides crop mix, climate and diet. That is fine for
 > an intake-stage estimate and should be labelled as such wherever it is displayed.
 
 ### Water
 
-Two different questions, and the platform currently answers only the second.
+Two different questions, and a service each.
 
-**Catchment — how much rain can we capture?** *(new node)*
+**Catchment — how much rain can we capture?** *(`RainwaterHarvest`)*
 
 ```text
   Harvest          = 8.88 ha built × 0.7 m rain × 0.8 runoff      = 49,728 m³/yr
 
-  Domestic demand  = 320 × 120 L/day × 365                        = 14,016 m³/yr
+  Domestic demand  = 320 × 55 m³/person/yr                        = 17,600 m³/yr
   Irrigation       = 8.16 ha × 5,000 m³/ha/yr                     = 40,800 m³/yr
-  Total demand                                                    = 54,816 m³/yr
+  Total demand                                                    = 58,400 m³/yr
 
-  Self-sufficiency = 49,728 ÷ 54,816                              = 91%
+  Self-sufficiency = 49,728 ÷ 58,400                              = 85%
 ```
 
-That single 91% hides the most useful fact on the page. Split it:
+That single 85% hides the most useful fact on the page. It cannot be split by measuring the harvest
+against each demand on its own — one body of water serves both, so that counts the same cubic metre twice
+and reports 283% and 122%, which between them claim nearly four times the water there is.
+
+The demands are served in the order the model states: drinking water first, irrigation from what is left.
 
 ```text
-  Against domestic demand alone   49,728 ÷ 14,016  =  355%   ← comfortable
-  Against irrigation alone        49,728 ÷ 40,800  =  122%   ← the constraint
+  Domestic     takes 17,600 of the 49,728        covered 100%,  short      0 m³/yr
+  Irrigation   takes the 32,128 left, of 40,800  covered  79%,  short  8,672 m³/yr
 ```
 
-Willow Bend has abundant drinking water and a marginal irrigation position. A site with the same
-overall 91% could be the exact opposite. **This is why the node reports its demand components
-separately** — the combined percentage is not actionable.
+Willow Bend has abundant drinking water and a marginal irrigation position, and the study now says so
+with a figure a planner can act on: 8,672 m³ a year has to come from somewhere else. A site with the same
+overall 85% could be the exact opposite.
 
-**Storage — how long does the tank last?** *(existing node)*
+**Which demands there are, the order they are served in, and the properties each is read from and written
+to are Things in the shared analysis template**, not a list inside the service. Every demand is a quantity
+times a rate — residents times cubic metres a person, growing hectares times cubic metres a hectare — so a
+third demand is a template edit rather than a service change and a redeploy.
+
+The domestic figure is `perCapitaConsumptionM3` on the shared study archetype — the same water-per-person
+assumption the storage question reads. Two services asking two questions of one figure is what keeps a
+correction to it from having to be made twice.
+
+**Storage — how long does the tank last?** *(`WaterReserve`)*
 
 ```text
-  Annual consumption = 320 × 43.8 m³/person/yr                    = 14,016 m³/yr
-  Days of supply     = 3,000 m³ storage ÷ (14,016 ÷ 365)          = 78 days
+  Annual consumption = 320 × 55 m³/person/yr                      = 17,600 m³/yr
+  Days of supply     = 3,000 m³ storage ÷ (17,600 ÷ 365)          = 62 days
 ```
 
-Different inputs, different outputs, different question. Hence a sibling node rather than more ports
+Different inputs, different outputs, different question. Hence a sibling service rather than more inputs
 on the existing one.
 
 ### Hazards
@@ -835,6 +875,7 @@ The main finding from designing this: most of it is already built.
 |---|---|
 | Energy balance calculation | **Exists** as a reactive service |
 | Water storage calculation | **Exists** as a reactive service |
+| Land allocation, and the food balance and rainwater harvest above it | **Exists** as reactive services |
 | Dispatching a service by relating a Thing to it | **Exists** (handled predicates) |
 | Recomputing a service's outputs when its inputs move | **Exists** (input-change subscription) |
 | Bounding a chain where one computed value feeds another | **Exists** (recompute round limit) |
@@ -847,7 +888,6 @@ The main finding from designing this: most of it is already built.
 | — | |
 | A map, and drawing a parcel on it | **New** — the only new UI capability |
 | The intake wizard | **New** |
-| Rainwater harvest, food balance, land allocation | **New** — three small reactive services |
 | Anonymous submission: rate limits, size caps, bot checks, the staging model | **New** — hardening around the service that already composes |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 
@@ -943,7 +983,7 @@ debugging session otherwise.
 | # | Question | Recommendation |
 |---|---|---|
 | 1 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
-| 2 | **Map library** — Leaflet or MapLibre? | Leaflet is smaller and is what the current tool uses; MapLibre gives vector tiles and better styling. Story-level decision. |
+| 2 | ~~**Map library** — Leaflet or MapLibre?~~ **Settled: MapLibre**, added once by the viewer's Phase 0 (#5346) as a component the wizard consumes rather than duplicates. Leaflet cannot tilt or share a WebGL context, so drawing the 3D model on the basemap would have needed a second library. See [TRELLIS.md §22](TRELLIS.md#22-the-map-and-its-basemap-sources). | What remains is not a library question: MapLibre renders tiles, it does not supply them. Imagery for a given site comes from that country's own service and is declared in the model, not chosen here. |
 | 3 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
 | 4 | **Retention** for submissions that are never promoted. | Decide before there is anything in the intake model, not after. |
 | 5 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own front door, so it is a natural follow-up. |

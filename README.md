@@ -47,9 +47,14 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 | vos.Service.Tributary | Production | HTTP endpoint calling with JSONata response transforms; config-driven token-exchange auth + offset pagination (e.g. ESRI/ArcGIS) |
 | vos.Service.Metabolism | Production | Consume/produce simulation — decrements/increments a target property's quantity at a configured rate; backs the `consumes`/`produces` Handled Predicates |
 | vos.Service.Phloem | Production | Pipeline/DAG orchestrator — runs a user-authored DAG of microservice nodes; spawned synchronously through Mycelium, dispatches each node via endpoint-forward (see [SERVICES.md §16](docs/SERVICES.md)) |
-| vos.Service.Xylem | Production | IFC ingestion — accepts an `.ifc` upload (`POST /ingest`, merge or new-model), runs the `vos.Tools.IfcIngest` tool, and applies the graph to Mycelium; frees clients from a local ingest toolchain. Large files: `?async=true` returns a job id (poll `GET /ingest/jobs/{id}`) and the upload is streamed with a configurable cap |
+| vos.Service.Xylem | Production | IFC ingestion — accepts an `.ifc` upload (`POST /ingest`, merge or new-model), runs the `vos.Tools.ModelIngest` tool, and applies the graph to Mycelium; frees clients from a local ingest toolchain. Large files: `?async=true` returns a job id (poll `GET /ingest/jobs/{id}`) and the upload is streamed with a configurable cap |
+| vos.Service.Confluence | Production | Resolves a site against every data source covering it, calls Tributary for each, and starts the site's analysis by relating its study to each marked compute connection (see [CONFLUENCE.md](docs/CONFLUENCE.md)) |
+| vos.Service.Intake | Production | Takes a land-intake submission and composes the Site, Parcel and study it becomes, applied as one all-or-nothing fragment; registers with nothing and holds its own credential (see [LAND_INTAKE.md](docs/LAND_INTAKE.md)) |
 | vos.Service.EnergyBalance | Production | Site energy-balance simulation — sums generation (e.g. solar: PV area × resource × efficiency) against demand; a Handled-Predicate service in the same family as Metabolism |
 | vos.Service.WaterReserve | Production | Water-reserve simulation — tracks stored water against consumption (e.g. an emergency reserve under a supply failure) |
+| vos.Service.LandAllocation | Production | Turns a site's programme split into a per-category area and the built and productive footprints, written back onto the study and its allocations |
+| vos.Service.FoodBalance | Production | Reads the productive footprint and the yield the shared study archetype declares, and writes how many residents that land feeds and what share of the population that is |
+| vos.Service.RainwaterHarvest | Production | Reads the built footprint, the site's rainfall and the runoff the shared study archetype declares, works out the volume captured in a year, and serves each demand the model declares in the order it declares — writing what each asked for, the share covered and the volume still short |
 | vos.Service.ModelBridge | Production | Generic bridge between a pipeline DAG and the model — reads a property off a Thing or writes a computed result back (see [MODELBRIDGE.md](docs/MODELBRIDGE.md)) |
 | vos.Service.CSharp.Echo | Example (C#) | Minimal managed microservice demonstrating the lifecycle — the canonical reference; also the reference pipeline DAG node |
 | vos.Service.Go.Echo | Example (Go) | The same handler in Go (standard library, zero deps) |
@@ -87,9 +92,15 @@ npm run lint     # Lint
 ```
 
 The build runs `npm run lint`, `npm test` and `npm run build`, so a failure in any of them fails the
-build — and on `develop` stops the wiki publish and the GitHub mirror. It runs when `develop` or
+build — and on `main` stops the wiki publish and the GitHub mirror. It runs when `develop` or
 `main` moves and when a pull request into `develop` is validated; a push to a branch with no pull
 request open builds nothing. Run them before pushing rather than finding out from the build.
+
+A build **against `main`** compiles Release — a merge to it, and a pull request targeting it, since
+a merge is too late to learn that Release does not compile. Every other build compiles Debug, which
+is what you run locally. The difference is not only optimization here: `MyceliumClientBase` throws
+on an outbound contract violation in Debug and logs it in Release. `main` is also the only branch
+that publishes: the documentation to the project wiki, and the repository and that wiki to GitHub.
 
 `npm test` runs offline. `npm run test:integration` covers what only a live
 platform can answer — currently that the property type names Trellis holds are
@@ -118,7 +129,7 @@ local artifact.
 
 In-repo docs live in **[docs/](docs/README.md)** — an indexed map grouped by client tools, platform concepts, and microservice authoring.
 
-The same documentation is published to the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is **generated from the files in `docs/`** on every merge to develop — edit the file, never the wiki page. See [tools/docs-to-wiki](tools/docs-to-wiki/).
+The same documentation is published to the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is **generated from the files in `docs/`** on every merge to main — edit the file, never the wiki page. See [tools/docs-to-wiki](tools/docs-to-wiki/).
 
 Key pages:
 

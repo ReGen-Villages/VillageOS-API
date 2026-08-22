@@ -311,6 +311,13 @@ export const en = {
     errorTitle: "Failed to load the Fragments artifact.",
     loadFailed: "Failed to load model",
   },
+  map: {
+    baseLayer: "Base layer",
+    recentre: "Recentre",
+    coordinates: "{{latitude}}, {{longitude}}",
+    noSource: "This model defines no basemap source.",
+    tilesUnreachable: "Map tiles could not be loaded.",
+  },
   temporal: {
     title: "Temporal Queries",
     tabs: {

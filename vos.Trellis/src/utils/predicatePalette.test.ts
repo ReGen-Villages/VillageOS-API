@@ -10,7 +10,7 @@ describe('CURATED_PREDICATE_COLORS (Feature #5340)', () => {
   });
 
   it('covers every predicate the IFC pipeline emits', () => {
-    // Source of truth: vos.Tools.IfcIngest/Pipeline/*RelationshipExtractor.cs
+    // Source of truth: vos.Tools.ModelIngest/Pipeline/*RelationshipExtractor.cs
     // grep result (Bug #5340 audit). If the pipeline grows, add the new
     // predicate to predicatePalette.ts AND extend this list — the resolver
     // hash-fallback would otherwise silently pick a random color.

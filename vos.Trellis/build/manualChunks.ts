@@ -14,7 +14,7 @@ export function pickChunk(id: string): string | undefined {
     return 'vendor-three';
   }
 
-  if (id.includes('node_modules/maplibre-gl') || id.includes('node_modules/@sigma/layer-maplibre')) {
+  if (id.includes('node_modules/maplibre-gl')) {
     return 'vendor-map';
   }
 
@@ -32,6 +32,15 @@ export function pickChunk(id: string): string | undefined {
     /node_modules\/(react|react-dom|scheduler)\//.test(id)
   ) {
     return 'vendor-react';
+  }
+
+  // A model names the icon for each dashboard it publishes, so the whole icon set ships rather than
+  // the icons this source happens to name. Folded into `vendor` that takes the chunk past the size
+  // warning; on its own it is legible in the build output as what it is. The first page loads it
+  // either way — the app's own icons come from the same modules — so this names the bytes, it does
+  // not defer them.
+  if (id.includes('node_modules/lucide-react/dist/esm/icons/')) {
+    return 'vendor-icons';
   }
 
   if (id.includes('node_modules/')) {

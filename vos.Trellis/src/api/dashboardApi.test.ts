@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { VosThing, VosRelationship } from '../types/vos';
+import type {
+  VosThing,
+  VosRelationship,
+  RangeDto,
+  ThingRangesResponse,
+  CriteriaComparisonDto,
+} from '../types/vos';
 import type { Binding } from '../types/dashboard';
 
 vi.mock('./stateApi', () => ({
@@ -10,8 +16,18 @@ vi.mock('./client', () => ({
   apiClient: { post: vi.fn() },
 }));
 
+vi.mock('./rangeApi', () => ({
+  rangeApi: { getAll: vi.fn() },
+}));
+
+vi.mock('./temporalApi', () => ({
+  temporalApi: { getPropertyVersions: vi.fn() },
+}));
+
 import { stateApi } from './stateApi';
 import { apiClient } from './client';
+import { rangeApi } from './rangeApi';
+import { temporalApi } from './temporalApi';
 import {
   discoverDashboards,
   scopeEntities,
@@ -22,6 +38,7 @@ import {
   filterRows,
   asNumber,
   type ResolveContext,
+  type Row,
 } from './dashboardApi';
 
 /** These fixtures are bare graphs, so stamp the declaration a real model carries the way
@@ -97,6 +114,58 @@ describe('discovery', () => {
     const { things, relationships } = model();
     const idx = buildModelIndex(declared(things, relationships), relationships);
     expect(thingsOfArchetype('Village', idx).map((x) => x.Name).sort()).toEqual(['V-1', 'V-2']);
+  });
+});
+
+/** A model publishing dashboards under the given Thing names, and nothing else. */
+function dashboardModel(names: string[]): { things: VosThing[]; relationships: VosRelationship[] } {
+  const spec = JSON.stringify({ title: 'T', sections: [] });
+  const things: VosThing[] = [
+    { Id: 'is', Name: 'is', Properties: {} },
+    { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
+    ...names.map((Name, i) => ({ Id: `dash-${i}`, Name, Properties: { spec } })),
+  ];
+  const relationships: VosRelationship[] = names.map((_, i) => ({
+    Id: `dash-${i}-is`,
+    Name: `dash-${i} is Dashboard`,
+    SubjectId: `dash-${i}`,
+    PredicateId: 'is',
+    TargetId: 'arch-dash',
+    Properties: {},
+  }));
+  return { things: declared(things, relationships), relationships };
+}
+
+function routeKeys(names: string[]): string[] {
+  const { things, relationships } = dashboardModel(names);
+  return discoverDashboards(things, relationships).map((d) => d.routeKey);
+}
+
+describe('dashboard order and addresses (Story 6582)', () => {
+  it('orders dashboards by name, whatever order the archetype walk answered in', () => {
+    const { things, relationships } = dashboardModel(['Reserves', 'Arrays', 'Springs']);
+
+    expect(discoverDashboards(things, relationships).map((d) => d.name)).toEqual([
+      'Arrays',
+      'Reserves',
+      'Springs',
+    ]);
+  });
+
+  it('derives an address from the name, running the words together', () => {
+    expect(routeKeys(['Site catchments'])).toEqual(['site-catchments']);
+  });
+
+  it('folds accents onto their base letters rather than dropping the word', () => {
+    expect(routeKeys(['Réservoirs'])).toEqual(['reservoirs']);
+  });
+
+  it('keeps a distinct address for each of two names that reduce to the same one', () => {
+    expect(routeKeys(['Spring flow', 'Spring-flow']).sort()).toEqual(['dash-0', 'dash-1']);
+  });
+
+  it('falls back to the Thing id where a name leaves nothing an address can carry', () => {
+    expect(routeKeys(['المصادر'])).toEqual(['dash-0']);
   });
 });
 
@@ -959,5 +1028,336 @@ describe('service bindings carry the selected scope', () => {
     await resolveBinding({ ...binding, body: { view: 'visit-schedule' }, select: 'rows' }, ctxFor('vil1'));
 
     expect(apiClient.post).toHaveBeenCalledWith('/api/endpoints/metrics', { view: 'visit-schedule' });
+  });
+});
+
+// ---- verdict binding (#6473) --------------------------------------------
+// The target a balance is judged against comes from the range that judges it, never from the spec:
+// a view restating 14 days says the wrong thing the day the range moves.
+describe('verdict binding', () => {
+  const ENERGY_STATES = [
+    { state: 'EnergyNetPositive', reads: '{value} of assumed consumption — meets the {target} target' },
+    { state: 'EnergyShortOfTarget', reads: '{value} of assumed consumption — short of the {target} target' },
+    { state: 'EnergyNotAssessed', reads: 'not assessed' },
+  ];
+
+  function range(Name: string, Criteria: string, comparisons: CriteriaComparisonDto[]): RangeDto {
+    return { Name, Criteria, IsInherited: true, ActiveBindings: 0, Bindings: [], Comparisons: comparisons };
+  }
+
+  const ENERGY_RANGES: RangeDto[] = [
+    range('EnergyNetPositive', 'pctOfConsumption IS KNOWN AND pctOfConsumption >= 100',
+      [{ PropertyName: 'pctOfConsumption', Operator: '>=', Value: 100 }]),
+    range('EnergyShortOfTarget', 'pctOfConsumption IS KNOWN AND pctOfConsumption < 100',
+      [{ PropertyName: 'pctOfConsumption', Operator: '<', Value: 100 }]),
+    range('EnergyNotAssessed', 'pctOfConsumption IS UNKNOWN', []),
+  ];
+
+  /** The judge-ranges sit on the SiteStudy archetype, so every study reads them as inherited. */
+  function rangesResponse(ranges: RangeDto[]): ThingRangesResponse {
+    return {
+      ThingId: 'study1',
+      ThingName: 'Site Study',
+      OwnRanges: [],
+      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', InheritedAt: '', Ranges: ranges, Inherited: [] }],
+    };
+  }
+
+  function studyContext(properties: Record<string, unknown>): ResolveContext {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true },
+      { Id: 'study1', Name: 'Site Study', Properties: properties },
+    ];
+    const relationships: VosRelationship[] = [
+      { Id: 'r1', Name: 'study1 is arch-study', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
+    ];
+    return { idx: buildModelIndex(things, relationships), scopeId: 'study1' };
+  }
+
+  function holding(...states: string[]) {
+    vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) =>
+      ({ Things: states.includes(state) ? [{ Id: 'study1', Name: 'Site Study', Properties: {} }] : [] }) as never,
+    );
+  }
+
+  const binding = { kind: 'verdict', thing: 'study1', states: ENERGY_STATES } as Binding;
+
+  beforeEach(() => {
+    vi.mocked(rangeApi.getAll).mockReset().mockResolvedValue(rangesResponse(ENERGY_RANGES));
+  });
+
+  it('names the target a clearing value was judged against', async () => {
+    holding('EnergyNetPositive');
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 112 })) as Row[];
+
+    expect(rows).toEqual([{
+      state: 'EnergyNetPositive',
+      reads: ENERGY_STATES[0].reads,
+      property: 'pctOfConsumption',
+      operator: '>=',
+      target: 100,
+      value: 112,
+    }]);
+  });
+
+  it('names the target a value that fell short was judged against', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+
+    expect(rows).toEqual([{
+      state: 'EnergyShortOfTarget',
+      reads: ENERGY_STATES[1].reads,
+      property: 'pctOfConsumption',
+      operator: '<',
+      target: 100,
+      value: 73,
+    }]);
+  });
+
+  // The states exist so a site nobody assessed is not read as a site that failed.
+  it('reports a withheld verdict as withheld, with no target and no value', async () => {
+    holding('EnergyNotAssessed');
+
+    const rows = await resolveBinding(binding, studyContext({})) as Row[];
+
+    expect(rows).toEqual([{
+      state: 'EnergyNotAssessed',
+      reads: ENERGY_STATES[2].reads,
+      property: null,
+      operator: null,
+      target: null,
+      value: null,
+    }]);
+  });
+
+  it('reports no verdict at all when the study holds none of the candidates', async () => {
+    holding();
+
+    expect(await resolveBinding(binding, studyContext({ pctOfConsumption: 73 }))).toEqual([]);
+  });
+
+  // Ranges are independent criteria, so several can hold together.
+  it('reports every verdict the study holds, not the first', async () => {
+    holding('EnergyNetPositive', 'EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 100 })) as Row[];
+
+    expect(rows.map((r) => r.state)).toEqual(['EnergyNetPositive', 'EnergyShortOfTarget']);
+  });
+
+  // The side a borderline value falls on is the range's answer, never one the view recomputes.
+  it('takes the verdict from the state the study holds, not from comparing the value itself', async () => {
+    holding('EnergyNetPositive');
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 100 })) as Row[];
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].state).toBe('EnergyNetPositive');
+  });
+
+  it('names the moved target when the range moves, with no change to the spec', async () => {
+    holding('EnergyShortOfTarget');
+    vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([
+      range('EnergyShortOfTarget', 'pctOfConsumption IS KNOWN AND pctOfConsumption < 90',
+        [{ PropertyName: 'pctOfConsumption', Operator: '<', Value: 90 }]),
+    ]));
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+
+    expect(rows[0].target).toBe(90);
+  });
+
+  // The verdict is the model's answer and the target only decorates it, so losing the range read
+  // must not cost the reader the verdict as well.
+  it('still reads every verdict when the range read fails outright', async () => {
+    holding('EnergyShortOfTarget');
+    vi.mocked(rangeApi.getAll).mockRejectedValue(new Error('broker unreachable'));
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+
+    expect(rows).toEqual([{
+      state: 'EnergyShortOfTarget',
+      reads: ENERGY_STATES[1].reads,
+      property: null,
+      operator: null,
+      target: null,
+      value: null,
+    }]);
+  });
+
+  // Not the same as the withheld verdict: here a range did judge the balance, and the value it
+  // judged is not on the study to show.
+  it('names the target but no value when the study carries no value for the judged property', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({})) as Row[];
+
+    expect(rows[0]).toMatchObject({ property: 'pctOfConsumption', target: 100, value: null });
+  });
+
+  it('reports no verdict when the spec names a thing the model does not hold', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(
+      { kind: 'verdict', thing: 'no-such-study', states: ENERGY_STATES } as Binding,
+      studyContext({ pctOfConsumption: 73 }),
+    );
+
+    expect(rows).toEqual([]);
+  });
+
+  it('names no target when the range that judged the study cannot be read', async () => {
+    holding('EnergyShortOfTarget');
+    vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([]));
+
+    const rows = await resolveBinding(binding, studyContext({ pctOfConsumption: 73 })) as Row[];
+
+    expect(rows[0]).toMatchObject({ state: 'EnergyShortOfTarget', target: null, value: null });
+  });
+
+  // A results page reads several balances of one study, whose judge-ranges all sit on its archetype.
+  it('asks for one study\'s ranges once however many balances a refresh reads', async () => {
+    holding('EnergyShortOfTarget');
+    const shared: ResolveContext = {
+      ...studyContext({ pctOfConsumption: 73 }),
+      stateMembers: new Map(),
+      thingRanges: new Map(),
+    };
+
+    await resolveBinding(binding, shared);
+    await resolveBinding(binding, shared);
+
+    expect(vi.mocked(rangeApi.getAll)).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the ranges of the selected scope entity when the spec names no thing', async () => {
+    holding('EnergyShortOfTarget');
+
+    await resolveBinding({ kind: 'verdict', states: ENERGY_STATES } as Binding, studyContext({ pctOfConsumption: 73 }));
+
+    expect(rangeApi.getAll).toHaveBeenCalledWith('study1');
+  });
+
+  describe('a study the scope reaches rather than the scope itself', () => {
+    /** A page scoped to the site, which is where a per-submission view has to be scoped: the
+     *  programmes and hazards it lists hang off the site, while the ranges that judge its balances
+     *  sit on the study one edge away. */
+    function siteContext(studies: { name: string; properties: Record<string, unknown> }[]): ResolveContext {
+      const things: VosThing[] = [
+        { Id: 'is', Name: 'is', Properties: {} },
+        { Id: 'studies', Name: 'studies', Properties: {} },
+        { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true },
+        { Id: 'arch-site', Name: 'Site', Properties: {}, IsArchetype: true },
+        { Id: 'site1', Name: 'Submitted site', Properties: {} },
+        ...studies.map((s) => ({ Id: s.name, Name: s.name, Properties: s.properties })),
+      ];
+      const relationships: VosRelationship[] = [
+        { Id: 'r-site', Name: 'site1 is arch-site', SubjectId: 'site1', PredicateId: 'is', TargetId: 'arch-site', Properties: {} },
+        ...studies.flatMap((s) => [
+          { Id: `${s.name}-is`, Name: `${s.name} is arch-study`, SubjectId: s.name, PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
+          { Id: `${s.name}-studies`, Name: `${s.name} studies site1`, SubjectId: s.name, PredicateId: 'studies', TargetId: 'site1', Properties: {} },
+        ]),
+      ];
+      return { idx: buildModelIndex(things, relationships), scopeId: 'site1' };
+    }
+
+    /** The outer `holding` speaks for the study alone; a walk asks about the site and about more
+     *  than one study, so these tests say who is in the state instead. */
+    function membersOf(state: string, ...names: string[]) {
+      vi.mocked(stateApi.getThingsInState).mockImplementation(async (asked: string) =>
+        ({ Things: asked === state ? names.map((name) => ({ Id: name, Name: name, Properties: {} })) : [] }) as never,
+      );
+    }
+
+    const toTheStudy = [{ predicate: 'studies', direction: 'in' as const }];
+
+    it('judges the study that studies the scoped site', async () => {
+      membersOf('EnergyShortOfTarget', 'study1');
+
+      const rows = await resolveBinding(
+        { kind: 'verdict', states: ENERGY_STATES, via: toTheStudy } as Binding,
+        siteContext([{ name: 'study1', properties: { pctOfConsumption: 73 } }]),
+      ) as Row[];
+
+      expect(rows).toEqual([{
+        state: 'EnergyShortOfTarget',
+        reads: ENERGY_STATES[1].reads,
+        property: 'pctOfConsumption',
+        operator: '<',
+        target: 100,
+        value: 73,
+      }]);
+    });
+
+    // The site is the one holding the state here, so a walk that quietly fell back to where it
+    // started would report a verdict instead of nothing.
+    it('reports nothing when the walk reaches no Thing', async () => {
+      membersOf('EnergyShortOfTarget', 'site1');
+
+      const rows = await resolveBinding(
+        { kind: 'verdict', states: ENERGY_STATES, via: [{ predicate: 'surveys', direction: 'in' }] } as Binding,
+        siteContext([{ name: 'study1', properties: { pctOfConsumption: 73 } }]),
+      );
+
+      expect(rows).toEqual([]);
+    });
+
+    // Asserted in the reverse of the order they are judged in, so the reading is the model's
+    // rather than the relationship list's.
+    it('judges every study the walk reaches, in name order', async () => {
+      membersOf('EnergyShortOfTarget', 'study1', 'study2');
+
+      const rows = await resolveBinding(
+        { kind: 'verdict', states: ENERGY_STATES, via: toTheStudy } as Binding,
+        siteContext([
+          { name: 'study2', properties: { pctOfConsumption: 61 } },
+          { name: 'study1', properties: { pctOfConsumption: 73 } },
+        ]),
+      ) as Row[];
+
+      expect(rows.map((r) => r.value)).toEqual([73, 61]);
+    });
+  });
+});
+
+describe('a Thing reference resolves the same way whichever binding reads it', () => {
+  const AMBIGUOUS = 'shared-key';
+
+  /** One Thing's name is another Thing's identifier — the only model that tells the two lookup
+   *  orders apart. */
+  function ambiguous(): ResolveContext {
+    const things: VosThing[] = [
+      { Id: AMBIGUOUS, Name: 'Identified plot', Properties: { area: 10 } },
+      { Id: 'named-plot', Name: AMBIGUOUS, Properties: { area: 20 } },
+    ];
+    return { idx: buildModelIndex(things, []), scopeId: null };
+  }
+
+  const series: Binding = { kind: 'timeseries', thing: AMBIGUOUS, property: 'area', op: 'avg', bucket: 'day' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(temporalApi.getPropertyVersions).mockResolvedValue({ Versions: [] } as never);
+  });
+
+  it('reads the Thing the identifier names, not the Thing of that name', async () => {
+    const value = await resolveBinding({ kind: 'property', thing: AMBIGUOUS, property: 'area' }, ambiguous());
+
+    expect(value).toBe(10);
+  });
+
+  it('reads the same Thing for a series as for a property', async () => {
+    await resolveBinding(series, ambiguous());
+
+    expect(temporalApi.getPropertyVersions).toHaveBeenCalledWith(AMBIGUOUS, 'area');
+  });
+
+  it('reads the selected scope entity for a series that names $scope', async () => {
+    await resolveBinding({ ...series, thing: '$scope' } as Binding, { ...ambiguous(), scopeId: 'named-plot' });
+
+    expect(temporalApi.getPropertyVersions).toHaveBeenCalledWith('named-plot', 'area');
   });
 });

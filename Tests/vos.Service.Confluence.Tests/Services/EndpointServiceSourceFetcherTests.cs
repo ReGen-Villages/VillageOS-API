@@ -10,6 +10,8 @@ namespace vos.Service.Confluence.Tests.Services;
 
 public class EndpointServiceSourceFetcherTests
 {
+    private static readonly Guid Site = Guid.NewGuid();
+
     private static readonly Dictionary<string, string> Coordinates =
         new() { ["lat"] = "-25.75", ["lng"] = "28.19" };
 
@@ -45,11 +47,29 @@ public class EndpointServiceSourceFetcherTests
         });
 
         var outcome = await Fetcher(handler, subdomain: "fetcher")
-            .FetchAsync("OpenMeteo", "OpenMeteoEndpoint", Coordinates, default);
+            .FetchAsync(Site, "OpenMeteo", "OpenMeteoEndpoint", Coordinates, default);
 
         outcome.Resolved.Should().BeTrue();
         sent!.RequestUri!.AbsolutePath.Should().Be("/api/endpoints/fetcher");
         body.Should().Contain("OpenMeteoEndpoint").And.Contain("-25.75").And.Contain("28.19");
+    }
+
+    [Fact]
+    public async Task FetchAsync_NamesTheSiteTheCallIsAbout()
+    {
+        // One registration serves every site, so the reading's destination cannot come from the
+        // registration. Without this the fetcher's own expression would decide, and every site's
+        // values would land on whichever Thing that expression names (Bug #6532).
+        string? body = null;
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            body = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Text(HttpStatusCode.OK, "{}");
+        });
+
+        await Fetcher(handler).FetchAsync(Site, "OpenMeteo", "OpenMeteoEndpoint", Coordinates, default);
+
+        body.Should().Contain("subjectId").And.Contain(Site.ToString());
     }
 
     [Fact]
@@ -58,7 +78,7 @@ public class EndpointServiceSourceFetcherTests
         var handler = new MockHttpMessageHandler(_ =>
             Text(HttpStatusCode.ServiceUnavailable, "portal is down for maintenance"));
 
-        var outcome = await Fetcher(handler).FetchAsync("FloodPortal", "FloodEndpoint", Coordinates, default);
+        var outcome = await Fetcher(handler).FetchAsync(Site, "FloodPortal", "FloodEndpoint", Coordinates, default);
 
         outcome.Resolved.Should().BeFalse();
         outcome.Reason.Should().Contain("503").And.Contain("portal is down for maintenance");
@@ -71,7 +91,7 @@ public class EndpointServiceSourceFetcherTests
         var handler = new MockHttpMessageHandler(_ =>
             Text(HttpStatusCode.InternalServerError, new string('x', 5000)));
 
-        var outcome = await Fetcher(handler).FetchAsync("Verbose", "VerboseEndpoint", Coordinates, default);
+        var outcome = await Fetcher(handler).FetchAsync(Site, "Verbose", "VerboseEndpoint", Coordinates, default);
 
         outcome.Reason!.Length.Should().BeLessThan(500);
         outcome.Reason.Should().EndWith("…");
@@ -89,7 +109,7 @@ public class EndpointServiceSourceFetcherTests
         });
 
         var outcome = await Fetcher(handler, TimeSpan.FromMilliseconds(150))
-            .FetchAsync("Quiet", "QuietEndpoint", Coordinates, default);
+            .FetchAsync(Site, "Quiet", "QuietEndpoint", Coordinates, default);
 
         outcome.Resolved.Should().BeFalse();
         outcome.Reason.Should().Contain("No answer within");
@@ -100,7 +120,7 @@ public class EndpointServiceSourceFetcherTests
     {
         var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("connection reset"));
 
-        var outcome = await Fetcher(handler).FetchAsync("Broken", "BrokenEndpoint", Coordinates, default);
+        var outcome = await Fetcher(handler).FetchAsync(Site, "Broken", "BrokenEndpoint", Coordinates, default);
 
         outcome.Resolved.Should().BeFalse();
         outcome.Reason.Should().Contain("connection reset");
@@ -123,7 +143,7 @@ public class EndpointServiceSourceFetcherTests
 
         // A source timeout far longer than the test, so only the run's own cancellation can end it.
         var fetching = Fetcher(handler, TimeSpan.FromMinutes(5))
-            .FetchAsync("Any", "AnyEndpoint", Coordinates, run.Token);
+            .FetchAsync(Site, "Any", "AnyEndpoint", Coordinates, run.Token);
         await reached.Task;
         await run.CancelAsync();
         var outcome = await fetching;

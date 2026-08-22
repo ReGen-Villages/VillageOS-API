@@ -313,6 +313,13 @@ export const de: PartialResources = {
     errorTitle: "Das Fragments-Artefakt konnte nicht geladen werden.",
     loadFailed: "Modell konnte nicht geladen werden",
   },
+  map: {
+    baseLayer: "Basiskarte",
+    recentre: "Neu zentrieren",
+    coordinates: "{{latitude}}, {{longitude}}",
+    noSource: "Dieses Modell definiert keine Basiskartenquelle.",
+    tilesUnreachable: "Kartenkacheln konnten nicht geladen werden.",
+  },
   temporal: {
     title: "Zeitliche Abfragen",
     tabs: {

@@ -124,6 +124,32 @@ tiles, zoom levels or coordinates appears in the code. The rules:
   the catalogue does not grow a registration per address.
 - Paging walks the *filled* address, so placeholders compose with `OffsetPaging`.
 
+## Naming the subject a call is about
+
+**A call that varies its address must also say whose reading it is fetching.** The address is
+per-call, but a reshape expression belongs to the registration, so the entity name it produces is
+fixed. Left there, one registration reaches every site's coordinates correctly and then writes every
+site's reading onto whichever Thing its expression happens to name — plausible values, plausible
+timestamps, attributed to the wrong site. `subjectId` on the request closes that:
+
+```jsonc
+{ "endpointName": "SolarResource",
+  "subjectId": "3f0e…",                         // the Thing this call is about
+  "addressParameters": { "lat": "39.4", "lon": "-8.2" } }
+```
+
+- **Every reading from that call is observed onto that Thing**, and the reading's own `name` is not
+  used to find or create anything. A registration serving many subjects can therefore stop carrying
+  a name that fits only one of them — `{"properties": {…}}` with no `name` is enough.
+- **An id, not a name.** The caller already holds the Thing it asked about. A name would have to be
+  resolved, a name matching two Things is refused as ambiguous and reads back as absent, and this
+  ingest creates what it cannot find — so a name would answer a duplicate by quietly minting a third.
+- **Nothing is created.** The subject exists already, so no Thing and no `observed` edge are written
+  — the same as any fetch landing on an entity it did not create.
+- **Without it, nothing changes.** A registration serving one subject keeps naming it in the
+  expression and is resolved by name exactly as before. A reading that names no subject, on a call
+  that names none either, is refused rather than written onto a guess.
+
 ## Token-exchange auth + offset paging
 
 Tributary stays source-agnostic: it has **generic** capabilities — a token-exchange
@@ -254,9 +280,24 @@ endpoints and need none of this.
 
 **Model placement: transient passthrough.** A tile is a stateless fetch response. It is
 never persisted as a Thing, an observation, or a Fact — binary cannot be a scalar
-observation, and a base64 Fact would bloat the replay log. The envelope is returned and
-forgotten; the same request refetches upstream. Keeping fetched responses on local disk
-(config-driven, TTL-bounded) is the planned fast-follow #5918.
+observation, and a base64 Fact would bloat the replay log. The model keeps nothing; when
+a deployment wants repeated fetches answered without contacting the source again, that is
+the `DiskCache` kind below — a file on the service's disk, not model state.
+
+**Caching to local disk.** An endpoint that reaches the **`DiskCache`** kind through
+`cachesBy` serves a repeated fetch from the service's disk while the entry is younger
+than **`cacheTtl`** (seconds — the kind requires it, so caching without a stated
+retention is refused; the TTL is also where Esri's terms-of-use retention limit lives).
+The cache key is the fully-resolved address — placeholders filled, query attached — plus
+the Accept header, since the same address can answer with different formats. Entries are
+**real files with real extensions** under `cache/{endpointName}/` (`.png`, `.jpg`,
+`.webp`, `.tif`, `.pbf`, `.json` via a generic media-type map; an unknown type falls back
+to `.bin` plus a `.meta.json` sidecar carrying the exact Content-Type), so a cached tile
+opens in any viewer. Expired entries simply miss and are overwritten by the next fetch —
+no sweeper. Combinations the cache cannot answer honestly are refused up front: offset
+paging, a credentialed (`TokenExchangeAuth`) call, and a request with an outbound body
+(none of which are part of the key). The cache root is deployment configuration
+(`CacheDirectory`, default `cache/` under the service's working directory).
 
 Graph composition is pinned by `EsriTileEndpointTemplateTests` (Delta); behavior by
 `BinaryResponseKindTests` and `AcceptHeaderTests` (Tributary).

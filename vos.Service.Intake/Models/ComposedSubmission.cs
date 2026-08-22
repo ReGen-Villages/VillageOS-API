@@ -19,3 +19,14 @@ public sealed record ResolvedPredicates(PredicateIdentity Studies, PredicateIden
 public sealed record ResolvedArchetypes(
     Guid Site, Guid SiteStudy, Guid Parcel, Guid Project, Guid Contact, Guid ProgrammeAllocation,
     Guid HazardAssessment, Guid DataSource);
+
+/// <summary>One term a model declares, under the name it declared it with.</summary>
+public sealed record DeclaredTerm(string Name, Guid Id);
+
+/// <summary>A vocabulary the model holds as Things: the terms, and the predicate an edge to one of them is
+/// written with. Both are read from the model rather than held here, so a project that adds a term or
+/// renames the predicate changes the model and nothing else.</summary>
+public sealed record DeclaredTerms(DeclaredTerm Predicate, IReadOnlyList<DeclaredTerm> Terms);
+
+/// <summary>The vocabularies a submission's words are resolved against before it becomes a fragment.</summary>
+public sealed record DeclaredVocabulary(DeclaredTerms AllocationCategories, DeclaredTerms BoundarySources);

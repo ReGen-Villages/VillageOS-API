@@ -24,6 +24,7 @@ function makeRange(overrides: Partial<RangeDto> = {}): RangeDto {
     IsInherited: false,
     ActiveBindings: 0,
     Bindings: [],
+    Comparisons: [],
     ...overrides,
   };
 }

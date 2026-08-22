@@ -54,6 +54,26 @@ vi.mock('../components/panels/ResizablePanel', () => ({
   ResizablePanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+// MapView drives maplibre-gl, which needs WebGL. Stub it and report what the page handed it.
+vi.mock('../components/map/MapView', () => ({
+  MapView: ({
+    latitude,
+    longitude,
+    sources,
+  }: {
+    latitude: number;
+    longitude: number;
+    sources: { name: string }[];
+  }) => (
+    <div
+      data-testid="map-view-stub"
+      data-latitude={latitude}
+      data-longitude={longitude}
+      data-sources={sources.map((s) => s.name).join(',')}
+    />
+  ),
+}));
+
 vi.mock('../api/client', () => ({
   apiClient: { getBytes: vi.fn(), get: vi.fn() },
 }));
@@ -320,5 +340,46 @@ describe('ModelPage', () => {
 
     await act(async () => capturedOnPick!(null));
     await waitFor(() => expect(useUiStore.getState().selectedNodeId).toBeNull());
+  });
+
+  it('insets a map on the model centre, offering the sources the model declares', async () => {
+    mockGetBytes.mockResolvedValue(new Uint8Array([0x01]).buffer);
+    seedModel(
+      [
+        { Id: 'is', Name: 'is', Properties: {} },
+        { Id: 'arch-basemap', Name: 'BasemapSource', Properties: {}, IsArchetype: true },
+        {
+          Id: 'src-1',
+          Name: 'Streets',
+          Properties: { styleUrl: 'https://tiles.example.org/streets', attribution: 'Example' },
+        },
+        { Id: 'thing-1', Name: 'T', Properties: { latitude: 41.3, longitude: -70.6 } },
+      ],
+      [
+        {
+          Id: 'r1',
+          Name: 'src-1 is BasemapSource',
+          SubjectId: 'src-1',
+          PredicateId: 'is',
+          TargetId: 'arch-basemap',
+          Properties: {},
+        },
+      ],
+    );
+
+    render(<ModelPage />);
+    const stub = await screen.findByTestId('map-view-stub');
+    expect(stub.getAttribute('data-latitude')).toBe('41.3');
+    expect(stub.getAttribute('data-longitude')).toBe('-70.6');
+    expect(stub.getAttribute('data-sources')).toBe('Streets');
+  });
+
+  it('insets no map when nothing in the model knows where it is', async () => {
+    mockGetBytes.mockResolvedValue(new Uint8Array([0x01]).buffer);
+    seedThings([{ Id: 'thing-1', Name: 'T', Properties: {} }]);
+
+    render(<ModelPage />);
+    await waitFor(() => expect(screen.getByTestId('fragments-viewer-stub')).toBeInTheDocument());
+    expect(screen.queryByTestId('model-map-inset')).toBeNull();
   });
 });

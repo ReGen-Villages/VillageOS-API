@@ -47,9 +47,10 @@ structure, state management, and the API and SSE (Server-Sent Events) layer.
 8. [Real-Time Infrastructure](#19-real-time-infrastructure)
 9. [CLI Command Parity](#20-cli-command-parity)
 10. [Dashboard internals](#21-dashboard-internals)
-11. [Common Components](#22-common-components)
-12. [Seed Files](#23-seed-files)
-13. [Verification](#24-verification)
+11. [The map and its basemap sources](#22-the-map-and-its-basemap-sources)
+12. [Common Components](#23-common-components)
+13. [Seed Files](#24-seed-files)
+14. [Verification](#25-verification)
 
 ---
 
@@ -403,6 +404,10 @@ Panning moves the village across the screen plane — the left/right/up/down are
 Unchecking every type empties the viewport. That case is handled apart from the rest: the panel lists the types the model has Things for, while the Fragments artifact holds every element the IFC had — usually far more. Naming the elements to hide therefore reaches only the ones the model knows, so "no types selected" tells the viewer to show nothing at all rather than handing it a list.
 
 > **Note**: When the Model page is in overhead (plan) camera mode, orbiting is disabled — pan and zoom still work.
+
+**Where the village is:** a map sits in the bottom-right corner, centred on the average position of the Things that carry a latitude and longitude, with a marker on that point and the coordinates beside it. **Recentre** returns the view to the marker after you have panned away.
+
+What the map draws comes from the model, not from Trellis: a model declares the basemaps it offers and the map names each one as a button when there is more than one. A model that declares none says so in place of the map, and the coordinates stay readable. See [§22](#22-the-map-and-its-basemap-sources) for how a model declares one.
 
 ### 6.2 Single-Building 3D View
 
@@ -1051,7 +1056,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations` | `OperationsPage` | Config-driven operations dashboard. Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
@@ -1064,7 +1069,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 
 ## 17. State Management
 
-Two Zustand stores (plus React Context for auth), all with TypeScript interfaces:
+Zustand stores (plus React Context for auth), all with TypeScript interfaces. A page's own state stays in its own store rather than accumulating in `uiStore`: the map view removed in pull request 292 spread its state through the shared store and had to be deleted whole to get it back out.
 
 ### `uiStore.ts`
 
@@ -1102,6 +1107,13 @@ Auth state is managed via React Context (`AuthContext`) and the `useAuth()` hook
 | State | Type |
 |-------|------|
 | `events` | `ActivityEvent[]` (max 200) |
+
+### `mapStore.ts`
+
+| State | Type | Notes |
+|-------|------|-------|
+| `selectedSourceName` | `string \| null` | The layer the reader chose, held by name — a Thing id means nothing after a model switch |
+| `tilesUnreachable` | `boolean` | Set when the tile source fails to answer; cleared by choosing another layer |
 
 ---
 
@@ -1289,6 +1301,75 @@ Service health badges (Healthy/Unhealthy/Unreachable/Unknown) and the
 running/stopped pill follow the color scheme documented in
 [Section 7.2](#72-services).
 
+### A model's dashboards in the navigation
+
+A model publishes as many `Dashboard` Things as it likes, and each one is a page a
+reader needs to find, link to, and come back to. Three things follow.
+
+**One sidebar entry per dashboard.** Where the sidebar shows a single **Operations**
+entry for a model that publishes no dashboard, a model that publishes some gets one
+entry each in its place, ordered by name. The entry is labelled with the dashboard's
+`title`, translated like every other display string in the spec, so the navigation
+reads in the reader's language.
+
+**Each entry draws the icon its spec names.** `DashboardSpec` takes an optional
+top-level `icon`, the name of an icon in the set Trellis renders with — the
+[lucide](https://lucide.dev/icons) catalogue, in that catalogue's own spelling
+(`clipboard-list`, `arrow-left-right`). This is presentation vocabulary the spec
+carries exactly as it already carries colours and number formats; Trellis holds no
+list of the names it will accept, so a model can name any icon in the set without a
+change here. A spec naming none — or naming one the set does not have — gets a
+generic icon, never a missing entry.
+
+```jsonc
+{
+  "title": "Catchments",
+  "icon": "droplet",
+  "sections": [ /* … */ ]
+}
+```
+
+**The route names the dashboard.** A dashboard lives at `/operations/{key}`, where
+the key is the `Dashboard` Thing's name run together as a URL segment (`Site
+catchments` → `site-catchments`); accents fold onto their base letters, and a name
+that leaves nothing a segment can carry falls back to the Thing's id, as do two
+names that would reduce to the same key. So a page can be linked to, opened in a
+second tab, and returned to after a reload. `/operations` on its own, and any
+address naming a dashboard the model no longer publishes, settle on the first one
+and say so in the address bar.
+
+The sidebar and the page read **one** model index between them (`useModelIndex`),
+and the dashboards it found are parsed once and remembered on it. Discovery walks
+the whole model, so two readers holding their own index would walk it twice on every
+model change.
+
+### The rows a table renders
+
+A `table` widget given `visibleRows` scrolls its body under a pinned header — and
+renders only the rows inside that window, plus a few above and below, with sized
+spacer rows holding the rest of the scroll height. What a table puts in the document
+therefore stops growing with the row count, which is what lets a roster binding drop
+its `limit`: the page stays responsive over an archetype of any size, and **sorting
+and searching still run over every row the binding returned**, not over the rows on
+screen.
+
+The window needs a row height, which it takes from a rendered row measured with a
+`ResizeObserver`, falling back to the height the cap's own CSS implies until one is
+measured. A table with no `visibleRows` has no bounded container to measure against
+and renders every row, as before.
+
+### The Thing a binding names
+
+`property`, `related`, `stateOf`, `verdict` and `timeseries` all take a `thing`,
+and all read it the same way: as a Thing's id first, then as a Thing's name. The
+id wins because it is exact — **two Things may share a name**, and the index keeps
+whichever it saw first, so a name is the weaker of the two answers. `$scope` means
+the entity selected in the scope switcher, which inside a `computed` column is the
+row's own Thing; `related`, `stateOf` and `verdict` read an omitted `thing` the
+same way. A reference matching neither an id nor a name resolves to nothing, and
+the widget renders as absent rather than as zero. `related` and `verdict` carry
+the walk on from there — see their `via`, below.
+
 ### Columns beyond a Thing's own properties
 
 A row from `thingList`, `stateList` or `compareEntities` is
@@ -1363,6 +1444,88 @@ sharing and do cost one request per row. Everything else — `related`,
 `property`, `aggregate`, `ratio` — reads the client-side model index and calls
 nothing.
 
+### Reading a judged value as a sentence
+
+A dashboard figure says what a number is. It does not say what the number was
+judged against, or whether that is good news. The `verdict` widget and the
+`verdict` binding say both, in the model's own words.
+
+**Where the target comes from.** The range that judges the value. A range
+authored as criteria — `daysOfSupply IS KNOWN AND daysOfSupply >= 14` — reports
+the comparison it makes, and the binding reads the property, the operator and
+the number out of that report. So the target a sentence names is the one the
+model tests, and moving the threshold in the model moves what the page says with
+no change to the spec and none to Trellis. A spec that wrote `14` in its own text
+would go on saying 14 the day the range moved.
+
+**Where the verdict comes from.** The derived states the Thing holds. The
+binding never compares the value itself, so a value sitting exactly on a
+threshold falls on the side the range puts it. Every candidate the Thing holds is
+reported, not the first — ranges are independent criteria and several can hold at
+once, unlike `stateOf`, which is single-valued because a status cell has to be.
+
+**Which Thing is judged.** `thing`, or the scope entity when the spec names none
+— and `via` walks from there, a path of steps like `related`'s. A page is scoped
+to one Thing, and the Thing a view is about is not always the Thing the ranges
+hang off: a page about a site scopes to the site, because that is where its
+programmes and hazards hang, while the balances are judged on the study that
+studies it. `"via": [{ "predicate": "studies", "direction": "in" }]` is that one
+step. A walk reaching several judged Things reports every one, in name order;
+narrow it with a step's `archetype`, `inState` or `notInState` when a predicate
+reaches more than the row means.
+
+**A verdict with no figure is not a verdict of zero.** A range whose criteria
+compare nothing — the criteria for a value nothing has computed — reports no
+comparison, and the row then carries no property, no target and no value. The
+wording stands on its own. This is the distinction that matters most in the
+widget: a balance nobody assessed must not read as a balance that failed, and a
+missing figure rendered as `0` would destroy it while looking correct.
+
+```jsonc
+{
+  "type": "verdict",
+  "title": "Balances",
+  "rows": [
+    {
+      "label": "Water",
+      "format": "decimal1",
+      "unit": "days",
+      "verdicts": {
+        "kind": "verdict",
+        "states": [
+          { "state": "WaterResilient",
+            "reads": "{value} of supply — clears the {target} target" },
+          { "state": "WaterShortOfTarget",
+            "reads": "{value} of supply — short of the {target} target" },
+          // No placeholders: nothing computed this balance, so there is no figure to show.
+          { "state": "WaterNotAssessed",
+            "reads": "not assessed — no rainfall figure was resolved for this site" }
+        ]
+      }
+    }
+  ]
+}
+```
+
+Every word of the sentence is the model's. Trellis substitutes `{value}` and
+`{target}`, formats both with the row's `format` and `unit` so one sentence
+cannot mix units, and lays the result out. A placeholder the verdict has no
+figure for is dropped along with the space beside it, which is how one wording
+serves a balance that was assessed and one that never was.
+
+Where there is no wording there is no line. A row whose binding reports no
+verdict, and a verdict carrying no wording — which is what a row bound to
+something other than a `verdict` binding resolves to — are both left unsaid
+rather than filled with a dash or drawn as a blank line. Trellis has no wording
+of its own to put there, and a placeholder would read as an answer.
+
+**Cost.** One range read per judged Thing per refresh, shared across every verdict
+row on the page the way state reads are — several rows judging one study ask once
+between them, and a walk reaching several studies asks once per study. The state
+reads are shared whatever the walk reaches, so reaching several costs no extra
+ones. A failed range read leaves the verdicts readable without the targets they
+name, rather than failing the row.
+
 ### Translating a dashboard spec (i18n)
 
 The config-driven operations dashboard (`OperationsPage`) renders every label
@@ -1434,8 +1597,15 @@ and per widget — KPI `title` / `unit` / `targetLabel` / `sparkBaselineLabel` /
 `sublabel`; table & funnel-drill column `label`s and the table `title` / `hint`;
 bullet `title` and each row `label`; gantt `title` / `hint` / `ticks`;
 leaderboard `title` / `hint` and each metric `label`; exception-bar `title` /
-`hint` / `note` and each bucket `label`; and in `detail`, each property-group
-`label` and each relation `label` (nested relations included).
+`hint` / `note` and each bucket `label`; verdict `title` / `hint`, each row
+`label` / `unit`, and the `reads` wording of each candidate its binding lists;
+and in `detail`, each property-group `label` and each relation `label` (nested
+relations included).
+
+`reads` is the one display string the vocabulary keeps on a binding rather than
+on a widget, and it is looked up for exactly that reason: it is the sentence a
+reader reads. The `state` name beside it is not — that one is resolved against
+the platform's derived states, and translating it would break the lookup.
 
 **Which strings are never looked up** (model vocabulary and identifiers — a
 `translations` entry matching one of these is ignored, so it can never corrupt
@@ -1455,7 +1625,50 @@ Implementation: `localizeSpec(spec, locale)` in
 
 ---
 
-## 22. Common Components
+## 22. The map and its basemap sources
+
+Trellis ships the map. The model supplies what it draws — no provider address, tile server hostname or attribution string appears anywhere in `vos.Trellis`, so changing which imagery a deployment shows is a change to the model and not a rebuild of the client.
+
+### The contract
+
+A model declares Things of archetype `BasemapSource`. The archetype name and the property names below are the whole contract; every value is the model's.
+
+| Property | Required | Meaning |
+|----------|----------|---------|
+| `styleUrl` | one of the two | Address of a vector style document the map loads whole |
+| `tileUrl` | one of the two | Address template of a raster tile pyramid, carrying `{z}`, `{x}` and `{y}` |
+| `attribution` | yes | The credit the source's licence requires the map to display |
+| `maximumZoom` | no | Deepest zoom a raster pyramid has tiles for; defaults in the client |
+
+The Thing's **name** is what the layer switch shows, so a model naming its sources `Streets` and `Satellite` produces exactly those two buttons. Sources are offered in name order, so the same model always opens on the same layer.
+
+### What is refused, and why
+
+`discoverBasemapSources` drops a source rather than drawing it when:
+
+- **it carries no attribution** — a basemap drawn without its credit breaks the terms it is served under, and every provider worth using imposes some;
+- **it carries no address** — there is nothing to draw;
+- **it carries both a `styleUrl` and a `tileUrl`** — the model has said two contradictory things and guessing which was meant would draw the wrong one silently.
+
+A refused source is simply absent from the switch. A model whose sources are all refused shows the no-source message, and the coordinates stay readable either way.
+
+### Reading a source out of the model
+
+Discovery reads **effective** properties, not own ones. Seed normalization (`vos.SeedValidate --fix`) relocates a value that shadows its archetype's declaration into `InheritedOverrides`, so a generated seed carries `Streets` with empty own properties and its address one level down. A reader that looked only at `Properties` would find a model full of sources and offer none of them.
+
+### Where the sources come from
+
+The platform repository ships `vos.Tools.ModelIngest/basemap.template.json`, read alongside the site templates by both site regeneration scripts. It declares the archetype and one source: OpenFreeMap, which needs no account, no key and no registration.
+
+There is deliberately no imagery source in that file. No global high-resolution imagery is free, keyless and licensed for commercial production; the national services that are — USGS NAIP, PDOK, IGN, GSI — each cover one country, so a site's own model declares the imagery for the country it sits in.
+
+### The bundle
+
+`maplibre-gl` is chunked on its own as `vendor-map` by `build/manualChunks.ts`, and `MapView` is lazily imported by the Model page, so the map library is fetched when the map mounts rather than ahead of the 3D viewer a reader opened the page for.
+
+---
+
+## 23. Common Components
 
 | Component | Purpose |
 |-----------|---------|
@@ -1468,7 +1681,7 @@ Implementation: `localizeSpec(spec, locale)` in
 
 ---
 
-## 23. Seed Files
+## 24. Seed Files
 
 Seed files live in `vos.Mycelium/seeds/` and are auto-loaded by Mycelium on startup. They can also be loaded via the CLI (`deserialize` command), the REST API (`POST /api/model`), or the IFC importer.
 
@@ -1524,7 +1737,7 @@ Note: Seeds use UUIDs for relationship Subject/Predicate/Target fields (generate
 
 ---
 
-## 24. Verification
+## 25. Verification
 
 1. **Dev server**: `cd vos.Trellis && npm run dev` — Vite serves at `localhost:5173`
 2. **Type check**: `npx tsc --noEmit` — no errors

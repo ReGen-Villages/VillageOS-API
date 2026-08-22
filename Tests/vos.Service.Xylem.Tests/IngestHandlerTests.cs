@@ -4,11 +4,11 @@ using FluentAssertions;
 
 namespace vos.Service.Xylem.Tests;
 
-// Covers the ingest orchestration (US #5842): validate, clear the model for new-model, run IfcIngest via
+// Covers the ingest orchestration (US #5842): validate, clear the model for new-model, run ModelIngest via
 // the runner, surface the counts — independent of the subprocess/HTTP details.
 public class IngestHandlerTests : IDisposable
 {
-    private sealed class FakeRunner : IIfcIngestRunner
+    private sealed class FakeRunner : IModelIngestRunner
     {
         public string? SeenPath, SeenName;
         public bool FileExistedAtCall;

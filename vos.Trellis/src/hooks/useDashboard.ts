@@ -5,12 +5,28 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
+  discoverDashboardsFromIndex,
+  modelIndexFor,
   resolveBinding,
   type BindingResult,
   type ModelIndex,
   type ResolveContext,
 } from '../api/dashboardApi';
-import type { Binding } from '../types/dashboard';
+import { useModelStore } from '../stores/modelStore';
+import type { Binding, DashboardDescriptor } from '../types/dashboard';
+
+/** The index over the loaded model. Shared rather than memoized per component, so the navigation
+ *  and the page it points at read one index instead of each walking the whole model. */
+export function useModelIndex(): ModelIndex {
+  const things = useModelStore((s) => s.things);
+  const relationships = useModelStore((s) => s.relationships);
+  return modelIndexFor(things, relationships);
+}
+
+/** The dashboards the loaded model publishes, ordered by name. */
+export function useDashboards(): DashboardDescriptor[] {
+  return discoverDashboardsFromIndex(useModelIndex());
+}
 
 /** Wrap a shared model index + the selected scope into a resolve context. `nonce` is
  *  part of the context identity only: bumping it forces server-side bindings to
@@ -27,7 +43,7 @@ export function useResolveContext(
   nonce = 0,
 ): ResolveContext {
   return useMemo(
-    () => ({ idx, scopeId, compareArchetype, nonce, stateMembers: new Map() }),
+    () => ({ idx, scopeId, compareArchetype, nonce, stateMembers: new Map(), thingRanges: new Map() }),
     [idx, scopeId, compareArchetype, nonce],
   );
 }

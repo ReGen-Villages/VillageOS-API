@@ -20,8 +20,8 @@ reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
-Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `Metabolism`, `Phloem`,
-`WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
+Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `FoodBalance`, `LandAllocation`, `Metabolism`, `Phloem`,
+`RainwaterHarvest`, `WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
 provisions the endpoint-template catalog into a model on that model's first registration, and
 validates every endpoint
 registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
@@ -33,7 +33,20 @@ consumption (feeding the 14-day resilience range); `EnergyBalance` computes sola
 generation vs consumption → % of consumption and net-positive. Besides the DAG-node path (wired ports),
 both also run **reactively** (#5839) — a graph `/handle` whose subject is the SiteStudy makes the service
 read its inputs off the study's effective properties, compute, and write its outputs back as Facts, so the
-study's judge ranges re-evaluate (no pipeline). `ModelBridge` (#5866) is a generic
+study's judge ranges re-evaluate (no pipeline). `LandAllocation` (#6023), `FoodBalance` (#6022) and
+`RainwaterHarvest` (#6021) are
+the same shape with the reactive half only: land allocation turns the programme split into a per-category
+area and the built and productive footprints, and the food balance reads that productive footprint and
+the yield the shared study archetype declares to work out people fed and the share of the population
+that is. The rainwater harvest reads the built footprint, the site's rainfall and the runoff coefficient
+to work out the volume captured in a year, then serves each demand the **model** declares in the order it
+declares: drinking water first, irrigation from what is left. Each demand reports what it asked for, the
+share of it covered and the volume still short. The harvest is one body of water, so measuring it against
+each demand on its own would count the same cubic metre twice — and a combined percentage cannot tell a
+site with abundant drinking water and a marginal irrigation position from one that is uniformly short.
+Which demands there are, their order, and the properties each is read from and written to are Things in
+the shared analysis template, not a list in this service: a demand is a quantity times a rate, so a third
+one is a template edit. `ModelBridge` (#5866) is a generic
 **model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET the
 Thing's properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
 It lets a compute node read a roll-up / SiteStudy param and write its result back over ordinary node→node
@@ -359,8 +372,8 @@ switch (HandleRequestRouter.Classify(root, out var subjectId))
 **Staying current (#6155).** A dispatch computes once. `InputChangeRecomputeService`
 (`vos.Service.Shared.Subscriptions`) keeps the result current afterwards: `/handle` calls
 `Watch(subjectId)` for the subject it just computed, and the service recomputes whenever one of its
-**input** properties on that subject moves. The set of subjects grows from the dispatches the service
-already receives, so no discovery rule of its own. One line wires it:
+**input** properties moves on a Thing it follows. The set of subjects grows from the dispatches the
+service already receives, so no discovery rule of its own. One line wires it:
 
 ```csharp
 builder.Services.AddInputChangeRecompute<EnergyBalanceReactiveHandler>(
@@ -373,15 +386,24 @@ cannot come to disagree with the inputs.
 
 What makes it work:
 
-- **Watching the subject is enough.** Mycelium publishes a derived value on the Thing that owns it, so a
-  roll-up whose members changed arrives as a property change on the subject, exactly like a param someone
-  edited. There is no need to subscribe to member Things.
+- **Watching the subject is enough when every input is on it.** Mycelium publishes a derived value on the
+  Thing that owns it, so a roll-up whose members changed arrives as a property change on the subject,
+  exactly like a param someone edited. `EnergyBalance` and `WaterReserve` read nothing else, so they pass
+  no second argument.
+- **A service computing from other Things names them (#6539).** `Watch(subjectId, readsFrom)` also follows
+  the Things the result is computed from, and a change on any of them recomputes **the subject**, never the
+  Thing that changed. Land allocation reads the programme split off the allocations beside the study, and
+  a roll-up cannot stand in for them: moving share between two categories leaves both a `Sum` and a sorted
+  `Set` unchanged while the split they stand for has changed. Re-registering replaces what a subject reads,
+  because a planner can add or remove one — so a service passes its current set on every recompute, and a
+  Thing no subject reads any more leaves the subscription rather than arriving to be read and dropped.
 - **Only inputs trigger it.** A compute service writes its outputs onto the same subject it watches, so
   reacting to every change there would recompute forever. Each handler exposes `InputProperties`, and the
   wiring passes that same set, so the filter cannot drift from what the handler reads.
 - **A reconnect recomputes.** A derived value is published live-only and never enters the journal, so a
   resumed stream does not replay one. `ISubscriptionClient.Reconnected` fires after the stream re-establishes
-  a dropped connection, and every watched subject is recomputed rather than trusted.
+  a dropped connection, and every watched subject is recomputed rather than trusted — **each subject once**,
+  however many Things it reads.
 - **Each project is followed separately.** Mycelium binds a subscription to one model when it creates it, and
   a change event names no model — so one subscription cannot carry every project a shared daemon serves. The
   service holds one per model instead. It learns which model a subject belongs to from the bearer on the
@@ -626,6 +648,7 @@ Both live in `vos.Service.Shared` and are covered once, thoroughly, in
 |---|---|
 | `Configuration/ServiceLaunchSettingsTests.cs` | Required settings, port bounds, every optional flag, configuration and environment fallback, a flag beating configuration, exact flag matching |
 | `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, refusal and token failure returning false, withdrawal, a supplied token short-circuiting the token call |
+| `MyceliumRoutesTests.cs` | The routes every service builds its requests from, and that a property name which would otherwise change the path is escaped into one segment |
 | `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, withdrawal on shutdown, a failing broker not stopping the service serving |
 | `DagNode/HandleRequestRouterTests.cs` | Which shape a `/handle` body is, and what an unusable one is answered with |
 

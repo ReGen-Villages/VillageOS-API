@@ -7,7 +7,7 @@ GitHub.
 
 The Azure DevOps project wiki is canonical. The GitHub wiki is a generated
 mirror — **do not edit it directly**; edits are overwritten on the next
-develop/main build.
+main build.
 
 ## What it does
 
@@ -39,8 +39,9 @@ The pure transforms (`convert`, `convertMermaid`, `buildSidebar`, `flatName`,
 ## CI integration
 
 The `Mirror Wiki to GitHub` step in [`azure-pipelines.yml`](../../azure-pipelines.yml)
-runs on `develop` and `main`: it clones the DevOps wiki, runs this converter,
-then force-pushes the result to the GitHub wiki.
+runs on `main`: it clones the DevOps wiki, runs this converter, then force-pushes
+the result to the GitHub wiki. `main` is the released branch, and `Publish Docs to
+Wiki` runs on it first, so what is cloned here is `main`'s own documentation.
 
 One-time prerequisites:
 

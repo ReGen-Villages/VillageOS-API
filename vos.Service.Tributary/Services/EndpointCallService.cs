@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using vos.Service.Shared;
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,9 @@ public sealed class EndpointCallService
     private const string OffsetPagingMechanism = "OffsetPaging";
     private const string BinaryBodyMechanism = "BinaryResponse";
     private const string JsonBodyMechanism = "JsonResponse";
+    private const string DiskCacheMechanism = "DiskCache";
+
+    private readonly DiskResponseCache _diskCache;
 
     public EndpointCallService(
         MyceliumClient mycelium,
@@ -37,6 +41,7 @@ public sealed class EndpointCallService
         ObservationIngestService observationService,
         TokenExchangeCache tokenExchangeCache,
         ISubscriptionClient subscriptions,
+        DiskResponseCache diskCache,
         ILogger<EndpointCallService> logger)
     {
         _mycelium = mycelium;
@@ -44,6 +49,7 @@ public sealed class EndpointCallService
         _observationService = observationService;
         _tokenExchangeCache = tokenExchangeCache;
         _subscriptions = subscriptions;
+        _diskCache = diskCache;
         _logger = logger;
     }
 
@@ -136,8 +142,9 @@ public sealed class EndpointCallService
         kinds.TryGetValue(EndpointKindRoles.ResponseBody, out var bodyKind);
         kinds.TryGetValue(EndpointKindRoles.Authentication, out var authKind);
         kinds.TryGetValue(EndpointKindRoles.Paging, out var pagingKind);
+        kinds.TryGetValue(EndpointKindRoles.Caching, out var cachingKind);
 
-        foreach (var kind in new[] { bodyKind, authKind, pagingKind })
+        foreach (var kind in new[] { bodyKind, authKind, pagingKind, cachingKind })
             if (UnmetRequirement(kind, effective) is { } unmet)
                 return Json(400, new { error = unmet }, unmet);
 
@@ -378,6 +385,50 @@ public sealed class EndpointCallService
             return Json(400, new { error = clash }, clash);
         }
 
+        // ---- Caching (#5918) ----
+        // Reaching no kind means every call refetches — today's behaviour. DiskCache serves a
+        // repeated fetch from local disk within cacheTtl; the combinations it cannot answer
+        // honestly are refused before anything is fetched or written.
+        TimeSpan? cacheFor = null;
+        switch (cachingKind?.Name)
+        {
+            case null:
+                break;
+            case DiskCacheMechanism:
+                if (!TryResolveOptionalString(effective, "cacheTtl", out var rawCacheTtl, out var cacheTtlError))
+                    return EndpointCallResult.Failure(cacheTtlError!);
+                if (!double.TryParse(rawCacheTtl, NumberStyles.Float, CultureInfo.InvariantCulture, out var cacheTtlSeconds)
+                    || cacheTtlSeconds <= 0)
+                {
+                    const string badTtl = "cacheTtl must be a positive number of seconds.";
+                    return Json(400, new { error = badTtl }, badTtl);
+                }
+                cacheFor = TimeSpan.FromSeconds(cacheTtlSeconds);
+                break;
+            default:
+                return UnimplementedKind(EndpointKindRoles.Caching, cachingKind.Name, DiskCacheMechanism);
+        }
+
+        if (cacheFor != null && pageConfig != null)
+        {
+            var clash = $"A '{cachingKind!.Name}' response cannot be assembled page by page as '{pagingKind!.Name}'.";
+            return Json(400, new { error = clash }, clash);
+        }
+        if (cacheFor != null && authKind != null)
+        {
+            // A credentialed response served from disk would answer a later call without its
+            // credential; refused until a keying design justifies otherwise.
+            var clash = $"A '{cachingKind!.Name}' response cannot be combined with '{authKind.Name}'.";
+            return Json(400, new { error = clash }, clash);
+        }
+        if (cacheFor != null
+            && OutboundRequest.MethodSupportsBody(normalizedMethod)
+            && request.Body.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null))
+        {
+            const string bodyClash = "A request with an outbound body cannot be served from disk: the body is not part of the cache key.";
+            return Json(400, new { error = bodyClash }, bodyClash);
+        }
+
         try
         {
             // Mint the token now (deferred network call). Its own catch returns a generic 502 — the
@@ -410,28 +461,46 @@ public sealed class EndpointCallService
                     effectiveQueryParams[tokenParam] = credential;
             }
 
+            // The key is the fully-resolved address — placeholders filled, query attached — plus
+            // the Accept header, since the same address can answer with different formats (#5913).
+            string? cacheKey = null;
+            CachedResponse? cached = null;
+            if (cacheFor is { } timeToLive)
+            {
+                cacheKey = DiskResponseCache.CacheKey(
+                    OutboundRequest.ApplyQueryParameters(endpointUri, effectiveQueryParams), acceptHeader);
+                cached = _diskCache.TryRead(request.EndpointName!, cacheKey, timeToLive);
+            }
+
             if (binaryResponse)
             {
+                if (cached is { } fromDisk)
+                    return EndpointCallResult.Body(BinaryEnvelope(fromDisk.Bytes, fromDisk.ContentType), "application/json");
+
                 // Bytes must be read before any string decode: ReadAsStringAsync replaces non-UTF-8
                 // sequences with U+FFFD, which is lossy and irreversible. The envelope stays
                 // application/json so the result flows through existing proxying unchanged.
-                var (_, bytes, upstreamContentType) = await CallEndpointBinaryAsync(
+                var (binaryStatus, bytes, upstreamContentType) = await CallEndpointBinaryAsync(
                     _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, cancellationToken);
 
-                var envelope = JsonSerializer.Serialize(new
-                {
-                    contentType = string.IsNullOrWhiteSpace(upstreamContentType) ? "application/octet-stream" : upstreamContentType,
-                    dataBase64 = Convert.ToBase64String(bytes),
-                    byteLength = bytes.Length
-                });
-                return EndpointCallResult.Body(envelope, "application/json");
+                var servedContentType = string.IsNullOrWhiteSpace(upstreamContentType) ? "application/octet-stream" : upstreamContentType;
+                if (cacheKey != null && binaryStatus is >= 200 and < 300)
+                    _diskCache.Write(request.EndpointName!, cacheKey, bytes, servedContentType);
+
+                return EndpointCallResult.Body(BinaryEnvelope(bytes, servedContentType), "application/json");
             }
 
             int status;
             string body;
             string? contentType;
 
-            if (pageConfig != null)
+            if (cached is { } cachedText)
+            {
+                status = 200;
+                body = Encoding.UTF8.GetString(cachedText.Bytes);
+                contentType = cachedText.ContentType;
+            }
+            else if (pageConfig != null)
             {
                 // Walk every page and aggregate before the transform runs below.
                 var paging = pageConfig!;
@@ -459,11 +528,15 @@ public sealed class EndpointCallService
             {
                 (status, body, contentType) = await CallEndpointAsync(
                     _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, effectiveQueryParams, requestContentType, acceptHeader, timeout, cancellationToken);
+
+                if (cacheKey != null && status is >= 200 and < 300)
+                    _diskCache.Write(request.EndpointName!, cacheKey, Encoding.UTF8.GetBytes(body), contentType ?? "application/json");
             }
 
             if (reshape != null && status is >= 200 and < 300)
             {
-                var ingestResult = await _observationService.CreateObservationsAsync(thing.Value.Id, reshape, body);
+                var ingestResult = await _observationService.CreateObservationsAsync(
+                    thing.Value.Id, reshape, body, request.SubjectId);
                 if (!ingestResult.Success)
                     return Json(400, new { error = ingestResult.Error, detail = ingestResult.Detail }, ingestResult.Error ?? "Observation ingest failed.");
 
@@ -479,6 +552,14 @@ public sealed class EndpointCallService
             return Problem(502, "Endpoint call failed", ex.Message);
         }
     }
+
+    private static string BinaryEnvelope(byte[] bytes, string contentType) =>
+        JsonSerializer.Serialize(new
+        {
+            contentType,
+            dataBase64 = Convert.ToBase64String(bytes),
+            byteLength = bytes.Length
+        });
 
     private static EndpointCallResult Json(int status, object body, string message) =>
         EndpointCallResult.Failure(new JsonError(status, body, message));

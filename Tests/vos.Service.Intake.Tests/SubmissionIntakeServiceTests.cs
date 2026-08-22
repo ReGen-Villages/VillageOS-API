@@ -4,6 +4,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Intake.Helpers;
 using vos.Service.Intake.Services;
+using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
 using Xunit;
 using static vos.Service.Intake.Tests.ModelStub;
@@ -27,21 +28,94 @@ public class SubmissionIntakeServiceTests
 
     private static SubmissionIntakeService ServiceOfAnUnseededModel(
         Func<HttpRequestMessage, HttpResponseMessage> respond) =>
-        new(new IntakeMyceliumClient(
-            new PerCallHttpClientFactory(new MockHttpMessageHandler(respond)),
-            NullLogger<IntakeMyceliumClient>.Instance,
-            "http://localhost",
-            "test-token"));
+        ServiceAnswering(new MockHttpMessageHandler(respond), ReadingASeededModel());
 
     /// <summary>For a test whose answers must be able to overlap; a handler answering synchronously runs
     /// each call to completion before the next starts, whatever the caller did.</summary>
     private static SubmissionIntakeService ServiceOfAnUnseededModel(
         Func<HttpRequestMessage, Task<HttpResponseMessage>> respond) =>
+        ServiceAnswering(MockHttpMessageHandler.AnsweringAsynchronously(respond), ReadingASeededModel());
+
+    private static StubSubscriptions ReadingASeededModel() => new(DeclaredModel.Seeded().Build());
+
+    private static SubmissionIntakeService ServiceAnswering(
+        HttpMessageHandler answers, ISubscriptionClient read) =>
         new(new IntakeMyceliumClient(
-            new PerCallHttpClientFactory(MockHttpMessageHandler.AnsweringAsynchronously(respond)),
-            NullLogger<IntakeMyceliumClient>.Instance,
-            "http://localhost",
-            "test-token"));
+                new PerCallHttpClientFactory(answers),
+                NullLogger<IntakeMyceliumClient>.Instance,
+                "http://localhost",
+                "test-token"),
+            read,
+            NullLogger<SubmissionIntakeService>.Instance);
+
+    /// <summary>A service reading its vocabularies out of the model a test built, against archetypes that
+    /// answer.</summary>
+    private static (SubmissionIntakeService Service, StubSubscriptions Read) ServiceReading(DeclaredModel model)
+    {
+        var read = new StubSubscriptions(model.Build());
+        return (ServiceAnswering(new MockHttpMessageHandler(Seeded(Holds)), read), read);
+    }
+
+    // A subscription left open per submission is a subscription per wizard save, and a wizard saves as the
+    // planner types.
+    [Fact]
+    public async Task The_vocabulary_read_releases_its_subscription()
+    {
+        var (service, read) = ServiceReading(DeclaredModel.Seeded());
+
+        await service.SubmitAsync(Document, CancellationToken.None);
+
+        read.Released.Should().Be(1);
+    }
+
+    // The vocabulary was already read by the time the release runs, so a broker that cannot release the
+    // subscription must not take the submission down with it — the planner would see a failure for work
+    // that had succeeded.
+    [Fact]
+    public async Task A_release_that_fails_does_not_lose_the_submission()
+    {
+        var (service, read) = ServiceReading(DeclaredModel.Seeded());
+        read.FailRelease = true;
+
+        var composed = await service.SubmitAsync(Document, CancellationToken.None);
+
+        composed.SiteId.Should().Be(StableIdentity.Derive(WillowBend.SubmissionId, "site"));
+    }
+
+    // A model seeded with the archetypes but not the vocabularies would take a submission and write the
+    // words back with no edge, which is the state land allocation reads as every allocation uncategorised.
+    [Fact]
+    public async Task A_model_holding_the_archetypes_but_not_the_vocabularies_is_refused()
+    {
+        var (service, _) = ServiceReading(DeclaredModel.Seeded().Without("AllocationCategory"));
+
+        var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
+            () => service.SubmitAsync(Document, CancellationToken.None));
+
+        refusal.Message.Should().Contain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+    }
+
+    // Both gates refuse an unseeded model. Read after the archetypes rather than beside them, so which
+    // refusal a planner sees is settled here rather than by which call answered first.
+    [Fact]
+    public async Task A_model_missing_everything_is_refused_by_naming_the_archetypes()
+    {
+        // The vocabulary is missing too, so both gates would refuse. That is what makes the refusal below
+        // an ordering test rather than an assertion that only one gate exists.
+        var read = new StubSubscriptions(DeclaredModel.Seeded().Without("AllocationCategory").Build());
+        var service = ServiceAnswering(
+            new MockHttpMessageHandler(request => IsFragment(request)
+                ? Json("{}")
+                : new HttpResponseMessage(HttpStatusCode.NotFound)),
+            read);
+
+        var refusal = await Assert.ThrowsAsync<ModelNotSeededError>(
+            () => service.SubmitAsync(Document, CancellationToken.None));
+
+        refusal.Message.Should().Contain(SubmissionFragmentComposer.SiteArchetypeName)
+            .And.NotContain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
+        read.AskedFor.Should().BeNull("the archetype gate refuses before anything is read");
+    }
 
     // The posted document is read inside the responder: the client disposes the request content once the
     // call returns, so reading it afterwards finds nothing.

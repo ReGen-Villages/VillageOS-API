@@ -18,8 +18,8 @@ const path = require('path');
 
 const REPO = 'https://github.com/ReGen-Villages/VillageOS-API';
 const WIKI = `${REPO}/wiki`;
-// Branch that GitHub blob links point at. The mirror pushes develop and main;
-// main is the stable branch for documentation deep-links.
+// Branch that GitHub blob links point at. The mirror pushes main only, which is
+// also the branch a documentation deep-link should be stable against.
 const REPO_BRANCH = 'main';
 
 // --- pure helpers ----------------------------------------------------------

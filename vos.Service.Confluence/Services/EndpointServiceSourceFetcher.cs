@@ -27,6 +27,7 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
     }
 
     public async Task<SourceOutcome> FetchAsync(
+        Guid siteId,
         string sourceName,
         string endpointName,
         IReadOnlyDictionary<string, string> addressParameters,
@@ -43,7 +44,7 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
             var client = await CreateAuthenticatedClientAsync(_sourceTimeout);
             var response = await client.PostAsJsonAsync(
                 $"{MyceliumUrl}/api/endpoints/{Uri.EscapeDataString(_fetcherSubdomain)}",
-                new { endpointName, addressParameters },
+                new { endpointName, addressParameters, subjectId = siteId },
                 bounded.Token);
 
             if (response.IsSuccessStatusCode)
