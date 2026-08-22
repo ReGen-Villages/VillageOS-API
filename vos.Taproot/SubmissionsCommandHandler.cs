@@ -117,7 +117,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             ? args[3].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : ["has", "studies"];
 
-        var promoted = await client!.PromoteAsync(site.Value, followed, args[1], string.Join(' ', args[2..3]));
+        var promoted = await client!.PromoteAsync(site.Value, followed, args[1], args[2]);
         CommandParser.WriteFormattedJson(writer, promoted);
 
         var promotedTerm = DispositionsIn(model)
