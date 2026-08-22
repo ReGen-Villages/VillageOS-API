@@ -772,6 +772,45 @@ public class MyceliumClientTests
         await refused.Should().ThrowAsync<HttpRequestException>();
     }
 
+    // ---- Taking a group out of a model (VillageOS #6656) ----
+
+    [Fact]
+    public async Task PruneAsync_PostsTheRootAndWhatTheWalkFollows()
+    {
+        var root = Guid.NewGuid();
+        JsonElement? capturedBody = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            req.Method.Should().Be(HttpMethod.Post);
+            req.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/model/prune");
+            capturedBody = ReadJsonBody(req);
+            return JsonResponse("""{"removed":[{"id":"00000000-0000-0000-0000-0000000000b1","name":"Site"}]}""");
+        });
+
+        var result = await client.PruneAsync(root, ["proposes", "has"]);
+
+        capturedBody!.Value.GetProperty("RootThingId").GetGuid().Should().Be(root);
+        capturedBody.Value.GetProperty("FollowedPredicateNames").EnumerateArray()
+            .Select(name => name.GetString()).Should().Equal("proposes", "has");
+        result.GetProperty("removed").GetArrayLength().Should().Be(1);
+    }
+
+    // A prune the broker refuses says why — a group reaching an archetype, or a root it does not hold.
+    // Swallowing it would report a submission cleared that is still there.
+    [Fact]
+    public async Task PruneAsync_WhenTheBrokerRefuses_Throws()
+    {
+        var (client, _) = NewClient(req =>
+            req.RequestUri!.AbsolutePath == "/api/auth/token"
+                ? TokenResponse(ServiceToken)
+                : new HttpResponseMessage(HttpStatusCode.BadRequest));
+
+        var refused = async () => await client.PruneAsync(Guid.NewGuid(), []);
+
+        await refused.Should().ThrowAsync<HttpRequestException>();
+    }
+
     // ---- IFC ingestion via the Xylem service (US #5843) ----
 
     [Fact]

@@ -366,8 +366,8 @@ public class SubmissionsCommandHandlerTests
         Assert.Contains("not yet due", _writer.ToString());
     }
 
-    // Rob's retention rule: a submission nobody has dealt with is kept indefinitely, so waiting is never
-    // a reason to clear one.
+    // The retention rule keeps a submission nobody has dealt with indefinitely, so waiting is never a
+    // reason to clear one.
     [Fact]
     public async Task A_submission_nobody_has_decided_about_is_never_disposed_of()
     {
@@ -462,6 +462,42 @@ public class SubmissionsCommandHandlerTests
         await Run("dispose has,studies");
 
         Assert.Contains("Willow Bend Submission", _writer.ToString());
+    }
+
+    // The pass adds the marked predicate to what the caller names, so a model marking none leaves it with
+    // no way to reach what a submission minted. Pruning the record alone would leave the site behind.
+    [Fact]
+    public async Task A_model_marking_no_proposed_site_predicate_disposes_of_nothing()
+    {
+        AModelWithOneSubmission(disposition: RejectedId, resolvedAt: DateTime.UtcNow.AddDays(-31));
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [ResolvedAsId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
+                [RejectedId.ToString()] = new Dictionary<string, object>
+                    { ["daysBeforeColdStorage"] = Held(30) },
+                [SubmissionId.ToString()] = SubmissionProperties(DateTime.UtcNow.AddDays(-31)),
+            }));
+
+        await Run("dispose has,studies");
+
+        VerifyNothingWasPruned();
+        Assert.Contains("marks no predicate", _writer.ToString());
+    }
+
+    // The broker says what it took and this reports that rather than what it asked for, so an answer
+    // carrying no such list has to leave the count alone rather than throw the pass away.
+    [Fact]
+    public async Task An_answer_that_says_nothing_about_what_went_still_counts_the_submission()
+    {
+        AModelWithOneSubmission(disposition: RejectedId, resolvedAt: DateTime.UtcNow.AddDays(-31));
+        _mycelium.Setup(client => client.PruneAsync(It.IsAny<Guid>(), It.IsAny<IReadOnlyList<string>>()))
+            .ReturnsAsync(Parse("{}"));
+
+        await Run("dispose has,studies");
+
+        Assert.Contains("Took 1 submission(s) out of this model.", _writer.ToString());
     }
 
     [Fact]
