@@ -159,6 +159,10 @@ CLAUDE.md
 **/.venv/
 **/__pycache__/
 *.pyc
+# pytest writes its own ignore file inside this directory, which is why an
+# uncovered cache never showed up as an untracked file.
+.pytest_cache/
+*.egg-info/
 
 # Simulator run artifacts (crash-resume checkpoints written via --checkpoint)
 tools/simulator/*.ckpt
