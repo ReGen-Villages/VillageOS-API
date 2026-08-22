@@ -6,7 +6,8 @@ namespace vos.Service.Intake.Services;
 
 /// <summary>The single path from what a wizard collected to what the model holds.</summary>
 public sealed class SubmissionIntakeService(
-    IntakeMyceliumClient mycelium, ISubscriptionClient subscriptions, ILogger<SubmissionIntakeService> logger)
+    IntakeMyceliumClient mycelium, ISubscriptionClient subscriptions, ILogger<SubmissionIntakeService> logger,
+    TimeProvider time)
 {
     // Every archetype a submission points its Things at. Order matters only to the refusal, which reports
     // missing names in it.
@@ -20,6 +21,7 @@ public sealed class SubmissionIntakeService(
         SubmissionFragmentComposer.ProgrammeAllocationArchetypeName,
         SubmissionFragmentComposer.HazardAssessmentArchetypeName,
         SubmissionFragmentComposer.DataSourceArchetypeName,
+        SubmissionFragmentComposer.SubmissionArchetypeName,
     ];
 
     public async Task<ComposedSubmission> SubmitAsync(string document, CancellationToken cancellation)
@@ -32,11 +34,13 @@ public sealed class SubmissionIntakeService(
         var studies = ResolvePredicateAsync(SubmissionFragmentComposer.StudiesPredicateName, cancellation);
         var has = ResolvePredicateAsync(SubmissionFragmentComposer.HasPredicateName, cancellation);
         var isEdge = ResolvePredicateAsync(SubmissionFragmentComposer.IsPredicateName, cancellation);
+        var proposes = ResolvePredicateAsync(SubmissionFragmentComposer.ProposesPredicateName, cancellation);
+        var arrival = ArrivalTimeAsync(submission.SubmissionId, cancellation);
         var archetypeLookups = ArchetypeNames
             .Select(name => mycelium.FindThingIdByNameAsync(name, cancellation))
             .ToArray();
 
-        await Task.WhenAll([studies, has, isEdge, .. archetypeLookups.Cast<Task>()]);
+        await Task.WhenAll([studies, has, isEdge, proposes, arrival, .. archetypeLookups.Cast<Task>()]);
 
         // Kept against the name rather than the position it was asked in, so the two orderings cannot drift
         // apart and hand a submission the Parcel archetype where it asked for the Site.
@@ -45,7 +49,7 @@ public sealed class SubmissionIntakeService(
             .ToDictionary(pair => pair.name, pair => pair.identifier);
         RefuseAModelMissingAnyArchetype(found);
 
-        var predicates = new ResolvedPredicates(await studies, await has, await isEdge);
+        var predicates = new ResolvedPredicates(await studies, await has, await isEdge, await proposes);
         var archetypes = new ResolvedArchetypes(
             found[SubmissionFragmentComposer.SiteArchetypeName]!.Value,
             found[SubmissionFragmentComposer.SiteStudyArchetypeName]!.Value,
@@ -54,15 +58,34 @@ public sealed class SubmissionIntakeService(
             found[SubmissionFragmentComposer.ContactArchetypeName]!.Value,
             found[SubmissionFragmentComposer.ProgrammeAllocationArchetypeName]!.Value,
             found[SubmissionFragmentComposer.HazardAssessmentArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.DataSourceArchetypeName]!.Value);
+            found[SubmissionFragmentComposer.DataSourceArchetypeName]!.Value,
+            found[SubmissionFragmentComposer.SubmissionArchetypeName]!.Value);
 
         // After the archetype gate rather than beside the lookups above. Both refuse an unseeded model, and
         // run together the one that answered first would decide which of the two refusals the planner saw.
         var vocabulary = await ReadDeclaredVocabularyAsync(cancellation);
 
-        var composed = SubmissionFragmentComposer.Compose(submission, predicates, archetypes, vocabulary);
+        var composed = SubmissionFragmentComposer.Compose(
+            submission, predicates, archetypes, vocabulary, await arrival);
         await mycelium.ApplyFragmentAsync(composed.Fragment, cancellation);
         return composed;
+    }
+
+    // When this submission arrived, which is only the arrival the first time. A wizard saves as the planner
+    // fills the form in and a fragment upserts, so a time written on every save would record the last save.
+    //
+    // A submission carrying no identifier is refused when it is composed, and asking about a record whose
+    // identifier cannot be derived would refuse it here instead — with a message about a lookup rather than
+    // about the field that is missing.
+    private async Task<DateTime?> ArrivalTimeAsync(string? submissionId, CancellationToken cancellation)
+    {
+        if (string.IsNullOrWhiteSpace(submissionId))
+            return time.GetUtcNow().UtcDateTime;
+
+        var record = StableIdentity.Derive(submissionId, SubmissionFragmentComposer.SubmissionRole);
+        return await mycelium.HoldsThingAsync(record, cancellation)
+            ? null
+            : time.GetUtcNow().UtcDateTime;
     }
 
     // The vocabularies a submitted word is resolved against, read from the model on every submission: a

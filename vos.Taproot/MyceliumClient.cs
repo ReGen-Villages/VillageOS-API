@@ -311,6 +311,45 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    // Carry a group out of this model into a project model built for it from a template. The token names
+    // the SOURCE, the opposite way round from a graft: the receiving model does not exist when the call
+    // begins. Promoting the same group twice produces one project, because the server derives both the
+    // project model's identifier and the identifiers inside it rather than generating them.
+    public virtual async Task<JsonElement> PromoteAsync(
+        Guid rootThingId, IReadOnlyList<string> followedPredicateNames, string template, string projectName)
+    {
+        await SetAuthHeaderAsync();
+        var body = JsonSerializer.Serialize(new
+        {
+            RootThingId = rootThingId,
+            FollowedPredicateNames = followedPredicateNames,
+            Template = template,
+            ProjectName = projectName,
+        });
+        var content = new StringContent(body, Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model/promote", content);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    // Take a Thing and everything beneath it out of this model — the promotion's reach in reverse, so the
+    // group a promotion carries out is the group a rejection clears. Members are retracted rather than
+    // erased: the live model stops answering with them and a restart replays them back retracted.
+    public virtual async Task<JsonElement> PruneAsync(
+        Guid rootThingId, IReadOnlyList<string> followedPredicateNames)
+    {
+        await SetAuthHeaderAsync();
+        var body = JsonSerializer.Serialize(new
+        {
+            RootThingId = rootThingId,
+            FollowedPredicateNames = followedPredicateNames,
+        });
+        var content = new StringContent(body, Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync($"{_myceliumUrl}/api/model/prune", content);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     // Upload an IFC file to the Xylem ingestion service, which parses it and applies the graph to the
     // model (mode: "merge" | "new-model"). Authenticated with a Mycelium token; returns the service's
     // result JSON ({ success, thingsCreated, thingsUpdated, relationshipsCreated, error }) for both

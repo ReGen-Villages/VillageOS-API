@@ -33,13 +33,16 @@ public class ArchetypeDiagramTests
         {
             SubmissionFragmentComposer.HasPredicateName,
             SubmissionFragmentComposer.StudiesPredicateName,
+            SubmissionFragmentComposer.ProposesPredicateName,
         };
 
         // Written by the composer but never named by it: it finds each by the mark the model puts on it, so
         // these are the land-intake template's spellings rather than this service's. A template that renamed
         // one leaves the drawing describing a spelling the model no longer uses and breaks nothing at
-        // runtime, which is why they are kept apart from the two above.
-        var spelledByTheTemplate = new[] { "categorizedAs", "obtainedBy" };
+        // runtime, which is why they are kept apart from those above. `resolvedAs` joins them as a spelling
+        // the model owns: no submission writes it, and the edge is drawn because it is what a reviewer's
+        // decision becomes.
+        var spelledByTheTemplate = new[] { "categorizedAs", "obtainedBy", "resolvedAs" };
         var mayBeDrawn = namedByTheComposer.Concat(spelledByTheTemplate).ToList();
 
         var drawn = LabelledArrow.Matches(diagram)

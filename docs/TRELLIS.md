@@ -47,9 +47,10 @@ structure, state management, and the API and SSE (Server-Sent Events) layer.
 8. [Real-Time Infrastructure](#19-real-time-infrastructure)
 9. [CLI Command Parity](#20-cli-command-parity)
 10. [Dashboard internals](#21-dashboard-internals)
-11. [Common Components](#22-common-components)
-12. [Seed Files](#23-seed-files)
-13. [Verification](#24-verification)
+11. [The map and its basemap sources](#22-the-map-and-its-basemap-sources)
+12. [Common Components](#23-common-components)
+13. [Seed Files](#24-seed-files)
+14. [Verification](#25-verification)
 
 ---
 
@@ -404,6 +405,10 @@ Unchecking every type empties the viewport. That case is handled apart from the 
 
 > **Note**: When the Model page is in overhead (plan) camera mode, orbiting is disabled — pan and zoom still work.
 
+**Where the village is:** a map sits in the bottom-right corner, centred on the average position of the Things that carry a latitude and longitude, with a marker on that point and the coordinates beside it. **Recentre** returns the view to the marker after you have panned away.
+
+What the map draws comes from the model, not from Trellis: a model declares the basemaps it offers and the map names each one as a button when there is more than one. A model that declares none says so in place of the map, and the coordinates stay readable. See [§22](#22-the-map-and-its-basemap-sources) for how a model declares one.
+
 ### 6.2 Single-Building 3D View
 
 Select any thing with geometry (building, greenhouse, etc.) and click the **3D** tab in the detail panel. You can also right-click a geo node and choose **View in 3D**.
@@ -616,6 +621,39 @@ Model-level operations (import/export/clear) are available via the CLI or REST A
 - **Import**: `deserialize` CLI command or `POST /api/model`
 - **Clear**: `clear model` CLI command or `DELETE /api/model`
 
+### 8.7 Reviewing what has arrived
+
+**Submissions** in the sidebar lists what has arrived in this model, so a reviewer can throw away the
+junk and promote the rest into a project model of its own. It is the same read and the same two
+actions as `submissions list`, `submissions reject` and `submissions promote` in
+[the Taproot guide](TAPROOT_USER_GUIDE.md); either can be used against the same model. Clearing
+rejected submissions once their period has run is `submissions dispose`, and has no page — it is a
+retention pass rather than something a reviewer decides.
+
+Each row shows when the submission arrived, what it proposes, and what has been decided about it — or
+**Waiting**, which is what no decision reads as. Decided rows leave the queue; **Show decided** brings
+them back into view.
+
+- **Reject** relates the submission to whichever disposition names a period after which a submission
+  goes, and records when the decision was made. The row leaves the queue and stays gone, because the
+  decision is in the model rather than in the page.
+- **Promote** copies the site the submission proposes into a project model built from a template, then
+  marks the submission with the disposition that names no period. The dialog asks for three things:
+  the template file, what travels with the site, and what the project is called. **What travels is
+  chosen from the predicates this model actually asserts through** — they are the model's own
+  vocabulary, so the page offers them rather than assuming them.
+
+**Promoting the same submission twice produces one project, not two.** The broker derives the project
+model's identifier from the source model and the site, so the second promotion finds the model the
+first one built; the page shows the same project name and identifier both times. The button is not
+what keeps that promise — the server's answer is, which is why the button stays available.
+
+The page finds all of this by the marks a model puts on its own vocabulary, never by name: the
+predicate marked as reaching a proposed site, the archetype marked as holding what a submission can
+be resolved to, and the predicate a decision is written through. A model marking none of them says so
+in place of the list. A model whose properties cannot be read says that instead, and a single
+submission that cannot be read still appears with what is known about it.
+
 ---
 
 ## 9. Keyboard and Mouse Reference
@@ -793,7 +831,9 @@ vos.Trellis/
     │   ├── ModelPage.tsx        # Fragments-based 3D model viewer
     │   ├── PipelinePage.tsx     # Pipeline / DAG editor (Phloem orchestration)
     │   ├── ThingSearchPage.tsx  # Thing search
-    │   └── PropertySearchPage.tsx # Property search
+    │   ├── PropertySearchPage.tsx # Property search
+    │   ├── SubmissionReviewPage.tsx # What has arrived, and what a reviewer decides about it
+    │   └── submissionReview.ts  # The model reading behind that page, free of React
     │
     └── components/
         ├── layout/
@@ -1052,6 +1092,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
 | `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
@@ -1064,7 +1105,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 
 ## 17. State Management
 
-Two Zustand stores (plus React Context for auth), all with TypeScript interfaces:
+Zustand stores (plus React Context for auth), all with TypeScript interfaces. A page's own state stays in its own store rather than accumulating in `uiStore`: the map view removed in pull request 292 spread its state through the shared store and had to be deleted whole to get it back out.
 
 ### `uiStore.ts`
 
@@ -1103,6 +1144,13 @@ Auth state is managed via React Context (`AuthContext`) and the `useAuth()` hook
 |-------|------|
 | `events` | `ActivityEvent[]` (max 200) |
 
+### `mapStore.ts`
+
+| State | Type | Notes |
+|-------|------|-------|
+| `selectedSourceName` | `string \| null` | The layer the reader chose, held by name — a Thing id means nothing after a model switch |
+| `tilesUnreachable` | `boolean` | Set when the tile source fails to answer; cleared by choosing another layer |
+
 ---
 
 ## 18. API Layer
@@ -1128,7 +1176,7 @@ Singleton `ApiClient` class with:
 | `client.ts` (auth) | `POST /api/auth/login`, `POST /api/auth/token`, `POST /api/auth/refresh`, `POST /api/auth/switch-model`, `POST /api/auth/restore-session`, `POST /api/auth/session/logout`, `PUT /api/auth/users/{id}/password`, `GET /api/models` |
 | `thingApi` | CRUD for things, property get/set/delete, effective properties |
 | `relationshipApi` | Relationship CRUD + property set (`PUT /api/relationships/{id}/properties`) |
-| `modelApi` | Export/import/clear model, temporal snapshots |
+| `modelApi` | Export/import/clear model, temporal snapshots, fragment upsert (`POST /api/model/fragment`), promotion into a project model (`POST /api/model/promote`) |
 | `temporalApi` | Property versions, recent values, thing/model/relationship mutations |
 | `rangeApi` | Composite range summary for things (`GET /api/things/{id}/range-summary` — returns thing ranges, states, and all relationship range data in one call) |
 | `relationshipRangeApi` | Relationship range listing + state queries (`/api/relationships/{id}/ranges`, `/api/relationships/{id}/states`) |
@@ -1217,7 +1265,7 @@ Detail panels use dedicated `detailThing` / `detailRelationship` state (React st
 
 ## 20. CLI Command Parity
 
-Every CLI command maps to an inline GUI action — all CRUD operations are performed directly on the Graph page via toolbar buttons, detail panels, and context menus (no separate command page):
+Almost every CLI command maps to an inline GUI action — all CRUD operations are performed directly on the Graph page via toolbar buttons, detail panels, and context menus (no separate command page). Where a command has no GUI element, the table says so and why:
 
 ### Create Operations (GraphPage)
 
@@ -1262,6 +1310,15 @@ Every CLI command maps to an inline GUI action — all CRUD operations are perfo
 | `list services` / `list agents` | Dashboard Services panel |
 | `start/stop service` | Start/Stop buttons on dashboard |
 | `shutdown` | Shutdown action + `ConfirmDialog` |
+
+### Submissions (SubmissionReviewPage)
+
+| CLI Command | GUI Element |
+|---|---|
+| `submissions list` | The queue on the Submissions page; **Show decided** widens it to everything that has arrived |
+| `submissions reject <submission>` | **Reject** on a row |
+| `submissions promote <submission> <template> <predicates> <project name>` | **Promote** on a row → dialog for the template, what travels with the site (chosen from the predicates the model asserts through), and the project name |
+| `submissions dispose <predicates>` | None, by design. The retention pass clears every rejected submission whose period has run; it is not a decision a reviewer makes on a row |
 
 ---
 
@@ -1345,6 +1402,18 @@ The window needs a row height, which it takes from a rendered row measured with 
 `ResizeObserver`, falling back to the height the cap's own CSS implies until one is
 measured. A table with no `visibleRows` has no bounded container to measure against
 and renders every row, as before.
+
+### The Thing a binding names
+
+`property`, `related`, `stateOf`, `verdict` and `timeseries` all take a `thing`,
+and all read it the same way: as a Thing's id first, then as a Thing's name. The
+id wins because it is exact — **two Things may share a name**, and the index keeps
+whichever it saw first, so a name is the weaker of the two answers. `$scope` means
+the entity selected in the scope switcher, which inside a `computed` column is the
+row's own Thing; `related`, `stateOf` and `verdict` read an omitted `thing` the
+same way. A reference matching neither an id nor a name resolves to nothing, and
+the widget renders as absent rather than as zero. `related` and `verdict` carry
+the walk on from there — see their `via`, below.
 
 ### Columns beyond a Thing's own properties
 
@@ -1440,6 +1509,16 @@ threshold falls on the side the range puts it. Every candidate the Thing holds i
 reported, not the first — ranges are independent criteria and several can hold at
 once, unlike `stateOf`, which is single-valued because a status cell has to be.
 
+**Which Thing is judged.** `thing`, or the scope entity when the spec names none
+— and `via` walks from there, a path of steps like `related`'s. A page is scoped
+to one Thing, and the Thing a view is about is not always the Thing the ranges
+hang off: a page about a site scopes to the site, because that is where its
+programmes and hazards hang, while the balances are judged on the study that
+studies it. `"via": [{ "predicate": "studies", "direction": "in" }]` is that one
+step. A walk reaching several judged Things reports every one, in name order;
+narrow it with a step's `archetype`, `inState` or `notInState` when a predicate
+reaches more than the row means.
+
 **A verdict with no figure is not a verdict of zero.** A range whose criteria
 compare nothing — the criteria for a value nothing has computed — reports no
 comparison, and the row then carries no property, no target and no value. The
@@ -1485,10 +1564,12 @@ something other than a `verdict` binding resolves to — are both left unsaid
 rather than filled with a dash or drawn as a blank line. Trellis has no wording
 of its own to put there, and a placeholder would read as an answer.
 
-**Cost.** One range read per Thing per refresh, shared across every verdict row
-on the page the way state reads are — several rows judging one study ask once
-between them. A failed range read leaves the verdicts readable without the
-targets they name, rather than failing the row.
+**Cost.** One range read per judged Thing per refresh, shared across every verdict
+row on the page the way state reads are — several rows judging one study ask once
+between them, and a walk reaching several studies asks once per study. The state
+reads are shared whatever the walk reaches, so reaching several costs no extra
+ones. A failed range read leaves the verdicts readable without the targets they
+name, rather than failing the row.
 
 ### Translating a dashboard spec (i18n)
 
@@ -1589,7 +1670,50 @@ Implementation: `localizeSpec(spec, locale)` in
 
 ---
 
-## 22. Common Components
+## 22. The map and its basemap sources
+
+Trellis ships the map. The model supplies what it draws — no provider address, tile server hostname or attribution string appears anywhere in `vos.Trellis`, so changing which imagery a deployment shows is a change to the model and not a rebuild of the client.
+
+### The contract
+
+A model declares Things of archetype `BasemapSource`. The archetype name and the property names below are the whole contract; every value is the model's.
+
+| Property | Required | Meaning |
+|----------|----------|---------|
+| `styleUrl` | one of the two | Address of a vector style document the map loads whole |
+| `tileUrl` | one of the two | Address template of a raster tile pyramid, carrying `{z}`, `{x}` and `{y}` |
+| `attribution` | yes | The credit the source's licence requires the map to display |
+| `maximumZoom` | no | Deepest zoom a raster pyramid has tiles for; defaults in the client |
+
+The Thing's **name** is what the layer switch shows, so a model naming its sources `Streets` and `Satellite` produces exactly those two buttons. Sources are offered in name order, so the same model always opens on the same layer.
+
+### What is refused, and why
+
+`discoverBasemapSources` drops a source rather than drawing it when:
+
+- **it carries no attribution** — a basemap drawn without its credit breaks the terms it is served under, and every provider worth using imposes some;
+- **it carries no address** — there is nothing to draw;
+- **it carries both a `styleUrl` and a `tileUrl`** — the model has said two contradictory things and guessing which was meant would draw the wrong one silently.
+
+A refused source is simply absent from the switch. A model whose sources are all refused shows the no-source message, and the coordinates stay readable either way.
+
+### Reading a source out of the model
+
+Discovery reads **effective** properties, not own ones. Seed normalization (`vos.SeedValidate --fix`) relocates a value that shadows its archetype's declaration into `InheritedOverrides`, so a generated seed carries `Streets` with empty own properties and its address one level down. A reader that looked only at `Properties` would find a model full of sources and offer none of them.
+
+### Where the sources come from
+
+The platform repository ships `vos.Tools.ModelIngest/basemap.template.json`, read alongside the site templates by both site regeneration scripts. It declares the archetype and one source: OpenFreeMap, which needs no account, no key and no registration.
+
+There is deliberately no imagery source in that file. No global high-resolution imagery is free, keyless and licensed for commercial production; the national services that are — USGS NAIP, PDOK, IGN, GSI — each cover one country, so a site's own model declares the imagery for the country it sits in.
+
+### The bundle
+
+`maplibre-gl` is chunked on its own as `vendor-map` by `build/manualChunks.ts`, and `MapView` is lazily imported by the Model page, so the map library is fetched when the map mounts rather than ahead of the 3D viewer a reader opened the page for.
+
+---
+
+## 23. Common Components
 
 | Component | Purpose |
 |-----------|---------|
@@ -1602,7 +1726,7 @@ Implementation: `localizeSpec(spec, locale)` in
 
 ---
 
-## 23. Seed Files
+## 24. Seed Files
 
 Seed files live in `vos.Mycelium/seeds/` and are auto-loaded by Mycelium on startup. They can also be loaded via the CLI (`deserialize` command), the REST API (`POST /api/model`), or the IFC importer.
 
@@ -1658,7 +1782,7 @@ Note: Seeds use UUIDs for relationship Subject/Predicate/Target fields (generate
 
 ---
 
-## 24. Verification
+## 25. Verification
 
 1. **Dev server**: `cd vos.Trellis && npm run dev` — Vite serves at `localhost:5173`
 2. **Type check**: `npx tsc --noEmit` — no errors

@@ -41,8 +41,10 @@ line a service was started with, which is why neither credential travels there.
 
 ## Auth
 
-One HS256 JWT. The service token (the `Token` setting) carries `vos:token_type=service` + a scope;
-use it for the daemon's own registration/deregistration. Inbound `/handle` calls are signed by
+One HS256 JWT. The service token (the `Token` setting) carries `vos:token_type=service` and a scope
+that describes what the handler is for without restricting it — `TokenScope` in
+[`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md) § How Relationship Services Work.
+Use it for the daemon's own registration/deregistration. Inbound `/handle` calls are signed by
 Mycelium with a short-lived service token carrying the request's `vos:model_id`; validate them
 against `SigningKey` with the given issuer/audience, and reuse the inbound token for any callback so
 a shared daemon acts on the request's model.

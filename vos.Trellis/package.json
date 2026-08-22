@@ -27,6 +27,7 @@
     "graphology-types": "^0.24.8",
     "i18next": "^25.10.10",
     "lucide-react": "^0.563.0",
+    "maplibre-gl": "^6.4.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-i18next": "^16.6.6",

@@ -20,9 +20,14 @@ vi.mock('./rangeApi', () => ({
   rangeApi: { getAll: vi.fn() },
 }));
 
+vi.mock('./temporalApi', () => ({
+  temporalApi: { getPropertyVersions: vi.fn() },
+}));
+
 import { stateApi } from './stateApi';
 import { apiClient } from './client';
 import { rangeApi } from './rangeApi';
+import { temporalApi } from './temporalApi';
 import {
   discoverDashboards,
   scopeEntities,
@@ -1234,5 +1239,125 @@ describe('verdict binding', () => {
     await resolveBinding({ kind: 'verdict', states: ENERGY_STATES } as Binding, studyContext({ pctOfConsumption: 73 }));
 
     expect(rangeApi.getAll).toHaveBeenCalledWith('study1');
+  });
+
+  describe('a study the scope reaches rather than the scope itself', () => {
+    /** A page scoped to the site, which is where a per-submission view has to be scoped: the
+     *  programmes and hazards it lists hang off the site, while the ranges that judge its balances
+     *  sit on the study one edge away. */
+    function siteContext(studies: { name: string; properties: Record<string, unknown> }[]): ResolveContext {
+      const things: VosThing[] = [
+        { Id: 'is', Name: 'is', Properties: {} },
+        { Id: 'studies', Name: 'studies', Properties: {} },
+        { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true },
+        { Id: 'arch-site', Name: 'Site', Properties: {}, IsArchetype: true },
+        { Id: 'site1', Name: 'Submitted site', Properties: {} },
+        ...studies.map((s) => ({ Id: s.name, Name: s.name, Properties: s.properties })),
+      ];
+      const relationships: VosRelationship[] = [
+        { Id: 'r-site', Name: 'site1 is arch-site', SubjectId: 'site1', PredicateId: 'is', TargetId: 'arch-site', Properties: {} },
+        ...studies.flatMap((s) => [
+          { Id: `${s.name}-is`, Name: `${s.name} is arch-study`, SubjectId: s.name, PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
+          { Id: `${s.name}-studies`, Name: `${s.name} studies site1`, SubjectId: s.name, PredicateId: 'studies', TargetId: 'site1', Properties: {} },
+        ]),
+      ];
+      return { idx: buildModelIndex(things, relationships), scopeId: 'site1' };
+    }
+
+    /** The outer `holding` speaks for the study alone; a walk asks about the site and about more
+     *  than one study, so these tests say who is in the state instead. */
+    function membersOf(state: string, ...names: string[]) {
+      vi.mocked(stateApi.getThingsInState).mockImplementation(async (asked: string) =>
+        ({ Things: asked === state ? names.map((name) => ({ Id: name, Name: name, Properties: {} })) : [] }) as never,
+      );
+    }
+
+    const toTheStudy = [{ predicate: 'studies', direction: 'in' as const }];
+
+    it('judges the study that studies the scoped site', async () => {
+      membersOf('EnergyShortOfTarget', 'study1');
+
+      const rows = await resolveBinding(
+        { kind: 'verdict', states: ENERGY_STATES, via: toTheStudy } as Binding,
+        siteContext([{ name: 'study1', properties: { pctOfConsumption: 73 } }]),
+      ) as Row[];
+
+      expect(rows).toEqual([{
+        state: 'EnergyShortOfTarget',
+        reads: ENERGY_STATES[1].reads,
+        property: 'pctOfConsumption',
+        operator: '<',
+        target: 100,
+        value: 73,
+      }]);
+    });
+
+    // The site is the one holding the state here, so a walk that quietly fell back to where it
+    // started would report a verdict instead of nothing.
+    it('reports nothing when the walk reaches no Thing', async () => {
+      membersOf('EnergyShortOfTarget', 'site1');
+
+      const rows = await resolveBinding(
+        { kind: 'verdict', states: ENERGY_STATES, via: [{ predicate: 'surveys', direction: 'in' }] } as Binding,
+        siteContext([{ name: 'study1', properties: { pctOfConsumption: 73 } }]),
+      );
+
+      expect(rows).toEqual([]);
+    });
+
+    // Asserted in the reverse of the order they are judged in, so the reading is the model's
+    // rather than the relationship list's.
+    it('judges every study the walk reaches, in name order', async () => {
+      membersOf('EnergyShortOfTarget', 'study1', 'study2');
+
+      const rows = await resolveBinding(
+        { kind: 'verdict', states: ENERGY_STATES, via: toTheStudy } as Binding,
+        siteContext([
+          { name: 'study2', properties: { pctOfConsumption: 61 } },
+          { name: 'study1', properties: { pctOfConsumption: 73 } },
+        ]),
+      ) as Row[];
+
+      expect(rows.map((r) => r.value)).toEqual([73, 61]);
+    });
+  });
+});
+
+describe('a Thing reference resolves the same way whichever binding reads it', () => {
+  const AMBIGUOUS = 'shared-key';
+
+  /** One Thing's name is another Thing's identifier — the only model that tells the two lookup
+   *  orders apart. */
+  function ambiguous(): ResolveContext {
+    const things: VosThing[] = [
+      { Id: AMBIGUOUS, Name: 'Identified plot', Properties: { area: 10 } },
+      { Id: 'named-plot', Name: AMBIGUOUS, Properties: { area: 20 } },
+    ];
+    return { idx: buildModelIndex(things, []), scopeId: null };
+  }
+
+  const series: Binding = { kind: 'timeseries', thing: AMBIGUOUS, property: 'area', op: 'avg', bucket: 'day' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(temporalApi.getPropertyVersions).mockResolvedValue({ Versions: [] } as never);
+  });
+
+  it('reads the Thing the identifier names, not the Thing of that name', async () => {
+    const value = await resolveBinding({ kind: 'property', thing: AMBIGUOUS, property: 'area' }, ambiguous());
+
+    expect(value).toBe(10);
+  });
+
+  it('reads the same Thing for a series as for a property', async () => {
+    await resolveBinding(series, ambiguous());
+
+    expect(temporalApi.getPropertyVersions).toHaveBeenCalledWith(AMBIGUOUS, 'area');
+  });
+
+  it('reads the selected scope entity for a series that names $scope', async () => {
+    await resolveBinding({ ...series, thing: '$scope' } as Binding, { ...ambiguous(), scopeId: 'named-plot' });
+
+    expect(temporalApi.getPropertyVersions).toHaveBeenCalledWith('named-plot', 'area');
   });
 });

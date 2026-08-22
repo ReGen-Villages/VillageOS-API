@@ -14,7 +14,7 @@ export function pickChunk(id: string): string | undefined {
     return 'vendor-three';
   }
 
-  if (id.includes('node_modules/maplibre-gl') || id.includes('node_modules/@sigma/layer-maplibre')) {
+  if (id.includes('node_modules/maplibre-gl')) {
     return 'vendor-map';
   }
 

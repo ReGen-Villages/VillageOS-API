@@ -98,14 +98,21 @@ export type Binding =
    *  how a withheld verdict stays distinct from a failed one. `value` is the Thing's own value for
    *  the property that comparison names, so the figure shown is the figure that was judged.
    *
-   *  Costs one range read per Thing per refresh, shared across every verdict binding on the page. */
-  | { kind: 'verdict'; states: VerdictCandidate[]; thing?: string }
+   *  `via` walks from `thing` to what is actually judged, the way `related` does. A page can be
+   *  scoped to one Thing only, and the Thing a view is about is not always the Thing the ranges
+   *  hang off — a page about a site reads verdicts off the study that studies it. A walk reaching
+   *  several judged Things reports every one, in name order.
+   *
+   *  Costs one range read per judged Thing per refresh, shared across every verdict binding on the
+   *  page. The state reads are shared too, so a walk reaching several costs no extra ones. */
+  | { kind: 'verdict'; states: VerdictCandidate[]; thing?: string; via?: RelationStep[] }
   /** One binding divided by another — a rate the aggregate ops cannot express, because a ratio of
    *  sums is not a sum of ratios. Resolves to null when the denominator is zero or non-numeric. */
   | { kind: 'ratio'; numerator: Binding; denominator: Binding }
   /** One row per compared Thing, carrying the listed numeric properties (leaderboard source). */
   | { kind: 'compareEntities'; properties: string[]; computed?: ComputedColumn[] }
-  /** A bucketed time series from the temporal API. Degrades to [] when history is absent. */
+  /** A bucketed time series from the temporal API over one property of a named/id'd Thing, or of
+   *  the selected scope entity (`$scope`). Degrades to [] when history is absent. */
   | {
       kind: 'timeseries';
       archetype?: string;
@@ -142,10 +149,10 @@ export interface ComputedColumn {
 }
 
 /**
- * One step of a `related` binding's path: which edge to follow from the Things reached so far,
- * and which of the Things it reaches to keep. Unlike {@link RelationSpec}, which describes how to
- * render a related Thing on a detail card, a step only narrows a walk down to the one neighbour
- * whose name a cell wants.
+ * One step of a binding's path — `related`'s, or `verdict`'s walk to the Thing the ranges judge:
+ * which edge to follow from the Things reached so far, and which of the Things it reaches to keep.
+ * Unlike {@link RelationSpec}, which describes how to render a related Thing on a detail card, a
+ * step only narrows a walk down to the neighbour the binding means.
  */
 export interface RelationStep {
   /** Predicate name to follow. */

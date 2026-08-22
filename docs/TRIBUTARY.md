@@ -144,11 +144,37 @@ timestamps, attributed to the wrong site. `subjectId` on the request closes that
 - **An id, not a name.** The caller already holds the Thing it asked about. A name would have to be
   resolved, a name matching two Things is refused as ambiguous and reads back as absent, and this
   ingest creates what it cannot find — so a name would answer a duplicate by quietly minting a third.
-- **Nothing is created.** The subject exists already, so no Thing and no `observed` edge are written
-  — the same as any fetch landing on an entity it did not create.
+- **No Thing is created.** The subject exists already, so nothing is minted from the reading's name.
+  The `observed` edge back to the registration is still written — see *Which registration wrote a
+  value* below.
 - **Without it, nothing changes.** A registration serving one subject keeps naming it in the
   expression and is resolved by name exactly as before. A reading that names no subject, on a call
   that names none either, is refused rather than written onto a guess.
+
+## Which registration wrote a value
+
+**Every ingest that puts values on a Thing relates the registration to that Thing through `observed`.**
+A number nothing can be walked back from reads exactly as trustworthy as one with a provider behind
+it, which is the confusion the intake design exists to remove: an estimate and a measurement must not
+look the same once they are in the model.
+
+- **The edge names the registration, not the provider.** Tributary knows the endpoint it called and
+  nothing about who publishes it. The provider is one hop further along the `DataSource resolvedBy
+  Endpoint` edge the model already holds, so a value still leads to the source, and none of the
+  discovery service's terms — `DataSource`, `covers` — has to be read here.
+- **Written on every ingest, not only the one that created the Thing.** A Thing that already exists is
+  the ordinary case: every run after the first, and every second registration writing onto a Site some
+  other registration created. An edge written only by whichever fetch happened to be first leaves every
+  value after it with no source at all.
+- **One edge per registration per Thing.** Running discovery twice leaves one. The edges the endpoint
+  already carries come back in the scoped read the call already makes for its kinds — they are in that
+  snapshot whether or not anything reads them — so the check costs no second call.
+- **An ingest that writes nothing relates nothing.** A source answering for a site it holds no values
+  about leaves no edge claiming otherwise. The edge is written before the values, so a refused edge
+  leaves nothing behind that cannot be traced back.
+- **Which registration produced a particular property is a different question.** A Site fed rainfall by
+  one source and solar resource by another carries an edge to each, and nothing says which value came
+  from which. A property is not a Thing here, so there is nothing for a per-property edge to point at.
 
 ## Token-exchange auth + offset paging
 
@@ -316,7 +342,8 @@ Tributary's contract is **fetch-and-shape**:
    whenever a run has anchored time away from real time.
 3. **Ingest** (hybrid ingest) — readings are grouped by entity `name`. Each entity is a
    Thing created **once** (its first reading seeds the observable properties, each bounded to
-   `Sampled` PropertyMode) and linked to the endpoint **once** via an `observed` relationship;
+   `Sampled` PropertyMode) and related to the endpoint through an `observed` edge — **one per entity**,
+   written whether this call created it or found it already there;
    every reading's values are then written as **observations** on that entity's property series
    (`POST /api/things/{id}/observations`). So Things scale with the number of entities, not
    readings — the readings live in the time-series tier (Canopy → Sapwood), not the structural graph.

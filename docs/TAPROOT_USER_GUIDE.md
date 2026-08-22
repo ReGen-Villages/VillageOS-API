@@ -200,11 +200,17 @@ production** — it disables protection against man-in-the-middle attacks.
 | `deserialize <file>` | Import model from JSON |
 | `plant <file>` | Alias for deserialize |
 | `apply <file.json>` | Upsert a fragment (Things + Relationships) into the live model |
+| `submissions list` | What has arrived in this model: when, what it proposes, and what has been decided about it |
+| `submissions reject <submission>` | Move a submission to a disposable state |
+| `submissions promote <submission> <template> <predicates> <project name>` | Copy a submission into a project model of its own, built from a template. `<predicates>` is a comma-separated list saying what belongs with the site — the model's vocabulary, named rather than assumed. The project name takes the rest of the line, so it may contain spaces; the submission must therefore be given as an identifier here. Promoting twice produces one project |
+| `submissions dispose <predicates>` | The retention pass: clear every rejected submission whose period has run, taking everything it minted with it. The period is the disposition's (`daysBeforeColdStorage`), counted from when the submission was decided about. One nobody has decided about is kept indefinitely, and so is one resolved to a disposition naming no period. `<predicates>` is the same list `promote` takes; the predicate reaching the proposed site is added to it |
 | `ingest <file.ifc> [--new]` | Upload an IFC to the Xylem service to build or merge the model |
 | `pwd` | Show current directory |
 | `cd <path>` | Change directory |
 
 **Note:** Where `<thing>`, `<subj>`, `<pred>`, or `<target>` appears, you can use either a GUID or a unique name. Names are case-insensitive. If a name is ambiguous (multiple things have the same name), you must use the GUID.
+
+**Note:** The review commands — `list`, `reject` and `promote` — have a page of their own in Trellis, [Reviewing what has arrived](TRELLIS.md#87-reviewing-what-has-arrived). It reads the same model the same way and calls the same two actions, so a staging model can be worked from a browser or from here. `submissions dispose` has no page: the retention pass is run from here.
 
 ### Output Options
 

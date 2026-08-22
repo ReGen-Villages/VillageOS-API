@@ -53,15 +53,17 @@ public sealed class EndpointCallService
         _logger = logger;
     }
 
-    // One scoped read answers every role. Unsubscribing in a finally keeps a failed resolution from
-    // leaving a live subscription on the gateway for the rest of the process's life.
+    // One scoped read answers every role, and the `observed` edges the endpoint already carries with
+    // them — those edges are in the same snapshot whether or not anything reads them, so provenance
+    // costs no second call. Unsubscribing in a finally keeps a failed resolution from leaving a live
+    // subscription on the gateway for the rest of the process's life.
     //
     // Null means the read failed, never that the endpoint reaches no kind — the two must not collapse,
     // because an unreachable gateway would otherwise read as an endpoint needing no credential and the
     // call would go out unauthenticated. The subscription client throws on any non-success status, so
     // the catch is what keeps a momentary gateway failure from escaping this method as an exception
     // rather than the 502 every other gateway call here produces.
-    private async Task<IReadOnlyDictionary<string, ResolvedKind>?> ResolveKindsAsync(
+    private async Task<(IReadOnlyDictionary<string, ResolvedKind> Kinds, ObservedEdges Observed)?> ReadEndpointAsync(
         Guid endpointId, CancellationToken cancellationToken)
     {
         SubscribeResult subscribed;
@@ -78,7 +80,8 @@ public sealed class EndpointCallService
 
         try
         {
-            return EndpointKindResolver.Resolve(subscribed.Snapshot, endpointId);
+            return (EndpointKindResolver.Resolve(subscribed.Snapshot, endpointId),
+                    ObservedEdges.Resolve(subscribed.Snapshot, endpointId));
         }
         finally
         {
@@ -134,11 +137,11 @@ public sealed class EndpointCallService
         // ---- The kinds this endpoint reaches ----
         // Reaching no kind for a role is a valid answer meaning "the plain behaviour": a plain body,
         // no credential, no paging. Reaching one nothing here implements is not, and says so.
-        var kinds = await ResolveKindsAsync(thing.Value.Id, cancellationToken);
-        if (kinds == null)
+        if (await ReadEndpointAsync(thing.Value.Id, cancellationToken) is not { } endpoint)
             return Problem(502, "Endpoint resolution failed",
                 "Failed to read which kinds the endpoint reaches. Refusing rather than calling out as though it reaches none.");
 
+        var kinds = endpoint.Kinds;
         kinds.TryGetValue(EndpointKindRoles.ResponseBody, out var bodyKind);
         kinds.TryGetValue(EndpointKindRoles.Authentication, out var authKind);
         kinds.TryGetValue(EndpointKindRoles.Paging, out var pagingKind);
@@ -536,7 +539,7 @@ public sealed class EndpointCallService
             if (reshape != null && status is >= 200 and < 300)
             {
                 var ingestResult = await _observationService.CreateObservationsAsync(
-                    thing.Value.Id, reshape, body, request.SubjectId);
+                    thing.Value.Id, reshape, body, request.SubjectId, endpoint.Observed);
                 if (!ingestResult.Success)
                     return Json(400, new { error = ingestResult.Error, detail = ingestResult.Detail }, ingestResult.Error ?? "Observation ingest failed.");
 
