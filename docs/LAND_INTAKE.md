@@ -994,6 +994,13 @@ platform where personal data moves through application code, so it carries a sta
 | Error responses | Name the field, not the value. Nothing echoes a submitted detail back |
 | Documentation and screenshots | Synthetic submissions only — as in this document |
 
+**The model keeps them, and keeps no history of them.** Every property on the `Contact` archetype is
+declared to keep only its current value. A property that keeps history is copied out of the commit log
+into the storage tiers, where retracting the Thing that owned it removes nothing — so a submission
+cleared at the end of its retention period would have left the details behind. Keeping none means the
+only copy is the log segment, which is deleted once a snapshot supersedes it. Nothing is lost by it:
+nobody asks what a phone number meant last week.
+
 The model is the intended home and is handled by design. The risk is everywhere else — the places
 nobody classifies as a data store. An example preset built from a real enquiry because it makes the
 demo convincing. A fixture copied from a genuine submission because it was to hand. A log line that
@@ -1014,7 +1021,7 @@ debugging session otherwise.
 | 1 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
 | 2 | ~~**Map library** — Leaflet or MapLibre?~~ **Settled: MapLibre**, added once by the viewer's Phase 0 (#5346) as a component the wizard consumes rather than duplicates. Leaflet cannot tilt or share a WebGL context, so drawing the 3D model on the basemap would have needed a second library. See [TRELLIS.md §22](TRELLIS.md#22-the-map-and-its-basemap-sources). | What remains is not a library question: MapLibre renders tiles, it does not supply them. Imagery for a given site comes from that country's own service and is declared in the model, not chosen here. |
 | 3 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
-| 4 | ~~**Retention** for submissions that are never promoted.~~ **Settled: every submission is retained.** A rejected one moves to cold storage 30 days after it was rejected; one nobody has dealt with is kept indefinitely. The period lives on the disposition Thing (`daysBeforeColdStorage` on `rejected`), so changing it is a model edit, and a disposition naming no period is kept. | **Built.** `POST /api/model/prune` takes a submission and everything it minted out of the live model, retracting each — the Facts stay in the commit log, which is where history lives, and the nodes are reclaimed once a snapshot covers the retraction. `taproot submissions dispose <predicates>` is the pass that decides which are due, from the period the disposition names and the instant the submission was decided about. |
+| 4 | ~~**Retention** for submissions that are never promoted.~~ **Settled: every submission is retained.** A rejected one moves to cold storage 30 days after it was rejected; one nobody has dealt with is kept indefinitely. The period lives on the disposition Thing (`daysBeforeColdStorage` on `rejected`), so changing it is a model edit, and a disposition naming no period is kept. | **Built.** `POST /api/model/prune` takes a submission and everything it minted out of the live model, retracting each; the nodes are reclaimed once a snapshot covers the retraction. `taproot submissions dispose <predicates>` is the pass that decides which are due, from the period the disposition names and the instant the submission was decided about. The values go with it: contact details are declared to keep no history, so they are never copied out of the commit log, and the platform deletes a log segment once a snapshot supersedes it. What is left is the interval before the next snapshot, and details submitted before the declaration shipped, which need the erase pass filed as platform Task 6672. |
 | 5 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own public-facing program, so it is a natural follow-up. |
 | 6 | **What triggers discovery** — planner action, arrival of a submission, or a schedule? | All three eventually. Build one path and let each be a caller of it, rather than a branch inside it. |
 
