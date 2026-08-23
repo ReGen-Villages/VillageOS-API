@@ -62,7 +62,7 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 | vos.Service.Python.Echo | Example (Python) | The same handler in FastAPI |
 | vos.Service.Rust.Echo | Example (Rust) | The same handler in Axum |
 
-Writing your own handler in any language? See **[docs/SERVICE_AUTHORING.md](docs/SERVICE_AUTHORING.md)** — the language-agnostic contract (HTTP + one HS256 JWT) that every example above implements.
+Writing your own handler in any language? See **[docs/SERVICE_AUTHORING.md](docs/SERVICE_AUTHORING.md)** — the language-agnostic contract (HTTP + one JWT signed on the P-256 elliptic curve) that every example above implements.
 
 ## Prerequisites
 

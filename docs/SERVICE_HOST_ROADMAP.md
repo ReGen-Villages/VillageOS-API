@@ -74,7 +74,7 @@ the shared assembly — zero migration friction.
 |---|---|---|
 | ~~CLI parsing~~ | ~~duplicated `Configuration/CliArgs.cs`~~ | **Shipped** as `ServiceLaunchSettings` — see the status note above |
 | ~~Serilog file sink + enrichment~~ | ~~duplicated 12-line block~~ | **Shipped** as `ServiceHost.ConfigureLogging` |
-| JWT auth (`AddMyceliumTokenAuth` + `UseAuthentication` + `RequireAuthorization` gating) | 4× duplicated 20-line block | `builder.AddMicroserviceAuth(signingKey)` + `endpoint.RequireMyceliumAuth()` (no-op when signingKey absent) |
+| JWT auth (`AddMyceliumTokenAuth` + `UseAuthentication` + `RequireAuthorization` gating) | 4× duplicated 20-line block | `builder.AddMicroserviceAuth(verificationKey)` + `endpoint.RequireMyceliumAuth()` (no-op when the verification key is absent) |
 | ~~`/health`, `/shutdown` endpoints~~ | ~~each service hand-rolls; shapes drift~~ | **Shipped** as `MapHealthAndStats` and `MapShutdown` |
 | ~~`RegisterAsync` / `DeregisterAsync` lifecycle~~ | ~~Echo only; pattern hand-rolled~~ | **Shipped** as `AddMyceliumRegistration` |
 | In-flight request draining on shutdown | Not implemented anywhere | Built into `UseMyceliumLifecycle`'s stopping hook |
@@ -219,7 +219,7 @@ var args = MicroserviceCliArgs.Parse<MyArgs>(rawArgs)
 
 var builder = WebApplication.CreateBuilder(rawArgs)
     .AddMicroserviceLogging(serviceName: "MyService")
-    .AddMicroserviceAuth(args.SigningKey)
+    .AddMicroserviceAuth(args.VerificationKey)
     .AddMicroserviceBrokerClient<MyMyceliumClient>(args);
 builder.Services.AddContractValidation();   // already landed
 

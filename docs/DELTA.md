@@ -196,8 +196,8 @@ absent from its own model.
 | `GET /health` | `{ "status": "Healthy", "service": "Delta" }`. |
 | `POST /shutdown` | Graceful stop after a short delay. |
 
-When a `SigningKey` is supplied, `/handle`, `/register`, and `/shutdown` require a valid Mycelium
-JWT; `/health` stays open. Delta does not expose a `/stats` endpoint today (noted in
+When a `VerificationKey` is supplied, `/handle`, `/register`, and `/shutdown` require a valid
+Mycelium JWT addressed to Delta; `/health` stays open. Delta does not expose a `/stats` endpoint today (noted in
 [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md)).
 
 ## CLI & configuration
@@ -208,10 +208,10 @@ Delta takes the **standard launch settings** (see [`SERVICES.md`](SERVICES.md) �
 dotnet run -- --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
 ```
 
-`--issuer` / `--audience` must match what Mycelium signed with, or `/handle` auth rejects valid
-tokens. Any flag absent from the command line falls back to configuration and the environment under
+`--issuer` must match what Mycelium signed with and `--audience` must be Delta's own recipient
+name, or `/handle` auth refuses every call. Any flag absent from the command line falls back to configuration and the environment under
 its Pascal-case name — `Port`, `MyceliumUrl`, `Issuer`, `Audience` — so Delta can be launched with no
-flags at all. A flag always wins over configuration. The two credentials, `Token` and `SigningKey`,
+flags at all. A flag always wins over configuration. The two credentials, `Token` and `VerificationKey`,
 come from configuration only and are ignored on the command line. This is the shared behaviour every
 service now has; see `vos.Service.Shared/Configuration/ServiceLaunchSettings.cs`.
 

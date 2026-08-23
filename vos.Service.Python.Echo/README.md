@@ -14,9 +14,9 @@ python3 -m venv .venv
 .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243
 
 # with inbound auth, as Mycelium launches it:
-Token=<service-jwt> SigningKey=<base64-hmac-key> \
+Token=<service-jwt> VerificationKey=<base64-public-key> \
   .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243 \
-    --issuer=VillageOS --audience=VosClients
+    --issuer=VillageOS --audience=python-echo-handler
 ```
 
 macOS has no `python` command, and the `python3` on your PATH usually refuses to install packages
@@ -30,17 +30,17 @@ Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 |------|----------|---------|
 | `--port` | ✓ | Port to listen on (1–65535) |
 | `--myceliumUrl` | ✓ | Base URL of the Mycelium gateway |
-| `--issuer` | | JWT issuer (default `VillageOS`) |
-| `--audience` | | JWT audience (default `VosClients`) |
+| `--issuer` | | JWT issuer to check against; required whenever `VerificationKey` is set |
+| `--audience` | | This service's own recipient name, which an inbound token must carry; required whenever `VerificationKey` is set. There is no default |
 
 ## Credentials
 
-Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--signingKey=` argument is ignored.
+Both come from the environment and are never flags. A command line is readable by every process on the host and is recorded by anything that logs the line a service was started with, so a `--token=` or `--verificationKey=` argument is ignored.
 
 | Variable | Meaning |
 |----------|---------|
 | `Token` | Pre-minted service JWT; if unset, fetched from `POST /api/auth/token` |
-| `SigningKey` | Base64 HMAC key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT |
+| `VerificationKey` | Base64 of Mycelium's public signing key; when set, `/handle` and `/shutdown` require a valid Mycelium-signed JWT addressed to this service. It checks a signature and cannot make one |
 
 ## Endpoints
 
@@ -51,12 +51,12 @@ Both come from the environment and are never flags. A command line is readable b
 | GET | `/stats` | — | Service metadata |
 | POST | `/shutdown` | JWT* | Graceful shutdown |
 
-\* Enforced only when a `SigningKey` is supplied.
+\* Enforced only when a `VerificationKey` is supplied.
 
 ## How it maps to the contract
 
 - **Registration** — `register_with_mycelium()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token; runs from the FastAPI `lifespan` startup hook.
-- **JWT validation** — `verify_request()` (a FastAPI dependency) uses PyJWT to validate the HS256 signature against `base64decode(SigningKey)`, plus issuer/audience/expiry with 30s leeway (matching `ServiceTokenValidator`).
+- **JWT validation** — `verify_request()` (a FastAPI dependency) uses PyJWT with `algorithms=["ES256"]` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
 - **Deregistration** — `deregister_from_mycelium()` sends `DELETE /api/mycelium/services/{handler_id}` from the `lifespan` shutdown hook.
 
 ## Test

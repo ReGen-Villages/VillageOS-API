@@ -14,7 +14,7 @@ A `Service` is a `Microsoft.NET.Sdk.Web` minimal-API binary on
 `https://localhost:7243`). It auto-registers on start, auto-deregisters on
 stop, and exposes a `/health` endpoint Mycelium's `LivenessMonitor` polls.
 
-The handler contract is just **HTTP + one HS256 JWT**, so it is not tied to
+The handler contract is just **HTTP + one JWT signed on the P-256 elliptic curve**, so it is not tied to
 .NET — a microservice can be written in any language. This doc is the C#
 reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
@@ -129,8 +129,8 @@ every service needs. There is one implementation; no service writes its own.
 - **Required flags:** `--port`, `--myceliumUrl`
 - **Optional flags:** `--issuer`, `--audience`
 - **Credentials, which are never flags:** `Token` (pre-minted service JWT for
-  **outbound** Mycelium calls) and `SigningKey` (base64-encoded HMAC key for
-  validating **inbound** Mycelium requests)
+  **outbound** Mycelium calls) and `VerificationKey` (base64 of Mycelium's
+  public signing key, for checking **inbound** Mycelium requests)
 
 Every flag can also come from configuration or the environment under its
 Pascal-case name — `Port`, `MyceliumUrl` and so on — so a service can be
@@ -138,7 +138,7 @@ launched with no flags at all. A flag always wins over configuration.
 
 The two credentials are read from configuration alone. A command line is visible
 to every process on the host and is recorded by anything that logs the line a
-service was started with, so `--token=` and `--signingKey=` are ignored if
+service was started with, so `--token=` and `--verificationKey=` are ignored if
 given. Mycelium sets both on the environment of every daemon it launches.
 
 The rule holds in the other direction too: a service that launches a process of
@@ -330,8 +330,10 @@ a test can reach it — code inside an entry point cannot be called from a test.
 3. Calls `ServiceHost.ConfigureLogging(serviceName, logFileName)`. Pass
    `writeToFile: false` under the Testing environment: writing files from shared
    build agents invites flaky tests.
-4. If a `SigningKey` was supplied, calls
-   `builder.AddMyceliumTokenAuth(signingKey, issuer, audience)`.
+4. If a `VerificationKey` was supplied, calls
+   `builder.AddMyceliumTokenAuth(verificationKey, issuer, audience)`. The
+   recipient name is this service's own, so a token addressed anywhere else is
+   refused before any handler code runs.
 5. Calls `builder.Services.AddContractValidation()` to register the schema
    registry and validator.
 6. Registers the broker client and the service's own dependencies, then
