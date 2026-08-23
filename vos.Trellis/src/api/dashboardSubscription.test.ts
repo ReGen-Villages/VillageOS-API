@@ -140,6 +140,73 @@ describe('subscriptionForSpec', () => {
     expect(followed.indexOf('studies')).toBeLessThan(followed.indexOf('has'));
   });
 
+  // Bug #6701: a tile saying where its figure came from is useless if the Thing that says so was
+  // never sent. The line then drops the source it names, which reads exactly like a figure whose
+  // source nobody recorded — the one reading the origin vocabulary exists to refuse.
+  it('follows an origin binding to the Thing holding the value and on to what says so', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+        type: 'kpi',
+        title: 'Drawn area',
+        value: { kind: 'related', via: [{ predicate: 'has', archetype: 'Parcel' }], property: 'measuredAreaHectares' },
+        origin: {
+          kind: 'origin',
+          property: 'measuredAreaHectares',
+          reads: { stated: 'from a boundary {source}' },
+          via: [{ predicate: 'has', archetype: 'Parcel' }],
+          source: { via: [{ predicate: 'obtainedBy' }] },
+        },
+      }),
+      SCOPE_ID,
+    );
+
+    expect(selector.traverse!.map((rule) => rule.predicate)).toContain('obtainedBy');
+  });
+
+  // The source walk starts from what `via` reached, not from the scope. Asked for first it would be
+  // applied to the scope entity, reach nothing, and select nothing.
+  it('asks for the source edge after the edge that reaches the Thing holding the value', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+        type: 'kpi',
+        title: 'Rainfall',
+        value: { kind: 'property', thing: '$scope', property: 'rainfallMillimetresPerYear' },
+        origin: {
+          kind: 'origin',
+          property: 'rainfallMillimetresPerYear',
+          reads: { measured: 'resolved {resolvedAt} from {source}' },
+          via: [{ predicate: 'studies', direction: 'in' }],
+          source: { via: [{ predicate: 'has' }], resolvedAt: 'lastResolvedAt' },
+        },
+      }),
+      SCOPE_ID,
+    );
+
+    const followed = selector.traverse!.map((rule) => rule.predicate);
+    expect(followed.indexOf('studies')).toBeLessThan(followed.indexOf('has'));
+  });
+
+  it('follows a source walk taken straight from the scope entity', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+        type: 'kpi',
+        title: 'Rainfall',
+        value: { kind: 'property', thing: '$scope', property: 'rainfallMillimetresPerYear' },
+        origin: {
+          kind: 'origin',
+          property: 'rainfallMillimetresPerYear',
+          reads: { measured: 'resolved {resolvedAt} from {source}' },
+          source: { via: [{ predicate: 'has', archetype: 'DataSource' }], resolvedAt: 'lastResolvedAt' },
+        },
+      }),
+      SCOPE_ID,
+    );
+
+    // The edge is what brings the sources in; the step's archetype narrows what it reached, the way
+    // it does for every other walking binding, so it is not asked for as a type of its own.
+    expect(selector.traverse!.map((rule) => rule.predicate)).toContain('has');
+  });
+
   // A detail window walks the same way a binding does, and it opens on a row of a page that has
   // already narrowed — so what it reaches has to be in the page's own set.
   it('follows the edges a detail card walks, root first', () => {

@@ -1260,6 +1260,12 @@ applies each traversal rule to everything selected before it, and applies it onc
 is only reproduced if its first edge is asked for before its second. A scope predicate is followed as
 far as it reaches, because the resolver's own scope walk is transitive.
 
+An `origin` binding walks twice in sequence — `via` to the Thing holding the value, then
+`source.via` from there to what says where the value came from — and the two are asked for as **one
+path**, not two. Asked for separately, the source edge would be applied to the scope entity, reach
+nothing, and the Thing that says so would never arrive; the origin line would then drop the source it
+names, which reads exactly like a figure whose source nobody recorded (Bug #6701).
+
 A binding narrowed to the selected entity reaches its rows along that entity's edges, so its type is
 asked for only while **All** is showing — when the binding really does run over every member of the
 type.
