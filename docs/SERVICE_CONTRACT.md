@@ -102,6 +102,19 @@ Returns `{ subscriptionId, watermark, snapshot }`. The snapshot lists `things` a
 `relationships`, each with own `Properties` and `InheritedOverrides` (kept separate), `States`,
 and incident relationship ids. `watermark` is the commit sequence the snapshot was taken at.
 
+A Thing also carries `RollupProperties` — **how each computed value it owns is worked out**, keyed
+the way its properties are, and absent rather than empty when it owns none. A value the platform
+derives reads back as a type alone (`vos.DecimalExpression` for a formula), which says that it was
+computed and not what produced it; this is what a caller reads to show a figure's working. One form
+is described per definition and never both: `Expression` for a formula, or `Function`, `Path`,
+`RelatedType` and `PropertyPath` for a reduction, with `Scope` present only where it is not the
+default of the owner computing alone.
+
+**Own definitions only.** A definition is declared once, on the Thing that owns it, so a member
+computing its own value carries the value and not the formula. Read the formula off the archetype
+the way an inherited value is read — by walking `is` — which a snapshot supports because it closes
+over `is`-ancestors of everything it reached unless a caller turns that off.
+
 Each Thing also carries `IsArchetype` — whether it is a **type** or a **member** of one (#6218).
 Read it before working over the members of a type. Nothing else in the payload answers the
 question: a type and a member are the same shape, and a type whose members do not exist yet has no
