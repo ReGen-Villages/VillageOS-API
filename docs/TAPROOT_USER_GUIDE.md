@@ -56,7 +56,7 @@ All operations are performed remotely on the Mycelium's model.
 
 ### Starting the CLI
 
-**1. Start the Mycelium first.** Mycelium (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there (see the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki) for the Mycelium Guide). It listens on `https://localhost:7243` by default.
+**1. Start the Mycelium first.** Mycelium (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there. Its guide is the Mycelium page on that repository's wiki (`ReGenVillages/VillageOS` → wiki → Mycelium). It listens on `https://localhost:7243` by default.
 
 **2. In a new terminal, start the CLI.** It needs an API key, which it reads from `VOS_API_KEY` — see [Authentication](#authentication) for where to get one:
 
@@ -1315,8 +1315,8 @@ You will see it as `Warning: Could not connect to Mycelium: …` when the CLI st
 ## Getting Help
 
 - **CLI Help:** Type `help` at the prompt
-- **Mycelium Documentation:** See the Mycelium Guide in the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)
-- **Platform Documentation:** See the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)
+- **Mycelium:** the Mycelium page on Mycelium repo's wiki (`ReGenVillages/VillageOS` → wiki → Mycelium)
+- **This repository's guides:** the [documentation index](README.md), published to the VillageOS API Wiki
 
 ---
 

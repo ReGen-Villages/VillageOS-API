@@ -214,6 +214,25 @@ test('no handoff is carried, and no document points at one', () => {
   assert.deepEqual(pointing, [], `nothing may link to a handoff — say what the reader needs, or drop the link: ${pointing}`);
 });
 
+// A link to the wiki root promises the whole wiki. Written where a document was meant — "see the
+// Mycelium Guide in the wiki" — it sends a reader to a wiki that does not hold it, and they conclude
+// the documentation is missing rather than that the link is wrong. Four guides did exactly that,
+// naming this wiki for material that lives on the other repository's. Only the two index files,
+// which really are talking about the whole wiki, may carry one.
+test('only an index links to the wiki root; a document is cited by name', () => {
+  const allowed = ['README.md', 'docs/README.md'];
+  const tracked = execFileSync('git', ['ls-files', '*.md'], { cwd: REPO_ROOT, encoding: 'utf8' })
+    .split('\n')
+    .filter(Boolean);
+
+  const rootLinks = tracked.filter((file) =>
+    /VillageOS-API\/_wiki(?![/?])/.test(fs.readFileSync(path.join(REPO_ROOT, file), 'utf8')),
+  );
+
+  assert.deepEqual(rootLinks.sort(), allowed.sort(),
+    'cite the page, or name where the material lives — a bare wiki-root link is not a reference');
+});
+
 test('every mapped document exists and every page path is unique', () => {
   const seen = new Set();
   for (const { doc, page } of manifest.pages) {
