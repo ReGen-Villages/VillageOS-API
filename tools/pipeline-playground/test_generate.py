@@ -75,6 +75,17 @@ class RoleFlagTests(unittest.TestCase):
         self.assertTrue(any(r["Target"] == "target-pipeline" for r in seed["Relationships"]),
                         "the playground's pipelines must `is` the target's own archetype")
 
+    def test_merging_twice_leaves_one_carrier_per_role_and_adds_nothing(self):
+        seed = {"Name": "Target", "Things": [], "Relationships": []}
+        G.merge_into(G.build(), seed)
+        after_first = (len(seed["Things"]), len(seed["Relationships"]))
+        G.merge_into(G.build(), seed)
+
+        self.assertEqual((len(seed["Things"]), len(seed["Relationships"])), after_first)
+        for flag in G.ROLE_FLAG.values():
+            carriers = [t for t in seed["Things"] if flag in t["Properties"]]
+            self.assertEqual(len(carriers), 1, f"{flag} must be carried by exactly one archetype")
+
     def test_merge_marks_an_archetype_the_target_left_unmarked(self):
         seed = {"Name": "Target",
                 "Things": [{"Id": "target-pipeline", "Name": "Pipeline", "Properties": {}}],

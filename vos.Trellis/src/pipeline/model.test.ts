@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { basename, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { VosThing, VosRelationship } from '../types/vos';
 import { PipelineModel, ARCHETYPE_FLAG, typesCompatible } from './model';
@@ -10,7 +10,7 @@ import { loadPipeline } from './serialize';
 /** An archetype's own mark, which is the only thing that says what role it plays. */
 const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: true });
 
-// Build the demo model (Generate –feeds(echo→message)→ Echo), node -has-> Connection[subdomain] -has-> Service.
+// Build the demo model (Generate –feeds(echo→message)→ Echo), node -has-> connection[subdomain] -has-> service.
 // Every archetype here is named something the editor has never heard of and says what it is by the flag it
 // carries, so a fixture that resolves at all proves nothing is found by name (#6530).
 function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchetypeId: string } {
@@ -128,11 +128,11 @@ describe('PipelineModel', () => {
 
 describe('the vocabulary the editor holds', () => {
   const here = dirname(fileURLToPath(import.meta.url));
-  const editorSources = {
-    'pipeline/model.ts': join(here, 'model.ts'),
-    'pipeline/serialize.ts': join(here, 'serialize.ts'),
-    'pages/PipelinePage.tsx': join(here, '..', 'pages', 'PipelinePage.tsx'),
-  };
+  // Every source of the editor, found rather than listed, so a file added later is held to this too.
+  const editorSources = [
+    ...readdirSync(here).filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts')).map((file) => join(here, file)),
+    join(here, '..', 'pages', 'PipelinePage.tsx'),
+  ];
 
   // What the seed tool happens to call these archetypes. A model may call them anything at all, which is
   // why the editor holds none of these words (#6530).
@@ -141,8 +141,8 @@ describe('the vocabulary the editor holds', () => {
     'Service', 'Port', 'PipelineWire', 'PipelineRun', 'NodeRun',
   ];
 
-  for (const [file, path] of Object.entries(editorSources))
-    it(`${file} spells no archetype name`, () => {
+  for (const path of editorSources)
+    it(`${basename(path)} spells no archetype name`, () => {
       const source = readFileSync(path, 'utf-8');
       const held = NAMES_A_MODEL_MAY_CHANGE.filter((name) => new RegExp(`['"\`]${name}['"\`]`).test(source));
       expect(held).toEqual([]);

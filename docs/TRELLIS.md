@@ -500,13 +500,13 @@ The **Pipelines** page (`/pipelines`) is a Grasshopper/Dynamo-style visual edito
 DAGs whose nodes are microservices, on `@xyflow/react` (the Sigma graph view stays for the model). A pipeline
 is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no new storage.
 
-- **Palette** — every dispatchable **Connection** in the model (an http connection with a `Subdomain` and a
-  bound Service). Click one to drop a node bound to it; its typed input/output **ports** resolve from the
+- **Palette** — every dispatchable **connection** in the model (an http connection carrying a `Subdomain` and
+  binding a service). Click one to drop a node bound to it; its typed input/output **ports** resolve from the
   bound service's `is`-chain (the same resolution Phloem does).
 - **Boundary nodes** (#5873) — the palette's **Input** and **Output** buttons drop a pipeline's external
   edges: an **Input** node ("from the start") whose output ports are filled from the run's parameters, and an
   **Output** node ("at the end") whose wired-in value becomes the run's published **result** (stored as a
-  `result` property on the `PipelineRun` Thing). Boundary nodes bind no Connection — their ports are
+  `result` property on the run Thing). Boundary nodes bind no connection — their ports are
   user-declared: select the node and add / rename / remove ports in the inspector. They persist under the
   archetypes the model marks as a pipeline's input and as its output (each of which is also a pipeline node),
   with their own port child-Things.
@@ -526,8 +526,8 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   persists as a `transform` property on the wire.
 - **New / Save / Load** — **New** clears the canvas; **Save** writes the pipeline and its nodes under the
   archetypes the model marks for them, with the `has` edges and one wire edge per wire on the canvas (node
-  `‑has→ Connection`, positions round-trip as x/y); **Load** picks an existing pipeline from the model. **Editing is in place**: saving a loaded pipeline **updates it** rather
-  than forking a duplicate — the Thing graph (pipeline + nodes + `is`/`has` edges) rides one idempotent
+  `‑has→ connection`, positions round-trip as x/y); **Load** picks an existing pipeline from the model.
+  **Editing is in place**: saving a loaded pipeline **updates it** rather than forking a duplicate — the Thing graph (pipeline + nodes + `is`/`has` edges) rides one idempotent
   fragment upsert (existing nodes keep their Ids), and nodes or wires removed on the canvas are retracted on
   save. Wire `fromPort`/`toPort` are written per-edge (the fragment endpoint does not carry relationship
   properties). A node can also be deleted from its detail panel.
@@ -562,7 +562,7 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   aggregate ring — `partial` (orange) when `onItemError:continue` and some items failed. Each output port is
   gathered into a list for downstream: chain another fan-out, or feed an aggregator node.
 - **Empty state** — with no nodes, the canvas points you to the palette; if the model has no dispatchable
-  Connections it says so (load a model whose seed has pipeline Connections — use the `seed-migrate` tool
+  connections it says so (load a model whose seed has pipeline connections — use the `seed-migrate` tool
   in the private VillageOS repo to add them).
 - **No archetype names** (#6530) — the page holds none. Which Thing is a pipeline, a node, a connection, a
   service, a port, a wire predicate or a run is read from the flag its archetype carries
@@ -1106,7 +1106,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
 | `/things` | `ThingSearchPage` | Dedicated thing-name search with ranked results (exact → prefix → substring → ID), type badges from `is` relationships, property preview, markdown export. Pure search logic in `src/utils/thingSearch.ts`. |
 | `/properties` | `PropertySearchPage` | Dedicated property-name search across all things and relationships, grouped by property name, inherited property tree walking, temporal history panel, markdown export. |
-| `/pipelines` | `PipelinePage` | Visual DAG editor (react-flow) for pipeline/orchestration. Palette of dispatchable Connections (subdomain + typed ports), type-checked wiring, save/load as Things+relationships, and **Run** (async spawn with live SSE node animation + **Cancel**). Holds no archetype name: every role — pipeline, node, connection, service, port, wire predicate, run — is read from the flag the archetype carries, the same marks Phloem reads. See §7.4. |
+| `/pipelines` | `PipelinePage` | Visual DAG editor (react-flow) for pipeline/orchestration. Palette of dispatchable connections (subdomain + typed ports), type-checked wiring, save/load as Things+relationships, and **Run** (async spawn with live SSE node animation + **Cancel**). Holds no archetype name: every role — pipeline, node, connection, service, port, wire predicate, run — is read from the flag the archetype carries, the same marks Phloem reads. See §7.4. |
 | `/logs` | `LogPage` | Live tail of the Mycelium broker log. |
 
 ---

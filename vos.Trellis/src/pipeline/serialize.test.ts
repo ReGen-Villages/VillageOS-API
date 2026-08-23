@@ -25,23 +25,20 @@ const relCreate = vi.mocked(relationshipApi.create);
 /** An archetype's own mark, which is the only thing that says what role it plays. */
 const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: true });
 
-// A model with the pipeline archetypes/predicates, one connection, and (optionally) an existing pipeline
-// P with two nodes N1,N2 and a wire N1.out -> N2.in — enough to exercise the in-place-update diff. Every
-// archetype is named as some model chose and marked as what it is, so a save that writes the right `is`
-// edges proves the write path resolves them by the mark (#6530).
-function buildModel() {
+// The starting graph every fixture below builds on: the built-in predicates, and each archetype named as
+// some model chose and marked as what it is. A fixture that resolves at all therefore proves nothing here
+// is found by name (#6530). `T` and `R` add Things and relationships to it.
+function graphWithVocabulary() {
   const things: VosThing[] = [];
   const rels: VosRelationship[] = [];
   let n = 0;
-  const T = (id: string, name: string, props: Record<string, unknown> = {}): VosThing => {
-    const t = { Id: id, Name: name, Properties: props };
-    things.push(t);
-    return t;
+  const T = (id: string, name: string, props: Record<string, unknown> = {}) => {
+    things.push({ Id: id, Name: name, Properties: props });
   };
   const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
     rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
-  const is = T('is', 'is'), has = T('has', 'has'), feeds = T('feeds', 'feeds');
+  T('is', 'is'); T('has', 'has'); T('feeds', 'feeds');
   T('arch-pipeline', 'Workflow', marked(ARCHETYPE_FLAG.Pipeline));
   T('arch-node', 'Step', marked(ARCHETYPE_FLAG.PipelineNode));
   T('arch-connection', 'Endpoint', marked(ARCHETYPE_FLAG.Connection));
@@ -53,16 +50,23 @@ function buildModel() {
   T('arch-output', 'Finish', marked(ARCHETYPE_FLAG.PipelineOutput)); R('arch-output', 'is', 'arch-node');
   R('feeds', 'is', 'arch-wire');
 
+  return { T, R, things, rels };
+}
+
+// One connection, and an existing pipeline P with two nodes N1,N2 and a wire N1.out -> N2.in — enough to
+// exercise the in-place-update diff.
+function buildModel(): PipelineModel {
+  const { T, R, things, rels } = graphWithVocabulary();
+
   T('svc', 'svc'); R('svc', 'is', 'arch-service');
   T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'arch-connection'); R('conn', 'has', 'svc');
 
-  // Existing pipeline P: N1 --feeds(out->in)--> N2
   T('P', 'MyPipeline'); R('P', 'is', 'arch-pipeline');
   T('N1', 'Node1'); R('N1', 'is', 'arch-node'); R('N1', 'has', 'conn'); R('P', 'has', 'N1');
   T('N2', 'Node2'); R('N2', 'is', 'arch-node'); R('N2', 'has', 'conn'); R('P', 'has', 'N2');
   R('N1', 'feeds', 'N2', { fromPort: 'out', toPort: 'in' });
 
-  return { model: new PipelineModel(things, rels), ids: { conn: 'conn' }, is, has, feeds };
+  return new PipelineModel(things, rels);
 }
 
 const node = (id: string, label: string, connectionId = 'conn'): EditorNode =>
@@ -72,7 +76,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe('savePipeline — create (no existing pipeline id)', () => {
   it('upserts a new pipeline via one fragment and deletes nothing', async () => {
-    const { model } = buildModel();
+    const model = buildModel();
     const saved = await savePipeline('Fresh', [node('n1', 'A')], [], model);
 
     expect(applyFragment).toHaveBeenCalledOnce();
@@ -99,7 +103,7 @@ describe('savePipeline — create (no existing pipeline id)', () => {
 
 describe('savePipeline — update in place (existing pipeline id)', () => {
   it('reuses the pipeline id and keeps an existing node’s Thing id (no duplicate)', async () => {
-    const { model } = buildModel();
+    const model = buildModel();
     // Keep only N1 (its canvas id IS its Thing id), moved; drop N2.
     const saved = await savePipeline('MyPipeline', [{ ...node('N1', 'Node1'), x: 99 }], [], model, 'P');
 
@@ -113,20 +117,20 @@ describe('savePipeline — update in place (existing pipeline id)', () => {
   });
 
   it('retracts a node removed from the canvas', async () => {
-    const { model } = buildModel();
+    const model = buildModel();
     await savePipeline('MyPipeline', [node('N1', 'Node1')], [], model, 'P');
     expect(thingRemove).toHaveBeenCalledWith('N2');
   });
 
   it('removes a wire that is gone and creates a wire that is new', async () => {
-    const { model } = buildModel();
+    const model = buildModel();
     // Drop the N1->N2 wire (no edges) — the one persisted wire should be removed, and no others.
     await savePipeline('MyPipeline', [node('N1', 'Node1'), node('N2', 'Node2')], [], model, 'P');
     expect(relRemove).toHaveBeenCalledTimes(1);
   });
 
   it('creates a new wire with its fromPort/toPort', async () => {
-    const { model } = buildModel();
+    const model = buildModel();
     const edges = [{ id: 'e1', source: 'N2', sourceHandle: 'out', target: 'N1', targetHandle: 'in' }];
     await savePipeline('MyPipeline', [node('N1', 'Node1'), node('N2', 'Node2')], edges, model, 'P');
     // N2->N1 is new (fixture only had N1->N2), so a wire is created + its ports set.
@@ -144,7 +148,7 @@ type Frag = {
 
 describe('savePipeline — boundary nodes (#5873)', () => {
   it('persists an Input node under the archetypes marked as input and as node, with its declared output port and no connection', async () => {
-    const { model } = buildModel();
+    const model = buildModel();
     const inputNode: EditorNode = {
       id: 'nin', label: 'Input', connectionId: '', x: 0, y: 0, kind: 'input',
       ports: [{ portName: 'seed', direction: 'out', type: 'any', required: false }],
@@ -170,19 +174,9 @@ describe('savePipeline — boundary nodes (#5873)', () => {
 
 describe('loadPipeline — boundary nodes (#5873)', () => {
   it('reconstructs a boundary node kind and its declared ports', () => {
-    // A model with a pipeline BP → an Output boundary node OUT that declares an input port `result`.
-    const things: VosThing[] = [];
-    const rels: VosRelationship[] = [];
-    let n = 0;
-    const T = (id: string, name: string, props: Record<string, unknown> = {}) => { things.push({ Id: id, Name: name, Properties: props }); };
-    const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
-      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
+    // A pipeline BP → an Output boundary node OUT that declares an input port `result`.
+    const { T, R, things, rels } = graphWithVocabulary();
 
-    T('is', 'is'); T('has', 'has');
-    T('arch-pipeline', 'Workflow', marked(ARCHETYPE_FLAG.Pipeline));
-    T('arch-node', 'Step', marked(ARCHETYPE_FLAG.PipelineNode));
-    T('arch-port', 'Socket', marked(ARCHETYPE_FLAG.Port));
-    T('arch-output', 'Finish', marked(ARCHETYPE_FLAG.PipelineOutput)); R('arch-output', 'is', 'arch-node');
     T('BP', 'Boundary'); R('BP', 'is', 'arch-pipeline');
     T('OUT', 'Output'); R('OUT', 'is', 'arch-output'); R('BP', 'has', 'OUT');
     T('OUT.result', 'result', { portName: 'result', direction: 'in', type: 'any', required: 'true' });
@@ -201,7 +195,7 @@ describe('loadPipeline — boundary nodes (#5873)', () => {
 
 describe('savePipeline — wire field-paths (#5874)', () => {
   it('persists a new wire’s fromPath and toPath', async () => {
-    const { model } = buildModel();
+    const model = buildModel();
     const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in', fromPath: 'user.id', toPath: 'a' }];
     await savePipeline('FM', [node('na', 'A'), node('nb', 'B')], edges, model);
     expect(relationshipApi.setProperty).toHaveBeenCalledWith('new-rel', 'fromPath', 'vos.String', 'user.id');
@@ -209,7 +203,7 @@ describe('savePipeline — wire field-paths (#5874)', () => {
   });
 
   it('does not write a field-path when it is empty (whole-payload wire)', async () => {
-    const { model } = buildModel();
+    const model = buildModel();
     const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in' }];
     await savePipeline('FM', [node('na', 'A'), node('nb', 'B')], edges, model);
     expect(relationshipApi.setProperty).not.toHaveBeenCalledWith('new-rel', 'fromPath', 'vos.String', '');
@@ -219,18 +213,8 @@ describe('savePipeline — wire field-paths (#5874)', () => {
 
 describe('loadPipeline — wire field-paths (#5874)', () => {
   it('reconstructs a wire’s fromPath and toPath', () => {
-    const things: VosThing[] = [];
-    const rels: VosRelationship[] = [];
-    let n = 0;
-    const T = (id: string, name: string, props: Record<string, unknown> = {}) => { things.push({ Id: id, Name: name, Properties: props }); };
-    const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
-      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
+    const { T, R, things, rels } = graphWithVocabulary();
 
-    T('is', 'is'); T('has', 'has'); T('feeds', 'feeds');
-    T('arch-pipeline', 'Workflow', marked(ARCHETYPE_FLAG.Pipeline));
-    T('arch-node', 'Step', marked(ARCHETYPE_FLAG.PipelineNode));
-    T('arch-wire', 'Link', marked(ARCHETYPE_FLAG.PipelineWire));
-    R('feeds', 'is', 'arch-wire');
     T('FP', 'FieldPipe'); R('FP', 'is', 'arch-pipeline');
     T('N1', 'N1'); R('N1', 'is', 'arch-node'); R('FP', 'has', 'N1');
     T('N2', 'N2'); R('N2', 'is', 'arch-node'); R('FP', 'has', 'N2');
@@ -247,25 +231,15 @@ describe('loadPipeline — wire field-paths (#5874)', () => {
 
 describe('savePipeline / loadPipeline — wire transform (#5875)', () => {
   it('persists a new wire’s transform', async () => {
-    const { model } = buildModel();
+    const model = buildModel();
     const edges = [{ id: 'e', source: 'na', sourceHandle: 'out', target: 'nb', targetHandle: 'in', transform: '{"name": firstName}' }];
     await savePipeline('T', [node('na', 'A'), node('nb', 'B')], edges, model);
     expect(relationshipApi.setProperty).toHaveBeenCalledWith('new-rel', 'transform', 'vos.String', '{"name": firstName}');
   });
 
   it('reconstructs a wire’s transform on load', () => {
-    const things: VosThing[] = [];
-    const rels: VosRelationship[] = [];
-    let n = 0;
-    const T = (id: string, name: string, props: Record<string, unknown> = {}) => { things.push({ Id: id, Name: name, Properties: props }); };
-    const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
-      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
+    const { T, R, things, rels } = graphWithVocabulary();
 
-    T('is', 'is'); T('has', 'has'); T('feeds', 'feeds');
-    T('arch-pipeline', 'Workflow', marked(ARCHETYPE_FLAG.Pipeline));
-    T('arch-node', 'Step', marked(ARCHETYPE_FLAG.PipelineNode));
-    T('arch-wire', 'Link', marked(ARCHETYPE_FLAG.PipelineWire));
-    R('feeds', 'is', 'arch-wire');
     T('TP', 'TransformPipe'); R('TP', 'is', 'arch-pipeline');
     T('N1', 'N1'); R('N1', 'is', 'arch-node'); R('TP', 'has', 'N1');
     T('N2', 'N2'); R('N2', 'is', 'arch-node'); R('TP', 'has', 'N2');
