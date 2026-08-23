@@ -1,12 +1,14 @@
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
-import { PipelineModel, ARCHETYPE, type PortInfo } from './model';
+import { PipelineModel, ARCHETYPE_FLAG, type PortInfo } from './model';
 import type { VosTypeName } from '../utils/constants';
 
 // Persist / read a pipeline as Things + relationships (the lean-on-model bet): the editor is just CRUD over
-// thingApi / relationshipApi. Save shape mirrors the seed — node -has-> Connection, wires by the PipelineWire
-// predicate carrying fromPort/toPort. Node canvas position round-trips as x/y properties on the node Thing.
+// thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a wire is an edge
+// through the predicate the model marks as holding wires, carrying fromPort/toPort. Every archetype an `is`
+// edge is written to is the one the model marks with that role, never one this file names. Node canvas
+// position round-trips as x/y properties on the node Thing.
 
 const DOUBLE: VosTypeName = 'vos.Double';
 const STRING: VosTypeName = 'vos.String';
@@ -22,7 +24,7 @@ export interface EditorNode {
   /** Input-port name → run-param key (#5647). Persisted as a JSON `paramBindings` property on the node. */
   paramBindings?: Record<string, string>;
   /** Boundary node (#5873): 'input' (a param source) or 'output' (the run's result sink). A boundary node
-   * binds no Connection — its `ports` are user-declared and persisted as its own Port child-Things. */
+   * binds no connection — its `ports` are user-declared and persisted as its own port child-Things. */
   kind?: 'input' | 'output';
 }
 
@@ -68,16 +70,16 @@ export async function savePipeline(
   const isId = model.predicateIdByName('is');
   const hasId = model.predicateIdByName('has');
   const wireId = model.wirePredicateId();
-  const pipelineArchetype = model.archetypeId(ARCHETYPE.Pipeline);
-  const nodeArchetype = model.archetypeId(ARCHETYPE.PipelineNode);
+  const pipelineArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.Pipeline);
+  const nodeArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.PipelineNode);
   if (!isId || !hasId || !wireId || !pipelineArchetype || !nodeArchetype)
-    throw new Error('Model is missing pipeline archetypes/predicates — load the pipeline seed first.');
+    throw new Error('This model marks no archetype as a pipeline, a pipeline node or a wire — load a seed that marks them.');
 
-  const portArchetype = model.archetypeId(ARCHETYPE.Port);
+  const portArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.Port);
   const boundaryArchetype = (kind: 'input' | 'output') =>
-    model.archetypeId(kind === 'input' ? ARCHETYPE.PipelineInput : ARCHETYPE.PipelineOutput);
+    model.archetypeCarrying(kind === 'input' ? ARCHETYPE_FLAG.PipelineInput : ARCHETYPE_FLAG.PipelineOutput);
   if (nodes.some((n) => n.kind) && (!portArchetype || !boundaryArchetype('input') || !boundaryArchetype('output')))
-    throw new Error('Model is missing boundary-node archetypes (PipelineInput/PipelineOutput/Port) — load a seed that defines them.');
+    throw new Error('This model marks no archetype as a port, a pipeline input or a pipeline output — load a seed that marks them.');
 
   const pipelineId = existingPipelineId ?? crypto.randomUUID();
 
@@ -85,7 +87,7 @@ export async function savePipeline(
   // the whole Thing graph can ride one id-keyed fragment upsert (create + update in place, no dupes).
   const nodeThingId = new Map<string, string>();
   for (const n of nodes)
-    nodeThingId.set(n.id, model.isOfType(n.id, ARCHETYPE.PipelineNode) ? n.id : crypto.randomUUID());
+    nodeThingId.set(n.id, model.isOfArchetypeCarrying(n.id, ARCHETYPE_FLAG.PipelineNode) ? n.id : crypto.randomUUID());
 
   const things: Array<{ Id: string; Name: string; Properties: Record<string, unknown> }> = [
     { Id: pipelineId, Name: name, Properties: {} },
@@ -101,15 +103,15 @@ export async function savePipeline(
     if (n.paramBindings && Object.keys(n.paramBindings).length > 0)
       props.paramBindings = env(STRING, JSON.stringify(n.paramBindings));
     things.push({ Id: tid, Name: n.label, Properties: props });
-    // Boundary nodes are PipelineNodes too (so the run + editor pick them up), plus their own Input/Output
-    // archetype which marks them a param source / result sink for Phloem.
+    // Boundary nodes are pipeline nodes too (so the run + editor pick them up), plus the archetype marked
+    // as the pipeline's input or its output, which is what makes one a param source or a result sink.
     relationships.push({ Name: 'is', Subject: tid, Predicate: isId, Target: nodeArchetype });
     relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: tid });
 
     if (n.kind) {
       relationships.push({ Name: 'is', Subject: tid, Predicate: isId, Target: boundaryArchetype(n.kind)! });
-      // Declared ports become Port child-Things (has → Port). Reuse a persisted port's id when the name
-      // matches (idempotent update); a persisted port no longer declared is retracted.
+      // Declared ports become child-Things under the archetype marked as holding ports. Reuse a persisted
+      // port's id when the name matches (idempotent update); a port no longer declared is retracted.
       const persisted = new Map(model.boundaryPortRels(n.id).map((r) => [r.port.portName, r.portId]));
       for (const p of n.ports) {
         const portId = persisted.get(p.portName) ?? crypto.randomUUID();
@@ -143,7 +145,7 @@ export async function savePipeline(
   const desiredKeys = new Set(desired.map((w) => wireKey(w.from, w.fp, w.to, w.tp)));
 
   const persistedNodeIds = existingPipelineId
-    ? model.outgoing(existingPipelineId, 'has').filter((t) => model.isOfType(t.Id, ARCHETYPE.PipelineNode)).map((t) => t.Id)
+    ? model.outgoing(existingPipelineId, 'has').filter((t) => model.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineNode)).map((t) => t.Id)
     : [];
   const persistedWires = persistedNodeIds.flatMap((nid) =>
     model.outgoingWireRels(nid).map((w) => ({ relId: w.relId, key: wireKey(nid, w.fromPort, w.targetId, w.toPort), fromPath: w.fromPath, toPath: w.toPath, transform: w.transform })));
@@ -170,7 +172,7 @@ export async function savePipeline(
   // Ports removed from a boundary node (still on the canvas) are retracted.
   for (const portId of portsToRetract) await thingApi.remove(portId);
 
-  // Deleted nodes: persisted PipelineNodes no longer on the canvas are retracted, along with any Port
+  // Deleted nodes: persisted pipeline nodes no longer on the canvas are retracted, along with any port
   // child-Things a removed boundary node declared (so they don't linger as orphans).
   const desiredThingIds = new Set(nodeThingId.values());
   for (const nid of persistedNodeIds)
@@ -199,10 +201,10 @@ function parseParamBindings(raw: unknown): Record<string, string> | undefined {
 /** Reconstruct the editor state for an existing pipeline from the loaded model (pure read). */
 export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPipeline | null {
   const pipe = model.thing(pipelineId);
-  if (!pipe || !model.isOfType(pipelineId, ARCHETYPE.Pipeline)) return null;
+  if (!pipe || !model.isOfArchetypeCarrying(pipelineId, ARCHETYPE_FLAG.Pipeline)) return null;
 
   const connectionsById = new Map(model.connections().map((c) => [c.connectionId, c]));
-  const nodeThings = model.outgoing(pipelineId, 'has').filter((t) => model.isOfType(t.Id, ARCHETYPE.PipelineNode));
+  const nodeThings = model.outgoing(pipelineId, 'has').filter((t) => model.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineNode));
   const nodeIds = new Set(nodeThings.map((t) => t.Id));
 
   const nodes: EditorNode[] = nodeThings.map((t, i) => {
@@ -213,11 +215,11 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       y: Number(t.Properties.y ?? 80),
       paramBindings: parseParamBindings(t.Properties.paramBindings),
     };
-    // Boundary node (#5873): its ports are declared on the node itself, and it binds no Connection.
+    // Boundary node (#5873): its ports are declared on the node itself, and it binds no connection.
     const kind = model.boundaryKind(t.Id);
     if (kind) return { ...base, kind, connectionId: '', ports: model.boundaryPortRels(t.Id).map((r) => r.port) };
 
-    const conn = model.outgoing(t.Id, 'has').find((c) => model.isOfType(c.Id, ARCHETYPE.Connection));
+    const conn = model.outgoing(t.Id, 'has').find((c) => model.isOfArchetypeCarrying(c.Id, ARCHETYPE_FLAG.Connection));
     return { ...base, connectionId: conn?.Id ?? '', ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [] };
   });
 

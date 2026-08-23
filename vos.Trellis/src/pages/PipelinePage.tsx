@@ -17,7 +17,7 @@ import '@xyflow/react/dist/style.css';
 import clsx from 'clsx';
 import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2 } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
-import { PipelineModel, ARCHETYPE, typesCompatible, type ConnectionInfo, type PortInfo } from '../pipeline/model';
+import { PipelineModel, ARCHETYPE_FLAG, typesCompatible, type ConnectionInfo, type PortInfo } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { validatePipeline } from '../pipeline/validate';
 import { EditorHistory } from '../pipeline/history';
@@ -52,7 +52,7 @@ export function PipelinePage() {
   const model = useMemo(() => new PipelineModel(things, relationships), [things, relationships]);
   const connections = useMemo(() => model.connections(), [model]);
   const pipelines = useMemo(
-    () => things.filter((t) => model.isOfType(t.Id, ARCHETYPE.Pipeline)),
+    () => things.filter((t) => model.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Pipeline)),
     [things, model],
   );
 

@@ -960,7 +960,8 @@ graph LR
   `__IsPipelineWireArchetype`, `__IsPipelineInputArchetype`, `__IsPipelineOutputArchetype`,
   `__IsPipelineRunArchetype`, `__IsNodeRunArchetype`. The names below are only what the seed tool happens
   to choose. Phloem asks for the marked archetypes through the subscription selector (`markedTypes` for a
-  role's members, `markedArchetypes` for the archetype alone), so renaming any of them changes nothing.
+  role's members, `markedArchetypes` for the archetype alone), and the Trellis pipeline editor reads the same
+  marks off the model it has loaded, so renaming any of them changes nothing on either side.
 - Make any seed DAG-ready with the `seed-migrate` tool in the private VillageOS repo (`tools/seed-migrate/pipeline-enable.js`),
   which adds the archetypes, the Phloem Connection, example Echo node services with typed Ports, and a demo Pipeline.
 
