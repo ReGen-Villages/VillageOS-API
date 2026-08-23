@@ -74,24 +74,67 @@ public class EnginesCommandHandlerTests
     }
 
     [Fact]
-    public async Task Execute_Rollups_ListsEachRollupReactor()
+    public async Task Execute_Rollups_ListsAReductionByItsPathAndWhatItWatches()
     {
         _myceliumMock.Setup(m => m.GetEngineReactorsAsync()).ReturnsAsync(Parse("""
             {"Ranges":[],
              "Rollups":[{"OwnerId":"b","OwnerName":"SolarArray","PropertyName":"total_pv_area",
-                         "Function":"Sum","Predicate":"is","Direction":"Incoming",
-                         "RelatedType":"SolarArray","PropertyPath":"area",
-                         "MemberEdges":3,"EstimatedBytes":704}]}
+                         "Watches":["area"],
+                         "Function":"Sum","Path":"<-is","RelatedType":"SolarArray",
+                         "PropertyPath":"area","Expression":null,
+                         "MemberEdges":3,"EstimatedBytes":704,
+                         "Scope":"Owner","MaterializedEntries":0}]}
             """));
 
         await ExecuteHandler("rollups");
 
         var output = _writer.ToString();
-        Assert.Contains("SolarArray", output);
-        Assert.Contains("total_pv_area", output);
-        Assert.Contains("Sum", output);
-        Assert.Contains("area", output);
+        Assert.Contains("SolarArray · total_pv_area = Sum(area) over SolarArray reached by <-is", output);
+        Assert.Contains("watches: area", output);
+        Assert.Contains("members: 3", output);
         Assert.Contains("704 B", output);
+    }
+
+    [Fact]
+    public async Task Execute_Rollups_ListsAnExpressionByItsTermsRatherThanAnEmptyReduction()
+    {
+        _myceliumMock.Setup(m => m.GetEngineReactorsAsync()).ReturnsAsync(Parse("""
+            {"Ranges":[],
+             "Rollups":[{"OwnerId":"c","OwnerName":"Reservoir-1","PropertyName":"days_of_supply",
+                         "Watches":["capacity_m3","draw_rate_m3_per_day"],
+                         "Function":null,"Path":null,"RelatedType":null,
+                         "PropertyPath":null,"Expression":"capacity_m3 / draw_rate_m3_per_day",
+                         "MemberEdges":0,"EstimatedBytes":512,
+                         "Scope":"Owner","MaterializedEntries":0}]}
+            """));
+
+        await ExecuteHandler("rollups");
+
+        var output = _writer.ToString();
+        Assert.Contains("Reservoir-1 · days_of_supply = capacity_m3 / draw_rate_m3_per_day", output);
+        Assert.Contains("watches: capacity_m3, draw_rate_m3_per_day", output);
+        Assert.DoesNotContain("null", output);
+        Assert.DoesNotContain("over", output);
+    }
+
+    [Fact]
+    public async Task Execute_ModelWideReduction_NamesEveryInstanceInsteadOfThePathSymbol()
+    {
+        _myceliumMock.Setup(m => m.GetEngineReactorsAsync()).ReturnsAsync(Parse("""
+            {"Ranges":[],
+             "Rollups":[{"OwnerId":"d","OwnerName":"Site","PropertyName":"total_roof_area",
+                         "Watches":["roof_area"],
+                         "Function":"Sum","Path":"*","RelatedType":"Building",
+                         "PropertyPath":"roof_area","Expression":null,
+                         "MemberEdges":9,"EstimatedBytes":832,
+                         "Scope":"Owner","MaterializedEntries":0}]}
+            """));
+
+        await ExecuteHandler("rollups");
+
+        var output = _writer.ToString();
+        Assert.Contains("total_roof_area = Sum(roof_area) over every Building", output);
+        Assert.DoesNotContain("*", output);
     }
 
     [Fact]
@@ -123,20 +166,23 @@ public class EnginesCommandHandlerTests
     }
 
     [Fact]
-    public async Task Execute_RollupWithoutAPropertyPath_PrintsTheBareReduction()
+    public async Task Execute_RollupWithoutAPropertyPath_PrintsTheBareReductionAndWatchesNothing()
     {
         _myceliumMock.Setup(m => m.GetEngineReactorsAsync()).ReturnsAsync(Parse("""
             {"Ranges":[],
              "Rollups":[{"OwnerId":"b","OwnerName":"SolarArray","PropertyName":"panel_count",
-                         "Function":"Count","Predicate":"is","Direction":"Incoming",
-                         "RelatedType":"SolarArray","PropertyPath":null,
-                         "MemberEdges":7,"EstimatedBytes":960}]}
+                         "Watches":[],
+                         "Function":"Count","Path":"<-is","RelatedType":"SolarArray",
+                         "PropertyPath":null,"Expression":null,
+                         "MemberEdges":7,"EstimatedBytes":960,
+                         "Scope":"Owner","MaterializedEntries":0}]}
             """));
 
         await ExecuteHandler("rollups");
 
         var output = _writer.ToString();
-        Assert.Contains("panel_count = Count over Incoming is", output);
+        Assert.Contains("panel_count = Count over SolarArray reached by <-is", output);
+        Assert.Contains("watches: (none)", output);
         Assert.DoesNotContain("Count(", output);
     }
 
