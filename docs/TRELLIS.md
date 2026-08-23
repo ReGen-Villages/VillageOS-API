@@ -1676,9 +1676,10 @@ the model already holds:
 
 So renaming a property does not change what a page says about it, and a name
 that reads like a measurement — `measuredAreaHectares` — is still only a name.
-The two failures this exists to prevent are both silence read as evidence: a
-figure nobody recorded an origin for reads as unrecorded, and an assumption the
-platform filled in reads as the platform's, not as something the submitter said.
+Two readings are what this exists to refuse, and both are the page claiming more
+than the model said: a figure nobody recorded an origin for must not read as
+measured, and a value the archetype supplies to every member must not read as
+something this submitter stated.
 
 **Which Thing holds the value.** `thing`, or the scope entity when the spec
 names none, and `via` walks from there exactly as `related`'s and `verdict`'s
