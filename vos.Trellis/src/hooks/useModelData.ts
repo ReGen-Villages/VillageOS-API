@@ -1,9 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
-import { useSse } from './useSse';
+import { NAVIGATION_AND_SETTINGS } from '../api/dashboardSubscription';
+import { DASHBOARD_SPEC_PROPERTY } from '../types/dashboard';
+import type { SubscriptionOpened } from '../types/subscription';
+import { SUBSCRIPTION_OPENED, resubscribe, useSse, useDefaultSubscription } from './useSse';
 import { useFlashTimer } from './useFlashTimer';
 import { toast } from '../components/common/toastStore';
 import { isVisibleRelationship } from '../utils/propertyUpdates';
@@ -25,15 +28,6 @@ const HYDRATE_CONCURRENCY = 8;
 type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
 
 /**
- * Single source of truth for the model fetch. Exported so mutation handlers can
- * refresh after their action without going through the hook.
- *
- * Pass `{ silent: true }` for background reconciles (e.g. the SSE reconnect
- * recovery) so a transient failure does not raise a toast — error toasts do not
- * auto-dismiss, so a background loop would otherwise stack un-dismissable toasts
- * (Bug #5940). User-initiated loads (mount, mutations, ModelChanged) stay loud.
- */
-/**
  * The properties this model says its pages are drawn with, or none when it says nothing.
  *
  * Read before the model itself because it decides what to ask for. It costs one small request against
@@ -46,24 +40,71 @@ type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
 async function declaredModelLoadProperties(): Promise<string[]> {
   try {
     const settings = await thingApi.getByName(GUI_SETTINGS_TYPE_NAME);
-    return readModelLoadProperties(settings?.Properties ?? null);
+    const declared = readModelLoadProperties(settings?.Properties ?? null);
+    // The navigation lists a model's dashboards on every page, and it reads each one out of this
+    // property. A model that narrows its load without naming it is not asking for fewer dashboards
+    // in the navigation — it is describing what its pages are drawn with.
+    if (declared.length && !declared.includes(DASHBOARD_SPEC_PROPERTY)) declared.push(DASHBOARD_SPEC_PROPERTY);
+    return declared;
   } catch {
     return [];
   }
 }
 
+/**
+ * Whether the store currently holds one page's own set of Things rather than the whole model.
+ *
+ * A page that asked for the whole model must not be shown a narrower page's set as though it were
+ * the model, so the store is emptied before its load rather than left showing someone else's
+ * answer. Held here rather than in the store because it describes the load, not the model.
+ */
+let holdsNarrowedSet = false;
+
+/**
+ * The whole-model read. Exported so a mutation handler can refresh after its own action without
+ * going through the hook, and the only load that honours the properties the model says its pages
+ * are drawn with.
+ *
+ * `silent` withholds the failure toast, for a read behind a page that is already drawn: an error
+ * toast does not auto-dismiss, so a retrying loop would stack un-dismissable ones (Bug #5940).
+ */
 export async function reloadModelData(opts?: { silent?: boolean }): Promise<void> {
   try {
     const declared = await declaredModelLoadProperties();
     const [t, r] = await Promise.all([thingApi.getAll(declared), relationshipApi.getAll()]);
     useModelStore.getState().setThings(t);
     useModelStore.getState().setRelationships(r);
+    holdsNarrowedSet = false;
     // Flip the gate that pages (e.g. OperationsPage) block rendering on. Without
     // this the Operations page sits on "Loading model…" forever (Bug #5930).
     useModelStore.getState().markLoaded();
   } catch {
     if (!opts?.silent) toast.error('Failed to load model');
   }
+}
+
+/**
+ * The load a newly opened subscription either is or asks for.
+ *
+ * A narrowed subscription already answered with the Things the page is about, so its snapshot is
+ * the load — no second read, and a reconnect refills the page the same way rather than waiting for
+ * the stream to re-deliver what it missed. A whole-model subscription is loaded through the model
+ * read instead, which is the only one that honours the properties the model says its pages are
+ * drawn with.
+ */
+function loadWhatOpened(opened: SubscriptionOpened): void {
+  if (opened.covered) {
+    useModelStore.getState().setThings(opened.covered.things);
+    useModelStore.getState().setRelationships(opened.covered.relationships);
+    holdsNarrowedSet = true;
+    useModelStore.getState().markLoaded();
+    return;
+  }
+  if (holdsNarrowedSet) useModelStore.getState().clear();
+  // A load the user is waiting on says when it failed; a refresh behind an already-drawn page does
+  // not, because an error toast does not auto-dismiss and a retrying loop would stack them (#5940).
+  const waitedOn = !useModelStore.getState().loaded;
+  void reloadModelData({ silent: !waitedOn });
 }
 
 /** The entity id carried by a structural change event (ThingCreated, etc.). */
@@ -103,25 +144,16 @@ async function hydrateMany<T>(ids: string[], fetchOne: (id: string) => Promise<T
 /**
  * App-shell hook: owns model-data lifecycle so every authenticated page sees a
  * populated useModelStore from mount. Mount once in AuthenticatedApp.
+ *
+ * The load comes from whatever subscription the mounted pages declared, so a page that is about a
+ * handful of Things is sent those and no more. The shell's own declaration is the least any page
+ * needs — the dashboards the navigation lists and the Thing the model states its display settings
+ * on — and a page reading across the model widens it by declaring so.
  */
 export function useModelData(): void {
-  const { on, connected } = useSse();
+  const { on } = useSse();
   const { triggerFlashNode, triggerFlashEdge } = useFlashTimer();
-
-  useEffect(() => { reloadModelData(); }, []);
-
-  // Reconcile once when the SSE stream RECOVERS (Bug #5940). The stream itself now resumes
-  // from our consumed sequence and the broker replays the missed Facts (Bug #5943), so this
-  // full reconcile is the backstop for the one case replay can't serve: our watermark is
-  // older than the broker's retained commit log (post snapshot eviction). `hasConnected`
-  // gates out the first connect (the mount effect already loads) so only genuine reconnects
-  // trigger it. Silent: a background refresh must not raise an un-dismissable toast.
-  const hasConnected = useRef(false);
-  useEffect(() => {
-    if (!connected) return;
-    if (hasConnected.current) reloadModelData({ silent: true });
-    hasConnected.current = true;
-  }, [connected]);
+  useDefaultSubscription(NAVIGATION_AND_SETTINGS);
 
   useEffect(() => {
     // Buffered live updates: SSE events accumulate here and flush together, so a burst
@@ -249,7 +281,11 @@ export function useModelData(): void {
       on('PropertyDeleted', (...args) => onThingProperty(args, { deleted: true })),
       on('RelationshipPropertyChanged', (...args) => onRelationshipProperty(args, { deleted: false, value: args[2] })),
       on('RelationshipPropertyDeleted', (...args) => onRelationshipProperty(args, { deleted: true })),
-      on('ModelChanged', () => reloadModelData()),
+      // Every open: the first, a reconnect, and a page changing what the subscription covers.
+      on(SUBSCRIPTION_OPENED, (data) => loadWhatOpened(data as SubscriptionOpened)),
+      // A replaced model is not the one the subscription resolved against, so it is asked for
+      // again rather than reconciled — which also re-answers with the new model's snapshot.
+      on('ModelChanged', () => resubscribe()),
       on('ModelCleared', () => useModelStore.getState().clear()),
       on('StatesChanged', () => useUiStore.getState().bumpStatesVersion()),
     ];

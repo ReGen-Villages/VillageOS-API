@@ -1,8 +1,11 @@
 import { useEffect, useCallback, useSyncExternalStore } from 'react';
 import { apiClient } from '../api/client';
+import { unwrapThing, unwrapRelationship } from '../utils/propertyMapper';
+import { WHOLE_MODEL, type SubscriptionOpened, type SubscriptionSelector } from '../types/subscription';
+import type { VosThing, VosRelationship } from '../types/vos';
 
 // Live model + operational updates over Server-Sent Events.
-// Two streams — the whole-model object subscription and the system/operational events —
+// Two streams — the object subscription the page declared and the system/operational events —
 // feed one dispatch surface. Same { connected, on } API the consumers use.
 
 const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
@@ -16,6 +19,12 @@ const KNOWN_EVENTS = [
   'StatesChanged', 'RelationshipStatesChanged', 'ActivityEvent',
 ];
 
+/** A subscription has opened, with the objects it covers as they stood at that moment. Dispatched
+ *  to the same handlers the server's own events reach, rather than through a channel of its own: a
+ *  subscription answers with a snapshot and then streams the changes to it, and both halves say
+ *  what the page holds. Never sent by the server — this client raises it on itself. */
+export const SUBSCRIPTION_OPENED = 'SubscriptionOpened';
+
 type Handler = (...args: unknown[]) => void;
 type Entry = { event: string; handler: Handler };
 
@@ -25,6 +34,7 @@ const listeners = new Set<() => void>();
 
 let objectSource: EventSource | null = null;
 let systemSource: EventSource | null = null;
+let openSubscriptionId: string | null = null;
 let refCount = 0;
 let connectedState = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -35,9 +45,34 @@ let generation = 0; // bumped on release/reconnect to abort stale async opens
 // Persists across reconnects so we resume from here — the broker replays committed Facts
 // after it and de-dupes by sequence, closing the disconnect gap precisely instead of
 // re-subscribing at the current head (which skipped everything during the drop). Reset on
-// full teardown / model switch (release) because the sequence is per-model. null = no
-// position yet → start from the fresh snapshot watermark.
+// full teardown / model switch (release) and on a change of what the subscription covers,
+// because either makes the position meaningless. null = no position yet → start from the
+// fresh snapshot watermark.
 let consumedWatermark: number | null = null;
+
+/**
+ * What the mounted pages have asked the subscription to cover, innermost last.
+ *
+ * A page declares what it is about while it is on screen and takes the declaration back when it
+ * leaves, so the subscription follows the page rather than the app: a dashboard is sent the handful
+ * of Things it draws, and the graph — which genuinely reads across the model — is sent everything.
+ * The stack is what makes the declaration a page's own: a page leaving restores whatever the page
+ * beneath it asked for, whichever order the two changed in.
+ */
+const declared: { selector: SubscriptionSelector }[] = [];
+
+/** What the subscription covers when no page has declared anything — the shell's own declaration.
+ *  Held apart from the pages' rather than at the bottom of their stack, because a page mounts its
+ *  declaration before the shell containing it mounts one, and the shell's must not win by arriving
+ *  last. */
+let defaultSelector: SubscriptionSelector = WHOLE_MODEL;
+
+/** What the streams were opened with, so a declaration that changes nothing reopens nothing. */
+let openedFor: string | null = null;
+
+function effectiveSelector(): SubscriptionSelector {
+  return declared.length ? declared[declared.length - 1].selector : defaultSelector;
+}
 
 function notify() { listeners.forEach((l) => l()); }
 function setConnected(v: boolean) { if (connectedState !== v) { connectedState = v; notify(); } }
@@ -86,11 +121,27 @@ function attachListeners(source: EventSource, trackWatermark = false) {
   }
 }
 
+/** Hand the subscription back. Nothing expires a registry entry (Bug #6562), and a page that
+ *  declares its own subscription opens one per navigation, so an abandoned entry would go on being
+ *  written to for the life of the process. Best effort: a failed release costs one stale entry, and
+ *  waiting on it would hold up the stream that replaces it. */
+function releaseSubscription(id: string | null) {
+  if (!id) return;
+  void apiClient.ensureToken().then((token) =>
+    fetch(`${BASE_URL}/api/subscriptions/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {}),
+  ).catch(() => {});
+}
+
 function closeStreams() {
   objectSource?.close();
   systemSource?.close();
   objectSource = null;
   systemSource = null;
+  releaseSubscription(openSubscriptionId);
+  openSubscriptionId = null;
 }
 
 function scheduleReconnect() {
@@ -110,29 +161,37 @@ function scheduleReconnect() {
 async function openStreams() {
   const myGeneration = ++generation;
   closeStreams();
+  const selector = effectiveSelector();
+  openedFor = JSON.stringify(selector);
+  const superseded = () => myGeneration !== generation || refCount === 0;
+  // The platform holds a subscription for this open from the moment the request answers, and only
+  // an open that goes on to attach its streams records it as the live one. Every other path leaves
+  // it here to be handed back — an abandoned entry is one nothing will ever read and nothing will
+  // ever expire (Bug #6562), and a declaration changing mid-open abandons one every time.
+  let granted: string | null = null;
   try {
     const token = await apiClient.ensureToken();
-    if (myGeneration !== generation || refCount === 0) return; // released/superseded while awaiting
+    if (superseded()) return;
 
-    // Whole-model object subscription: snapshot watermark anchors the first resume.
+    // The subscription the mounted page declared. Its snapshot watermark anchors the first resume.
     const resp = await fetch(`${BASE_URL}/api/subscriptions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ all: true }),
+      body: JSON.stringify(selector),
     });
-    if (myGeneration !== generation || refCount === 0) return;
     if (!resp.ok) {
-      scheduleReconnect();
+      if (!superseded()) scheduleReconnect();
       return;
     }
 
-    const { subscriptionId, watermark } = await resp.json();
-    if (myGeneration !== generation || refCount === 0) return;
+    const { subscriptionId, watermark, snapshot } = await resp.json();
+    granted = subscriptionId;
+    if (superseded()) return;
 
     // Minted after the snapshot call, never before: on a large model that call is the slow step, and
     // a credential that lives for minutes must not spend them waiting for it.
     const streamToken = await apiClient.mintStreamToken();
-    if (myGeneration !== generation || refCount === 0) return;
+    if (superseded()) return;
 
     const tokenParam = `access_token=${encodeURIComponent(streamToken)}`;
 
@@ -155,15 +214,132 @@ async function openStreams() {
     sys.onerror = () => scheduleReconnect();
     attachListeners(sys);
     systemSource = sys;
+
+    openSubscriptionId = subscriptionId;
+    granted = null; // adopted: released with the streams it belongs to, not here
+    announceOpened(subscriptionId, watermark, snapshot, selector);
   } catch (err) {
     console.warn('SSE open failed; will retry:', err instanceof Error ? err.message : err);
     scheduleReconnect();
+  } finally {
+    releaseSubscription(granted);
   }
 }
 
+/** Raised after the streams are attached, never before: the snapshot names the moment the stream
+ *  resumes from, and a reader given it while nothing was listening would apply it and then miss
+ *  every change between the two. */
+function announceOpened(
+  subscriptionId: string,
+  watermark: number,
+  snapshot: { things?: VosThing[]; relationships?: VosRelationship[] } | undefined,
+  selector: SubscriptionSelector,
+) {
+  const opened: SubscriptionOpened = {
+    subscriptionId,
+    watermark,
+    covered: selector.all ? null : {
+      things: (snapshot?.things ?? []).map(unwrapThing),
+      relationships: (snapshot?.relationships ?? []).map(unwrapRelationship),
+    },
+  };
+  dispatch(SUBSCRIPTION_OPENED, opened);
+}
+
+/** How long an arriving page is given to make its declaration. Long enough for its code to be
+ *  fetched and mounted; a page slower than this costs one snapshot built for no reader, and
+ *  nothing else — the subscription still settles on what that page asked for. */
+const DECLARATIONS_SETTLE_MS = 300;
+
+/**
+ * Reopen when what the mounted pages ask the subscription to cover has changed.
+ *
+ * The consumed position goes with the old coverage: the new subscription answers with its own
+ * snapshot, and replaying from a position taken under different coverage would re-apply changes
+ * that snapshot already holds and could ask for a range the broker no longer retains.
+ */
+function follow() {
+  settling = null;
+  if (refCount === 0) return;
+  if (JSON.stringify(effectiveSelector()) === openedFor) return;
+  consumedWatermark = null;
+  void openStreams();
+}
+
+/**
+ * Follow the declarations once they have stopped moving.
+ *
+ * A page replacing its own declaration — the scope switcher choosing another entity — takes the old
+ * one back and makes the new one in the same commit, so by the end of this turn a page holds a
+ * declaration again and there is nothing to wait for. What has to be waited out is the opposite: no
+ * page holding one at all, which is a page having left while the next page's code is still loading.
+ * Following it there would open a subscription for a reader that never arrives — between two pages
+ * that both read the whole model, a whole-model snapshot built and a whole model re-read for
+ * nobody. The wait is skipped entirely before the first open, when every moment is a page waiting
+ * on its data and there is no page to hand over from.
+ */
+let settling: ReturnType<typeof setTimeout> | null = null;
+let following = false;
+function followDeclarations() {
+  if (following || settling) return;
+  following = true;
+  queueMicrotask(() => {
+    following = false;
+    if (openedFor !== null && declared.length === 0) settling = setTimeout(follow, DECLARATIONS_SETTLE_MS);
+    else follow();
+  });
+}
+
+/** Open the declared subscription again, from a fresh snapshot. What a subscription covers is
+ *  resolved when it opens, so a model replaced under it has to be asked for again. */
+export function resubscribe(): void {
+  if (refCount === 0) return;
+  // A reopen is a reopen: a settle still pending would make a second one for the same declaration.
+  if (settling) { clearTimeout(settling); settling = null; }
+  consumedWatermark = null;
+  void openStreams();
+}
+
+/**
+ * Declare what the subscription must cover for as long as the caller is on screen. Leaving restores
+ * whatever the rest of the mounted pages asked for.
+ *
+ * The selector is compared by what it says rather than by identity, so a page may rebuild it on
+ * every render.
+ */
+export function useSubscription(selector: SubscriptionSelector): void {
+  const declaration = JSON.stringify(selector);
+  useEffect(() => {
+    const entry = { selector: JSON.parse(declaration) as SubscriptionSelector };
+    declared.push(entry);
+    followDeclarations();
+    return () => {
+      const at = declared.indexOf(entry);
+      if (at >= 0) declared.splice(at, 1);
+      followDeclarations();
+    };
+  }, [declaration]);
+}
+
+/** The shell's declaration: what the subscription covers on a page that asks for nothing of its
+ *  own. A page's declaration always wins over it, however the two mount. */
+export function useDefaultSubscription(selector: SubscriptionSelector): void {
+  const declaration = JSON.stringify(selector);
+  useEffect(() => {
+    defaultSelector = JSON.parse(declaration) as SubscriptionSelector;
+    followDeclarations();
+    return () => {
+      defaultSelector = WHOLE_MODEL;
+      followDeclarations();
+    };
+  }, [declaration]);
+}
+
+/** The first open goes through the same settling as any later one, so it is made with what the
+ *  mounted pages declared rather than with the whole model they were about to narrow. */
 function acquire() {
   refCount++;
-  if (refCount === 1) void openStreams();
+  if (refCount === 1) followDeclarations();
 }
 
 function release() {
@@ -172,8 +348,10 @@ function release() {
     refCount = 0;
     generation++; // abort any in-flight open
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    if (settling) { clearTimeout(settling); settling = null; }
     reconnectAttempt = 0;
     consumedWatermark = null; // per-model sequence — a fresh acquire (e.g. model switch) restarts from head
+    openedFor = null;
     closeStreams();
     setConnected(false);
   }

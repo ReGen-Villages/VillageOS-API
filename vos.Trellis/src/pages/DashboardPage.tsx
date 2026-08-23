@@ -12,7 +12,8 @@ import { endpointApi } from '../api/endpointApi';
 import { thingApi } from '../api/thingApi';
 import { fetchFullLog } from '../api/logsApi';
 import { triggerDownload } from '../utils/logDownload';
-import { useSse } from '../hooks/useSse';
+import { useSse, useSubscription } from '../hooks/useSse';
+import { WHOLE_MODEL } from '../types/subscription';
 import { useActivityStore } from '../stores/activityStore';
 import { useModelStore } from '../stores/modelStore';
 import { toast } from '../components/common/toastStore';
@@ -30,6 +31,7 @@ const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 const ENGINE_METRICS_POLL_MS = 15000;
 
 export function DashboardPage() {
+  useSubscription(WHOLE_MODEL);
   const navigate = useNavigate();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);

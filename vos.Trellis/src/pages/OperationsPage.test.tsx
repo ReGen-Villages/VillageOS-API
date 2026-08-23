@@ -3,8 +3,10 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { VosThing, VosRelationship } from '../types/vos';
 
+const declaredSubscriptions: unknown[] = [];
 vi.mock('../hooks/useSse', () => ({
   useSse: () => ({ connected: true, on: () => () => {} }),
+  useSubscription: (selector: unknown) => { declaredSubscriptions.push(selector); },
 }));
 vi.mock('../api/stateApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/stateApi')>()),
@@ -12,6 +14,8 @@ vi.mock('../api/stateApi', async (importOriginal) => ({
 }));
 
 import { stateApi } from '../api/stateApi';
+import { subscriptionForSpec } from '../api/dashboardSubscription';
+import type { DashboardSpec } from '../types/dashboard';
 import { useModelStore } from '../stores/modelStore';
 import { OperationsPage } from './OperationsPage';
 
@@ -107,6 +111,7 @@ function renderAt(path = '/operations') {
 describe('OperationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    declaredSubscriptions.length = 0;
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({
       StateName: 'harvested',
       Things: [{ Id: 'p1', Name: 'PLOT-1' }, { Id: 'p2', Name: 'PLOT-2' }],
@@ -159,6 +164,23 @@ describe('OperationsPage', () => {
     useModelStore.setState({ things: [], relationships: [], loaded: true });
     renderAt();
     expect(screen.getByText('No dashboard configured')).toBeInTheDocument();
+  });
+
+  // The store this page reads holds nothing but what its own spec asks for — every figure above is
+  // resolved from that set. What makes the set arrive is the page saying so.
+  it('declares the subscription its spec describes', () => {
+    renderAt();
+
+    expect(declaredSubscriptions).toContainEqual(subscriptionForSpec(SPEC as DashboardSpec, null));
+  });
+
+  it('names the selected entity in what it declares', async () => {
+    renderAt();
+    await screen.findByText('96.5');
+
+    fireEvent.click(screen.getByRole('button', { name: 'V-1' }));
+
+    expect(declaredSubscriptions).toContainEqual(subscriptionForSpec(SPEC as DashboardSpec, 'vil1'));
   });
 });
 

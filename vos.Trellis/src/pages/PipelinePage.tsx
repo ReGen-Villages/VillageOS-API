@@ -17,6 +17,8 @@ import '@xyflow/react/dist/style.css';
 import clsx from 'clsx';
 import { Play, Save, FolderOpen, FilePlus, MousePointerClick, Ban, History, SlidersHorizontal, AlertTriangle, Undo2 } from 'lucide-react';
 import { useModelStore } from '../stores/modelStore';
+import { useSubscription } from '../hooks/useSse';
+import { WHOLE_MODEL } from '../types/subscription';
 import { PipelineModel, ARCHETYPE_FLAG, typesCompatible, type ConnectionInfo, type PortInfo } from '../pipeline/model';
 import { savePipeline, loadPipeline, type EditorNode, type EditorEdge } from '../pipeline/serialize';
 import { validatePipeline } from '../pipeline/validate';
@@ -46,6 +48,7 @@ function pathLabel(fromPath?: string, toPath?: string, transform?: string): stri
 }
 
 export function PipelinePage() {
+  useSubscription(WHOLE_MODEL);
   const { t } = useTranslation();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);

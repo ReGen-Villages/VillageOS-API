@@ -20,6 +20,8 @@ import type {
 import {
   DASHBOARD_ARCHETYPE,
   DASHBOARD_SPEC_PROPERTY,
+  IS_PREDICATE,
+  SCOPE_REF,
   type Binding,
   type ComputedColumn,
   type DashboardDescriptor,
@@ -35,10 +37,6 @@ import { rangeApi } from './rangeApi';
 import { apiClient } from './client';
 import { effectiveProperties } from '../utils/propertyMapper';
 import { findRange } from '../utils/rangeHelpers';
-
-const IS_PREDICATE = 'is';
-/** The spec's reference to "the compare entity currently selected in the scope switcher". */
-const SCOPE_REF = '$scope';
 
 /** Row shape returned by stateList / aggregate-list / service table bindings. */
 export type Row = Record<string, unknown>;

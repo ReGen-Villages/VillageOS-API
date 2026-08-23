@@ -18,14 +18,15 @@ vi.mock('../api/relationshipApi', () => ({
 }));
 
 // Capture the SSE handler registry so tests can fire events synthetically.
-// `mockConnected` is read at call-time so a test can flip it and rerender() to
-// simulate the stream dropping and recovering.
 type Handler = (...args: unknown[]) => void;
 const handlers = new Map<string, Handler>();
-let mockConnected = false;
+const mockResubscribe = vi.fn();
 vi.mock('./useSse', () => ({
+  SUBSCRIPTION_OPENED: 'SubscriptionOpened',
+  resubscribe: () => mockResubscribe(),
+  useDefaultSubscription: () => {},
   useSse: () => ({
-    connected: mockConnected,
+    connected: true,
     on: (event: string, cb: Handler) => {
       handlers.set(event, cb);
       return () => handlers.delete(event);
@@ -44,9 +45,25 @@ vi.mock('../components/common/toastStore', () => ({
 }));
 
 import { useModelData, reloadModelData } from './useModelData';
+import type { SubscriptionOpened } from '../types/subscription';
 import { useModelStore } from '../stores/modelStore';
 import { useUiStore } from '../stores/uiStore';
 import { toast } from '../components/common/toastStore';
+
+/** A subscription opening. Every load starts from one of these now that what a page holds follows
+ *  what it subscribed to, so a test that wants a loaded store announces one. */
+function subscriptionOpened(over: Partial<SubscriptionOpened> = {}) {
+  handlers.get('SubscriptionOpened')!({
+    subscriptionId: 's1', watermark: 0, covered: null, ...over,
+  });
+}
+
+/** Mount the hook the way the shell does and let the whole-model subscription answer. */
+async function mountLoaded() {
+  const rendered = renderHook(() => useModelData());
+  await act(async () => { subscriptionOpened(); });
+  return rendered;
+}
 
 describe('useModelData', () => {
   beforeEach(() => {
@@ -59,7 +76,7 @@ describe('useModelData', () => {
     mockGetAllThings.mockResolvedValue([]);
     mockGetAllRels.mockResolvedValue([]);
     mockGetThingByName.mockResolvedValue(null);
-    mockConnected = false;
+    mockResubscribe.mockClear();
     vi.mocked(toast.error).mockClear();
     useModelStore.setState({ things: [], relationships: [], loaded: false });
     useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, statesVersion: 0 });
@@ -73,16 +90,31 @@ describe('useModelData', () => {
       Properties: { ModelLoadProperties: 'ifcClass,ifcGlobalId' },
     });
 
-    renderHook(() => useModelData());
+    await mountLoaded();
 
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
-    expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'ifcGlobalId']);
+    expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'ifcGlobalId', 'spec']);
+  });
+
+  // The navigation lists a model's dashboards on every page and reads each one out of `spec`. A
+  // model narrowing its load without naming it is describing what its pages draw, not asking for a
+  // navigation with nothing in it.
+  it('loads the property a dashboard is written in even when the model does not name it', async () => {
+    mockGetThingByName.mockResolvedValue({
+      Id: 'settings-1',
+      Name: 'GUI_Settings',
+      Properties: { ModelLoadProperties: 'ifcClass' },
+    });
+
+    await mountLoaded();
+
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalledWith(['ifcClass', 'spec']));
   });
 
   it('loads every property when the model declares none', async () => {
     mockGetThingByName.mockResolvedValue(null);
 
-    renderHook(() => useModelData());
+    await mountLoaded();
 
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
     expect(mockGetAllThings).toHaveBeenCalledWith([]);
@@ -92,7 +124,7 @@ describe('useModelData', () => {
   it('loads every property when the settings cannot be read', async () => {
     mockGetThingByName.mockRejectedValue(new Error('unreachable'));
 
-    renderHook(() => useModelData());
+    await mountLoaded();
 
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
     expect(mockGetAllThings).toHaveBeenCalledWith([]);
@@ -103,14 +135,14 @@ describe('useModelData', () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: {} }, { Id: 't2', Name: 'B', Properties: {} }]);
     mockGetAllRels.mockResolvedValue([{ Id: 'r1', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2' }]);
 
-    renderHook(() => useModelData());
+    await mountLoaded();
 
     await waitFor(() => expect(useModelStore.getState().things).toHaveLength(2));
     expect(useModelStore.getState().relationships).toHaveLength(1);
   });
 
   it('ThingCreated hydrates the single new thing and upserts it without a full refetch', async () => {
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalledTimes(1));
     mockGetAllThings.mockClear();
 
@@ -123,7 +155,7 @@ describe('useModelData', () => {
   });
 
   it('ThingCreated is idempotent — a duplicate event does not double-add', async () => {
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
 
     mockGetThing.mockResolvedValue({ Id: 't-new', Name: 'New' });
@@ -135,7 +167,7 @@ describe('useModelData', () => {
   });
 
   it('coalesces a burst of structural events into a single batched store write', async () => {
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
 
     mockGetThing.mockImplementation((id: string) => Promise.resolve({ Id: id, Name: id, Properties: {} }));
@@ -157,7 +189,7 @@ describe('useModelData', () => {
 
   it('ThingCreated with a failed hydrate does not throw or change the store', async () => {
     useModelStore.setState({ things: [{ Id: 't1', Name: 'A', Properties: {} }], relationships: [] });
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
     useModelStore.setState({ things: [{ Id: 't1', Name: 'A', Properties: {} }], relationships: [] });
 
@@ -168,7 +200,7 @@ describe('useModelData', () => {
   });
 
   it('RelationshipCreated hydrates the single new relationship and upserts it', async () => {
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(mockGetAllRels).toHaveBeenCalled());
     mockGetAllRels.mockClear();
 
@@ -182,7 +214,7 @@ describe('useModelData', () => {
 
   it('ThingDeleted removes the thing locally without a full refetch', async () => {
     useModelStore.setState({ things: [{ Id: 't1', Name: 'A', Properties: {} }, { Id: 't2', Name: 'B', Properties: {} }], relationships: [] });
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
     useModelStore.setState({ things: [{ Id: 't1', Name: 'A', Properties: {} }, { Id: 't2', Name: 'B', Properties: {} }], relationships: [] });
     mockGetAllThings.mockClear();
@@ -196,7 +228,7 @@ describe('useModelData', () => {
   it('RelationshipDeleted removes the relationship locally without a full refetch', async () => {
     const rel = { Id: 'r1', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} };
     useModelStore.setState({ things: [], relationships: [rel] });
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(mockGetAllRels).toHaveBeenCalled());
     useModelStore.setState({ things: [], relationships: [rel] });
     mockGetAllRels.mockClear();
@@ -209,7 +241,7 @@ describe('useModelData', () => {
 
   it('ThingDeleted for an unknown id is a no-op', async () => {
     useModelStore.setState({ things: [{ Id: 't1', Name: 'A', Properties: {} }], relationships: [] });
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
     useModelStore.setState({ things: [{ Id: 't1', Name: 'A', Properties: {} }], relationships: [] });
 
@@ -220,7 +252,7 @@ describe('useModelData', () => {
 
   it('clears the store when ModelCleared fires', async () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: {} }]);
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
 
     await act(async () => handlers.get('ModelCleared')!());
@@ -228,7 +260,7 @@ describe('useModelData', () => {
   });
 
   it('bumps uiStore.statesVersion when StatesChanged fires', async () => {
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
     const before = useUiStore.getState().statesVersion;
     await act(async () => handlers.get('StatesChanged')!());
@@ -256,43 +288,74 @@ describe('useModelData', () => {
     expect(useModelStore.getState().loaded).toBe(false);
   });
 
-  // Regression (Bug #5940): reconcile once when the SSE stream RECOVERS so events
-  // missed while disconnected are recovered — without blind polling.
-  it('reconciles the model silently when the SSE stream reconnects', async () => {
-    mockConnected = true; // already connected at mount
-    const { rerender } = renderHook(() => useModelData());
-    await act(async () => {});
-    expect(mockGetAllThings).toHaveBeenCalledTimes(1); // mount load only; first connect does not reconcile
+  // Regression (Bug #5940): a reopened subscription answers with a fresh snapshot, and the changes
+  // missed while the stream was down come back with it — without blind polling.
+  it('reads the model again when the subscription reopens, and says nothing about it', async () => {
+    await mountLoaded();
+    expect(mockGetAllThings).toHaveBeenCalledTimes(1);
 
     // A Thing created while we were disconnected shows up in the next full payload.
     mockGetAllThings.mockResolvedValue([{ Id: 't-late', Name: 'Late', Properties: {} }]);
-    mockConnected = false; rerender(); // stream drops
-    await act(async () => { mockConnected = true; rerender(); }); // stream recovers
+    await act(async () => { subscriptionOpened(); });
 
     expect(mockGetAllThings).toHaveBeenCalledTimes(2);
     expect(useModelStore.getState().things.map((t) => t.Id)).toContain('t-late');
-    // Background reconcile must not raise a toast (error toasts do not auto-dismiss).
+    // A refresh behind an already-drawn page must not raise a toast (they do not auto-dismiss).
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it('does NOT reconcile on the first connect (mount already loaded)', async () => {
-    mockConnected = false;
-    const { rerender } = renderHook(() => useModelData());
-    await act(async () => {});
-    expect(mockGetAllThings).toHaveBeenCalledTimes(1); // mount only
+  // The whole point of a narrowed subscription: what the page is about arrived with it, so nothing
+  // reads the model to find it again.
+  it('takes what a narrowed subscription covers as the load, without reading the model', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({
+        covered: {
+          things: [{ Id: 't1', Name: 'Scoped', Properties: {} }],
+          relationships: [{ Id: 'r1', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} }],
+        },
+      });
+    });
 
-    await act(async () => { mockConnected = true; rerender(); }); // first-ever connect
-    expect(mockGetAllThings).toHaveBeenCalledTimes(1); // no extra reconcile
+    expect(mockGetAllThings).not.toHaveBeenCalled();
+    expect(useModelStore.getState().things.map((t) => t.Id)).toEqual(['t1']);
+    expect(useModelStore.getState().relationships).toHaveLength(1);
+    expect(useModelStore.getState().loaded).toBe(true);
   });
 
-  it('a failed reconnect reconcile does not raise a toast', async () => {
-    mockConnected = true;
-    const { rerender } = renderHook(() => useModelData());
-    await act(async () => {});
+  // A page that asked for the whole model must not be shown the narrower page's set as though it
+  // were the model while the read is still in flight.
+  it('empties a narrowed set before loading the whole model over it', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({ covered: { things: [{ Id: 't1', Name: 'Scoped', Properties: {} }], relationships: [] } });
+    });
+
+    let finishLoad: (things: unknown[]) => void = () => {};
+    mockGetAllThings.mockReturnValue(new Promise((resolve) => { finishLoad = resolve; }));
+    await act(async () => { subscriptionOpened(); });
+
+    expect(useModelStore.getState().things).toEqual([]);
+    expect(useModelStore.getState().loaded).toBe(false);
+    await act(async () => { finishLoad([{ Id: 't2', Name: 'Everything', Properties: {} }]); });
+    expect(useModelStore.getState().things.map((t) => t.Id)).toEqual(['t2']);
+  });
+
+  // A subscription covers what it resolved to when it opened, and a replaced model holds none of
+  // those Things — so the answer is to ask again, not to reconcile against the model that went.
+  it('asks for the subscription again when the model is replaced', async () => {
+    await mountLoaded();
+
+    await act(async () => { handlers.get('ModelChanged')!({}); });
+
+    expect(mockResubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed read behind a drawn page does not raise a toast', async () => {
+    await mountLoaded();
     mockGetAllThings.mockRejectedValue(new Error('network'));
 
-    mockConnected = false; rerender();
-    await act(async () => { mockConnected = true; rerender(); });
+    await act(async () => { subscriptionOpened(); });
 
     expect(toast.error).not.toHaveBeenCalled();
   });
@@ -300,7 +363,7 @@ describe('useModelData', () => {
   it('retries a failed Thing hydrate once, then upserts (Bug #5940)', async () => {
     vi.useFakeTimers();
     try {
-      renderHook(() => useModelData());
+      await mountLoaded();
       await act(async () => {});
       mockGetThing.mockReset();
       mockGetThing
@@ -322,7 +385,7 @@ describe('useModelData', () => {
 
   it('PropertyChanged updates the things array in place without a full reload', async () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { geometry: 'old' } }]);
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
 
     // Reset reload mock so we can assert the in-place update did NOT trigger a full reload.
@@ -337,7 +400,7 @@ describe('useModelData', () => {
   // non-graph property must land there too — not only `geometry`.
   it('PropertyChanged on a business property updates the store', async () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { contained_units: 18 } }]);
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
 
     await act(async () => handlers.get('PropertyChanged')!('t1', 'contained_units', 3));
@@ -348,7 +411,7 @@ describe('useModelData', () => {
   // them all, not collapse to the last one written.
   it('coalesces multiple property changes on the same thing in one window', async () => {
     mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { contained_units: 18, available_units: 18 } }]);
-    renderHook(() => useModelData());
+    await mountLoaded();
     await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
 
     await act(async () => {
@@ -371,7 +434,7 @@ describe('useModelData', () => {
 
     it('adding a property to a Thing puts it in the store, not only changing one', async () => {
       mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: {} }]);
-      renderHook(() => useModelData());
+      await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
 
       await act(async () => handlers.get('PropertyChanged')!('t1', 'door_number', '4711'));
@@ -380,7 +443,7 @@ describe('useModelData', () => {
 
     it('deleting a property on a Thing takes it out of the store', async () => {
       mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { door_number: '4711' } }]);
-      renderHook(() => useModelData());
+      await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
 
       await act(async () => handlers.get('PropertyDeleted')!('t1', 'door_number'));
@@ -392,7 +455,7 @@ describe('useModelData', () => {
     it('a change to the edge the user opened lands, with no node selected', async () => {
       mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });
-      renderHook(() => useModelData());
+      await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
 
       await act(async () => handlers.get('RelationshipPropertyChanged')!('r1', 'quantity', 9));
@@ -402,7 +465,7 @@ describe('useModelData', () => {
     it('keeps every relationship property changed in one window, not only the last', async () => {
       mockGetAllRels.mockResolvedValue([relationship({ quantity: 5, unit: 'crates' })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });
-      renderHook(() => useModelData());
+      await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
 
       await act(async () => {
@@ -422,7 +485,7 @@ describe('useModelData', () => {
     it('takes a deleted relationship property out of the store', async () => {
       mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });
-      renderHook(() => useModelData());
+      await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
 
       await act(async () => handlers.get('RelationshipPropertyDeleted')!('r1', 'quantity'));
@@ -434,7 +497,7 @@ describe('useModelData', () => {
     it('keeps a relationship property that was genuinely set to null', async () => {
       mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: 'r1' });
-      renderHook(() => useModelData());
+      await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
 
       await act(async () => handlers.get('RelationshipPropertyChanged')!('r1', 'quantity', null));
@@ -448,7 +511,7 @@ describe('useModelData', () => {
     it('ignores a deletion on a relationship that is neither open nor on the open node', async () => {
       mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null });
-      renderHook(() => useModelData());
+      await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
 
       await act(async () => handlers.get('RelationshipPropertyDeleted')!('r1', 'quantity'));
@@ -458,7 +521,7 @@ describe('useModelData', () => {
     it('ignores a change to a relationship that is neither open nor on the open node', async () => {
       mockGetAllRels.mockResolvedValue([relationship({ quantity: 5 })]);
       useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null });
-      renderHook(() => useModelData());
+      await mountLoaded();
       await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
 
       await act(async () => handlers.get('RelationshipPropertyChanged')!('r1', 'quantity', 9));
