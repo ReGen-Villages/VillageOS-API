@@ -8,7 +8,10 @@ import type {
 } from '../types/vos';
 import type { Binding } from '../types/dashboard';
 
-vi.mock('./stateApi', () => ({
+// The request builder stays real: the shared-request key is the path a narrowed read asks for, so a
+// stubbed one would prove sharing that the running client does not do.
+vi.mock('./stateApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./stateApi')>()),
   stateApi: { getThingsInState: vi.fn() },
 }));
 
@@ -21,7 +24,7 @@ vi.mock('./rangeApi', () => ({
 }));
 
 vi.mock('./temporalApi', () => ({
-  temporalApi: { getPropertyVersions: vi.fn() },
+  temporalApi: { getPropertyVersions: vi.fn(), aggregate: vi.fn() },
 }));
 
 import { stateApi } from './stateApi';
@@ -299,7 +302,7 @@ describe('resolveBinding', () => {
     });
     const v = await resolveBinding({ kind: 'stateCount', state: 'harvested' }, ctxFor(null));
     expect(v).toBe(3);
-    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested');
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.anything());
   });
 
   it('stateList enriches state rows with the Thing properties', async () => {
@@ -312,24 +315,6 @@ describe('resolveBinding', () => {
       ctxFor(null),
     )) as Record<string, unknown>[];
     expect(rows[0]).toMatchObject({ id: 'vil1', name: 'V-1', self_sufficiency_rate: 98.9 });
-  });
-
-  // Derived statuses nest (a harvested plot is still planted), so an early stage's list would
-  // otherwise include every later one. excludeState drops the Things that advanced further.
-  it('stateList excludeState keeps only Things that reached this state and no further', async () => {
-    vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) => ({
-      StateName: state,
-      Things:
-        state === 'released'
-          ? [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }, { Id: 'o3', Name: 'O-3' }]
-          : [{ Id: 'o2', Name: 'O-2' }, { Id: 'o3', Name: 'O-3' }], // allocated ⊂ released
-    }));
-    const rows = (await resolveBinding(
-      { kind: 'stateList', state: 'released', excludeState: 'allocated' },
-      ctxFor(null),
-    )) as Record<string, unknown>[];
-    expect(rows.map((r) => r.id)).toEqual(['o1']);
-    expect(stateApi.getThingsInState).toHaveBeenCalledWith('allocated');
   });
 
   // Feature (#5933): a State can contain Things of several archetypes (Orders
@@ -350,11 +335,15 @@ describe('resolveBinding', () => {
       return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId: null, compareArchetype: 'Order' };
     }
 
+    // Answers the way the endpoint does, so these read as the narrowing arriving rather than as the
+    // browser discarding what it asked for.
     beforeEach(() => {
-      vi.mocked(stateApi.getThingsInState).mockResolvedValue({
+      vi.mocked(stateApi.getThingsInState).mockImplementation(async (_state, narrowing) => ({
         StateName: 'open',
-        Things: [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }, { Id: 'l1', Name: 'L-1' }],
-      });
+        Things: narrowing?.type === 'Order'
+          ? [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }]
+          : [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }, { Id: 'l1', Name: 'L-1' }],
+      }));
     });
 
     it('stateCount counts only Things of the given archetype', async () => {
@@ -370,7 +359,7 @@ describe('resolveBinding', () => {
       expect(rows.map((r) => r.id)).toEqual(['o1', 'o2']);
     });
 
-    it('without archetype counts every Thing in the state (backward-compatible)', async () => {
+    it('without an archetype counts every Thing in the state', async () => {
       const v = await resolveBinding({ kind: 'stateCount', state: 'open' }, orderCtx());
       expect(v).toBe(3);
     });
@@ -386,7 +375,7 @@ describe('resolveBinding', () => {
     function scopeCtx(scopeId: string | null): ResolveContext {
       const t = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
       const things: VosThing[] = [
-        t('contains', 'contains'), t('links', 'links'),
+        t('contains', 'contains'), t('links', 'links'), t('is', 'is'), t('arch-node', 'Node'),
         t('root1', 'ROOT-1'), t('root2', 'ROOT-2'),
         t('mid1', 'MID-1'), t('mid2', 'MID-2'),
         t('leaf1', 'LEAF-1'), t('leaf2', 'LEAF-2'), t('leaf3', 'LEAF-3'),
@@ -400,32 +389,27 @@ describe('resolveBinding', () => {
         rel('root1', 'contains', 'mid1'), rel('mid1', 'contains', 'leaf1'), rel('mid1', 'contains', 'leaf2'),
         rel('root2', 'contains', 'mid2'), rel('mid2', 'contains', 'leaf3'),
         rel('root1', 'links', 'direct1'), rel('root2', 'links', 'direct2'),
+        ...['root1', 'root2', 'mid1', 'mid2', 'leaf1', 'leaf2', 'leaf3', 'direct1', 'direct2']
+          .map((id) => rel(id, 'is', 'arch-node')),
       ];
       return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Root' };
     }
 
     it('reaches Things nested more than one hop below the scope entity', async () => {
-      vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-        StateName: 'flagged',
-        Things: [{ Id: 'leaf1', Name: 'LEAF-1' }, { Id: 'leaf2', Name: 'LEAF-2' }, { Id: 'leaf3', Name: 'LEAF-3' }],
-      });
-      const v = await resolveBinding(
-        { kind: 'stateCount', state: 'flagged', scope: { viaPredicate: 'contains', direction: 'out' } },
+      const rows = await rowsOf(
+        { kind: 'thingList', archetype: 'Node', scope: { viaPredicate: 'contains', direction: 'out' } },
         scopeCtx('root1'),
       );
-      expect(v).toBe(2); // leaf1 + leaf2 — leaf3 hangs off root2
+      // mid1 and the two leaves under it — leaf3 hangs off root2.
+      expect(rows.map((r) => r.name)).toEqual(['LEAF-1', 'LEAF-2', 'MID-1']);
     });
 
-    it('narrows a directly-linked state to the selected scope entity', async () => {
-      vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-        StateName: 'flagged',
-        Things: [{ Id: 'direct1', Name: 'DIRECT-1' }, { Id: 'direct2', Name: 'DIRECT-2' }],
-      });
-      const v = await resolveBinding(
-        { kind: 'stateCount', state: 'flagged', scope: { viaPredicate: 'links', direction: 'out' } },
+    it('narrows a directly-linked predicate to the selected scope entity', async () => {
+      const rows = await rowsOf(
+        { kind: 'thingList', archetype: 'Node', scope: { viaPredicate: 'links', direction: 'out' } },
         scopeCtx('root1'),
       );
-      expect(v).toBe(1);
+      expect(rows.map((r) => r.name)).toEqual(['DIRECT-1']);
     });
 
     it('counts across every entity when no scope is selected', async () => {
@@ -450,15 +434,12 @@ describe('resolveBinding', () => {
         [...ctx.idx.byId.values()],
         [...ctx.idx.relationships, cycle],
       );
-      vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-        StateName: 'flagged',
-        Things: [{ Id: 'leaf1', Name: 'LEAF-1' }, { Id: 'leaf2', Name: 'LEAF-2' }, { Id: 'root1', Name: 'ROOT-1' }],
-      });
-      const v = await resolveBinding(
-        { kind: 'stateCount', state: 'flagged', scope: { viaPredicate: 'contains', direction: 'out' } },
+      const rows = await rowsOf(
+        { kind: 'thingList', archetype: 'Node', scope: { viaPredicate: 'contains', direction: 'out' } },
         ctx,
       );
-      expect(v).toBe(2); // leaf1 + leaf2 — root1 is the scope, not a member of it
+      // root1 is the scope, not a member of it, however many edges lead back to it.
+      expect(rows.map((r) => r.name)).toEqual(['LEAF-1', 'LEAF-2', 'MID-1']);
     });
   });
 
@@ -1336,11 +1317,8 @@ describe('a Thing reference resolves the same way whichever binding reads it', (
     return { idx: buildModelIndex(things, []), scopeId: null };
   }
 
-  const series: Binding = { kind: 'timeseries', thing: AMBIGUOUS, property: 'area', op: 'avg', bucket: 'day' };
-
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(temporalApi.getPropertyVersions).mockResolvedValue({ Versions: [] } as never);
   });
 
   it('reads the Thing the identifier names, not the Thing of that name', async () => {
@@ -1349,15 +1327,266 @@ describe('a Thing reference resolves the same way whichever binding reads it', (
     expect(value).toBe(10);
   });
 
-  it('reads the same Thing for a series as for a property', async () => {
-    await resolveBinding(series, ambiguous());
+  it('reads the selected scope entity for a binding that names $scope', async () => {
+    const value = await resolveBinding(
+      { kind: 'property', thing: '$scope', property: 'area' },
+      { ...ambiguous(), scopeId: 'named-plot' },
+    );
 
-    expect(temporalApi.getPropertyVersions).toHaveBeenCalledWith(AMBIGUOUS, 'area');
+    expect(value).toBe(20);
+  });
+});
+
+// Feature #6234: the platform narrows a state answer on the server. The bindings stop reading every
+// Thing in a state and discarding most of it in the browser.
+describe('state bindings ask the server to narrow', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const BUILDING_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
+  const SPRING_SCOPE = { viaPredicate: 'feeds', direction: 'in' as const };
+
+  function estateCtx(scopeId: string | null): ResolveContext {
+    const t = (Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing =>
+      ({ Id, Name, Properties });
+    const things: VosThing[] = [
+      t('is', 'is'), t('contains', 'contains'), t('feeds', 'feeds'),
+      t('arch-building', 'Building', { storeys: 5 }),
+      t('arch-reading', 'Reading'),
+      t('site1', 'SITE-1'), t('site2', 'SITE-2'), t('spring1', 'SPRING-1'), t('spring2', 'SPRING-2'),
+      t('b1', 'BLD-1', { area: 3 }), t('b2', 'BLD-2', { area: 7 }), t('b3', 'BLD-3', { area: 1 }),
+      t('r1', 'RDG-1'), t('r2', 'RDG-2'),
+    ];
+    const rel = (SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
+      Id: `${SubjectId}-${PredicateId}-${TargetId}`, Name: `${SubjectId} ${PredicateId} ${TargetId}`,
+      SubjectId, PredicateId, TargetId, Properties: {},
+    });
+    const relationships = [
+      rel('b1', 'is', 'arch-building'), rel('b2', 'is', 'arch-building'), rel('b3', 'is', 'arch-building'),
+      rel('r1', 'is', 'arch-reading'), rel('r2', 'is', 'arch-reading'),
+      rel('site1', 'contains', 'b1'), rel('site1', 'contains', 'b2'), rel('site2', 'contains', 'b3'),
+      rel('r1', 'feeds', 'spring1'), rel('r2', 'feeds', 'spring2'),
+    ];
+    return {
+      idx: buildModelIndex(declared(things, relationships), relationships),
+      scopeId,
+      compareArchetype: 'Site',
+      stateMembers: new Map(),
+    };
+  }
+
+  const answered = (Things: { Id: string; Name: string }[]) => ({ StateName: 'flagged', Things });
+
+  it('names the archetype as a type rather than filtering the answer', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
+    const count = await resolveBinding(
+      { kind: 'stateCount', state: 'flagged', archetype: 'Building' },
+      estateCtx(null),
+    );
+    expect(count).toBe(1);
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.objectContaining({ type: 'Building' }));
   });
 
-  it('reads the selected scope entity for a series that names $scope', async () => {
-    await resolveBinding({ ...series, thing: '$scope' } as Binding, { ...ambiguous(), scopeId: 'named-plot' });
+  // The server walks the containment; counting its answer again here would be the same walk twice,
+  // and the second one would disagree the moment the browser index lagged the model.
+  it('sends an outgoing scope as a container and counts the answer as it arrives', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b3', Name: 'BLD-3' }]));
+    const count = await resolveBinding(
+      { kind: 'stateCount', state: 'flagged', scope: BUILDING_SCOPE },
+      estateCtx('site1'),
+    );
+    expect(count).toBe(1);
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith(
+      'flagged',
+      expect.objectContaining({ within: 'site1', withinPredicate: 'contains' }),
+    );
+  });
 
-    expect(temporalApi.getPropertyVersions).toHaveBeenCalledWith('named-plot', 'area');
+  it('sends no container when every compare entity is selected', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }, { Id: 'b3', Name: 'BLD-3' }]));
+    const count = await resolveBinding(
+      { kind: 'stateCount', state: 'flagged', scope: BUILDING_SCOPE },
+      estateCtx(null),
+    );
+    expect(count).toBe(2);
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.not.objectContaining({ within: 'site1' }));
+  });
+
+  // The endpoint walks outward from a container only, so a scope pointing the other way has no
+  // server expression and keeps its local walk.
+  it('keeps an inbound scope narrowing here', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'r1', Name: 'RDG-1' }, { Id: 'r2', Name: 'RDG-2' }]));
+    const count = await resolveBinding(
+      { kind: 'stateCount', state: 'flagged', scope: SPRING_SCOPE },
+      estateCtx('spring1'),
+    );
+    expect(count).toBe(1);
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.not.objectContaining({ within: 'spring1' }));
+  });
+
+  it('asks for the state a funnel stage excludes as one that disqualifies, in the same request', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
+    const rows = await rowsOf(
+      { kind: 'stateList', state: 'flagged', excludeState: 'cleared', archetype: 'Building' },
+      estateCtx(null),
+    );
+    expect(rows.map((r) => r.id)).toEqual(['b1']);
+    expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.objectContaining({ notIn: ['cleared'] }));
+  });
+
+  it('asks the server for the rows a limited list shows', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }, { Id: 'b2', Name: 'BLD-2' }]));
+    const rows = await rowsOf(
+      { kind: 'stateList', state: 'flagged', archetype: 'Building', limit: 2, scope: BUILDING_SCOPE },
+      estateCtx('site1'),
+    );
+    expect(rows).toHaveLength(2);
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.objectContaining({ limit: 2 }));
+  });
+
+  // A cap the server applies takes the first rows of its answer, which is the wrong two when the
+  // scope is still narrowed here afterwards.
+  it('caps an inbound-scoped list only after narrowing it here', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(
+      answered([{ Id: 'r2', Name: 'RDG-2' }, { Id: 'r1', Name: 'RDG-1' }]),
+    );
+    const rows = await rowsOf(
+      { kind: 'stateList', state: 'flagged', limit: 1, scope: SPRING_SCOPE },
+      estateCtx('spring1'),
+    );
+    expect(rows.map((r) => r.id)).toEqual(['r1']);
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('flagged', expect.not.objectContaining({ limit: 1 }));
+  });
+
+  // Sharing by state name alone would hand one widget the answer to another widget's question —
+  // a wrong number on screen with nothing to say it went wrong.
+  it('gives two widgets narrowing one state differently their own answers', async () => {
+    vi.mocked(stateApi.getThingsInState).mockImplementation(async (_state: string, narrowing?: { type?: string }) =>
+      answered(narrowing?.type === 'Building' ? [{ Id: 'b1', Name: 'BLD-1' }] : [{ Id: 'r1', Name: 'RDG-1' }, { Id: 'r2', Name: 'RDG-2' }]),
+    );
+    const ctx = estateCtx(null);
+    const [orders, everything] = await Promise.all([
+      resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, ctx),
+      resolveBinding({ kind: 'stateCount', state: 'flagged' }, ctx),
+    ]);
+    expect(orders).toBe(1);
+    expect(everything).toBe(2);
+    expect(stateApi.getThingsInState).toHaveBeenCalledTimes(2);
+  });
+
+  it('still asks once for two widgets narrowing one state the same way', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
+    const ctx = estateCtx(null);
+    await Promise.all([
+      resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, ctx),
+      resolveBinding({ kind: 'stateList', state: 'flagged', archetype: 'Building' }, ctx),
+    ]);
+    expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
+  });
+
+  it('fills a row with what the Thing inherits as well as what it owns', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
+    const rows = await rowsOf({ kind: 'stateList', state: 'flagged', archetype: 'Building' }, estateCtx(null));
+    expect(rows[0]).toMatchObject({ id: 'b1', name: 'BLD-1', area: 3, storeys: 5 });
+  });
+});
+
+// Story #6668: the series a dashboard draws is the platform's bucketed reduction, asked for at the
+// granularity the widget wants.
+describe('timeseries reads the platform bucketed aggregate', () => {
+  const SITE_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
+
+  function seriesCtx(scopeId: string | null): ResolveContext {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'contains', Name: 'contains', Properties: {} },
+      { Id: 'arch-building', Name: 'Building', Properties: {} },
+      { Id: 'site1', Name: 'SITE-1', Properties: {} },
+    ];
+    const relationships: VosRelationship[] = [{
+      Id: 'site1-contains-o1', Name: 'site1 contains o1',
+      SubjectId: 'site1', PredicateId: 'contains', TargetId: 'b1', Properties: {},
+    }];
+    return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId };
+  }
+
+  const QUARTER_HOUR = 900;
+  const trace: Binding = {
+    kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
+    op: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 32,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(temporalApi.aggregate).mockResolvedValue({
+      Buckets: [1, 2, 3], FirstBucketStart: '2026-08-23T00:00:00Z', BucketSeconds: QUARTER_HOUR, UnusableMembers: 0,
+    });
+  });
+
+  it('reduces the named measure over the named instant', async () => {
+    await resolveBinding(trace, seriesCtx(null));
+    expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({
+      function: 'Sum', memberType: 'Building', timestampProperty: 'recorded_at', measureProperty: 'volume',
+    }));
+  });
+
+  // A count reduces members, so naming a measure would ask the platform to reduce a value the
+  // question is not about.
+  it('names no measure when it is counting members', async () => {
+    await resolveBinding({ ...trace, op: 'count', property: 'volume' } as Binding, seriesCtx(null));
+    expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({ function: 'Count' }));
+    expect(vi.mocked(temporalApi.aggregate).mock.calls[0][0].measureProperty).toBeUndefined();
+  });
+
+  it('asks for a window as wide as the buckets it wants', async () => {
+    await resolveBinding(trace, seriesCtx(null));
+    expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({
+      windowSeconds: QUARTER_HOUR * 32, bucketSeconds: QUARTER_HOUR,
+    }));
+  });
+
+  it('keeps the platform order, oldest bucket first', async () => {
+    expect(await resolveBinding(trace, seriesCtx(null))).toEqual([1, 2, 3]);
+  });
+
+  // A window equal to its bucket is the trailing-window figure a tile shows, and it comes from the
+  // same question the trace above it asks.
+  it('resolves a single bucket as the number a tile shows', async () => {
+    vi.mocked(temporalApi.aggregate).mockResolvedValue({
+      Buckets: [42], FirstBucketStart: '2026-08-23T00:00:00Z', BucketSeconds: 3600, UnusableMembers: 0,
+    });
+    const value = await resolveBinding(
+      { ...trace, bucketSeconds: 3600, buckets: 1 } as Binding,
+      seriesCtx(null),
+    );
+    expect(value).toBe(42);
+  });
+
+  it('sends the selected compare entity as the container', async () => {
+    await resolveBinding({ ...trace, scope: SITE_SCOPE } as Binding, seriesCtx('site1'));
+    expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({
+      within: 'site1', withinPredicate: 'contains',
+    }));
+  });
+
+  it('sends no container when every compare entity is selected', async () => {
+    await resolveBinding({ ...trace, scope: SITE_SCOPE } as Binding, seriesCtx(null));
+    expect(vi.mocked(temporalApi.aggregate).mock.calls[0][0].within).toBeUndefined();
+  });
+
+  // The endpoint walks outward from a container only. Answering as though the scope had been
+  // applied would put another site numbers on this site page.
+  it('refuses an inbound scope rather than ignoring it', async () => {
+    const value = await resolveBinding(
+      { ...trace, scope: { viaPredicate: 'feeds', direction: 'in' } } as Binding,
+      seriesCtx('site1'),
+    );
+    expect(value).toBeNull();
+    expect(temporalApi.aggregate).not.toHaveBeenCalled();
+  });
+
+  it('resolves to nothing when the platform refuses the question', async () => {
+    vi.mocked(temporalApi.aggregate).mockRejectedValue(new Error('unknown reduction'));
+    expect(await resolveBinding(trace, seriesCtx(null))).toBeNull();
   });
 });

@@ -30,6 +30,50 @@ describe('stateApi.getThingsInState', () => {
   });
 });
 
+describe('stateApi.getThingsInState, narrowed', () => {
+  it('sends no query string when the caller narrows nothing', async () => {
+    mockGet.mockResolvedValue({ StateName: 'overheating', Things: [] });
+    await stateApi.getThingsInState('overheating', {});
+    expect(mockGet).toHaveBeenCalledWith('/api/states/overheating/things');
+  });
+
+  it('puts every narrowing on the query string, escaped', async () => {
+    mockGet.mockResolvedValue({ StateName: 'released', Things: [] });
+    await stateApi.getThingsInState('released', {
+      alsoIn: ['picked', 'staged'],
+      notIn: ['shipped'],
+      type: 'Sales Order',
+      within: 'site-1',
+      withinPredicate: 'fulfills',
+      includeArchetypes: true,
+      limit: 300,
+      properties: ['quantity', 'priority'],
+    });
+    expect(mockGet).toHaveBeenCalledWith(
+      '/api/states/released/things?alsoIn=picked%2Cstaged&notIn=shipped&type=Sales+Order' +
+        '&within=site-1&withinPredicate=fulfills&includeArchetypes=true&limit=300' +
+        '&properties=quantity%2Cpriority',
+    );
+  });
+
+  // The endpoint refuses a container without the predicate its containment is written with, so a
+  // half-given scope is not a question worth spending a request on.
+  it('sends a container only with the predicate it is reached by', async () => {
+    mockGet.mockResolvedValue({ StateName: 'released', Things: [] });
+    await stateApi.getThingsInState('released', { within: 'site-1' });
+    expect(mockGet).toHaveBeenCalledWith('/api/states/released/things');
+  });
+
+  it('carries the properties the caller asked for back to it', async () => {
+    mockGet.mockResolvedValue({
+      StateName: 'released',
+      Things: [{ Id: 'o1', Name: 'ORD-1', Properties: { quantity: 4 } }],
+    });
+    const answer = await stateApi.getThingsInState('released', { properties: ['quantity'] });
+    expect(answer.Things[0].Properties).toEqual({ quantity: 4 });
+  });
+});
+
 describe('stateApi.getStateTransitions', () => {
   it('requests the transition timeline for a thing', async () => {
     mockGet.mockResolvedValue({ ThingId: 't1', Transitions: [] });

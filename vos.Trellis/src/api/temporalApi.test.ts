@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('./client', () => ({
   apiClient: {
     get: vi.fn(),
+    post: vi.fn(),
   },
 }));
 
@@ -10,6 +11,7 @@ import { temporalApi } from './temporalApi';
 import { apiClient } from './client';
 
 const mockGet = vi.mocked(apiClient.get);
+const mockPost = vi.mocked(apiClient.post);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -71,5 +73,19 @@ describe('temporalApi.getRelationshipMutations', () => {
       '/api/relationships/r1/mutations?startTime=2024-06-01',
       undefined,
     );
+  });
+});
+
+describe('temporalApi.aggregate', () => {
+  it('posts the question to the bucketed aggregate endpoint', async () => {
+    mockPost.mockResolvedValue({ Buckets: [], FirstBucketStart: '2026-08-23T00:00:00Z', BucketSeconds: 900, UnusableMembers: 0 });
+    await temporalApi.aggregate({
+      function: 'Sum', memberType: 'Reading', timestampProperty: 'recorded_at',
+      measureProperty: 'volume', windowSeconds: 28800, bucketSeconds: 900,
+    });
+    expect(mockPost).toHaveBeenCalledWith('/api/temporal/aggregate', {
+      function: 'Sum', memberType: 'Reading', timestampProperty: 'recorded_at',
+      measureProperty: 'volume', windowSeconds: 28800, bucketSeconds: 900,
+    });
   });
 });
