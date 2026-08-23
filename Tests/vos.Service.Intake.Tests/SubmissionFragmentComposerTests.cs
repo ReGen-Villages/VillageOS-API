@@ -102,13 +102,21 @@ public class SubmissionFragmentComposerTests
     }
 
     private static IEnumerable<FragmentThing> Allocations(ComposedSubmission composed) =>
-        composed.Fragment.Things.Where(thing => thing.Properties.ContainsKey("allocationCategory"));
+        composed.Fragment.Things.Where(thing =>
+            IsEdgeTo(composed, thing.Id, WillowBend.ProgrammeAllocationArchetypeId));
+
+    // Which category a share is for is asked of the edge, because that is the only place it is recorded.
+    private static FragmentThing AllocationFor(ComposedSubmission composed, string categoryName) =>
+        Allocations(composed).Single(thing => Relates(
+            composed, thing.Id, WillowBend.CategorizedAsPredicateId, WillowBend.TermId(categoryName)));
 
     [Fact]
     public void Each_allocation_is_a_thing_of_its_own_the_site_holds()
     {
         var composed = Compose(WillowBend.Submission());
 
+        // The count is what pins the archetype edge: an allocation is found by it and by nothing else,
+        // so one share short of the submitted set means one share reached no archetype.
         var allocations = Allocations(composed).ToList();
         allocations.Should().HaveCount(WillowBend.Submission().Allocations!.Count);
         allocations.Should().OnlyContain(thing =>
@@ -116,26 +124,21 @@ public class SubmissionFragmentComposerTests
                 edge.Subject == composed.SiteId
                 && edge.Predicate == WillowBend.HasPredicateId
                 && edge.Target == thing.Id));
-        allocations.Should().OnlyContain(thing =>
-            IsEdgeTo(composed, thing.Id, WillowBend.ProgrammeAllocationArchetypeId));
     }
 
     // What land allocation reads to work out which footprint a share belongs to. Without this edge every
-    // allocation reads as uncategorised and the analysis computes nothing, which is what the property beside
-    // it could never fix: a word cannot be walked to and carries no flags.
+    // allocation reads as uncategorised and the analysis computes nothing, which is what a word beside it
+    // could never fix: a word cannot be walked to and carries no flags.
     [Fact]
     public void Each_allocation_reaches_the_category_the_model_declares()
     {
         var composed = Compose(WillowBend.Submission());
 
         foreach (var name in WillowBend.AllocationCategoryNames)
-        {
-            var allocation = Allocations(composed)
-                .Single(thing => (string)thing.Properties["allocationCategory"].Value! == name);
-
-            Relates(composed, allocation.Id, WillowBend.CategorizedAsPredicateId, WillowBend.TermId(name))
-                .Should().BeTrue($"'{name}' has to reach the category Thing the model declares");
-        }
+            Allocations(composed)
+                .Should().ContainSingle(thing =>
+                    Relates(composed, thing.Id, WillowBend.CategorizedAsPredicateId, WillowBend.TermId(name)),
+                    $"'{name}' has to be reached by exactly one share, through the category Thing the model declares");
     }
 
     [Fact]
@@ -145,6 +148,19 @@ public class SubmissionFragmentComposerTests
 
         Relates(composed, composed.ParcelId!.Value, WillowBend.ObtainedByPredicateId,
             WillowBend.TermId("drawn-by-hand")).Should().BeTrue();
+    }
+
+    // A term reached by an edge and copied into a property beside it says the same thing twice, and the
+    // copy is the half no reader can walk from and no range can judge. Two readings of one value can also
+    // come to disagree, which nothing would notice.
+    [Theory]
+    [InlineData("allocationCategory")]
+    [InlineData("boundarySource")]
+    public void A_term_the_fragment_reaches_by_an_edge_is_not_also_written_as_a_word(string word)
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        composed.Fragment.Things.Should().NotContain(thing => thing.Properties.ContainsKey(word));
     }
 
     // The predicate is the model's own, and the readers on the other side follow it by the mark it carries.
@@ -190,8 +206,7 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission());
 
-        var residential = Allocations(composed)
-            .Single(thing => (string)thing.Properties["allocationCategory"].Value! == "residential");
+        var residential = AllocationFor(composed, "residential");
         residential.Properties["sharePct"].Value.Should().Be(22.0);
         residential.Properties["allocatedAreaHectares"].Value.Should().Be(5.28);
     }
@@ -230,8 +245,8 @@ public class SubmissionFragmentComposerTests
             vocabulary);
 
         var allocation = Allocations(composed).Single();
-        allocation.Properties["allocationCategory"].Value.Should().Be("silvopasture");
         Relates(composed, allocation.Id, WillowBend.CategorizedAsPredicateId, silvopasture.Id).Should().BeTrue();
+        allocation.Name.Should().Be("Willow Bend silvopasture");
     }
 
     // A word no term matches is refused by naming what the model declares, so a planner is corrected by the
@@ -258,9 +273,9 @@ public class SubmissionFragmentComposerTests
         });
 
         var allocation = Allocations(composed).Single();
-        allocation.Properties["allocationCategory"].Value.Should().Be("food-and-agriculture");
         Relates(composed, allocation.Id, WillowBend.CategorizedAsPredicateId,
             WillowBend.TermId("food-and-agriculture")).Should().BeTrue();
+        allocation.Name.Should().Be("Willow Bend food-and-agriculture");
     }
 
     // Two shares of one category disagree about it and nothing here can say which was meant. They are one
@@ -292,8 +307,8 @@ public class SubmissionFragmentComposerTests
         // deriving them from a position in the list mints the same set either way and hands them to
         // different categories, which a comparison of sets alone reads as unchanged.
         static Dictionary<string, Guid> ByCategory(ComposedSubmission composed) =>
-            Allocations(composed).ToDictionary(
-                thing => (string)thing.Properties["allocationCategory"].Value!, thing => thing.Id);
+            WillowBend.AllocationCategoryNames.ToDictionary(
+                name => name, name => AllocationFor(composed, name).Id);
 
         ByCategory(Compose(reversed)).Should().BeEquivalentTo(ByCategory(Compose(submission)));
     }
