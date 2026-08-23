@@ -52,6 +52,30 @@ export interface PropertyVersion {
   Value: unknown;
 }
 
+/** A reduction of one type's instances into fixed time buckets across the trailing window. The
+ *  window must be a whole number of buckets, and a container is only accepted with the predicate its
+ *  containment is written with. */
+export interface TemporalAggregateQuery {
+  function: 'Min' | 'Max' | 'Sum' | 'Average' | 'Count';
+  memberType: string;
+  timestampProperty: string;
+  measureProperty?: string;
+  windowSeconds: number;
+  bucketSeconds: number;
+  within?: string;
+  withinPredicate?: string;
+}
+
+export interface TemporalAggregateResponse {
+  /** The reduced value of each bucket, oldest first. */
+  Buckets: number[];
+  FirstBucketStart: string;
+  BucketSeconds: number;
+  /** Members carrying no readable instant or measure. A metric reading zero because nobody stamped
+   *  it looks exactly like one reading zero because nothing happened. */
+  UnusableMembers: number;
+}
+
 export interface PropertyVersionsResponse {
   ObjectId: string;
   PropertyName: string;
@@ -251,30 +275,6 @@ export interface CriteriaValidationResult {
 /** Response of GET /api/states/{state}/things. The kinds Things `is` are left out unless the
  *  request asks for them, and `Properties` is present only on the entries of a request that named
  *  properties — a name the Thing does not hold is absent from it rather than null. */
-/** A reduction of one type's instances into fixed time buckets across the trailing window. The
- *  window must be a whole number of buckets, and a container is only accepted with the predicate its
- *  containment is written with. */
-export interface TemporalAggregateQuery {
-  function: 'Min' | 'Max' | 'Sum' | 'Average' | 'Count';
-  memberType: string;
-  timestampProperty: string;
-  measureProperty?: string;
-  windowSeconds: number;
-  bucketSeconds: number;
-  within?: string;
-  withinPredicate?: string;
-}
-
-export interface TemporalAggregateResponse {
-  /** The reduced value of each bucket, oldest first. */
-  Buckets: number[];
-  FirstBucketStart: string;
-  BucketSeconds: number;
-  /** Members carrying no readable instant or measure. A metric reading zero because nobody stamped
-   *  it looks exactly like one reading zero because nothing happened. */
-  UnusableMembers: number;
-}
-
 export interface ThingsInStateResponse {
   StateName: string;
   Things: Array<{ Id: string; Name: string; Properties?: Record<string, unknown> }>;

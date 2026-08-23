@@ -707,7 +707,10 @@ async function resolveTimeseries(
   binding: Extract<Binding, { kind: 'timeseries' }>,
   ctx: ResolveContext,
 ): Promise<number[] | number | null> {
-  if (binding.scope && binding.scope.direction === 'in') {
+  // The one refusal worth saying out loud: every other binding resolving to nothing is a value the
+  // model has not got, while this is a question the spec cannot ask, and an author has no other sign
+  // of it.
+  if (binding.scope?.direction === 'in') {
     console.warn(
       `timeseries over ${binding.archetype}: the platform narrows to what a container reaches, so a ` +
         'scope reaching the other way cannot be asked for.',
