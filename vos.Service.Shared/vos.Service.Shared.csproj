@@ -20,6 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\vos.Auth.Shared\vos.Auth.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Contracts\Schemas\*.json" />
   </ItemGroup>
 

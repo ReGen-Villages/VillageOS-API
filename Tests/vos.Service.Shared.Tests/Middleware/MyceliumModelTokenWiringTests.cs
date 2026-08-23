@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using FluentAssertions;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Shared.Tests.Middleware;
@@ -39,7 +40,7 @@ public class MyceliumModelTokenWiringTests
     private record ServiceUnderTest(string ServiceName, string EntryPointSource, string WholeServiceSource);
 
     private static IReadOnlyList<ServiceUnderTest> Services() =>
-        Directory.GetDirectories(RepositoryRoot(), "vos.Service.*")
+        Directory.GetDirectories(RepositoryRoot.Find(), "vos.Service.*")
             .Select(directory => new { Directory = directory, EntryPoint = Path.Combine(directory, "Program.cs") })
             .Where(service => File.Exists(service.EntryPoint))
             .OrderBy(service => service.Directory)
@@ -67,15 +68,5 @@ public class MyceliumModelTokenWiringTests
         return string.Join('\n', withoutBlockComments
             .Split('\n')
             .Select(line => Regex.Replace(line, @"(?<!:)//.*$", string.Empty)));
-    }
-
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "VillageOS-API.sln")))
-            directory = directory.Parent;
-
-        return directory?.FullName
-            ?? throw new InvalidOperationException("Could not find VillageOS-API.sln above " + AppContext.BaseDirectory);
     }
 }

@@ -5,6 +5,8 @@ import type {
   ThingMutations,
   RelationshipMutations,
   PropertyFactsResponse,
+  TemporalAggregateQuery,
+  TemporalAggregateResponse,
 } from '../types/vos';
 
 function timeParams(start?: string, end?: string): string {
@@ -16,6 +18,13 @@ function timeParams(start?: string, end?: string): string {
 }
 
 export const temporalApi = {
+  /** Reduce a type's instances into time buckets across the trailing window — the shape roll-ups
+   *  (which reduce over membership) and property history (which returns one property's past values)
+   *  cannot express between them. A question the platform cannot answer is refused, so a caller
+   *  hears about it rather than drawing an empty series. */
+  aggregate: (query: TemporalAggregateQuery) =>
+    apiClient.post<TemporalAggregateResponse>('/api/temporal/aggregate', query),
+
   getPropertyVersions: (thingId: string, propertyName: string, start?: string, end?: string) =>
     apiClient.get<PropertyVersionsResponse>(
       `/api/things/${thingId}/properties/${encodeURIComponent(propertyName)}/versions${timeParams(start, end)}`,

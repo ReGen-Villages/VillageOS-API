@@ -532,8 +532,8 @@ flowchart LR
   CO["<b>Contact</b><br/>name · role<br/>email · phone"]
   SI["<b>Site</b><br/>lat · lng · elevation<br/>climate zone<br/>stated area · population<br/>household size<br/><i>+ discovered values</i>"]
   ST["<b>SiteStudy</b><br/><i>computed outputs</i><br/><i>judge-ranges</i>"]
-  PA["<b>Parcel</b><br/>boundary · measured area<br/>how it was obtained"]
-  AL["<b>ProgrammeAllocation</b><br/>category · share · area"]
+  PA["<b>Parcel</b><br/>boundary · measured area"]
+  AL["<b>ProgrammeAllocation</b><br/>share · area"]
   HA["<b>HazardAssessment</b><br/>type · level · date"]
   DS["<b>DataSource</b><br/>which source · coverage<br/>last resolved"]
 
@@ -560,7 +560,9 @@ a service. The composer resolves the submitted word against what the model decla
 matches nothing, naming the terms the model holds. It finds each vocabulary by a mark its archetype
 carries and writes the edge through the predicate the model marks, never by either name — so a model that
 renames one keeps working, and land allocation reads the category's footprint flags off the Thing at the
-end of the edge.
+end of the edge. **The edge is the only record**: neither term is also written as a word on the Thing it
+came from, because a copy beside the edge can be read but not walked from, and two readings of one value
+can come to disagree with nothing to notice.
 
 The design decisions worth stating:
 
@@ -618,8 +620,7 @@ Using a synthetic example throughout — **Willow Bend**, a fictional 24-hectare
 | Willow Bend Site Study *(SiteStudy)* | `pctOfConsumption` | 90.8 | Fact — computed |
 | Parcel-01 *(Parcel)* | `boundary` | GeoJSON polygon | Fact |
 | | `measuredAreaHectares` | 23.4 | Fact |
-| | `obtainedBy` → `drawn-by-hand` | an edge to the Thing | Relationship |
-| | `boundarySource` | `drawn-by-hand` | Fact — the same value as a word, until its readers follow the edge |
+| | `obtainedBy` → `drawn-by-hand` | an edge to the Thing | Relationship — the only place it is recorded |
 
 The stated area is what the planner asserted. The measured area is what the boundary actually
 encloses. The solar figure is an observation because it was sampled from a provider on a date and

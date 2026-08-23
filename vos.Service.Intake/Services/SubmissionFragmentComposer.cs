@@ -36,10 +36,10 @@ namespace vos.Service.Intake.Services;
 /// </para>
 /// <para>
 /// The two vocabularies a submission uses — what an allocation is for, and how a boundary was obtained —
-/// are neither named nor listed here. A submitted word is resolved against the Things the model declares
-/// (see <see cref="DeclaredVocabularyReader"/>) and written as an edge to the one it names, so a project
-/// that adds a term edits the model and deploys nothing. The word is still written beside the edge as a
-/// property, and goes when its readers follow the edge (#6510).
+/// are neither named nor listed here, and neither is written as a property. A submitted word is resolved
+/// against the Things the model declares (see <see cref="DeclaredVocabularyReader"/>) and written only as
+/// an edge to the one it names, so a project that adds a term edits the model and deploys nothing, and a
+/// reader asking what an allocation is for follows the edge to a Thing it can ask further questions of.
 /// </para>
 /// </remarks>
 public static class SubmissionFragmentComposer
@@ -161,7 +161,7 @@ public static class SubmissionFragmentComposer
 
             var parcelThing = new NamedThing(StableIdentity.Derive(submissionId, "parcel"), $"{siteName} Parcel-01");
             parcelId = parcelThing.Id;
-            things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel, obtainedBy.Name)));
+            things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
             Relate(siteThing, predicates.Has, parcelThing);
             BeArchetype(parcelThing, archetypes.Parcel, ParcelArchetypeName);
             RelateToTerm(parcelThing, vocabulary.BoundarySources, obtainedBy);
@@ -187,7 +187,7 @@ public static class SubmissionFragmentComposer
                 StableIdentity.Derive(submissionId, $"allocation:{Key(category.Name)}"),
                 $"{siteName} {category.Name}");
             things.Add(new FragmentThing(allocationThing.Id, allocationThing.Name,
-                AllocationProperties(allocation with { Category = category.Name })));
+                AllocationProperties(allocation)));
             Relate(siteThing, predicates.Has, allocationThing);
             BeArchetype(allocationThing, archetypes.ProgrammeAllocation, ProgrammeAllocationArchetypeName);
             RelateToTerm(allocationThing, vocabulary.AllocationCategories, category);
@@ -295,9 +295,7 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
-    // The category is written as the model declares it rather than as it was typed, so the property cannot
-    // read differently from the Thing the edge beside it reaches. It goes once its readers follow that
-    // edge (#6510).
+    // What the allocation is for is the edge to the declared term, not a value here.
     //
     // The share is written as given. Shares are normalised across the chosen categories further down the
     // analysis, so a set that does not reach a hundred is a wizard part-filled, and judging whether they add
@@ -305,7 +303,6 @@ public static class SubmissionFragmentComposer
     private static Dictionary<string, TypedValue> AllocationProperties(SubmittedAllocation allocation)
     {
         var properties = new Dictionary<string, TypedValue>();
-        Write(properties, "allocationCategory", VosTypeNames.String, allocation.Category);
         Write(properties, "sharePct", VosTypeNames.Double, allocation.SharePct);
         Write(properties, "allocatedAreaHectares", VosTypeNames.Double, allocation.AllocatedAreaHectares);
         return properties;
@@ -327,10 +324,8 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
-    // The source is written as the model declares it rather than as it was typed, so the property beside
-    // the edge cannot read differently from the Thing the edge reaches. The property goes once its readers
-    // follow that edge (#6510).
-    private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel, string boundarySource)
+    // How the boundary was obtained is the edge to the declared term, not a value here.
+    private static Dictionary<string, TypedValue> ParcelProperties(SubmittedParcel parcel)
     {
         var boundary = parcel.Boundary
             ?? throw new SubmissionError("'parcel.boundary' is missing: a parcel is the boundary it encloses. "
@@ -343,7 +338,6 @@ public static class SubmissionFragmentComposer
         {
             ["measuredAreaHectares"] = TypedValue.Written(VosTypeNames.Double, BoundaryGeometry.MeasureHectares(boundary)),
             ["boundary"] = TypedValue.Written(VosTypeNames.GeoJson, BoundaryGeometry.ToGeoJson(boundary)),
-            ["boundarySource"] = TypedValue.Written(VosTypeNames.String, boundarySource),
         };
     }
 

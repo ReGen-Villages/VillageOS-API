@@ -111,16 +111,27 @@ export type Binding =
   | { kind: 'ratio'; numerator: Binding; denominator: Binding }
   /** One row per compared Thing, carrying the listed numeric properties (leaderboard source). */
   | { kind: 'compareEntities'; properties: string[]; computed?: ComputedColumn[] }
-  /** A bucketed time series from the temporal API over one property of a named/id'd Thing, or of
-   *  the selected scope entity (`$scope`). Degrades to [] when history is absent. */
+  /** A reduction of an archetype's instances into fixed time buckets across the trailing window,
+   *  answered by the platform (POST /api/temporal/aggregate). `happenedAt` names the property each
+   *  member carries its event instant on, and `property` the value reduced — absent for a count,
+   *  which reduces the members themselves. Buckets arrive oldest first.
+   *
+   *  **One bucket is a scalar.** A window as wide as its bucket is the trailing-window figure a tile
+   *  shows, so a tile and the trace above it are one question asked at two granularities and cannot
+   *  disagree.
+   *
+   *  An outgoing `scope` narrows to the selected compare entity. The endpoint walks outward from a
+   *  container only, so an inbound scope is refused rather than answered as though it had been
+   *  applied. */
   | {
       kind: 'timeseries';
-      archetype?: string;
-      thing?: string;
+      archetype: string;
+      happenedAt: string;
       property?: string;
-      op: 'count' | 'sum' | 'avg';
-      bucket: 'hour' | 'day';
-      buckets?: number;
+      op: 'count' | 'sum' | 'avg' | 'min' | 'max';
+      bucketSeconds: number;
+      buckets: number;
+      scope?: ScopeRef;
     }
   /** Delegate to a model-side service via POST /api/endpoints/{subdomain}. The escape
    *  hatch for model-specific aggregation. `select` is a dot-path into the JSON reply, and a

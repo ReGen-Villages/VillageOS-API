@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
@@ -21,8 +22,6 @@ namespace vos.ContinuousIntegration.Tests;
 /// </summary>
 public class ShippedComponentsDeclareOneVersionTests
 {
-    private const string SolutionFileName = "VillageOS-API.sln";
-
     /// <summary>Not shipped with the platform, so not held to its version.
     ///
     /// The three under tools/ build documentation and mirror a wiki; they run on somebody's machine
@@ -72,7 +71,7 @@ public class ShippedComponentsDeclareOneVersionTests
     [Fact]
     public void A_commented_out_version_is_not_the_declared_one()
     {
-        var props = Path.Combine(RepositoryRoot(), "Directory.Build.props");
+        var props = Path.Combine(RepositoryRoot.Find(), "Directory.Build.props");
         var withComment = File.ReadAllText(props)
             .Replace("<PropertyGroup>", "<PropertyGroup>\n    <!-- <Version>9.9.9</Version> was tried -->");
         var uncommented = Regex.Replace(withComment, "<!--.*?-->", "", RegexOptions.Singleline);
@@ -96,7 +95,7 @@ public class ShippedComponentsDeclareOneVersionTests
     public void No_build_output_is_searched(string pattern)
     {
         var copies = FilesUnderTheRepository(pattern)
-            .Where(path => RelativeSegments(RepositoryRoot(), path).Any(segment => segment is "bin" or "obj"))
+            .Where(path => RelativeSegments(RepositoryRoot.Find(), path).Any(segment => segment is "bin" or "obj"))
             .ToList();
 
         Assert.True(copies.Count == 0,
@@ -106,7 +105,7 @@ public class ShippedComponentsDeclareOneVersionTests
 
     private static string DeclaredByDotNetProjects()
     {
-        var props = Path.Combine(RepositoryRoot(), "Directory.Build.props");
+        var props = Path.Combine(RepositoryRoot.Find(), "Directory.Build.props");
         var uncommented = Regex.Replace(File.ReadAllText(props), "<!--.*?-->", "", RegexOptions.Singleline);
         var declared = Regex.Match(uncommented, @"<Version>([^<]+)</Version>");
         Assert.True(declared.Success,
@@ -137,7 +136,7 @@ public class ShippedComponentsDeclareOneVersionTests
     /// </remarks>
     private static IEnumerable<string> FilesUnderTheRepository(string pattern)
     {
-        var root = RepositoryRoot();
+        var root = RepositoryRoot.Find();
         return Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories)
             .Where(path => !path.Contains(Path.DirectorySeparatorChar + "node_modules" + Path.DirectorySeparatorChar))
             .Where(path => !RelativeSegments(root, path)
@@ -146,18 +145,4 @@ public class ShippedComponentsDeclareOneVersionTests
 
     private static string[] RelativeSegments(string root, string path) =>
         Path.GetRelativePath(root, path).Split(Path.DirectorySeparatorChar);
-
-    /// <summary>Walked up to rather than a path relative to the test output directory: how deep that
-    /// directory sits below the repository root differs between a run from the solution, from a
-    /// worktree and from the build agent.</summary>
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, SolutionFileName))) return directory.FullName;
-            directory = directory.Parent;
-        }
-        throw new DirectoryNotFoundException($"{SolutionFileName} was not found above the test output directory.");
-    }
 }
