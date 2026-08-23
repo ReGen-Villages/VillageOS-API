@@ -1,5 +1,5 @@
 import { DECLARED_WRITE_KINDS } from '../types/vos';
-import type { DeclaredWriteKind, VosThing, VosRelationship, InheritedPropertySet } from '../types/vos';
+import type { DeclaredWriteKind, VosThing, VosRelationship, InheritedPropertySet, DerivedDefinition } from '../types/vos';
 
 /** A write kind the platform has a name for. What arrives is model data, so a value outside the set
  *  is left uninterpreted rather than passed on as a declaration nothing can read. */
@@ -144,16 +144,10 @@ function resolveEffective(
 
   // 1. Inherited defaults from ancestors — farthest first so a nearer archetype overwrites a farther
   //    one; each ancestor's own effective view is folded in, so its overrides and deeper defaults are
-  //    already resolved. `visiting` guards against a malformed `is`-cycle.
-  const parents = (thing.Id ? lookup.isParents.get(thing.Id) ?? [] : [])
-    .map((id) => lookup.byId.get(id))
-    .filter((p): p is VosThing => !!p && !visiting.has(p.Id))
-    .sort((a, b) => a.Name.localeCompare(b.Name));
-  if (parents.length && thing.Id) {
-    visiting.add(thing.Id);
-    for (const parent of parents) Object.assign(merged, resolveEffective(parent, lookup, visiting));
-    visiting.delete(thing.Id);
-  }
+  //    already resolved.
+  foldInAncestors(thing, lookup, visiting, (parent) =>
+    Object.assign(merged, resolveEffective(parent, lookup, visiting)),
+  );
 
   // 2. This instance's stored overrides win over inherited defaults.
   collectOverrides(thing.InheritedOverrides, merged);
@@ -164,6 +158,57 @@ function resolveEffective(
   const frozen = Object.freeze(merged);
   perModel.set(thing, frozen);
   return frozen;
+}
+
+/**
+ * Fold each archetype a Thing `is` into a merged view, farthest ancestor first so a nearer one
+ * overwrites a farther one, and same-distance siblings in `Name` order so two declaring the same key
+ * always resolve the same way. `visiting` guards against a malformed `is`-cycle.
+ */
+function foldInAncestors(
+  thing: { Id?: string },
+  lookup: IsChainLookup,
+  visiting: Set<string>,
+  fold: (parent: VosThing) => void,
+): void {
+  const parents = (thing.Id ? lookup.isParents.get(thing.Id) ?? [] : [])
+    .map((id) => lookup.byId.get(id))
+    .filter((p): p is VosThing => !!p && !visiting.has(p.Id))
+    .sort((a, b) => a.Name.localeCompare(b.Name));
+  if (!parents.length || !thing.Id) return;
+  visiting.add(thing.Id);
+  for (const parent of parents) fold(parent);
+  visiting.delete(thing.Id);
+}
+
+/**
+ * The derived definitions a Thing resolves: its own, plus those of the archetypes it `is`, nearer
+ * winning. The same `is` walk {@link effectiveProperties} makes, because a definition is declared once
+ * on the Thing that owns it and every member resolves it through that chain — a member computing its
+ * own value carries the value and not the formula. There is no override step: a definition is declared
+ * or inherited, and nothing stores one against a Thing that did not declare it.
+ *
+ * Not memoized. A page asks this for the few figures it shows the working of, where
+ * {@link effectiveProperties} is asked for every binding on every refresh.
+ */
+export function effectiveDerivedDefinitions(
+  thing: { Id?: string; RollupProperties?: Record<string, DerivedDefinition> },
+  lookup: IsChainLookup,
+): Readonly<Record<string, DerivedDefinition>> {
+  return resolveDefinitions(thing, lookup, new Set());
+}
+
+function resolveDefinitions(
+  thing: { Id?: string; RollupProperties?: Record<string, DerivedDefinition> },
+  lookup: IsChainLookup,
+  visiting: Set<string>,
+): Readonly<Record<string, DerivedDefinition>> {
+  const merged: Record<string, DerivedDefinition> = {};
+  foldInAncestors(thing, lookup, visiting, (parent) =>
+    Object.assign(merged, resolveDefinitions(parent, lookup, visiting)),
+  );
+  Object.assign(merged, thing.RollupProperties);
+  return merged;
 }
 
 /**

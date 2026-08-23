@@ -1649,6 +1649,87 @@ describe('timeseries reads the platform bucketed aggregate', () => {
 
 // Story #6475 / TC #6480: every input says where it came from, read off the model rather than off
 // the property's name.
+describe('the working behind a figure', () => {
+  const study = (definitions: Record<string, unknown>, own: Record<string, unknown> = {}) => {
+    const things = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'studies', Name: 'studies', Properties: {} },
+      { Id: 'arch-study', Name: 'SiteStudy', IsArchetype: true, Properties: {}, RollupProperties: definitions },
+      { Id: 'study1', Name: 'A study', Properties: own },
+      { Id: 'site1', Name: 'A site', Properties: {} },
+    ] as unknown as VosThing[];
+    const relationships = [
+      { Id: 'r1', Name: 'r1', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
+      { Id: 'r2', Name: 'r2', SubjectId: 'study1', PredicateId: 'studies', TargetId: 'site1', Properties: {} },
+    ] as unknown as VosRelationship[];
+    return { idx: buildModelIndex(things, relationships), scopeId: 'study1' };
+  };
+
+  const working = (property: string, extra: Record<string, unknown> = {}) =>
+    ({ kind: 'working', property, ...extra }) as Binding;
+
+  it('reads the formula off the archetype and each input off the Thing computing it', async () => {
+    const ctx = study(
+      { pctOfConsumption: { Expression: 'generated / consumed * 100', Reads: ['generated', 'consumed'] } },
+      { generated: 4420, consumed: 4000 },
+    );
+
+    expect(await resolveBinding(working('pctOfConsumption'), ctx as never)).toEqual([
+      { formula: 'generated / consumed * 100', term: 'generated', value: 4420 },
+      { formula: 'generated / consumed * 100', term: 'consumed', value: 4000 },
+    ]);
+  });
+
+  // A figure a service asserts has no definition, so the page shows its value and no account of it.
+  it('resolves to nothing for a figure the model does not derive', async () => {
+    const ctx = study({}, { peopleFed: 120 });
+
+    expect(await resolveBinding(working('peopleFed'), ctx as never)).toEqual([]);
+  });
+
+  // An input the study has not been given reads as absent, never as nought — the same distinction the
+  // withheld verdict rests on.
+  it('reports an input the Thing does not carry as absent rather than nought', async () => {
+    const ctx = study(
+      { pctOfConsumption: { Expression: 'generated / consumed * 100', Reads: ['generated', 'consumed'] } },
+      { generated: 4420 },
+    );
+
+    expect(await resolveBinding(working('pctOfConsumption'), ctx as never)).toEqual([
+      { formula: 'generated / consumed * 100', term: 'generated', value: 4420 },
+      { formula: 'generated / consumed * 100', term: 'consumed', value: null },
+    ]);
+  });
+
+  // A reduction's inputs are named and its formula is not: putting a function over a set into words
+  // would be the client saying what a figure means. A reduction reads its input off each member, so
+  // the row names the archetype those members are of and carries no value — the Thing computing the
+  // figure does not hold one, and a value read off it would be some other property of the same name.
+  it('names a reduction\'s inputs, the archetype they are read off, and no formula', async () => {
+    const ctx = study(
+      { solarPvAreaM2: { Function: 'Sum', RelatedType: 'SolarArray', PropertyPath: 'areaM2', Reads: ['areaM2'] } },
+    );
+
+    expect(await resolveBinding(working('solarPvAreaM2'), ctx as never)).toEqual([
+      { formula: null, term: 'areaM2', memberArchetype: 'SolarArray' },
+    ]);
+  });
+
+  // The reduced name belongs to the members, so a property of that name on the Thing computing the
+  // figure is a different property. Reporting it would put a number under the input that never went
+  // into it, and a reader has no way to tell that from the input's real value.
+  it('does not report a same-named property of the computing Thing as a reduction\'s input', async () => {
+    const ctx = study(
+      { solarPvAreaM2: { Function: 'Sum', RelatedType: 'SolarArray', PropertyPath: 'areaM2', Reads: ['areaM2'] } },
+      { areaM2: 7 },
+    );
+
+    expect(await resolveBinding(working('solarPvAreaM2'), ctx as never)).toEqual([
+      { formula: null, term: 'areaM2', memberArchetype: 'SolarArray' },
+    ]);
+  });
+});
+
 describe('origin binding', () => {
   const READS = {
     stated: 'as submitted',

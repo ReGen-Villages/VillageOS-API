@@ -360,6 +360,7 @@ export const ar: PartialResources & ArabicPlurals = {
   widgets: {
     bullet: { target: 'الهدف', healthyBand: 'النطاق الصحي', warning: 'تحذير', critical: 'حرج' },
     kpi: { onTarget: 'ضمن الهدف', watch: 'مراقبة', peak: 'الذروة', trough: 'القاع' },
+    working: { notDerived: 'هذا الرقم يُعطى للنموذج ولا يحسبه بنفسه' },
     leaderboard: {
       none: "لا توجد كيانات للمقارنة.",
     },

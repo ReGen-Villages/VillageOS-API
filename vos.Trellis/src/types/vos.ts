@@ -42,6 +42,26 @@ export interface VosThing {
    *  `InheritedOverrides`). Override-only — NOT the full inherited view; for that read the
    *  server-resolved effective properties (GET /api/things/{id}/properties). */
   InheritedOverrides?: Record<string, InheritedPropertySet>;
+  /** How each computed value this Thing OWNS is worked out, keyed the way `Properties` is. A value the
+   *  platform derives arrives with its number and a type that says only that it was computed; this is
+   *  what says from what. Own definitions only — a member computing its own value carries the value and
+   *  not the formula, so read the formula off the archetype by walking `is`, the way an inherited value
+   *  is read. */
+  RollupProperties?: Record<string, DerivedDefinition>;
+}
+
+/** How one computed value is worked out. One form is described and never both: `Expression` for a
+ *  formula, or the reduction's fields. `Reads` names what it reads by the name you can look up on the
+ *  Thing you already have — never parse `Expression` to recover them, since a second parser in a client
+ *  drifts from the one the platform evaluates with. */
+export interface DerivedDefinition {
+  Expression?: string;
+  Function?: string;
+  Path?: string;
+  RelatedType?: string;
+  PropertyPath?: string;
+  Scope?: string;
+  Reads?: string[];
 }
 
 export interface InheritedPropertySet {

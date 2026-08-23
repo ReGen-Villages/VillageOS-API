@@ -272,6 +272,7 @@ export const en = {
   widgets: {
     bullet: { target: 'target', healthyBand: 'healthy band', warning: 'warning', critical: 'critical' },
     kpi: { onTarget: 'on target', watch: 'watch', peak: 'peak', trough: 'trough' },
+    working: { notDerived: 'the model is given this figure rather than working it out' },
     leaderboard: {
       none: "No entities to compare.",
     },

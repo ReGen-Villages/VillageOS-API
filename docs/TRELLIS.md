@@ -1100,7 +1100,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A `stateList` row is the exception in mechanism only: its columns are resolved own-first and then up the `is` chain by the platform and sent with the row, so an inherited value reaches it just the same. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes); that narrowing, the scope, an excluded state, a row cap and — for `stateList` — the columns its rows carry all ride on the request now, so the broker answers the question the widget asked rather than a larger one the browser then cuts down (see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict / working widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A `stateList` row is the exception in mechanism only: its columns are resolved own-first and then up the `is` chain by the platform and sent with the row, so an inherited value reaches it just the same. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes); that narrowing, the scope, an excluded state, a row cap and — for `stateList` — the columns its rows carry all ride on the request now, so the broker answers the question the widget asked rather than a larger one the browser then cuts down (see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
 | `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
@@ -1834,6 +1834,79 @@ verb hanging.
 declaration travels with the value, and the source is an edge the page has
 already been sent.
 
+### Showing how a figure was worked out
+
+A verdict says whether a figure is good news and an origin says where it came
+from. Neither says how it was reached, and a reader who cannot follow the
+arithmetic has to take the result on trust. The `working` widget and the
+`working` binding show the formula the model holds for a figure and every input
+it reads.
+
+**Where the working comes from.** The model's own derived definition, which
+arrives with the Thing. Trellis never takes the formula apart to find the
+inputs — a client parsing the criteria grammar would be a second parser drifting
+from the one the platform evaluates with, and it would go wrong first on exactly
+the expressions a person finds hard to read. The definition names what it reads;
+the client reads the names.
+
+The definition is read off the archetype by walking `is`, the way an inherited
+value is, so a member computing its own value needs no copy of the formula.
+
+**What a row carries** depends on which form the model derives the figure by:
+
+| Form | `formula` | The value column |
+|---|---|---|
+| A formula (`Expression`) | the formula, once per run of rows it produced | the input's value on the Thing computing the figure |
+| A reduction over members | none | the archetype the input is read off each member of |
+
+A reduction's input is held by its members, not by the Thing computing the
+figure, so no value is read for it — a property of the same name on that Thing
+would be a different property, and showing its number would put an input under
+the figure that never went into it. Nor is the reduction given a formula line: a
+function over a set put into words here would be Trellis saying what a figure
+means.
+
+**An input the Thing does not carry reads as absent, never as nought** — the
+distinction the withheld verdict rests on. **A figure the model does not derive**
+resolves to no rows at all, and the widget says the model was given the figure
+rather than inventing a formula to fill the space.
+
+**The formula and the input names are not translated.** They are the model's own
+property names, and a translation of one would name a property the model does not
+have. The row's `label` and `unit` are the spec's words and are translated.
+
+**The figure's format is not applied to its inputs.** A spec declares a format
+for the figure, and the inputs are rarely in the same terms — the inputs of a
+percentage are quantities. They render as plain numbers.
+
+```jsonc
+{
+  "type": "working",
+  "title": "How each balance was reached",
+  "rows": [
+    {
+      "label": "Energy against consumption",
+      "format": "pct100",
+      "unit": "%",
+      "value":   { "kind": "property", "thing": "$scope", "property": "pctOfConsumption" },
+      "working": { "kind": "working",  "thing": "$scope", "property": "pctOfConsumption" }
+    }
+  ]
+}
+```
+
+`working` takes a `thing` and a `via` walk exactly as `related` and `verdict`
+do, so a page scoped to one Thing can show the working of a figure computed by
+another it reaches. A walk reaching several Things computing the figure returns
+each one's rows in turn, and each formula is drawn above the rows it produced
+rather than one standing for all of them.
+
+**Cost.** No request. The definition travels with the Thing and its inputs are
+already resolved. The `is` walk that finds the definition is not memoized, unlike
+the one for effective properties: a page asks it for the few figures it shows the
+working of, where effective properties are asked for on every binding of every
+refresh.
+
 ### Translating a dashboard spec (i18n)
 
 The config-driven operations dashboard (`OperationsPage`) renders every label
@@ -1907,15 +1980,18 @@ bullet `title` and each row `label`; gantt `title` / `hint` / `ticks`;
 leaderboard `title` / `hint` and each metric `label`; exception-bar `title` /
 `hint` / `note` and each bucket `label`; verdict `title` / `hint`, each row
 `label` / `unit`, and the `reads` wording of each candidate its binding lists;
-each wording in an `origin` binding's `reads`; and in `detail`, each
-property-group `label` and each relation `label` (nested relations included).
+each wording in an `origin` binding's `reads`; working `title` / `hint` and each
+row `label` / `unit`; and in `detail`, each property-group `label` and each
+relation `label` (nested relations included).
 
 `reads` is the one display string the vocabulary keeps on a binding rather than
 on a widget, and it is looked up for exactly that reason: it is the sentence a
 reader reads. What sits beside it is not: a verdict's `state` name is resolved
 against the platform's derived states and an origin's wording is keyed by the
 origins the model's declarations answer with, so translating either would break
-the lookup.
+the lookup. A working row's formula and input names are not translated either —
+they are property names the model holds, and a translation of one would name a
+property that does not exist.
 
 **Which strings are never looked up** (model vocabulary and identifiers — a
 `translations` entry matching one of these is ignored, so it can never corrupt

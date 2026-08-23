@@ -274,6 +274,7 @@ export const nl: PartialResources = {
   widgets: {
     bullet: { target: 'doel', healthyBand: 'gezonde band', warning: 'waarschuwing', critical: 'kritiek' },
     kpi: { onTarget: 'op doel', watch: 'let op', peak: 'piek', trough: 'dal' },
+    working: { notDerived: 'dit cijfer wordt aan het model gegeven, niet door het model berekend' },
     leaderboard: {
       none: "Geen entiteiten om te vergelijken.",
     },

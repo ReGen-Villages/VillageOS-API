@@ -36,7 +36,7 @@ import { stateApi, thingsInStatePath, type StateNarrowing } from './stateApi';
 import { temporalApi } from './temporalApi';
 import { rangeApi } from './rangeApi';
 import { apiClient } from './client';
-import { effectiveProperties } from '../utils/propertyMapper';
+import { effectiveProperties, effectiveDerivedDefinitions } from '../utils/propertyMapper';
 import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
 
@@ -656,6 +656,33 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
           : await recordedSourceOf(thing, binding.source, ctx);
         return { origin, reads: binding.reads[origin] ?? null, ...recorded } as Row;
       }));
+    }
+
+    case 'working': {
+      const computing = await thingsReached(binding.thing, binding.via, ctx);
+      return computing.flatMap((thing) => {
+        const definition = effectiveDerivedDefinitions(thing, ctx.idx)[binding.property];
+        if (!definition) return [];
+        const terms = definition.Reads ?? [];
+        const formula = definition.Expression;
+        // A reduction reads its input off each member, so the Thing computing the figure holds no
+        // value for it and a property of that name there is some other property. The row names the
+        // archetype those members are of in place of a value, and carries no formula: a function over
+        // a set put into words here would be Trellis saying what a figure means.
+        if (formula === undefined) {
+          return terms.map((term) => ({
+            formula: null,
+            term,
+            memberArchetype: definition.RelatedType ?? null,
+          }) as Row);
+        }
+        const properties = effectiveProperties(thing, ctx.idx);
+        return terms.map((term) => ({
+          formula,
+          term,
+          value: nullableNumber(properties[term]),
+        }) as Row);
+      });
     }
 
     case 'compareEntities': {

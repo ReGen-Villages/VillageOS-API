@@ -147,6 +147,25 @@ export type Binding =
       reads: OriginWording;
       source?: OriginSource;
     }
+  /** How a computed figure was worked out: the formula the model holds for it, and each input it
+   *  reads. Resolves to one row per input, carrying `term` and — where the model computes the figure
+   *  from a formula — that `formula` and the input's `value` on the Thing computing it.
+   *
+   *  Where the model reduces over members instead, the row carries a null `formula` and a
+   *  `memberArchetype` rather than a value: the input is held by each member, so the Thing computing
+   *  the figure has none, and a property of that name on it is some other property.
+   *
+   *  The inputs come from the model, never from taking `formula` apart: a client that parsed the
+   *  criteria grammar would be a second parser drifting from the one the platform evaluates with. A
+   *  formula's terms reached through a path are not among them, because a page cannot resolve one
+   *  against the Thing it is showing.
+   *
+   *  A property the model does not derive resolves to `[]`, so a figure a service asserts shows no
+   *  working rather than working Trellis invented. `via` walks to the Thing computing it, the way
+   *  `related` and `verdict` do, and a walk reaching several returns each one's rows in turn.
+   *
+   *  Costs no request: the definition arrives with the Thing and its inputs are already resolved. */
+  | { kind: 'working'; property: string; thing?: string; via?: RelationStep[] }
   /** One binding divided by another — a rate the aggregate ops cannot express, because a ratio of
    *  sums is not a sum of ratios. Resolves to null when the denominator is zero or non-numeric. */
   | { kind: 'ratio'; numerator: Binding; denominator: Binding }
@@ -444,6 +463,29 @@ export interface VerdictWidget {
   rows: VerdictRow[];
 }
 
+/** One figure whose working is shown: what it is called here, the figure itself, and the inputs it was
+ *  worked out from. */
+export interface WorkingRow {
+  label: string;
+  /** Resolves to the figure. Usually a `property` or `related` binding onto the same value `working`
+   *  describes, so the result shown is the result the inputs were combined into. */
+  value: Binding;
+  /** A `working` binding: the formula and each input with its current value. */
+  working: Binding;
+  format?: NumberFormat;
+  unit?: string;
+}
+
+/** How each figure was worked out, under the figure itself. A row whose working resolves to nothing —
+ *  a figure a service asserts rather than one the model derives — shows its value and no working,
+ *  because the client has no account of its own to put there. */
+export interface WorkingWidget {
+  type: 'working';
+  title?: string;
+  hint?: string;
+  rows: WorkingRow[];
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -452,6 +494,7 @@ export type Widget =
   | GanttWidget
   | LeaderboardWidget
   | VerdictWidget
+  | WorkingWidget
   | ExceptionWidget;
 
 export interface DashboardSection {

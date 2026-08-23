@@ -27,6 +27,7 @@ import type {
   TableColumn,
   TableWidget,
   VerdictWidget,
+  WorkingWidget,
   Widget,
 } from '../types/dashboard';
 import { primarySubtag } from '../i18n/languages';
@@ -134,6 +135,18 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
         title: tr(widget.title),
         hint: tr(widget.hint),
         metrics: widget.metrics.map((metric) => ({ ...metric, label: tr(metric.label) })),
+      };
+      return w;
+    }
+    case 'working': {
+      // The label and the unit are the spec's words. The formula and the input names are not — they are
+      // the model's own property names, and a translation of one would name a property the model does
+      // not have.
+      const w: WorkingWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        rows: widget.rows.map((row) => ({ ...row, label: tr(row.label), unit: tr(row.unit) })),
       };
       return w;
     }

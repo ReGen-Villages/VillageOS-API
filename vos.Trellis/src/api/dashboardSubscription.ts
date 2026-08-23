@@ -64,6 +64,7 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
     case 'gantt': return [widget.rows];
     case 'leaderboard': return [widget.entities];
     case 'verdict': return widget.rows.map((row) => row.verdicts);
+    case 'working': return widget.rows.flatMap((row) => [row.value, row.working]);
     case 'exceptionBar': return widget.buckets.map((bucket) => bucket.value);
   }
 }

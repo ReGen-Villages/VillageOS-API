@@ -274,6 +274,7 @@ export const es: PartialResources = {
   widgets: {
     bullet: { target: 'objetivo', healthyBand: 'banda saludable', warning: 'advertencia', critical: 'crítico' },
     kpi: { onTarget: 'en objetivo', watch: 'atención', peak: 'máximo', trough: 'mínimo' },
+    working: { notDerived: 'esta cifra se le da al modelo en vez de calcularla' },
     leaderboard: {
       none: "No hay entidades para comparar.",
     },

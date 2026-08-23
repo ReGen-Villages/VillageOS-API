@@ -9,6 +9,7 @@ import { BulletChart } from './BulletChart';
 import { Gantt } from './Gantt';
 import { Leaderboard } from './Leaderboard';
 import { VerdictList } from './VerdictList';
+import { WorkingList } from './WorkingList';
 import { ExceptionBar } from './ExceptionBar';
 import { DataTable } from './DataTable';
 import { WidgetCard } from './WidgetCard';
@@ -37,6 +38,8 @@ export function WidgetRenderer({
       return <Leaderboard widget={widget} ctx={ctx} />;
     case 'verdict':
       return <VerdictList widget={widget} ctx={ctx} />;
+    case 'working':
+      return <WorkingList widget={widget} ctx={ctx} />;
     case 'exceptionBar':
       return <ExceptionBar widget={widget} ctx={ctx} />;
     case 'table':
