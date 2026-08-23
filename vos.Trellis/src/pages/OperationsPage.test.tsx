@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { VosThing, VosRelationship } from '../types/vos';
@@ -195,5 +195,71 @@ describe('OperationsPage addressing (Story 6582)', () => {
 
     expect(screen.getByTestId('path').textContent).toBe('/operations/operations-dashboard');
     expect(screen.getByText('Ops')).toBeInTheDocument();
+  });
+});
+
+describe('OperationsPage section widths (Bug 6671)', () => {
+  const WIDTH_SPEC = {
+    title: 'Widths',
+    sections: [
+      {
+        title: 'Full width',
+        layout: 'single',
+        widgets: [{ type: 'kpi', title: 'One', value: { kind: 'const', value: 1 } }],
+      },
+      {
+        title: 'Two columns',
+        layout: 'split',
+        widths: [2, 1],
+        widgets: [
+          { type: 'kpi', title: 'Left', value: { kind: 'const', value: 1 } },
+          { type: 'kpi', title: 'Right', value: { kind: 'const', value: 2 } },
+        ],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('matchMedia', (media: string) => ({
+      matches: true,
+      media,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    useModelStore.setState({
+      things: [
+        { Id: 'is', Name: 'is', Properties: {} },
+        { Id: 'arch-dash', Name: 'Dashboard', Properties: {} },
+        { Id: 'dash1', Name: 'Widths', Properties: { spec: JSON.stringify(WIDTH_SPEC) } },
+      ],
+      relationships: [
+        { Id: 'dash1-is', Name: 'dash1 is arch-dash', SubjectId: 'dash1', PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
+      ],
+      loaded: true,
+    });
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  function sectionGrids() {
+    const { container } = renderAt('/operations/widths');
+    return Array.from(container.querySelectorAll<HTMLElement>('section > div.grid'));
+  }
+
+  it('holds a full-width section to the width it was given', () => {
+    expect(sectionGrids()[0].style.gridTemplateColumns).toBe('minmax(0, 1fr)');
+  });
+
+  it('holds each column of a two-column section to the width it was given', () => {
+    expect(sectionGrids()[1].style.gridTemplateColumns).toBe('minmax(0, 2fr) minmax(0, 1fr)');
+  });
+
+  it('stops a card growing past its column, whatever it holds', () => {
+    for (const grid of sectionGrids()) {
+      for (const card of Array.from(grid.children)) {
+        expect(card.className).toContain('min-w-0');
+      }
+    }
   });
 });

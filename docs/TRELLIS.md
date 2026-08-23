@@ -1403,6 +1403,19 @@ The window needs a row height, which it takes from a rendered row measured with 
 measured. A table with no `visibleRows` has no bounded container to measure against
 and renders every row, as before.
 
+### The width a card is given
+
+A section writes every column as `minmax(0, …)` and every card states its own minimum
+width as zero. Both are needed, and each is useless without the other: a bare `1fr`
+column grows to whatever its content wants, and a grid item's own minimum width is its
+content's unless it says otherwise. With either one missing, a widget holding something
+wide — a table with one long unbreakable cell — pushes past its column and widens the
+whole page, putting part of the card, its search box included, off the screen.
+
+Bounded, a widget wider than its card scrolls inside it: `DataTable` and `Leaderboard`
+each wrap their table in a horizontal scroll container, which can do nothing until the
+card above it has a width it must stay inside.
+
 ### The Thing a binding names
 
 `property`, `related`, `stateOf`, `verdict` and `timeseries` all take a `thing`,
