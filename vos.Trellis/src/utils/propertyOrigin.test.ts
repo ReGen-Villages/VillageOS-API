@@ -186,6 +186,22 @@ describe('valueOrigin', () => {
     expect(valueOrigin(site, 'latitude', alone)).toEqual({ origin: 'stated', assumedFrom: null });
   });
 
+  // A Thing stores under as many sources as it inherits names from, and only one of them holds any
+  // given name. Stopping at the first that does not would lose every value stored after it.
+  it('keeps looking past a stored set that holds nothing of the name', () => {
+    const site = thing('s', 'Willow Bend', {
+      InheritedOverrides: {
+        Contact: {
+          SourceId: 'Contact', SourceName: 'Contact', InheritedAt: '2026-08-01T00:00:00Z',
+          Properties: {},
+          Inherited: stored('Party', { emailAddress: 'someone@example.com' }),
+        },
+        ...stored('Site', { latitude: 39.5 }, { latitude: 'FactOnly' }),
+      },
+    });
+    expect(valueOrigin(site, 'latitude', alone)).toEqual({ origin: 'stated', assumedFrom: null });
+  });
+
   it('answers rather than hanging when the is-chain loops back on itself', () => {
     const first = thing('a', 'First');
     const second = thing('b', 'Second');

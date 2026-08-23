@@ -48,11 +48,11 @@ export function badgeTone(value: string): string {
   return 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300';
 }
 
-/** Tailwind classes colouring an origin line by where the value came from. Four origins, four
- *  tones, so a submitted figure and a fetched one are told apart before either is read. The tones
- *  say "different", not "better": an assumption and an unrecorded origin are the two a reader has
- *  to notice, so they carry the two that stand out. The words beside them are the model's, and
- *  carry the same distinction for a reader who cannot tell the colours apart. */
+/** Tailwind classes colouring an origin line by where the value came from — one tone per origin, so
+ *  a submitted figure and a fetched one are told apart before either is read. The tones say
+ *  "different", not "better": an assumption and an unrecorded origin are the ones a reader has to
+ *  notice, so they carry the ones that stand out. The words beside them are the model's, and carry
+ *  the same distinction for a reader who cannot tell the colours apart. */
 export function originTone(origin: OriginKind): string {
   switch (origin) {
     case 'stated': return 'text-zinc-400 dark:text-zinc-500';

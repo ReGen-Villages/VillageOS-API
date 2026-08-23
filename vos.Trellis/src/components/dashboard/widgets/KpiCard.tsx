@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { KpiWidget } from '../../../types/dashboard';
-import type { OriginKind } from '../../../types/vos';
+import { ORIGIN_KINDS, type OriginKind } from '../../../types/vos';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
 import { asNumber, asRows, asSeries } from '../../../api/dashboardApi';
 import { useBinding } from '../../../hooks/useDashboard';
@@ -104,8 +104,6 @@ export function KpiCard({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContex
   );
 }
 
-const ORIGINS: readonly string[] = ['stated', 'measured', 'assumed', 'unknown'];
-
 /**
  * Where the figure came from, under it. One line per Thing the binding read, so a path reaching
  * several says it of each.
@@ -117,7 +115,7 @@ const ORIGINS: readonly string[] = ['stated', 'measured', 'assumed', 'unknown'];
  */
 function OriginLines({ rows }: { rows: Row[] }) {
   const lines = rows
-    .filter((row) => ORIGINS.includes(String(row.origin)) && typeof row.reads === 'string')
+    .filter((row) => ORIGIN_KINDS.includes(row.origin as OriginKind) && typeof row.reads === 'string')
     .map((row, i) => ({
       key: `${String(row.origin)}-${i}`,
       origin: row.origin as OriginKind,

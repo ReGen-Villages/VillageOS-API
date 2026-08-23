@@ -1,16 +1,15 @@
 /**
  * Where a value came from, read off the model rather than off the property's name.
  *
- * The model already draws the distinction and nothing showed it: what a person asserted is declared
- * a different kind of write from what was sampled or fetched, and a value the Thing never wrote is
- * one its archetype supplies to every member. This turns those declarations into the four answers a
- * reader needs, and gives no answer where the model gives none — an input with nothing recorded
- * about it reads as unrecorded, never as a measurement.
+ * The model draws the distinction already: what a person asserted is declared a different kind of
+ * write from what was sampled or fetched, and a value the Thing never wrote is one its archetype
+ * supplies to every member. This turns those declarations into the answers a reader needs, and
+ * gives no answer where the model gives none — an input with nothing recorded about it must read as
+ * unrecorded, never as a measurement.
  */
 import type { DeclaredWriteKind, InheritedPropertySet, ValueOrigin, VosThing } from '../types/vos';
-import { effectiveProperties, type IsChainLookup } from './propertyMapper';
+import type { IsChainLookup } from './propertyMapper';
 
-/** Where a Thing's value for one property came from. */
 export function valueOrigin(thing: VosThing, property: string, lookup: IsChainLookup): ValueOrigin {
   const source = statedBy(thing, property, lookup, new Set());
   if (!source) return { origin: 'unknown', assumedFrom: null };
@@ -22,13 +21,9 @@ export function valueOrigin(thing: VosThing, property: string, lookup: IsChainLo
   }
 }
 
-/**
- * The Thing whose value this one resolves to: itself where it holds one, otherwise the archetype up
- * the `is`-chain that supplies it, or none.
- *
- * Descends only into an archetype whose own effective value is not null, so the walk follows the
- * same value {@link effectiveProperties} resolves rather than an unrelated one further up.
- */
+/** The Thing whose value this one resolves to: itself where it holds one, otherwise the nearest
+ *  archetype up the `is`-chain that holds one. A malformed model can put a cycle in that chain, and
+ *  a walk over model-supplied data that trusts it is a stack overflow, so each is visited once. */
 function statedBy(
   thing: VosThing,
   property: string,
@@ -39,20 +34,16 @@ function statedBy(
   if (visiting.has(thing.Id)) return null;
   visiting.add(thing.Id);
   for (const parent of ancestorsInPrecedenceOrder(thing, lookup)) {
-    if (effectiveProperties(parent, lookup)[property] == null) continue;
     const supplied = statedBy(parent, property, lookup, visiting);
     if (supplied) return supplied;
   }
   return null;
 }
 
-/**
- * The write kind the model declares for a property: on the Thing itself, or — where a stored value
- * carries none — on the nearest archetype that declares one.
- *
- * A property nothing declares answers with nothing, which is what keeps silence distinguishable
- * from a declaration that the value was sampled.
- */
+/** Where the value is stored says nothing about where its kind is declared: a Thing can hold a value
+ *  under a name only its archetype describes. So the declaration is looked for separately, and a
+ *  property nothing declares answers with nothing — which is what keeps silence distinguishable
+ *  from a declaration that the value was sampled. */
 function declaredWriteKind(
   thing: VosThing,
   property: string,

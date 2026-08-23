@@ -1,4 +1,11 @@
+import { DECLARED_WRITE_KINDS } from '../types/vos';
 import type { DeclaredWriteKind, VosThing, VosRelationship, InheritedPropertySet } from '../types/vos';
+
+/** A write kind the platform has a name for. What arrives is model data, so a value outside the set
+ *  is left uninterpreted rather than passed on as a declaration nothing can read. */
+function isDeclaredWriteKind(value: unknown): value is DeclaredWriteKind {
+  return DECLARED_WRITE_KINDS.includes(value as DeclaredWriteKind);
+}
 
 /**
  * Unwrap a single typed property value.
@@ -11,8 +18,6 @@ export function unwrapPropertyValue(v: unknown): unknown {
   }
   return v;
 }
-
-const WRITE_KINDS: readonly string[] = ['FactOnly', 'ObservationOnly'];
 
 /**
  * The write kind each wrapped property was declared with, kept as the values are unwrapped.
@@ -30,9 +35,7 @@ function declaredWriteKinds(
   for (const [key, val] of Object.entries(props)) {
     if (val === null || typeof val !== 'object') continue;
     const declared = (val as Record<string, unknown>).writeKind;
-    if (typeof declared === 'string' && WRITE_KINDS.includes(declared)) {
-      kinds[key] = declared as DeclaredWriteKind;
-    }
+    if (isDeclaredWriteKind(declared)) kinds[key] = declared;
   }
   return Object.keys(kinds).length ? kinds : undefined;
 }

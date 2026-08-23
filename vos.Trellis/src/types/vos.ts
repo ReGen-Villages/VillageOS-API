@@ -6,17 +6,19 @@
  * it only where the declaration narrows what the property takes, so a property open to either
  * carries none — and a property nothing declares is silent rather than described as one or the other.
  */
-export type DeclaredWriteKind = 'FactOnly' | 'ObservationOnly';
+export const DECLARED_WRITE_KINDS = ['FactOnly', 'ObservationOnly'] as const;
+export type DeclaredWriteKind = (typeof DECLARED_WRITE_KINDS)[number];
 
 /**
  * Where a value came from: stated by whoever the Thing is about, measured or fetched from outside,
  * assumed by the platform because the archetype supplies it, or unrecorded.
  *
- * Structural, not domain vocabulary — how a value entered the model, in four words that hold for
- * any model. What each one *reads as* on a page is the model's to write. Resolved by
+ * Structural, not domain vocabulary — how a value entered the model, in words that hold for any
+ * model. What each one *reads as* on a page is the model's to write. Resolved by
  * `valueOrigin` in src/utils/propertyOrigin.ts.
  */
-export type OriginKind = 'stated' | 'measured' | 'assumed' | 'unknown';
+export const ORIGIN_KINDS = ['stated', 'measured', 'assumed', 'unknown'] as const;
+export type OriginKind = (typeof ORIGIN_KINDS)[number];
 
 export interface ValueOrigin {
   origin: OriginKind;

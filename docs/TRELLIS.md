@@ -1664,8 +1664,8 @@ they are indistinguishable. The `origin` binding and the KPI's `origin` slot say
 which is which, in the model's own words.
 
 **Where the origin comes from.** What the model declares about the property,
-never what the property is called. Four answers, and each is a different fact
-the model already holds:
+never what the property is called. Each answer is a different fact the model
+already holds:
 
 | Origin | What the model said |
 |---|---|
@@ -1824,8 +1824,8 @@ property-group `label` and each relation `label` (nested relations included).
 on a widget, and it is looked up for exactly that reason: it is the sentence a
 reader reads. What sits beside it is not: a verdict's `state` name is resolved
 against the platform's derived states and an origin's wording is keyed by the
-four origins the model's declarations answer with, so translating either would
-break the lookup.
+origins the model's declarations answer with, so translating either would break
+the lookup.
 
 **Which strings are never looked up** (model vocabulary and identifiers — a
 `translations` entry matching one of these is ignored, so it can never corrupt
