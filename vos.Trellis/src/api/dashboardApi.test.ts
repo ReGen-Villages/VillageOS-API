@@ -1337,7 +1337,7 @@ describe('a Thing reference resolves the same way whichever binding reads it', (
   });
 });
 
-// Feature #6234: the platform narrows a state answer on the server. The bindings stop reading every
+// The platform narrows a state answer on the server (#6234), so the bindings stop reading every
 // Thing in a state and discarding most of it in the browser.
 describe('state bindings ask the server to narrow', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -1491,7 +1491,7 @@ describe('state bindings ask the server to narrow', () => {
   });
 });
 
-// Story #6668: the series a dashboard draws is the platform's bucketed reduction, asked for at the
+// The series a dashboard draws is the platform's bucketed reduction (#6668), asked for at the
 // granularity the widget wants.
 describe('timeseries reads the platform bucketed aggregate', () => {
   const SITE_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
