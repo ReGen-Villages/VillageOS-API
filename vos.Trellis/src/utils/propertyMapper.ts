@@ -22,7 +22,7 @@ const WRITE_KINDS: readonly string[] = ['FactOnly', 'ObservationOnly'];
  * is left out rather than given a kind, which is the difference between the model saying a value
  * was sampled and the model saying nothing at all.
  */
-export function declaredWriteKinds(
+function declaredWriteKinds(
   props: Record<string, unknown> | null | undefined,
 ): Record<string, DeclaredWriteKind> | undefined {
   if (!props) return undefined;
