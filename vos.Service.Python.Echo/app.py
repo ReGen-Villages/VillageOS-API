@@ -2,7 +2,8 @@
 
 A managed microservice is a handler that Mycelium (the VillageOS gateway)
 launches as a daemon and calls when a relationship with the service's predicate
-is created. The whole contract is HTTP + a single HS256 JWT.
+is created. The whole contract is HTTP + a single JWT signed on the P-256 elliptic
+curve (ES256). The key a handler holds checks a signature and cannot produce one.
 
 `is` is NOT an external predicate — Mycelium handles `is` inheritance in-process
 and never dispatches it to a handler. Register for a custom predicate instead.
@@ -24,6 +25,7 @@ from urllib.parse import quote
 
 import httpx
 import jwt
+from cryptography.hazmat.primitives.serialization import load_der_public_key
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
@@ -35,9 +37,10 @@ class Config:
     port: int = 0
     mycelium_url: str = ""
     token: str | None = None
-    signing_key: str | None = None
-    issuer: str = "VillageOS"
-    audience: str = "VosClients"
+    verification_key: str | None = None
+    issuer: str = ""
+    #: This service's own name. A token addressed to anything else is refused.
+    audience: str = ""
 
 
 def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> Config | None:
@@ -46,7 +49,8 @@ def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> 
     A credential is read from the environment alone. A command line is visible to every process
     on the host and is recorded by anything that logs the line a service was started with.
     """
-    cfg = Config(token=environment.get("Token"), signing_key=environment.get("SigningKey"))
+    cfg = Config(
+        token=environment.get("Token"), verification_key=environment.get("VerificationKey"))
     seen_port = seen_url = False
     for arg in argv:
         if "=" not in arg:
@@ -62,13 +66,21 @@ def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> 
             cfg.issuer = value
         elif key == "--audience" and value:
             cfg.audience = value
-    return cfg if seen_port and seen_url else None
+    if not (seen_port and seen_url):
+        return None
+    # No default issuer or recipient name to fall back on. Each handler is addressed by its own
+    # name, so a shared default could not be correct for anyone and would refuse every call.
+    if cfg.verification_key and not (cfg.issuer and cfg.audience):
+        return None
+    return cfg
 
 
 USAGE = (
     "Usage: .venv/bin/python app.py --port=<port> --myceliumUrl=<url> "
     "[--issuer=<iss>] [--audience=<aud>]\n"
-    "Credentials come from the environment, never the command line: Token, SigningKey"
+    "--issuer and --audience are required whenever a VerificationKey is set; --audience is this "
+    "service's own name.\n"
+    "Credentials come from the environment, never the command line: Token, VerificationKey"
 )
 
 config = parse_args(sys.argv[1:]) or Config()
@@ -217,21 +229,24 @@ async def demo_subscribe(type_: str = "Battery", predicate: str = "powers", *, c
 def verify_request(request: Request) -> None:
     """FastAPI dependency validating a Bearer JWT.
 
-    No-op when no signing key was supplied (matches the .NET handlers).
-    Issuer/audience/expiry are validated with 30s clock skew, mirroring
+    No-op when no verification key was supplied (matches the .NET handlers).
+    Issuer, recipient name and expiry are validated with 30s clock skew, mirroring
     ServiceTokenValidator.
+
+    The accepted algorithm is named rather than taken from the token. A checker that honoured the
+    token's own claim would accept a token signed with this public key used as a plain shared
+    secret, which is a value every handler holds.
     """
-    if not config.signing_key:
+    if not config.verification_key:
         return
     auth = request.headers.get("authorization", "")
     if not auth.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="missing bearer token")
-    key = base64.b64decode(config.signing_key)
     try:
         jwt.decode(
             auth[len("Bearer "):],
-            key=key,
-            algorithms=["HS256"],
+            key=load_der_public_key(base64.b64decode(config.verification_key)),
+            algorithms=["ES256"],
             issuer=config.issuer,
             audience=config.audience,
             leeway=30,
@@ -345,7 +360,7 @@ def main() -> None:
 
     print(
         f"VillageOS {SERVICE_NAME} microservice — port {config.port}, "
-        f"mycelium {config.mycelium_url}, auth={bool(config.signing_key)}"
+        f"mycelium {config.mycelium_url}, auth={bool(config.verification_key)}"
     )
     uvicorn.run(app, host="localhost", port=config.port, log_level="info")
 

@@ -1,24 +1,25 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Tributary.Tests;
 
-// Integration tests for Tributary's auth wireup: when a signing key is configured,
+// Integration tests for Tributary's auth wireup: when a verification key is configured,
 // the authenticated endpoints (/handle, /shutdown) reject anonymous requests
 // with 401, but /health stays open.
 public class AuthWireupTests
 {
     private static TributaryWebApplicationFactory MakeAuthFactory() => new()
     {
-        SigningKey = Convert.ToBase64String(new byte[32]),
+        VerificationKey = new MyceliumSigner().VerificationKey,
         Issuer = "VillageOS",
-        Audience = "VosClients"
+        Audience = "tributary-handler"
     };
 
     [Fact]
-    public async Task BootWithSigningKey_HealthStillReturns200()
+    public async Task BootWithAVerificationKey_HealthStillReturns200()
     {
         await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
@@ -28,7 +29,7 @@ public class AuthWireupTests
     }
 
     [Fact]
-    public async Task BootWithSigningKey_HandleWithoutBearer_Returns401()
+    public async Task BootWithAVerificationKey_HandleWithoutBearer_Returns401()
     {
         await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
@@ -40,7 +41,7 @@ public class AuthWireupTests
     }
 
     [Fact]
-    public async Task BootWithSigningKey_ShutdownWithoutBearer_Returns401()
+    public async Task BootWithAVerificationKey_ShutdownWithoutBearer_Returns401()
     {
         await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();

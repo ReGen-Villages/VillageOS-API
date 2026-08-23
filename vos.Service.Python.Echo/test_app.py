@@ -2,7 +2,7 @@
 
 Run with:  pytest
 
-Covers the four contract endpoints and the inbound HS256 JWT validation.
+Covers the four contract endpoints and the inbound JWT validation.
 Registration/deregistration are mocked so the tests never touch the network.
 """
 
@@ -12,6 +12,8 @@ from unittest.mock import AsyncMock, patch
 
 import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from fastapi.testclient import TestClient
 
 import app as appmod
@@ -26,22 +28,31 @@ def client():
                 yield c
 
 
+THIS_HANDLER = "python-echo-handler"
+
+
+def verification_key_of(pair) -> str:
+    """The public half, encoded the way Mycelium hands it to a daemon."""
+    return base64.b64encode(
+        pair.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    ).decode()
+
+
 @pytest.fixture
 def signing(monkeypatch):
-    """Enable JWT auth with a known key; yields (base64_key, raw_key_bytes)."""
-    raw = b"vos-test-signing-key-0123456789ab"
-    b64 = base64.b64encode(raw).decode()
-    monkeypatch.setattr(appmod.config, "signing_key", b64)
+    """Enable JWT auth against a stand-in for Mycelium's key pair; yields the private half."""
+    pair = ec.generate_private_key(ec.SECP256R1())
+    monkeypatch.setattr(appmod.config, "verification_key", verification_key_of(pair))
     monkeypatch.setattr(appmod.config, "issuer", "VillageOS")
-    monkeypatch.setattr(appmod.config, "audience", "VosClients")
-    return b64, raw
+    monkeypatch.setattr(appmod.config, "audience", THIS_HANDLER)
+    return pair
 
 
-def make_token(raw_key: bytes, **overrides) -> str:
+def claims_with(**overrides) -> dict:
     now = int(time.time())
     claims = {
         "iss": "VillageOS",
-        "aud": "VosClients",
+        "aud": THIS_HANDLER,
         "sub": "mycelium",
         "vos:token_type": "mycelium_request",
         "iat": now,
@@ -49,7 +60,21 @@ def make_token(raw_key: bytes, **overrides) -> str:
         "exp": now + 60,
     }
     claims.update(overrides)
-    return jwt.encode(claims, raw_key, algorithm="HS256")
+    return claims
+
+
+def make_token(pair, **overrides) -> str:
+    """Signs the way Mycelium does."""
+    return jwt.encode(claims_with(**overrides), pair, algorithm="ES256")
+
+
+def forged_from_the_verification_key(pair, **overrides) -> str:
+    """What someone who reads the verification key off a daemon can produce."""
+    return jwt.encode(
+        claims_with(**overrides),
+        base64.b64decode(verification_key_of(pair)),
+        algorithm="HS256",
+    )
 
 
 def test_health(client):
@@ -89,8 +114,7 @@ def test_handle_rejects_missing_token_when_auth_enabled(client, signing):
 
 
 def test_handle_accepts_valid_token(client, signing):
-    _, raw = signing
-    token = make_token(raw)
+    token = make_token(signing)
     res = client.post(
         "/handle", json={"relationshipId": "r3"}, headers={"Authorization": f"Bearer {token}"}
     )
@@ -99,8 +123,7 @@ def test_handle_accepts_valid_token(client, signing):
 
 
 def test_handle_rejects_tampered_token(client, signing):
-    _, raw = signing
-    token = make_token(raw) + "x"
+    token = make_token(signing) + "x"
     res = client.post(
         "/handle", json={"relationshipId": "r4"}, headers={"Authorization": f"Bearer {token}"}
     )
@@ -108,8 +131,7 @@ def test_handle_rejects_tampered_token(client, signing):
 
 
 def test_handle_rejects_expired_token(client, signing):
-    _, raw = signing
-    token = make_token(raw, exp=int(time.time()) - 120)
+    token = make_token(signing, exp=int(time.time()) - 120)
     res = client.post(
         "/handle", json={"relationshipId": "r5"}, headers={"Authorization": f"Bearer {token}"}
     )
@@ -117,10 +139,42 @@ def test_handle_rejects_expired_token(client, signing):
 
 
 def test_handle_rejects_wrong_issuer(client, signing):
-    _, raw = signing
-    token = make_token(raw, iss="Attacker")
+    token = make_token(signing, iss="Attacker")
     res = client.post(
         "/handle", json={"relationshipId": "r6"}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 401
+
+
+def test_handle_rejects_a_token_addressed_to_another_service(client, signing):
+    token = make_token(signing, aud="spring-handler")
+    res = client.post(
+        "/handle", json={"relationshipId": "r7"}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 401
+
+
+def test_handle_rejects_a_persons_browser_token(client, signing):
+    token = make_token(signing, aud="VosClients")
+    res = client.post(
+        "/handle", json={"relationshipId": "r8"}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 401
+
+
+def test_handle_rejects_the_verification_key_used_as_a_shared_secret(client, signing):
+    """Every handler holds this key; accepting it would hand an attacker a signing key."""
+    token = forged_from_the_verification_key(signing)
+    res = client.post(
+        "/handle", json={"relationshipId": "r9"}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 401
+
+
+def test_handle_rejects_a_token_carrying_no_signature(client, signing):
+    token = jwt.encode(claims_with(), key=None, algorithm="none")
+    res = client.post(
+        "/handle", json={"relationshipId": "r10"}, headers={"Authorization": f"Bearer {token}"}
     )
     assert res.status_code == 401
 
@@ -320,30 +374,41 @@ def test_demo_subscribe_summarises_and_unsubscribes(mycelium):
 from app import USAGE, parse_args
 
 
-def test_parse_args_reads_the_standard_flags():
+def test_parse_args_reads_the_standard_flags_and_defaults_nothing():
     cfg = parse_args(["--port=5103", "--myceliumUrl=https://localhost:7243/"], {})
     assert cfg.port == 5103
     assert cfg.mycelium_url == "https://localhost:7243"
-    assert cfg.issuer == "VillageOS"
-    assert cfg.audience == "VosClients"
+    assert cfg.issuer == ""
+    assert cfg.audience == ""
+
+
+def test_parse_args_refuses_a_verification_key_with_no_recipient_name():
+    """Each handler is addressed by its own name, so no shared default could be right."""
+    environment = {"VerificationKey": "ZW52aXJvbm1lbnQta2V5"}
+    assert parse_args(
+        ["--port=5103", "--myceliumUrl=https://x", "--issuer=VillageOS"], environment) is None
+    assert parse_args(
+        ["--port=5103", "--myceliumUrl=https://x", f"--audience={THIS_HANDLER}"], environment) is None
 
 
 def test_parse_args_takes_credentials_from_the_environment():
     cfg = parse_args(
-        ["--port=5103", "--myceliumUrl=https://localhost:7243"],
-        {"Token": "environment-token", "SigningKey": "ZW52aXJvbm1lbnQta2V5"},
+        ["--port=5103", "--myceliumUrl=https://localhost:7243",
+         "--issuer=VillageOS", f"--audience={THIS_HANDLER}"],
+        {"Token": "environment-token", "VerificationKey": "ZW52aXJvbm1lbnQta2V5"},
     )
     assert cfg.token == "environment-token"
-    assert cfg.signing_key == "ZW52aXJvbm1lbnQta2V5"
+    assert cfg.verification_key == "ZW52aXJvbm1lbnQta2V5"
 
 
 def test_parse_args_ignores_credentials_given_as_flags():
     cfg = parse_args(
-        ["--port=5103", "--myceliumUrl=https://localhost:7243", "--token=flag-token", "--signingKey=flag-key"],
+        ["--port=5103", "--myceliumUrl=https://localhost:7243",
+         "--token=flag-token", "--verificationKey=flag-key"],
         {},
     )
     assert cfg.token is None
-    assert cfg.signing_key is None
+    assert cfg.verification_key is None
 
 
 def test_usage_tells_the_reader_to_launch_through_the_virtual_environment():

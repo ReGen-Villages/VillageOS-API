@@ -1,11 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Delta.Tests;
 
-// Integration tests for Delta's auth wireup: when a signing key is configured,
+// Integration tests for Delta's auth wireup: when a verification key is configured,
 // authenticated endpoints (/handle, /register, /shutdown) reject
 // anonymous requests with 401, but /health remains open. Encodes a real
 // security contract — a regression here ships an open endpoint.
@@ -13,13 +14,13 @@ public class AuthWireupTests
 {
     private static DeltaWebApplicationFactory MakeAuthFactory() => new()
     {
-        SigningKey = Convert.ToBase64String(new byte[32]),
+        VerificationKey = new MyceliumSigner().VerificationKey,
         Issuer = "VillageOS",
-        Audience = "VosClients"
+        Audience = "delta-handler"
     };
 
     [Fact]
-    public async Task BootWithSigningKey_HealthStillReturns200()
+    public async Task BootWithAVerificationKey_HealthStillReturns200()
     {
         await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
@@ -29,7 +30,7 @@ public class AuthWireupTests
     }
 
     [Fact]
-    public async Task BootWithSigningKey_HandleWithoutBearer_Returns401()
+    public async Task BootWithAVerificationKey_HandleWithoutBearer_Returns401()
     {
         await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
@@ -41,7 +42,7 @@ public class AuthWireupTests
     }
 
     [Fact]
-    public async Task BootWithSigningKey_RegisterWithoutBearer_Returns401()
+    public async Task BootWithAVerificationKey_RegisterWithoutBearer_Returns401()
     {
         await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();
@@ -53,7 +54,7 @@ public class AuthWireupTests
     }
 
     [Fact]
-    public async Task BootWithSigningKey_ShutdownWithoutBearer_Returns401()
+    public async Task BootWithAVerificationKey_ShutdownWithoutBearer_Returns401()
     {
         await using var factory = MakeAuthFactory();
         await factory.InitializeAsync();

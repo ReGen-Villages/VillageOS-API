@@ -2,13 +2,15 @@
 //
 // A managed microservice is a handler that Mycelium (the VillageOS gateway)
 // launches as a daemon and calls when a relationship with the service's
-// predicate is created. The whole contract is HTTP + a single HS256 JWT.
+// predicate is created. The whole contract is HTTP + a single JWT signed on the
+// P-256 elliptic curve (ES256). The key a handler holds checks a signature and
+// cannot produce one.
 //
 // `is` is NOT an external predicate — Mycelium handles `is` inheritance
 // in-process and never dispatches it. Register for a custom predicate instead.
 
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createPublicKey, randomUUID, verify, type KeyObject } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 const SERVICE_NAME = "Node";
@@ -17,20 +19,21 @@ export interface Config {
   port: number;
   myceliumUrl: string;
   token?: string;
-  signingKey?: string;
+  verificationKey?: string;
   issuer: string;
+  /** This service's own name. A token addressed to anything else is refused. */
   audience: string;
 }
 
 const USAGE = `Usage: node index.js --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
   --port        Port to listen on (1-65535)
   --myceliumUrl Base URL of the VillageOS Mycelium gateway
-  --issuer      JWT issuer Mycelium signs with (default VillageOS)
-  --audience    JWT audience Mycelium signs with (default VosClients)
+  --issuer      JWT issuer Mycelium signs with; required with a VerificationKey
+  --audience    This service's own name, which an inbound token must carry; required with a VerificationKey
 
 Credentials come from the environment, never the command line:
-  Token         Service JWT for authenticating to Mycelium (optional; else fetched)
-  SigningKey    Base64 HMAC key for validating inbound /handle requests (optional)`;
+  Token            Service JWT for authenticating to Mycelium (optional; else fetched)
+  VerificationKey  Base64 of Mycelium's public signing key, for checking inbound /handle requests (optional)`;
 
 // A credential is read from the environment alone. A command line is visible to every process on
 // the host and is recorded by anything that logs the line a service was started with.
@@ -45,13 +48,20 @@ export function parseArgs(argv: string[], environment: NodeJS.ProcessEnv = proce
   if (!portStr || !myceliumUrl) return null;
   const port = Number(portStr);
   if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
+  const verificationKey = environment.VerificationKey;
+  const issuer = map.get("--issuer");
+  const audience = map.get("--audience");
+  // No default issuer or recipient name to fall back on. Each handler is addressed by its own name,
+  // so a shared default could not be correct for anyone and would refuse every call.
+  if (verificationKey && (!issuer || !audience)) return null;
   return {
     port,
     myceliumUrl: myceliumUrl.replace(/\/+$/, ""),
     token: environment.Token,
-    signingKey: environment.SigningKey,
-    issuer: map.get("--issuer") || "VillageOS",
-    audience: map.get("--audience") || "VosClients",
+    verificationKey,
+    // Read only when a verification key was given, and that case is refused above without them.
+    issuer: issuer ?? "",
+    audience: audience ?? "",
   };
 }
 
@@ -264,14 +274,34 @@ function b64urlToBuf(s: string): Buffer {
   return Buffer.from(s, "base64url");
 }
 
+/** Reads the base64 SubjectPublicKeyInfo encoding Mycelium hands out. */
+export function verificationKeyFrom(base64Key: string): KeyObject {
+  return createPublicKey({ key: Buffer.from(base64Key, "base64"), format: "der", type: "spki" });
+}
+
 // 30s clock skew matches ServiceTokenValidator on the .NET side.
-export function verifyJwt(token: string, key: Buffer, issuer: string, audience: string): boolean {
+//
+// The algorithm is checked against the one name accepted rather than honoured from the token. A
+// checker that trusted the token's own claim would accept a token signed with this public key used
+// as a plain shared secret, which is a value every handler holds.
+export function verifyJwt(token: string, key: KeyObject, issuer: string, audience: string): boolean {
   const parts = token.split(".");
   if (parts.length !== 3) return false;
   const [h, p, sig] = parts;
-  const expected = createHmac("sha256", key).update(`${h}.${p}`).digest();
-  const got = b64urlToBuf(sig);
-  if (expected.length !== got.length || !timingSafeEqual(expected, got)) return false;
+
+  let algorithm: string | undefined;
+  try {
+    algorithm = JSON.parse(b64urlToBuf(h).toString("utf8")).alg;
+  } catch {
+    return false;
+  }
+  if (algorithm !== "ES256") return false;
+
+  const signature = b64urlToBuf(sig);
+  if (signature.length !== 64) return false;
+  const signed = verify(
+    "sha256", Buffer.from(`${h}.${p}`), { key, dsaEncoding: "ieee-p1363" }, signature);
+  if (!signed) return false;
 
   let claims: { iss?: string; aud?: string | string[]; exp?: number; nbf?: number };
   try {
@@ -304,8 +334,8 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-function authorized(req: IncomingMessage, cfg: Config, key: Buffer | null): boolean {
-  if (!key) return true; // auth disabled when no signing key (matches .NET handlers)
+function authorized(req: IncomingMessage, cfg: Config, key: KeyObject | null): boolean {
+  if (!key) return true; // auth disabled when no verification key (matches .NET handlers)
   const auth = req.headers["authorization"];
   if (typeof auth !== "string" || !auth.startsWith("Bearer ")) return false;
   return verifyJwt(auth.slice("Bearer ".length), key, cfg.issuer, cfg.audience);
@@ -317,7 +347,7 @@ function main(): void {
     console.error(USAGE);
     process.exit(1);
   }
-  const key = cfg.signingKey ? Buffer.from(cfg.signingKey, "base64") : null;
+  const key = cfg.verificationKey ? verificationKeyFrom(cfg.verificationKey) : null;
   console.log(
     `VillageOS ${SERVICE_NAME} microservice — port ${cfg.port}, mycelium ${cfg.myceliumUrl}, auth=${key !== null}`,
   );

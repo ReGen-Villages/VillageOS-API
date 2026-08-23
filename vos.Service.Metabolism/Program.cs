@@ -24,7 +24,7 @@ var servicePort = launchSettings.Service.Port;
 var myceliumUrl = launchSettings.Service.MyceliumUrl;
 var direction = launchSettings.Direction;
 var serviceToken = launchSettings.Service.Token;
-var signingKey = launchSettings.Service.SigningKey;
+var verificationKey = launchSettings.Service.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 ServiceHost.ConfigureLogging("Metabolism", $"metabolism-{direction.LaunchArgument}-.log", writeToFile: !isTestingEnv);
@@ -41,10 +41,10 @@ try
 
     // Bug #5391: validate with the issuer/audience Mycelium passes via CLI, not library defaults —
     // defaults diverged from Mycelium config and silently accepted nothing in production.
-    if (!string.IsNullOrEmpty(signingKey))
+    if (!string.IsNullOrEmpty(verificationKey))
     {
         builder.AddMyceliumTokenAuth(
-            signingKey,
+            verificationKey,
             issuer: launchSettings.Service.Issuer,
             audience: launchSettings.Service.Audience);
         Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",
@@ -75,7 +75,7 @@ try
     // Must precede RequestContractValidationMiddleware, which reads endpoint metadata via context.GetEndpoint().
     app.UseRouting();
 
-    if (!string.IsNullOrEmpty(signingKey))
+    if (!string.IsNullOrEmpty(verificationKey))
     {
         app.UseAuthentication();
         app.UseAuthorization();
@@ -109,7 +109,7 @@ try
     app.MapMetabolismEndpoints(
         direction,
         () => requestCount, () => requestCount++,
-        authEnabled: !string.IsNullOrEmpty(signingKey));
+        authEnabled: !string.IsNullOrEmpty(verificationKey));
 
     app.Run();
 }

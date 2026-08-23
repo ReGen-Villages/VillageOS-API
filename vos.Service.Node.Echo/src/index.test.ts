@@ -1,21 +1,31 @@
-// Tests for the pure helpers (arg parsing + HS256 JWT validation) using Node's
+// Tests for the pure helpers (arg parsing + inbound JWT validation) using Node's
 // built-in test runner — no extra dependencies. Run via `npm test`.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
-import { parseArgs, verifyJwt } from "./index.js";
+import { createHmac, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
+import { parseArgs, verificationKeyFrom, verifyJwt } from "./index.js";
 
-const KEY = Buffer.from("vos-test-signing-key-0123456789ab", "utf8");
+const THIS_HANDLER = "node-echo-handler";
+
+// Stands in for the pair Mycelium generates.
+const MYCELIUM = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+
+/** The public half, encoded the way Mycelium hands it to a daemon. */
+function verificationKey(): string {
+  return MYCELIUM.publicKey.export({ format: "der", type: "spki" }).toString("base64");
+}
+
+const PUBLIC_KEY: KeyObject = verificationKeyFrom(verificationKey());
 
 function b64url(obj: unknown): string {
   return Buffer.from(JSON.stringify(obj)).toString("base64url");
 }
 
-function makeToken(key: Buffer, overrides: Record<string, unknown> = {}): string {
+function claimsWith(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const now = Math.floor(Date.now() / 1000);
-  const claims = {
+  return {
     iss: "VillageOS",
-    aud: "VosClients",
+    aud: THIS_HANDLER,
     sub: "mycelium",
     "vos:token_type": "mycelium_request",
     iat: now,
@@ -23,19 +33,34 @@ function makeToken(key: Buffer, overrides: Record<string, unknown> = {}): string
     exp: now + 60,
     ...overrides,
   };
-  const head = b64url({ alg: "HS256", typ: "JWT" });
-  const pay = b64url(claims);
-  const sig = createHmac("sha256", key).update(`${head}.${pay}`).digest("base64url");
-  return `${head}.${pay}.${sig}`;
 }
 
-test("parseArgs: valid required flags + defaults", () => {
+/** Signs the way Mycelium does. */
+function makeToken(overrides: Record<string, unknown> = {}): string {
+  const signing = `${b64url({ alg: "ES256", typ: "JWT" })}.${b64url(claimsWith(overrides))}`;
+  const signature = sign("sha256", Buffer.from(signing), {
+    key: MYCELIUM.privateKey,
+    dsaEncoding: "ieee-p1363",
+  });
+  return `${signing}.${signature.toString("base64url")}`;
+}
+
+/** What someone who reads the verification key off a daemon can produce. */
+function forgedFromTheVerificationKey(): string {
+  const signing = `${b64url({ alg: "HS256", typ: "JWT" })}.${b64url(claimsWith())}`;
+  const sig = createHmac("sha256", Buffer.from(verificationKey(), "base64"))
+    .update(signing)
+    .digest("base64url");
+  return `${signing}.${sig}`;
+}
+
+test("parseArgs: valid required flags, and nothing defaulted", () => {
   const cfg = parseArgs(["--port=5102", "--myceliumUrl=https://localhost:7243/"], {});
   assert.ok(cfg);
   assert.equal(cfg.port, 5102);
   assert.equal(cfg.myceliumUrl, "https://localhost:7243");
-  assert.equal(cfg.issuer, "VillageOS");
-  assert.equal(cfg.audience, "VosClients");
+  assert.equal(cfg.issuer, "");
+  assert.equal(cfg.audience, "");
 });
 
 test("parseArgs: missing required flags returns null", () => {
@@ -44,51 +69,75 @@ test("parseArgs: missing required flags returns null", () => {
   assert.equal(parseArgs(["--port=0", "--myceliumUrl=x"], {}), null);
 });
 
+// Each handler is addressed by its own name, so there is no shared default left that could be right.
+test("parseArgs: a verification key with no issuer or recipient name is refused", () => {
+  const environment = { VerificationKey: "ZW52aXJvbm1lbnQta2V5" };
+  assert.equal(
+    parseArgs(["--port=5102", "--myceliumUrl=https://x", "--issuer=VillageOS"], environment), null);
+  assert.equal(
+    parseArgs(["--port=5102", "--myceliumUrl=https://x", `--audience=${THIS_HANDLER}`], environment), null);
+});
+
 test("parseArgs: credentials come from the environment", () => {
-  const cfg = parseArgs(["--port=5102", "--myceliumUrl=https://localhost:7243"], {
-    Token: "environment-token",
-    SigningKey: "ZW52aXJvbm1lbnQta2V5",
-  });
+  const cfg = parseArgs(
+    ["--port=5102", "--myceliumUrl=https://localhost:7243", "--issuer=VillageOS", `--audience=${THIS_HANDLER}`],
+    { Token: "environment-token", VerificationKey: "ZW52aXJvbm1lbnQta2V5" },
+  );
   assert.ok(cfg);
   assert.equal(cfg.token, "environment-token");
-  assert.equal(cfg.signingKey, "ZW52aXJvbm1lbnQta2V5");
+  assert.equal(cfg.verificationKey, "ZW52aXJvbm1lbnQta2V5");
 });
 
 test("parseArgs: a credential given as a flag is ignored", () => {
   const cfg = parseArgs(
-    ["--port=5102", "--myceliumUrl=https://localhost:7243", "--token=flag-token", "--signingKey=flag-key"],
+    ["--port=5102", "--myceliumUrl=https://localhost:7243", "--token=flag-token", "--verificationKey=flag-key"],
     {},
   );
   assert.ok(cfg);
   assert.equal(cfg.token, undefined);
-  assert.equal(cfg.signingKey, undefined);
+  assert.equal(cfg.verificationKey, undefined);
 });
 
 test("verifyJwt: accepts a valid token", () => {
-  assert.equal(verifyJwt(makeToken(KEY), KEY, "VillageOS", "VosClients"), true);
+  assert.equal(verifyJwt(makeToken(), PUBLIC_KEY, "VillageOS", THIS_HANDLER), true);
 });
 
 test("verifyJwt: rejects tampered signature", () => {
-  assert.equal(verifyJwt(makeToken(KEY) + "x", KEY, "VillageOS", "VosClients"), false);
+  assert.equal(verifyJwt(makeToken() + "x", PUBLIC_KEY, "VillageOS", THIS_HANDLER), false);
 });
 
-test("verifyJwt: rejects wrong key", () => {
-  const other = Buffer.from("a-totally-different-signing-key!!", "utf8");
-  assert.equal(verifyJwt(makeToken(KEY), other, "VillageOS", "VosClients"), false);
+test("verifyJwt: rejects a token signed by another Mycelium", () => {
+  const stranger = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const other = verificationKeyFrom(
+    stranger.publicKey.export({ format: "der", type: "spki" }).toString("base64"));
+  assert.equal(verifyJwt(makeToken(), other, "VillageOS", THIS_HANDLER), false);
+});
+
+// Every handler holds the verification key. A checker that honoured the algorithm the token names
+// would let any of them sign one.
+test("verifyJwt: rejects the verification key used as a shared secret", () => {
+  assert.equal(
+    verifyJwt(forgedFromTheVerificationKey(), PUBLIC_KEY, "VillageOS", THIS_HANDLER), false);
+});
+
+test("verifyJwt: rejects a token carrying no signature", () => {
+  const unsigned = `${b64url({ alg: "none", typ: "JWT" })}.${b64url(claimsWith())}.`;
+  assert.equal(verifyJwt(unsigned, PUBLIC_KEY, "VillageOS", THIS_HANDLER), false);
 });
 
 test("verifyJwt: rejects expired token", () => {
-  const tok = makeToken(KEY, { exp: Math.floor(Date.now() / 1000) - 120 });
-  assert.equal(verifyJwt(tok, KEY, "VillageOS", "VosClients"), false);
+  const tok = makeToken({ exp: Math.floor(Date.now() / 1000) - 120 });
+  assert.equal(verifyJwt(tok, PUBLIC_KEY, "VillageOS", THIS_HANDLER), false);
 });
 
-test("verifyJwt: rejects wrong issuer / audience", () => {
-  assert.equal(verifyJwt(makeToken(KEY, { iss: "Attacker" }), KEY, "VillageOS", "VosClients"), false);
-  assert.equal(verifyJwt(makeToken(KEY, { aud: "Nope" }), KEY, "VillageOS", "VosClients"), false);
+test("verifyJwt: rejects a wrong issuer, another service's name, and a person's browser token", () => {
+  assert.equal(verifyJwt(makeToken({ iss: "Attacker" }), PUBLIC_KEY, "VillageOS", THIS_HANDLER), false);
+  assert.equal(verifyJwt(makeToken({ aud: "spring-handler" }), PUBLIC_KEY, "VillageOS", THIS_HANDLER), false);
+  assert.equal(verifyJwt(makeToken({ aud: "VosClients" }), PUBLIC_KEY, "VillageOS", THIS_HANDLER), false);
 });
 
 test("verifyJwt: rejects malformed token", () => {
-  assert.equal(verifyJwt("not-a-jwt", KEY, "VillageOS", "VosClients"), false);
+  assert.equal(verifyJwt("not-a-jwt", PUBLIC_KEY, "VillageOS", THIS_HANDLER), false);
 });
 
 // ---- Write kinds (Fact / Observation / Sediment) ----
@@ -105,7 +154,7 @@ const CFG: Config = {
   myceliumUrl: "http://mycelium.test",
   token: "tok",
   issuer: "VillageOS",
-  audience: "VosClients",
+  audience: THIS_HANDLER,
 };
 
 interface Captured {

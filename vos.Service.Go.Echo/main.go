@@ -2,12 +2,14 @@
 //
 // A managed microservice is a handler that Mycelium (the VillageOS gateway)
 // launches as a daemon and calls when a relationship with the service's
-// predicate is created. The full contract is HTTP + a single HS256 JWT.
+// predicate is created. The full contract is HTTP + a single JWT signed on the
+// P-256 elliptic curve (ES256). The key a handler holds checks a signature and
+// cannot produce one.
 //
 // Lifecycle:
 //  1. Mycelium launches:  ./app --port=5101 --myceliumUrl=https://localhost:7243 \
-//     [--issuer=VillageOS] [--audience=VosClients]
-//     with Token and SigningKey set on the daemon's environment.
+//     --issuer=VillageOS --audience=<this service's own name>
+//     with Token and VerificationKey set on the daemon's environment.
 //  2. On startup the service registers (POST /api/mycelium/register).
 //  3. Mycelium calls POST /handle for each matching relationship (JWT-authed).
 //  4. On shutdown (SIGINT/SIGTERM or POST /shutdown) it deregisters
@@ -16,16 +18,17 @@ package main
 
 import (
 	"context"
-	"crypto/hmac"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
 	"net/url"
 	"os"
@@ -40,22 +43,20 @@ import (
 const serviceName = "Go"
 
 type config struct {
-	Port        int
-	MyceliumURL string
-	Token       string // pre-minted service JWT; else fetched from Mycelium
-	SigningKey  string // base64-encoded HMAC key for validating inbound JWTs
-	Issuer      string
-	Audience    string
+	Port            int
+	MyceliumURL     string
+	Token           string // pre-minted service JWT; else fetched from Mycelium
+	VerificationKey string // base64 of Mycelium's public signing key, for checking inbound JWTs
+	Issuer          string
+	Audience        string // this service's own name; a token addressed elsewhere is refused
 }
 
 // A credential is read from the environment alone. A command line is visible to every process on
 // the host and is recorded by anything that logs the line a service was started with.
 func parseArgs(args []string, environment func(string) string) (config, error) {
 	c := config{
-		Issuer:     "VillageOS",
-		Audience:   "VosClients",
-		Token:      environment("Token"),
-		SigningKey: environment("SigningKey"),
+		Token:           environment("Token"),
+		VerificationKey: environment("VerificationKey"),
 	}
 	var portSet, urlSet bool
 	for _, a := range args {
@@ -85,18 +86,23 @@ func parseArgs(args []string, environment func(string) string) (config, error) {
 	if !portSet || !urlSet {
 		return c, errors.New("missing required --port and/or --myceliumUrl")
 	}
+	// No default issuer or recipient name to fall back on. Each handler is addressed by its own
+	// name, so a shared default could not be correct for anyone and would refuse every call.
+	if c.VerificationKey != "" && (c.Issuer == "" || c.Audience == "") {
+		return c, errors.New("a VerificationKey needs --issuer and --audience; Mycelium passes both")
+	}
 	return c, nil
 }
 
 const usage = `Usage: app --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]
   --port        Port to listen on (1-65535)
   --myceliumUrl Base URL of the VillageOS Mycelium gateway
-  --issuer      JWT issuer Mycelium signs with (default VillageOS)
-  --audience    JWT audience Mycelium signs with (default VosClients)
+  --issuer      JWT issuer Mycelium signs with; required with a VerificationKey
+  --audience    This service's own name, which an inbound token must carry; required with a VerificationKey
 
 Credentials come from the environment, never the command line:
-  Token         Service JWT for authenticating to Mycelium (optional; else fetched)
-  SigningKey    Base64 HMAC key for validating inbound /handle requests (optional)`
+  Token            Service JWT for authenticating to Mycelium (optional; else fetched)
+  VerificationKey  Base64 of Mycelium's public signing key, for checking inbound /handle requests (optional)`
 
 type service struct {
 	cfg       config
@@ -489,15 +495,15 @@ func (s *service) stats(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-// requireAuth requires a valid Bearer JWT only when a signing key was supplied;
-// with no signing key, auth is disabled (matches the .NET handlers).
+// requireAuth requires a valid Bearer JWT only when a verification key was supplied;
+// with no key, auth is disabled (matches the .NET handlers).
 func (s *service) requireAuth(next http.HandlerFunc) http.HandlerFunc {
-	if s.cfg.SigningKey == "" {
+	if s.cfg.VerificationKey == "" {
 		return next
 	}
-	key, err := base64.StdEncoding.DecodeString(s.cfg.SigningKey)
+	key, err := publicKey(s.cfg.VerificationKey)
 	if err != nil {
-		log.Fatalf("invalid SigningKey (not base64): %v", err)
+		log.Fatalf("invalid VerificationKey: %v", err)
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
@@ -506,7 +512,7 @@ func (s *service) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "missing bearer token"})
 			return
 		}
-		if err := verifyHS256(tok, key, s.cfg.Issuer, s.cfg.Audience); err != nil {
+		if err := verifyES256(tok, key, s.cfg.Issuer, s.cfg.Audience); err != nil {
 			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
 			return
 		}
@@ -514,21 +520,57 @@ func (s *service) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// verifyHS256 allows 30s of clock skew, matching ServiceTokenValidator on the .NET side.
-func verifyHS256(token string, key []byte, issuer, audience string) error {
+// publicKey reads the base64 SubjectPublicKeyInfo encoding Mycelium hands out.
+func publicKey(base64Key string) (*ecdsa.PublicKey, error) {
+	der, err := base64.StdEncoding.DecodeString(base64Key)
+	if err != nil {
+		return nil, errors.New("not base64")
+	}
+	parsed, err := x509.ParsePKIXPublicKey(der)
+	if err != nil {
+		return nil, err
+	}
+	key, ok := parsed.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, errors.New("not an elliptic-curve public key")
+	}
+	return key, nil
+}
+
+// verifyES256 allows 30s of clock skew, matching ServiceTokenValidator on the .NET side.
+//
+// The algorithm is checked against the one name accepted rather than honoured from the token. A
+// checker that trusted the token's own claim would accept a token signed with this public key used
+// as a plain shared secret, which is a value every handler holds.
+func verifyES256(token string, key *ecdsa.PublicKey, issuer, audience string) error {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return errors.New("malformed token")
 	}
-	signing := parts[0] + "." + parts[1]
-	mac := hmac.New(sha256.New, key)
-	mac.Write([]byte(signing))
-	expected := mac.Sum(nil)
-	got, err := base64.RawURLEncoding.DecodeString(parts[2])
+	headerJSON, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return errors.New("bad header encoding")
+	}
+	var header struct {
+		Alg string `json:"alg"`
+	}
+	if err := json.Unmarshal(headerJSON, &header); err != nil {
+		return errors.New("bad header json")
+	}
+	if header.Alg != "ES256" {
+		return errors.New("unaccepted signature algorithm")
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
 	if err != nil {
 		return errors.New("bad signature encoding")
 	}
-	if subtle.ConstantTimeCompare(expected, got) != 1 {
+	if len(signature) != 64 {
+		return errors.New("signature mismatch")
+	}
+	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
+	r := new(big.Int).SetBytes(signature[:32])
+	sig := new(big.Int).SetBytes(signature[32:])
+	if !ecdsa.Verify(key, digest[:], r, sig) {
 		return errors.New("signature mismatch")
 	}
 	payloadJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
@@ -599,7 +641,7 @@ func main() {
 
 	s := &service{cfg: cfg, handlerID: newUUID(), client: &http.Client{Timeout: 5 * time.Second}}
 	log.Printf("VillageOS %s microservice — port %d, mycelium %s, auth=%t",
-		serviceName, cfg.Port, cfg.MyceliumURL, cfg.SigningKey != "")
+		serviceName, cfg.Port, cfg.MyceliumURL, cfg.VerificationKey != "")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /handle", s.requireAuth(s.handleRelationship))

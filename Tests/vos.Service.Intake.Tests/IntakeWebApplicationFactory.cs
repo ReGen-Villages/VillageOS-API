@@ -16,14 +16,15 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     public Func<HttpRequestMessage, HttpResponseMessage> HandlerCallback { get; set; }
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
-    /// <summary>Base64 key for inbound request validation. Null leaves the service open, as it runs when no
-    /// broker handed it one. Issuer and audience travel with it: the auth wireup refuses a key without
-    /// them rather than falling back to a default that would reject every call.</summary>
-    public string? SigningKey { get; set; }
+    /// <summary>Base64 of Mycelium's public signing key, for checking inbound requests. Null leaves the
+    /// service open, as it runs when no broker handed it one. Issuer and recipient name travel with it:
+    /// the auth wireup refuses a key without them rather than falling back to a default that would
+    /// reject every call.</summary>
+    public string? VerificationKey { get; set; }
 
     public string Issuer { get; set; } = "VillageOS";
 
-    public string Audience { get; set; } = "VosClients";
+    public string Audience { get; set; } = "intake-handler";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -32,9 +33,9 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseSetting("MyceliumUrl", "http://localhost");
         // A non-empty token short-circuits the /api/auth/token round trip in MyceliumClientBase.
         builder.UseSetting("Token", "test-token");
-        if (SigningKey != null)
+        if (VerificationKey != null)
         {
-            builder.UseSetting("SigningKey", SigningKey);
+            builder.UseSetting("VerificationKey", VerificationKey);
             builder.UseSetting("Issuer", Issuer);
             builder.UseSetting("Audience", Audience);
         }

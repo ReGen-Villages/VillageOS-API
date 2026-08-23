@@ -8,5 +8,6 @@
   <ItemGroup>
     <!-- IHttpClientFactory lives here. Test consumers used to get it transitively via their Web SDK production project; the shared library needs it directly. -->
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
   </ItemGroup>
 </Project>
