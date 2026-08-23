@@ -56,7 +56,7 @@ public record ServiceLaunchSettings(
         "  --audience     This service's own recipient name, which an inbound token must name";
 
     private const string CredentialDescriptions =
-        "\n\nCredentials come from configuration or the environment, never the command line:\n" +
+        "\n\nSupplied through configuration or the environment, never the command line:\n" +
         "  Token            Service JWT for authenticating with Mycelium (optional)\n" +
         "  VerificationKey  Base64 of Mycelium's public signing key, for checking inbound requests (optional)";
 

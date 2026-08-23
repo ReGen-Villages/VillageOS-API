@@ -10,7 +10,7 @@ public static class ServiceTokenValidator
     /// <summary>The one signature algorithm a handler accepts. Named rather than left to whatever the
     /// token claims for itself: a checker that honours the token's own claim would accept a token
     /// signed with the verification key used as a plain shared secret, which every handler holds.</summary>
-    public const string Algorithm = SecurityAlgorithms.EcdsaSha256;
+    private const string Algorithm = SecurityAlgorithms.EcdsaSha256;
 
     /// <param name="base64VerificationKey">Mycelium's public signing key, base64 of its
     /// SubjectPublicKeyInfo encoding — the value Mycelium sets as <c>VerificationKey</c>.</param>

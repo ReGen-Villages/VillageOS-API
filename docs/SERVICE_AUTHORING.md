@@ -77,7 +77,7 @@ Mycelium launches your binary with `--key=value` flags. `--port` and `--mycelium
 | `--port` | ✓ | Port to listen on (1–65535) |
 | `--myceliumUrl` | ✓ | Base URL of Mycelium, e.g. `https://localhost:7243` |
 | `--issuer` | | JWT issuer to check against. **Required when `VerificationKey` is set** (startup fails otherwise); must match what Mycelium signs |
-| `--audience` | | **Your service's own name**, which an inbound token must carry as its recipient. **Required when `VerificationKey` is set** (startup fails otherwise). There is no shared default: a token addressed to another service, or to a signed-in person's browser, must not be accepted here |
+| `--audience` | | **Your service's own name**, which an inbound token must carry as its recipient. **Required when `VerificationKey` is set** (startup fails otherwise). There is no shared default: a token addressed to another service, or to a signed-in person's browser, must not be accepted here. Mycelium works the name out from the connection that dispatches to you — treat it as opaque and check the value you were given |
 
 ### Credentials
 
