@@ -9,14 +9,18 @@ It's the Python analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.
 ## Run
 
 ```bash
-pip install -r requirements.txt
-python app.py --port=5103 --myceliumUrl=https://localhost:7243
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243
 
 # with inbound auth, as Mycelium launches it:
 Token=<service-jwt> SigningKey=<base64-hmac-key> \
-  python app.py --port=5103 --myceliumUrl=https://localhost:7243 \
+  .venv/bin/python app.py --port=5103 --myceliumUrl=https://localhost:7243 \
     --issuer=VillageOS --audience=VosClients
 ```
+
+macOS has no `python` command, and the `python3` on your PATH usually refuses to install packages
+into itself, so the virtual environment is not optional. This is the sequence the build runs.
 
 Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 
@@ -58,11 +62,16 @@ Both come from the environment and are never flags. A command line is readable b
 ## Test
 
 ```bash
-pip install -r requirements.txt
-pytest -v
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pytest
 ```
 
-Covers all four endpoints plus JWT validation (valid / missing / tampered / expired / wrong-issuer).
+Covers every endpoint plus JWT validation (valid / missing / tampered / expired / wrong-issuer).
+
+This is the one Python suite in the repository that runs under pytest; the rest are stdlib
+`unittest`. `python3 -m unittest discover` collects nothing here and still reports `OK`, so reach
+for the command above rather than the one the other suites use.
 
 ## Writing data back (Facts / Observations / Sediment)
 

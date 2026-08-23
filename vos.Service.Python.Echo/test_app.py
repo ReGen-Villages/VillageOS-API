@@ -317,7 +317,7 @@ def test_demo_subscribe_summarises_and_unsubscribes(mycelium):
 
 # ---- Launch settings ----
 
-from app import parse_args
+from app import USAGE, parse_args
 
 
 def test_parse_args_reads_the_standard_flags():
@@ -344,3 +344,7 @@ def test_parse_args_ignores_credentials_given_as_flags():
     )
     assert cfg.token is None
     assert cfg.signing_key is None
+
+
+def test_usage_tells_the_reader_to_launch_through_the_virtual_environment():
+    assert ".venv/bin/python app.py" in USAGE
