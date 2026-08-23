@@ -56,12 +56,21 @@ function localizeColumns(columns: TableColumn[] | undefined, tr: SpecTranslator)
   return columns?.map((column) => ({ ...column, label: tr(column.label) }));
 }
 
-/** The wording a verdict reads as is the one display string the vocabulary keeps on a binding, so
- *  it is translated where every other binding value is not. The state name beside it stays as the
- *  model wrote it: that one is resolved against the platform's derived states. */
-function localizeVerdicts(binding: Binding, tr: SpecTranslator): Binding {
-  if (binding.kind !== 'verdict') return binding;
-  return { ...binding, states: binding.states.map((c) => ({ ...c, reads: tr(c.reads) })) };
+/** A verdict's and an origin's wording are the display strings the vocabulary keeps on a binding, so
+ *  they are translated where every other binding value is not. What sits beside each stays as the
+ *  model wrote it: a state name is resolved against the platform's derived states, and an origin is
+ *  one of the four the model's declarations answer with. */
+function localizeWording(binding: Binding | undefined, tr: SpecTranslator): Binding | undefined {
+  if (binding?.kind === 'verdict') {
+    return { ...binding, states: binding.states.map((c) => ({ ...c, reads: tr(c.reads) })) };
+  }
+  if (binding?.kind === 'origin') {
+    const reads = Object.fromEntries(
+      Object.entries(binding.reads).map(([origin, wording]) => [origin, tr(wording)]),
+    );
+    return { ...binding, reads };
+  }
+  return binding;
 }
 
 function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
@@ -74,6 +83,7 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
         targetLabel: tr(widget.targetLabel),
         sparkBaselineLabel: tr(widget.sparkBaselineLabel),
         footnote: tr(widget.footnote),
+        origin: localizeWording(widget.origin, tr),
       };
       return w;
     }
@@ -136,7 +146,7 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
           ...row,
           label: tr(row.label),
           unit: tr(row.unit),
-          verdicts: localizeVerdicts(row.verdicts, tr),
+          verdicts: localizeWording(row.verdicts, tr) ?? row.verdicts,
         })),
       };
       return w;

@@ -26,6 +26,7 @@ import {
   type ComputedColumn,
   type DashboardDescriptor,
   type DashboardSpec,
+  type OriginSource,
   type RelationStep,
   type ScopeEntity,
   type ScopeRef,
@@ -36,6 +37,7 @@ import { temporalApi } from './temporalApi';
 import { rangeApi } from './rangeApi';
 import { apiClient } from './client';
 import { effectiveProperties } from '../utils/propertyMapper';
+import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
 
 /** Row shape returned by stateList / aggregate-list / service table bindings. */
@@ -470,6 +472,28 @@ async function thingsReached(
     .sort((a, b) => a.Name.localeCompare(b.Name));
 }
 
+/**
+ * What the model says produced a value: the Things the source path reaches from the one holding it,
+ * and when the source was last resolved.
+ *
+ * A walk reaching several sources names them all and reports no instant. A set of sources resolved
+ * at different times has no one instant, and showing one of them would attribute the figure to a
+ * source that may not have produced it — the confusion this vocabulary exists to end.
+ */
+async function recordedSourceOf(
+  carrying: VosThing,
+  source: OriginSource | undefined,
+  ctx: ResolveContext,
+): Promise<{ source: string | null; resolvedAt: string | null }> {
+  if (!source) return { source: null, resolvedAt: null };
+  const reached = await thingsReached(carrying.Id, source.via, ctx);
+  if (!reached.length) return { source: null, resolvedAt: null };
+  const named = reached.map((t) => t.Name).join(', ');
+  if (reached.length > 1 || !source.resolvedAt) return { source: named, resolvedAt: null };
+  const resolved = effectiveProperties(reached[0], ctx.idx)[source.resolvedAt];
+  return { source: named, resolvedAt: resolved == null ? null : String(resolved) };
+}
+
 /** Resolve each computed column once per row, with that row's Thing as the scope — so the binding
  *  a `$scope`-driven widget uses yields this row's own value here. The rows share their state
  *  reads, which is what keeps a state-reading column at one request per state rather than per row
@@ -619,6 +643,19 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         });
       }));
       return verdictsOf.flat();
+    }
+
+    case 'origin': {
+      const carrying = await thingsReached(binding.thing, binding.via, ctx);
+      return Promise.all(carrying.map(async (thing) => {
+        const { origin, assumedFrom } = valueOrigin(thing, binding.property, ctx.idx);
+        // An assumption already names its source — the archetype it was inherited from — so it needs
+        // no path to one. Every other origin asks the model what produced the value.
+        const recorded = assumedFrom !== null
+          ? { source: assumedFrom, resolvedAt: null }
+          : await recordedSourceOf(thing, binding.source, ctx);
+        return { origin, reads: binding.reads[origin] ?? null, ...recorded } as Row;
+      }));
     }
 
     case 'compareEntities': {

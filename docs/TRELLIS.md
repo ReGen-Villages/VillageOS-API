@@ -1031,6 +1031,7 @@ The platform's property model — own vs. inherited vs. override, resolved on re
 - **The model store** (`modelStore`) holds each thing's **own** properties plus its **stored overrides** — the shape `GET /api/things` returns (`Properties` + `InheritedOverrides`), which the client keeps under the same `InheritedOverrides` name. It does **not** hold inherited defaults the instance never overrode; those are resolved server-side.
 - **Live dashboards** read `effectiveProperties(thing)` (`propertyMapper.ts`) — a synchronous client-side merge of own + overrides, memoized per thing. It suits per-frame binding resolution across many things and is the only property source that stays live with SSE without a fetch.
 - **Detail panel and property search** need the *complete* resolved view (including inherited defaults), so they read it from the server: `NodeDetailPanel` fetches `GET /api/things/{id}/properties` for the selected thing; `PropertySearchPage` fetches the bulk `GET /api/things/properties?scope=effective` once when it opens. Both key inherited properties by qualified path and carry `IsInherited` / `InheritedFrom`.
+- **The declaration travels with the value.** Unwrapping a property keeps only what the value *is*, so `unwrapThing` also keeps the `writeKind` each property was declared with, under `PropertyWriteKinds` beside `Properties` (and on each override set). That is the client's only record of how a value came to be one, and it is what `valueOrigin` (`propertyOrigin.ts`) reads to say where a figure came from — see [Saying where a figure came from](#saying-where-a-figure-came-from). Note the server's `IsInherited` does **not** answer that question: a value the Thing itself wrote onto a name its archetype declares is stored as an override and reported inherited, so the client decides it from where the value is stored instead.
 
 **Gotcha:** never treat `thing.InheritedOverrides` (the client's override-only tree) as the full inherited view — it omits non-overridden archetype defaults. Bugs #5908 and #5909 were exactly that mistake. Read the resolved view from the endpoints above.
 
@@ -1715,6 +1716,95 @@ reads are shared whatever the walk reaches, so reaching several costs no extra
 ones. A failed range read leaves the verdicts readable without the targets they
 name, rather than failing the row.
 
+### Saying where a figure came from
+
+A dashboard figure says what a number is. It does not say whether anyone
+measured it. A figure a reader cannot place is a figure they have to take on
+trust, and once an estimate and a measurement are both just numbers on a screen
+they are indistinguishable. The `origin` binding and the KPI's `origin` slot say
+which is which, in the model's own words.
+
+**Where the origin comes from.** What the model declares about the property,
+never what the property is called. Each answer is a different fact the model
+already holds:
+
+| Origin | What the model said |
+|---|---|
+| `stated` | The Thing holds the value, and the declaration accepts only asserted writes (`FactOnly`) |
+| `measured` | The Thing holds the value, and the declaration accepts only sampled writes (`ObservationOnly`) |
+| `assumed` | The Thing holds no value of its own; the archetype it `is` supplies one to every member |
+| `unknown` | Nothing holds a value, or nothing declares which kind of write the property takes |
+
+So renaming a property does not change what a page says about it, and a name
+that reads like a measurement — `measuredAreaHectares` — is still only a name.
+Two readings are what this exists to refuse, and both are the page claiming more
+than the model said: a figure nobody recorded an origin for must not read as
+measured, and a value the archetype supplies to every member must not read as
+something this submitter stated.
+
+**Which Thing holds the value.** `thing`, or the scope entity when the spec
+names none, and `via` walks from there exactly as `related`'s and `verdict`'s
+paths do. A walk reaching several Things reports each, in name order. With every
+compare entity selected there is no one scope entity, so a binding that named no
+`thing` reports nothing and the tile draws no line — the figure above it is an
+average over several Things, and no single origin is true of it.
+
+**What says so.** For an assumption, the archetype the value came from — the
+binding already knows it and needs no path. For everything else, the `source`
+walk from the Thing holding the value: `{ "via": […], "resolvedAt": "…" }` names
+what produced the figure and which of its properties records when it was last
+resolved. A figure fetched two years ago and one fetched this morning are not
+the same claim, so a spec that names a source should name its instant too. A
+walk reaching several sources names them all and reports no instant: a set of
+sources resolved at different times has no one instant, and showing one of them
+would attribute the figure to a source that may not have produced it.
+
+The same walk is how an area says the boundary it came from was generated rather
+than surveyed — the parcel's `obtainedBy` edge is the only record of that, and
+the KPI showing the area it encloses is where a reader needs it.
+
+```jsonc
+{
+  "type": "kpi",
+  "title": "Rainfall",
+  "format": "integer",
+  "unit": "mm/year",
+  "value": { "kind": "property", "thing": "$scope", "property": "rainfallMillimetresPerYear" },
+  "origin": {
+    "kind": "origin",
+    "property": "rainfallMillimetresPerYear",
+    "reads": {
+      "stated": "as submitted",
+      "measured": "resolved {resolvedAt} from {source}",
+      "assumed": "assumed by the platform, from {source}",
+      "unknown": "no origin recorded for this figure"
+    },
+    "source": {
+      "via": [{ "predicate": "has", "archetype": "DataSource" }],
+      "resolvedAt": "lastResolvedAt"
+    }
+  }
+}
+```
+
+Every word is the model's. Trellis substitutes `{source}` and `{resolvedAt}`,
+and draws each origin in its own tone so a stated figure and a fetched one are
+told apart before either is read — the tones say "different", not "better", and
+the words carry the same distinction for a reader who cannot tell them apart. An
+origin the spec leaves unworded draws no line at all: Trellis has no wording of
+its own to put there, and a placeholder would read as an answer.
+
+A placeholder with nothing to put in it is dropped along with the space beside
+it, the way a verdict's is, so one wording serves a figure whose source the model
+names and one whose it does not. **Write the wording so it still reads without
+either** — `resolved {resolvedAt} from {source}` reads whichever of the two the
+model holds, while `from {source}, resolved {resolvedAt}` leaves a comma and a
+verb hanging.
+
+**Cost.** No request. Every answer is already in the loaded model: the
+declaration travels with the value, and the source is an edge the page has
+already been sent.
+
 ### Translating a dashboard spec (i18n)
 
 The config-driven operations dashboard (`OperationsPage`) renders every label
@@ -1788,13 +1878,15 @@ bullet `title` and each row `label`; gantt `title` / `hint` / `ticks`;
 leaderboard `title` / `hint` and each metric `label`; exception-bar `title` /
 `hint` / `note` and each bucket `label`; verdict `title` / `hint`, each row
 `label` / `unit`, and the `reads` wording of each candidate its binding lists;
-and in `detail`, each property-group `label` and each relation `label` (nested
-relations included).
+each wording in an `origin` binding's `reads`; and in `detail`, each
+property-group `label` and each relation `label` (nested relations included).
 
 `reads` is the one display string the vocabulary keeps on a binding rather than
 on a widget, and it is looked up for exactly that reason: it is the sentence a
-reader reads. The `state` name beside it is not — that one is resolved against
-the platform's derived states, and translating it would break the lookup.
+reader reads. What sits beside it is not: a verdict's `state` name is resolved
+against the platform's derived states and an origin's wording is keyed by the
+origins the model's declarations answer with, so translating either would break
+the lookup.
 
 **Which strings are never looked up** (model vocabulary and identifiers — a
 `translations` entry matching one of these is ignored, so it can never corrupt

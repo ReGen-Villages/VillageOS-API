@@ -272,3 +272,51 @@ describe('localizeSpec over a verdict widget', () => {
     expect(localized.rows[0].unit).toBe('días');
   });
 });
+
+describe('localizeSpec over an origin binding', () => {
+  const localized = localizeSpec({
+    title: 'Analysis',
+    sections: [
+      {
+        widgets: [
+          {
+            type: 'kpi',
+            title: 'Rainfall',
+            value: { kind: 'property', thing: '$scope', property: 'rainfallMillimetresPerYear' },
+            origin: {
+              kind: 'origin',
+              property: 'rainfallMillimetresPerYear',
+              reads: {
+                measured: 'resolved {resolvedAt} from {source}',
+                unknown: 'origin not recorded',
+              },
+            },
+          } satisfies KpiWidget,
+        ],
+      },
+    ],
+    translations: {
+      es: {
+        Rainfall: 'Lluvia',
+        'resolved {resolvedAt} from {source}': 'obtenido el {resolvedAt} de {source}',
+        rainfallMillimetresPerYear: 'NUNCA',
+        measured: 'NUNCA',
+      },
+    },
+  }, 'es').sections[0].widgets[0] as KpiWidget;
+  const binding = localized.origin as Extract<Binding, { kind: 'origin' }>;
+
+  it('translates the wording each origin reads as, placeholders intact', () => {
+    expect(binding.reads.measured).toBe('obtenido el {resolvedAt} de {source}');
+  });
+
+  it('falls back to the base wording a locale does not carry', () => {
+    expect(binding.reads.unknown).toBe('origin not recorded');
+  });
+
+  // The origin names and the property are what the model is read by, never display text.
+  it('never rewrites the origin the wording is keyed by, nor the property it reads', () => {
+    expect(Object.keys(binding.reads)).toEqual(['measured', 'unknown']);
+    expect(binding.property).toBe('rainfallMillimetresPerYear');
+  });
+});

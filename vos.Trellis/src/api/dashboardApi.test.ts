@@ -1590,3 +1590,140 @@ describe('timeseries reads the platform bucketed aggregate', () => {
     expect(await resolveBinding(trace, seriesCtx(null))).toBeNull();
   });
 });
+
+// Story #6475 / TC #6480: every input says where it came from, read off the model rather than off
+// the property's name.
+describe('origin binding', () => {
+  const READS = {
+    stated: 'as submitted',
+    measured: 'resolved {resolvedAt} from {source}',
+    assumed: 'assumed from {source}',
+    unknown: 'origin not recorded',
+  };
+
+  /** A site whose archetype declares which of its properties are asserted and which are fetched,
+   *  with a data source hanging off it and a boundary the parcel says how it was obtained. */
+  function siteContext(alsoReaching: string[] = []): ResolveContext {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'has', Name: 'has', Properties: {} },
+      { Id: 'obtainedBy', Name: 'obtainedBy', Properties: {} },
+      {
+        Id: 'arch-site', Name: 'Site', IsArchetype: true,
+        Properties: { latitude: null, rainfallMillimetresPerYear: null, householdSize: 2.4 },
+        PropertyWriteKinds: {
+          latitude: 'FactOnly',
+          rainfallMillimetresPerYear: 'ObservationOnly',
+          householdSize: 'FactOnly',
+        },
+      },
+      { Id: 'arch-source', Name: 'DataSource', IsArchetype: true, Properties: {} },
+      { Id: 'arch-parcel', Name: 'Parcel', IsArchetype: true, Properties: { measuredAreaHectares: null }, PropertyWriteKinds: { measuredAreaHectares: 'FactOnly' } },
+      { Id: 'arch-boundary', Name: 'BoundarySource', IsArchetype: true, Properties: {} },
+      {
+        Id: 'site1', Name: 'Willow Bend', Properties: { untracked: 5 },
+        InheritedOverrides: {
+          Site: {
+            SourceId: 'arch-site', SourceName: 'Site', InheritedAt: '',
+            Properties: { latitude: 39.5, rainfallMillimetresPerYear: 700 },
+            PropertyWriteKinds: { latitude: 'FactOnly', rainfallMillimetresPerYear: 'ObservationOnly' },
+          },
+        },
+      },
+      { Id: 'source1', Name: 'Open rainfall archive', Properties: { lastResolvedAt: '2026-08-19T09:12:00Z' } },
+      { Id: 'source2', Name: 'Another archive', Properties: { lastResolvedAt: '2020-01-01T00:00:00Z' } },
+      { Id: 'parcel1', Name: 'Parcel-01', Properties: { measuredAreaHectares: 23.4 } },
+      { Id: 'generated', Name: 'generated-from-stated-area', Properties: {} },
+    ];
+    const edge = (Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship =>
+      ({ Id, Name: Id, SubjectId, PredicateId, TargetId, Properties: {} });
+    const relationships: VosRelationship[] = [
+      edge('site-is', 'site1', 'is', 'arch-site'),
+      edge('parcel-is', 'parcel1', 'is', 'arch-parcel'),
+      edge('source1-is', 'source1', 'is', 'arch-source'),
+      edge('source2-is', 'source2', 'is', 'arch-source'),
+      edge('generated-is', 'generated', 'is', 'arch-boundary'),
+      edge('site-has-source', 'site1', 'has', 'source1'),
+      edge('site-has-parcel', 'site1', 'has', 'parcel1'),
+      edge('parcel-obtained', 'parcel1', 'obtainedBy', 'generated'),
+      ...alsoReaching.map((id) => edge(`site-has-${id}`, 'site1', 'has', id)),
+    ];
+    return { idx: buildModelIndex(things, relationships), scopeId: 'site1' };
+  }
+
+  const origin = (property: string, extra: Record<string, unknown> = {}) =>
+    ({ kind: 'origin', property, reads: READS, ...extra }) as Binding;
+
+  it('reads a figure the submitter asserted as stated', async () => {
+    const rows = await resolveBinding(origin('latitude'), siteContext()) as Row[];
+    expect(rows).toEqual([{ origin: 'stated', reads: READS.stated, source: null, resolvedAt: null }]);
+  });
+
+  it('names the source a fetched figure came from and when it was resolved', async () => {
+    const binding = origin('rainfallMillimetresPerYear', {
+      source: { via: [{ predicate: 'has', archetype: 'DataSource' }], resolvedAt: 'lastResolvedAt' },
+    });
+    const rows = await resolveBinding(binding, siteContext()) as Row[];
+    expect(rows).toEqual([{
+      origin: 'measured',
+      reads: READS.measured,
+      source: 'Open rainfall archive',
+      resolvedAt: '2026-08-19T09:12:00Z',
+    }]);
+  });
+
+  it('names the archetype an assumption came from without being told where to look', async () => {
+    const rows = await resolveBinding(origin('householdSize'), siteContext()) as Row[];
+    expect(rows).toEqual([{ origin: 'assumed', reads: READS.assumed, source: 'Site', resolvedAt: null }]);
+  });
+
+  it('reads a value the model declares nothing about as unknown', async () => {
+    const rows = await resolveBinding(origin('untracked'), siteContext()) as Row[];
+    expect(rows).toEqual([{ origin: 'unknown', reads: READS.unknown, source: null, resolvedAt: null }]);
+  });
+
+  // The area a generated boundary encloses is not a survey, and this edge is the only record of it.
+  it('says how a boundary was obtained wherever the area it encloses is shown', async () => {
+    const binding = origin('measuredAreaHectares', {
+      via: [{ predicate: 'has', archetype: 'Parcel' }],
+      source: { via: [{ predicate: 'obtainedBy' }] },
+    });
+    const rows = await resolveBinding(binding, siteContext()) as Row[];
+    expect(rows).toEqual([{
+      origin: 'stated',
+      reads: READS.stated,
+      source: 'generated-from-stated-area',
+      resolvedAt: null,
+    }]);
+  });
+
+  it('reports no instant when the walk reaches several sources', async () => {
+    const binding = origin('rainfallMillimetresPerYear', {
+      source: { via: [{ predicate: 'has', archetype: 'DataSource' }], resolvedAt: 'lastResolvedAt' },
+    });
+    const rows = await resolveBinding(binding, siteContext(['source2'])) as Row[];
+    expect(rows).toEqual([{
+      origin: 'measured',
+      reads: READS.measured,
+      source: 'Another archive, Open rainfall archive',
+      resolvedAt: null,
+    }]);
+  });
+
+  it('leaves an origin the spec gave no wording without any', async () => {
+    const binding = { kind: 'origin', property: 'untracked', reads: { stated: 'as submitted' } } as Binding;
+    const rows = await resolveBinding(binding, siteContext()) as Row[];
+    expect(rows).toEqual([{ origin: 'unknown', reads: null, source: null, resolvedAt: null }]);
+  });
+
+  it('resolves to nothing when the walk reaches no Thing holding the value', async () => {
+    const binding = origin('latitude', { via: [{ predicate: 'has', archetype: 'Nothing' }] });
+    expect(await resolveBinding(binding, siteContext())).toEqual([]);
+  });
+
+  // The figure above such a tile is an average over several Things, and no single origin is true
+  // of it — so the tile says nothing rather than speaking for one of them.
+  it('reports nothing when every compare entity is selected', async () => {
+    expect(await resolveBinding(origin('latitude'), { ...siteContext(), scopeId: null })).toEqual([]);
+  });
+});

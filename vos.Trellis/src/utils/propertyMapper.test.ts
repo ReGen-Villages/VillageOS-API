@@ -261,3 +261,60 @@ describe('unwrapRelationship', () => {
     expect(result.PredicateId).toBe('p1');
   });
 });
+
+// Story #6475: unwrapping keeps only what a value is, and the declaration is the model's only
+// record of how it came to be one — dropped here, no page can ever say where a figure came from.
+describe('the declaration a value arrives with', () => {
+  it('keeps the write kind of an own property', () => {
+    const thing = unwrapThing({
+      Id: 't', Name: 'Willow Bend',
+      Properties: {
+        latitude: { typeInfo: 'vos.Double', value: 39.5, writeKind: 'FactOnly' },
+        elevationMetres: { typeInfo: 'vos.Double', value: 210, writeKind: 'ObservationOnly' },
+      },
+    });
+    expect(thing.PropertyWriteKinds).toEqual({ latitude: 'FactOnly', elevationMetres: 'ObservationOnly' });
+    expect(thing.Properties).toEqual({ latitude: 39.5, elevationMetres: 210 });
+  });
+
+  // Where the platform puts a value written onto a name an archetype declares.
+  it('keeps the write kind of a value stored under an inherited name', () => {
+    const thing = unwrapThing({
+      Id: 't', Name: 'Willow Bend',
+      Properties: {},
+      InheritedOverrides: {
+        Site: {
+          SourceId: 'site', SourceName: 'Site', InheritedAt: '2026-08-01',
+          Properties: { statedAreaHectares: { typeInfo: 'vos.Double', value: 24, writeKind: 'FactOnly' } },
+        },
+      },
+    });
+    expect(thing.InheritedOverrides?.Site.PropertyWriteKinds).toEqual({ statedAreaHectares: 'FactOnly' });
+  });
+
+  // A property open to either kind of write carries no declaration, and neither should the client:
+  // saying nothing is what keeps silence apart from a declaration that a value was sampled.
+  it('records nothing for a property the model declares nothing about', () => {
+    const thing = unwrapThing({
+      Id: 't', Name: 'Willow Bend',
+      Properties: { anything: { typeInfo: 'vos.Double', value: 1 } },
+    });
+    expect(thing.PropertyWriteKinds).toBeUndefined();
+  });
+
+  it('records nothing for a value that arrives with no envelope around it', () => {
+    const thing = unwrapThing({
+      Id: 't', Name: 'Willow Bend',
+      Properties: { alreadyPlain: 39.5, nothingAtAll: null },
+    });
+    expect(thing.PropertyWriteKinds).toBeUndefined();
+  });
+
+  it('ignores a write kind the platform has no such name for', () => {
+    const thing = unwrapThing({
+      Id: 't', Name: 'Willow Bend',
+      Properties: { anything: { typeInfo: 'vos.Double', value: 1, writeKind: 'Whenever' } },
+    });
+    expect(thing.PropertyWriteKinds).toBeUndefined();
+  });
+});

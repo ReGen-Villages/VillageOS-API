@@ -1,4 +1,11 @@
-import type { VosThing, VosRelationship, InheritedPropertySet } from '../types/vos';
+import { DECLARED_WRITE_KINDS } from '../types/vos';
+import type { DeclaredWriteKind, VosThing, VosRelationship, InheritedPropertySet } from '../types/vos';
+
+/** A write kind the platform has a name for. What arrives is model data, so a value outside the set
+ *  is left uninterpreted rather than passed on as a declaration nothing can read. */
+function isDeclaredWriteKind(value: unknown): value is DeclaredWriteKind {
+  return DECLARED_WRITE_KINDS.includes(value as DeclaredWriteKind);
+}
 
 /**
  * Unwrap a single typed property value.
@@ -10,6 +17,27 @@ export function unwrapPropertyValue(v: unknown): unknown {
     return (v as Record<string, unknown>).value;
   }
   return v;
+}
+
+/**
+ * The write kind each wrapped property was declared with, kept as the values are unwrapped.
+ *
+ * Read from the same envelope the value comes out of, so a Thing's declaration travels with it
+ * rather than needing a second read per property. A property the platform declared nothing about
+ * is left out rather than given a kind, which is the difference between the model saying a value
+ * was sampled and the model saying nothing at all.
+ */
+function declaredWriteKinds(
+  props: Record<string, unknown> | null | undefined,
+): Record<string, DeclaredWriteKind> | undefined {
+  if (!props) return undefined;
+  const kinds: Record<string, DeclaredWriteKind> = {};
+  for (const [key, val] of Object.entries(props)) {
+    if (val === null || typeof val !== 'object') continue;
+    const declared = (val as Record<string, unknown>).writeKind;
+    if (isDeclaredWriteKind(declared)) kinds[key] = declared;
+  }
+  return Object.keys(kinds).length ? kinds : undefined;
 }
 
 /**
@@ -38,6 +66,7 @@ function unwrapInheritedPropertySet(
     result[key] = {
       ...set,
       Properties: unwrapProperties(set.Properties),
+      PropertyWriteKinds: declaredWriteKinds(set.Properties),
       Inherited: unwrapInheritedPropertySet(set.Inherited as unknown as Record<string, InheritedPropertySet>) as unknown as Record<string, InheritedPropertySet>,
     };
   }
@@ -52,6 +81,7 @@ export function unwrapThing(thing: VosThing): VosThing {
   return {
     ...thing,
     Properties: unwrapProperties(thing.Properties),
+    PropertyWriteKinds: declaredWriteKinds(thing.Properties),
     InheritedOverrides: unwrapInheritedPropertySet(thing.InheritedOverrides),
   };
 }

@@ -1,5 +1,32 @@
 // Core domain model types — mirrors Mycelium PascalCase JSON serialization
 
+/**
+ * Which kinds of write a property accepts, as the model declares it: a value a person asserts
+ * (`FactOnly`), or a value sampled or fetched from outside (`ObservationOnly`). The platform sends
+ * it only where the declaration narrows what the property takes, so a property open to either
+ * carries none — and a property nothing declares is silent rather than described as one or the other.
+ */
+export const DECLARED_WRITE_KINDS = ['FactOnly', 'ObservationOnly'] as const;
+export type DeclaredWriteKind = (typeof DECLARED_WRITE_KINDS)[number];
+
+/**
+ * Where a value came from: stated by whoever the Thing is about, measured or fetched from outside,
+ * assumed by the platform because the archetype supplies it, or unrecorded.
+ *
+ * Structural, not domain vocabulary — how a value entered the model, in words that hold for any
+ * model. What each one *reads as* on a page is the model's to write. Resolved by
+ * `valueOrigin` in src/utils/propertyOrigin.ts.
+ */
+export const ORIGIN_KINDS = ['stated', 'measured', 'assumed', 'unknown'] as const;
+export type OriginKind = (typeof ORIGIN_KINDS)[number];
+
+export interface ValueOrigin {
+  origin: OriginKind;
+  /** The Thing an assumption was inherited from, which is what says so. Null for every other
+   *  origin: a value the Thing itself holds is not inherited from anywhere. */
+  assumedFrom: string | null;
+}
+
 export interface VosThing {
   Id: string;
   Name: string;
@@ -7,6 +34,10 @@ export interface VosThing {
    *  the same shape, and a type whose members do not exist yet has no `is` edge to give it away. */
   IsArchetype?: boolean;
   Properties: Record<string, unknown>;
+  /** The write kind each stored property was declared with, keyed the way `Properties` is. Unwrapping
+   *  keeps only what a value *is*; this is what the model says about how it came to be one, and it is
+   *  the only record of that a client holds. */
+  PropertyWriteKinds?: Record<string, DeclaredWriteKind>;
   /** Stored per-instance overrides of inherited names, keyed by source (the wire field
    *  `InheritedOverrides`). Override-only — NOT the full inherited view; for that read the
    *  server-resolved effective properties (GET /api/things/{id}/properties). */
@@ -18,6 +49,9 @@ export interface InheritedPropertySet {
   SourceName: string;
   InheritedAt: string;
   Properties: Record<string, unknown>;
+  /** As on {@link VosThing} — a value stored under an inherited name keeps the write kind the
+   *  declaration gave it. */
+  PropertyWriteKinds?: Record<string, DeclaredWriteKind>;
   Inherited?: Record<string, InheritedPropertySet>;
 }
 
