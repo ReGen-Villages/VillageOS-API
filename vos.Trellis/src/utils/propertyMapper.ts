@@ -1,4 +1,4 @@
-import type { VosThing, VosRelationship, InheritedPropertySet } from '../types/vos';
+import type { DeclaredWriteKind, VosThing, VosRelationship, InheritedPropertySet } from '../types/vos';
 
 /**
  * Unwrap a single typed property value.
@@ -10,6 +10,31 @@ export function unwrapPropertyValue(v: unknown): unknown {
     return (v as Record<string, unknown>).value;
   }
   return v;
+}
+
+const WRITE_KINDS: readonly string[] = ['FactOnly', 'ObservationOnly'];
+
+/**
+ * The write kind each wrapped property was declared with, kept as the values are unwrapped.
+ *
+ * Read from the same envelope the value comes out of, so a Thing's declaration travels with it
+ * rather than needing a second read per property. A property the platform declared nothing about
+ * is left out rather than given a kind, which is the difference between the model saying a value
+ * was sampled and the model saying nothing at all.
+ */
+export function declaredWriteKinds(
+  props: Record<string, unknown> | null | undefined,
+): Record<string, DeclaredWriteKind> | undefined {
+  if (!props) return undefined;
+  const kinds: Record<string, DeclaredWriteKind> = {};
+  for (const [key, val] of Object.entries(props)) {
+    if (val === null || typeof val !== 'object') continue;
+    const declared = (val as Record<string, unknown>).writeKind;
+    if (typeof declared === 'string' && WRITE_KINDS.includes(declared)) {
+      kinds[key] = declared as DeclaredWriteKind;
+    }
+  }
+  return Object.keys(kinds).length ? kinds : undefined;
 }
 
 /**
@@ -38,6 +63,7 @@ function unwrapInheritedPropertySet(
     result[key] = {
       ...set,
       Properties: unwrapProperties(set.Properties),
+      PropertyWriteKinds: declaredWriteKinds(set.Properties),
       Inherited: unwrapInheritedPropertySet(set.Inherited as unknown as Record<string, InheritedPropertySet>) as unknown as Record<string, InheritedPropertySet>,
     };
   }
@@ -52,6 +78,7 @@ export function unwrapThing(thing: VosThing): VosThing {
   return {
     ...thing,
     Properties: unwrapProperties(thing.Properties),
+    PropertyWriteKinds: declaredWriteKinds(thing.Properties),
     InheritedOverrides: unwrapInheritedPropertySet(thing.InheritedOverrides),
   };
 }

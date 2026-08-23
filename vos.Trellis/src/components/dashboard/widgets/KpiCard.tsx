@@ -1,12 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import type { KpiWidget } from '../../../types/dashboard';
-import type { ResolveContext } from '../../../api/dashboardApi';
-import { asNumber, asSeries } from '../../../api/dashboardApi';
+import type { OriginKind } from '../../../types/vos';
+import type { ResolveContext, Row } from '../../../api/dashboardApi';
+import { asNumber, asRows, asSeries } from '../../../api/dashboardApi';
 import { useBinding } from '../../../hooks/useDashboard';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { Sparkline } from './Sparkline';
-import { formatNumber, formatDelta, deltaTone } from './format';
+import { formatNumber, formatDelta, deltaTone, originTone } from './format';
+import { originSentence } from './originSentence';
 
 /** Width to draw at before the card has been measured, and the floor a narrow card still gets. */
 const MINIMUM_SPARK_WIDTH = 108;
@@ -17,6 +19,7 @@ export function KpiCard({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContex
   const delta = useBinding(widget.delta, ctx);
   const spark = useBinding(widget.spark, ctx);
   const sparkBaseline = useBinding(widget.sparkBaseline, ctx);
+  const origin = useBinding(widget.origin, ctx);
 
   const v = asNumber(value.value);
   const d = asNumber(delta.value);
@@ -96,6 +99,38 @@ export function KpiCard({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContex
           {[widget.targetLabel, widget.footnote].filter(Boolean).join(' · ')}
         </div>
       )}
+      <OriginLines rows={asRows(origin.value)} />
     </WidgetCard>
   );
+}
+
+const ORIGINS: readonly string[] = ['stated', 'measured', 'assumed', 'unknown'];
+
+/**
+ * Where the figure came from, under it. One line per Thing the binding read, so a path reaching
+ * several says it of each.
+ *
+ * Every word is the model's. A row carrying no origin — which is what a slot bound to something
+ * other than an `origin` binding resolves to — and an origin the spec left unworded are both left
+ * unsaid rather than drawn as a blank line: Trellis has no wording of its own to put there, and a
+ * placeholder would read as an answer.
+ */
+function OriginLines({ rows }: { rows: Row[] }) {
+  const lines = rows
+    .filter((row) => ORIGINS.includes(String(row.origin)) && typeof row.reads === 'string')
+    .map((row, i) => ({
+      key: `${String(row.origin)}-${i}`,
+      origin: row.origin as OriginKind,
+      sentence: originSentence(row.reads as string, {
+        source: typeof row.source === 'string' ? row.source : null,
+        resolvedAt: typeof row.resolvedAt === 'string' ? row.resolvedAt : null,
+      }),
+    }))
+    .filter((line) => line.sentence !== '');
+
+  return lines.map((line) => (
+    <div key={line.key} className={`text-[11px] mt-1.5 ${originTone(line.origin)}`}>
+      {line.sentence}
+    </div>
+  ));
 }

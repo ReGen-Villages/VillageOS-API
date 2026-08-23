@@ -53,3 +53,72 @@ describe('KpiCard trace summary', () => {
     expect(screen.queryByText(/peak/)).toBeNull();
   });
 });
+
+// Story #6475: a figure a reader cannot place is a figure they have to trust.
+describe('KpiCard says where the figure came from', () => {
+  function bindOrigin(name: string, rows: BindingResult): Binding {
+    const binding = { kind: 'origin', property: name, reads: {} } as unknown as Binding;
+    values.set(JSON.stringify(binding), rows);
+    return binding;
+  }
+
+  function draw(rows: BindingResult) {
+    const widget: KpiWidget = {
+      type: 'kpi',
+      title: 'Rainfall',
+      format: 'integer',
+      value: bind('rainfall', 700),
+      origin: bindOrigin('rainfall', rows),
+    };
+    return render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);
+  }
+
+  it('reads a fetched figure in the model\'s words, naming its source and instant', () => {
+    draw([{ origin: 'measured', reads: 'resolved {resolvedAt} from {source}', source: 'Open rainfall archive', resolvedAt: '2026-08-19' }]);
+    expect(screen.getByText('resolved 2026-08-19 from Open rainfall archive')).toBeInTheDocument();
+  });
+
+  // Wording alone would leave the two alike at a glance, and a glance is what a tile is read with.
+  it('draws a stated figure and a fetched one in different tones', () => {
+    const { unmount } = draw([{ origin: 'stated', reads: 'as submitted', source: null, resolvedAt: null }]);
+    const stated = screen.getByText('as submitted').className;
+    unmount();
+
+    draw([{ origin: 'measured', reads: 'measured on site', source: null, resolvedAt: null }]);
+    expect(screen.getByText('measured on site').className).not.toBe(stated);
+  });
+
+  it('says an unrecorded origin is unrecorded rather than saying nothing', () => {
+    draw([{ origin: 'unknown', reads: 'origin not recorded', source: null, resolvedAt: null }]);
+    expect(screen.getByText('origin not recorded')).toBeInTheDocument();
+  });
+
+  // What a slot bound to something other than an origin binding resolves to. Its wording answers a
+  // different question, and drawn here it would read as a claim about where the figure came from.
+  it('draws no line for a row carrying no origin', () => {
+    draw([{ state: 'EnergyNetPositive', reads: 'meets the target', value: 112, target: 100 }]);
+    expect(screen.queryByText('meets the target')).toBeNull();
+  });
+
+  it('draws no line where the model gave no wording', () => {
+    const { container } = draw([{ origin: 'unknown', reads: null, source: null, resolvedAt: null }]);
+    expect(container.textContent).not.toContain('null');
+    expect(screen.queryByText('undefined')).toBeNull();
+  });
+
+  it('says it of each Thing a binding reaching several reports', () => {
+    draw([
+      { origin: 'stated', reads: 'as submitted', source: null, resolvedAt: null },
+      { origin: 'assumed', reads: 'assumed from {source}', source: 'Site', resolvedAt: null },
+    ]);
+    expect(screen.getByText('as submitted')).toBeInTheDocument();
+    expect(screen.getByText('assumed from Site')).toBeInTheDocument();
+  });
+
+  it('draws nothing when the widget declares no origin', () => {
+    const widget: KpiWidget = { type: 'kpi', title: 'Rainfall', value: bind('rainfall', 700) };
+    const { container } = render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);
+    expect(container.querySelectorAll('div').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/as submitted/)).toBeNull();
+  });
+});

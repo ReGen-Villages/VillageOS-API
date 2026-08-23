@@ -9,6 +9,7 @@
  * Every domain word lives in the model's spec — see the discovery + resolver in
  * `src/api/dashboardApi.ts`.
  */
+import type { OriginKind } from './vos';
 
 /** The archetype a model-resident dashboard config Thing must be `is`-linked to. */
 export const DASHBOARD_ARCHETYPE = 'Dashboard';
@@ -106,6 +107,30 @@ export type Binding =
    *  Costs one range read per judged Thing per refresh, shared across every verdict binding on the
    *  page. The state reads are shared too, so a walk reaching several costs no extra ones. */
   | { kind: 'verdict'; states: VerdictCandidate[]; thing?: string; via?: RelationStep[] }
+  /** Where one input came from, so an estimate and a measurement never look alike. Resolves to one
+   *  row per Thing reached, with keys `origin`, `reads`, `source` and `resolvedAt`.
+   *
+   *  `origin` is read from what the model declares about the property, never from what the property
+   *  is called: a value the Thing holds is `stated` or `measured` according to the kind of write its
+   *  declaration accepts, a value only its archetype carries is `assumed`, and a value the model
+   *  declares nothing about is `unknown`. A renamed property answers the same way, and silence is
+   *  never reported as a measurement.
+   *
+   *  `reads` is the wording the spec gives that origin, and is the only wording there is — an origin
+   *  the spec leaves unworded says nothing rather than something Trellis made up. `source` names
+   *  what says so and `resolvedAt` when it last did: for an assumption, the archetype the value came
+   *  from; otherwise what the `source` walk reaches from the Thing holding the value, which is how a
+   *  fetched figure names its data source and a generated boundary says it was generated.
+   *
+   *  Costs no request: every answer is already in the loaded model. */
+  | {
+      kind: 'origin';
+      property: string;
+      thing?: string;
+      via?: RelationStep[];
+      reads: OriginWording;
+      source?: OriginSource;
+    }
   /** One binding divided by another — a rate the aggregate ops cannot express, because a ratio of
    *  sums is not a sum of ratios. Resolves to null when the denominator is zero or non-numeric. */
   | { kind: 'ratio'; numerator: Binding; denominator: Binding }
@@ -193,6 +218,26 @@ export interface VerdictCandidate {
   reads: string;
 }
 
+/**
+ * How each origin reads, in the model's own words — the same contract {@link VerdictCandidate}
+ * keeps. Trellis knows that a value was stated, measured, assumed or unrecorded; it has no wording
+ * for any of them, because the words belong to a domain it must stay out of and would be written in
+ * one language for every model.
+ *
+ * `{source}` and `{resolvedAt}` are substituted with what says so and when it last did, and a
+ * placeholder with nothing to put in it is dropped along with the space beside it — so one wording
+ * serves a figure whose source is named and one whose is not. An origin left unworded draws no
+ * line: a placeholder would read as an answer.
+ */
+export type OriginWording = Partial<Record<OriginKind, string>>;
+
+/** Where to find what says a value is so: the path from the Thing holding the value to the Thing
+ *  that produced it, and which property of that Thing records when it was last resolved. */
+export interface OriginSource {
+  via: RelationStep[];
+  resolvedAt?: string;
+}
+
 export interface PropertyFilter {
   property: string;
   op: '=' | '!=' | '>' | '>=' | '<' | '<=' | 'in';
@@ -228,6 +273,10 @@ export interface KpiWidget {
   /** Label for that line, shown under the sparkline. */
   sparkBaselineLabel?: string;
   footnote?: string;
+  /** Where the figure came from, drawn under it — an `origin` binding. A figure a reader cannot
+   *  place is a figure they have to trust, so a tile showing a submitted number and a tile showing
+   *  a fetched one say which they are. */
+  origin?: Binding;
 }
 
 export interface FunnelStage {

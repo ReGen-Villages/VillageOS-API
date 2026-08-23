@@ -1,4 +1,5 @@
 import type { NumberFormat, TableColumn } from '../../../types/dashboard';
+import type { OriginKind } from '../../../types/vos';
 import type { Row } from '../../../api/dashboardApi';
 
 /** Format a numeric value for display per a widget's declared NumberFormat. */
@@ -45,6 +46,20 @@ export function badgeTone(value: string): string {
   if (/good|track|ok|normal|done|ship|complete/.test(v))
     return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
   return 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300';
+}
+
+/** Tailwind classes colouring an origin line by where the value came from. Four origins, four
+ *  tones, so a submitted figure and a fetched one are told apart before either is read. The tones
+ *  say "different", not "better": an assumption and an unrecorded origin are the two a reader has
+ *  to notice, so they carry the two that stand out. The words beside them are the model's, and
+ *  carry the same distinction for a reader who cannot tell the colours apart. */
+export function originTone(origin: OriginKind): string {
+  switch (origin) {
+    case 'stated': return 'text-zinc-400 dark:text-zinc-500';
+    case 'measured': return 'text-sky-600 dark:text-sky-400';
+    case 'assumed': return 'text-amber-600 dark:text-amber-500';
+    case 'unknown': return 'text-rose-600 dark:text-rose-400';
+  }
 }
 
 /** Signed delta with a leading arrow, e.g. "▲ 6.1". */
