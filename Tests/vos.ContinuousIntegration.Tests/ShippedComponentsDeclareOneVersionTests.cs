@@ -99,6 +99,21 @@ public class ShippedComponentsDeclareOneVersionTests
         return declared.Groups[1].Value.Trim();
     }
 
+    [Theory]
+    [InlineData("*.json")]
+    [InlineData("package.json")]
+    [InlineData("*.csproj")]
+    public void No_build_output_is_searched(string pattern)
+    {
+        var copies = FilesUnderTheRepository(pattern)
+            .Where(path => RelativeSegments(RepositoryRoot(), path).Any(segment => segment is "bin" or "obj"))
+            .ToList();
+
+        Assert.True(copies.Count == 0,
+            "a copy under bin or obj is as old as the last build of its project: "
+            + string.Join("; ", copies.Take(3)));
+    }
+
     private static IEnumerable<string> ShippedPackageFiles() =>
         FilesUnderTheRepository("package.json")
             .Where(package => !NotShipped.Any(
@@ -106,15 +121,23 @@ public class ShippedComponentsDeclareOneVersionTests
 
     private static IEnumerable<string> ProjectFiles() => FilesUnderTheRepository("*.csproj");
 
-    /// <summary>Skips hidden directories, which is where a git worktree keeps a second checkout of
-    /// everything this would otherwise find twice, and node_modules, which carries a version file per
-    /// dependency.</summary>
+    /// <summary>Source under the repository. Skips hidden directories, which is where a git worktree
+    /// keeps a second checkout of everything this would otherwise find twice, and node_modules, which
+    /// carries a version file per dependency.</summary>
+    /// <remarks>
+    /// Build output is skipped because it is a copy, and a copy goes stale: a content file edited in
+    /// source stays as it was under bin until something rebuilds that project, so a check reading it
+    /// reports a file nobody edited and fails a build nobody broke. A workspace reused between builds
+    /// — which is what a self-hosted agent has — is where that bites. Nothing searched here is copied
+    /// into build output today, so this is a trap disarmed rather than a break fixed.
+    /// </remarks>
     private static IEnumerable<string> FilesUnderTheRepository(string pattern)
     {
         var root = RepositoryRoot();
         return Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories)
             .Where(path => !path.Contains(Path.DirectorySeparatorChar + "node_modules" + Path.DirectorySeparatorChar))
-            .Where(path => !RelativeSegments(root, path).Any(segment => segment.StartsWith('.')));
+            .Where(path => !RelativeSegments(root, path)
+                .Any(segment => segment.StartsWith('.') || segment is "bin" or "obj"));
     }
 
     private static string[] RelativeSegments(string root, string path) =>
