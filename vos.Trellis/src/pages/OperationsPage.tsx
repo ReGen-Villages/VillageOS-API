@@ -177,7 +177,8 @@ function Section({
   const layout = section.layout ?? (section.widgets.every((w) => w.type === 'kpi') ? 'kpi-strip' : 'single');
   /* Every track states a zero minimum. A bare `1fr` track is `minmax(auto, 1fr)`, which grows to
      whatever its widest content needs — one long unbreakable cell in a table then widens the page
-     rather than scrolling inside the card it was put in. */
+     rather than scrolling inside the card it was put in. The card states a zero minimum of its own
+     as well, for the same defect from the other side. */
   let gridTemplateColumns = 'minmax(0, 1fr)';
   if (isWide) {
     if (layout === 'kpi-strip') {

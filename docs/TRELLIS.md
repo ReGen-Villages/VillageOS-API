@@ -1406,11 +1406,18 @@ and renders every row, as before.
 ### The width a card is given
 
 A section writes every column as `minmax(0, …)` and every card states its own minimum
-width as zero. Both are needed, and each is useless without the other: a bare `1fr`
-column grows to whatever its content wants, and a grid item's own minimum width is its
-content's unless it says otherwise. With either one missing, a widget holding something
-wide — a table with one long unbreakable cell — pushes past its column and widens the
-whole page, putting part of the card, its search box included, off the screen.
+width as zero. With neither, a widget holding something wide — a table with one long
+unbreakable cell — pushes past its column and widens the whole page, putting part of
+the card, its search box included, off the screen. Measured on the card's own markup in
+Chrome: a card **1,937 px wide in an 848 px page**, its search box off the right edge,
+the table not scrolling.
+
+Both are stated because they answer different questions. A bare `1fr` column grows to
+whatever its content wants, so the section says how wide its columns may be; a grid
+item's own minimum width is its content's unless it says otherwise, so the card says it
+will not insist on more than it is given. Either one alone held the measured case, and
+neither is the one to remove — which of them a browser leans on is not a thing to depend
+on.
 
 Bounded, a widget wider than its card scrolls inside it: `DataTable` and `Leaderboard`
 each wrap their table in a horizontal scroll container, which can do nothing until the
