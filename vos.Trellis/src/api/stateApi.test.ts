@@ -30,6 +30,50 @@ describe('stateApi.getThingsInState', () => {
   });
 });
 
+describe('stateApi.getThingsInState, narrowed', () => {
+  it('sends no query string when the caller narrows nothing', async () => {
+    mockGet.mockResolvedValue({ StateName: 'overheating', Things: [] });
+    await stateApi.getThingsInState('overheating', {});
+    expect(mockGet).toHaveBeenCalledWith('/api/states/overheating/things');
+  });
+
+  it('puts every narrowing on the query string, escaped', async () => {
+    mockGet.mockResolvedValue({ StateName: 'flagged', Things: [] });
+    await stateApi.getThingsInState('flagged', {
+      alsoIn: ['metered', 'verified'],
+      notIn: ['decommissioned'],
+      type: 'Water Reservoir',
+      within: 'site-1',
+      withinPredicate: 'contains',
+      includeArchetypes: true,
+      limit: 300,
+      properties: ['volume', 'capacity'],
+    });
+    expect(mockGet).toHaveBeenCalledWith(
+      '/api/states/flagged/things?alsoIn=metered%2Cverified&notIn=decommissioned&type=Water+Reservoir' +
+        '&within=site-1&withinPredicate=contains&includeArchetypes=true&limit=300' +
+        '&properties=volume%2Ccapacity',
+    );
+  });
+
+  // The endpoint refuses a container without the predicate its containment is written with, so a
+  // half-given scope is not a question worth spending a request on.
+  it('sends a container only with the predicate it is reached by', async () => {
+    mockGet.mockResolvedValue({ StateName: 'flagged', Things: [] });
+    await stateApi.getThingsInState('flagged', { within: 'site-1' });
+    expect(mockGet).toHaveBeenCalledWith('/api/states/flagged/things');
+  });
+
+  it('carries the properties the caller asked for back to it', async () => {
+    mockGet.mockResolvedValue({
+      StateName: 'flagged',
+      Things: [{ Id: 'r1', Name: 'RSV-1', Properties: { volume: 4 } }],
+    });
+    const answer = await stateApi.getThingsInState('flagged', { properties: ['volume'] });
+    expect(answer.Things[0].Properties).toEqual({ volume: 4 });
+  });
+});
+
 describe('stateApi.getStateTransitions', () => {
   it('requests the transition timeline for a thing', async () => {
     mockGet.mockResolvedValue({ ThingId: 't1', Transitions: [] });

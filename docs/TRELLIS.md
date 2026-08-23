@@ -1091,7 +1091,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes); that narrowing, the scope, an excluded state and a row cap all ride on the request now, so the broker answers the question the widget asked rather than a larger one the browser then cuts down (see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
 | `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
@@ -1425,7 +1425,7 @@ card above it has a width it must stay inside.
 
 ### The Thing a binding names
 
-`property`, `related`, `stateOf`, `verdict` and `timeseries` all take a `thing`,
+`property`, `related`, `stateOf` and `verdict` all take a `thing`,
 and all read it the same way: as a Thing's id first, then as a Thing's name. The
 id wins because it is exact — **two Things may share a name**, and the index keeps
 whichever it saw first, so a name is the weaker of the two answers. `$scope` means
@@ -1434,6 +1434,58 @@ row's own Thing; `related`, `stateOf` and `verdict` read an omitted `thing` the
 same way. A reference matching neither an id nor a name resolves to nothing, and
 the widget renders as absent rather than as zero. `related` and `verdict` carry
 the walk on from there — see their `via`, below.
+
+### Narrowing a state answer where it is answered
+
+`stateCount` and `stateList` put their narrowing on the request rather than
+filtering the reply. `GET /api/states/{state}/things` takes the archetype as
+`type`, the scope as a container plus the predicate its containment is written
+with, an excluded state as `notIn`, and a row cap as `limit`; the server applies
+all of it and orders by name, so a capped list is the same list every time. A
+dashboard therefore stops pulling every Thing in a state to show a count or ten
+rows — on a model of real size that reply is the whole response.
+
+Two things follow from it:
+
+- **An inbound scope keeps its local walk.** The endpoint walks outward from a
+  container, so a scope pointing the other way has no server expression. Such a
+  binding narrows in the browser as before, and its `limit` is applied after that
+  narrowing — a server-side cap would have taken the wrong rows.
+- **Row values still come from the model index.** The endpoint can return named
+  properties beside each id, but a binding does not yet name its columns, so a
+  row is still filled from the index and carries what the Thing inherits as well
+  as what it owns.
+
+### A series over a trailing window
+
+`timeseries` is the platform's bucketed reduction: it reduces the instances of an
+archetype into fixed time buckets across the trailing window, through
+`POST /api/temporal/aggregate`. `happenedAt` names the property each member
+carries its event instant on, `property` the value reduced — absent for a count,
+which reduces the members themselves — and `bucketSeconds` times `buckets` is the
+window.
+
+**One bucket is a scalar.** A window as wide as its bucket resolves to a number a
+KPI tile shows, where more than one resolves to the series a chart draws. The
+tile and the trace above it are then one question asked at two granularities and
+cannot disagree.
+
+An outgoing `scope` narrows the members to the selected compare entity. An
+inbound one is refused rather than answered as though it had been applied, and a
+question the platform refuses resolves to nothing rather than to an empty series
+— which on a chart reads as "nothing happened".
+
+```json
+{
+  "type": "kpi", "title": "Throughput", "format": "integer",
+  "value": { "kind": "timeseries", "archetype": "Reading", "happenedAt": "recorded_at",
+             "property": "volume", "op": "sum", "bucketSeconds": 3600, "buckets": 1,
+             "scope": { "viaPredicate": "contains", "direction": "out" } },
+  "spark": { "kind": "timeseries", "archetype": "Reading", "happenedAt": "recorded_at",
+             "property": "volume", "op": "sum", "bucketSeconds": 900, "buckets": 32,
+             "scope": { "viaPredicate": "contains", "direction": "out" } }
+}
+```
 
 ### Columns beyond a Thing's own properties
 
@@ -1502,10 +1554,13 @@ A roster whose columns are almost all edges and conditions:
 
 **Cost.** A computed column resolves per row, so a binding that calls the broker
 is the one to watch. State reads are shared for a whole refresh generation:
-every row, and every other widget on the page, asks about a given state once
-between them. So the roster above costs one request per listed state per
-refresh, whatever the row count. `timeseries` and `service` columns have no such
-sharing and do cost one request per row. Everything else — `related`,
+every row, and every other widget on the page asking the **same question** —
+the same state narrowed the same way — is served by one request. So the roster
+above costs one request per listed state per refresh, whatever the row count.
+Two widgets narrowing one state differently are two questions and two requests,
+deliberately: sharing by state name alone would hand one of them the other's
+answer. `timeseries` and `service` columns have no such sharing and do cost one
+request per row. Everything else — `related`,
 `property`, `aggregate`, `ratio` — reads the client-side model index and calls
 nothing.
 

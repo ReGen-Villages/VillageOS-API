@@ -10,7 +10,13 @@
  * temporalApi / a model-side service). The binding *values* — state names,
  * archetypes, properties — come from the model, never from this file.
  */
-import type { VosThing, VosRelationship, ThingsInStateResponse, ThingRangesResponse } from '../types/vos';
+import type {
+  VosThing,
+  VosRelationship,
+  ThingsInStateResponse,
+  ThingRangesResponse,
+  TemporalAggregateQuery,
+} from '../types/vos';
 import {
   DASHBOARD_ARCHETYPE,
   DASHBOARD_SPEC_PROPERTY,
@@ -23,7 +29,7 @@ import {
   type ScopeRef,
   type PropertyFilter,
 } from '../types/dashboard';
-import { stateApi } from './stateApi';
+import { stateApi, thingsInStatePath, type StateNarrowing } from './stateApi';
 import { temporalApi } from './temporalApi';
 import { rangeApi } from './rangeApi';
 import { apiClient } from './client';
@@ -292,15 +298,34 @@ export interface ResolveContext {
   thingRanges?: Map<string, Promise<ThingRangesResponse | null>>;
 }
 
-function thingsInState(state: string, ctx: ResolveContext): Promise<ThingsInStateResponse> {
-  const inFlight = ctx.stateMembers?.get(state);
+/** One state read, shared with everything in this generation asking the same question. The question
+ *  is the request, not the state name: two widgets narrowing one state differently must not be
+ *  handed each other's answer, which would put a wrong number on screen with nothing to say so. */
+function thingsInState(
+  state: string,
+  ctx: ResolveContext,
+  narrowing?: StateNarrowing,
+): Promise<ThingsInStateResponse> {
+  const question = thingsInStatePath(state, narrowing);
+  const inFlight = ctx.stateMembers?.get(question);
   if (inFlight) return inFlight;
-  const request = stateApi.getThingsInState(state);
-  ctx.stateMembers?.set(state, request);
+  const request = stateApi.getThingsInState(state, narrowing);
+  ctx.stateMembers?.set(question, request);
   // A failed read is dropped rather than shared: one broker hiccup would otherwise stick to
   // every later reader of this generation, with nothing to retry it until the next refresh.
-  request.catch(() => ctx.stateMembers?.delete(state));
+  request.catch(() => ctx.stateMembers?.delete(question));
   return request;
+}
+
+/** The scope as the state and temporal endpoints express it: the selected compare entity as a
+ *  container, with the predicate its containment is written with. Both walk outward from the
+ *  container, so an inbound scope has no server expression and resolves to nothing here. */
+function containerFor(
+  scope: ScopeRef | undefined,
+  ctx: ResolveContext,
+): { within: string; withinPredicate: string } | null {
+  if (!scope || !ctx.scopeId || scope.direction === 'in') return null;
+  return { within: ctx.scopeId, withinPredicate: scope.viaPredicate };
 }
 
 async function stateMemberIds(state: string, ctx: ResolveContext): Promise<Set<string>> {
@@ -609,28 +634,34 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     }
 
     case 'stateCount': {
-      const resp = await thingsInState(binding.state, ctx);
-      const members = scopeMemberIds(binding.scope, ctx);
-      const ofArchetype = binding.archetype ? thingIdsOfArchetype(binding.archetype, ctx.idx) : null;
-      let list = resp.Things ?? [];
-      if (members) list = list.filter((t) => members.has(t.Id));
-      if (ofArchetype) list = list.filter((t) => ofArchetype.has(t.Id));
-      return list.length;
+      const container = containerFor(binding.scope, ctx);
+      const resp = await thingsInState(binding.state, ctx, { type: binding.archetype, ...container });
+      // Only what the request could not carry is narrowed here.
+      const members = container ? null : scopeMemberIds(binding.scope, ctx);
+      const list = resp.Things ?? [];
+      return members ? list.filter((t) => members.has(t.Id)).length : list.length;
     }
 
     case 'stateList': {
-      const resp = await thingsInState(binding.state, ctx);
-      const members = scopeMemberIds(binding.scope, ctx);
-      const ofArchetype = binding.archetype ? thingIdsOfArchetype(binding.archetype, ctx.idx) : null;
-      // The derived statuses nest (a harvested plot is also growing/planted/…), so a plain
-      // stateList for an early stage includes every later one. excludeState removes the things
-      // that advanced past this stage — leaving only those that reached it and no further.
-      const advanced = binding.excludeState ? await stateMemberIds(binding.excludeState, ctx) : null;
+      const container = containerFor(binding.scope, ctx);
+      const members = container ? null : scopeMemberIds(binding.scope, ctx);
+      const resp = await thingsInState(binding.state, ctx, {
+        type: binding.archetype,
+        // The derived statuses nest (a harvested plot is also growing/planted/…), so a plain
+        // stateList for an early stage includes every later one. A funnel stage names the next
+        // stage's state as one that disqualifies, leaving the Things that reached this stage and
+        // no further.
+        notIn: binding.excludeState ? [binding.excludeState] : undefined,
+        // A cap the server applies takes the first rows of its answer, which is the wrong subset
+        // when the scope is still narrowed here afterwards.
+        limit: members ? undefined : binding.limit,
+        ...container,
+      });
       let list = resp.Things ?? [];
-      if (members) list = list.filter((t) => members.has(t.Id));
-      if (ofArchetype) list = list.filter((t) => ofArchetype.has(t.Id));
-      if (advanced) list = list.filter((t) => !advanced.has(t.Id));
-      if (binding.limit) list = list.slice(0, binding.limit);
+      if (members) {
+        list = list.filter((t) => members.has(t.Id));
+        if (binding.limit) list = list.slice(0, binding.limit);
+      }
       const rows = list.map((ref) => {
         const full = ctx.idx.byId.get(ref.Id);
         return { id: ref.Id, name: ref.Name, ...(full ? effectiveProperties(full, ctx.idx) : {}) } as Row;
@@ -663,24 +694,46 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
   }
 }
 
-/** Best-effort bucketed series from the temporal API. Returns [] when history is absent. */
+/** The platform's reduction names, which the binding says in the spec's own words. */
+const REDUCTIONS: Record<Extract<Binding, { kind: 'timeseries' }>['op'], TemporalAggregateQuery['function']> = {
+  count: 'Count', sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max',
+};
+
+/** The platform's bucketed reduction, asked for at the granularity the widget wants. One bucket is
+ *  the trailing-window figure a tile shows; more than one is the trace. A question the platform
+ *  refuses resolves to nothing rather than to an empty series, which on a chart reads as "nothing
+ *  happened". */
 async function resolveTimeseries(
   binding: Extract<Binding, { kind: 'timeseries' }>,
   ctx: ResolveContext,
-): Promise<number[]> {
+): Promise<number[] | number | null> {
+  // The one refusal worth saying out loud: every other binding resolving to nothing is a value the
+  // model has not got, while this is a question the spec cannot ask, and an author has no other sign
+  // of it.
+  if (binding.scope?.direction === 'in') {
+    console.warn(
+      `timeseries over ${binding.archetype}: the platform narrows to what a container reaches, so a ` +
+        'scope reaching the other way cannot be asked for.',
+    );
+    return null;
+  }
   try {
-    if (binding.thing && binding.property) {
-      const t = referencedThing(binding.thing, ctx);
-      if (!t) return [];
-      const versions = await temporalApi.getPropertyVersions(t.Id, binding.property);
-      const points = (versions?.Versions ?? [])
-        .map((v) => num((v as { Value?: unknown }).Value))
-        .filter((n) => !isNaN(n));
-      return points;
-    }
-    return [];
+    const answer = await temporalApi.aggregate({
+      function: REDUCTIONS[binding.op],
+      memberType: binding.archetype,
+      timestampProperty: binding.happenedAt,
+      // A count reduces the members themselves, so naming a measure would ask for a value the
+      // question is not about.
+      measureProperty: binding.op === 'count' ? undefined : binding.property,
+      windowSeconds: binding.bucketSeconds * binding.buckets,
+      bucketSeconds: binding.bucketSeconds,
+      ...containerFor(binding.scope, ctx),
+    });
+    const buckets = answer?.Buckets ?? [];
+    if (binding.buckets > 1) return buckets;
+    return buckets.length ? buckets[0] : null;
   } catch {
-    return [];
+    return null;
   }
 }
 

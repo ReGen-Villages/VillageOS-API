@@ -6,7 +6,8 @@ import type { VosThing, VosRelationship } from '../types/vos';
 vi.mock('../hooks/useSse', () => ({
   useSse: () => ({ connected: true, on: () => () => {} }),
 }));
-vi.mock('../api/stateApi', () => ({
+vi.mock('../api/stateApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/stateApi')>()),
   stateApi: { getThingsInState: vi.fn() },
 }));
 
@@ -143,7 +144,7 @@ describe('OperationsPage', () => {
   it('resolves a stateCount funnel bar from the state endpoint', async () => {
     renderAt();
     expect(await screen.findByText('2')).toBeInTheDocument();
-    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested');
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.anything());
   });
 
   it('ranks sites in the leaderboard with the winner marked', async () => {
