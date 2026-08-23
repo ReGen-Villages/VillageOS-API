@@ -52,7 +52,8 @@ should appear) and `excluded` (documents that deliberately have no page, each wi
 ```
 
 `organisation`, `project` and `repository` build the banner and the links back to files in the
-repository; `name` is the wiki published to.
+repository; `name` is the wiki published to. All four are required — a manifest missing one is
+refused rather than publishing a page whose banner names nothing.
 
 `removeUnlistedPages` decides what happens to a page the manifest does not produce. A wiki that is
 entirely generated, like this one, removes it. A wiki that also holds pages written on it and
