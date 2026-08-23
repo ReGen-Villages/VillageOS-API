@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using vos.Auth.Shared;
 
 namespace vos.Service.Shared;
 
@@ -13,7 +14,6 @@ namespace vos.Service.Shared;
 /// </summary>
 public sealed record ModelScopedBearer(string Token, Guid ModelId, DateTimeOffset ExpiresAt)
 {
-    private const string ModelIdClaim = "vos:model_id";
     private const string ExpiryClaim = "exp";
 
     /// <summary>Null when the token cannot be read, names no model, or states no expiry. A token with no
@@ -23,7 +23,7 @@ public sealed record ModelScopedBearer(string Token, Guid ModelId, DateTimeOffse
         var payload = Payload(token);
         if (payload is null) return null;
 
-        if (!payload.Value.TryGetProperty(ModelIdClaim, out var modelId) ||
+        if (!payload.Value.TryGetProperty(VosClaims.ModelId, out var modelId) ||
             !Guid.TryParse(modelId.GetString(), out var model))
             return null;
 

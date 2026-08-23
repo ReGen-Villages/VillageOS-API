@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
@@ -21,7 +22,6 @@ namespace vos.ContinuousIntegration.Tests;
 /// </summary>
 public class ServiceEntryPointsAreDecidedTests
 {
-    private const string SolutionFileName = "VillageOS-API.sln";
     private const string RunSettingsFileName = "coverage.runsettings";
 
     private static readonly Dictionary<string, string> CountedOnPurpose = new()
@@ -35,7 +35,7 @@ public class ServiceEntryPointsAreDecidedTests
     [Fact]
     public void Every_service_entry_point_is_either_excluded_from_coverage_or_counted_for_a_stated_reason()
     {
-        var root = RepositoryRoot();
+        var root = RepositoryRoot.Find();
         var excluded = ExcludedFiles(root);
 
         var undecided = ServiceDirectories(root)
@@ -52,7 +52,7 @@ public class ServiceEntryPointsAreDecidedTests
     [Fact]
     public void Nothing_is_both_excluded_from_coverage_and_named_as_counted()
     {
-        var excluded = ExcludedFiles(RepositoryRoot());
+        var excluded = ExcludedFiles(RepositoryRoot.Find());
 
         var contradictory = CountedOnPurpose.Keys
             .Where(service => excluded.Contains($"**/{service}/Program.cs"))
@@ -79,20 +79,4 @@ public class ServiceEntryPointsAreDecidedTests
             .EnumerateDirectories("vos.Service.*")
             .Where(service => File.Exists(Path.Combine(service.FullName, "Program.cs")))
             .Select(service => service.Name);
-
-    /// <summary>
-    /// Walked up to rather than a path relative to the test output directory: how deep that directory
-    /// sits below the repository root differs between a run from the solution, from a worktree and
-    /// from the build agent.
-    /// </summary>
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, SolutionFileName))) return directory.FullName;
-            directory = directory.Parent;
-        }
-        throw new DirectoryNotFoundException($"{SolutionFileName} was not found above the test output directory.");
-    }
 }

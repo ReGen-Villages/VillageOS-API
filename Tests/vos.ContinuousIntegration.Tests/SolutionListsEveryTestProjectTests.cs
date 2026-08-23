@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
@@ -15,13 +16,11 @@ namespace vos.ContinuousIntegration.Tests;
 /// </summary>
 public class SolutionListsEveryTestProjectTests
 {
-    private const string SolutionFileName = "VillageOS-API.sln";
-
     [Fact]
     public void Every_test_project_on_disk_is_listed_in_the_solution()
     {
-        var root = RepositoryRoot();
-        var solution = File.ReadAllText(Path.Combine(root, SolutionFileName));
+        var root = RepositoryRoot.Find();
+        var solution = File.ReadAllText(Path.Combine(root, RepositoryRoot.SolutionFileName));
 
         var missing = TestProjectFiles(new DirectoryInfo(root))
             .Select(file => Path.GetRelativePath(root, file).Replace(Path.DirectorySeparatorChar, '\\'))
@@ -29,24 +28,8 @@ public class SolutionListsEveryTestProjectTests
             .ToList();
 
         Assert.True(missing.Count == 0,
-            $"these test projects exist but are not in {SolutionFileName}, so the build never runs " +
-            $"them: {string.Join(", ", missing)}");
-    }
-
-    /// <summary>
-    /// Walked up to rather than a path relative to the test output directory: how deep that directory
-    /// sits below the repository root differs between a run from the solution, from a worktree and
-    /// from the build agent.
-    /// </summary>
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, SolutionFileName))) return directory.FullName;
-            directory = directory.Parent;
-        }
-        throw new DirectoryNotFoundException($"{SolutionFileName} was not found above the test output directory.");
+            $"these test projects exist but are not in {RepositoryRoot.SolutionFileName}, so the build " +
+            $"never runs them: {string.Join(", ", missing)}");
     }
 
     /// <summary>

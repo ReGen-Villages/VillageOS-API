@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.ContinuousIntegration.Tests;
@@ -17,7 +18,6 @@ namespace vos.ContinuousIntegration.Tests;
 /// </summary>
 public class ReadmeListsEveryServiceTests
 {
-    private const string SolutionFileName = "VillageOS-API.sln";
     private const string ReadmeFileName = "README.md";
 
     private static readonly Dictionary<string, string> ListedElsewhere = new()
@@ -29,7 +29,7 @@ public class ReadmeListsEveryServiceTests
     [Fact]
     public void Every_service_project_has_a_row_in_the_readme_table()
     {
-        var root = RepositoryRoot();
+        var root = RepositoryRoot.Find();
         var readme = File.ReadAllText(Path.Combine(root, ReadmeFileName));
 
         var unlisted = ServiceProjectNames(root)
@@ -49,20 +49,4 @@ public class ReadmeListsEveryServiceTests
         new DirectoryInfo(root)
             .EnumerateDirectories("vos.Service.*")
             .Select(service => service.Name);
-
-    /// <summary>
-    /// Walked up to rather than a path relative to the test output directory: how deep that directory
-    /// sits below the repository root differs between a run from the solution, from a worktree and
-    /// from the build agent.
-    /// </summary>
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, SolutionFileName))) return directory.FullName;
-            directory = directory.Parent;
-        }
-        throw new DirectoryNotFoundException($"{SolutionFileName} was not found above the test output directory.");
-    }
 }

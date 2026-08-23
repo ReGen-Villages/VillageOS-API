@@ -4,6 +4,7 @@ Cross-project test helpers used by every `Tests/*.Tests/` project. Class library
 
 ## What's in here
 
+- `RepositoryRoot.Find()` — the checkout the test is running from, found by walking up to the solution file. Combine a path onto it to reach a file in source. Every test that reads repository text goes through this, so no test searches upward for a file itself and walks out of its own worktree into the checkout above.
 - `MockHttpMessageHandler` — `HttpMessageHandler` that delegates to a user-supplied lambda and records every inbound `HttpRequestMessage` in `Requests`. Use it to fake Mycelium HTTP from microservice tests.
 - `RecordingHttpMessageHandler` — the same, but recording each request's method, address and body as text rather than keeping the live message. Use it when a test asserts on the **value** a service wrote: a request's content is disposed with the request, so a body read after the call has finished is empty.
 - `TestHttpClientFactory` — `IHttpClientFactory` that always returns the single `HttpClient` it was constructed with. Pair with `MockHttpMessageHandler` to inject a stubbed pipeline through DI.
