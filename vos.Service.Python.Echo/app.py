@@ -66,7 +66,7 @@ def parse_args(argv: list[str], environment: Mapping[str, str] = os.environ) -> 
 
 
 USAGE = (
-    "Usage: python app.py --port=<port> --myceliumUrl=<url> "
+    "Usage: .venv/bin/python app.py --port=<port> --myceliumUrl=<url> "
     "[--issuer=<iss>] [--audience=<aud>]\n"
     "Credentials come from the environment, never the command line: Token, SigningKey"
 )
