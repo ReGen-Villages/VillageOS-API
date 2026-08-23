@@ -57,7 +57,7 @@ function ruleFor(predicate: string, direction: 'out' | 'in' | undefined, depth: 
 /** The bindings a widget holds, in every slot that takes one. */
 function widgetBindings(widget: Widget): (Binding | undefined)[] {
   switch (widget.type) {
-    case 'kpi': return [widget.value, widget.delta, widget.spark, widget.sparkBaseline];
+    case 'kpi': return [widget.value, widget.delta, widget.spark, widget.sparkBaseline, widget.origin];
     case 'funnel': return widget.stages.flatMap((stage) => [stage.count, stage.drill]);
     case 'bullet': return widget.rows.map((row) => row.value);
     case 'table': return [widget.rows];
@@ -98,10 +98,23 @@ function detailWalks(relations: RelationSpec[] | undefined): RelationStep[][] {
   });
 }
 
+/**
+ * The steps one binding walks, as a single path.
+ *
+ * An origin binding walks twice in sequence: `via` to the Thing holding the value, then `source.via`
+ * from there to what says where the value came from. Those are one path, not two — the second starts
+ * where the first ended, and asked for as a walk of its own the source edge would be applied to the
+ * scope entity, reach nothing, and select nothing (Bug #6701).
+ */
+function bindingWalk(binding: Binding): RelationStep[] | undefined {
+  if (binding.kind === 'origin') return [...(binding.via ?? []), ...(binding.source?.via ?? [])];
+  return 'via' in binding ? binding.via : undefined;
+}
+
 /** The walks the spec's bindings take, each as its ordered steps. */
 function specWalks(spec: DashboardSpec): RelationStep[][] {
   const fromBindings = specBindings(spec)
-    .map((binding) => ('via' in binding ? binding.via : undefined))
+    .map(bindingWalk)
     .filter((via): via is RelationStep[] => !!via?.length);
   return [...fromBindings, ...detailWalks(spec.detail?.relations)];
 }
