@@ -64,32 +64,40 @@ def unguarded_commands(readme_text):
     return offending
 
 
-def readmes_beside_requirements():
-    """The README of every tracked directory that declares Python dependencies, by path."""
+def tracked_files():
     listing = subprocess.run(
         ['git', 'ls-files'], cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=True
     )
-    tracked = set(listing.stdout.split('\n'))
-    readmes = {}
-    for path in sorted(tracked):
-        if os.path.basename(path) != 'requirements.txt':
-            continue
-        readme = os.path.join(os.path.dirname(path), 'README.md')
-        if readme not in tracked:
-            continue
-        with open(os.path.join(REPOSITORY_ROOT, readme), encoding='utf-8') as documentation:
-            readmes[readme] = documentation.read()
-    return readmes
+    return set(listing.stdout.split('\n'))
+
+
+def readmes_to_check(tracked):
+    """The README each directory declaring Python dependencies has to document itself in."""
+    return sorted(
+        os.path.join(os.path.dirname(path), 'README.md')
+        for path in tracked
+        if os.path.basename(path) == 'requirements.txt'
+    )
 
 
 class UnguardedCommandTests(unittest.TestCase):
     def test_every_service_readme_this_repository_ships_uses_its_virtual_environment(self):
-        for path, readme_text in readmes_beside_requirements().items():
-            with self.subTest(readme=path):
-                self.assertEqual([], unguarded_commands(readme_text))
+        tracked = tracked_files()
+        readmes = readmes_to_check(tracked)
+        self.assertNotEqual([], readmes)
+        for readme in readmes:
+            with self.subTest(readme=readme):
+                self.assertIn(readme, tracked, 'declares Python dependencies but ships no README')
+                with open(os.path.join(REPOSITORY_ROOT, readme), encoding='utf-8') as documentation:
+                    self.assertEqual([], unguarded_commands(documentation.read()))
 
-    def test_a_directory_declaring_dependencies_has_a_readme_to_check(self):
-        self.assertNotEqual({}, readmes_beside_requirements())
+    def test_a_directory_declaring_dependencies_is_looked_for_by_its_own_readme(self):
+        self.assertEqual(
+            ['vos.Service.Example/README.md'],
+            readmes_to_check({'vos.Service.Example/requirements.txt'}))
+
+    def test_a_directory_declaring_no_dependencies_is_not_looked_for(self):
+        self.assertEqual([], readmes_to_check({'tools/simulator/simulator.py'}))
 
     def test_a_bare_install_is_reported(self):
         readme = '```bash\npip install -r requirements.txt\n```\n'
