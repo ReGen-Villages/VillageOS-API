@@ -361,8 +361,9 @@ steps:
 - bash: |
     set -euo pipefail
     OUT="$AGENT_TEMPDIRECTORY/wiki-generated"
-    node tools/docs-to-wiki/docs-to-wiki.js "$(Build.SourcesDirectory)" "$OUT"
-    node tools/docs-to-wiki/publish-wiki.js "$OUT"
+    MANIFEST=tools/docs-to-wiki/wiki-map.json
+    node tools/docs-to-wiki/docs-to-wiki.js "$(Build.SourcesDirectory)" "$MANIFEST" "$OUT"
+    node tools/docs-to-wiki/publish-wiki.js "$MANIFEST" "$OUT"
   displayName: 'Publish Docs to Wiki'
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   env:

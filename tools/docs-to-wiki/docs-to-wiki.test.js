@@ -8,6 +8,8 @@ const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 const {
   repositoryDocuments,
+  unaccountedDocuments,
+  generate,
   convertMermaid,
   stripLintDirectives,
   githubSlug,
@@ -29,21 +31,131 @@ function rewrite(markdown, docPath = 'docs/A.md') {
   };
   return rewriteLinks(markdown, {
     docPath,
+    wiki: manifest.wiki,
     pageOf: (file) => pages[file],
     anchorsOf: (file) => anchors[file],
     imagesSeen: new Set(),
   });
 }
 
+/** A repository with one document, one exclusion and a manifest describing both, plus somewhere
+ *  outside it to generate into. */
+function repositoryWithManifest({ extraDocument } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: root });
+  fs.mkdirSync(path.join(root, 'docs', 'assets'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'GUIDE.md'), '# Guide\n\n![a diagram](assets/diagram.svg)\n');
+  fs.writeFileSync(path.join(root, 'docs', 'assets', 'diagram.svg'), '<svg/>\n');
+  fs.writeFileSync(path.join(root, 'docs', 'NOTES.md'), '# Notes\n');
+  if (extraDocument) fs.writeFileSync(path.join(root, 'docs', extraDocument), '# Extra\n');
+  fs.writeFileSync(
+    path.join(root, 'wiki-map.json'),
+    JSON.stringify({
+      wiki: {
+        organisation: 'https://dev.azure.com/Somewhere',
+        project: 'A Project',
+        repository: 'A Repository',
+        name: 'A-Wiki',
+        removeUnlistedPages: false,
+      },
+      pages: [{ doc: 'docs/GUIDE.md', page: '/Guide' }],
+      excluded: [{ doc: 'docs/NOTES.md', why: 'A working note.' }],
+    }),
+  );
+  return { root, manifest: path.join(root, 'wiki-map.json'), output: `${root}-out` };
+}
+
+function discard({ root, output }) {
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.rmSync(output, { recursive: true, force: true });
+}
+
 // The guard that stops the wiki drifting again: a document that is neither published nor
 // deliberately withheld is a decision nobody made.
 test('every repository document is either mapped to a page or explicitly excluded', () => {
-  const accounted = new Set([
-    ...manifest.pages.map((entry) => entry.doc),
-    ...manifest.excluded.map((entry) => entry.doc),
-  ]);
-  const unaccounted = repositoryDocuments(REPO_ROOT).filter((doc) => !accounted.has(doc));
+  const unaccounted = unaccountedDocuments(REPO_ROOT, manifest);
   assert.deepEqual(unaccounted, [], `add these to wiki-map.json as a page or an exclusion: ${unaccounted}`);
+});
+
+test('the generator refuses to run on a document the manifest does not account for', () => {
+  const repository = repositoryWithManifest({ extraDocument: 'UNDECIDED.md' });
+  try {
+    assert.throws(
+      () => generate(repository.root, repository.manifest, repository.output),
+      /docs\/UNDECIDED\.md/,
+    );
+  } finally {
+    discard(repository);
+  }
+});
+
+test('the banner and the file links name the repository the manifest declares', () => {
+  const repository = repositoryWithManifest();
+  try {
+    generate(repository.root, repository.manifest, repository.output);
+    const page = fs.readFileSync(path.join(repository.output, 'Guide.md'), 'utf8');
+    assert.match(page, /in the\n> A Repository repository/);
+    assert.match(page, /https:\/\/dev\.azure\.com\/Somewhere\/A Project\/_git\/A Repository\?path=\/docs\/GUIDE\.md/);
+    assert.ok(fs.existsSync(path.join(repository.output, '.attachments', 'diagram.svg')), 'the image was not copied');
+  } finally {
+    discard(repository);
+  }
+});
+
+// Left unchecked this publishes pages whose banner names the "undefined" repository, which reads
+// like a bad page rather than like a manifest that is missing a line.
+test('a manifest with no wiki block is refused, by the field it is missing', () => {
+  const repository = repositoryWithManifest();
+  try {
+    const manifest = JSON.parse(fs.readFileSync(repository.manifest, 'utf8'));
+    delete manifest.wiki.repository;
+    fs.writeFileSync(repository.manifest, JSON.stringify(manifest));
+
+    assert.throws(
+      () => generate(repository.root, repository.manifest, repository.output),
+      /no wiki\.repository/,
+    );
+  } finally {
+    discard(repository);
+  }
+});
+
+// What makes the manifest a guard rather than a suggestion is the build going red, and that is the
+// exit code rather than the thrown error — a script that printed the problem and exited 0 would
+// leave every pipeline using it green.
+test('run as a command, an unaccounted document exits non-zero', () => {
+  const repository = repositoryWithManifest({ extraDocument: 'UNDECIDED.md' });
+  try {
+    const run = spawnSync(process.execPath,
+      [path.join(__dirname, 'docs-to-wiki.js'), repository.root, repository.manifest, repository.output],
+      { encoding: 'utf8' });
+
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /docs\/UNDECIDED\.md/);
+  } finally {
+    discard(repository);
+  }
+});
+
+test('run as a command with an argument missing, it says what it wants', () => {
+  const run = spawnSync(process.execPath, [path.join(__dirname, 'docs-to-wiki.js'), '.'], { encoding: 'utf8' });
+
+  assert.equal(run.status, 2);
+  assert.match(run.stderr, /<repo-root> <manifest> <output-dir>/);
+});
+
+// The output directory is emptied first, so a wrong argument here is a deleted document rather than
+// a failed run.
+test('the generator refuses an output directory inside the repository', () => {
+  const repository = repositoryWithManifest();
+  try {
+    for (const inside of [repository.root, path.join(repository.root, 'docs')]) {
+      assert.throws(() => generate(repository.root, repository.manifest, inside), /inside the repository/);
+    }
+    assert.ok(fs.existsSync(path.join(repository.root, 'docs', 'GUIDE.md')), 'the document was deleted');
+  } finally {
+    discard(repository);
+  }
 });
 
 test('a document git ignores is a working note, not a document the repository carries', () => {
@@ -182,6 +294,7 @@ test('an image becomes a wiki attachment and is collected for copying', () => {
   const imagesSeen = new Set();
   const out = rewriteLinks('![a diagram](assets/a-diagram.png)', {
     docPath: 'docs/A_DOCUMENT.md',
+    wiki: manifest.wiki,
     pageOf: () => undefined,
     anchorsOf: () => ({}),
     imagesSeen,
@@ -201,6 +314,7 @@ test('a page path becomes the file name the wiki expects', () => {
 test('a generated page names its source so an editor knows edits are overwritten', () => {
   const page = convertPage('# Title\n', {
     docPath: 'docs/A.md',
+    wiki: manifest.wiki,
     pageOf: () => undefined,
     anchorsOf: () => ({}),
     imagesSeen: new Set(),

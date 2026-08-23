@@ -39,5 +39,5 @@ Reference material for engineers building or hosting services. Denser by design.
 
 > These files are also published to the
 > [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is
-> generated from them on every merge to develop. Edit the file here; a page edited in the wiki
+> generated from them on every merge to main. Edit the file here; a page edited in the wiki
 > browser is overwritten by the next build. See [tools/docs-to-wiki](../tools/docs-to-wiki/).
