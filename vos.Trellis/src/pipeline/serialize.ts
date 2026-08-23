@@ -5,8 +5,10 @@ import { PipelineModel, ARCHETYPE_FLAG, type PortInfo } from './model';
 import type { VosTypeName } from '../utils/constants';
 
 // Persist / read a pipeline as Things + relationships (the lean-on-model bet): the editor is just CRUD over
-// thingApi / relationshipApi. Save shape mirrors the seed — node -has-> Connection, wires by the PipelineWire
-// predicate carrying fromPort/toPort. Node canvas position round-trips as x/y properties on the node Thing.
+// thingApi / relationshipApi. Save shape mirrors the seed — node -has-> connection, and a wire is an edge
+// through the predicate the model marks as holding wires, carrying fromPort/toPort. Every archetype an `is`
+// edge is written to is the one the model marks with that role, never one this file names. Node canvas
+// position round-trips as x/y properties on the node Thing.
 
 const DOUBLE: VosTypeName = 'vos.Double';
 const STRING: VosTypeName = 'vos.String';
@@ -22,7 +24,7 @@ export interface EditorNode {
   /** Input-port name → run-param key (#5647). Persisted as a JSON `paramBindings` property on the node. */
   paramBindings?: Record<string, string>;
   /** Boundary node (#5873): 'input' (a param source) or 'output' (the run's result sink). A boundary node
-   * binds no Connection — its `ports` are user-declared and persisted as its own Port child-Things. */
+   * binds no connection — its `ports` are user-declared and persisted as its own port child-Things. */
   kind?: 'input' | 'output';
 }
 
@@ -101,15 +103,15 @@ export async function savePipeline(
     if (n.paramBindings && Object.keys(n.paramBindings).length > 0)
       props.paramBindings = env(STRING, JSON.stringify(n.paramBindings));
     things.push({ Id: tid, Name: n.label, Properties: props });
-    // Boundary nodes are PipelineNodes too (so the run + editor pick them up), plus their own Input/Output
-    // archetype which marks them a param source / result sink for Phloem.
+    // Boundary nodes are pipeline nodes too (so the run + editor pick them up), plus the archetype marked
+    // as the pipeline's input or its output, which is what makes one a param source or a result sink.
     relationships.push({ Name: 'is', Subject: tid, Predicate: isId, Target: nodeArchetype });
     relationships.push({ Name: 'has', Subject: pipelineId, Predicate: hasId, Target: tid });
 
     if (n.kind) {
       relationships.push({ Name: 'is', Subject: tid, Predicate: isId, Target: boundaryArchetype(n.kind)! });
-      // Declared ports become Port child-Things (has → Port). Reuse a persisted port's id when the name
-      // matches (idempotent update); a persisted port no longer declared is retracted.
+      // Declared ports become child-Things under the archetype marked as holding ports. Reuse a persisted
+      // port's id when the name matches (idempotent update); a port no longer declared is retracted.
       const persisted = new Map(model.boundaryPortRels(n.id).map((r) => [r.port.portName, r.portId]));
       for (const p of n.ports) {
         const portId = persisted.get(p.portName) ?? crypto.randomUUID();
@@ -170,7 +172,7 @@ export async function savePipeline(
   // Ports removed from a boundary node (still on the canvas) are retracted.
   for (const portId of portsToRetract) await thingApi.remove(portId);
 
-  // Deleted nodes: persisted PipelineNodes no longer on the canvas are retracted, along with any Port
+  // Deleted nodes: persisted pipeline nodes no longer on the canvas are retracted, along with any port
   // child-Things a removed boundary node declared (so they don't linger as orphans).
   const desiredThingIds = new Set(nodeThingId.values());
   for (const nid of persistedNodeIds)
@@ -213,7 +215,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
       y: Number(t.Properties.y ?? 80),
       paramBindings: parseParamBindings(t.Properties.paramBindings),
     };
-    // Boundary node (#5873): its ports are declared on the node itself, and it binds no Connection.
+    // Boundary node (#5873): its ports are declared on the node itself, and it binds no connection.
     const kind = model.boundaryKind(t.Id);
     if (kind) return { ...base, kind, connectionId: '', ports: model.boundaryPortRels(t.Id).map((r) => r.port) };
 

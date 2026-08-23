@@ -115,9 +115,11 @@ class Kit:
     def predicate(self, name):
         return self.thing(stable_id(_TAG, "predicate", name), name, shared=True)
 
-    def archetype(self, role, name):
-        """An archetype that says what it is by the flag it carries. The name is this generator's choice."""
+    def archetype(self, role, name=None):
+        """An archetype that says what it is by the flag it carries. The name is this generator's own choice
+        and defaults to the role; nothing reads it."""
         flag = ROLE_FLAG[role]
+        name = name or role
         tid = self.thing(stable_id(_TAG, "archetype", name), name,
                          {flag: typed(True, "vos.Boolean")}, shared=True)
         self.role_flag[tid] = flag
@@ -138,16 +140,16 @@ def build():
     of = k.predicate("of")
     feeds = k.predicate("feeds")
 
-    Pipeline = k.archetype("Pipeline", "Pipeline")
-    PipelineNode = k.archetype("PipelineNode", "PipelineNode")
-    PipelineInput = k.archetype("PipelineInput", "PipelineInput")
-    PipelineOutput = k.archetype("PipelineOutput", "PipelineOutput")
-    Port = k.archetype("Port", "Port")
-    Service = k.archetype("Service", "Service")
+    Pipeline = k.archetype("Pipeline")
+    PipelineNode = k.archetype("PipelineNode")
+    PipelineInput = k.archetype("PipelineInput")
+    PipelineOutput = k.archetype("PipelineOutput")
+    Port = k.archetype("Port")
+    Service = k.archetype("Service")
     Connection = k.archetype("Connection", "PlatformServiceConnection")
-    PipelineWire = k.archetype("PipelineWire", "PipelineWire")
-    PipelineRun = k.archetype("PipelineRun", "PipelineRun")
-    NodeRun = k.archetype("NodeRun", "NodeRun")
+    PipelineWire = k.archetype("PipelineWire")
+    PipelineRun = k.archetype("PipelineRun")
+    NodeRun = k.archetype("NodeRun")
 
     k.rel(feeds, is_, PipelineWire)          # wires are the `feeds` predicate, identified by this archetype
     k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too

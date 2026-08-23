@@ -20,9 +20,11 @@ export const ARCHETYPE_FLAG = {
 } as const;
 
 /** A Thing plays a role when it holds that flag as its own property, set true. Inheritance hands an
- *  archetype's flag down to every member, so this reads own properties and never the inherited view. */
+ *  archetype's flag down to every member, so this reads own properties and never the inherited view.
+ *  A flag written as anything but a boolean is not a mark: Phloem reads it the same strict way, and a
+ *  model the editor accepted but the orchestrator refused would be the split this replaced. */
 function carriesFlag(thing: VosThing, roleFlag: string): boolean {
-  return String(thing.Properties[roleFlag]).toLowerCase() === 'true';
+  return thing.Properties[roleFlag] === true;
 }
 
 /** A past or in-flight run of a pipeline, for the run-history panel (#5646). */
@@ -105,7 +107,7 @@ export class PipelineModel {
     return false;
   }
 
-  /** Collect a service's ports by walking its `is`-chain and gathering `has` → Port at each level. */
+  /** Collect a service's ports by walking its `is`-chain and gathering the port Things it `has` at each level. */
   resolvePorts(serviceId: string): PortInfo[] {
     const ports: PortInfo[] = [];
     const seen = new Set<string>();
@@ -139,7 +141,7 @@ export class PipelineModel {
     return undefined;
   }
 
-  /** A boundary node's own declared Port child-Things, each with its Thing id — the save-diff needs the id
+  /** A boundary node's own declared port child-Things, each with its Thing id — the save-diff needs the id
    * to update a port in place or retract a removed one (#5873). Ports are declared directly on the node. */
   boundaryPortRels(nodeId: string): { portId: string; port: PortInfo }[] {
     return this.outgoing(nodeId, 'has')
@@ -147,7 +149,7 @@ export class PipelineModel {
       .map((t) => ({ portId: t.Id, port: this.toPort(t) }));
   }
 
-  /** Every dispatchable Connection (has a Subdomain + a bound Service) — the editor palette. */
+  /** Every dispatchable connection (carries a Subdomain and binds a service) — the editor palette. */
   connections(): ConnectionInfo[] {
     const result: ConnectionInfo[] = [];
     for (const t of this.things) {
@@ -167,8 +169,8 @@ export class PipelineModel {
     return result;
   }
 
-  /** Outgoing wires from a node: edges whose predicate is a PipelineWire, with their port mapping and the
-   * optional field-paths (#5874). */
+  /** Outgoing wires from a node: edges through a predicate the model marks as holding wires, with their
+   * port mapping and the optional field-paths (#5874). */
   outgoingWires(subjectId: string): { targetId: string; fromPort: string; toPort: string; fromPath: string; toPath: string; transform: string }[] {
     const rels = this.bySubject.get(subjectId);
     if (!rels) return [];
@@ -219,30 +221,30 @@ export class PipelineModel {
 
   /** Id of the archetype this model marks with the given role — the Thing an `is` edge is written to.
    *  Undefined when the model marks the role on nothing, which is a model this editor cannot author.
-   *  Seed validation refuses a model that marks one role on two archetypes, so a carrier is the carrier. */
+   *  Seed validation refuses a model that marks one role on two archetypes, so the first is the only one. */
   archetypeCarrying(roleFlag: string): string | undefined {
     return this.things.find((t) => carriesFlag(t, roleFlag))?.Id;
   }
 
   /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source (#5635).
-   * Phloem records each node's progress on a NodeRun (run -has-> NodeRun) carrying `nodeId` + `status`. Only the
-   * node's AGGREGATE NodeRun (no `index`) drives the ring; per-item fan-out NodeRuns are counted separately. */
+   * Phloem records each node's progress on a node-run Thing the run `has`, carrying `nodeId` + `status`. Only the
+   * node's AGGREGATE record (no `index`) drives the ring; per-item fan-out records are counted separately. */
   nodeRunStatuses(runId: string): Record<string, string> {
     const out: Record<string, string> = {};
     for (const nr of this.outgoing(runId, 'has')) {
-      if (nr.Properties.index !== undefined) continue; // per-item fan-out NodeRun — see nodeRunProgress
+      if (nr.Properties.index !== undefined) continue; // per-item fan-out record — see nodeRunProgress
       const nodeId = nr.Properties.nodeId;
       if (typeof nodeId === 'string' && nodeId) out[nodeId] = String(nr.Properties.status ?? '');
     }
     return out;
   }
 
-  /** Fan-out progress per node (#5648): from the per-item NodeRuns (those carrying an `index`), how many have
+  /** Fan-out progress per node (#5648): from the per-item records (those carrying an `index`), how many have
    * reached a terminal status out of the total. Empty for non-fan-out nodes. */
   nodeRunProgress(runId: string): Record<string, { done: number; total: number }> {
     const out: Record<string, { done: number; total: number }> = {};
     for (const nr of this.outgoing(runId, 'has')) {
-      if (nr.Properties.index === undefined) continue; // aggregate NodeRun
+      if (nr.Properties.index === undefined) continue; // aggregate record
       const nodeId = nr.Properties.nodeId;
       if (typeof nodeId !== 'string' || !nodeId) continue;
       const entry = out[nodeId] ?? { done: 0, total: 0 };
@@ -253,13 +255,13 @@ export class PipelineModel {
     return out;
   }
 
-  /** A run's overall status (running/succeeded/failed/cancelled), if the PipelineRun is in the model yet. */
+  /** A run's overall status (running/succeeded/failed/cancelled), if the run Thing is in the model yet. */
   runStatus(runId: string): string | undefined {
     const s = this.byId.get(runId)?.Properties.status;
     return typeof s === 'string' ? s : undefined;
   }
 
-  /** Past + in-flight runs of a pipeline (PipelineRun -of-> pipeline), newest first — the history panel (#5646). */
+  /** Past + in-flight runs of a pipeline (a run Thing `of` the pipeline), newest first — the history panel (#5646). */
   runsOf(pipelineId: string): RunInfo[] {
     const runs: RunInfo[] = [];
     for (const t of this.things) {

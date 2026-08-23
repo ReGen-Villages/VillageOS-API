@@ -93,6 +93,37 @@ describe('PipelineModel', () => {
     expect(model.isOfArchetypeCarrying(pipelineId, ARCHETYPE_FLAG.Pipeline)).toBe(true);
     expect(model.isOfArchetypeCarrying(pipelineArchetypeId, ARCHETYPE_FLAG.Pipeline)).toBe(false);
   });
+
+  it('reaches a marked ancestor by either route, and gives up on an `is` cycle instead of walking forever', () => {
+    const things: VosThing[] = [];
+    const rels: VosRelationship[] = [];
+    let n = 0;
+    const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
+      const t = { Id: `t${++n}`, Name: name, Properties: props };
+      things.push(t);
+      return t;
+    };
+    const is = T('is');
+    const rel = (s: string, t: string) =>
+      rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: is.Id, TargetId: t, Properties: {} });
+
+    // A node under two archetypes that share one marked ancestor: it is reached twice, answered once.
+    const root = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)), left = T('Left'), right = T('Right');
+    const node = T('N');
+    rel(left.Id, root.Id);
+    rel(right.Id, root.Id);
+    rel(node.Id, left.Id);
+    rel(node.Id, right.Id);
+    // A pair of archetypes that `is` each other, which no reader may follow round.
+    const loopA = T('LoopA'), loopB = T('LoopB'), inLoop = T('InLoop');
+    rel(loopA.Id, loopB.Id);
+    rel(loopB.Id, loopA.Id);
+    rel(inLoop.Id, loopA.Id);
+
+    const model = new PipelineModel(things, rels);
+    expect(model.isOfArchetypeCarrying(node.Id, ARCHETYPE_FLAG.PipelineNode)).toBe(true);
+    expect(model.isOfArchetypeCarrying(inLoop.Id, ARCHETYPE_FLAG.PipelineNode)).toBe(false);
+  });
 });
 
 describe('the vocabulary the editor holds', () => {
