@@ -8,6 +8,8 @@ const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 const {
   repositoryDocuments,
+  unaccountedDocuments,
+  generate,
   convertMermaid,
   stripLintDirectives,
   githubSlug,
@@ -29,21 +31,67 @@ function rewrite(markdown, docPath = 'docs/A.md') {
   };
   return rewriteLinks(markdown, {
     docPath,
+    wiki: manifest.wiki,
     pageOf: (file) => pages[file],
     anchorsOf: (file) => anchors[file],
     imagesSeen: new Set(),
   });
 }
 
+/** A repository with one document, one exclusion and a manifest describing both. */
+function repositoryWithManifest({ extraDocument } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
+  execFileSync('git', ['init', '--quiet'], { cwd: root });
+  fs.mkdirSync(path.join(root, 'docs'));
+  fs.writeFileSync(path.join(root, 'docs', 'GUIDE.md'), '# Guide\n');
+  fs.writeFileSync(path.join(root, 'docs', 'NOTES.md'), '# Notes\n');
+  if (extraDocument) fs.writeFileSync(path.join(root, 'docs', extraDocument), '# Extra\n');
+  fs.writeFileSync(
+    path.join(root, 'wiki-map.json'),
+    JSON.stringify({
+      wiki: {
+        organisation: 'https://dev.azure.com/Somewhere',
+        project: 'A Project',
+        repository: 'A Repository',
+        name: 'A-Wiki',
+        removeUnlistedPages: false,
+      },
+      pages: [{ doc: 'docs/GUIDE.md', page: '/Guide' }],
+      excluded: [{ doc: 'docs/NOTES.md', why: 'A working note.' }],
+    }),
+  );
+  return root;
+}
+
 // The guard that stops the wiki drifting again: a document that is neither published nor
 // deliberately withheld is a decision nobody made.
 test('every repository document is either mapped to a page or explicitly excluded', () => {
-  const accounted = new Set([
-    ...manifest.pages.map((entry) => entry.doc),
-    ...manifest.excluded.map((entry) => entry.doc),
-  ]);
-  const unaccounted = repositoryDocuments(REPO_ROOT).filter((doc) => !accounted.has(doc));
+  const unaccounted = unaccountedDocuments(REPO_ROOT, manifest);
   assert.deepEqual(unaccounted, [], `add these to wiki-map.json as a page or an exclusion: ${unaccounted}`);
+});
+
+test('the generator refuses to run on a document the manifest does not account for', () => {
+  const root = repositoryWithManifest({ extraDocument: 'UNDECIDED.md' });
+  try {
+    assert.throws(
+      () => generate(root, path.join(root, 'wiki-map.json'), path.join(root, 'out')),
+      /docs\/UNDECIDED\.md/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('the banner and the file links name the repository the manifest declares', () => {
+  const root = repositoryWithManifest();
+  try {
+    generate(root, path.join(root, 'wiki-map.json'), path.join(root, 'out'));
+    const page = fs.readFileSync(path.join(root, 'out', 'Guide.md'), 'utf8');
+    assert.match(page, /in the\n> A Repository repository/);
+    assert.match(page, /https:\/\/dev\.azure\.com\/Somewhere\/A Project\/_git\/A Repository\?path=\/docs\/GUIDE\.md/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('a document git ignores is a working note, not a document the repository carries', () => {
@@ -182,6 +230,7 @@ test('an image becomes a wiki attachment and is collected for copying', () => {
   const imagesSeen = new Set();
   const out = rewriteLinks('![a diagram](assets/a-diagram.png)', {
     docPath: 'docs/A_DOCUMENT.md',
+    wiki: manifest.wiki,
     pageOf: () => undefined,
     anchorsOf: () => ({}),
     imagesSeen,
@@ -201,6 +250,7 @@ test('a page path becomes the file name the wiki expects', () => {
 test('a generated page names its source so an editor knows edits are overwritten', () => {
   const page = convertPage('# Title\n', {
     docPath: 'docs/A.md',
+    wiki: manifest.wiki,
     pageOf: () => undefined,
     anchorsOf: () => ({}),
     imagesSeen: new Set(),

@@ -10,14 +10,11 @@
  * The trade: page order lives in .order files that only the git path can write, so order is
  * whatever the service assigns. Content, images and removals are unaffected.
  *
- * Usage: node publish-wiki.js <generated-dir>   (AZURE_DEVOPS_PAT in the environment)
+ * Usage: node publish-wiki.js <manifest> <generated-dir>   (AZURE_DEVOPS_PAT in the environment)
  */
 const fs = require('fs');
 const path = require('path');
 
-const ORGANISATION = 'https://dev.azure.com/ReGenVillages';
-const PROJECT = 'VillageOS-API';
-const WIKI = 'VillageOS-API-Wiki';
 const API_VERSION = 'api-version=7.1-preview.1';
 const ATTACHMENTS = '.attachments';
 
@@ -37,8 +34,13 @@ function parentsFirst(pagePaths) {
 }
 
 /** Pages the wiki holds that no document produces, deepest first so a parent is never removed
- *  while a child still hangs off it. */
-function pagesToRemove(existing, generated) {
+ *  while a child still hangs off it.
+ *
+ *  A wiki that is entirely generated removes them. One that also holds pages written on the wiki
+ *  and nowhere else removes nothing: there, an unlisted page is somebody's work rather than a
+ *  leftover, and the manifest cannot tell the two apart. */
+function pagesToRemove(existing, generated, removeUnlistedPages) {
+  if (!removeUnlistedPages) return [];
   const keep = new Set(generated);
   return existing
     .filter((page) => page !== '/' && !keep.has(page))
@@ -88,15 +90,16 @@ function flattenPages(page, into = []) {
 }
 
 async function main() {
-  const [generatedDirectory] = process.argv.slice(2);
+  const [manifestPath, generatedDirectory] = process.argv.slice(2);
   const token = process.env.AZURE_DEVOPS_PAT;
-  if (!generatedDirectory || !token) {
-    console.error('Usage: node publish-wiki.js <generated-dir> (needs AZURE_DEVOPS_PAT)');
+  if (!manifestPath || !generatedDirectory || !token) {
+    console.error('Usage: node publish-wiki.js <manifest> <generated-dir> (needs AZURE_DEVOPS_PAT)');
     process.exit(2);
   }
 
+  const wiki = JSON.parse(fs.readFileSync(manifestPath, 'utf8')).wiki;
   const authorization = `Basic ${Buffer.from(`:${token}`).toString('base64')}`;
-  const wikiUrl = `${ORGANISATION}/${PROJECT}/_apis/wiki/wikis/${WIKI}`;
+  const wikiUrl = `${wiki.organisation}/${wiki.project}/_apis/wiki/wikis/${wiki.name}`;
   const pageUrl = (page) => `${wikiUrl}/pages?path=${encodeURIComponent(page)}&${API_VERSION}`;
 
   const send = async (url, options = {}) => {
@@ -148,7 +151,7 @@ async function main() {
     written++;
   }
 
-  for (const page of pagesToRemove([...existing], [...generated.keys()])) {
+  for (const page of pagesToRemove([...existing], [...generated.keys()], wiki.removeUnlistedPages)) {
     await send(pageUrl(page), { method: 'DELETE' });
     console.log(`removed ${page} (no document produces it)`);
   }

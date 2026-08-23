@@ -1,4 +1,11 @@
 {
+  "wiki": {
+    "organisation": "https://dev.azure.com/ReGenVillages",
+    "project": "VillageOS-API",
+    "repository": "VillageOS-API",
+    "name": "VillageOS-API-Wiki",
+    "removeUnlistedPages": true
+  },
   "pages": [
     { "doc": "docs/README.md", "page": "/Home" },
     { "doc": "README.md", "page": "/Project Guide" },

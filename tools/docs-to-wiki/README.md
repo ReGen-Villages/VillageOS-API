@@ -1,17 +1,21 @@
 # docs-to-wiki
 
-Generates the **Azure DevOps project wiki** from this repository's own markdown.
+Generates an **Azure DevOps project wiki** from a repository's own markdown.
 
-The repository is the source of truth. Every wiki page is produced from a file listed in
-[`wiki-map.json`](wiki-map.json), so a page cannot quietly fall behind the document it is
-built from — which is exactly what happened before this existed.
+The repository is the source of truth. Every wiki page is produced from a file listed in a
+manifest, so a page cannot quietly fall behind the document it is built from — which is exactly
+what happened before this existed.
+
+The manifest names the wiki to publish to, so a repository that keeps its own documentation
+supplies a manifest and the path to it rather than carrying a copy of this tool. This repository's
+manifest is [`wiki-map.json`](wiki-map.json).
 
 **Do not edit pages in the wiki browser.** Edits are overwritten on the next main build,
 and each generated page says so at the top. Edit the document in `docs/` instead.
 
 ## What it does
 
-`docs-to-wiki.js <repo-root> <output-dir>` writes a complete wiki tree and, for each page:
+`docs-to-wiki.js <repo-root> <manifest> <output-dir>` writes a complete wiki tree and, for each page:
 
 - **Adds a banner** naming the source document, so a reader knows where to make a change.
 - **Converts diagrams** — a fenced ` ```mermaid ` block becomes the `::: mermaid` block the
@@ -29,14 +33,34 @@ and each generated page says so at the top. Edit the document in `docs/` instead
 
 ## The manifest
 
-`wiki-map.json` has two lists: `pages` (document → wiki page, in the order they should appear)
-and `excluded` (documents that deliberately have no page, each with a reason).
+A manifest has a `wiki` block and two lists: `pages` (document → wiki page, in the order they
+should appear) and `excluded` (documents that deliberately have no page, each with a reason).
 
-A test fails when a markdown file is in neither list. That is the guard: a new document cannot
-be added without someone deciding whether it belongs on the wiki.
+```json
+{
+  "wiki": {
+    "organisation": "https://dev.azure.com/ReGenVillages",
+    "project": "VillageOS-API",
+    "repository": "VillageOS-API",
+    "name": "VillageOS-API-Wiki",
+    "removeUnlistedPages": true
+  }
+}
+```
 
-Only material that originates in this repository is published. A page with no document behind
-it is not carried forward.
+`organisation`, `project` and `repository` build the banner and the links back to files in the
+repository; `name` is the wiki published to.
+
+`removeUnlistedPages` decides what happens to a page the manifest does not produce. A wiki that is
+entirely generated, like this one, removes it. A wiki that also holds pages written on it and
+nowhere else sets `false`: there, an unlisted page is somebody's work rather than a leftover, and
+the manifest cannot tell the two apart.
+
+The generator refuses to run when a markdown file the repository carries is in neither list, and a
+test asserts the same for this repository. That is the guard: a new document cannot be added
+without someone deciding whether it belongs on the wiki.
+
+Only material that originates in the repository is published.
 
 ## Tests
 
@@ -49,11 +73,11 @@ The transforms are pure functions and are unit-tested; CI runs this on every bui
 
 ## How it is published
 
-`publish-wiki.js <generated-dir>` writes the tree to the wiki through its REST API: it uploads
-the attachments, writes each page (parents before children), and removes pages no document
-produces (deepest first, so a parent never goes while a child hangs off it). A page whose
-content already matches is left alone, so a build that changes no documentation adds no
-revisions.
+`publish-wiki.js <manifest> <generated-dir>` writes the tree to the wiki through its REST API: it
+uploads the attachments, writes each page (parents before children), and — where the manifest asks
+for it — removes pages no document produces (deepest first, so a parent never goes while a child
+hangs off it). A page whose content already matches is left alone, so a build that changes no
+documentation adds no revisions.
 
 The `Publish Docs to Wiki` step in [`azure-pipelines.yml`](../../azure-pipelines.yml) runs both
 scripts on `main`, **before** the `Mirror Wiki to GitHub` step, so one build carries a

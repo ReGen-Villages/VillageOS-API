@@ -30,12 +30,19 @@ test('pages no document produces are removed, deepest first', () => {
   const removals = pagesToRemove(
     ['/', '/Home', '/Services', '/Services/Python', '/Services/Delta', '/Old'],
     ['/Home', '/Services', '/Services/Delta'],
+    true,
   );
   assert.deepEqual(removals, ['/Services/Python', '/Old']);
 });
 
 test('the wiki root is never a removal candidate', () => {
-  assert.deepEqual(pagesToRemove(['/'], []), []);
+  assert.deepEqual(pagesToRemove(['/'], [], true), []);
+});
+
+// A wiki that also holds pages written on it and nowhere else: an unlisted page there is somebody's
+// work, and removing it would be the publish quietly deleting documentation nobody backed up.
+test('a wiki whose pages are not all generated keeps the ones the manifest does not produce', () => {
+  assert.deepEqual(pagesToRemove(['/', '/Home', '/Guide', '/Written by hand'], ['/Guide'], false), []);
 });
 
 // Bug #6148: raw bytes were sent and every publish stopped at the first image with

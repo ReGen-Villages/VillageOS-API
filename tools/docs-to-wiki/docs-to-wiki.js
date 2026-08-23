@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 /**
- * Generates the Azure DevOps project wiki from the repository's own markdown.
+ * Generates an Azure DevOps project wiki from a repository's own markdown.
  *
- * The repository is the source of truth: every page is produced from a file listed in
- * wiki-map.json, so a page cannot fall behind the document it documents. Pages written by
- * hand on the wiki are not preserved — see README.md for why that is the point.
+ * The repository is the source of truth: every page is produced from a file listed in the
+ * manifest, so a page cannot fall behind the document it documents.
  *
- * Usage: node docs-to-wiki.js <repo-root> <output-dir>
+ * The manifest names the wiki it publishes to, so a repository that keeps its own documentation
+ * drives this tool with its own manifest rather than carrying a copy of it.
+ *
+ * Usage: node docs-to-wiki.js <repo-root> <manifest> <output-dir>
  */
 const fs = require('fs');
 const path = require('path');
@@ -96,8 +98,19 @@ function pageFileName(pagePath) {
     .join('/')}.md`;
 }
 
-function repoFileUrl(repoRelativePath) {
-  return `https://dev.azure.com/ReGenVillages/VillageOS-API/_git/VillageOS-API?path=/${repoRelativePath}`;
+function repoFileUrl(wiki, repoRelativePath) {
+  return `${wiki.organisation}/${wiki.project}/_git/${wiki.repository}?path=/${repoRelativePath}`;
+}
+
+/** Documents the repository carries that the manifest neither publishes nor withholds. A document
+ *  nobody decided about is how a wiki starts falling behind, so the generator refuses to run on
+ *  one — which is the guard for a caller with no test suite of its own. */
+function unaccountedDocuments(repoRoot, manifest) {
+  const accounted = new Set([
+    ...manifest.pages.map((entry) => entry.doc),
+    ...manifest.excluded.map((entry) => entry.doc),
+  ]);
+  return repositoryDocuments(repoRoot).filter((doc) => !accounted.has(doc));
 }
 
 /**
@@ -107,7 +120,7 @@ function repoFileUrl(repoRelativePath) {
  * - an in-page anchor is translated to the wiki's own heading slug
  * - an image becomes a wiki attachment
  */
-function rewriteLinks(markdown, { docPath, pageOf, anchorsOf, imagesSeen }) {
+function rewriteLinks(markdown, { docPath, wiki, pageOf, anchorsOf, imagesSeen }) {
   const docDirectory = path.posix.dirname(docPath);
   const ownAnchors = anchorsOf(docPath) ?? {};
 
@@ -134,21 +147,25 @@ function rewriteLinks(markdown, { docPath, pageOf, anchorsOf, imagesSeen }) {
         : text;
       return `[${label}](${page}${translated ? `#${translated}` : ''})`;
     }
-    return `[${text}](${repoFileUrl(file)}${title ?? ''})`;
+    return `[${text}](${repoFileUrl(wiki, file)}${title ?? ''})`;
   });
 }
 
-function banner(docPath) {
-  return `> **Generated page.** This page is built from [\`${docPath}\`](${repoFileUrl(docPath)}) in the\n> VillageOS-API repository. Edit that file — changes made here are overwritten by the next build.\n\n`;
+function banner(wiki, docPath) {
+  return `> **Generated page.** This page is built from [\`${docPath}\`](${repoFileUrl(wiki, docPath)}) in the\n> ${wiki.repository} repository. Edit that file — changes made here are overwritten by the next build.\n\n`;
 }
 
 function convertPage(markdown, options) {
   const body = rewriteLinks(convertMermaid(stripLintDirectives(markdown)), options);
-  return banner(options.docPath) + body.replace(/\s*$/, '\n');
+  return banner(options.wiki, options.docPath) + body.replace(/\s*$/, '\n');
 }
 
-function generate(repoRoot, outputDirectory) {
-  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'wiki-map.json'), 'utf8'));
+function generate(repoRoot, manifestPath, outputDirectory) {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const unaccounted = unaccountedDocuments(repoRoot, manifest);
+  if (unaccounted.length) {
+    throw new Error(`add to ${manifestPath} as a page or an exclusion: ${unaccounted.join(', ')}`);
+  }
   const byDoc = new Map(manifest.pages.map((entry) => [entry.doc, entry.page]));
   const anchors = new Map();
   const imagesSeen = new Set();
@@ -164,6 +181,7 @@ function generate(repoRoot, outputDirectory) {
   for (const { doc, page } of manifest.pages) {
     const converted = convertPage(read(doc), {
       docPath: doc,
+      wiki: manifest.wiki,
       pageOf: (file) => byDoc.get(file),
       anchorsOf,
       imagesSeen,
@@ -184,6 +202,8 @@ function generate(repoRoot, outputDirectory) {
 
 module.exports = {
   repositoryDocuments,
+  unaccountedDocuments,
+  generate,
   convertMermaid,
   stripLintDirectives,
   githubSlug,
@@ -196,10 +216,15 @@ module.exports = {
 };
 
 if (require.main === module) {
-  const [repoRoot, outputDirectory] = process.argv.slice(2);
-  if (!repoRoot || !outputDirectory) {
-    console.error('Usage: node docs-to-wiki.js <repo-root> <output-dir>');
+  const [repoRoot, manifestPath, outputDirectory] = process.argv.slice(2);
+  if (!repoRoot || !manifestPath || !outputDirectory) {
+    console.error('Usage: node docs-to-wiki.js <repo-root> <manifest> <output-dir>');
     process.exit(2);
   }
-  generate(repoRoot, outputDirectory);
+  try {
+    generate(repoRoot, manifestPath, outputDirectory);
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
 }
