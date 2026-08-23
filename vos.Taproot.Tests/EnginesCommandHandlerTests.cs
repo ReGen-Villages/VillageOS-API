@@ -24,6 +24,9 @@ public class EnginesCommandHandlerTests
 
     private static JsonElement Parse(string json) => JsonDocument.Parse(json).RootElement;
 
+    private string[] OutputLines() =>
+        _writer.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
     private static readonly string Summary = """
         {"ModelId":"m1","ModelName":"TestModel",
          "Ranges":{"RegisteredRanges":12,"RangesWithBindings":3,"PropertyDependencyEdges":20,
@@ -88,11 +91,9 @@ public class EnginesCommandHandlerTests
 
         await ExecuteHandler("rollups");
 
-        var output = _writer.ToString();
-        Assert.Contains("SolarArray · total_pv_area = Sum(area) over SolarArray reached by <-is", output);
-        Assert.Contains("watches: area", output);
-        Assert.Contains("members: 3", output);
-        Assert.Contains("704 B", output);
+        var lines = OutputLines();
+        Assert.Equal("  SolarArray · total_pv_area = Sum(area) over SolarArray reached by <-is", lines[1]);
+        Assert.Equal("    watches: area   members: 3   est. 704 B", lines[2]);
     }
 
     [Fact]
@@ -110,11 +111,9 @@ public class EnginesCommandHandlerTests
 
         await ExecuteHandler("rollups");
 
-        var output = _writer.ToString();
-        Assert.Contains("Reservoir-1 · days_of_supply = capacity_m3 / draw_rate_m3_per_day", output);
-        Assert.Contains("watches: capacity_m3, draw_rate_m3_per_day", output);
-        Assert.DoesNotContain("null", output);
-        Assert.DoesNotContain("over", output);
+        var lines = OutputLines();
+        Assert.Equal("  Reservoir-1 · days_of_supply = capacity_m3 / draw_rate_m3_per_day", lines[1]);
+        Assert.Equal("    watches: capacity_m3, draw_rate_m3_per_day   members: 0   est. 512 B", lines[2]);
     }
 
     [Fact]
@@ -132,9 +131,9 @@ public class EnginesCommandHandlerTests
 
         await ExecuteHandler("rollups");
 
-        var output = _writer.ToString();
-        Assert.Contains("total_roof_area = Sum(roof_area) over every Building", output);
-        Assert.DoesNotContain("*", output);
+        var lines = OutputLines();
+        Assert.Equal("  Site · total_roof_area = Sum(roof_area) over every Building", lines[1]);
+        Assert.Equal("    watches: roof_area   members: 9   est. 832 B", lines[2]);
     }
 
     [Fact]
@@ -180,10 +179,9 @@ public class EnginesCommandHandlerTests
 
         await ExecuteHandler("rollups");
 
-        var output = _writer.ToString();
-        Assert.Contains("panel_count = Count over SolarArray reached by <-is", output);
-        Assert.Contains("watches: (none)", output);
-        Assert.DoesNotContain("Count(", output);
+        var lines = OutputLines();
+        Assert.Equal("  SolarArray · panel_count = Count over SolarArray reached by <-is", lines[1]);
+        Assert.Equal("    watches: (none)   members: 7   est. 960 B", lines[2]);
     }
 
     [Fact]
