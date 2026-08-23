@@ -161,6 +161,15 @@ function convertPage(markdown, options) {
 }
 
 function generate(repoRoot, manifestPath, outputDirectory) {
+  // The output directory is emptied before anything is written, so naming one inside the
+  // repository deletes source files. A caller that passed its arguments in the wrong order once
+  // named a tracked manifest as the output and the run removed it.
+  const output = path.resolve(outputDirectory);
+  const root = path.resolve(repoRoot);
+  if (output === root || output.startsWith(root + path.sep)) {
+    throw new Error(`the output directory is inside the repository and would be emptied: ${output}`);
+  }
+
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const unaccounted = unaccountedDocuments(repoRoot, manifest);
   if (unaccounted.length) {

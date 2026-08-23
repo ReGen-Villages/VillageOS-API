@@ -31,6 +31,9 @@ and each generated page says so at the top. Edit the document in `docs/` instead
   no heading is left alone rather than guessed at.
 - **Copies images** into the wiki's `.attachments` folder and repoints them.
 
+The output directory is emptied before anything is written, so it has to be outside the
+repository. A path inside it is refused rather than obeyed.
+
 ## The manifest
 
 A manifest has a `wiki` block and two lists: `pages` (document → wiki page, in the order they

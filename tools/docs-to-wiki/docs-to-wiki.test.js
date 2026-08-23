@@ -38,7 +38,8 @@ function rewrite(markdown, docPath = 'docs/A.md') {
   });
 }
 
-/** A repository with one document, one exclusion and a manifest describing both. */
+/** A repository with one document, one exclusion and a manifest describing both, plus somewhere
+ *  outside it to generate into. */
 function repositoryWithManifest({ extraDocument } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
   execFileSync('git', ['init', '--quiet'], { cwd: root });
@@ -60,7 +61,12 @@ function repositoryWithManifest({ extraDocument } = {}) {
       excluded: [{ doc: 'docs/NOTES.md', why: 'A working note.' }],
     }),
   );
-  return root;
+  return { root, manifest: path.join(root, 'wiki-map.json'), output: `${root}-out` };
+}
+
+function discard({ root, output }) {
+  fs.rmSync(root, { recursive: true, force: true });
+  fs.rmSync(output, { recursive: true, force: true });
 }
 
 // The guard that stops the wiki drifting again: a document that is neither published nor
@@ -71,26 +77,42 @@ test('every repository document is either mapped to a page or explicitly exclude
 });
 
 test('the generator refuses to run on a document the manifest does not account for', () => {
-  const root = repositoryWithManifest({ extraDocument: 'UNDECIDED.md' });
+  const repository = repositoryWithManifest({ extraDocument: 'UNDECIDED.md' });
   try {
     assert.throws(
-      () => generate(root, path.join(root, 'wiki-map.json'), path.join(root, 'out')),
+      () => generate(repository.root, repository.manifest, repository.output),
       /docs\/UNDECIDED\.md/,
     );
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    discard(repository);
   }
 });
 
 test('the banner and the file links name the repository the manifest declares', () => {
-  const root = repositoryWithManifest();
+  const repository = repositoryWithManifest();
   try {
-    generate(root, path.join(root, 'wiki-map.json'), path.join(root, 'out'));
-    const page = fs.readFileSync(path.join(root, 'out', 'Guide.md'), 'utf8');
+    generate(repository.root, repository.manifest, repository.output);
+    const page = fs.readFileSync(path.join(repository.output, 'Guide.md'), 'utf8');
     assert.match(page, /in the\n> A Repository repository/);
     assert.match(page, /https:\/\/dev\.azure\.com\/Somewhere\/A Project\/_git\/A Repository\?path=\/docs\/GUIDE\.md/);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    discard(repository);
+  }
+});
+
+// The output directory is emptied first, so this is the difference between a wrong argument and a
+// deleted document. A caller that ordered its arguments wrongly once named the manifest itself as
+// the output, and the run removed it before failing for an unrelated reason.
+test('the generator refuses an output directory inside the repository', () => {
+  const repository = repositoryWithManifest();
+  try {
+    assert.throws(
+      () => generate(repository.root, repository.manifest, path.join(repository.root, 'docs')),
+      /inside the repository/,
+    );
+    assert.ok(fs.existsSync(path.join(repository.root, 'docs', 'GUIDE.md')), 'the document was deleted');
+  } finally {
+    discard(repository);
   }
 });
 
