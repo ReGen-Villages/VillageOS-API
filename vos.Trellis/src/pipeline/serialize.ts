@@ -1,7 +1,7 @@
 import { thingApi } from '../api/thingApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { modelApi } from '../api/modelApi';
-import { PipelineModel, ARCHETYPE, type PortInfo } from './model';
+import { PipelineModel, ARCHETYPE_FLAG, type PortInfo } from './model';
 import type { VosTypeName } from '../utils/constants';
 
 // Persist / read a pipeline as Things + relationships (the lean-on-model bet): the editor is just CRUD over
@@ -68,16 +68,16 @@ export async function savePipeline(
   const isId = model.predicateIdByName('is');
   const hasId = model.predicateIdByName('has');
   const wireId = model.wirePredicateId();
-  const pipelineArchetype = model.archetypeId(ARCHETYPE.Pipeline);
-  const nodeArchetype = model.archetypeId(ARCHETYPE.PipelineNode);
+  const pipelineArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.Pipeline);
+  const nodeArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.PipelineNode);
   if (!isId || !hasId || !wireId || !pipelineArchetype || !nodeArchetype)
-    throw new Error('Model is missing pipeline archetypes/predicates — load the pipeline seed first.');
+    throw new Error('This model marks no archetype as a pipeline, a pipeline node or a wire — load a seed that marks them.');
 
-  const portArchetype = model.archetypeId(ARCHETYPE.Port);
+  const portArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.Port);
   const boundaryArchetype = (kind: 'input' | 'output') =>
-    model.archetypeId(kind === 'input' ? ARCHETYPE.PipelineInput : ARCHETYPE.PipelineOutput);
+    model.archetypeCarrying(kind === 'input' ? ARCHETYPE_FLAG.PipelineInput : ARCHETYPE_FLAG.PipelineOutput);
   if (nodes.some((n) => n.kind) && (!portArchetype || !boundaryArchetype('input') || !boundaryArchetype('output')))
-    throw new Error('Model is missing boundary-node archetypes (PipelineInput/PipelineOutput/Port) — load a seed that defines them.');
+    throw new Error('This model marks no archetype as a port, a pipeline input or a pipeline output — load a seed that marks them.');
 
   const pipelineId = existingPipelineId ?? crypto.randomUUID();
 
@@ -85,7 +85,7 @@ export async function savePipeline(
   // the whole Thing graph can ride one id-keyed fragment upsert (create + update in place, no dupes).
   const nodeThingId = new Map<string, string>();
   for (const n of nodes)
-    nodeThingId.set(n.id, model.isOfType(n.id, ARCHETYPE.PipelineNode) ? n.id : crypto.randomUUID());
+    nodeThingId.set(n.id, model.isOfArchetypeCarrying(n.id, ARCHETYPE_FLAG.PipelineNode) ? n.id : crypto.randomUUID());
 
   const things: Array<{ Id: string; Name: string; Properties: Record<string, unknown> }> = [
     { Id: pipelineId, Name: name, Properties: {} },
@@ -143,7 +143,7 @@ export async function savePipeline(
   const desiredKeys = new Set(desired.map((w) => wireKey(w.from, w.fp, w.to, w.tp)));
 
   const persistedNodeIds = existingPipelineId
-    ? model.outgoing(existingPipelineId, 'has').filter((t) => model.isOfType(t.Id, ARCHETYPE.PipelineNode)).map((t) => t.Id)
+    ? model.outgoing(existingPipelineId, 'has').filter((t) => model.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineNode)).map((t) => t.Id)
     : [];
   const persistedWires = persistedNodeIds.flatMap((nid) =>
     model.outgoingWireRels(nid).map((w) => ({ relId: w.relId, key: wireKey(nid, w.fromPort, w.targetId, w.toPort), fromPath: w.fromPath, toPath: w.toPath, transform: w.transform })));
@@ -199,10 +199,10 @@ function parseParamBindings(raw: unknown): Record<string, string> | undefined {
 /** Reconstruct the editor state for an existing pipeline from the loaded model (pure read). */
 export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPipeline | null {
   const pipe = model.thing(pipelineId);
-  if (!pipe || !model.isOfType(pipelineId, ARCHETYPE.Pipeline)) return null;
+  if (!pipe || !model.isOfArchetypeCarrying(pipelineId, ARCHETYPE_FLAG.Pipeline)) return null;
 
   const connectionsById = new Map(model.connections().map((c) => [c.connectionId, c]));
-  const nodeThings = model.outgoing(pipelineId, 'has').filter((t) => model.isOfType(t.Id, ARCHETYPE.PipelineNode));
+  const nodeThings = model.outgoing(pipelineId, 'has').filter((t) => model.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineNode));
   const nodeIds = new Set(nodeThings.map((t) => t.Id));
 
   const nodes: EditorNode[] = nodeThings.map((t, i) => {
@@ -217,7 +217,7 @@ export function loadPipeline(pipelineId: string, model: PipelineModel): LoadedPi
     const kind = model.boundaryKind(t.Id);
     if (kind) return { ...base, kind, connectionId: '', ports: model.boundaryPortRels(t.Id).map((r) => r.port) };
 
-    const conn = model.outgoing(t.Id, 'has').find((c) => model.isOfType(c.Id, ARCHETYPE.Connection));
+    const conn = model.outgoing(t.Id, 'has').find((c) => model.isOfArchetypeCarrying(c.Id, ARCHETYPE_FLAG.Connection));
     return { ...base, connectionId: conn?.Id ?? '', ports: conn ? connectionsById.get(conn.Id)?.ports ?? [] : [] };
   });
 

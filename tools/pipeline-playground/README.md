@@ -38,10 +38,13 @@ python3 validate_fragment.py PipelinePlayground.seed.json
 ## How it drops into any model
 
 Every id is a deterministic UUIDv5 of a stable key, so a re-run replaces the same Things instead of forking
-duplicates — merging is idempotent. When merging, the built-in `is` / `has` / `of` predicates and the
-pipeline archetypes (`Pipeline`, `PipelineNode`, `Port`, `Service`, `PlatformServiceConnection`,
-`PipelineWire`, …) are reconciled **by name** against the target: an existing `is` is reused, never doubled.
-Everything else is namespaced so it will not collide with a host model's own Things.
+duplicates — merging is idempotent. When merging, the target's own vocabulary is reused rather than doubled:
+the built-in `is` / `has` / `of` predicates are matched **by name**, and each archetype is matched **by the
+role flag it carries** (`__IsPipelineArchetype`, `__IsPipelineNodeArchetype`, `__IsPortArchetype`, …), so a
+model that calls its pipeline archetype something else keeps its own. An archetype the target has under the
+same name but has never marked is marked as it reconciles — the flag is the only thing that says what an
+archetype is for, and the editor and the orchestrator both read it. Everything else is namespaced so it will
+not collide with a host model's own Things.
 
 Those ids are the same in every seed by default, which is what you want for a standalone fragment but not
 when two model seeds carrying the playground load into one broker together — they would collide. Pass

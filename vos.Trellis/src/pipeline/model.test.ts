@@ -1,10 +1,19 @@
+/// <reference types="node" />
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { VosThing, VosRelationship } from '../types/vos';
-import { PipelineModel, typesCompatible } from './model';
+import { PipelineModel, ARCHETYPE_FLAG, typesCompatible } from './model';
 import { loadPipeline } from './serialize';
 
+/** An archetype's own mark, which is the only thing that says what role it plays. */
+const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: true });
+
 // Build the demo model (Generate –feeds(echo→message)→ Echo), node -has-> Connection[subdomain] -has-> Service.
-function demoModel(): { model: PipelineModel; pipelineId: string } {
+// Every archetype here is named something the editor has never heard of and says what it is by the flag it
+// carries, so a fixture that resolves at all proves nothing is found by name (#6530).
+function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchetypeId: string } {
   const things: VosThing[] = [];
   const rels: VosRelationship[] = [];
   let n = 0;
@@ -17,8 +26,12 @@ function demoModel(): { model: PipelineModel; pipelineId: string } {
     rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
   const is = T('is'), has = T('has'), feeds = T('feeds');
-  const pipelineA = T('Pipeline'), nodeA = T('PipelineNode'), connA = T('PlatformServiceConnection'),
-    svcA = T('Service'), portA = T('Port'), wireA = T('PipelineWire');
+  const pipelineA = T('Workflow', marked(ARCHETYPE_FLAG.Pipeline)),
+    nodeA = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)),
+    connA = T('Endpoint', marked(ARCHETYPE_FLAG.Connection)),
+    svcA = T('Capability', marked(ARCHETYPE_FLAG.Service)),
+    portA = T('Socket', marked(ARCHETYPE_FLAG.Port)),
+    wireA = T('Link', marked(ARCHETYPE_FLAG.PipelineWire));
   R(feeds.Id, is.Id, wireA.Id);
 
   const proto = T('EchoProto');
@@ -51,7 +64,7 @@ function demoModel(): { model: PipelineModel; pipelineId: string } {
   R(pipe.Id, has.Id, ech.Id);
   R(gen.Id, feeds.Id, ech.Id, { fromPort: 'echo', toPort: 'message' });
 
-  return { model: new PipelineModel(things, rels), pipelineId: pipe.Id };
+  return { model: new PipelineModel(things, rels), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
 }
 
 describe('PipelineModel', () => {
@@ -64,9 +77,52 @@ describe('PipelineModel', () => {
     expect(gen.ports.find((p) => p.portName === 'echo')?.direction).toBe('out');
   });
 
-  it('identifies the wire predicate by archetype, not by name', () => {
+  it('identifies the wire predicate by the mark its archetype carries, not by name', () => {
     const { model } = demoModel();
     expect(model.wirePredicateId()).toBe(model.predicateIdByName('feeds'));
+  });
+
+  it('gives the archetype a save writes its `is` edge to, whatever the model calls it', () => {
+    const { model, pipelineArchetypeId } = demoModel();
+    expect(model.archetypeCarrying(ARCHETYPE_FLAG.Pipeline)).toBe(pipelineArchetypeId);
+    expect(model.archetypeCarrying('__IsNothingAnyoneMarks')).toBeUndefined();
+  });
+
+  it('does not count an archetype as playing its own role, so the picker lists pipelines and not the archetype', () => {
+    const { model, pipelineId, pipelineArchetypeId } = demoModel();
+    expect(model.isOfArchetypeCarrying(pipelineId, ARCHETYPE_FLAG.Pipeline)).toBe(true);
+    expect(model.isOfArchetypeCarrying(pipelineArchetypeId, ARCHETYPE_FLAG.Pipeline)).toBe(false);
+  });
+});
+
+describe('the vocabulary the editor holds', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const editorSources = {
+    'pipeline/model.ts': join(here, 'model.ts'),
+    'pipeline/serialize.ts': join(here, 'serialize.ts'),
+    'pages/PipelinePage.tsx': join(here, '..', 'pages', 'PipelinePage.tsx'),
+  };
+
+  // What the seed tool happens to call these archetypes. A model may call them anything at all, which is
+  // why the editor holds none of these words (#6530).
+  const NAMES_A_MODEL_MAY_CHANGE = [
+    'Pipeline', 'PipelineNode', 'PipelineInput', 'PipelineOutput', 'PlatformServiceConnection',
+    'Service', 'Port', 'PipelineWire', 'PipelineRun', 'NodeRun',
+  ];
+
+  for (const [file, path] of Object.entries(editorSources))
+    it(`${file} spells no archetype name`, () => {
+      const source = readFileSync(path, 'utf-8');
+      const held = NAMES_A_MODEL_MAY_CHANGE.filter((name) => new RegExp(`['"\`]${name}['"\`]`).test(source));
+      expect(held).toEqual([]);
+    });
+
+  it('reads the same marks the orchestrator does', () => {
+    const phloem = readFileSync(
+      join(here, '..', '..', '..', 'vos.Service.Phloem', 'Model', 'PipelineArchetypes.cs'),
+      'utf-8',
+    );
+    for (const flag of Object.values(ARCHETYPE_FLAG)) expect(phloem).toContain(`"${flag}"`);
   });
 });
 
@@ -136,7 +192,7 @@ describe('run animation source (#5635)', () => {
       things.push(t);
       return t;
     };
-    const is = T('is'), of = T('of'), runArch = T('PipelineRun');
+    const is = T('is'), of = T('of'), runArch = T('Execution', marked(ARCHETYPE_FLAG.PipelineRun));
     const pipeA = T('Pipeline A'), pipeB = T('Pipeline B');
     const rel = (s: string, p: string, t: string) =>
       rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
@@ -184,7 +240,9 @@ describe('loadPipeline', () => {
     };
     const rel = (s: string, p: string, t: string) =>
       rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: {} });
-    const is = T('is'), has = T('has'), pipeArch = T('Pipeline'), nodeArch = T('PipelineNode'), connArch = T('PlatformServiceConnection');
+    const is = T('is'), has = T('has'), pipeArch = T('Workflow', marked(ARCHETYPE_FLAG.Pipeline)),
+      nodeArch = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)),
+      connArch = T('Endpoint', marked(ARCHETYPE_FLAG.Connection));
     const conn = T('conn', { Subdomain: 'x' });
     rel(conn.Id, is.Id, connArch.Id);
     const node = T('N', { paramBindings: '{"message":"greeting"}' });

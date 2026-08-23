@@ -507,8 +507,9 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   edges: an **Input** node ("from the start") whose output ports are filled from the run's parameters, and an
   **Output** node ("at the end") whose wired-in value becomes the run's published **result** (stored as a
   `result` property on the `PipelineRun` Thing). Boundary nodes bind no Connection — their ports are
-  user-declared: select the node and add / rename / remove ports in the inspector. They persist as
-  `PipelineInput` / `PipelineOutput` Things (each also a `PipelineNode`) with their own `Port` children.
+  user-declared: select the node and add / rename / remove ports in the inspector. They persist under the
+  archetypes the model marks as a pipeline's input and as its output (each of which is also a pipeline node),
+  with their own port child-Things.
 - **Wiring** — drag from an output port to an input port. Wires are **type-checked**; incompatible types are
   refused.
 - **Field mapping** (#5874) — click a wire to open its inspector and set an optional **from-path** and
@@ -523,9 +524,9 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   `vos.Service.Shared`). An invalid expression is caught by **pre-run validation** (Run is gated);
   a runtime error becomes a clear node failure. A wire with a transform shows a `ƒ` in its label; the expression
   persists as a `transform` property on the wire.
-- **New / Save / Load** — **New** clears the canvas; **Save** writes a `Pipeline` + `PipelineNode` Things and
-  `has`/`feeds` relationships (node `‑has→ Connection`, positions round-trip as x/y); **Load** picks an
-  existing pipeline from the model. **Editing is in place**: saving a loaded pipeline **updates it** rather
+- **New / Save / Load** — **New** clears the canvas; **Save** writes the pipeline and its nodes under the
+  archetypes the model marks for them, with the `has` edges and one wire edge per wire on the canvas (node
+  `‑has→ Connection`, positions round-trip as x/y); **Load** picks an existing pipeline from the model. **Editing is in place**: saving a loaded pipeline **updates it** rather
   than forking a duplicate — the Thing graph (pipeline + nodes + `is`/`has` edges) rides one idempotent
   fragment upsert (existing nodes keep their Ids), and nodes or wires removed on the canvas are retracted on
   save. Wire `fromPort`/`toPort` are written per-edge (the fragment endpoint does not carry relationship
@@ -550,7 +551,8 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   cancellation (already-running nodes finish, pending nodes are marked `cancelled`, amber).
 - **History** — for a loaded pipeline, the **History** dropdown lists its past runs (status + start time,
   newest first); picking one **replays** that run's per-node statuses onto the canvas via the same animation
-  path. Runs are read straight from the model (`PipelineRun -of-> Pipeline`), no extra storage.
+  path. Runs are read straight from the model — a run Thing `of` the pipeline, under the archetype the model
+  marks as holding runs — with no extra storage.
 - **Param binding** — click a node to open its inspector; each **unwired input port** can be bound to a
   **run param** by name (stored as the node's `paramBindings`). Bound params appear in a **Params** bar above
   the canvas where you supply values at Run time — so a source node can be parameterized per run without
@@ -562,8 +564,14 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
 - **Empty state** — with no nodes, the canvas points you to the palette; if the model has no dispatchable
   Connections it says so (load a model whose seed has pipeline Connections — use the `seed-migrate` tool
   in the private VillageOS repo to add them).
+- **No archetype names** (#6530) — the page holds none. Which Thing is a pipeline, a node, a connection, a
+  service, a port, a wire predicate or a run is read from the flag its archetype carries
+  (`__IsPipelineArchetype` and the rest), as an **own** property, because inheritance hands a role flag down
+  to every member. A model may rename every one of these archetypes and still be authored here, and it is the
+  same contract Phloem reads, so a model can never be orchestrated and un-authorable at once. A model that
+  marks none is refused on save with a message saying so, rather than writing a pipeline nothing can find.
 
-The model side (archetypes, node-binds-Connection, the `PipelineWire` predicate) and the orchestrator are
+The model side (archetypes, node-binds-Connection, the wire predicate) and the orchestrator are
 documented in [`SERVICES.md` §16 (Pipelines / DAG orchestration)](SERVICES.md).
 
 ---
@@ -1098,7 +1106,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | `/temporal` | `TemporalPage` | Time-range mutation explorer with hierarchical diff view |
 | `/things` | `ThingSearchPage` | Dedicated thing-name search with ranked results (exact → prefix → substring → ID), type badges from `is` relationships, property preview, markdown export. Pure search logic in `src/utils/thingSearch.ts`. |
 | `/properties` | `PropertySearchPage` | Dedicated property-name search across all things and relationships, grouped by property name, inherited property tree walking, temporal history panel, markdown export. |
-| `/pipelines` | `PipelinePage` | Visual DAG editor (react-flow) for pipeline/orchestration. Palette of dispatchable Connections (subdomain + typed ports), type-checked wiring, save/load as Things+relationships, and **Run** (async spawn with live SSE node animation + **Cancel**). See §7.4. |
+| `/pipelines` | `PipelinePage` | Visual DAG editor (react-flow) for pipeline/orchestration. Palette of dispatchable Connections (subdomain + typed ports), type-checked wiring, save/load as Things+relationships, and **Run** (async spawn with live SSE node animation + **Cancel**). Holds no archetype name: every role — pipeline, node, connection, service, port, wire predicate, run — is read from the flag the archetype carries, the same marks Phloem reads. See §7.4. |
 | `/logs` | `LogPage` | Live tail of the Mycelium broker log. |
 
 ---

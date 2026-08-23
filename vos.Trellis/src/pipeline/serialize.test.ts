@@ -11,7 +11,7 @@ vi.mock('../api/relationshipApi', () => ({
 }));
 
 import type { VosThing, VosRelationship } from '../types/vos';
-import { PipelineModel } from './model';
+import { PipelineModel, ARCHETYPE_FLAG } from './model';
 import { savePipeline, loadPipeline, type EditorNode } from './serialize';
 import { modelApi } from '../api/modelApi';
 import { thingApi } from '../api/thingApi';
@@ -22,8 +22,13 @@ const thingRemove = vi.mocked(thingApi.remove);
 const relRemove = vi.mocked(relationshipApi.remove);
 const relCreate = vi.mocked(relationshipApi.create);
 
+/** An archetype's own mark, which is the only thing that says what role it plays. */
+const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: true });
+
 // A model with the pipeline archetypes/predicates, one connection, and (optionally) an existing pipeline
-// P with two nodes N1,N2 and a wire N1.out -> N2.in — enough to exercise the in-place-update diff.
+// P with two nodes N1,N2 and a wire N1.out -> N2.in — enough to exercise the in-place-update diff. Every
+// archetype is named as some model chose and marked as what it is, so a save that writes the right `is`
+// edges proves the write path resolves them by the mark (#6530).
 function buildModel() {
   const things: VosThing[] = [];
   const rels: VosRelationship[] = [];
@@ -37,20 +42,24 @@ function buildModel() {
     rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
   const is = T('is', 'is'), has = T('has', 'has'), feeds = T('feeds', 'feeds');
-  T('Pipeline', 'Pipeline'); T('PipelineNode', 'PipelineNode'); T('PlatformServiceConnection', 'PlatformServiceConnection');
-  T('Service', 'Service'); T('Port', 'Port'); T('PipelineWire', 'PipelineWire');
-  // Boundary-node archetypes (#5873); each is-a PipelineNode so the node collection picks its instances up.
-  T('PipelineInput', 'PipelineInput'); R('PipelineInput', 'is', 'PipelineNode');
-  T('PipelineOutput', 'PipelineOutput'); R('PipelineOutput', 'is', 'PipelineNode');
-  R('feeds', 'is', 'PipelineWire');
+  T('arch-pipeline', 'Workflow', marked(ARCHETYPE_FLAG.Pipeline));
+  T('arch-node', 'Step', marked(ARCHETYPE_FLAG.PipelineNode));
+  T('arch-connection', 'Endpoint', marked(ARCHETYPE_FLAG.Connection));
+  T('arch-service', 'Capability', marked(ARCHETYPE_FLAG.Service));
+  T('arch-port', 'Socket', marked(ARCHETYPE_FLAG.Port));
+  T('arch-wire', 'Link', marked(ARCHETYPE_FLAG.PipelineWire));
+  // Boundary-node archetypes (#5873); each is-a pipeline node so the node collection picks its instances up.
+  T('arch-input', 'Start', marked(ARCHETYPE_FLAG.PipelineInput)); R('arch-input', 'is', 'arch-node');
+  T('arch-output', 'Finish', marked(ARCHETYPE_FLAG.PipelineOutput)); R('arch-output', 'is', 'arch-node');
+  R('feeds', 'is', 'arch-wire');
 
-  T('svc', 'svc'); R('svc', 'is', 'Service');
-  T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'PlatformServiceConnection'); R('conn', 'has', 'svc');
+  T('svc', 'svc'); R('svc', 'is', 'arch-service');
+  T('conn', 'conn', { Subdomain: 'echo' }); R('conn', 'is', 'arch-connection'); R('conn', 'has', 'svc');
 
   // Existing pipeline P: N1 --feeds(out->in)--> N2
-  T('P', 'MyPipeline'); R('P', 'is', 'Pipeline');
-  T('N1', 'Node1'); R('N1', 'is', 'PipelineNode'); R('N1', 'has', 'conn'); R('P', 'has', 'N1');
-  T('N2', 'Node2'); R('N2', 'is', 'PipelineNode'); R('N2', 'has', 'conn'); R('P', 'has', 'N2');
+  T('P', 'MyPipeline'); R('P', 'is', 'arch-pipeline');
+  T('N1', 'Node1'); R('N1', 'is', 'arch-node'); R('N1', 'has', 'conn'); R('P', 'has', 'N1');
+  T('N2', 'Node2'); R('N2', 'is', 'arch-node'); R('N2', 'has', 'conn'); R('P', 'has', 'N2');
   R('N1', 'feeds', 'N2', { fromPort: 'out', toPort: 'in' });
 
   return { model: new PipelineModel(things, rels), ids: { conn: 'conn' }, is, has, feeds };
@@ -73,6 +82,18 @@ describe('savePipeline — create (no existing pipeline id)', () => {
     expect(thingRemove).not.toHaveBeenCalled();
     // The new pipeline got a fresh id (not one of the fixture ids).
     expect(saved.pipelineId).not.toBe('P');
+    // …and `is` the archetype this model marks as its pipeline, whatever that archetype is called.
+    expect(frag.Relationships.some((r: { Subject: string; Name: string; Target: string }) =>
+      r.Subject === saved.pipelineId && r.Name === 'is' && r.Target === 'arch-pipeline')).toBe(true);
+  });
+
+  it('refuses a model that marks no archetype, saying so rather than writing a pipeline nothing can find', async () => {
+    const model = new PipelineModel(
+      [{ Id: 'is', Name: 'is', Properties: {} }, { Id: 'has', Name: 'has', Properties: {} }],
+      [],
+    );
+    await expect(savePipeline('Fresh', [node('n1', 'A')], [], model)).rejects.toThrow(/marks no archetype/);
+    expect(applyFragment).not.toHaveBeenCalled();
   });
 });
 
@@ -122,7 +143,7 @@ type Frag = {
 };
 
 describe('savePipeline — boundary nodes (#5873)', () => {
-  it('persists an Input node as a PipelineInput + PipelineNode with its declared output port, and no connection', async () => {
+  it('persists an Input node under the archetypes marked as input and as node, with its declared output port and no connection', async () => {
     const { model } = buildModel();
     const inputNode: EditorNode = {
       id: 'nin', label: 'Input', connectionId: '', x: 0, y: 0, kind: 'input',
@@ -134,13 +155,13 @@ describe('savePipeline — boundary nodes (#5873)', () => {
     const frag: Frag = JSON.parse(applyFragment.mock.calls[0][0]);
     const nodeThing = frag.Things.find((t) => t.Name === 'Input')!;
     const isTargets = frag.Relationships.filter((r) => r.Subject === nodeThing.Id && r.Name === 'is').map((r) => r.Target);
-    expect(isTargets).toContain('PipelineInput');
-    expect(isTargets).toContain('PipelineNode');
+    expect(isTargets).toContain('arch-input');
+    expect(isTargets).toContain('arch-node');
 
-    // Declares a Port child (has → Port, direction out) …
+    // Declares a port child (has → the marked port archetype, direction out) …
     const portThing = frag.Things.find((t) => t.Name === 'seed')!;
     expect(portThing).toBeTruthy();
-    expect(frag.Relationships.some((r) => r.Subject === portThing.Id && r.Name === 'is' && r.Target === 'Port')).toBe(true);
+    expect(frag.Relationships.some((r) => r.Subject === portThing.Id && r.Name === 'is' && r.Target === 'arch-port')).toBe(true);
     expect(frag.Relationships.some((r) => r.Subject === nodeThing.Id && r.Name === 'has' && r.Target === portThing.Id)).toBe(true);
     // … and binds NO connection.
     expect(frag.Relationships.some((r) => r.Subject === nodeThing.Id && r.Name === 'has' && r.Target === 'conn')).toBe(false);
@@ -158,12 +179,14 @@ describe('loadPipeline — boundary nodes (#5873)', () => {
       rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
     T('is', 'is'); T('has', 'has');
-    T('Pipeline', 'Pipeline'); T('PipelineNode', 'PipelineNode'); T('Port', 'Port');
-    T('PipelineOutput', 'PipelineOutput'); R('PipelineOutput', 'is', 'PipelineNode');
-    T('BP', 'Boundary'); R('BP', 'is', 'Pipeline');
-    T('OUT', 'Output'); R('OUT', 'is', 'PipelineOutput'); R('BP', 'has', 'OUT');
+    T('arch-pipeline', 'Workflow', marked(ARCHETYPE_FLAG.Pipeline));
+    T('arch-node', 'Step', marked(ARCHETYPE_FLAG.PipelineNode));
+    T('arch-port', 'Socket', marked(ARCHETYPE_FLAG.Port));
+    T('arch-output', 'Finish', marked(ARCHETYPE_FLAG.PipelineOutput)); R('arch-output', 'is', 'arch-node');
+    T('BP', 'Boundary'); R('BP', 'is', 'arch-pipeline');
+    T('OUT', 'Output'); R('OUT', 'is', 'arch-output'); R('BP', 'has', 'OUT');
     T('OUT.result', 'result', { portName: 'result', direction: 'in', type: 'any', required: 'true' });
-    R('OUT.result', 'is', 'Port'); R('OUT', 'has', 'OUT.result');
+    R('OUT.result', 'is', 'arch-port'); R('OUT', 'has', 'OUT.result');
 
     const loaded = loadPipeline('BP', new PipelineModel(things, rels))!;
     const out = loaded.nodes.find((node) => node.id === 'OUT')!;
@@ -204,11 +227,13 @@ describe('loadPipeline — wire field-paths (#5874)', () => {
       rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
     T('is', 'is'); T('has', 'has'); T('feeds', 'feeds');
-    T('Pipeline', 'Pipeline'); T('PipelineNode', 'PipelineNode'); T('PipelineWire', 'PipelineWire');
-    R('feeds', 'is', 'PipelineWire');
-    T('FP', 'FieldPipe'); R('FP', 'is', 'Pipeline');
-    T('N1', 'N1'); R('N1', 'is', 'PipelineNode'); R('FP', 'has', 'N1');
-    T('N2', 'N2'); R('N2', 'is', 'PipelineNode'); R('FP', 'has', 'N2');
+    T('arch-pipeline', 'Workflow', marked(ARCHETYPE_FLAG.Pipeline));
+    T('arch-node', 'Step', marked(ARCHETYPE_FLAG.PipelineNode));
+    T('arch-wire', 'Link', marked(ARCHETYPE_FLAG.PipelineWire));
+    R('feeds', 'is', 'arch-wire');
+    T('FP', 'FieldPipe'); R('FP', 'is', 'arch-pipeline');
+    T('N1', 'N1'); R('N1', 'is', 'arch-node'); R('FP', 'has', 'N1');
+    T('N2', 'N2'); R('N2', 'is', 'arch-node'); R('FP', 'has', 'N2');
     R('N1', 'feeds', 'N2', { fromPort: 'out', toPort: 'in', fromPath: 'user.id', toPath: 'a' });
 
     const loaded = loadPipeline('FP', new PipelineModel(things, rels))!;
@@ -237,11 +262,13 @@ describe('savePipeline / loadPipeline — wire transform (#5875)', () => {
       rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
     T('is', 'is'); T('has', 'has'); T('feeds', 'feeds');
-    T('Pipeline', 'Pipeline'); T('PipelineNode', 'PipelineNode'); T('PipelineWire', 'PipelineWire');
-    R('feeds', 'is', 'PipelineWire');
-    T('TP', 'TransformPipe'); R('TP', 'is', 'Pipeline');
-    T('N1', 'N1'); R('N1', 'is', 'PipelineNode'); R('TP', 'has', 'N1');
-    T('N2', 'N2'); R('N2', 'is', 'PipelineNode'); R('TP', 'has', 'N2');
+    T('arch-pipeline', 'Workflow', marked(ARCHETYPE_FLAG.Pipeline));
+    T('arch-node', 'Step', marked(ARCHETYPE_FLAG.PipelineNode));
+    T('arch-wire', 'Link', marked(ARCHETYPE_FLAG.PipelineWire));
+    R('feeds', 'is', 'arch-wire');
+    T('TP', 'TransformPipe'); R('TP', 'is', 'arch-pipeline');
+    T('N1', 'N1'); R('N1', 'is', 'arch-node'); R('TP', 'has', 'N1');
+    T('N2', 'N2'); R('N2', 'is', 'arch-node'); R('TP', 'has', 'N2');
     R('N1', 'feeds', 'N2', { fromPort: 'out', toPort: 'in', transform: '{"x": y}' });
 
     const loaded = loadPipeline('TP', new PipelineModel(things, rels))!;

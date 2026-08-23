@@ -18,8 +18,9 @@ seed fragment or merges it into an existing seed in place.
     python3 generate.py --into ../../path/to/Some.seed.json --remove
 
 Idempotent by construction: every id is a deterministic UUIDv5 of a stable key, so a re-run replaces the
-same Things instead of forking duplicates. When merging, the built-in `is`/`has`/`of` predicates and the
-pipeline archetypes are reconciled by name against the target — an existing `is` is reused, never doubled.
+same Things instead of forking duplicates. When merging, the target's own vocabulary is reused rather than
+doubled: the built-in `is`/`has`/`of` predicates are matched by name, each archetype by the role flag it
+carries — so a model that renamed one keeps its own.
 """
 
 import argparse
@@ -39,6 +40,22 @@ from catalog import SERVICES, PIPELINES
 _ROOT_NAMESPACE = uuid.UUID("6f9b1e2c-4a7d-5b8e-9c0f-1d2e3a4b5c6d")
 _id_namespace = _ROOT_NAMESPACE
 _TAG = "pipeline-playground"
+
+# The role each archetype plays, as the flag it carries. This is the contract the Trellis editor and the
+# Phloem orchestrator both read; the archetype names this generator picks are its own choice and nothing
+# reads them, which is why a model may rename any of them and keep working.
+ROLE_FLAG = {
+    "Pipeline": "__IsPipelineArchetype",
+    "PipelineNode": "__IsPipelineNodeArchetype",
+    "PipelineInput": "__IsPipelineInputArchetype",
+    "PipelineOutput": "__IsPipelineOutputArchetype",
+    "Port": "__IsPortArchetype",
+    "Service": "__IsServiceArchetype",
+    "Connection": "__IsConnectionArchetype",
+    "PipelineWire": "__IsPipelineWireArchetype",
+    "PipelineRun": "__IsPipelineRunArchetype",
+    "NodeRun": "__IsNodeRunArchetype",
+}
 
 
 def set_namespace(name):
@@ -63,13 +80,14 @@ def typed(value, type_info):
 
 class Kit:
     """Accumulates the playground's Things and Relationships, keyed by deterministic id so the build is
-    idempotent. `shared` marks the generic vocabulary (is/has/of + the pipeline archetypes) that is
-    reconciled against a target model by name at merge time rather than blindly duplicated."""
+    idempotent. `shared` marks the generic vocabulary (is/has/of + the pipeline archetypes) that is matched
+    against a target model's own at merge time rather than blindly duplicated."""
 
     def __init__(self):
         self.things = {}          # id -> Thing dict
         self.rels = {}            # dedup key -> Relationship dict
-        self.shared = set()       # ids of reconcile-by-name vocabulary Things
+        self.shared = set()       # ids of the vocabulary reconciled against a target model
+        self.role_flag = {}       # archetype id -> the role flag it carries (how a target's copy is found)
         self._name = {}           # id -> Name (for readable relationship labels)
 
     def thing(self, tid, name, properties=None, shared=False):
@@ -93,12 +111,17 @@ class Kit:
             }
         return self.rels[key]
 
-    # --- generic vocabulary (reconciled by name) ------------------------------------------------
+    # --- generic vocabulary (matched against a target model's own) -------------------------------
     def predicate(self, name):
         return self.thing(stable_id(_TAG, "predicate", name), name, shared=True)
 
-    def archetype(self, name):
-        return self.thing(stable_id(_TAG, "archetype", name), name, shared=True)
+    def archetype(self, role, name):
+        """An archetype that says what it is by the flag it carries. The name is this generator's choice."""
+        flag = ROLE_FLAG[role]
+        tid = self.thing(stable_id(_TAG, "archetype", name), name,
+                         {flag: typed(True, "vos.Boolean")}, shared=True)
+        self.role_flag[tid] = flag
+        return tid
 
 
 def _prop(properties, name):
@@ -115,16 +138,16 @@ def build():
     of = k.predicate("of")
     feeds = k.predicate("feeds")
 
-    Pipeline = k.archetype("Pipeline")
-    PipelineNode = k.archetype("PipelineNode")
-    PipelineInput = k.archetype("PipelineInput")
-    PipelineOutput = k.archetype("PipelineOutput")
-    Port = k.archetype("Port")
-    Service = k.archetype("Service")
-    Connection = k.archetype("PlatformServiceConnection")
-    PipelineWire = k.archetype("PipelineWire")
-    PipelineRun = k.archetype("PipelineRun")
-    NodeRun = k.archetype("NodeRun")
+    Pipeline = k.archetype("Pipeline", "Pipeline")
+    PipelineNode = k.archetype("PipelineNode", "PipelineNode")
+    PipelineInput = k.archetype("PipelineInput", "PipelineInput")
+    PipelineOutput = k.archetype("PipelineOutput", "PipelineOutput")
+    Port = k.archetype("Port", "Port")
+    Service = k.archetype("Service", "Service")
+    Connection = k.archetype("Connection", "PlatformServiceConnection")
+    PipelineWire = k.archetype("PipelineWire", "PipelineWire")
+    PipelineRun = k.archetype("PipelineRun", "PipelineRun")
+    NodeRun = k.archetype("NodeRun", "NodeRun")
 
     k.rel(feeds, is_, PipelineWire)          # wires are the `feeds` predicate, identified by this archetype
     k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too
@@ -277,13 +300,22 @@ def as_fragment(kit):
 
 
 def merge_into(kit, seed):
-    """Merge the kit into a loaded seed in place, reconciling the shared vocabulary by name so an existing
-    `is`/`has`/archetype is reused, not duplicated."""
+    """Merge the kit into a loaded seed in place, reusing the target's own vocabulary instead of duplicating
+    it: an archetype is found by the role flag it carries, so a model that renamed one keeps its name, and
+    the built-in `is`/`has`/`of` predicates are found by name. An archetype the target has under the same
+    name but has never marked is marked as it reconciles — the flag is the only thing that says what an
+    archetype is for, and a target left unmarked is one the editor and the orchestrator cannot read."""
     seed.setdefault("Things", [])
     seed.setdefault("Relationships", [])
     by_name = {}
+    by_id = {}
+    carrier_of = {}
     for t in seed["Things"]:
         by_name.setdefault(t["Name"], t["Id"])
+        by_id[t["Id"]] = t
+        for flag in ROLE_FLAG.values():
+            if _prop(t.get("Properties"), flag) is True:
+                carrier_of.setdefault(flag, t["Id"])
     thing_ids = {t["Id"] for t in seed["Things"]}
     rel_keys = {(r.get("Subject"), r.get("Predicate"), r.get("Target"),
                  _rel_prop(r, "fromPort"), _rel_prop(r, "toPort"), _rel_prop(r, "toPath"))
@@ -291,7 +323,12 @@ def merge_into(kit, seed):
 
     remap = {}
     for sid in kit.shared:
-        existing = by_name.get(kit.things[sid]["Name"])
+        flag = kit.role_flag.get(sid)
+        existing = carrier_of.get(flag) if flag else None
+        if existing is None:
+            existing = by_name.get(kit.things[sid]["Name"])
+            if existing is not None and flag:
+                by_id[existing].setdefault("Properties", {})[flag] = typed(True, "vos.Boolean")
         if existing and existing != sid:
             remap[sid] = existing
 

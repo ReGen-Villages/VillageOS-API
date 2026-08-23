@@ -1,22 +1,29 @@
 import type { VosThing, VosRelationship } from '../types/vos';
 
-// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve a node's dispatch
-// PlatformServiceConnection, its ports (via the bound service's is-chain), and identify wires by the PipelineWire archetype.
-// `is`/`has` are the built-in predicates (matched by name); wires are matched by archetype, never by "feeds".
+// Client-side mirror of Phloem's graph reads (vos.Service.Phloem): resolve a node's dispatch connection, its
+// ports (via the bound service's is-chain), and identify wires by the archetype their predicate is of.
+// `is`, `has` and `of` are the platform's own built-in predicates and are matched by name. Which Thing plays
+// which role is not a name at all: it is read from the flag the archetype carries, the same contract Phloem
+// reads, so a model may call every archetype below whatever suits it.
 
-export const ARCHETYPE = {
-  Pipeline: 'Pipeline',
-  PipelineNode: 'PipelineNode',
+export const ARCHETYPE_FLAG = {
+  Pipeline: '__IsPipelineArchetype',
+  PipelineNode: '__IsPipelineNodeArchetype',
   // Boundary nodes (#5873): a pipeline's external input ("from the start") and output ("at the end").
-  PipelineInput: 'PipelineInput',
-  PipelineOutput: 'PipelineOutput',
-  Connection: 'PlatformServiceConnection',
-  Service: 'Service',
-  Port: 'Port',
-  PipelineWire: 'PipelineWire',
-  PipelineRun: 'PipelineRun',
-  NodeRun: 'NodeRun',
+  PipelineInput: '__IsPipelineInputArchetype',
+  PipelineOutput: '__IsPipelineOutputArchetype',
+  Connection: '__IsConnectionArchetype',
+  Service: '__IsServiceArchetype',
+  Port: '__IsPortArchetype',
+  PipelineWire: '__IsPipelineWireArchetype',
+  PipelineRun: '__IsPipelineRunArchetype',
 } as const;
+
+/** A Thing plays a role when it holds that flag as its own property, set true. Inheritance hands an
+ *  archetype's flag down to every member, so this reads own properties and never the inherited view. */
+function carriesFlag(thing: VosThing, roleFlag: string): boolean {
+  return String(thing.Properties[roleFlag]).toLowerCase() === 'true';
+}
 
 /** A past or in-flight run of a pipeline, for the run-history panel (#5646). */
 export interface RunInfo {
@@ -45,7 +52,7 @@ export class PipelineModel {
   private readonly byId: Map<string, VosThing>;
   // Relationships indexed by subject so traversal is O(node degree), not O(all relationships).
   private readonly bySubject: Map<string, VosRelationship[]>;
-  private readonly isOfTypeCache = new Map<string, boolean>();
+  private readonly roleCache = new Map<string, boolean>();
 
   constructor(things: VosThing[], rels: VosRelationship[]) {
     this.things = things;
@@ -77,23 +84,25 @@ export class PipelineModel {
     return out;
   }
 
-  /** Transitive `is`-type membership (memoised — pure function of the graph). */
-  isOfType(thingId: string, archetype: string): boolean {
-    const key = `${thingId} ${archetype.toLowerCase()}`;
-    const cached = this.isOfTypeCache.get(key);
+  /** Is this Thing — directly or through its `is`-chain — of an archetype carrying the given role? The walk
+   *  starts above the Thing, so an archetype never plays its own role (memoised: pure over the graph). */
+  isOfArchetypeCarrying(thingId: string, roleFlag: string): boolean {
+    const key = `${thingId} ${roleFlag}`;
+    const cached = this.roleCache.get(key);
     if (cached !== undefined) return cached;
-    const result = this.isOfTypeRec(thingId, archetype.toLowerCase(), new Set());
-    this.isOfTypeCache.set(key, result);
+    const result = this.isOfArchetypeCarryingRec(thingId, roleFlag, new Set([thingId]));
+    this.roleCache.set(key, result);
     return result;
   }
 
-  private isOfTypeRec(thingId: string, archetypeLower: string, seen: Set<string>): boolean {
-    if (seen.has(thingId)) return false;
-    seen.add(thingId);
-    const t = this.byId.get(thingId);
-    if (!t) return false;
-    if (t.Name.toLowerCase() === archetypeLower) return true;
-    return this.outgoing(thingId, 'is').some((p) => this.isOfTypeRec(p.Id, archetypeLower, seen));
+  private isOfArchetypeCarryingRec(thingId: string, roleFlag: string, seen: Set<string>): boolean {
+    for (const parent of this.outgoing(thingId, 'is')) {
+      if (seen.has(parent.Id)) continue;
+      seen.add(parent.Id);
+      if (carriesFlag(parent, roleFlag)) return true;
+      if (this.isOfArchetypeCarryingRec(parent.Id, roleFlag, seen)) return true;
+    }
+    return false;
   }
 
   /** Collect a service's ports by walking its `is`-chain and gathering `has` → Port at each level. */
@@ -106,7 +115,7 @@ export class PipelineModel {
       if (seen.has(id)) continue;
       seen.add(id);
       for (const t of this.outgoing(id, 'has')) {
-        if (this.isOfType(t.Id, ARCHETYPE.Port)) ports.push(this.toPort(t));
+        if (this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Port)) ports.push(this.toPort(t));
       }
       for (const parent of this.outgoing(id, 'is')) stack.push(parent.Id);
     }
@@ -123,10 +132,10 @@ export class PipelineModel {
     };
   }
 
-  /** Is this thing a boundary node (Input or Output archetype)? (#5873) */
+  /** Is this thing a boundary node — of the archetype marked as a pipeline's input, or as its output? (#5873) */
   boundaryKind(thingId: string): 'input' | 'output' | undefined {
-    if (this.isOfType(thingId, ARCHETYPE.PipelineInput)) return 'input';
-    if (this.isOfType(thingId, ARCHETYPE.PipelineOutput)) return 'output';
+    if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.PipelineInput)) return 'input';
+    if (this.isOfArchetypeCarrying(thingId, ARCHETYPE_FLAG.PipelineOutput)) return 'output';
     return undefined;
   }
 
@@ -134,7 +143,7 @@ export class PipelineModel {
    * to update a port in place or retract a removed one (#5873). Ports are declared directly on the node. */
   boundaryPortRels(nodeId: string): { portId: string; port: PortInfo }[] {
     return this.outgoing(nodeId, 'has')
-      .filter((t) => this.isOfType(t.Id, ARCHETYPE.Port))
+      .filter((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Port))
       .map((t) => ({ portId: t.Id, port: this.toPort(t) }));
   }
 
@@ -142,10 +151,10 @@ export class PipelineModel {
   connections(): ConnectionInfo[] {
     const result: ConnectionInfo[] = [];
     for (const t of this.things) {
-      if (!this.isOfType(t.Id, ARCHETYPE.Connection)) continue;
+      if (!this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.Connection)) continue;
       const subdomain = t.Properties.Subdomain;
       if (typeof subdomain !== 'string' || subdomain.length === 0) continue;
-      const service = this.outgoing(t.Id, 'has').find((s) => this.isOfType(s.Id, ARCHETYPE.Service));
+      const service = this.outgoing(t.Id, 'has').find((s) => this.isOfArchetypeCarrying(s.Id, ARCHETYPE_FLAG.Service));
       if (!service) continue;
       result.push({
         connectionId: t.Id,
@@ -165,7 +174,7 @@ export class PipelineModel {
     if (!rels) return [];
     const out: { targetId: string; fromPort: string; toPort: string; fromPath: string; toPath: string; transform: string }[] = [];
     for (const rel of rels) {
-      if (this.isOfType(rel.PredicateId, ARCHETYPE.PipelineWire))
+      if (this.isOfArchetypeCarrying(rel.PredicateId, ARCHETYPE_FLAG.PipelineWire))
         out.push({
           targetId: rel.TargetId,
           fromPort: String(rel.Properties.fromPort ?? ''),
@@ -184,7 +193,7 @@ export class PipelineModel {
     if (!rels) return [];
     const out: { relId: string; targetId: string; fromPort: string; toPort: string; fromPath: string; toPath: string; transform: string }[] = [];
     for (const rel of rels) {
-      if (this.isOfType(rel.PredicateId, ARCHETYPE.PipelineWire))
+      if (this.isOfArchetypeCarrying(rel.PredicateId, ARCHETYPE_FLAG.PipelineWire))
         out.push({
           relId: rel.Id,
           targetId: rel.TargetId,
@@ -203,14 +212,16 @@ export class PipelineModel {
     return this.things.find((t) => t.Name.toLowerCase() === name.toLowerCase())?.Id;
   }
 
-  /** Id of the wire predicate — the predicate Thing that is a PipelineWire (never matched by "feeds"). */
+  /** Id of the wire predicate — the predicate Thing of the archetype the model marks as holding wires. */
   wirePredicateId(): string | undefined {
-    return this.things.find((t) => this.isOfType(t.Id, ARCHETYPE.PipelineWire) && t.Name.toLowerCase() !== ARCHETYPE.PipelineWire.toLowerCase())?.Id;
+    return this.things.find((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineWire))?.Id;
   }
 
-  /** Id of an archetype Thing (the `is` target), e.g. Pipeline / PipelineNode. */
-  archetypeId(archetype: string): string | undefined {
-    return this.things.find((t) => t.Name.toLowerCase() === archetype.toLowerCase())?.Id;
+  /** Id of the archetype this model marks with the given role — the Thing an `is` edge is written to.
+   *  Undefined when the model marks the role on nothing, which is a model this editor cannot author.
+   *  Seed validation refuses a model that marks one role on two archetypes, so a carrier is the carrier. */
+  archetypeCarrying(roleFlag: string): string | undefined {
+    return this.things.find((t) => carriesFlag(t, roleFlag))?.Id;
   }
 
   /** Live per-node status for a run, keyed by the node Thing id — the SSE animation source (#5635).
@@ -252,7 +263,7 @@ export class PipelineModel {
   runsOf(pipelineId: string): RunInfo[] {
     const runs: RunInfo[] = [];
     for (const t of this.things) {
-      if (!this.isOfType(t.Id, ARCHETYPE.PipelineRun)) continue;
+      if (!this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineRun)) continue;
       if (!this.outgoing(t.Id, 'of').some((p) => p.Id === pipelineId)) continue;
       runs.push({ runId: t.Id, status: String(t.Properties.status ?? ''), startedUtc: String(t.Properties.startedUtc ?? '') });
     }

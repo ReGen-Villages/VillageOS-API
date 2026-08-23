@@ -1,6 +1,7 @@
-"""Spec for the playground generator's id derivation. --namespace makes the same DAGs disjoint per model
-so two seeds can coexist in one broker; the default (no namespace) keeps the shared standalone identity;
-and merge still reconciles shared vocabulary (is/has/archetypes) against a target by name, not by id.
+"""Spec for the playground generator's id derivation and for the marks its archetypes carry. --namespace
+makes the same DAGs disjoint per model so two seeds can coexist in one broker; the default (no namespace)
+keeps the shared standalone identity; merge reconciles the built-in predicates against a target by name and
+an archetype by the role flag it carries, so a target that renamed one keeps its own.
 """
 import unittest
 
@@ -50,6 +51,39 @@ class NamespaceTests(unittest.TestCase):
         is_things = [t for t in seed["Things"] if t["Name"] == "is"]
         self.assertEqual(len(is_things), 1)
         self.assertEqual(is_things[0]["Id"], "target-is")
+
+
+class RoleFlagTests(unittest.TestCase):
+    """What the editor and the orchestrator read: a model says what an archetype is for by marking it, and
+    a merge finds the target's archetype by that mark rather than by the name this generator happens to use."""
+
+    def test_every_archetype_carries_the_flag_for_its_role(self):
+        kit = G.build()
+        self.assertEqual(set(kit.role_flag.values()), set(G.ROLE_FLAG.values()))
+        for tid, flag in kit.role_flag.items():
+            self.assertEqual(kit.things[tid]["Properties"][flag], {"typeInfo": "vos.Boolean", "value": True})
+
+    def test_merge_reuses_a_renamed_archetype_the_target_has_marked(self):
+        seed = {"Name": "Target",
+                "Things": [{"Id": "target-pipeline", "Name": "Workflow",
+                            "Properties": {"__IsPipelineArchetype": {"typeInfo": "vos.Boolean", "value": True}}}],
+                "Relationships": []}
+        G.merge_into(G.build(), seed)
+
+        carriers = [t for t in seed["Things"] if "__IsPipelineArchetype" in t["Properties"]]
+        self.assertEqual([(t["Id"], t["Name"]) for t in carriers], [("target-pipeline", "Workflow")])
+        self.assertTrue(any(r["Target"] == "target-pipeline" for r in seed["Relationships"]),
+                        "the playground's pipelines must `is` the target's own archetype")
+
+    def test_merge_marks_an_archetype_the_target_left_unmarked(self):
+        seed = {"Name": "Target",
+                "Things": [{"Id": "target-pipeline", "Name": "Pipeline", "Properties": {}}],
+                "Relationships": []}
+        G.merge_into(G.build(), seed)
+
+        carriers = [t for t in seed["Things"] if "__IsPipelineArchetype" in t["Properties"]]
+        self.assertEqual([t["Id"] for t in carriers], ["target-pipeline"])
+        self.assertIs(carriers[0]["Properties"]["__IsPipelineArchetype"]["value"], True)
 
 
 if __name__ == "__main__":
