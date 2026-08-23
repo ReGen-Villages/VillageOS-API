@@ -139,6 +139,14 @@ class UnguardedCommandTests(unittest.TestCase):
     def test_a_program_this_check_has_no_opinion_on_is_not_reported(self):
         self.assertEqual([], unguarded_commands('```bash\ndocker build -t echo .\n```\n'))
 
+    def test_a_blank_line_in_a_fence_is_not_a_command(self):
+        readme = '```bash\npython3 -m venv .venv\n\n.venv/bin/python -m pytest\n```\n'
+        self.assertEqual(
+            ['python3 -m venv .venv', '.venv/bin/python -m pytest'], command_lines(readme))
+
+    def test_a_line_that_is_only_an_assignment_runs_no_program(self):
+        self.assertEqual('', program_run_by('Token=<jwt>'))
+
 
 if __name__ == '__main__':
     unittest.main()

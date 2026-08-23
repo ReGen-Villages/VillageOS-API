@@ -20,7 +20,7 @@ Token=<service-jwt> SigningKey=<base64-hmac-key> \
 ```
 
 macOS has no `python` command, and the `python3` on your PATH usually refuses to install packages
-into itself, so the virtual environment is not optional. This is the sequence the build runs.
+into itself, so the virtual environment is not optional.
 
 Interactive OpenAPI docs are available at `/docs` (FastAPI built-in).
 
