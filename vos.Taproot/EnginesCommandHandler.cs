@@ -9,6 +9,10 @@ namespace vos.Taproot;
 /// </summary>
 public class EnginesCommandHandler
 {
+    /// <summary>The path a reduction declares when its members are every instance of the related
+    /// type, connected to the owner or not — a symbol on the wire, spelled out here.</summary>
+    private const string EveryInstance = "*";
+
     private readonly TextWriter _writer;
     private readonly string _arg;
     private readonly MyceliumClient _mycelium;
@@ -82,10 +86,9 @@ public class EnginesCommandHandler
         {
             _writer.WriteLine($"  {reactor.GetProperty("OwnerName").GetString()} · {reactor.GetProperty("RangeName").GetString()}");
             var watches = Names(reactor.GetProperty("WatchedProperties"))
-                .Concat(Names(reactor.GetProperty("WatchedStates")))
-                .ToList();
+                .Concat(Names(reactor.GetProperty("WatchedStates")));
             _writer.WriteLine(
-                $"    watches: {(watches.Count > 0 ? string.Join(", ", watches) : "(none)")}   " +
+                $"    watches: {Watched(watches)}   " +
                 $"edges: {reactor.GetProperty("DependencyEdges").GetInt32()} (+{reactor.GetProperty("BindingEdges").GetInt32()} binding)   " +
                 $"est. {FormatBytes(reactor.GetProperty("EstimatedBytes").GetInt64())}");
         }
@@ -103,23 +106,46 @@ public class EnginesCommandHandler
         _writer.WriteLine($"Roll-up reactors ({reactors.GetArrayLength()})");
         foreach (var reactor in reactors.EnumerateArray())
         {
-            var path = reactor.GetProperty("PropertyPath").ValueKind == JsonValueKind.String
-                ? reactor.GetProperty("PropertyPath").GetString() : null;
-            var reduction = path is null
-                ? reactor.GetProperty("Function").GetString()
-                : $"{reactor.GetProperty("Function").GetString()}({path})";
             _writer.WriteLine(
-                $"  {reactor.GetProperty("OwnerName").GetString()} · {reactor.GetProperty("PropertyName").GetString()} = " +
-                $"{reduction} over {reactor.GetProperty("Direction").GetString()} {reactor.GetProperty("Predicate").GetString()} " +
-                $"from {reactor.GetProperty("RelatedType").GetString()}");
+                $"  {reactor.GetProperty("OwnerName").GetString()} · " +
+                $"{reactor.GetProperty("PropertyName").GetString()} = {Declaration(reactor)}");
             _writer.WriteLine(
-                $"    members: {reactor.GetProperty("MemberEdges").GetInt32()}   " +
+                $"    watches: {Watched(Names(reactor.GetProperty("Watches")))}   " +
+                $"members: {reactor.GetProperty("MemberEdges").GetInt32()}   " +
                 $"est. {FormatBytes(reactor.GetProperty("EstimatedBytes").GetInt64())}");
         }
     }
 
+    /// <summary>
+    /// The platform declares a derived property either as a reduction over the Things a relationship
+    /// path reaches or as an expression over property names, and fills only that form's fields —
+    /// so rendering the reduction's four regardless prints an expression as a line of blanks.
+    /// </summary>
+    private static string Declaration(JsonElement reactor)
+    {
+        if (TextOrNull(reactor, "Expression") is { } expression) return expression;
+
+        var propertyPath = TextOrNull(reactor, "PropertyPath");
+        var function = TextOrNull(reactor, "Function");
+        var reduction = propertyPath is null ? function : $"{function}({propertyPath})";
+        var relatedType = TextOrNull(reactor, "RelatedType");
+        var members = TextOrNull(reactor, "Path") is { } path && path != EveryInstance
+            ? $"{relatedType} reached by {path}"
+            : $"every {relatedType}";
+        return $"{reduction} over {members}";
+    }
+
+    private static string? TextOrNull(JsonElement reactor, string field) =>
+        reactor.GetProperty(field) is { ValueKind: JsonValueKind.String } text ? text.GetString() : null;
+
     private static IEnumerable<string> Names(JsonElement array) =>
         array.EnumerateArray().Select(name => name.GetString() ?? "");
+
+    private static string Watched(IEnumerable<string> names)
+    {
+        var watched = names.ToList();
+        return watched.Count > 0 ? string.Join(", ", watched) : "(none)";
+    }
 
     private static string FormatBytes(long bytes)
     {
@@ -140,6 +166,6 @@ public class EnginesCommandHandler
         _writer.WriteLine("Usage:");
         _writer.WriteLine("  engines            - Both engines' totals for the current model");
         _writer.WriteLine("  engines ranges     - Every range reactor: owner, watches, edges, footprint");
-        _writer.WriteLine("  engines rollups    - Every roll-up reactor: owner, definition, members, footprint");
+        _writer.WriteLine("  engines rollups    - Every roll-up reactor: owner, declaration, watches, members, footprint");
     }
 }

@@ -893,7 +893,8 @@ Drill in: engines ranges | engines rollups
 ```
 
 Drill in to per-reactor detail — each range reactor with its owner, what it watches, its wired
-edges, and its footprint; each roll-up reactor with its owner and the definition as declared:
+edges, and its footprint; each roll-up reactor with its owner, what it watches, and how it is
+declared:
 
 ```
 > engines ranges
@@ -904,10 +905,18 @@ Range reactors (14)
 
 > engines rollups
 Roll-up reactors (6)
-  SolarArray · total_pv_area = Sum(area) over Incoming is from SolarArray
-    members: 3   est. 704 B
+  SolarArray · total_pv_area = Sum(area) over SolarArray reached by <-is
+    watches: area   members: 3   est. 704 B
+  Reservoir-1 · days_of_supply = capacity_m3 / draw_rate_m3_per_day
+    watches: capacity_m3, draw_rate_m3_per_day   members: 0   est. 512 B
   ...
 ```
+
+A derived property is declared in one of two ways, and the drill-in prints whichever it is: a
+reduction over the Things a relationship path reaches (`Sum(area) over SolarArray reached by
+<-is`, or `over every Building` where the members are all instances of a type rather than the
+ones a path reaches), or an expression over property names. Both answer `watches:` — the
+property names the definition reads.
 
 The estimated memory is deterministic arithmetic over documented per-unit costs — a capacity
 trend, not heap accounting. The same numbers appear on the Trellis dashboard's Reactive engines
