@@ -110,6 +110,13 @@ is described per definition and never both: `Expression` for a formula, or `Func
 `RelatedType` and `PropertyPath` for a reduction, with `Scope` present only where it is not the
 default of the owner computing alone.
 
+`Reads` names what the definition reads, by the name you can look up on the Thing you already have —
+a formula's own terms, a reduction's the property it reduces off each member. One key whichever form,
+so showing a figure's inputs needs no branch on which it took, and absent rather than empty when a
+definition reads nothing. **Do not parse the formula to recover these**; a second parser in a caller
+drifts from the one the platform evaluates with. A formula's terms reached through a path are
+deliberately not listed, because you cannot resolve one against the Thing you have.
+
 **Own definitions only.** A definition is declared once, on the Thing that owns it, so a member
 computing its own value carries the value and not the formula. Read the formula off the archetype
 the way an inherited value is read — by walking `is` — which a snapshot supports because it closes
