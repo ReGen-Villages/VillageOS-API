@@ -1682,7 +1682,10 @@ platform filled in reads as the platform's, not as something the submitter said.
 
 **Which Thing holds the value.** `thing`, or the scope entity when the spec
 names none, and `via` walks from there exactly as `related`'s and `verdict`'s
-paths do. A walk reaching several Things reports each, in name order.
+paths do. A walk reaching several Things reports each, in name order. With every
+compare entity selected there is no one scope entity, so a binding that named no
+`thing` reports nothing and the tile draws no line — the figure above it is an
+average over several Things, and no single origin is true of it.
 
 **What says so.** For an assumption, the archetype the value came from — the
 binding already knows it and needs no path. For everything else, the `source`

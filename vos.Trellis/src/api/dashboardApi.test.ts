@@ -1720,4 +1720,10 @@ describe('origin binding', () => {
     const binding = origin('latitude', { via: [{ predicate: 'has', archetype: 'Nothing' }] });
     expect(await resolveBinding(binding, siteContext())).toEqual([]);
   });
+
+  // The figure above such a tile is an average over several Things, and no single origin is true
+  // of it — so the tile says nothing rather than speaking for one of them.
+  it('reports nothing when every compare entity is selected', async () => {
+    expect(await resolveBinding(origin('latitude'), { ...siteContext(), scopeId: null })).toEqual([]);
+  });
 });
