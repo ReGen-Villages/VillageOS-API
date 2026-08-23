@@ -20,13 +20,12 @@ public class ClaimNamesLiveOnlyInVosClaimsTests
         var root = RepositoryRoot.Find();
         var sources = ProductionSources(root).ToList();
 
-        sources.Should().Contain(file => Path.GetRelativePath(root, file) == Declaration,
+        sources.Should().Contain(Declaration,
             "the scan must reach the file that declares the names, or it passes without reading anything");
 
         var spellingTheirOwn = sources
-            .Where(file => Path.GetRelativePath(root, file) != Declaration)
-            .Where(file => File.ReadAllText(file).Contains(ClaimLiteral))
-            .Select(file => Path.GetRelativePath(root, file))
+            .Where(source => source != Declaration)
+            .Where(source => File.ReadAllText(Path.Combine(root, source)).Contains(ClaimLiteral))
             .ToList();
 
         spellingTheirOwn.Should().BeEmpty(
@@ -34,19 +33,19 @@ public class ClaimNamesLiveOnlyInVosClaimsTests
             + "so the pin guards a value nothing reads at run time", Declaration);
     }
 
-    /// <summary>Every project directory outside Tests, which is all the code that runs in production.
-    /// A test writes the name Mycelium mints on purpose, the way VosClaimsTests does: a token in a test
-    /// stands in for one the platform signed, and spelling it out is what makes the pin mean
-    /// anything.</summary>
+    /// <summary>Every project is named vos.something, and the ones outside Tests are what runs in
+    /// production. A test writes the name Mycelium mints on purpose, the way VosClaimsTests does: a
+    /// token in a test stands in for one the platform signed, and spelling it out is what makes the
+    /// pin mean anything.</summary>
     private static IEnumerable<string> ProductionSources(string root) =>
         new DirectoryInfo(root)
             .EnumerateDirectories("vos.*")
             .SelectMany(project => project.EnumerateFiles("*.cs", SearchOption.AllDirectories))
-            .Select(file => file.FullName)
-            .Where(file => !IsCopiedOrInstalled(root, file));
+            .Select(file => Path.GetRelativePath(root, file.FullName))
+            .Where(source => !IsCopiedOrInstalled(source));
 
-    private static bool IsCopiedOrInstalled(string root, string path) =>
-        Path.GetRelativePath(root, path)
+    private static bool IsCopiedOrInstalled(string relativePath) =>
+        relativePath
             .Split(Path.DirectorySeparatorChar)
             .Any(segment => segment is "bin" or "obj" or "node_modules");
 }
