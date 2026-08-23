@@ -130,6 +130,10 @@ public class ShippedComponentsDeclareOneVersionTests
     /// reports a file nobody edited and fails a build nobody broke. A workspace reused between builds
     /// — which is what a self-hosted agent has — is where that bites. Nothing searched here is copied
     /// into build output today, so this is a trap disarmed rather than a break fixed.
+    ///
+    /// The platform repository carries the same search, and that is where the gap was found. Neither
+    /// can reference the other: nothing is packed to a feed, and this repository is public while that
+    /// one is not. So a rule learned in one is applied to both by hand, the way vos.Auth.Shared is.
     /// </remarks>
     private static IEnumerable<string> FilesUnderTheRepository(string pattern)
     {
