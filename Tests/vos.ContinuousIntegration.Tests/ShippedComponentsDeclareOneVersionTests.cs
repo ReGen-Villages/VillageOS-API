@@ -89,16 +89,6 @@ public class ShippedComponentsDeclareOneVersionTests
     /// <summary>The version a build would actually use. Comments are removed first, because MSBuild
     /// ignores them and a version tried and left commented out above the real one would otherwise be
     /// read as the declared one — failing a repository that agrees with itself.</summary>
-    private static string DeclaredByDotNetProjects()
-    {
-        var props = Path.Combine(RepositoryRoot(), "Directory.Build.props");
-        var uncommented = Regex.Replace(File.ReadAllText(props), "<!--.*?-->", "", RegexOptions.Singleline);
-        var declared = Regex.Match(uncommented, @"<Version>([^<]+)</Version>");
-        Assert.True(declared.Success,
-            $"{props} declares no <Version>, so Taproot and every service inherit none.");
-        return declared.Groups[1].Value.Trim();
-    }
-
     [Theory]
     [InlineData("*.json")]
     [InlineData("package.json")]
@@ -110,8 +100,18 @@ public class ShippedComponentsDeclareOneVersionTests
             .ToList();
 
         Assert.True(copies.Count == 0,
-            "a copy under bin or obj is as old as the last build of its project: "
-            + string.Join("; ", copies.Take(3)));
+            $"a copy under bin or obj is as old as the last build of its project. "
+            + $"{copies.Count} offered, of which: {string.Join("; ", copies.Take(3))}");
+    }
+
+    private static string DeclaredByDotNetProjects()
+    {
+        var props = Path.Combine(RepositoryRoot(), "Directory.Build.props");
+        var uncommented = Regex.Replace(File.ReadAllText(props), "<!--.*?-->", "", RegexOptions.Singleline);
+        var declared = Regex.Match(uncommented, @"<Version>([^<]+)</Version>");
+        Assert.True(declared.Success,
+            $"{props} declares no <Version>, so Taproot and every service inherit none.");
+        return declared.Groups[1].Value.Trim();
     }
 
     private static IEnumerable<string> ShippedPackageFiles() =>
@@ -131,9 +131,9 @@ public class ShippedComponentsDeclareOneVersionTests
     /// — which is what a self-hosted agent has — is where that bites. Nothing searched here is copied
     /// into build output today, so this is a trap disarmed rather than a break fixed.
     ///
-    /// The platform repository carries the same search, and that is where the gap was found. Neither
-    /// can reference the other: nothing is packed to a feed, and this repository is public while that
-    /// one is not. So a rule learned in one is applied to both by hand, the way vos.Auth.Shared is.
+    /// VillageOS carries the same search, and that is where the gap was found. Neither repository can
+    /// reference the other: nothing is packed to a feed (#6648), and this one is public while that one
+    /// is not. So a rule learned in one is applied to both by hand, the way vos.Auth.Shared is.
     /// </remarks>
     private static IEnumerable<string> FilesUnderTheRepository(string pattern)
     {
