@@ -11,9 +11,10 @@ import { LayoutDashboard } from 'lucide-react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useTranslation, Trans } from 'react-i18next';
 import { useModelStore } from '../stores/modelStore';
-import { useSse } from '../hooks/useSse';
+import { useSse, useSubscription } from '../hooks/useSse';
 import { useDashboards, useModelIndex, useResolveContext } from '../hooks/useDashboard';
 import { scopeEntities as computeScopeEntities } from '../api/dashboardApi';
+import { NAVIGATION_AND_SETTINGS, subscriptionForSpec } from '../api/dashboardSubscription';
 import { localizeSpec } from '../api/dashboardLocalization';
 import type { DashboardSection } from '../types/dashboard';
 import { WidgetRenderer } from '../components/dashboard/widgets/WidgetRenderer';
@@ -65,6 +66,13 @@ export function OperationsPage() {
   const [scopeId, setScopeId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const ctx = useResolveContext(idx, scopeId, spec?.compare?.archetype, nonce);
+
+  // What this page is about, said to the platform: it is sent the Things its widgets read and the
+  // later changes to those, instead of every change in a model whose size it does not depend on.
+  // Until a dashboard is chosen there is nothing to narrow to, so the shell's own declaration stands.
+  useSubscription(
+    useMemo(() => (spec ? subscriptionForSpec(spec, scopeId) : NAVIGATION_AND_SETTINGS), [spec, scopeId]),
+  );
 
   // Live refresh: server-side bindings (state counts, services) re-resolve on relevant
   // events even when the local store didn't change. Debounced so a burst of events

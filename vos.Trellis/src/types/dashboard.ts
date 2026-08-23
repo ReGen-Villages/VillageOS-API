@@ -14,6 +14,13 @@
 export const DASHBOARD_ARCHETYPE = 'Dashboard';
 /** The Thing property holding the JSON-encoded {@link DashboardSpec}. */
 export const DASHBOARD_SPEC_PROPERTY = 'spec';
+/** The spec's reference to "the compare entity currently selected in the scope switcher", which
+ *  inside a computed column is the row's own Thing. */
+export const SCOPE_REF = '$scope';
+/** The edge saying what a Thing is. Every reader here follows it to resolve a type's members and
+ *  the values they inherit, so both the walk and the subscription that has to carry it name the
+ *  same predicate. */
+export const IS_PREDICATE = 'is';
 
 export type NumberFormat =
   | 'integer'

@@ -10,12 +10,15 @@ import { stateApi } from '../api/stateApi';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import { relationshipLabel } from '../utils/relationshipLabel';
 import { useModelStore } from '../stores/modelStore';
+import { useSubscription } from '../hooks/useSse';
+import { WHOLE_MODEL } from '../types/subscription';
 import clsx from 'clsx';
 
 const TABS = ['mutations', 'thingMutations', 'relationshipMutations', 'snapshot', 'propertyHistory', 'stateQuery'] as const;
 type Tab = typeof TABS[number];
 
 export function TemporalPage() {
+  useSubscription(WHOLE_MODEL);
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('mutations');
 

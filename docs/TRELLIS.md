@@ -1197,7 +1197,8 @@ Singleton `ApiClient` class with:
 ### SSE Streams
 
 The Mycelium exposes two **Server-Sent Events** streams (push-only): the per-subscription
-object change stream (`GET /api/subscriptions/{id}/stream`, opened after `POST /api/subscriptions {all:true}`)
+object change stream (`GET /api/subscriptions/{id}/stream`, opened after `POST /api/subscriptions`
+with the selector the page on screen declared — see [What each page subscribes to](#what-each-page-subscribes-to))
 and the system/operational events stream (`GET /api/events/stream`). The object stream is
 resumable via `Last-Event-ID`; both authenticate via `?access_token` (EventSource can't set the
 Authorization header). What that carries is a **stream token** from `POST /api/auth/stream-token` —
@@ -1226,9 +1227,56 @@ events below ride the object stream; the rest ride the system stream.
 | `ServiceRequestCompleted` | `handlerId, success, elapsedMs` | Graph/predicate service request completed |
 | `ActivityEvent` | `{ Type, Timestamp, Description, Details }` | All mutations |
 
+### What each page subscribes to
+
+A subscription says which objects it covers. The platform resolves that into a set of Things and the
+relationships between them, answers with a **snapshot** of them, and then streams the later changes
+to those objects and no others. A page therefore says what it is about once, and both what it starts
+with and what reaches it afterwards follow from that one statement.
+
+The declaration follows the page, not the app. `useSubscription(selector)` declares what the caller
+needs while it is mounted and takes the declaration back when it leaves; the innermost declaration is
+the one in force, so a page leaving restores whatever the page beneath it asked for.
+
+| Declared by | Covers |
+|-------------|--------|
+| The app shell (`useModelData`) | `NAVIGATION_AND_SETTINGS` — the dashboards the navigation lists and the Thing the model states its display settings on. What every page reads whatever it shows. |
+| The graph, the explorer, the two searches, the pipeline editor, the temporal page, the home page | `WHOLE_MODEL` — these read across the model, so they ask for it. |
+| A dashboard (`OperationsPage`) | `subscriptionForSpec(spec, scopeId)` — derived from the spec: the compare entities, the types its list widgets draw, the Things it names, the selected entity, and one traversal rule per edge its bindings and detail cards walk. |
+
+Two properties of the platform shape this:
+
+- **A narrowed subscription covers a fixed set.** Only `{ all: true }` also covers objects created
+  after it opened. What a narrowed page holds is therefore refreshed by asking again — which is what
+  a reconnect, a model change and a change of declaration each do — rather than by the stream
+  delivering something the subscription never covered.
+- **A derived value is announced but never replayed.** The computing pass publishes a
+  property change for a roll-up, and a resume replays the journal, which holds no Fact for it. A
+  client that reconnects therefore re-reads rather than waiting, which the fresh snapshot does.
+
+`subscriptionForSpec` asks for a walk's edges **in the order the walk takes them**: the platform
+applies each traversal rule to everything selected before it, and applies it once, so a two-step walk
+is only reproduced if its first edge is asked for before its second. A scope predicate is followed as
+far as it reaches, because the resolver's own scope walk is transitive.
+
+A binding narrowed to the selected entity reaches its rows along that entity's edges, so its type is
+asked for only while **All** is showing — when the binding really does run over every member of the
+type.
+
 ### React Hook (`useSse.ts`)
 
 - Module-level singleton managing both EventSources (shared across all hook consumers)
+- **The subscription the mounted pages declared**, reopened when that changes and not otherwise:
+  `useSubscription(selector)` / `declareSubscription(selector)`. Building a snapshot costs the
+  platform work, so a declaration saying what is already open reopens nothing. The subscription being
+  replaced is handed back with `DELETE /api/subscriptions/{id}` — nothing expires one (Bug #6562),
+  and a page that declares its own opens one per navigation
+- **The snapshot reaches the same handlers the server's events do**, as `SUBSCRIPTION_OPENED`,
+  raised after both streams are attached: a reader given it earlier would apply it and then miss
+  every change between the two. Property values are unwrapped, so what it carries reads like the
+  model read anywhere else. A whole-model subscription's snapshot is left unread — the model read is
+  what fills the store there, and converting the largest answer the platform gives only to discard
+  it costs an object per Thing and per property
 - Manual reconnect with backoff [1s, 2s, 5s, 10s, 30s], minting a fresh stream token for each reopen
   (EventSource can't refresh the token in its address on its own retry, and a stream token is meant to
   be stale by the time anyone reads the log that recorded it)
@@ -1237,9 +1285,10 @@ events below ride the object stream; the rest ride the system stream.
   `?lastEventId=<that sequence>` so the broker replays exactly the Facts missed during the drop and
   de-dupes by sequence — instead of re-subscribing at the current head and skipping the gap. The
   watermark is reset on full teardown (`release`), because the sequence is per-model and a model
-  switch must restart from the fresh snapshot head. Replaying beyond the broker's retained commit log
-  (post snapshot eviction) is the one case this can't cover — the `useModelData` reconnect reconcile
-  is the backstop for it
+  switch must restart from the fresh snapshot head. It is reset on a change of declaration too: the
+  position belongs to the coverage it was consumed under, and replaying from it against different
+  coverage re-applies what the new snapshot already holds and can ask for a range the broker no
+  longer retains
 - `useSyncExternalStore` subscription model for `connected` state
 - Ref counting (acquire/release) for stream lifecycle
 - Credential from `apiClient.mintStreamToken()` per open, so the address never carries the sign-in token; `ensureToken()` still supplies the header for the subscription call, and the mint runs after it so a slow snapshot cannot spend the short lifetime
@@ -1249,10 +1298,15 @@ events below ride the object stream; the rest ride the system stream.
 
 ### Integration
 
-- **useModelData** (app-shell hook): Subscribes to structural and property events and keeps the `modelStore` current with an incremental strategy — individual events do not trigger a full-model refetch (a reconnect reconcile backstops the stream, see below):
+- **useModelData** (app-shell hook): Subscribes to structural and property events and keeps the `modelStore` current with an incremental strategy — individual events do not trigger a full-model refetch (each subscription's snapshot is what fills the store, see below):
   - **Delete → local removal** (zero network): ThingDeleted / RelationshipDeleted read the event's `EntityId` and drop that element from the store in the same batch as everything else in the window. Unknown ids are a no-op.
   - **Create → single-object hydrate**: ThingCreated / RelationshipCreated carry only an id (the broker deliberately does not stream a new object's properties), so the handler fetches just that one object (`GET /api/things/{id}` or `/api/relationships/{id}`) and `upsert`s it. Upsert is idempotent, so duplicate events don't double-add. A failed hydrate is **retried once** after a short delay (covers a transient fetch error); a genuine create/delete race 404s again and is correctly abandoned (the delete event removes it).
-  - **Full reload** (`reloadModelData(opts?)`): on mount, on `ModelChanged`, and **once when the SSE stream reconnects** (`connected` false→true, after a prior connect — the first connect is skipped since mount already loads). The reconnect reconcile is now the **backstop**, not the primary recovery: the stream itself resumes from the consumed sequence and the broker replays the missed Facts (Bug #5943), so the reconcile only matters when the client's watermark predates the broker's retained commit log (post snapshot eviction), where a full re-snapshot is the only recovery. It passes `{ silent: true }` (error toasts don't auto-dismiss, so a background refresh must not surface one). Retiring this belt-and-suspenders reconcile in favour of a broker `SnapshotRequired` signal is tracked as future work (Bug #5940 replaced an earlier 15s poll; #5943 added the resume).
+  - **The load follows the subscription.** Every open — the first, a reconnect, and a page changing what the subscription covers — raises `SUBSCRIPTION_OPENED`, and that is what starts a load:
+    - **Narrowed** → the snapshot *is* the load. The Things the page is about arrived with it, so nothing reads the model to find them again, and a reconnect refills the page the same way rather than waiting for the stream to re-deliver what it missed.
+    - **Whole model** → `reloadModelData()`, the only path that honours the properties the model says its pages are drawn with (`ModelLoadProperties`, which the snapshot has no equivalent for). A narrowed set already in the store is emptied first, so a page that asked for the whole model is never shown a narrower page's set as though it were the model.
+    - A load the user is waiting on says when it failed; a refresh behind an already-drawn page does not, because error toasts don't auto-dismiss and a retrying loop would stack them (Bug #5940 replaced an earlier 15s poll; #5943 added the resume).
+    - `ModelChanged` asks for the subscription again rather than reconciling: a replaced model holds none of the Things the subscription resolved to.
+    - `reloadModelData(opts?)` stays exported for the mutation handlers that refresh after their own action.
   - **Clear**: ModelCleared → empties things and relationships arrays.
   - **Incremental O(1) property updates** (no reload): writing a property never reloads the model. The panels used to call `reloadModelData()` after every save — the whole graph re-downloaded for one changed value — and the stream now carries it instead (#6143). Each buffered entry is keyed by entity **and** property name and records whether the property was set or retracted, so two changes to one entity in a window both land, in order.
     - `PropertyChanged` → sets the property on the thing, creating the key if the property is new. Triggers a visual flash on the node only (500ms duration).
@@ -1750,6 +1804,19 @@ in the i18n design).
 
 Implementation: `localizeSpec(spec, locale)` in
 `src/api/dashboardLocalization.ts`, applied once per render in `OperationsPage`.
+
+### What a dashboard is sent
+
+A dashboard opens the subscription its spec describes rather than one covering the whole model, so
+the page is sent the Things it draws and the later changes to those. What is derived from the spec,
+and the two platform properties that shape it, are in
+[What each page subscribes to](#what-each-page-subscribes-to).
+
+An authoring consequence: a binding reaches its subject either by naming it or by walking to it, and
+both are read off the spec. A page that reads a Thing the spec never mentions — no type, no name, no
+walk that arrives at it — is not sent that Thing, and the binding resolves to nothing.
+
+Implementation: `subscriptionForSpec(spec, scopeId)` in `src/api/dashboardSubscription.ts`.
 
 ---
 

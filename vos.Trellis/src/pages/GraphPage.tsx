@@ -15,6 +15,8 @@ import { thingApi } from '../api/thingApi';
 import { modelApi } from '../api/modelApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { reloadModelData } from '../hooks/useModelData';
+import { useSubscription } from '../hooks/useSse';
+import { WHOLE_MODEL } from '../types/subscription';
 import { useGraphData } from '../hooks/useGraphData';
 import { toast } from '../components/common/toastStore';
 import { relationshipLabel } from '../utils/relationshipLabel';
@@ -34,6 +36,7 @@ const SigmaCanvas = lazy(() =>
 );
 
 export function GraphPage() {
+  useSubscription(WHOLE_MODEL);
   const { t } = useTranslation();
   const things = useModelStore((s) => s.things);
   const relationships = useModelStore((s) => s.relationships);

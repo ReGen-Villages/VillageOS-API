@@ -6,6 +6,8 @@ import { thingApi } from '../api/thingApi';
 import { useUiStore } from '../stores/uiStore';
 import { useModelStore } from '../stores/modelStore';
 import { reloadModelData } from '../hooks/useModelData';
+import { useSubscription } from '../hooks/useSse';
+import { WHOLE_MODEL } from '../types/subscription';
 import { NodeDetailPanel } from '../components/panels/NodeDetailPanel';
 import { ResizablePanel } from '../components/panels/ResizablePanel';
 import { TypeFilterPanel } from '../components/panels/TypeFilterPanel';
@@ -46,6 +48,7 @@ function buildMappingFromThings(things: VosThing[]): BimFragmentsMapping {
 }
 
 export function ModelPage() {
+  useSubscription(WHOLE_MODEL);
   const { t } = useTranslation();
   const { modelId } = useAuth();
   const things = useModelStore((s) => s.things);

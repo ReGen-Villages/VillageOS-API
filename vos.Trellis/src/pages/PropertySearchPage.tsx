@@ -2,6 +2,8 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
+import { useSubscription } from '../hooks/useSse';
+import { WHOLE_MODEL } from '../types/subscription';
 import { useUiStore } from '../stores/uiStore';
 import { temporalApi } from '../api/temporalApi';
 import { toast } from '../components/common/toastStore';
@@ -31,6 +33,7 @@ function highlightMatch(text: string, query: string) {
 type SearchMode = 'name' | 'value';
 
 export function PropertySearchPage() {
+  useSubscription(WHOLE_MODEL);
   const { t } = useTranslation();
   const [inputValue, setInputValue] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');

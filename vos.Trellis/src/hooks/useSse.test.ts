@@ -1,7 +1,8 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { useSse } from './useSse';
+import { SUBSCRIPTION_OPENED, useSse, useSubscription, useDefaultSubscription } from './useSse';
 import { apiClient } from '../api/client';
+import type { SubscriptionSelector, SubscriptionOpened } from '../types/subscription';
 
 // Captures EventSource instances + their per-event listeners so a test can fire server pushes.
 class FakeEventSource {
@@ -150,6 +151,169 @@ describe('useSse', () => {
 
     await waitFor(() => expect(objectStreams().length).toBe(2));
     expect(objectStreams()[1].url).toContain('lastEventId=7'); // resumed from consumed sequence
+    unmount();
+  });
+
+  /** The bodies of every subscription this test opened, oldest first. */
+  const subscriptionsOpened = () =>
+    vi.mocked(globalThis.fetch).mock.calls
+      .filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+      .map(([, init]) => JSON.parse((init as RequestInit).body as string));
+
+  /** A page arriving with a declaration of its own. Unmounting it is that page leaving. */
+  const mountPage = (selector: SubscriptionSelector) => renderHook(() => useSubscription(selector));
+
+  it('opens the subscription the mounted page declared, and restores the last one when it leaves', async () => {
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+
+    const page = mountPage({ types: ['Site'] });
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+    expect(subscriptionsOpened()[1]).toEqual({ types: ['Site'] });
+
+    page.unmount();
+    await waitFor(() => expect(objectStreams().length).toBe(3));
+    expect(subscriptionsOpened()[2]).toEqual({ all: true });
+    unmount();
+  });
+
+  // Reopening costs a snapshot the platform has to build, so a page that re-renders — or one that
+  // declares the same thing the page before it did — must not pay for one.
+  it('reopens nothing when a declaration says what is already open', async () => {
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+
+    const page = mountPage({ all: true });
+    await act(async () => {});
+
+    expect(objectStreams().length).toBe(1);
+    page.unmount();
+    unmount();
+  });
+
+  // A page mounts its declaration before the shell that contains it mounts one. Were the shell's
+  // just another entry on the stack, arriving last would make it win and every page would be sent
+  // the shell's handful of Things instead of what it asked for.
+  it('keeps the shell\'s declaration under the page\'s, whichever mounts first', async () => {
+    const { unmount } = renderHook(() => {
+      useSse();
+      useSubscription({ types: ['Site'] });   // the page, mounted first
+      useDefaultSubscription({ types: ['Dashboard'] });
+    });
+
+    await waitFor(() => expect(objectStreams().length).toBeGreaterThan(0));
+    expect(subscriptionsOpened().at(-1)).toEqual({ types: ['Site'] });
+    unmount();
+  });
+
+  // A navigation takes the leaving page's declaration back before the arriving page makes its own,
+  // and the arriving page's code is fetched on demand, so the gap between the two is a load rather
+  // than a tick. Between two pages that both read the whole model, acting inside it would build a
+  // whole-model snapshot and re-read a whole model for a reader that never existed.
+  it('reopens nothing when one page hands over to another asking for the same thing', async () => {
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    const leaving = mountPage({ all: true, ids: ['a'] });
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+
+    vi.useFakeTimers();
+    leaving.unmount();
+    await vi.advanceTimersByTimeAsync(100); // the arriving page's code is still loading
+    const arriving = mountPage({ all: true, ids: ['a'] });
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+
+    expect(objectStreams().length).toBe(2);
+    arriving.unmount();
+    unmount();
+  });
+
+  // Nothing expires a subscription (Bug #6562), and a page declaring its own opens one per
+  // navigation, so an abandoned one would go on being written to for the life of the process.
+  it('hands back the subscription it replaces', async () => {
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+
+    const page = mountPage({ types: ['Site'] });
+    await waitFor(() =>
+      expect(vi.mocked(globalThis.fetch).mock.calls.some(
+        ([url, init]) => (init as RequestInit | undefined)?.method === 'DELETE' && String(url).endsWith('/api/subscriptions/s1'),
+      )).toBe(true));
+
+    page.unmount();
+    unmount();
+  });
+
+  /** A platform answering with a snapshot of one Thing and the edge it sits on. */
+  function answersWithASnapshot() {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        subscriptionId: 's1',
+        watermark: 4,
+        snapshot: {
+          things: [{ Id: 't1', Name: 'Site', Properties: { area: { typeInfo: 'vos.Double', value: 3 } } }],
+          relationships: [{ Id: 'r1', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} }],
+        },
+      }),
+    }) as unknown as typeof fetch;
+  }
+
+  // A subscription answers with the objects it covers and then streams the changes to them. A
+  // reader given that before the stream was listening would apply it and then miss everything
+  // between the two.
+  it('hands what a narrowed subscription covers to the handlers once the streams are attached', async () => {
+    answersWithASnapshot();
+    const { result, unmount } = renderHook(() => useSse());
+    const handler = vi.fn();
+    let off: () => void = () => {};
+    act(() => { off = result.current.on(SUBSCRIPTION_OPENED, handler); });
+    const page = mountPage({ types: ['Site'] });
+
+    await waitFor(() => expect(handler).toHaveBeenCalled());
+    const opened = handler.mock.calls[0][0] as SubscriptionOpened;
+    expect(opened.watermark).toBe(4);
+    expect(opened.covered!.things[0].Properties).toEqual({ area: 3 }); // unwrapped, as read elsewhere
+    expect(opened.covered!.relationships).toHaveLength(1);
+    act(() => off());
+    page.unmount();
+    unmount();
+  });
+
+  // The model read is what fills the store for a whole-model page, because only it honours the
+  // properties the model says its pages are drawn with. Converting the snapshot into the shape the
+  // store holds and then discarding it costs an object per Thing and per property on the largest
+  // answer the platform gives.
+  it('leaves a whole-model subscription\'s snapshot unread', async () => {
+    answersWithASnapshot();
+    const { result, unmount } = renderHook(() => useSse());
+    const handler = vi.fn();
+    let off: () => void = () => {};
+    act(() => { off = result.current.on(SUBSCRIPTION_OPENED, handler); });
+
+    await waitFor(() => expect(handler).toHaveBeenCalled());
+    expect((handler.mock.calls[0][0] as SubscriptionOpened).covered).toBeNull();
+    act(() => off());
+    unmount();
+  });
+
+  // The consumed position belongs to the coverage it was consumed under. Replaying from it against
+  // different coverage re-applies what the new snapshot already holds, and can ask the broker for a
+  // range it no longer retains.
+  it('resumes a newly declared subscription from its own snapshot, not the consumed position', async () => {
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    act(() => objectStreams()[0].emit('ThingCreated', { EntityId: 't7' }, 7));
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ subscriptionId: 's2', watermark: 12 }),
+    }) as unknown as typeof fetch;
+    const page = mountPage({ types: ['Site'] });
+
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+    expect(objectStreams()[1].url).toContain('lastEventId=12');
+    page.unmount();
     unmount();
   });
 

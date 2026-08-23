@@ -2,6 +2,8 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useModelStore } from '../stores/modelStore';
+import { useSubscription } from '../hooks/useSse';
+import { WHOLE_MODEL } from '../types/subscription';
 import { formatPropertyValue } from '../utils/formatters';
 import { useNumberDisplaySettings } from '../hooks/useNumberDisplaySettings';
 import { useDeclaredPropertyTypes } from '../hooks/useDeclaredPropertyTypes';
@@ -18,6 +20,7 @@ import clsx from 'clsx';
 const PAGE_SIZE = 100;
 
 export function ThingSearchPage() {
+  useSubscription(WHOLE_MODEL);
   const { t } = useTranslation();
   const [inputValue, setInputValue] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
