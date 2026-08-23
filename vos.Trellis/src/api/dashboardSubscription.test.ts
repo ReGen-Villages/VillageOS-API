@@ -64,6 +64,28 @@ describe('subscriptionForSpec', () => {
     expect(selector.types).not.toContain('Reading');
   });
 
+  // Its rows arrive complete now, which makes the type look droppable. It is not: dropping it
+  // leaves every computed column on the table empty and every detail card opened from it titled
+  // with a bare identifier — quietly, with nothing on screen to say why.
+  it('keeps the type of a state-driven table, which its rows are still read against', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+        type: 'table',
+        columns: [{ key: 'reference', label: 'Reference' }],
+        rows: {
+          kind: 'stateList',
+          state: 'open',
+          archetype: 'Delivery',
+          properties: ['reference'],
+          computed: [{ key: 'via', value: { kind: 'related', via: [{ predicate: 'references' }] } }],
+        },
+      }),
+      null,
+    );
+
+    expect(selector.types).toContain('Delivery');
+  });
+
   it('asks for the type a roster draws', () => {
     const selector = subscriptionForSpec(
       specDrawing({ type: 'table', columns: [], rows: { kind: 'thingList', archetype: 'Parcel' } }),

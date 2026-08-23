@@ -58,6 +58,15 @@ export type Binding =
       scope?: ScopeRef;
       limit?: number;
       archetype?: string;
+      /** The stored properties each row carries, which the platform sends beside the id so a row
+       *  arrives as it is drawn. A row's `id` and `name` always arrive; naming nothing here asks
+       *  for nothing more, and a table drawing a column the binding does not name shows it empty.
+       *
+       *  A name the Thing does not hold is absent from the row rather than present and empty, so
+       *  "no value" reads differently from "the value is nothing". An inherited value reaches the
+       *  row like an owned one. A name the Thing holds by two inheritance paths is refused rather
+       *  than guessed at, and the whole read fails saying which Thing and which name. */
+      properties?: string[];
       computed?: ComputedColumn[];
     }
   /** Rows of every Thing of an archetype, whatever state each is in — the roster a `stateList`

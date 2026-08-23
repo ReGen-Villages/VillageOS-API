@@ -688,8 +688,11 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         // no further.
         notIn: binding.excludeState ? [binding.excludeState] : undefined,
         // A cap the server applies takes the first rows of its answer, which is the wrong subset
-        // when the scope is still narrowed here afterwards.
+        // when the scope is still narrowed here afterwards. That answer then carries the columns
+        // of every Thing in the state and keeps the few this scope reaches — the price of a scope
+        // the endpoint cannot express, paid on the path that was already reading them all.
         limit: members ? undefined : binding.limit,
+        properties: binding.properties,
         ...container,
       });
       let list = resp.Things ?? [];
@@ -697,10 +700,9 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         list = list.filter((t) => members.has(t.Id));
         if (binding.limit) list = list.slice(0, binding.limit);
       }
-      const rows = list.map((ref) => {
-        const full = ctx.idx.byId.get(ref.Id);
-        return { id: ref.Id, name: ref.Name, ...(full ? effectiveProperties(full, ctx.idx) : {}) } as Row;
-      });
+      // The row is what the platform sent, not what a local index could be asked for afterwards.
+      // Reading it here is what made a table of ten rows cost every Thing in the model.
+      const rows = list.map((ref) => ({ id: ref.Id, name: ref.Name, ...(ref.Properties ?? {}) }) as Row);
       return withComputedColumns(rows, binding.computed, ctx);
     }
 
