@@ -654,7 +654,9 @@ Three things are worth knowing about how it behaves:
 - **The shares always describe the whole parcel.** Choosing a category takes an equal share and leaves
   the rest in the same proportions to each other; dropping one gives its share back to the rest in
   proportion; setting one moves the difference across the others. Dropping the last category leaves
-  nothing chosen rather than a split of nothing.
+  nothing chosen rather than a split of nothing. The percentages on screen are whole numbers that still
+  add to a hundred — handed out by largest remainder, so three categories of a third each read 34, 33
+  and 33 rather than three 33s that leave the planner reading 99.
 
 The location step reads coordinates out of a pasted map link — the pinned place, the viewport centre, a
 query parameter pair, an OpenStreetMap marker or fragment, or a bare pair typed by hand. A pair that

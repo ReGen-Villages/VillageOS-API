@@ -47,11 +47,13 @@ const THINGS: VosThing[] = [
   thing('land-use', 'LandUse', true),
   thing('housing', 'housing'),
   thing('growing', 'growing'),
+  thing('roads', 'roads'),
 ];
 
 const EDGES: VosRelationship[] = [
   edge('e1', 'housing', 'is', 'land-use'),
   edge('e2', 'growing', 'is', 'land-use'),
+  edge('e3', 'roads', 'is', 'land-use'),
 ];
 
 const PROPERTIES = { 'land-use': { [ALLOCATION_CATEGORY_ARCHETYPE_FLAG]: owned(true) } };
@@ -250,6 +252,16 @@ describe('the size and programme step', () => {
     fireEvent.change(sliderFor('housing'), { target: { value: '70' } });
 
     expect(loadDraft('model-1')?.shares).toEqual({ housing: 70, growing: 30 });
+  });
+
+  it('shows percentages that add to the whole parcel, not to ninety-nine', async () => {
+    await waitFor(() => expect(screen.getByLabelText('housing')).toBeInTheDocument());
+    for (const category of ['housing', 'growing', 'roads']) fireEvent.click(screen.getByLabelText(category));
+
+    const shown = screen.getAllByText(/^\d+%$/).map((cell) => Number(cell.textContent!.replace('%', '')));
+
+    expect(shown).toHaveLength(3);
+    expect(shown.reduce((sum, share) => sum + share, 0)).toBe(100);
   });
 
   it('gives a dropped category share back to the rest', async () => {

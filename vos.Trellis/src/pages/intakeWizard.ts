@@ -151,6 +151,28 @@ export function withShareSet(shares: ProgrammeShares, category: string, share: n
   return { ...scaledTo(without(shares, category), WHOLE_PARCEL - held), [category]: held };
 }
 
+/**
+ * The shares as whole percentages that still add to a hundred.
+ *
+ * Rounding each share on its own does not: three categories of a third each show as 33, and a planner
+ * reading 99 concludes the split is short of the parcel it is meant to describe. The whole numbers are
+ * handed out by largest remainder instead — everyone gets their floor, and the percentages left over go
+ * to whoever was rounded down hardest.
+ */
+export function wholePercentages(shares: ProgrammeShares): Readonly<Record<string, number>> {
+  const names = Object.keys(shares);
+  if (names.length === 0) return {};
+
+  const floors = Object.fromEntries(names.map((name) => [name, Math.floor(shares[name])]));
+  const givenOut = names.reduce((sum, name) => sum + floors[name], 0);
+  const byRemainder = [...names].sort((left, right) => (shares[right] % 1) - (shares[left] % 1));
+
+  // Each share loses less than a whole percentage to its floor, so there are always fewer left over
+  // than there are categories and nobody is handed two.
+  for (const name of byRemainder.slice(0, WHOLE_PARCEL - givenOut)) floors[name] += 1;
+  return floors;
+}
+
 function without(shares: ProgrammeShares, category: string): ProgrammeShares {
   return Object.fromEntries(Object.entries(shares).filter(([name]) => name !== category));
 }
@@ -228,7 +250,8 @@ function defined(name: string, value: number | null): Record<string, number> {
  *  create a Thing carrying no values, which reads as a contact nobody can be reached at. */
 function given<T extends Record<string, string>>(fields: T): Partial<T> | null {
   const filled = Object.entries(fields).filter(([, value]) => value.trim().length > 0);
-  return filled.length === 0 ? null : (Object.fromEntries(filled.map(([n, v]) => [n, v.trim()])) as Partial<T>);
+  if (filled.length === 0) return null;
+  return Object.fromEntries(filled.map(([name, value]) => [name, value.trim()])) as Partial<T>;
 }
 
 // ── Keeping the draft across a closed tab ────────────────────────────────────
@@ -239,18 +262,44 @@ function draftKey(modelId: string): string {
   return DRAFT_KEY_PREFIX + modelId;
 }
 
-/** Per model, because a draft describes land being proposed into one model and a planner may hold a
- *  half-filled submission in each. */
+/**
+ * Per model, because a draft describes land being proposed into one model and a planner may hold a
+ * half-filled submission in each.
+ *
+ * The two fields that are not plain text are checked rather than trusted. Browser storage is edited by
+ * hand and survives a deployment, and a draft whose split is a word instead of a set of shares takes the
+ * page down every time it is opened — with no way left to reach the button that would clear it.
+ */
 export function loadDraft(modelId: string): SubmissionDraft | null {
   const stored = localStorage.getItem(draftKey(modelId));
   if (!stored) return null;
   try {
     const parsed = JSON.parse(stored) as Partial<SubmissionDraft>;
     if (typeof parsed?.submissionId !== 'string') return null;
-    return { ...emptyDraft(parsed.submissionId), ...parsed };
+    const empty = emptyDraft(parsed.submissionId);
+    return {
+      ...empty,
+      ...parsed,
+      shares: sharesIn(parsed.shares) ?? empty.shares,
+      visited: stepsIn(parsed.visited) ?? empty.visited,
+    };
   } catch {
     return null;
   }
+}
+
+function sharesIn(stored: unknown): ProgrammeShares | null {
+  if (stored === null || typeof stored !== 'object') return null;
+  const entries = Object.entries(stored);
+  return entries.every(([, share]) => typeof share === 'number' && Number.isFinite(share))
+    ? (stored as ProgrammeShares)
+    : null;
+}
+
+function stepsIn(stored: unknown): StepId[] | null {
+  if (!Array.isArray(stored)) return null;
+  const steps = stored.filter((step): step is StepId => (STEPS as readonly string[]).includes(step));
+  return steps.length === 0 ? null : steps;
 }
 
 export function saveDraft(modelId: string, draft: SubmissionDraft): void {

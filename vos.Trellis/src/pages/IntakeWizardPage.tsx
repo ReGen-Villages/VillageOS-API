@@ -29,6 +29,7 @@ import {
   readyToSubmit,
   saveDraft,
   statedAreaHectares,
+  wholePercentages,
   withCategoryChosen,
   withCategoryDropped,
   withShareSet,
@@ -160,7 +161,7 @@ export function IntakeWizardPage() {
               </div>
               <Navigation
                 step={step}
-                draft={draft}
+                ready={readyToSubmit(draft)}
                 submitting={submitting}
                 configured={intakeApi.configured()}
                 onGoTo={goTo}
@@ -211,14 +212,14 @@ function StepBar({
 
 function Navigation({
   step,
-  draft,
+  ready,
   submitting,
   configured,
   onGoTo,
   onSubmit,
 }: {
   step: StepId;
-  draft: SubmissionDraft;
+  ready: boolean;
   submitting: boolean;
   configured: boolean;
   onGoTo: (step: StepId) => void;
@@ -242,12 +243,12 @@ function Navigation({
         {last && !configured && (
           <span className="text-xs text-amber-600 dark:text-amber-400">{t('intake.notConfigured')}</span>
         )}
-        {last && configured && !readyToSubmit(draft) && (
+        {last && configured && !ready && (
           <span className="text-xs text-amber-600 dark:text-amber-400">{t('intake.siteNameNeeded')}</span>
         )}
         <button
           onClick={() => (last ? onSubmit() : onGoTo(STEPS[index + 1]))}
-          disabled={last && (submitting || !configured || !readyToSubmit(draft))}
+          disabled={last && (submitting || !configured || !ready)}
           className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
         >
           {last ? t('intake.submit') : t('intake.next')}
@@ -334,6 +335,13 @@ function ProgrammeStep({
 }: StepProps & { categories: readonly string[] }) {
   const { t, i18n } = useTranslation();
   const hectares = statedAreaHectares(draft);
+  const shown = wholePercentages(draft.shares);
+  // One formatter for every row rather than one per row per render: the rows redraw on each keystroke
+  // anywhere in this step, and building a formatter is the expensive half of formatting one number.
+  const percentage = useMemo(
+    () => new Intl.NumberFormat(i18n.language, { style: 'percent' }),
+    [i18n.language],
+  );
   const equivalent = useMemo(() => {
     if (hectares === null) return null;
     const other: AreaUnit = draft.areaUnit === 'hectares' ? 'acres' : 'hectares';
@@ -388,7 +396,9 @@ function ProgrammeStep({
             <CategoryRow
               key={category}
               category={category}
-              share={draft.shares[category]}
+              chosen={category in draft.shares}
+              share={shown[category]}
+              percentage={percentage}
               onToggle={(chosen) =>
                 onChange({
                   shares: chosen
@@ -407,16 +417,21 @@ function ProgrammeStep({
 
 function CategoryRow({
   category,
+  chosen,
   share,
+  percentage,
   onToggle,
   onShare,
 }: {
   category: string;
+  chosen: boolean;
+  /** A whole percentage, from a set that adds to a hundred across the chosen categories, so what is on
+   *  screen and what the split claims to describe are the same thing. */
   share?: number;
+  percentage: Intl.NumberFormat;
   onToggle: (chosen: boolean) => void;
   onShare: (share: number) => void;
 }) {
-  const chosen = share !== undefined;
   return (
     <div className="flex items-center gap-3">
       <label className="flex items-center gap-2 w-64 text-sm text-zinc-700 dark:text-zinc-200">
@@ -432,13 +447,13 @@ function CategoryRow({
         type="range"
         min={0}
         max={100}
-        value={chosen ? Math.round(share) : 0}
+        value={share ?? 0}
         disabled={!chosen}
         onChange={(event) => onShare(Number(event.target.value))}
         className="flex-1 accent-emerald-600 disabled:opacity-30"
       />
       <span className="w-14 text-right text-sm tabular-nums text-zinc-600 dark:text-zinc-300">
-        {chosen ? `${Math.round(share)}%` : '—'}
+        {share === undefined ? '—' : percentage.format(share / 100)}
       </span>
     </div>
   );

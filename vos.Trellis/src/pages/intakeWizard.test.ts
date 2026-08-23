@@ -9,6 +9,7 @@ import {
   readyToSubmit,
   saveDraft,
   statedAreaHectares,
+  wholePercentages,
   withCategoryChosen,
   withCategoryDropped,
   withShareSet,
@@ -153,6 +154,32 @@ describe('the programme split', () => {
   });
 });
 
+describe('the split as it is shown', () => {
+  it('shows whole percentages that still add to the whole parcel', () => {
+    const thirds = { residential: 100 / 3, 'food-and-agriculture': 100 / 3, mobility: 100 / 3 };
+
+    const shown = wholePercentages(thirds);
+
+    expect(total(shown)).toBe(100);
+    expect(Object.values(shown).every(Number.isInteger)).toBe(true);
+  });
+
+  it('gives the percentages left over to whoever was rounded down hardest', () => {
+    const shown = wholePercentages({ residential: 33.8, 'food-and-agriculture': 33.7, mobility: 32.5 });
+
+    expect(shown).toEqual({ residential: 34, 'food-and-agriculture': 34, mobility: 32 });
+    expect(total(shown)).toBe(100);
+  });
+
+  it('leaves shares that are already whole alone', () => {
+    expect(wholePercentages({ residential: 60, mobility: 40 })).toEqual({ residential: 60, mobility: 40 });
+  });
+
+  it('shows nothing where nothing is chosen', () => {
+    expect(wholePercentages({})).toEqual({});
+  });
+});
+
 describe('the document that is posted', () => {
   it('carries every answer the planner gave', () => {
     const document = documentFrom(filled({ shares: { residential: 40, 'food-and-agriculture': 60 } }));
@@ -238,6 +265,39 @@ describe('a draft left and come back to', () => {
 
     localStorage.setItem('vos-intake-draft:' + MODEL, '{"siteName":"Willow Bend"}');
     expect(loadDraft(MODEL)).toBeNull();
+  });
+
+  it('falls back to an empty split where what was stored is not a set of shares', () => {
+    localStorage.setItem('vos-intake-draft:' + MODEL, JSON.stringify({ submissionId: 'sub-0004', shares: 'all of it' }));
+
+    expect(loadDraft(MODEL)?.shares).toEqual({});
+  });
+
+  it('falls back to an empty split where a share is not a figure', () => {
+    localStorage.setItem(
+      'vos-intake-draft:' + MODEL,
+      JSON.stringify({ submissionId: 'sub-0005', shares: { residential: 'most' } }),
+    );
+
+    expect(loadDraft(MODEL)?.shares).toEqual({});
+  });
+
+  it('falls back to the first step where what was stored names no step this wizard has', () => {
+    localStorage.setItem(
+      'vos-intake-draft:' + MODEL,
+      JSON.stringify({ submissionId: 'sub-0006', visited: ['hazards', 7] }),
+    );
+
+    expect(loadDraft(MODEL)?.visited).toEqual(['project']);
+  });
+
+  it('keeps the steps it recognises out of what was stored', () => {
+    localStorage.setItem(
+      'vos-intake-draft:' + MODEL,
+      JSON.stringify({ submissionId: 'sub-0007', visited: ['project', 'hazards', 'location'] }),
+    );
+
+    expect(loadDraft(MODEL)?.visited).toEqual(['project', 'location']);
   });
 
   it('fills in a field added since the draft was stored, rather than reading it as undefined', () => {
