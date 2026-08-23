@@ -102,9 +102,8 @@ function repoFileUrl(wiki, repoRelativePath) {
   return `${wiki.organisation}/${wiki.project}/_git/${wiki.repository}?path=/${repoRelativePath}`;
 }
 
-/** Documents the repository carries that the manifest neither publishes nor withholds. A document
- *  nobody decided about is how a wiki starts falling behind, so the generator refuses to run on
- *  one — which is the guard for a caller with no test suite of its own. */
+/** A document nobody decided about is how a wiki starts falling behind, so the generator refuses to
+ *  run on one — the guard for a caller with no test suite of its own. */
 function unaccountedDocuments(repoRoot, manifest) {
   const accounted = new Set([
     ...manifest.pages.map((entry) => entry.doc),
@@ -171,6 +170,12 @@ function generate(repoRoot, manifestPath, outputDirectory) {
   }
 
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  // Without this the run succeeds and publishes pages whose banner names the "undefined"
+  // repository, which is harder to recognise than a manifest that would not load.
+  for (const field of ['organisation', 'project', 'repository', 'name']) {
+    if (!manifest.wiki?.[field]) throw new Error(`${manifestPath} has no wiki.${field}`);
+  }
+
   const unaccounted = unaccountedDocuments(repoRoot, manifest);
   if (unaccounted.length) {
     throw new Error(`add to ${manifestPath} as a page or an exclusion: ${unaccounted.join(', ')}`);
@@ -186,7 +191,7 @@ function generate(repoRoot, manifestPath, outputDirectory) {
     return anchors.get(doc);
   };
 
-  fs.rmSync(outputDirectory, { recursive: true, force: true });
+  fs.rmSync(output, { recursive: true, force: true });
   for (const { doc, page } of manifest.pages) {
     const converted = convertPage(read(doc), {
       docPath: doc,
@@ -195,18 +200,18 @@ function generate(repoRoot, manifestPath, outputDirectory) {
       anchorsOf,
       imagesSeen,
     });
-    const destination = path.join(outputDirectory, pageFileName(page));
+    const destination = path.join(output, pageFileName(page));
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.writeFileSync(destination, converted);
     console.log(`${doc} -> ${page}`);
   }
 
   for (const image of imagesSeen) {
-    const destination = path.join(outputDirectory, ATTACHMENTS, path.basename(image));
+    const destination = path.join(output, ATTACHMENTS, path.basename(image));
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.copyFileSync(path.join(repoRoot, image), destination);
   }
-  console.log(`${manifest.pages.length} pages, ${imagesSeen.size} attachments -> ${outputDirectory}`);
+  console.log(`${manifest.pages.length} pages, ${imagesSeen.size} attachments -> ${output}`);
 }
 
 module.exports = {

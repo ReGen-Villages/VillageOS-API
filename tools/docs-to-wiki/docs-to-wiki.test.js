@@ -43,8 +43,9 @@ function rewrite(markdown, docPath = 'docs/A.md') {
 function repositoryWithManifest({ extraDocument } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
   execFileSync('git', ['init', '--quiet'], { cwd: root });
-  fs.mkdirSync(path.join(root, 'docs'));
-  fs.writeFileSync(path.join(root, 'docs', 'GUIDE.md'), '# Guide\n');
+  fs.mkdirSync(path.join(root, 'docs', 'assets'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'GUIDE.md'), '# Guide\n\n![a diagram](assets/diagram.svg)\n');
+  fs.writeFileSync(path.join(root, 'docs', 'assets', 'diagram.svg'), '<svg/>\n');
   fs.writeFileSync(path.join(root, 'docs', 'NOTES.md'), '# Notes\n');
   if (extraDocument) fs.writeFileSync(path.join(root, 'docs', extraDocument), '# Extra\n');
   fs.writeFileSync(
@@ -95,21 +96,62 @@ test('the banner and the file links name the repository the manifest declares', 
     const page = fs.readFileSync(path.join(repository.output, 'Guide.md'), 'utf8');
     assert.match(page, /in the\n> A Repository repository/);
     assert.match(page, /https:\/\/dev\.azure\.com\/Somewhere\/A Project\/_git\/A Repository\?path=\/docs\/GUIDE\.md/);
+    assert.ok(fs.existsSync(path.join(repository.output, '.attachments', 'diagram.svg')), 'the image was not copied');
   } finally {
     discard(repository);
   }
 });
 
-// The output directory is emptied first, so this is the difference between a wrong argument and a
-// deleted document. A caller that ordered its arguments wrongly once named the manifest itself as
-// the output, and the run removed it before failing for an unrelated reason.
+// Left unchecked this publishes pages whose banner names the "undefined" repository, which reads
+// like a bad page rather than like a manifest that is missing a line.
+test('a manifest with no wiki block is refused, by the field it is missing', () => {
+  const repository = repositoryWithManifest();
+  try {
+    const manifest = JSON.parse(fs.readFileSync(repository.manifest, 'utf8'));
+    delete manifest.wiki.repository;
+    fs.writeFileSync(repository.manifest, JSON.stringify(manifest));
+
+    assert.throws(
+      () => generate(repository.root, repository.manifest, repository.output),
+      /no wiki\.repository/,
+    );
+  } finally {
+    discard(repository);
+  }
+});
+
+// What makes the manifest a guard rather than a suggestion is the build going red, and that is the
+// exit code rather than the thrown error — a script that printed the problem and exited 0 would
+// leave every pipeline using it green.
+test('run as a command, an unaccounted document exits non-zero', () => {
+  const repository = repositoryWithManifest({ extraDocument: 'UNDECIDED.md' });
+  try {
+    const run = spawnSync(process.execPath,
+      [path.join(__dirname, 'docs-to-wiki.js'), repository.root, repository.manifest, repository.output],
+      { encoding: 'utf8' });
+
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /docs\/UNDECIDED\.md/);
+  } finally {
+    discard(repository);
+  }
+});
+
+test('run as a command with an argument missing, it says what it wants', () => {
+  const run = spawnSync(process.execPath, [path.join(__dirname, 'docs-to-wiki.js'), '.'], { encoding: 'utf8' });
+
+  assert.equal(run.status, 2);
+  assert.match(run.stderr, /<repo-root> <manifest> <output-dir>/);
+});
+
+// The output directory is emptied first, so a wrong argument here is a deleted document rather than
+// a failed run.
 test('the generator refuses an output directory inside the repository', () => {
   const repository = repositoryWithManifest();
   try {
-    assert.throws(
-      () => generate(repository.root, repository.manifest, path.join(repository.root, 'docs')),
-      /inside the repository/,
-    );
+    for (const inside of [repository.root, path.join(repository.root, 'docs')]) {
+      assert.throws(() => generate(repository.root, repository.manifest, inside), /inside the repository/);
+    }
     assert.ok(fs.existsSync(path.join(repository.root, 'docs', 'GUIDE.md')), 'the document was deleted');
   } finally {
     discard(repository);

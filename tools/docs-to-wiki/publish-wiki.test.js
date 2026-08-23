@@ -39,8 +39,6 @@ test('the wiki root is never a removal candidate', () => {
   assert.deepEqual(pagesToRemove(['/'], [], true), []);
 });
 
-// A wiki that also holds pages written on it and nowhere else: an unlisted page there is somebody's
-// work, and removing it would be the publish quietly deleting documentation nobody backed up.
 test('a wiki whose pages are not all generated keeps the ones the manifest does not produce', () => {
   assert.deepEqual(pagesToRemove(['/', '/Home', '/Guide', '/Written by hand'], ['/Guide'], false), []);
 });
