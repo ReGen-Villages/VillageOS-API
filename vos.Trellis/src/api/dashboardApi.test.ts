@@ -305,13 +305,13 @@ describe('resolveBinding', () => {
     expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.anything());
   });
 
-  it('stateList enriches state rows with the Thing properties', async () => {
+  it('stateList lays out the columns the platform sent beside each id', async () => {
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({
       StateName: 'below_target',
-      Things: [{ Id: 'vil1', Name: 'V-1' }],
+      Things: [{ Id: 'vil1', Name: 'V-1', Properties: { self_sufficiency_rate: 98.9 } }],
     });
     const rows = (await resolveBinding(
-      { kind: 'stateList', state: 'below_target' },
+      { kind: 'stateList', state: 'below_target', properties: ['self_sufficiency_rate'] },
       ctxFor(null),
     )) as Record<string, unknown>[];
     expect(rows[0]).toMatchObject({ id: 'vil1', name: 'V-1', self_sufficiency_rate: 98.9 });
@@ -1484,10 +1484,66 @@ describe('state bindings ask the server to narrow', () => {
     expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
   });
 
-  it('fills a row with what the Thing inherits as well as what it owns', async () => {
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
-    const rows = await rowsOf({ kind: 'stateList', state: 'flagged', archetype: 'Building' }, estateCtx(null));
+  // The columns a table draws are named on the binding, so the platform can send the row complete.
+  // A value it resolved up the `is` chain arrives like an owned one — the platform's own tests hold
+  // it to that, and this holds the client to laying out whatever came back.
+  it('asks for the columns its rows carry, and lays out what comes back', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue({
+      StateName: 'flagged',
+      Things: [{ Id: 'b1', Name: 'BLD-1', Properties: { area: 3, storeys: 5 } }],
+    });
+
+    const rows = await rowsOf(
+      { kind: 'stateList', state: 'flagged', archetype: 'Building', properties: ['area', 'storeys'] },
+      estateCtx(null),
+    );
+
+    expect(stateApi.getThingsInState)
+      .toHaveBeenCalledWith('flagged', expect.objectContaining({ properties: ['area', 'storeys'] }));
     expect(rows[0]).toMatchObject({ id: 'b1', name: 'BLD-1', area: 3, storeys: 5 });
+  });
+
+  it('carries only what arrived, never what the index still holds', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue({
+      StateName: 'flagged',
+      Things: [{ Id: 'b1', Name: 'BLD-1', Properties: { area: 3 } }],
+    });
+
+    const rows = await rowsOf(
+      { kind: 'stateList', state: 'flagged', archetype: 'Building', properties: ['area'] },
+      estateCtx(null), // where b1 also holds `storeys`, inherited from its archetype
+    );
+
+    expect(rows[0]).toEqual({ id: 'b1', name: 'BLD-1', area: 3 });
+  });
+
+  it('asks for no properties when the binding names none', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
+
+    const rows = await rowsOf({ kind: 'stateList', state: 'flagged', archetype: 'Building' }, estateCtx(null));
+
+    expect(stateApi.getThingsInState)
+      .toHaveBeenCalledWith('flagged', expect.not.objectContaining({ properties: expect.anything() }));
+    expect(rows[0]).toEqual({ id: 'b1', name: 'BLD-1' });
+  });
+
+  // A computed column is derived from the row's own Thing by walking edges, which is a question the
+  // state endpoint does not answer — so it still resolves here, beside the columns that arrived.
+  it('derives a computed column beside the columns that arrived', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue({
+      StateName: 'flagged',
+      Things: [{ Id: 'b1', Name: 'BLD-1', Properties: { area: 3 } }],
+    });
+
+    const rows = await rowsOf({
+      kind: 'stateList',
+      state: 'flagged',
+      archetype: 'Building',
+      properties: ['area'],
+      computed: [{ key: 'site', value: { kind: 'related', via: [{ predicate: 'contains', direction: 'in' }] } }],
+    }, estateCtx(null));
+
+    expect(rows[0]).toMatchObject({ id: 'b1', area: 3, site: 'SITE-1' });
   });
 });
 
