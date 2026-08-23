@@ -44,9 +44,9 @@ export const NAVIGATION_AND_SETTINGS: SubscriptionSelector = {
  *  largest depth it accepts is therefore how a caller says "follow this edge as far as it goes". */
 const UNBOUNDED_DEPTH = 2147483647;
 
-/** Version-4-shaped identifiers, which is what the platform's `ids` field reads. A spec's Thing
- *  reference may be either an id or a name, and a name sent as an id is refused rather than looked
- *  up, so the two are told apart here. */
+/** The shape the platform's `ids` field reads. A spec's Thing reference may be either an id or a
+ *  name, and a name sent as an id is refused rather than looked up, so the two are told apart here.
+ *  Shape only, whichever way an id was minted: the platform decides that, not this. */
 const IDENTIFIER = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function ruleFor(predicate: string, direction: 'out' | 'in' | undefined, depth: number): TraverseRule {
@@ -162,7 +162,7 @@ const READS_ITS_TYPE_LOCALLY = new Set(['thingList', 'aggregate', 'stateList']);
  *  type is asked for only while no entity is selected — when "All" is showing, the binding does run
  *  over every member of the type. */
 function drawnTypes(spec: DashboardSpec, scopeId: string | null): string[] {
-  const types = new Set<string>([DASHBOARD_ARCHETYPE, GUI_SETTINGS_TYPE_NAME]);
+  const types = new Set<string>(NAVIGATION_AND_SETTINGS.types);
   if (spec.compare) types.add(spec.compare.archetype);
   for (const binding of specBindings(spec)) {
     if (!READS_ITS_TYPE_LOCALLY.has(binding.kind)) continue;

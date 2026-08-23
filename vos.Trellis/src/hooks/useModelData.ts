@@ -28,15 +28,6 @@ const HYDRATE_CONCURRENCY = 8;
 type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
 
 /**
- * Single source of truth for the model fetch. Exported so mutation handlers can
- * refresh after their action without going through the hook.
- *
- * Pass `{ silent: true }` for background reconciles (e.g. the SSE reconnect
- * recovery) so a transient failure does not raise a toast — error toasts do not
- * auto-dismiss, so a background loop would otherwise stack un-dismissable toasts
- * (Bug #5940). User-initiated loads (mount, mutations, ModelChanged) stay loud.
- */
-/**
  * The properties this model says its pages are drawn with, or none when it says nothing.
  *
  * Read before the model itself because it decides what to ask for. It costs one small request against
@@ -69,6 +60,14 @@ async function declaredModelLoadProperties(): Promise<string[]> {
  */
 let holdsNarrowedSet = false;
 
+/**
+ * The whole-model read. Exported so a mutation handler can refresh after its own action without
+ * going through the hook, and the only load that honours the properties the model says its pages
+ * are drawn with.
+ *
+ * `silent` withholds the failure toast, for a read behind a page that is already drawn: an error
+ * toast does not auto-dismiss, so a retrying loop would stack un-dismissable ones (Bug #5940).
+ */
 export async function reloadModelData(opts?: { silent?: boolean }): Promise<void> {
   try {
     const declared = await declaredModelLoadProperties();

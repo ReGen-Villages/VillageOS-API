@@ -163,9 +163,15 @@ async function openStreams() {
   closeStreams();
   const selector = effectiveSelector();
   openedFor = JSON.stringify(selector);
+  const superseded = () => myGeneration !== generation || refCount === 0;
+  // The platform holds a subscription for this open from the moment the request answers, and only
+  // an open that goes on to attach its streams records it as the live one. Every other path leaves
+  // it here to be handed back — an abandoned entry is one nothing will ever read and nothing will
+  // ever expire (Bug #6562), and a declaration changing mid-open abandons one every time.
+  let granted: string | null = null;
   try {
     const token = await apiClient.ensureToken();
-    if (myGeneration !== generation || refCount === 0) return; // released/superseded while awaiting
+    if (superseded()) return;
 
     // The subscription the mounted page declared. Its snapshot watermark anchors the first resume.
     const resp = await fetch(`${BASE_URL}/api/subscriptions`, {
@@ -173,20 +179,19 @@ async function openStreams() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(selector),
     });
-    if (myGeneration !== generation || refCount === 0) return;
     if (!resp.ok) {
-      scheduleReconnect();
+      if (!superseded()) scheduleReconnect();
       return;
     }
 
     const { subscriptionId, watermark, snapshot } = await resp.json();
-    if (myGeneration !== generation || refCount === 0) return;
-    openSubscriptionId = subscriptionId;
+    granted = subscriptionId;
+    if (superseded()) return;
 
     // Minted after the snapshot call, never before: on a large model that call is the slow step, and
     // a credential that lives for minutes must not spend them waiting for it.
     const streamToken = await apiClient.mintStreamToken();
-    if (myGeneration !== generation || refCount === 0) return;
+    if (superseded()) return;
 
     const tokenParam = `access_token=${encodeURIComponent(streamToken)}`;
 
@@ -210,10 +215,14 @@ async function openStreams() {
     attachListeners(sys);
     systemSource = sys;
 
+    openSubscriptionId = subscriptionId;
+    granted = null; // adopted: released with the streams it belongs to, not here
     announceOpened(subscriptionId, watermark, snapshot, selector);
   } catch (err) {
     console.warn('SSE open failed; will retry:', err instanceof Error ? err.message : err);
     scheduleReconnect();
+  } finally {
+    releaseSubscription(granted);
   }
 }
 
@@ -237,46 +246,56 @@ function announceOpened(
   dispatch(SUBSCRIPTION_OPENED, opened);
 }
 
-/**
- * How long the declarations are given to settle before the subscription follows them.
- *
- * A navigation takes the leaving page's declaration back before the arriving page makes its own,
- * and the arriving page's code is fetched on demand, so the gap between the two is a load rather
- * than a tick. Acting inside it opens a subscription nobody asked for and throws it away — and
- * between two pages that both read the whole model, that is a whole-model snapshot built and a
- * whole model re-read for no reader. A page slower to arrive than this costs that, and nothing
- * else: the subscription still settles on what it asked for.
- */
+/** How long an arriving page is given to make its declaration. Long enough for its code to be
+ *  fetched and mounted; a page slower than this costs one snapshot built for no reader, and
+ *  nothing else — the subscription still settles on what that page asked for. */
 const DECLARATIONS_SETTLE_MS = 300;
 
 /**
- * Reopen when the mounted pages have changed what the subscription should cover.
- *
- * The first open waits only for the declarations already being made in this commit — there is no
- * page to hand over from, and every moment before it is a page waiting on its data.
+ * Reopen when what the mounted pages ask the subscription to cover has changed.
  *
  * The consumed position goes with the old coverage: the new subscription answers with its own
  * snapshot, and replaying from a position taken under different coverage would re-apply changes
  * that snapshot already holds and could ask for a range the broker no longer retains.
  */
+function follow() {
+  settling = null;
+  if (refCount === 0) return;
+  if (JSON.stringify(effectiveSelector()) === openedFor) return;
+  consumedWatermark = null;
+  void openStreams();
+}
+
+/**
+ * Follow the declarations once they have stopped moving.
+ *
+ * A page replacing its own declaration — the scope switcher choosing another entity — takes the old
+ * one back and makes the new one in the same commit, so by the end of this turn a page holds a
+ * declaration again and there is nothing to wait for. What has to be waited out is the opposite: no
+ * page holding one at all, which is a page having left while the next page's code is still loading.
+ * Following it there would open a subscription for a reader that never arrives — between two pages
+ * that both read the whole model, a whole-model snapshot built and a whole model re-read for
+ * nobody. The wait is skipped entirely before the first open, when every moment is a page waiting
+ * on its data and there is no page to hand over from.
+ */
 let settling: ReturnType<typeof setTimeout> | null = null;
+let following = false;
 function followDeclarations() {
-  if (settling) return;
-  const follow = () => {
-    settling = null;
-    if (refCount === 0) return;
-    if (JSON.stringify(effectiveSelector()) === openedFor) return;
-    consumedWatermark = null;
-    void openStreams();
-  };
-  if (openedFor === null) queueMicrotask(follow);
-  else settling = setTimeout(follow, DECLARATIONS_SETTLE_MS);
+  if (following || settling) return;
+  following = true;
+  queueMicrotask(() => {
+    following = false;
+    if (openedFor !== null && declared.length === 0) settling = setTimeout(follow, DECLARATIONS_SETTLE_MS);
+    else follow();
+  });
 }
 
 /** Open the declared subscription again, from a fresh snapshot. What a subscription covers is
  *  resolved when it opens, so a model replaced under it has to be asked for again. */
 export function resubscribe(): void {
   if (refCount === 0) return;
+  // A reopen is a reopen: a settle still pending would make a second one for the same declaration.
+  if (settling) { clearTimeout(settling); settling = null; }
   consumedWatermark = null;
   void openStreams();
 }

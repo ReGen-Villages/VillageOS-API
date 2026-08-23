@@ -1,6 +1,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SUBSCRIPTION_OPENED, useSse, useSubscription, useDefaultSubscription } from './useSse';
+import { SUBSCRIPTION_OPENED, resubscribe, useSse, useSubscription, useDefaultSubscription } from './useSse';
 import { apiClient } from '../api/client';
 import type { SubscriptionSelector, SubscriptionOpened } from '../types/subscription';
 
@@ -228,6 +228,26 @@ describe('useSse', () => {
     unmount();
   });
 
+  // A page replacing its own declaration — the scope switcher choosing another entity — has made
+  // the new one before this turn is over. Waiting out the hand-over window there would leave the
+  // page showing the entity it was about until the wait elapsed, for a hand-over that never
+  // happened.
+  it('follows a page that replaces its own declaration without waiting', async () => {
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+    const showing = mountPage({ ids: ['a'] });
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+
+    showing.unmount();
+    const showingAnother = mountPage({ ids: ['b'] });
+    await act(async () => {}); // one turn, no timers advanced
+
+    expect(objectStreams().length).toBe(3);
+    expect(subscriptionsOpened().at(-1)).toEqual({ ids: ['b'] });
+    showingAnother.unmount();
+    unmount();
+  });
+
   // Nothing expires a subscription (Bug #6562), and a page declaring its own opens one per
   // navigation, so an abandoned one would go on being written to for the life of the process.
   it('hands back the subscription it replaces', async () => {
@@ -241,6 +261,67 @@ describe('useSse', () => {
       )).toBe(true));
 
     page.unmount();
+    unmount();
+  });
+
+  // A declaration changing while an open is in flight abandons the subscription that open was
+  // granted. Nothing on the platform expires one, and the streams it would have been released with
+  // are never attached, so it has to be handed back on the way out.
+  it('hands back a subscription the open that asked for it abandoned', async () => {
+    let answer: (body: unknown) => void = () => {};
+    globalThis.fetch = vi.fn().mockImplementation((_url, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return Promise.resolve({ ok: true });
+      return new Promise((resolve) => {
+        answer = (body) => resolve({ ok: true, json: async () => body } as Response);
+      });
+    }) as unknown as typeof fetch;
+
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(answer).not.toBe(undefined));
+    const page = mountPage({ types: ['Site'] });          // supersedes the open in flight
+    await act(async () => { answer({ subscriptionId: 'abandoned', watermark: 0 }); });
+
+    await waitFor(() =>
+      expect(vi.mocked(globalThis.fetch).mock.calls.some(
+        ([url, init]) => (init as RequestInit | undefined)?.method === 'DELETE'
+          && String(url).endsWith('/api/subscriptions/abandoned'),
+      )).toBe(true));
+    page.unmount();
+    unmount();
+  });
+
+  // A refused request leaves no subscription behind, so there is nothing to hand back — and the
+  // page still has no data, so the open has to be retried.
+  it('retries a refused subscription request and hands nothing back', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 }) as unknown as typeof fetch;
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(subscriptionsOpened().length).toBe(1));
+
+    vi.useFakeTimers();
+    await vi.advanceTimersByTimeAsync(1000); // first backoff delay
+    vi.useRealTimers();
+
+    await waitFor(() => expect(subscriptionsOpened().length).toBe(2));
+    expect(vi.mocked(globalThis.fetch).mock.calls
+      .some(([, init]) => (init as RequestInit | undefined)?.method === 'DELETE')).toBe(false);
+    unmount();
+  });
+
+  // A replaced model holds none of the Things the subscription resolved to, so it is asked for
+  // again — once, even when a declaration was already on its way to being followed.
+  it('asks for the subscription again, and only once when a change was already settling', async () => {
+    const { unmount } = renderHook(() => useSse());
+    await waitFor(() => expect(objectStreams().length).toBe(1));
+
+    vi.useFakeTimers();
+    const leaving = mountPage({ types: ['Site'] });
+    leaving.unmount();          // starts the settle window
+    resubscribe();
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+
+    await waitFor(() => expect(objectStreams().length).toBe(2));
+    expect(objectStreams().length).toBe(2);
     unmount();
   });
 

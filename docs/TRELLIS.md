@@ -1267,10 +1267,17 @@ type.
 
 - Module-level singleton managing both EventSources (shared across all hook consumers)
 - **The subscription the mounted pages declared**, reopened when that changes and not otherwise:
-  `useSubscription(selector)` / `declareSubscription(selector)`. Building a snapshot costs the
-  platform work, so a declaration saying what is already open reopens nothing. The subscription being
-  replaced is handed back with `DELETE /api/subscriptions/{id}` — nothing expires one (Bug #6562),
-  and a page that declares its own opens one per navigation
+  `useSubscription(selector)`, with `useDefaultSubscription(selector)` for the shell's. Building a
+  snapshot costs the platform work, so a declaration saying what is already open reopens nothing
+- **Any subscription nothing will read is handed back** with `DELETE /api/subscriptions/{id}` —
+  the one being replaced, and the one an open was granted before a declaration changed under it.
+  Nothing expires an entry (Bug #6562), and a page that declares its own opens one per navigation
+- **A change waits only when no page holds a declaration.** A page replacing its own — the scope
+  switcher choosing another entity — has made the new one before the turn is over, so it is
+  followed at once. An empty stack is the hand-over: a page has left and the next page's code is
+  still loading, and following it there would open a subscription for a reader that never arrives.
+  That case waits `DECLARATIONS_SETTLE_MS`; a page slower than that costs one wasted snapshot and
+  nothing else
 - **The snapshot reaches the same handlers the server's events do**, as `SUBSCRIPTION_OPENED`,
   raised after both streams are attached: a reader given it earlier would apply it and then miss
   every change between the two. Property values are unwrapped, so what it carries reads like the
