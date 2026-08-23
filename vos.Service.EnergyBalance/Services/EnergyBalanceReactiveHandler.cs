@@ -4,9 +4,14 @@ namespace vos.Service.EnergyBalance.Services;
 
 // The reactive (model-driven) form of the energy analysis (User Story #5839). Instead of running as a DAG node with
 // wired ports, it reacts to a graph relationship whose subject is the SiteStudy: it reads its inputs straight off
-// the study's effective properties, computes with EnergyBalanceCalculator, and writes its outputs back
-// onto the study as Facts — so the study's judge ranges (e.g. EnergyNetPositive) re-evaluate. No pipeline, no
-// wires: the compute is a value on the study, like a roll-up or a range.
+// the study's effective properties and computes with EnergyBalanceCalculator.
+//
+// The generation figures and the coverage percentage are no longer written back. The shared analysis declares
+// them as expressions over the study's own values, so the model derives them and refuses a written one — and
+// because the refusal throws, a service that still wrote the first would abandon every write after it. What is
+// left here is the one output an expression cannot hold: an expression yields a number, and this is a verdict.
+// The ranges never read it — all three judge pctOfConsumption — so nothing about a balance now waits on this
+// service. The node form beside it still answers for the same figures over wired ports.
 public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
 {
     public EnergyBalanceReactiveHandler(
@@ -39,10 +44,7 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
             inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2]),
             inputs.Number(Inputs[3]), inputs.Number(Inputs[4]), inputs.Number(Inputs[5])));
 
-        await properties.WriteAsync(studyId, "pctOfConsumption", result.PctOfConsumption, cancellationToken);
         await properties.WriteAsync(studyId, "netPositive", result.NetPositive, cancellationToken);
-        await properties.WriteAsync(studyId, "solarGenerationMwhPerYear", result.SolarGenerationMwhPerYear, cancellationToken);
-        await properties.WriteAsync(studyId, "totalGenerationMwhPerYear", result.TotalGenerationMwhPerYear, cancellationToken);
         return result;
     }
 }

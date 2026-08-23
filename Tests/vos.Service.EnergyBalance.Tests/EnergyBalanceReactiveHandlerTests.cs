@@ -19,6 +19,28 @@ public class EnergyBalanceReactiveHandlerTests
           "annualConsumptionMwhPerYear": { "Value": 4000 } }
         """;
 
+    // The three figures the model derives itself are no longer written here: the shared analysis declares
+    // them as expressions, and a derived property refuses every value write. Writing one would throw on
+    // the first call and abandon the rest of the recompute, so what is left is the one output an
+    // expression cannot hold — a boolean.
+    [Fact]
+    public async Task It_writes_no_figure_the_model_derives_for_itself()
+    {
+        var handler = new RecordingHttpMessageHandler(req => req.Method == HttpMethod.Get
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(AnchorInputs, Encoding.UTF8, "application/json") }
+            : new HttpResponseMessage(HttpStatusCode.OK));
+
+        var reactive = new EnergyBalanceReactiveHandler(
+            new TestHttpClientFactory(new HttpClient(handler)), NullLogger<EnergyBalanceReactiveHandler>.Instance,
+            "http://mycelium", serviceToken: "test-token");
+
+        await reactive.RecomputeAsync(Anchor);
+
+        foreach (var derived in new[] { "pctOfConsumption", "solarGenerationMwhPerYear", "totalGenerationMwhPerYear" })
+            Assert.DoesNotContain(handler.Requests,
+                r => r.Method == HttpMethod.Post && r.Uri.Contains($"/properties/{derived}/facts"));
+    }
+
     [Fact]
     public async Task Reads_inputs_computes_and_writes_outputs_onto_the_anchor()
     {
@@ -35,10 +57,10 @@ public class EnergyBalanceReactiveHandlerTests
         Assert.Equal(110.5, outputs.PctOfConsumption, 3);
         Assert.True(outputs.NetPositive);
 
-        // It read the anchor and wrote pctOfConsumption back onto it.
+        // It read the anchor and wrote the verdict back onto it.
         Assert.Contains(handler.Requests, r => r.Method == HttpMethod.Get && r.Uri.Contains($"/api/things/{Anchor}/properties"));
-        var pctWrite = Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post && r.Uri.Contains("/properties/pctOfConsumption/facts"));
-        Assert.Contains("110.5", pctWrite.Body);
+        var verdictWrite = Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post && r.Uri.Contains("/properties/netPositive/facts"));
+        Assert.Contains("true", verdictWrite.Body);
     }
 
     // A string-valued input goes through double.TryParse rather than GetDouble. A regional format
