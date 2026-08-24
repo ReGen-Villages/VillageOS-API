@@ -20,6 +20,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
+var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 ServiceHost.ConfigureLogging("LandAllocation", "land-allocation-.log");
@@ -45,11 +46,11 @@ try
             sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
             "LandAllocation",
             myceliumUrl,
-            serviceToken));
+            serviceToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new LandAllocationReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<LandAllocationReactiveHandler>>(), myceliumUrl, serviceToken));
+            sp.GetRequiredService<ILogger<LandAllocationReactiveHandler>>(), myceliumUrl, serviceToken, apiKey: apiKey));
 
     // Recompute when an input moves. Unlike the balances, this service's inputs are not on the study it
     // writes to — the split lives on the allocations beside it — so the handler names those Things when

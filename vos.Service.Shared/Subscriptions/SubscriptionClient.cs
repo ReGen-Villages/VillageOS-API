@@ -31,8 +31,8 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
 
     public SubscriptionClient(
         IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
-        Func<Task<string?>>? tokenProvider = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken, tokenProvider)
+        Func<Task<string?>>? tokenProvider = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, tokenProvider, apiKey)
     {
     }
 

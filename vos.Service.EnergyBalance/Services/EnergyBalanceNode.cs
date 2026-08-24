@@ -8,8 +8,8 @@ namespace vos.Service.EnergyBalance.Services;
 public sealed class EnergyBalanceNode : DagNodeService
 {
     public EnergyBalanceNode(IHttpClientFactory httpClientFactory, ILogger<EnergyBalanceNode> logger,
-        string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
     {
     }
 

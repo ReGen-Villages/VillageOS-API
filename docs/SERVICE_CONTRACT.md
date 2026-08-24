@@ -52,6 +52,11 @@ the request's model. `VerificationKey` is the public half of Mycelium's pair: it
 and cannot make one. See [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md) § Inbound JWT validation for
 why naming the algorithm matters.
 
+A service that must outlive any JWT — one nobody starts on demand — holds an **API key** (the
+`ApiKey` setting) instead of a `Token`: the shared client exchanges it at `POST /api/auth/token`
+with the `X-API-Key` header, holds the minted token, and exchanges again shortly before it expires.
+A key can be confined to one model, which is what confines the service.
+
 EventSource and other streaming clients that can't set headers pass `?access_token=<token>` on the SSE
 stream URLs instead. That token is a **stream token** from `POST /api/auth/stream-token`, not the
 sign-in JWT: an address is recorded (access logs, proxies, browser history) where a header is not, so

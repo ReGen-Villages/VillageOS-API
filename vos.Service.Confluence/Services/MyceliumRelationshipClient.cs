@@ -11,8 +11,8 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase
 {
     public MyceliumRelationshipClient(
         IHttpClientFactory httpClientFactory, ILogger<MyceliumRelationshipClient> logger,
-        string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken) { }
+        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
 
     public async Task<bool> CreateRelationshipAsync(
         Guid subjectId, Guid predicateId, Guid targetId, CancellationToken cancellationToken)

@@ -10,8 +10,8 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
 {
     public WaterReserveReactiveHandler(
         IHttpClientFactory httpClientFactory, ILogger<WaterReserveReactiveHandler> logger,
-        string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
     {
     }
 

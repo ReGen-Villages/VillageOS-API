@@ -19,6 +19,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
+var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 ServiceHost.ConfigureLogging("ModelBridge", "model-bridge-.log");
@@ -44,11 +45,11 @@ try
             sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
             "ModelBridge",
             myceliumUrl,
-            serviceToken));
+            serviceToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new ModelBridgeNode(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<ModelBridgeNode>>(), myceliumUrl, serviceToken));
+            sp.GetRequiredService<ILogger<ModelBridgeNode>>(), myceliumUrl, serviceToken, apiKey: apiKey));
 
     builder.Services.AddMyceliumRegistration("ModelBridge", servicePort);
 

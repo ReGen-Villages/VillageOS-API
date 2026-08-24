@@ -15,8 +15,9 @@ public sealed class EndpointServiceMyceliumClient : MyceliumClientBase
         ILogger<EndpointServiceMyceliumClient> logger,
         string serviceName,
         string myceliumUrl,
-        string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+        string? serviceToken = null,
+        string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
     {
         _serviceName = serviceName;
     }

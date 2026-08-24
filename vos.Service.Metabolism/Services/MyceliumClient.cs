@@ -14,8 +14,8 @@ public class MyceliumClient : MyceliumClientBase
 {
     private readonly ResourceDirection _direction;
 
-    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, ResourceDirection direction, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, ResourceDirection direction, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
     {
         _direction = direction;
     }

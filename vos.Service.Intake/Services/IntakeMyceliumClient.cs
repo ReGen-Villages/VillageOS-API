@@ -11,8 +11,9 @@ public sealed class IntakeMyceliumClient(
     IHttpClientFactory httpClientFactory,
     ILogger<IntakeMyceliumClient> logger,
     string myceliumUrl,
-    string? serviceToken)
-    : MyceliumClientBase(httpClientFactory, logger, myceliumUrl, serviceToken)
+    string? serviceToken,
+    string? apiKey = null)
+    : MyceliumClientBase(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
 {
     public async Task<Guid?> FindThingIdByNameAsync(string name, CancellationToken cancellation)
     {

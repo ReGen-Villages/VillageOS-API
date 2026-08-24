@@ -34,6 +34,7 @@ public class ServiceLaunchSettingsTests
         result.Should().NotBeNull();
         result!.Token.Should().BeNull();
         result.VerificationKey.Should().BeNull();
+        result.ApiKey.Should().BeNull();
         result.Issuer.Should().BeNull();
         result.Audience.Should().BeNull();
     }
@@ -56,28 +57,30 @@ public class ServiceLaunchSettingsTests
     {
         var result = ServiceLaunchSettings.Parse([
             "--port=7111", "--myceliumUrl=https://localhost:7243",
-            "--token=my.jwt.token", "--verificationKey=c29tZWtleQ=="
+            "--token=my.jwt.token", "--verificationKey=c29tZWtleQ==", "--apiKey=key-1"
         ]);
 
         result.Should().NotBeNull();
         result!.Token.Should().BeNull();
         result.VerificationKey.Should().BeNull();
+        result.ApiKey.Should().BeNull();
     }
 
     [Fact]
     public void Parse_WhenACredentialIsOnTheCommandLineAndInConfiguration_TakesTheConfiguredOne()
     {
         var configuration = ConfigurationFrom(
-            ("Token", "configured-token"), ("VerificationKey", "configured-key"));
+            ("Token", "configured-token"), ("VerificationKey", "configured-key"), ("ApiKey", "configured-api-key"));
 
         var result = ServiceLaunchSettings.Parse([
             "--port=7111", "--myceliumUrl=https://localhost:7243",
-            "--token=flag-token", "--verificationKey=flag-key"
+            "--token=flag-token", "--verificationKey=flag-key", "--apiKey=flag-api-key"
         ], configuration);
 
         result.Should().NotBeNull();
         result!.Token.Should().Be("configured-token");
         result.VerificationKey.Should().Be("configured-key");
+        result.ApiKey.Should().Be("configured-api-key");
     }
 
     [Fact]
@@ -254,8 +257,8 @@ public class ServiceLaunchSettingsTests
     {
         var usage = ServiceLaunchSettings.UsageMessage;
 
-        usage.Should().NotContain("--token").And.NotContain("--verificationKey");
-        usage.Should().Contain("Token").And.Contain("VerificationKey");
+        usage.Should().NotContain("--token").And.NotContain("--verificationKey").And.NotContain("--apiKey");
+        usage.Should().Contain("Token").And.Contain("VerificationKey").And.Contain("ApiKey");
     }
 
     [Fact]

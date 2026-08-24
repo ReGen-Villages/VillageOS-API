@@ -331,17 +331,74 @@ public class MyceliumClientBaseTests
         await act.Should().NotThrowAsync();
     }
 
+    // ---- An API key instead of a token ----
+
+    private static readonly DateTimeOffset Now = new(2026, 8, 24, 12, 0, 0, TimeSpan.Zero);
+
+    private static HttpResponseMessage Minted(string token) =>
+        JsonResponse($"{{\"token\":\"{token}\"}}");
+
+    [Fact]
+    public async Task GetTokenAsync_WithAnApiKey_ExchangesItForTheMintedToken()
+    {
+        var minted = TestTokens.For(Guid.NewGuid(), Now.AddMinutes(5));
+        var (client, handler) = BuildClient(request =>
+        {
+            request.Headers.GetValues("X-API-Key").Should().ContainSingle().Which.Should().Be("key-1");
+            return Minted(minted);
+        }, serviceToken: null, apiKey: "key-1");
+
+        (await client.GetTokenAsync()).Should().Be(minted);
+        handler.Requests.Should().ContainSingle();
+    }
+
+    // A key can be confined to one model where a static token is not, so when both are supplied the
+    // key must answer — falling back would silently widen what the service may reach.
+    [Fact]
+    public async Task GetTokenAsync_WithBothAKeyAndAToken_TheKeyAnswers()
+    {
+        var minted = TestTokens.For(Guid.NewGuid(), Now.AddMinutes(5));
+        var (client, _) = BuildClient(_ => Minted(minted), serviceToken: TestToken, apiKey: "key-1");
+
+        (await client.GetTokenAsync()).Should().Be(minted);
+    }
+
+    [Fact]
+    public async Task GetTokenAsync_WhenTheKeyExchangeFails_AnswersNullRatherThanAnotherCredential()
+    {
+        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.Forbidden),
+            serviceToken: TestToken, apiKey: "key-1");
+
+        (await client.GetTokenAsync()).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetTokenAsync_TheWorkInHandsModelToken_StillWinsOverTheKey()
+    {
+        var (client, handler) = BuildClient(
+            _ => throw new InvalidOperationException("no exchange should happen while a model token is in hand"),
+            serviceToken: null, apiKey: "key-1");
+
+        string? answered = null;
+        await MyceliumModelToken.ActingForAsync("inbound-model-token",
+            async () => answered = await client.GetTokenAsync());
+
+        answered.Should().Be("inbound-model-token");
+        handler.Requests.Should().BeEmpty();
+    }
+
     // ---- Helpers ----
 
     private static (TestableMyceliumClient client, MockHttpMessageHandler handler) BuildClient(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
         string? serviceToken,
-        Func<Task<string?>>? tokenProvider = null)
+        Func<Task<string?>>? tokenProvider = null,
+        string? apiKey = null)
     {
         var handler = new MockHttpMessageHandler(respond);
         var httpClient = new HttpClient(handler);
         var factory = new TestHttpClientFactory(httpClient);
-        var client = new TestableMyceliumClient(factory, NullLogger.Instance, MyceliumUrl, serviceToken, tokenProvider);
+        var client = new TestableMyceliumClient(factory, NullLogger.Instance, MyceliumUrl, serviceToken, tokenProvider, apiKey);
         return (client, handler);
     }
 

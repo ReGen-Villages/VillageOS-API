@@ -1,5 +1,3 @@
-using System.Text;
-using System.Text.Json;
 using vos.Auth.Shared;
 
 namespace vos.Service.Shared;
@@ -20,7 +18,7 @@ public sealed record ModelScopedBearer(string Token, Guid ModelId, DateTimeOffse
     /// stated end would otherwise be held forever and fail only once something depended on it.</summary>
     public static ModelScopedBearer? Read(string? token)
     {
-        var payload = Payload(token);
+        var payload = JwtPayload.Read(token);
         if (payload is null) return null;
 
         if (!payload.Value.TryGetProperty(VosClaims.ModelId, out var modelId) ||
@@ -35,28 +33,4 @@ public sealed record ModelScopedBearer(string Token, Guid ModelId, DateTimeOffse
     }
 
     public bool IsDueForReplacement(DateTimeOffset now, TimeSpan leadTime) => ExpiresAt - now <= leadTime;
-
-    private static JsonElement? Payload(string? token)
-    {
-        if (string.IsNullOrEmpty(token)) return null;
-
-        var segments = token.Split('.');
-        if (segments.Length != 3) return null;
-
-        try
-        {
-            return JsonDocument.Parse(Encoding.UTF8.GetString(DecodeSegment(segments[1]))).RootElement.Clone();
-        }
-        catch (Exception exception) when (exception is FormatException or JsonException or DecoderFallbackException)
-        {
-            return null;
-        }
-    }
-
-    private static byte[] DecodeSegment(string segment)
-    {
-        var unpadded = segment.Replace('-', '+').Replace('_', '/');
-        var padding = (4 - unpadded.Length % 4) % 4;
-        return Convert.FromBase64String(unpadded + new string('=', padding));
-    }
 }

@@ -20,6 +20,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
+var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 ServiceHost.ConfigureLogging("WaterReserve", "water-reserve-.log");
@@ -45,15 +46,15 @@ try
             sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
             "WaterReserve",
             myceliumUrl,
-            serviceToken));
+            serviceToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new WaterReserveNode(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<WaterReserveNode>>(), myceliumUrl, serviceToken));
+            sp.GetRequiredService<ILogger<WaterReserveNode>>(), myceliumUrl, serviceToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new WaterReserveReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<WaterReserveReactiveHandler>>(), myceliumUrl, serviceToken));
+            sp.GetRequiredService<ILogger<WaterReserveReactiveHandler>>(), myceliumUrl, serviceToken, apiKey: apiKey));
 
     // Recompute when an input moves, so a study's result never presents a stale number as current.
     builder.Services.AddInputChangeRecompute<WaterReserveReactiveHandler>(

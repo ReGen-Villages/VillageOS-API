@@ -21,6 +21,7 @@ public abstract class MyceliumClientBase
     public string MyceliumUrl { get; }
     private readonly string? _serviceToken;
     private readonly Func<Task<string?>>? _tokenProvider;
+    private readonly ApiKeyTokenSource? _apiKeyTokens;
 
     public Guid HandlerId { get; } = Guid.NewGuid();
 
@@ -49,13 +50,16 @@ public abstract class MyceliumClientBase
 
     protected MyceliumClientBase(
         IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
-        Func<Task<string?>>? tokenProvider = null)
+        Func<Task<string?>>? tokenProvider = null, string? apiKey = null)
     {
         HttpClientFactory = httpClientFactory;
         Logger = logger;
         MyceliumUrl = myceliumUrl;
         _serviceToken = serviceToken;
         _tokenProvider = tokenProvider;
+        _apiKeyTokens = string.IsNullOrEmpty(apiKey)
+            ? null
+            : new ApiKeyTokenSource(httpClientFactory, logger, myceliumUrl, apiKey);
     }
 
     public async Task<string?> GetTokenAsync()
@@ -67,6 +71,12 @@ public abstract class MyceliumClientBase
 
         if (!string.IsNullOrEmpty(MyceliumModelToken.Current))
             return MyceliumModelToken.Current;
+
+        // The key answers before a static token because it is the durable credential and may be
+        // confined to one model — and a failed exchange answers null rather than falling back to a
+        // broader credential.
+        if (_apiKeyTokens != null)
+            return await _apiKeyTokens.GetTokenAsync();
 
         if (!string.IsNullOrEmpty(_serviceToken))
             return _serviceToken;

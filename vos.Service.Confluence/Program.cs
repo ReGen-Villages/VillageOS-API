@@ -20,6 +20,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Service.Port;
 var myceliumUrl = launchSettings.Service.MyceliumUrl;
 var serviceToken = launchSettings.Service.Token;
+var apiKey = launchSettings.Service.ApiKey;
 var verificationKey = launchSettings.Service.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
@@ -52,7 +53,7 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<SubscriptionClient>>(),
             myceliumUrl,
-            serviceToken));
+            serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<CoveringSourceService>();
     builder.Services.AddSingleton<ISourceFetcher>(sp =>
         new EndpointServiceSourceFetcher(
@@ -61,7 +62,8 @@ try
             myceliumUrl,
             serviceToken,
             launchSettings.FetcherSubdomain,
-            launchSettings.SourceTimeout));
+            launchSettings.SourceTimeout,
+            apiKey));
     builder.Services.AddSingleton(sp =>
         new DiscoveryRunner(
             sp.GetRequiredService<ISourceFetcher>(),
@@ -72,7 +74,7 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumRelationshipClient>>(),
             myceliumUrl,
-            serviceToken));
+            serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<AnalysisSpawner>();
 
     var app = builder.Build();

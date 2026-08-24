@@ -10,7 +10,8 @@ public record ServiceLaunchSettings(
     string? Token = null,
     string? VerificationKey = null,
     string? Issuer = null,
-    string? Audience = null)
+    string? Audience = null,
+    string? ApiKey = null)
 {
     public const int LowestPort = 1;
     public const int HighestPort = 65535;
@@ -34,7 +35,8 @@ public record ServiceLaunchSettings(
             reader.ReadCredential("token"),
             reader.ReadCredential("verificationKey"),
             reader.Read("issuer"),
-            reader.Read("audience"));
+            reader.Read("audience"),
+            reader.ReadCredential("apiKey"));
     }
 
     private static bool TryReadPort(LaunchSettingReader reader, out int port)
@@ -58,6 +60,7 @@ public record ServiceLaunchSettings(
     private const string CredentialDescriptions =
         "\n\nSupplied through configuration or the environment, never the command line:\n" +
         "  Token            Service JWT for authenticating with Mycelium (optional)\n" +
+        "  ApiKey           API key exchanged for short-lived tokens, for a service that outlives any JWT (optional)\n" +
         "  VerificationKey  Base64 of Mycelium's public signing key, for checking inbound requests (optional)";
 
     public static string UsageMessage => BuildUsageMessage();
