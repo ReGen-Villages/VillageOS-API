@@ -9,7 +9,8 @@
  * line cannot come to answer the same model differently.
  */
 
-import { IS_PREDICATE_NAME, nameIndex, ownCarrierOf, type ModelReading } from './modelVocabulary';
+import type { VosThing } from '../types/vos';
+import { IS_PREDICATE_NAME, ownCarrierOf, type ModelReading } from './modelVocabulary';
 
 export const PROPOSED_SITE_PREDICATE_FLAG = '__IsProposedSitePredicate';
 export const DISPOSITION_ARCHETYPE_FLAG = '__IsSubmissionDispositionArchetype';
@@ -116,6 +117,10 @@ function dispositionsIn(reading: ModelReading): Disposition[] {
       name: names.get(edge.SubjectId) ?? edge.SubjectId,
       disposable: valueOf(reading, edge.SubjectId, COLD_STORAGE_PERIOD_PROPERTY) !== undefined,
     }));
+}
+
+function nameIndex(things: readonly VosThing[]): Map<string, string> {
+  return new Map(things.map((thing) => [thing.Id, thing.Name]));
 }
 
 function decisions(reading: ModelReading, names: Map<string, string>): Map<string, string> {

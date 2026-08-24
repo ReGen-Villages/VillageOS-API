@@ -3,9 +3,9 @@
  * under it. Every page that finds something by a mark reads it through here, so there is one answer to
  * what owning a mark means rather than one per page.
  *
- * Nothing here names an archetype. A vocabulary is found by the mark its archetype carries, so a model
- * that renamed the archetype keeps answering and a project that declares a term of its own is offered
- * it without a line changing here.
+ * Nothing here names an archetype. A vocabulary is found by the mark its archetype owns, so a model that
+ * renamed the archetype keeps answering and a project that declares a term of its own is offered it
+ * without a line changing here.
  */
 
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
@@ -26,10 +26,6 @@ export interface ModelReading {
   things: readonly VosThing[];
   relationships: readonly VosRelationship[];
   properties: Readonly<Record<string, Record<string, EffectiveProperty>>>;
-}
-
-export function nameIndex(things: readonly VosThing[]): Map<string, string> {
-  return new Map(things.map((thing) => [thing.Id, thing.Name]));
 }
 
 /** The terms declared under the archetype carrying a mark, by name, in the order a list should show
@@ -73,8 +69,8 @@ export function termsMarked(reading: ModelReading, archetypeFlag: string): strin
  * vocabulary then reads as ambiguous the moment it has any terms at all.
  */
 export function ownCarrierOf(reading: ModelReading, flag: string): string | null {
-  const carrying = Object.keys(reading.properties).filter(
+  const owning = Object.keys(reading.properties).filter(
     (id) => reading.properties[id][flag]?.IsInherited === false,
   );
-  return carrying.length === 1 ? carrying[0] : null;
+  return owning.length === 1 ? owning[0] : null;
 }
