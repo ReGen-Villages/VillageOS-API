@@ -1,6 +1,6 @@
 /**
- * The land-intake wizard: what a planner knows about a piece of land, collected in four steps and posted
- * to the intake service as one document (#6016).
+ * The land-intake wizard: what a planner knows about a piece of land, collected step by step and posted
+ * to the intake service as one document (#6016), with the parcel boundary drawn on the map last (#6015).
  *
  * Two things shape the whole page. Nothing is kept in the browser beyond the draft — the answers become
  * Things the moment the submission is accepted, so there is no file to download and nothing to lose. And
@@ -21,9 +21,13 @@ import { toast } from '../components/common/toastStore';
 import { useAuth } from '../hooks/useAuth';
 import type { BasemapSource } from '../types/basemap';
 import { locationFromMapLink, type MapLinkReading } from '../utils/mapLink';
+import { areaMatch, sphericalAreaHectares } from '../utils/parcelGeometry';
 import { ALLOCATION_CATEGORY_ARCHETYPE_FLAG, termsMarked } from './modelVocabulary';
 import {
   STEPS,
+  boundaryCleared,
+  boundaryDrafted,
+  boundaryDrawn,
   clearDraft,
   coordinatesFrom,
   documentFrom,
@@ -167,6 +171,7 @@ export function IntakeWizardPage() {
                 {step === 'programme' && (
                   <ProgrammeStep draft={draft} categories={categories} onChange={change} />
                 )}
+                {step === 'parcel' && <ParcelStep draft={draft} sources={basemapSources} onChange={change} />}
               </div>
               <Navigation
                 step={step}
@@ -431,6 +436,91 @@ function ProgrammeStep({
           ))}
         </div>
       )}
+    </>
+  );
+}
+
+function ParcelStep({ draft, sources, onChange }: StepProps & { sources: BasemapSource[] }) {
+  const { t, i18n } = useTranslation();
+  const position = coordinatesFrom(draft);
+  const stated = statedAreaHectares(draft);
+  const drawn = draft.boundary.length >= 3 ? sphericalAreaHectares(draft.boundary) : null;
+  const compared = drawn !== null && stated !== null ? areaMatch(drawn, stated) : null;
+  const drafted = boundaryDrafted(draft);
+  const unit = t(`intake.${draft.areaUnit}`);
+  const area = useMemo(
+    () => new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 }),
+    [i18n.language],
+  );
+  const percentage = useMemo(
+    () => new Intl.NumberFormat(i18n.language, { style: 'percent', maximumFractionDigits: 1 }),
+    [i18n.language],
+  );
+
+  if (!position) {
+    return (
+      <>
+        <StepHeading step="parcel" />
+        <Note tone="quiet">{t('intake.mapNeedsPosition')}</Note>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <StepHeading step="parcel" />
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => drafted && onChange(drafted)}
+          disabled={drafted === null}
+          className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
+        >
+          {t('intake.placeDraftBoundary')}
+        </button>
+        <button
+          onClick={() => onChange(boundaryCleared())}
+          disabled={draft.boundary.length === 0}
+          className="px-3 py-1.5 text-sm rounded-md bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-40"
+        >
+          {t('intake.clearBoundary')}
+        </button>
+      </div>
+      {drafted === null && draft.boundary.length === 0 && (
+        <Note tone="quiet">{t('intake.draftNeedsArea')}</Note>
+      )}
+
+      <div className="h-72 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
+        <Suspense fallback={null}>
+          <MapView
+            latitude={position.latitude}
+            longitude={position.longitude}
+            sources={sources}
+            boundary={draft.boundary}
+            onBoundaryChange={(boundary) => onChange(boundaryDrawn(boundary))}
+          />
+        </Suspense>
+      </div>
+      <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">{t('intake.drawByClicking')}</p>
+
+      <div className="mt-3 text-sm text-zinc-700 dark:text-zinc-200 tabular-nums">
+        {stated !== null && (
+          <p>{t('intake.statedReadout', { value: area.format(fromHectares(stated, draft.areaUnit)), unit })}</p>
+        )}
+        {drawn !== null ? (
+          <p>{t('intake.drawnReadout', { value: area.format(fromHectares(drawn, draft.areaUnit)), unit })}</p>
+        ) : (
+          <p className="text-zinc-400 dark:text-zinc-500">{t('intake.noBoundaryYet')}</p>
+        )}
+      </div>
+      {compared &&
+        (compared.kind === 'match' ? (
+          <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400">{t('intake.areaWithin')}</p>
+        ) : (
+          <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+            {t('intake.areaApart', { difference: percentage.format(compared.relativeDifference) })}
+          </p>
+        ))}
     </>
   );
 }
