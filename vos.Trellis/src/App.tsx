@@ -13,6 +13,7 @@ import { useThemeStore, attachThemeMediaListener } from './stores/themeStore';
 const GraphPage = lazy(() => import('./pages/GraphPage').then(m => ({ default: m.GraphPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const OperationsPage = lazy(() => import('./pages/OperationsPage').then(m => ({ default: m.OperationsPage })));
+const IntakeWizardPage = lazy(() => import('./pages/IntakeWizardPage').then(m => ({ default: m.IntakeWizardPage })));
 const SubmissionReviewPage = lazy(() => import('./pages/SubmissionReviewPage').then(m => ({ default: m.SubmissionReviewPage })));
 const TemporalPage = lazy(() => import('./pages/TemporalPage').then(m => ({ default: m.TemporalPage })));
 const PropertySearchPage = lazy(() => import('./pages/PropertySearchPage').then(m => ({ default: m.PropertySearchPage })));
@@ -41,6 +42,7 @@ function AuthenticatedApp() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/operations" element={<OperationsPage />} />
             <Route path="/operations/:dashboardKey" element={<OperationsPage />} />
+            <Route path="/intake" element={<IntakeWizardPage />} />
             <Route path="/submissions" element={<SubmissionReviewPage />} />
             <Route path="/graph" element={<GraphPage />} />
             <Route path="/temporal" element={<TemporalPage />} />

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Network, LayoutDashboard, Gauge, Clock, Search, Boxes, Box, Inbox, Workflow, Terminal, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Network, LayoutDashboard, Gauge, Clock, Search, Boxes, Box, ClipboardList, Inbox, Workflow, Terminal, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DynamicIcon, iconNames, type IconName } from 'lucide-react/dynamic';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,7 @@ const OPERATIONS_PATH = '/operations';
 const links = [
   { to: '/', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
   { to: OPERATIONS_PATH, icon: Gauge, labelKey: 'nav.operations' },
+  { to: '/intake', icon: ClipboardList, labelKey: 'nav.intake' },
   { to: '/submissions', icon: Inbox, labelKey: 'nav.submissions' },
   { to: '/graph', icon: Network, labelKey: 'nav.graph' },
   { to: '/model', icon: Box, labelKey: 'nav.model' },

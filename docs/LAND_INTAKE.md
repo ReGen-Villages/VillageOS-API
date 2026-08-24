@@ -1,8 +1,9 @@
 # Land Intake and Site Analysis — Design
 
-> **Status: partly built.** The archetypes exist and a model can be seeded with them, and the intake
-> service composes a submission into them. The wizard, the map, anonymous submission and open-data
-> discovery are still design. Tracked as Epic
+> **Status: partly built.** The archetypes exist and a model can be seeded with them, the intake
+> service composes a submission into them, and the wizard collects what a planner types and posts it
+> (#6016). The map and parcel drawing, anonymous submission and open-data discovery are still design.
+> Tracked as Epic
 > [#6012](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6012) (client, services)
 > and Epic [#6033](https://dev.azure.com/ReGenVillages/VillageOS/_workitems/edit/6033) (model, broker).
 > Where this document says "will", that part is not built yet. Where it says "already", the capability
@@ -302,6 +303,11 @@ the work.
   ]
 }
 ```
+
+`allocatedAreaHectares` is shown above because the wire accepts it, but a submission need not carry it:
+land allocation writes that property and `normalisedSharePct` as its own outputs, so a figure submitted
+alongside the share is a second answer to a question the analysis already answers. The wizard sends the
+share alone.
 
 Each of these rules exists to stop a particular kind of quiet damage:
 
@@ -916,7 +922,7 @@ The main finding from designing this: most of it is already built.
 | Composing a submission into the model's own shape | **Exists** (`vos.Service.Intake`) |
 | — | |
 | A map, and drawing a parcel on it | **New** — the only new UI capability |
-| The intake wizard | **New** |
+| The intake wizard | **Exists** for what a planner types (#6016) — the map and parcel drawing steps are still new |
 | Anonymous submission: rate limits, size caps, bot checks, the staging model | **New** — hardening around the service that already composes |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 

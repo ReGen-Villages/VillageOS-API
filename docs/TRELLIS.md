@@ -629,7 +629,45 @@ Model-level operations (import/export/clear) are available via the CLI or REST A
 - **Import**: `deserialize` CLI command or `POST /api/model`
 - **Clear**: `clear model` CLI command or `DELETE /api/model`
 
-### 8.7 Reviewing what has arrived
+### 8.7 Describing a piece of land
+
+**Land intake** in the sidebar collects what a planner knows about a piece of land and posts it to the
+intake service, which composes it into Things. Nothing is downloaded and nothing is filed by hand: the
+answers are in the model as soon as the submission is accepted, and it then waits on the Submissions
+page for a reviewer.
+
+Four steps — project, contact, location, size and programme. The planner can move between any step
+already visited, and progress is written to browser storage on every keystroke, keyed by the model, so
+closing the tab loses nothing. A submission that has been posted clears its draft, because the answers
+now live in the model rather than in the browser.
+
+Three things are worth knowing about how it behaves:
+
+- **The area is stored in hectares whatever unit it is typed in.** The unit selector converts what is
+  displayed and shows the equivalent in the other unit underneath. An area that is not a figure — a
+  word, a negative number — is left out of the submission rather than sent as zero.
+- **The programme categories come from the model.** They are the Things under the archetype carrying
+  `__IsAllocationCategoryArchetype`, which is the same vocabulary the intake service resolves a
+  submitted word against, so the wizard cannot offer a term that is then refused. A project declaring
+  categories of its own has them offered here with no change to Trellis. A model declaring none says so
+  rather than showing an empty list.
+- **The shares always describe the whole parcel.** Choosing a category takes an equal share and leaves
+  the rest in the same proportions to each other; dropping one gives its share back to the rest in
+  proportion; setting one moves the difference across the others. Dropping the last category leaves
+  nothing chosen rather than a split of nothing. The percentages on screen are whole numbers that still
+  add to a hundred — handed out by largest remainder, so three categories of a third each read 34, 33
+  and 33 rather than three 33s that leave the planner reading 99.
+
+The location step reads coordinates out of a pasted map link — the pinned place, the viewport centre, a
+query parameter pair, an OpenStreetMap marker or fragment, or a bare pair typed by hand. A pair that
+could not be a point on Earth is refused rather than placed. A shortened link cannot be expanded from
+the browser, so the page says to open it and copy the numbers rather than failing silently.
+
+The wizard is offered only where `VITE_INTAKE_URL` names an intake service; without it the submit
+button says so and stays disabled, because a form that collects a submission it cannot post is worse
+than no form.
+
+### 8.8 Reviewing what has arrived
 
 **Submissions** in the sidebar lists what has arrived in this model, so a reviewer can throw away the
 junk and promote the rest into a project model of its own. It is the same read and the same two
@@ -840,6 +878,9 @@ vos.Trellis/
     │   ├── PipelinePage.tsx     # Pipeline / DAG editor (Phloem orchestration)
     │   ├── ThingSearchPage.tsx  # Thing search
     │   ├── PropertySearchPage.tsx # Property search
+    │   ├── IntakeWizardPage.tsx # Describing a piece of land and proposing it as a site
+    │   ├── intakeWizard.ts      # The draft, the area units, the programme split and the posted document
+    │   ├── modelVocabulary.ts   # The terms a model declares under a marked archetype
     │   ├── SubmissionReviewPage.tsx # What has arrived, and what a reviewer decides about it
     │   └── submissionReview.ts  # The model reading behind that page, free of React
     │
@@ -1101,6 +1142,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
 | `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict / working widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A `stateList` row is the exception in mechanism only: its columns are resolved own-first and then up the `is` chain by the platform and sent with the row, so an inherited value reaches it just the same. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes); that narrowing, the scope, an excluded state, a row cap and — for `stateList` — the columns its rows carry all ride on the request now, so the broker answers the question the widget asked rather than a larger one the browser then cuts down (see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/intake` | `IntakeWizardPage` | The land-intake wizard (#6016): project, contact, location, and size and programme, posted to the intake service as one document. The draft is written to browser storage on every keystroke, keyed by the model, so a closed tab loses nothing, and it is cleared once the submission is in the model. The area is stored in hectares whatever unit it is typed in; an area that is not a figure is left out rather than sent as zero. The programme categories are the Things under the archetype marked `__IsAllocationCategoryArchetype` — the same vocabulary the intake service resolves a submitted word against — so the wizard cannot offer a term that is then refused, and the shares always describe the whole parcel. Coordinates are read out of a pasted map link by `src/utils/mapLink.ts`, which refuses a pair that could not be a point on Earth and names a shortened link as one to open by hand. Offered only where `VITE_INTAKE_URL` is set. Pure logic in `src/pages/intakeWizard.ts` and `src/pages/modelVocabulary.ts`. |
 | `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
 | `/model` | `ModelPage` | Fragments-based 3D viewer of IFC geometry, with type filtering and element selection |
@@ -1177,6 +1219,7 @@ Singleton `ApiClient` class with:
 - Auto-fetches JWT Bearer token via API key exchange (4-min client refresh / 5-min server expiry) or login (25-min client refresh / 30-min server expiry)
 - Base URL from `VITE_BROKER_URL` env var (defaults to `''` — same origin via Vite proxy)
 - IFC ingestion service URL from `VITE_INGEST_URL` env var — the **Xylem** endpoint the Model-page upload posts to (`ingestApi`, `POST <VITE_INGEST_URL>/ingest`, authenticated with the current JWT). Unset ⇒ the in-app upload is hidden and the page points at the CLI instead.
+- Land-intake service URL from `VITE_INTAKE_URL` env var — the **Intake** endpoint the wizard posts a submission to (`intakeApi`, `POST <VITE_INTAKE_URL>/submissions`, authenticated with the current JWT). Its own address rather than the broker's endpoint-forward route: that route resolves where to forward from data in the model, so anything the model named would be within reach of whoever could call it, and intake holds its own credential instead. Unset ⇒ the wizard's submit button says so and stays disabled.
 
 ### API Modules
 
