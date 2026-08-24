@@ -36,3 +36,12 @@ describe('a page that reads the model store', () => {
     expect(silent, 'these pages read the model store and declare no subscription').toEqual([]);
   });
 });
+
+describe('a page that shows a map', () => {
+  it('reaches it through the shared map module, never maplibre-gl itself', () => {
+    const pages = readdirSync(PAGES).filter((file) => file.endsWith('.tsx') && !file.includes('.test.'));
+    const importing = pages.filter((file) => readFileSync(join(PAGES, file), 'utf8').includes('maplibre-gl'));
+
+    expect(importing, 'these pages import the map library instead of the shared map module').toEqual([]);
+  });
+});

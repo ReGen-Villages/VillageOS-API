@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   HECTARES_PER_ACRE,
   clearDraft,
+  coordinatesFrom,
   documentFrom,
   emptyDraft,
   fromHectares,
@@ -81,6 +82,30 @@ describe('the area and the unit it was typed in', () => {
 
     expect(document.site.longitude).toBe(-8.4137);
     expect(document.site.statedAreaHectares).toBeUndefined();
+  });
+});
+
+describe('where the site sits', () => {
+  it('is where the two typed coordinates put it', () => {
+    expect(coordinatesFrom(filled())).toEqual({ latitude: 39.5012, longitude: -8.4137 });
+  });
+
+  it.each([
+    ['latitude', { latitude: '' }],
+    ['longitude', { longitude: '   ' }],
+  ])('is nowhere while the %s is still missing', (_half, patch) => {
+    expect(coordinatesFrom(filled(patch))).toBeNull();
+  });
+
+  it('is nowhere when a coordinate is not a figure', () => {
+    expect(coordinatesFrom(filled({ latitude: 'north a bit' }))).toBeNull();
+  });
+
+  it.each([
+    ['91', '-8.4137'],
+    ['39.5', '-181'],
+  ])('is nowhere on Earth at latitude %s, longitude %s', (latitude, longitude) => {
+    expect(coordinatesFrom(filled({ latitude, longitude }))).toBeNull();
   });
 });
 

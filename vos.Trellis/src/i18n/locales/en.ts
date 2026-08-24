@@ -660,6 +660,7 @@ export const en = {
     mapLinkRead: 'Coordinates read from the link.',
     mapLinkShortened: 'A shortened link cannot be opened from here. Open it, then copy the coordinates out of the address bar.',
     mapLinkUnrecognised: 'No coordinates were found in that text.',
+    mapNeedsPosition: 'The map appears once both coordinates are given.',
     latitude: 'Latitude',
     longitude: 'Longitude',
     statedArea: 'Land area',

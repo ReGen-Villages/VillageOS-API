@@ -103,6 +103,17 @@ describe('MapView', () => {
     expect(maps[0].flyTo).toHaveBeenCalledWith({ center: [-70.64, 41.38], zoom: 12 });
   });
 
+  it('follows a moved position without rebuilding the map', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} />);
+    rerender(<MapView latitude={40.1} longitude={-70.2} sources={[STREETS]} />);
+    expect(maps).toHaveLength(1);
+    expect(markerPositions).toEqual([
+      [-70.64, 41.38],
+      [-70.2, 40.1],
+    ]);
+    expect(maps[0].flyTo).toHaveBeenCalledWith({ center: [-70.2, 40.1], zoom: 15 });
+  });
+
   it('reports unreachable tiles without taking the coordinates away', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
     act(() => maps[0].handlers.get('error')!());

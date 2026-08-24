@@ -31,6 +31,9 @@ export function MapView({ latitude, longitude, sources, initialZoom = DEFAULT_ZO
   const { t } = useTranslation();
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<MapLibreMap | null>(null);
+  const marker = useRef<Marker | null>(null);
+  /** The position the map is showing — and where a map built later starts. */
+  const shownAt = useRef<[number, number] | null>(null);
   const selectedSourceName = useMapStore((s) => s.selectedSourceName);
   const tilesUnreachable = useMapStore((s) => s.tilesUnreachable);
   const selectSource = useMapStore((s) => s.selectSource);
@@ -38,21 +41,35 @@ export function MapView({ latitude, longitude, sources, initialZoom = DEFAULT_ZO
   const selected = resolveSelectedSource(sources, selectedSourceName);
   const hasSource = selected !== null;
 
+  // Declared before the map is built, so the first run only records where to build it. After that,
+  // a moved position moves the map that exists rather than building a new one — the wizard moves it
+  // with every keystroke in a coordinate field, and a rebuild refetches every tile.
   useEffect(() => {
-    if (!container.current || !hasSource) return;
+    const [shownLongitude, shownLatitude] = shownAt.current ?? [];
+    const moved = shownLongitude !== longitude || shownLatitude !== latitude;
+    shownAt.current = [longitude, latitude];
+    if (!map.current || !moved) return;
+    marker.current?.setLngLat([longitude, latitude]);
+    map.current.flyTo({ center: [longitude, latitude], zoom: initialZoom });
+  }, [latitude, longitude, initialZoom]);
+
+  useEffect(() => {
+    const centre = shownAt.current;
+    if (!container.current || !hasSource || !centre) return;
     const created = new MapLibreMap({
       container: container.current,
-      center: [longitude, latitude],
+      center: centre,
       zoom: initialZoom,
     });
     created.on('error', reportTilesUnreachable);
-    new Marker().setLngLat([longitude, latitude]).addTo(created);
+    marker.current = new Marker().setLngLat(centre).addTo(created);
     map.current = created;
     return () => {
       created.remove();
       map.current = null;
+      marker.current = null;
     };
-  }, [latitude, longitude, initialZoom, hasSource, reportTilesUnreachable]);
+  }, [initialZoom, hasSource, reportTilesUnreachable]);
 
   // Swapping the style instead of rebuilding the map leaves the reader where they had panned to,
   // which is why the map above is built without one.

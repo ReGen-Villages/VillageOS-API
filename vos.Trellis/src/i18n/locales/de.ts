@@ -662,6 +662,7 @@ export const de: PartialResources = {
     mapLinkRead: 'Koordinaten aus dem Link gelesen.',
     mapLinkShortened: 'Ein gekürzter Link lässt sich von hier aus nicht öffnen. Öffnen Sie ihn und kopieren Sie die Koordinaten aus der Adresszeile.',
     mapLinkUnrecognised: 'In diesem Text wurden keine Koordinaten gefunden.',
+    mapNeedsPosition: "Die Karte erscheint, sobald beide Koordinaten angegeben sind.",
     latitude: 'Breitengrad',
     longitude: 'Längengrad',
     statedArea: 'Grundstücksfläche',

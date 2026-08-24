@@ -2,7 +2,8 @@
 
 > **Status: partly built.** The archetypes exist and a model can be seeded with them, the intake
 > service composes a submission into them, and the wizard collects what a planner types and posts it
-> (#6016). The map and parcel drawing, anonymous submission and open-data discovery are still design.
+> (#6016), showing the site on the map as the position is given (#6014). Parcel drawing, anonymous
+> submission and open-data discovery are still design.
 > Tracked as Epic
 > [#6012](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6012) (client, services)
 > and Epic [#6033](https://dev.azure.com/ReGenVillages/VillageOS/_workitems/edit/6033) (model, broker).
@@ -921,8 +922,8 @@ The main finding from designing this: most of it is already built.
 | Authentication, model isolation, service supervision | **Exists** (Mycelium) |
 | Composing a submission into the model's own shape | **Exists** (`vos.Service.Intake`) |
 | — | |
-| A map, and drawing a parcel on it | **New** — the only new UI capability |
-| The intake wizard | **Exists** for what a planner types (#6016) — the map and parcel drawing steps are still new |
+| A map, and drawing a parcel on it | **Exists** for the map (#5346, #6014) — drawing a parcel on it is still new |
+| The intake wizard | **Exists** for what a planner types (#6016) and the site on the map (#6014) — the parcel drawing step is still new |
 | Anonymous submission: rate limits, size caps, bot checks, the staging model | **New** — hardening around the service that already composes |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 

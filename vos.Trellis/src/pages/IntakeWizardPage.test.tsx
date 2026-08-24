@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
+import type { BasemapSource } from '../types/basemap';
 import { ALLOCATION_CATEGORY_ARCHETYPE_FLAG } from './modelVocabulary';
 
 vi.mock('../api/thingApi', () => ({
@@ -16,6 +17,16 @@ vi.mock('../components/common/toastStore', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ modelId: 'model-1' }) }));
+vi.mock('../components/map/MapView', () => ({
+  MapView: ({ latitude, longitude, sources }: { latitude: number; longitude: number; sources: BasemapSource[] }) => (
+    <div
+      data-testid="site-map"
+      data-latitude={latitude}
+      data-longitude={longitude}
+      data-sources={sources.map((source) => source.name).join(',')}
+    />
+  ),
+}));
 
 import { intakeApi } from '../api/intakeApi';
 import { relationshipApi } from '../api/relationshipApi';
@@ -48,12 +59,19 @@ const THINGS: VosThing[] = [
   thing('housing', 'housing'),
   thing('growing', 'growing'),
   thing('roads', 'roads'),
+  thing('basemap-source', 'BasemapSource', true),
+  {
+    Id: 'aerial',
+    Name: 'Aerial imagery',
+    Properties: { attribution: 'Sample credit', tileUrl: 'https://tiles.example.org/{z}/{x}/{y}.png' },
+  },
 ];
 
 const EDGES: VosRelationship[] = [
   edge('e1', 'housing', 'is', 'land-use'),
   edge('e2', 'growing', 'is', 'land-use'),
   edge('e3', 'roads', 'is', 'land-use'),
+  edge('e4', 'aerial', 'is', 'basemap-source'),
 ];
 
 const PROPERTIES = { 'land-use': { [ALLOCATION_CATEGORY_ARCHETYPE_FLAG]: owned(true) } };
@@ -202,6 +220,50 @@ describe('collecting a submission', () => {
 
     expect(screen.getByText(/shortened link cannot be opened/)).toBeInTheDocument();
     expect(screen.getByLabelText('Latitude')).toHaveValue('');
+  });
+});
+
+describe('the site on the map', () => {
+  it('appears once both halves of the position are given, on the sources the model declares', async () => {
+    render(<IntakeWizardPage />);
+    goToStep(2);
+    expect(screen.getByText('The map appears once both coordinates are given.')).toBeInTheDocument();
+
+    typeInto('Latitude', '39.5012');
+    expect(screen.queryByTestId('site-map')).not.toBeInTheDocument();
+    typeInto('Longitude', '-8.4137');
+
+    const map = await screen.findByTestId('site-map');
+    expect(map.dataset.latitude).toBe('39.5012');
+    expect(map.dataset.longitude).toBe('-8.4137');
+    expect(map.dataset.sources).toBe('Aerial imagery');
+    expect(screen.queryByText('The map appears once both coordinates are given.')).not.toBeInTheDocument();
+  });
+
+  it('moves to what a pasted link says, and the stored coordinates follow it', async () => {
+    render(<IntakeWizardPage />);
+    goToStep(2);
+    typeInto('Latitude', '39.5012');
+    typeInto('Longitude', '-8.4137');
+    await screen.findByTestId('site-map');
+
+    typeInto('Paste a map link', 'https://www.google.com/maps/@41.1496,-8.6109,15z');
+
+    const map = await screen.findByTestId('site-map');
+    expect(map.dataset.latitude).toBe('41.1496');
+    expect(map.dataset.longitude).toBe('-8.6109');
+    expect(loadDraft('model-1')?.latitude).toBe('41.1496');
+  });
+
+  it('stays away while a coordinate points off the Earth, leaving the fields to correct', () => {
+    render(<IntakeWizardPage />);
+    goToStep(2);
+
+    typeInto('Latitude', '95');
+    typeInto('Longitude', '-8.4137');
+
+    expect(screen.queryByTestId('site-map')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Latitude')).not.toBeDisabled();
   });
 });
 
