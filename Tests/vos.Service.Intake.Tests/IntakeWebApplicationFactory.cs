@@ -26,6 +26,10 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
 
     public string Audience { get; set; } = "intake-handler";
 
+    /// <summary>Origin(s) of the public form allowed to call this service across origins. Null leaves
+    /// every cross-origin caller refused, the default a public service must start from.</summary>
+    public string? PublicFormOrigin { get; set; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -39,6 +43,8 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             builder.UseSetting("Issuer", Issuer);
             builder.UseSetting("Audience", Audience);
         }
+        if (PublicFormOrigin != null)
+            builder.UseSetting("PublicFormOrigin", PublicFormOrigin);
 
         builder.ConfigureTestServices(services =>
         {
