@@ -700,6 +700,15 @@ be resolved to, and the predicate a decision is written through. A model marking
 in place of the list. A model whose properties cannot be read says that instead, and a single
 submission that cannot be read still appears with what is known about it.
 
+**A mark is read as owned, never as merely present** (Bug #6723). Properties are read effective, because
+seed normalization moves a Thing's own values into its overrides and a reader looking only at own
+properties finds a model full of Things and reads nothing off them. But a mark is an ordinary property
+on the archetype, so every term that `is` it reads the mark too — and a reader counting carriers finds
+the archetype *and all of its terms*, then answers "more than one, so none" for a model that is not
+ambiguous at all. Every effective property says which of the two it is, and
+`modelVocabulary.ownCarrierOf` counts only the ones that are not inherited. Two Things genuinely owning
+one mark is still refused, because nothing could say which vocabulary a term belongs to.
+
 ---
 
 ## 9. Keyboard and Mouse Reference
@@ -880,7 +889,7 @@ vos.Trellis/
     │   ├── PropertySearchPage.tsx # Property search
     │   ├── IntakeWizardPage.tsx # Describing a piece of land and proposing it as a site
     │   ├── intakeWizard.ts      # The draft, the area units, the programme split and the posted document
-    │   ├── modelVocabulary.ts   # The terms a model declares under a marked archetype
+    │   ├── modelVocabulary.ts   # The Thing that owns a mark, and the terms declared under it
     │   ├── SubmissionReviewPage.tsx # What has arrived, and what a reviewer decides about it
     │   └── submissionReview.ts  # The model reading behind that page, free of React
     │

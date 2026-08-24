@@ -16,8 +16,8 @@ import {
   predicateNamesIn,
   proposedSitePredicate,
   submissionsIn,
-  type ModelReading,
 } from './submissionReview';
+import type { ModelReading } from './modelVocabulary';
 
 // Every name below is spelled differently from the shipped land-intake template, so a reader
 // answering only to that spelling fails here rather than passing.
@@ -32,6 +32,10 @@ const edge = (Id: string, SubjectId: string, PredicateId: string, TargetId: stri
 });
 
 const held = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.String', IsInherited: false });
+
+/** What a Thing gets from the archetype it `is`. A mark is an ordinary property on the archetype, so
+ *  every term under it reads the mark too — which is what a real seeded model hands back. */
+const inherited = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.String', IsInherited: true });
 
 const THINGS: VosThing[] = [
   thing('is', 'is'),
@@ -59,7 +63,8 @@ const PROPERTIES: Record<string, Record<string, EffectiveProperty>> = {
   'puts-forward': { [PROPOSED_SITE_PREDICATE_FLAG]: held(true) },
   decided: { [DISPOSITION_PREDICATE_FLAG]: held(true) },
   verdict: { [DISPOSITION_ARCHETYPE_FLAG]: held(true) },
-  binned: { [COLD_STORAGE_PERIOD_PROPERTY]: held(30) },
+  binned: { [DISPOSITION_ARCHETYPE_FLAG]: inherited(true), [COLD_STORAGE_PERIOD_PROPERTY]: held(30) },
+  'taken-on': { [DISPOSITION_ARCHETYPE_FLAG]: inherited(true) },
   'arrival-1': { submissionId: held('sub-0001'), submittedAt: held('2026-08-20T09:00:00Z') },
   'arrival-2': { submissionId: held('sub-0002'), submittedAt: held('2026-08-21T09:00:00Z') },
 };
@@ -187,6 +192,31 @@ describe('what a decision means here', () => {
 
     expect(disposableDisposition(unmarked)).toBeNull();
     expect(keptDisposition(unmarked)).toBeNull();
+  });
+});
+
+describe('a mark is owned, never inherited', () => {
+  it('finds the archetype even though every term under it reads the mark too', () => {
+    expect(disposableDisposition(reading())?.id).toBe('binned');
+    expect(keptDisposition(reading())?.id).toBe('taken-on');
+  });
+
+  it('answers with none where two Things own the mark, which is genuinely ambiguous', () => {
+    const twoOwners = {
+      ...PROPERTIES,
+      covers: { [DISPOSITION_ARCHETYPE_FLAG]: held(true) },
+    };
+
+    expect(disposableDisposition(reading({ properties: twoOwners }))).toBeNull();
+  });
+
+  it('answers with none where the only carrier inherited the mark, so nothing declares it', () => {
+    const noOwner = {
+      ...PROPERTIES,
+      verdict: { [DISPOSITION_ARCHETYPE_FLAG]: inherited(true) },
+    };
+
+    expect(disposableDisposition(reading({ properties: noOwner }))).toBeNull();
   });
 });
 
