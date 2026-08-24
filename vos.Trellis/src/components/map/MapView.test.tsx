@@ -4,18 +4,30 @@ import type { BasemapSource } from '../../types/basemap';
 
 interface RecordedMap {
   options: Record<string, unknown>;
-  handlers: Map<string, () => void>;
+  handlers: Map<string, (event?: unknown) => void>;
+  sources: Map<string, { setData: ReturnType<typeof vi.fn>; data: unknown }>;
+  layers: string[];
   flyTo: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
   setStyle: ReturnType<typeof vi.fn>;
 }
 
+interface RecordedMarker {
+  options: Record<string, unknown>;
+  position: [number, number] | null;
+  handlers: Map<string, () => void>;
+  remove: ReturnType<typeof vi.fn>;
+}
+
 const mocks = vi.hoisted(() => {
   const mapInstances: unknown[] = [];
+  const markerInstances: unknown[] = [];
   const markerPositions: [number, number][] = [];
   class MockMap {
     options: Record<string, unknown>;
-    handlers = new Map<string, () => void>();
+    handlers = new Map<string, (event?: unknown) => void>();
+    sources = new Map<string, { setData: (data: unknown) => void; data: unknown }>();
+    layers: string[] = [];
     flyTo = vi.fn();
     remove = vi.fn();
     setStyle = vi.fn();
@@ -23,20 +35,59 @@ const mocks = vi.hoisted(() => {
       this.options = options;
       mapInstances.push(this);
     }
-    on(event: string, handler: () => void) {
+    on(event: string, handler: (event?: unknown) => void) {
       this.handlers.set(event, handler);
+    }
+    off(event: string, handler: (event?: unknown) => void) {
+      if (this.handlers.get(event) === handler) this.handlers.delete(event);
+    }
+    addSource(id: string, source: { data: unknown }) {
+      const held = {
+        data: source.data,
+        setData: vi.fn((data: unknown) => {
+          held.data = data;
+        }),
+      };
+      this.sources.set(id, held);
+    }
+    getSource(id: string) {
+      return this.sources.get(id);
+    }
+    removeSource(id: string) {
+      this.sources.delete(id);
+    }
+    addLayer(layer: { id: string }) {
+      this.layers.push(layer.id);
+    }
+    removeLayer(id: string) {
+      this.layers = this.layers.filter((held) => held !== id);
     }
   }
   class MockMarker {
+    options: Record<string, unknown>;
+    position: [number, number] | null = null;
+    handlers = new Map<string, () => void>();
+    remove = vi.fn();
+    constructor(options: Record<string, unknown> = {}) {
+      this.options = options;
+      markerInstances.push(this);
+    }
     setLngLat(position: [number, number]) {
+      this.position = position;
       markerPositions.push(position);
       return this;
     }
     addTo() {
       return this;
     }
+    getLngLat() {
+      return { lng: this.position![0], lat: this.position![1] };
+    }
+    on(event: string, handler: () => void) {
+      this.handlers.set(event, handler);
+    }
   }
-  return { mapInstances, markerPositions, MockMap, MockMarker };
+  return { mapInstances, markerInstances, markerPositions, MockMap, MockMarker };
 });
 
 vi.mock('maplibre-gl', () => ({ Map: mocks.MockMap, Marker: mocks.MockMarker }));
@@ -44,9 +95,13 @@ vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}));
 
 import { MapView } from './MapView';
 import { useMapStore } from '../../stores/mapStore';
+import type { BoundaryPoint } from '../../utils/parcelGeometry';
 
 const maps = mocks.mapInstances as RecordedMap[];
+const markers = mocks.markerInstances as RecordedMarker[];
 const markerPositions = mocks.markerPositions;
+
+const draggable = () => markers.filter((marker) => marker.options.draggable === true);
 
 function source(name: string, styleUrl: string): BasemapSource {
   return { id: `id-${name}`, name, attribution: `${name} credit`, kind: 'style', styleUrl };
@@ -57,12 +112,14 @@ const AERIAL = source('Aerial', 'https://tiles.example.org/aerial');
 
 const POSITION = { latitude: 41.38, longitude: -70.64 };
 
+beforeEach(() => {
+  maps.length = 0;
+  markers.length = 0;
+  markerPositions.length = 0;
+  useMapStore.setState({ selectedSourceName: null, tilesUnreachable: false });
+});
+
 describe('MapView', () => {
-  beforeEach(() => {
-    maps.length = 0;
-    markerPositions.length = 0;
-    useMapStore.setState({ selectedSourceName: null, tilesUnreachable: false });
-  });
 
   it('says so and keeps the coordinates readable when the model declares no source', () => {
     render(<MapView {...POSITION} sources={[]} />);
@@ -125,5 +182,97 @@ describe('MapView', () => {
     const { unmount } = render(<MapView {...POSITION} sources={[STREETS]} />);
     unmount();
     expect(maps[0].remove).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the boundary on the map', () => {
+  const CORNERS: readonly BoundaryPoint[] = [
+    { latitude: 41.38, longitude: -70.64 },
+    { latitude: 41.382, longitude: -70.64 },
+    { latitude: 41.382, longitude: -70.638 },
+  ];
+
+  function ring(): [number, number][] {
+    const feature = maps[0].sources.get('boundary')!.data as {
+      geometry: { coordinates: [number, number][][] };
+    };
+    return feature.geometry.coordinates[0];
+  }
+
+  it('draws the boundary as a closed ring over the basemap', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+
+    expect(ring()).toHaveLength(CORNERS.length + 1);
+    expect(ring()[0]).toEqual([-70.64, 41.38]);
+    expect(ring()[CORNERS.length]).toEqual(ring()[0]);
+  });
+
+  it('draws it again after a style swap wiped what the style held', () => {
+    render(<MapView {...POSITION} sources={[AERIAL, STREETS]} boundary={CORNERS} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Streets' }));
+    maps[0].sources.clear();
+    maps[0].layers.length = 0;
+
+    act(() => maps[0].handlers.get('styledata')!());
+
+    expect(maps[0].sources.has('boundary')).toBe(true);
+    expect(maps[0].layers).toContain('boundary-fill');
+  });
+
+  it('adds a corner where the map is clicked, when a change handler makes it editable', () => {
+    const onBoundaryChange = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={[]} onBoundaryChange={onBoundaryChange} />);
+
+    act(() => maps[0].handlers.get('click')!({ lngLat: { lat: 41.384, lng: -70.636 } }));
+
+    expect(onBoundaryChange).toHaveBeenCalledWith([{ latitude: 41.384, longitude: -70.636 }]);
+  });
+
+  it('reports the whole boundary when one corner is dragged somewhere else', () => {
+    const onBoundaryChange = vi.fn();
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} onBoundaryChange={onBoundaryChange} />);
+    const corner = draggable()[1];
+
+    corner.position = [-70.637, 41.383];
+    act(() => corner.handlers.get('dragend')!());
+
+    expect(onBoundaryChange).toHaveBeenCalledWith([
+      CORNERS[0],
+      { latitude: 41.383, longitude: -70.637 },
+      CORNERS[2],
+    ]);
+  });
+
+  it('redraws a moved boundary in place rather than adding a second one', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    const moved = [CORNERS[0], { latitude: 41.383, longitude: -70.637 }, CORNERS[2]];
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={moved} />);
+
+    expect(maps[0].sources.get('boundary')!.setData).toHaveBeenCalled();
+    expect(ring()[1]).toEqual([-70.637, 41.383]);
+    expect(maps[0].layers).toEqual(['boundary-fill', 'boundary-line']);
+  });
+
+  it('offers no drawing at all without a change handler', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+
+    expect(maps[0].handlers.has('click')).toBe(false);
+    expect(draggable()).toHaveLength(0);
+  });
+
+  it('takes a cleared boundary off the map, corners and outline both', () => {
+    const onBoundaryChange = vi.fn();
+    const { rerender } = render(
+      <MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} onBoundaryChange={onBoundaryChange} />,
+    );
+    const corners = draggable();
+    expect(corners).toHaveLength(CORNERS.length);
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={[]} onBoundaryChange={onBoundaryChange} />);
+
+    corners.forEach((corner) => expect(corner.remove).toHaveBeenCalled());
+    expect(maps[0].sources.has('boundary')).toBe(false);
+    expect(maps[0].layers).toEqual([]);
   });
 });

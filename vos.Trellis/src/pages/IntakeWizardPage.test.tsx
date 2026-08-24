@@ -18,13 +18,39 @@ vi.mock('../components/common/toastStore', () => ({
 }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ modelId: 'model-1' }) }));
 vi.mock('../components/map/MapView', () => ({
-  MapView: ({ latitude, longitude, sources }: { latitude: number; longitude: number; sources: BasemapSource[] }) => (
+  MapView: ({
+    latitude,
+    longitude,
+    sources,
+    boundary,
+    onBoundaryChange,
+  }: {
+    latitude: number;
+    longitude: number;
+    sources: BasemapSource[];
+    boundary?: { latitude: number; longitude: number }[];
+    onBoundaryChange?: (boundary: { latitude: number; longitude: number }[]) => void;
+  }) => (
     <div
       data-testid="site-map"
       data-latitude={latitude}
       data-longitude={longitude}
       data-sources={sources.map((source) => source.name).join(',')}
-    />
+      data-corners={boundary?.length ?? ''}
+    >
+      {onBoundaryChange && (
+        <button
+          onClick={() =>
+            onBoundaryChange([
+              ...(boundary ?? []),
+              { latitude: 39.5 + (boundary?.length ?? 0) / 500, longitude: -8.41 },
+            ])
+          }
+        >
+          stub-place-corner
+        </button>
+      )}
+    </div>
   ),
 }));
 
@@ -33,7 +59,7 @@ import { relationshipApi } from '../api/relationshipApi';
 import { thingApi } from '../api/thingApi';
 import { toast } from '../components/common/toastStore';
 import { IntakeWizardPage } from './IntakeWizardPage';
-import { loadDraft, saveDraft, emptyDraft } from './intakeWizard';
+import { loadDraft, saveDraft, emptyDraft, type SubmissionDraft } from './intakeWizard';
 
 // Spelled unlike the shipped land-intake template, so a page answering only to that spelling fails.
 const thing = (Id: string, Name: string, IsArchetype = false): VosThing => ({
@@ -337,10 +363,93 @@ describe('the size and programme step', () => {
   });
 });
 
+describe('the parcel step', () => {
+  function located(patch: Partial<SubmissionDraft> = {}): void {
+    saveDraft('model-1', {
+      ...emptyDraft('sub-0001'),
+      siteName: 'Willow Bend',
+      latitude: '39.5',
+      longitude: '-8.41',
+      statedArea: '24',
+      ...patch,
+    });
+  }
+
+  it('drafts a square from the stated area and reports it within tolerance of itself', async () => {
+    located();
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Place a draft boundary' }));
+
+    expect(screen.getByText('The drawn and stated areas agree within tolerance.')).toBeInTheDocument();
+    expect(loadDraft('model-1')?.boundarySource).toBe('generated-from-stated-area');
+    expect(loadDraft('model-1')?.boundary).toHaveLength(4);
+    expect((await screen.findByTestId('site-map')).dataset.corners).toBe('4');
+  });
+
+  it('offers no draft while the stated area is missing', () => {
+    located({ statedArea: '' });
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    expect(screen.getByRole('button', { name: 'Place a draft boundary' })).toBeDisabled();
+  });
+
+  it('marks a boundary drawn on the map as drawn by hand', async () => {
+    located();
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    for (let corner = 0; corner < 3; corner += 1) {
+      fireEvent.click(await screen.findByRole('button', { name: 'stub-place-corner' }));
+    }
+
+    expect(loadDraft('model-1')?.boundarySource).toBe('drawn-by-hand');
+    expect(loadDraft('model-1')?.boundary).toHaveLength(3);
+  });
+
+  it('says how far apart the drawn and stated areas are when they disagree', () => {
+    located({
+      boundary: [
+        { latitude: 39.5, longitude: -8.41 },
+        { latitude: 39.501, longitude: -8.41 },
+        { latitude: 39.501, longitude: -8.409 },
+      ],
+      boundarySource: 'drawn-by-hand',
+    });
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    expect(screen.getByText(/away from the stated area/)).toBeInTheDocument();
+  });
+
+  it('clears the boundary from the map and the stored draft together', async () => {
+    located();
+    render(<IntakeWizardPage />);
+    goToStep(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Place a draft boundary' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the boundary' }));
+
+    expect(loadDraft('model-1')?.boundary).toEqual([]);
+    expect((await screen.findByTestId('site-map')).dataset.corners).toBe('0');
+  });
+
+  it('asks for a position before there is a map to draw on', () => {
+    located({ latitude: '', longitude: '' });
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    expect(screen.getByText('The map appears once both coordinates are given.')).toBeInTheDocument();
+    expect(screen.queryByTestId('site-map')).not.toBeInTheDocument();
+  });
+});
+
 describe('posting the submission', () => {
   it('will not submit without a site name, which is what a Thing is created under', () => {
     render(<IntakeWizardPage />);
-    goToStep(3);
+    goToStep(4);
 
     expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
     expect(screen.getByText('A site name is needed.')).toBeInTheDocument();
@@ -350,7 +459,7 @@ describe('posting the submission', () => {
     vi.mocked(intakeApi.configured).mockReturnValue(false);
     saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
     render(<IntakeWizardPage />);
-    goToStep(3);
+    goToStep(4);
 
     expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
     expect(screen.getByText('No intake service address is configured.')).toBeInTheDocument();
@@ -359,7 +468,7 @@ describe('posting the submission', () => {
   it('posts what was collected and shows the Things it became', async () => {
     saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend', statedArea: '24' });
     render(<IntakeWizardPage />);
-    goToStep(3);
+    goToStep(4);
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
@@ -370,10 +479,34 @@ describe('posting the submission', () => {
     expect(screen.getByText('site-1')).toBeInTheDocument();
   });
 
+  it('posts the boundary and how it was obtained along with everything else', async () => {
+    const corners = [
+      { latitude: 39.5, longitude: -8.41 },
+      { latitude: 39.502, longitude: -8.41 },
+      { latitude: 39.502, longitude: -8.408 },
+    ];
+    saveDraft('model-1', {
+      ...emptyDraft('sub-0001'),
+      siteName: 'Willow Bend',
+      boundary: corners,
+      boundarySource: 'drawn-by-hand',
+    });
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+
+    await waitFor(() =>
+      expect(intakeApi.submit).toHaveBeenCalledWith(
+        expect.objectContaining({ parcel: { boundarySource: 'drawn-by-hand', boundary: corners } }),
+      ),
+    );
+  });
+
   it('clears the draft once it is in the model, so reopening starts a new submission', async () => {
     saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
     render(<IntakeWizardPage />);
-    goToStep(3);
+    goToStep(4);
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
@@ -383,7 +516,7 @@ describe('posting the submission', () => {
   it('starts a fresh submission after one has landed, under a new identifier', async () => {
     saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
     render(<IntakeWizardPage />);
-    goToStep(3);
+    goToStep(4);
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     await waitFor(() => expect(screen.getByText('Submitted')).toBeInTheDocument());
 
@@ -397,7 +530,7 @@ describe('posting the submission', () => {
     vi.mocked(intakeApi.submit).mockRejectedValue(new Error("'site.name' is missing"));
     saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
     render(<IntakeWizardPage />);
-    goToStep(3);
+    goToStep(4);
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
 

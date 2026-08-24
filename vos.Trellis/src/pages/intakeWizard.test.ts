@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
 import {
+  BOUNDARY_DRAWN_BY_HAND,
+  BOUNDARY_GENERATED_FROM_STATED_AREA,
   HECTARES_PER_ACRE,
+  boundaryCleared,
+  boundaryDrafted,
+  boundaryDrawn,
   clearDraft,
   coordinatesFrom,
   documentFrom,
@@ -106,6 +112,87 @@ describe('where the site sits', () => {
     ['39.5', '-181'],
   ])('is nowhere on Earth at latitude %s, longitude %s', (latitude, longitude) => {
     expect(coordinatesFrom(filled({ latitude, longitude }))).toBeNull();
+  });
+});
+
+describe('the parcel boundary', () => {
+  const CORNERS: readonly BoundaryPoint[] = [
+    { latitude: 39.5, longitude: -8.41 },
+    { latitude: 39.502, longitude: -8.41 },
+    { latitude: 39.502, longitude: -8.408 },
+  ];
+
+  beforeEach(() => clearDraft(MODEL));
+
+  it('placing a draft generates a square of the stated area, and says that is how it was obtained', () => {
+    const drafted = boundaryDrafted(filled({ statedArea: '24' }));
+
+    expect(drafted?.boundarySource).toBe(BOUNDARY_GENERATED_FROM_STATED_AREA);
+    expect(drafted?.boundary).toHaveLength(4);
+    expect(sphericalAreaHectares(drafted!.boundary!)).toBeCloseTo(24, 2);
+  });
+
+  it('places no draft while the position, the stated area, or any area at all is missing', () => {
+    expect(boundaryDrafted(filled({ latitude: '' }))).toBeNull();
+    expect(boundaryDrafted(filled({ statedArea: '' }))).toBeNull();
+    expect(boundaryDrafted(filled({ statedArea: '0' }))).toBeNull();
+  });
+
+  it('a boundary the planner drew or edited was drawn by hand, whatever it was before', () => {
+    expect(boundaryDrawn(CORNERS)).toEqual({ boundary: CORNERS, boundarySource: BOUNDARY_DRAWN_BY_HAND });
+  });
+
+  it('clearing removes the corners and how they were obtained together', () => {
+    expect(boundaryCleared()).toEqual({ boundary: [], boundarySource: null });
+  });
+
+  it('is posted with its corners and its origin once it has three of them', () => {
+    const document = documentFrom(
+      filled({ boundary: CORNERS, boundarySource: BOUNDARY_DRAWN_BY_HAND }),
+    );
+
+    expect(document.parcel).toEqual({ boundarySource: 'drawn-by-hand', boundary: CORNERS });
+  });
+
+  it('is left out of the document below three corners, which enclose nothing', () => {
+    const twoCorners = filled({ boundary: CORNERS.slice(0, 2), boundarySource: BOUNDARY_DRAWN_BY_HAND });
+
+    expect(documentFrom(twoCorners).parcel).toBeUndefined();
+    expect(documentFrom(filled()).parcel).toBeUndefined();
+  });
+
+  it('posts only the corner coordinates, not whatever else a stored corner carried', () => {
+    const carrying = [...CORNERS.slice(0, 2), { ...CORNERS[2], zoom: 15 } as BoundaryPoint];
+
+    const posted = documentFrom(filled({ boundary: carrying, boundarySource: BOUNDARY_DRAWN_BY_HAND }));
+
+    expect(posted.parcel?.boundary[2]).toEqual(CORNERS[2]);
+  });
+
+  it('survives the tab closing, corners and origin both', () => {
+    saveDraft(MODEL, filled({ boundary: CORNERS, boundarySource: BOUNDARY_DRAWN_BY_HAND }));
+
+    const restored = loadDraft(MODEL);
+
+    expect(restored?.boundary).toEqual(CORNERS);
+    expect(restored?.boundarySource).toBe(BOUNDARY_DRAWN_BY_HAND);
+  });
+
+  it.each([
+    ['a word where the corners should be', { boundary: 'a word' }],
+    ['a corner that is not a coordinate pair', { boundary: [{ latitude: 'north', longitude: -8.41 }] }],
+    ['an origin the wizard cannot truthfully claim', { boundary: CORNERS, boundarySource: 'imported-from-file' }],
+    ['corners with no origin at all', { boundary: CORNERS, boundarySource: null }],
+  ])('falls back to no boundary where what was stored holds %s', (_case, patch) => {
+    localStorage.setItem(
+      `vos-intake-draft:${MODEL}`,
+      JSON.stringify({ ...filled(), ...patch }),
+    );
+
+    const restored = loadDraft(MODEL);
+
+    expect(restored?.boundary).toEqual([]);
+    expect(restored?.boundarySource).toBeNull();
   });
 });
 

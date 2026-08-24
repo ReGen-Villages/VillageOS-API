@@ -20,9 +20,9 @@ const PAGES = dirname(fileURLToPath(import.meta.url));
 /** Reading the store directly, or through the hooks that index it. */
 const READS_THE_STORE = /useModelStore|useModelIndex|useDashboards/;
 
-describe('a page that reads the model store', () => {
-  const pages = readdirSync(PAGES).filter((file) => file.endsWith('.tsx') && !file.includes('.test.'));
+const pages = readdirSync(PAGES).filter((file) => file.endsWith('.tsx') && !file.includes('.test.'));
 
+describe('a page that reads the model store', () => {
   it('was found to scan', () => {
     expect(pages.length, `no pages under ${PAGES}`).toBeGreaterThan(0);
   });
@@ -39,7 +39,6 @@ describe('a page that reads the model store', () => {
 
 describe('a page that shows a map', () => {
   it('reaches it through the shared map module, never maplibre-gl itself', () => {
-    const pages = readdirSync(PAGES).filter((file) => file.endsWith('.tsx') && !file.includes('.test.'));
     const importing = pages.filter((file) => readFileSync(join(PAGES, file), 'utf8').includes('maplibre-gl'));
 
     expect(importing, 'these pages import the map library instead of the shared map module').toEqual([]);

@@ -9,6 +9,7 @@
  */
 
 import { onEarth } from '../utils/mapLink';
+import { draftSquareAround, type BoundaryPoint } from '../utils/parcelGeometry';
 
 /** How the land area is being typed. What is stored and submitted is always hectares: a submission read
  *  in acres and recorded as hectares is a site two and a half times too small, and nothing downstream
@@ -17,9 +18,21 @@ export type AreaUnit = 'hectares' | 'acres';
 
 export const HECTARES_PER_ACRE = 0.40468564224;
 
-export const STEPS = ['project', 'contact', 'location', 'programme'] as const;
+export const STEPS = ['project', 'contact', 'location', 'programme', 'parcel'] as const;
 
 export type StepId = (typeof STEPS)[number];
+
+/**
+ * How a boundary came to be, in the words the land-intake template declares and the intake service
+ * resolves against the model. The wizard states this itself rather than asking — it knows whether it
+ * generated the square — so these are the two declared terms it can truthfully submit.
+ */
+export const BOUNDARY_DRAWN_BY_HAND = 'drawn-by-hand';
+export const BOUNDARY_GENERATED_FROM_STATED_AREA = 'generated-from-stated-area';
+
+export type BoundaryObtainedBy =
+  | typeof BOUNDARY_DRAWN_BY_HAND
+  | typeof BOUNDARY_GENERATED_FROM_STATED_AREA;
 
 /** The share of the parcel each chosen category takes, by the category's own name in the model. */
 export type ProgrammeShares = Readonly<Record<string, number>>;
@@ -44,6 +57,8 @@ export interface SubmissionDraft {
   readonly population: string;
   readonly householdSize: string;
   readonly shares: ProgrammeShares;
+  readonly boundary: readonly BoundaryPoint[];
+  readonly boundarySource: BoundaryObtainedBy | null;
   readonly visited: readonly StepId[];
 }
 
@@ -62,6 +77,7 @@ export interface SubmissionDocument {
     population?: number;
     householdSize?: number;
   };
+  parcel?: { boundarySource: string; boundary: { latitude: number; longitude: number }[] };
   allocations?: { category: string; sharePct: number }[];
 }
 
@@ -84,6 +100,8 @@ export function emptyDraft(submissionId: string): SubmissionDraft {
     population: '',
     householdSize: '',
     shares: {},
+    boundary: [],
+    boundarySource: null,
     visited: ['project'],
   };
 }
@@ -202,6 +220,30 @@ function scaledTo(shares: ProgrammeShares, total: number): ProgrammeShares {
   );
 }
 
+// ── The parcel boundary ──────────────────────────────────────────────────────
+
+/** A square of the stated area centred on the site, for the planner to drag onto the real boundary —
+ *  or nothing, while the position or a positive stated area is still missing. */
+export function boundaryDrafted(draft: SubmissionDraft): Partial<SubmissionDraft> | null {
+  const position = coordinatesFrom(draft);
+  const hectares = statedAreaHectares(draft);
+  if (position === null || hectares === null) return null;
+  const boundary = draftSquareAround(position, hectares);
+  return boundary.length === 0
+    ? null
+    : { boundary, boundarySource: BOUNDARY_GENERATED_FROM_STATED_AREA };
+}
+
+/** Whatever the boundary was before, a corner the planner placed or moved makes the whole of it the
+ *  planner's own assertion — a dragged draft square must not go on reading as generated. */
+export function boundaryDrawn(boundary: readonly BoundaryPoint[]): Partial<SubmissionDraft> {
+  return { boundary, boundarySource: BOUNDARY_DRAWN_BY_HAND };
+}
+
+export function boundaryCleared(): Partial<SubmissionDraft> {
+  return { boundary: [], boundarySource: null };
+}
+
 // ── Moving between steps ─────────────────────────────────────────────────────
 
 export function withStepVisited(draft: SubmissionDraft, step: StepId): SubmissionDraft {
@@ -242,6 +284,18 @@ export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
       ...defined('population', wholeNumberFrom(draft.population)),
       ...defined('householdSize', positiveNumberFrom(draft.householdSize)),
     },
+    // Rebuilt corner by corner so a stored corner carrying anything beyond its coordinates does not
+    // post it. Below three corners a boundary encloses nothing and is not a parcel.
+    ...(draft.boundary.length >= 3 &&
+      draft.boundarySource !== null && {
+        parcel: {
+          boundarySource: draft.boundarySource,
+          boundary: draft.boundary.map((corner) => ({
+            latitude: corner.latitude,
+            longitude: corner.longitude,
+          })),
+        },
+      }),
     ...(allocations.length > 0 && { allocations }),
   };
 }
@@ -292,11 +346,36 @@ export function loadDraft(modelId: string): SubmissionDraft | null {
       ...empty,
       ...parsed,
       shares: sharesIn(parsed.shares) ?? empty.shares,
+      ...(parcelIn(parsed.boundary, parsed.boundarySource) ?? {
+        boundary: empty.boundary,
+        boundarySource: empty.boundarySource,
+      }),
       visited: stepsIn(parsed.visited) ?? empty.visited,
     };
   } catch {
     return null;
   }
+}
+
+/** The stored boundary and its origin stand or fall together: corners whose origin is missing, or an
+ *  origin the wizard could never have written, would post a claim nobody made. */
+function parcelIn(
+  storedBoundary: unknown,
+  storedSource: unknown,
+): Pick<SubmissionDraft, 'boundary' | 'boundarySource'> | null {
+  if (!Array.isArray(storedBoundary)) return null;
+  const corners = storedBoundary.every(
+    (corner: Partial<BoundaryPoint> | null) =>
+      typeof corner?.latitude === 'number' &&
+      Number.isFinite(corner.latitude) &&
+      typeof corner.longitude === 'number' &&
+      Number.isFinite(corner.longitude),
+  );
+  if (!corners) return null;
+  if (storedBoundary.length === 0) return { boundary: [], boundarySource: null };
+  return storedSource === BOUNDARY_DRAWN_BY_HAND || storedSource === BOUNDARY_GENERATED_FROM_STATED_AREA
+    ? { boundary: storedBoundary as BoundaryPoint[], boundarySource: storedSource }
+    : null;
 }
 
 function sharesIn(stored: unknown): ProgrammeShares | null {
