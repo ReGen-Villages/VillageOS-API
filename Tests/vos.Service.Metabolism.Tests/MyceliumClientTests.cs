@@ -237,7 +237,7 @@ public class MyceliumClientTests
 
     #endregion
 
-    #region RegisterAsync + DeregisterAsync
+    #region RegisterAsync
 
     [Fact]
     public async Task RegisterAsync_PortOverload_DelegatesToBaseWithMetabolismIdentity()
@@ -286,17 +286,6 @@ public class MyceliumClientTests
         await client.RegisterAsync(7103);
 
         capturedBody!.Value.GetProperty("serviceName").GetString().Should().Be("Metabolism-produces");
-    }
-
-    [Fact]
-    public async Task DeregisterAsync_DelegatesToBaseWithoutThrowing()
-    {
-        // Live updates arrive over SSE; DeregisterAsync is just the base call.
-        var client = CreateUnreachableClient();
-
-        var act = async () => await client.DeregisterAsync();
-
-        await act.Should().NotThrowAsync();
     }
 
     #endregion

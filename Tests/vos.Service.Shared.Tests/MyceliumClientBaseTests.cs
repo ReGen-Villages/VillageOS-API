@@ -275,62 +275,6 @@ public class MyceliumClientBaseTests
         result.Should().BeFalse();
     }
 
-    // ---- DeregisterAsync ----
-
-    [Fact]
-    public async Task DeregisterAsync_Success_SendsDeleteWithBearerHeader()
-    {
-        HttpRequestMessage? captured = null;
-        var (client, _) = BuildClient(req =>
-        {
-            captured = req;
-            return new HttpResponseMessage(HttpStatusCode.OK);
-        }, serviceToken: TestToken);
-
-        await client.DeregisterAsync();
-
-        captured.Should().NotBeNull();
-        captured!.Method.Should().Be(HttpMethod.Delete);
-        captured.RequestUri!.AbsoluteUri.Should().Be($"{MyceliumUrl}/api/mycelium/services/{client.HandlerId}");
-        captured.Headers.Authorization.Should().NotBeNull();
-        captured.Headers.Authorization!.Scheme.Should().Be("Bearer");
-        captured.Headers.Authorization.Parameter.Should().Be(TestToken);
-    }
-
-    [Fact]
-    public async Task DeregisterAsync_NoToken_DoesNotSendRequest()
-    {
-        var (client, handler) = BuildClient(req =>
-        {
-            // /api/auth/token call only — registration leg should never be reached.
-            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
-        }, serviceToken: null);
-
-        await client.DeregisterAsync();
-
-        handler.Requests.Should().OnlyContain(r => r.RequestUri!.AbsolutePath == "/api/auth/token");
-    }
-
-    [Fact]
-    public async Task DeregisterAsync_NonSuccessStatus_DoesNotThrow()
-    {
-        var (client, _) = BuildClient(_ => new HttpResponseMessage(HttpStatusCode.NotFound), serviceToken: TestToken);
-
-        var act = async () => await client.DeregisterAsync();
-
-        await act.Should().NotThrowAsync();
-    }
-
-    [Fact]
-    public async Task DeregisterAsync_HttpThrows_DoesNotThrow()
-    {
-        var (client, _) = BuildClient(_ => throw new HttpRequestException("boom"), serviceToken: TestToken);
-
-        var act = async () => await client.DeregisterAsync();
-
-        await act.Should().NotThrowAsync();
-    }
-
     // ---- An API key instead of a token ----
 
     private static readonly DateTimeOffset Now = new(2026, 8, 24, 12, 0, 0, TimeSpan.Zero);

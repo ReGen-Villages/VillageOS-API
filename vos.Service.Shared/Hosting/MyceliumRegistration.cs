@@ -3,7 +3,9 @@ using Serilog;
 
 namespace vos.Service.Shared.Hosting;
 
-// Announces the service to the broker when it comes up and withdraws it when it goes down.
+// Announces the service to the broker when it comes up. It does not withdraw the registration on
+// shutdown: that route is admin-only, so the call is refused whatever the service holds, and the
+// broker's liveness monitor removes a registration whose service stops answering.
 internal sealed class MyceliumRegistration : IHostedService
 {
     private readonly EndpointServiceMyceliumClient _client;
@@ -40,8 +42,5 @@ internal sealed class MyceliumRegistration : IHostedService
         return Task.CompletedTask;
     }
 
-    // Withdrawal is awaited, unlike registration: the host waits for this to finish, so the broker
-    // learns the service is gone instead of being left with a handler that no longer answers.
-    // DeregisterAsync logs and swallows its own failures, so there is nothing to guard against here.
-    public Task StopAsync(CancellationToken cancellationToken) => _client.DeregisterAsync();
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

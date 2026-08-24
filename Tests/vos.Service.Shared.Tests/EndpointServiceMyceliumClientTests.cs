@@ -98,24 +98,6 @@ public class EndpointServiceMyceliumClientTests
     }
 
     [Fact]
-    public async Task DeregisterAsync_RemovesThisHandlerFromMycelium()
-    {
-        HttpRequestMessage? captured = null;
-        var (client, _) = NewClient(request =>
-        {
-            captured = request;
-            return Ok();
-        });
-
-        await client.DeregisterAsync();
-
-        captured.Should().NotBeNull();
-        captured!.Method.Should().Be(HttpMethod.Delete);
-        captured.RequestUri!.AbsoluteUri
-            .Should().Be($"{MyceliumUrl}/api/mycelium/services/{client.HandlerId}");
-    }
-
-    [Fact]
     public async Task GetTokenAsync_WithAnIssuedToken_DoesNotContactMycelium()
     {
         var (client, handler) = NewClient(_ =>

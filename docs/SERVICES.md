@@ -11,8 +11,9 @@ specific behavior of Metabolism, see [`METABOLISM.md`](METABOLISM.md).
 
 A `Service` is a `Microsoft.NET.Sdk.Web` minimal-API binary on
 .NET 10 that talks to the **VillageOS Mycelium** (separate repo, default
-`https://localhost:7243`). It auto-registers on start, auto-deregisters on
-stop, and exposes a `/health` endpoint Mycelium's `LivenessMonitor` polls.
+`https://localhost:7243`). It auto-registers on start and exposes a `/health`
+endpoint Mycelium's `LivenessMonitor` polls; the monitor also removes the
+registration of a service that has stopped answering.
 
 The handler contract is just **HTTP + one JWT signed on the P-256 elliptic curve**, so it is not tied to
 .NET — a microservice can be written in any language. This doc is the C#
@@ -176,7 +177,6 @@ service-agnostic plumbing:
   Bearer auth
 - `RegisterAsync(port, serviceName, startCommand)` — POSTs the registration
   envelope
-- `DeregisterAsync()` — `DELETE /api/mycelium/services/{HandlerId}`
 
 ### 5.1 Snapshot subscriptions — startup data + live stream (SSE)
 
@@ -438,9 +438,9 @@ consecutive failures (a 45 s window) trigger auto-deregistration:
 After auto-deregistration the service must restart. The `ApplicationStarted`
 hook generates a new `HandlerId` and re-registers.
 
-`ApplicationStopping` calls `DeregisterAsync` as a courtesy. Missing the
-deregistration call is recoverable — the monitor's auto-deregistration covers
-ungraceful exits.
+A service does not deregister itself: the removal route is admin-only, so the
+call would be refused whatever the service holds. A stopped service stays
+listed until the monitor's auto-deregistration removes it.
 
 Today each service hand-rolls the `/health` body shape (Echo returns
 `requestsProcessed`; Metabolism returns five fields). The monitor only reads
@@ -451,10 +451,12 @@ see [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) §1.8.
 
 | Trigger | Mechanism |
 |---|---|
-| SIGTERM / SIGINT / process-manager shutdown | `ApplicationStopping` lifecycle hook |
-| Explicit `POST /shutdown` | Calls `DeregisterAsync()` then exits |
-| Mycelium calling `TryStopAsync()` | POSTs to the registered `stopEndpoint` |
 | Liveness failure (3× `/health` timeout) | Mycelium auto-deregisters |
+| An administrator removing the entry | `DELETE /api/mycelium/services/{handlerId}` (admin-only) |
+
+A service that exits — SIGTERM, `POST /shutdown`, or Mycelium calling
+`TryStopAsync()` — stays registered until the liveness monitor notices it is
+gone.
 
 ### A busy service is not a dead one
 

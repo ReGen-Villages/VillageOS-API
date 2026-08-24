@@ -97,19 +97,8 @@ app.Lifetime.ApplicationStarted.Register(() => _ = Task.Run(async () =>
     }
 }));
 
-app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
-{
-    try
-    {
-        Log.Information("Shutting down Echo endpoint service — processed {Count} request(s)", requestCount);
-        var myceliumClient = app.Services.GetRequiredService<EndpointServiceMyceliumClient>();
-        await myceliumClient.DeregisterAsync();
-    }
-    catch (Exception ex)
-    {
-        Log.Error(ex, "Error during Echo shutdown deregistration");
-    }
-}));
+app.Lifetime.ApplicationStopping.Register(() =>
+    Log.Information("Shutting down Echo endpoint service — processed {Count} request(s)", requestCount));
 
 var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx, EchoNode node) =>
 {
