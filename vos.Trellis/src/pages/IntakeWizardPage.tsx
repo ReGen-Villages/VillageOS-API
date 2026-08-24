@@ -21,7 +21,7 @@ import { toast } from '../components/common/toastStore';
 import { useAuth } from '../hooks/useAuth';
 import type { BasemapSource } from '../types/basemap';
 import { locationFromMapLink, type MapLinkReading } from '../utils/mapLink';
-import { areaMatch, sphericalAreaHectares } from '../utils/parcelGeometry';
+import { areaMatch, sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
 import { ALLOCATION_CATEGORY_ARCHETYPE_FLAG, termsMarked } from './modelVocabulary';
 import {
   STEPS,
@@ -341,15 +341,39 @@ function LocationStep({ draft, sources, onChange }: StepProps & { sources: Basem
       </div>
 
       {position ? (
-        <div className="h-72 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
-          <Suspense fallback={null}>
-            <MapView latitude={position.latitude} longitude={position.longitude} sources={sources} />
-          </Suspense>
-        </div>
+        <SiteMap position={position} sources={sources} />
       ) : (
         <Note tone="quiet">{t('intake.mapNeedsPosition')}</Note>
       )}
     </>
+  );
+}
+
+/** The shared map module in the wizard's frame: a fixed height, so the step keeps its shape while the
+ *  map library loads. */
+function SiteMap({
+  position,
+  sources,
+  boundary,
+  onBoundaryChange,
+}: {
+  position: { latitude: number; longitude: number };
+  sources: BasemapSource[];
+  boundary?: readonly BoundaryPoint[];
+  onBoundaryChange?: (boundary: BoundaryPoint[]) => void;
+}) {
+  return (
+    <div className="h-72 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
+      <Suspense fallback={null}>
+        <MapView
+          latitude={position.latitude}
+          longitude={position.longitude}
+          sources={sources}
+          boundary={boundary}
+          onBoundaryChange={onBoundaryChange}
+        />
+      </Suspense>
+    </div>
   );
 }
 
@@ -490,17 +514,12 @@ function ParcelStep({ draft, sources, onChange }: StepProps & { sources: Basemap
         <Note tone="quiet">{t('intake.draftNeedsArea')}</Note>
       )}
 
-      <div className="h-72 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
-        <Suspense fallback={null}>
-          <MapView
-            latitude={position.latitude}
-            longitude={position.longitude}
-            sources={sources}
-            boundary={draft.boundary}
-            onBoundaryChange={(boundary) => onChange(boundaryDrawn(boundary))}
-          />
-        </Suspense>
-      </div>
+      <SiteMap
+        position={position}
+        sources={sources}
+        boundary={draft.boundary}
+        onBoundaryChange={(boundary) => onChange(boundaryDrawn(boundary))}
+      />
       <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">{t('intake.drawByClicking')}</p>
 
       <div className="mt-3 text-sm text-zinc-700 dark:text-zinc-200 tabular-nums">

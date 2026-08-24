@@ -59,7 +59,7 @@ import { relationshipApi } from '../api/relationshipApi';
 import { thingApi } from '../api/thingApi';
 import { toast } from '../components/common/toastStore';
 import { IntakeWizardPage } from './IntakeWizardPage';
-import { loadDraft, saveDraft, emptyDraft } from './intakeWizard';
+import { loadDraft, saveDraft, emptyDraft, type SubmissionDraft } from './intakeWizard';
 
 // Spelled unlike the shipped land-intake template, so a page answering only to that spelling fails.
 const thing = (Id: string, Name: string, IsArchetype = false): VosThing => ({
@@ -364,7 +364,7 @@ describe('the size and programme step', () => {
 });
 
 describe('the parcel step', () => {
-  function located(patch: Partial<Parameters<typeof saveDraft>[1]> = {}): void {
+  function located(patch: Partial<SubmissionDraft> = {}): void {
     saveDraft('model-1', {
       ...emptyDraft('sub-0001'),
       siteName: 'Willow Bend',

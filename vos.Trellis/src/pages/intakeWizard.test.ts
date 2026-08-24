@@ -122,6 +122,8 @@ describe('the parcel boundary', () => {
     { latitude: 39.502, longitude: -8.408 },
   ];
 
+  beforeEach(() => clearDraft(MODEL));
+
   it('placing a draft generates a square of the stated area, and says that is how it was obtained', () => {
     const drafted = boundaryDrafted(filled({ statedArea: '24' }));
 
@@ -192,8 +194,6 @@ describe('the parcel boundary', () => {
     expect(restored?.boundary).toEqual([]);
     expect(restored?.boundarySource).toBeNull();
   });
-
-  beforeEach(() => clearDraft(MODEL));
 });
 
 describe('the programme split', () => {
