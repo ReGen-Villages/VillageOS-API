@@ -243,6 +243,17 @@ describe('the boundary on the map', () => {
     ]);
   });
 
+  it('redraws a moved boundary in place rather than adding a second one', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    const moved = [CORNERS[0], { latitude: 41.383, longitude: -70.637 }, CORNERS[2]];
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={moved} />);
+
+    expect(maps[0].sources.get('boundary')!.setData).toHaveBeenCalled();
+    expect(ring()[1]).toEqual([-70.637, 41.383]);
+    expect(maps[0].layers).toEqual(['boundary-fill', 'boundary-line']);
+  });
+
   it('offers no drawing at all without a change handler', () => {
     render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
 

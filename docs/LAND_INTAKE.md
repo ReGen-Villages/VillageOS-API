@@ -2,8 +2,9 @@
 
 > **Status: partly built.** The archetypes exist and a model can be seeded with them, the intake
 > service composes a submission into them, and the wizard collects what a planner types and posts it
-> (#6016), showing the site on the map as the position is given (#6014). Parcel drawing, anonymous
-> submission and open-data discovery are still design.
+> (#6016), shows the site on the map as the position is given (#6014), and draws the parcel boundary
+> checked against the stated area (#6015). Anonymous submission and open-data discovery are still
+> design.
 > Tracked as Epic
 > [#6012](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6012) (client, services)
 > and Epic [#6033](https://dev.azure.com/ReGenVillages/VillageOS/_workitems/edit/6033) (model, broker).
@@ -922,8 +923,8 @@ The main finding from designing this: most of it is already built.
 | Authentication, model isolation, service supervision | **Exists** (Mycelium) |
 | Composing a submission into the model's own shape | **Exists** (`vos.Service.Intake`) |
 | — | |
-| A map, and drawing a parcel on it | **Exists** for the map (#5346, #6014) — drawing a parcel on it is still new |
-| The intake wizard | **Exists** for what a planner types (#6016) and the site on the map (#6014) — the parcel drawing step is still new |
+| A map, and drawing a parcel on it | **Exists** — the map module (#5346), the wizard showing the site on it (#6014), and parcel drawing with the drawn area checked against the stated area (#6015) |
+| The intake wizard | **Exists** — what a planner types (#6016), the site on the map (#6014), and the parcel step (#6015) |
 | Anonymous submission: rate limits, size caps, bot checks, the staging model | **New** — hardening around the service that already composes |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 
@@ -1027,7 +1028,7 @@ debugging session otherwise.
 |---|---|---|
 | 1 | **What is the energy node's efficiency port?** Module efficiency and system yield factor differ by about half. | Rename it to say system yield factor, or add a separate performance-ratio input. Either way the port name must state which it is. |
 | 2 | ~~**Map library** — Leaflet or MapLibre?~~ **Settled: MapLibre**, added once by the viewer's Phase 0 (#5346) as a component the wizard consumes rather than duplicates. Leaflet cannot tilt or share a WebGL context, so drawing the 3D model on the basemap would have needed a second library. See [TRELLIS.md §22](TRELLIS.md#22-the-map-and-its-basemap-sources). | What remains is not a library question: MapLibre renders tiles, it does not supply them. Imagery for a given site comes from that country's own service and is declared in the model, not chosen here. |
-| 3 | **Area match tolerance** — how far apart may stated and drawn be? | Start at 8%, loose enough for hand-drawing and tight enough to catch a wrong unit. Make it a named constant, not a literal. |
+| 3 | ~~**Area match tolerance** — how far apart may stated and drawn be?~~ **Settled: 8%**, loose enough for hand-drawing and tight enough to catch a wrong unit. | **Built** (#6015) as the named constant `AREA_MATCH_TOLERANCE` in `vos.Trellis/src/utils/parcelGeometry.ts`; changing the policy is a one-line edit there. |
 | 4 | ~~**Retention** for submissions that are never promoted.~~ **Settled: every submission is retained.** A rejected one moves to cold storage 30 days after it was rejected; one nobody has dealt with is kept indefinitely. The period lives on the disposition Thing (`daysBeforeColdStorage` on `rejected`), so changing it is a model edit, and a disposition naming no period is kept. | **Built.** `POST /api/model/prune` takes a submission and everything it minted out of the live model, retracting each; the nodes are reclaimed once a snapshot covers the retraction. `taproot submissions dispose <predicates>` is the pass that decides which are due, from the period the disposition names and the instant the submission was decided about. The values go with it: contact details are declared to keep no history, so they are never copied out of the commit log, and the platform deletes a log segment once a snapshot supersedes it. What is left is the interval before the next snapshot, and details submitted before the declaration shipped, which need the erase pass filed as platform Task 6672. |
 | 5 | **Boundary file upload** — does the intake service accept one at launch? | Inline geometry first; file upload is the reason the service exists as its own public-facing program, so it is a natural follow-up. |
 | 6 | **What triggers discovery** — planner action, arrival of a submission, or a schedule? | All three eventually. Build one path and let each be a caller of it, rather than a branch inside it. |
