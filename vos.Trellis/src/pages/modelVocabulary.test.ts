@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
-import { ALLOCATION_CATEGORY_ARCHETYPE_FLAG, termsMarked } from './modelVocabulary';
-import type { ModelReading } from './submissionReview';
+import { ALLOCATION_CATEGORY_ARCHETYPE_FLAG, termsMarked, type ModelReading } from './modelVocabulary';
 
 // Every name here is spelled differently from the shipped land-intake template, so a reader answering
 // only to that spelling fails rather than passes.

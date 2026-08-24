@@ -41,6 +41,10 @@ const edge = (Id: string, SubjectId: string, PredicateId: string, TargetId: stri
 
 const held = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.String', IsInherited: false });
 
+/** What a Thing gets from the archetype it `is`. A mark is an ordinary property on the archetype, so
+ *  every term under it reads the mark too — which is what a real seeded model hands back. */
+const inherited = (Value: unknown): EffectiveProperty => ({ Value, Type: 'vos.String', IsInherited: true });
+
 const THINGS: VosThing[] = [
   thing('is', 'is'),
   thing('puts-forward', 'puts-forward'),
@@ -64,7 +68,8 @@ const PROPERTIES: Record<string, Record<string, EffectiveProperty>> = {
   'puts-forward': { [PROPOSED_SITE_PREDICATE_FLAG]: held(true) },
   decided: { [DISPOSITION_PREDICATE_FLAG]: held(true) },
   verdict: { [DISPOSITION_ARCHETYPE_FLAG]: held(true) },
-  binned: { [COLD_STORAGE_PERIOD_PROPERTY]: held(30) },
+  binned: { [DISPOSITION_ARCHETYPE_FLAG]: inherited(true), [COLD_STORAGE_PERIOD_PROPERTY]: held(30) },
+  'taken-on': { [DISPOSITION_ARCHETYPE_FLAG]: inherited(true) },
   'arrival-1': { submissionId: held('sub-0001'), submittedAt: held('2026-08-20T09:00:00Z') },
 };
 

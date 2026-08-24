@@ -22,9 +22,9 @@ import {
   proposedSitePredicate,
   submissionsIn,
   type Disposition,
-  type ModelReading,
   type Submission,
 } from './submissionReview';
+import type { ModelReading } from './modelVocabulary';
 
 /** When the decision was made, so a list can be ordered without reading history. Who made it is the
  *  Fact the write itself lays down, which is the record that cannot be typed in. */

@@ -9,7 +9,7 @@
  * line cannot come to answer the same model differently.
  */
 
-import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
+import { IS_PREDICATE_NAME, nameIndex, ownCarrierOf, type ModelReading } from './modelVocabulary';
 
 export const PROPOSED_SITE_PREDICATE_FLAG = '__IsProposedSitePredicate';
 export const DISPOSITION_ARCHETYPE_FLAG = '__IsSubmissionDispositionArchetype';
@@ -19,19 +19,6 @@ export const DISPOSITION_PREDICATE_FLAG = '__IsSubmissionDispositionPredicate';
  *  is what makes one disposable. Rejecting relates a submission to whichever names a period, so a
  *  model may call that disposition anything. */
 export const COLD_STORAGE_PERIOD_PROPERTY = 'daysBeforeColdStorage';
-
-/** The platform's one canonical predicate, and the only predicate name a reader may hold: it is the
- *  platform's own vocabulary rather than any model's, and nothing marks it. */
-const IS_PREDICATE_NAME = 'is';
-
-/** Everything the page reads, taken together. Properties come from the server resolved effective
- *  rather than own: seed normalization moves a Thing's own values into its overrides, and a reader
- *  looking only at own properties finds a model full of Things and reads nothing off them. */
-export interface ModelReading {
-  things: readonly VosThing[];
-  relationships: readonly VosRelationship[];
-  properties: Readonly<Record<string, Record<string, EffectiveProperty>>>;
-}
 
 /** One submission as a reviewer needs to judge it: when it arrived, what it proposes, and what has
  *  been decided about it — or nothing, which is what waiting is. */
@@ -55,12 +42,12 @@ export interface Disposition {
 /** The predicate this model marks as reaching a proposed site. Nothing here is a submission without
  *  it, which is a different answer from a model that simply holds none. */
 export function proposedSitePredicate(reading: ModelReading): string | null {
-  return carrierOf(reading, PROPOSED_SITE_PREDICATE_FLAG);
+  return ownCarrierOf(reading, PROPOSED_SITE_PREDICATE_FLAG);
 }
 
 /** The predicate a decision is written through. */
 export function dispositionPredicate(reading: ModelReading): string | null {
-  return carrierOf(reading, DISPOSITION_PREDICATE_FLAG);
+  return ownCarrierOf(reading, DISPOSITION_PREDICATE_FLAG);
 }
 
 export function submissionsIn(reading: ModelReading): Submission[] {
@@ -118,7 +105,7 @@ export function byArrival(submissions: readonly Submission[]): Submission[] {
 /** The Things under the archetype the model marks as holding what a submission can be resolved to.
  *  Found by the mark, never by the archetype's name. */
 function dispositionsIn(reading: ModelReading): Disposition[] {
-  const archetype = carrierOf(reading, DISPOSITION_ARCHETYPE_FLAG);
+  const archetype = ownCarrierOf(reading, DISPOSITION_ARCHETYPE_FLAG);
   if (!archetype) return [];
 
   const names = nameIndex(reading.things);
@@ -129,13 +116,6 @@ function dispositionsIn(reading: ModelReading): Disposition[] {
       name: names.get(edge.SubjectId) ?? edge.SubjectId,
       disposable: valueOf(reading, edge.SubjectId, COLD_STORAGE_PERIOD_PROPERTY) !== undefined,
     }));
-}
-
-/** The one Thing carrying a mark. More than one leaves a reader with two answers and no way to
- *  choose, so it answers with none rather than picking. */
-function carrierOf(reading: ModelReading, flag: string): string | null {
-  const carrying = Object.keys(reading.properties).filter((id) => flag in reading.properties[id]);
-  return carrying.length === 1 ? carrying[0] : null;
 }
 
 function decisions(reading: ModelReading, names: Map<string, string>): Map<string, string> {
@@ -149,10 +129,6 @@ function decisions(reading: ModelReading, names: Map<string, string>): Map<strin
     if (name) decided.set(edge.SubjectId, name);
   }
   return decided;
-}
-
-function nameIndex(things: readonly VosThing[]): Map<string, string> {
-  return new Map(things.map((thing) => [thing.Id, thing.Name]));
 }
 
 /** A property as text, whatever it is written as, because everything here is displayed. A property

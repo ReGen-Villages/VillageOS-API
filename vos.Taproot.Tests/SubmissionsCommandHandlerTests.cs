@@ -38,6 +38,11 @@ public class SubmissionsCommandHandlerTests
 
     private static object Held(object value) => new { Value = value, IsInherited = false };
 
+    /// <summary>What a Thing gets from the archetype it `is`. A mark is an ordinary property on the
+    /// archetype, so every term under it reads the mark too — which is what a real seeded model hands
+    /// back, and what a reader counting carriers has to tell apart from the one that declares it.</summary>
+    private static object Inherited(object value) => new { Value = value, IsInherited = true };
+
     /// <summary>A model holding one submission. Its predicates and its disposition archetype are named
     /// nothing like the shipped template's, because a reader finds them by their marks.</summary>
     private void AModelWithOneSubmission(Guid? disposition = null, DateTime? resolvedAt = null)
@@ -73,7 +78,12 @@ public class SubmissionsCommandHandlerTests
                 [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
                     { ["__IsSubmissionDispositionArchetype"] = Held(true) },
                 [RejectedId.ToString()] = new Dictionary<string, object>
-                    { ["daysBeforeColdStorage"] = Held(30) },
+                {
+                    ["__IsSubmissionDispositionArchetype"] = Inherited(true),
+                    ["daysBeforeColdStorage"] = Held(30),
+                },
+                [PromotedId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionArchetype"] = Inherited(true) },
                 [SubmissionId.ToString()] = SubmissionProperties(resolvedAt),
             }));
     }
@@ -262,6 +272,74 @@ public class SubmissionsCommandHandlerTests
             It.Is<IReadOnlyList<string>>(followed =>
                 followed.Contains("holds") && followed.Contains("examines") && followed.Count == 2),
             It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+    }
+
+    // Every term under a marked archetype inherits the mark, so a reader counting carriers finds the
+    // archetype and all of its terms and calls a perfectly ordinary model ambiguous. That is the whole of
+    // Bug 6723: reject and promote both refused in every seeded model.
+    [Fact]
+    public async Task The_archetype_is_found_even_though_every_disposition_under_it_reads_the_mark_too()
+    {
+        AModelWithOneSubmission();
+
+        await Run($"reject {SubmissionId}");
+
+        Assert.Contains("Rejected:", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(SubmissionId, ResolvedAsId, RejectedId), Times.Once);
+    }
+
+    // Owning it twice is the ambiguity the reader exists to refuse; inheriting it many times is not.
+    [Fact]
+    public async Task A_model_where_two_things_own_the_disposition_mark_writes_nothing()
+    {
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [ProposesId.ToString()] = new Dictionary<string, object>
+                    { ["__IsProposedSitePredicate"] = Held(true) },
+                [ResolvedAsId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
+                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
+                [SiteId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionArchetype"] = Held(true) },
+            }));
+
+        await Run($"reject {SubmissionId}");
+
+        Assert.Contains("no disposition that names a period", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
+    }
+
+    // A mark nothing owns is a mark nothing declared: the Things reading it all got it from somewhere the
+    // model no longer holds, and there is no archetype left to gather terms under.
+    [Fact]
+    public async Task A_model_where_the_disposition_mark_is_only_ever_inherited_writes_nothing()
+    {
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [ProposesId.ToString()] = new Dictionary<string, object>
+                    { ["__IsProposedSitePredicate"] = Held(true) },
+                [ResolvedAsId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionPredicate"] = Held(true) },
+                [DispositionArchetypeId.ToString()] = new Dictionary<string, object>
+                    { ["__IsSubmissionDispositionArchetype"] = Inherited(true) },
+                [RejectedId.ToString()] = new Dictionary<string, object>
+                {
+                    ["__IsSubmissionDispositionArchetype"] = Inherited(true),
+                    ["daysBeforeColdStorage"] = Held(30),
+                },
+            }));
+
+        await Run($"reject {SubmissionId}");
+
+        Assert.Contains("no disposition that names a period", _writer.ToString());
+        _mycelium.Verify(client => client.CreateRelationshipAsync(
+            It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid>()), Times.Never);
     }
 
     // A model holding submissions but no disposition that names a period has nothing a rejection could

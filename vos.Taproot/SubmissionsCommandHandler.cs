@@ -166,7 +166,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         }
 
         var model = await ReadModelAsync();
-        if (OneCarrying(model, ProposedSitePredicateFlag) is not { } proposes)
+        if (OneOwning(model, ProposedSitePredicateFlag) is not { } proposes)
         {
             writer.WriteLine($"This model marks no predicate with '{ProposedSitePredicateFlag}'.");
             return;
@@ -242,7 +242,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     /// the write itself lays down, which is the record that cannot be typed in.</summary>
     private async Task ResolveAsync(ModelSnapshot model, Submission submission, (Guid Id, string Name) disposition)
     {
-        if (OneCarrying(model, DispositionPredicateFlag) is not { } predicate)
+        if (OneOwning(model, DispositionPredicateFlag) is not { } predicate)
         {
             writer.WriteLine($"This model marks no predicate with '{DispositionPredicateFlag}'.");
             return;
@@ -288,7 +288,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
     private static IEnumerable<Submission> SubmissionsIn(ModelSnapshot model)
     {
-        if (OneCarrying(model, ProposedSitePredicateFlag) is not { } proposes)
+        if (OneOwning(model, ProposedSitePredicateFlag) is not { } proposes)
             yield break;
 
         // One submission per edge: a submission is only a submission because it proposes a site, so the
@@ -308,7 +308,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     }
 
     private static Guid? DispositionOf(ModelSnapshot model, Guid submission) =>
-        OneCarrying(model, DispositionPredicateFlag) is { } resolvedAs
+        OneOwning(model, DispositionPredicateFlag) is { } resolvedAs
             ? EdgesThrough(model, resolvedAs.Id).Where(edge => Subject(edge) == submission)
                 .Select(edge => (Guid?)Target(edge)).FirstOrDefault()
             : null;
@@ -317,7 +317,7 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     /// to. Found by the mark, never by the archetype's name.</summary>
     private static IEnumerable<(Guid Id, string Name)> DispositionsIn(ModelSnapshot model)
     {
-        if (OneCarrying(model, DispositionArchetypeFlag) is not { } archetype)
+        if (OneOwning(model, DispositionArchetypeFlag) is not { } archetype)
             yield break;
 
         foreach (var edge in model.Relationships.EnumerateArray())
@@ -329,18 +329,27 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         }
     }
 
-    /// <summary>The one Thing carrying a mark. More than one leaves a reader with two answers and no way to
-    /// choose, so it answers with none rather than picking.</summary>
-    private static (Guid Id, string Name)? OneCarrying(ModelSnapshot model, string flag)
+    /// <summary>The one Thing that owns a mark. More than one leaves a reader with two answers and no way
+    /// to choose, so it answers with none rather than picking.</summary>
+    private static (Guid Id, string Name)? OneOwning(ModelSnapshot model, string flag)
     {
-        var carrying = model.Properties.EnumerateObject()
-            .Where(entry => entry.Value.TryGetProperty(flag, out _))
+        var owning = model.Properties.EnumerateObject()
+            .Where(entry => Owns(entry.Value, flag))
             .Select(entry => Guid.TryParse(entry.Name, out var id) ? id : Guid.Empty)
             .Where(id => id != Guid.Empty)
             .ToList();
 
-        return carrying.Count == 1 ? (carrying[0], NameOf(model, carrying[0]) ?? "") : null;
+        return owning.Count == 1 ? (owning[0], NameOf(model, owning[0]) ?? "") : null;
     }
+
+    /// <summary>Owned, not merely present. Properties are read effective, and a mark is an ordinary
+    /// property on the archetype, so every term that `is` it reads the mark too. Counting every carrier
+    /// finds the archetype and all of its terms, and a vocabulary then reads as ambiguous the moment it
+    /// has any terms at all — which is every seeded model.</summary>
+    private static bool Owns(JsonElement properties, string flag) =>
+        properties.TryGetProperty(flag, out var mark)
+        && mark.TryGetProperty("IsInherited", out var inherited)
+        && inherited.ValueKind == JsonValueKind.False;
 
     private static IEnumerable<JsonElement> EdgesThrough(ModelSnapshot model, Guid predicate) =>
         model.Relationships.EnumerateArray().Where(edge => Predicate(edge) == predicate);
