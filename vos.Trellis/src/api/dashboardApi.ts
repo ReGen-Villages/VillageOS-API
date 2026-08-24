@@ -16,6 +16,7 @@ import type {
   ThingsInStateResponse,
   ThingRangesResponse,
   TemporalAggregateQuery,
+  DerivedDefinition,
 } from '../types/vos';
 import {
   DASHBOARD_ARCHETYPE,
@@ -446,6 +447,76 @@ async function followStep(fromIds: string[], step: RelationStep, ctx: ResolveCon
   return ids;
 }
 
+export type Lever = { term: string; memberArchetype?: string; direction: 'raise' | 'lower' };
+
+/** Every input at the bottom of a figure's derivation, each with the way the figure moves as it
+ *  rises. A term with its own definition is expanded into that definition's terms with the signs
+ *  composed, so the offers name what a person could actually change — a term whose definition names
+ *  it back is read as a leaf rather than walked forever. A term the definition declares no
+ *  direction for is dropped with its subtree: under a shortfall a wrong direction is worse than
+ *  none. Reduction inputs live on each member, so those carry the members' archetype. */
+function leafInfluences(
+  property: string,
+  definitions: Readonly<Record<string, DerivedDefinition>>,
+  sign: 1 | -1,
+  visiting: Set<string>,
+): { term: string; memberArchetype?: string; sign: 1 | -1 }[] {
+  const definition = definitions[property];
+  if (!definition) return [];
+  visiting.add(property);
+  const rises = new Set(definition.RisesWith ?? []);
+  const falls = new Set(definition.FallsWith ?? []);
+  const leaves: { term: string; memberArchetype?: string; sign: 1 | -1 }[] = [];
+  for (const term of definition.Reads ?? []) {
+    const direction = rises.has(term) ? 1 : falls.has(term) ? -1 : 0;
+    if (!direction) continue;
+    const composed = (sign * direction) as 1 | -1;
+    if (definition.Expression === undefined) {
+      leaves.push({ term, memberArchetype: definition.RelatedType ?? undefined, sign: composed });
+    } else {
+      const below = definitions[term] && !visiting.has(term)
+        ? leafInfluences(term, definitions, composed, visiting)
+        : [];
+      leaves.push(...(below.length ? below : [{ term, sign: composed }]));
+    }
+  }
+  visiting.delete(property);
+  return leaves;
+}
+
+/**
+ * What would move a judged figure toward leaving the state it holds, in the order the derivation
+ * reads them. The held comparison says which way the result must move — a state held by sitting
+ * below its target is left by rising, one held by sitting above it by falling — and each leaf's
+ * composed sign says which way that input goes. An input reached along two agreeing routes is one
+ * offer; one whose routes disagree is dropped, since offering either direction would be the client
+ * taking a side.
+ */
+function leversFor(
+  property: string,
+  operator: string,
+  definitions: Readonly<Record<string, DerivedDefinition>>,
+): Lever[] {
+  const resultMustMove = operator === '<' || operator === '<=' ? 1
+    : operator === '>' || operator === '>=' ? -1
+    : null;
+  if (resultMustMove === null) return [];
+  const routes = new Map<string, { term: string; memberArchetype?: string; sign: 1 | -1 | 0 }>();
+  for (const leaf of leafInfluences(property, definitions, 1, new Set())) {
+    const key = `${leaf.term}\u0000${leaf.memberArchetype ?? ''}`;
+    const seen = routes.get(key);
+    if (!seen) routes.set(key, { ...leaf });
+    else if (seen.sign !== leaf.sign) seen.sign = 0;
+  }
+  return [...routes.values()]
+    .filter((leaf) => leaf.sign !== 0)
+    .map((leaf) => ({
+      term: leaf.term,
+      ...(leaf.memberArchetype !== undefined ? { memberArchetype: leaf.memberArchetype } : {}),
+      direction: resultMustMove * leaf.sign > 0 ? 'raise' as const : 'lower' as const,
+    }));
+}
+
 /** The Things a binding reads: the one its reference names, or — when it declares a path — the
  *  Things that path reaches from there. A page can only be scoped to one Thing, and what it wants
  *  to say is rarely all on that Thing, so a binding says how to get from the scope to its subject.
@@ -632,6 +703,10 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
           // The first comparison, because a judge-range tests one value; a range that tests none —
           // the criteria for a balance nobody assessed — leaves the whole sentence without a figure.
           const judgedAgainst = ranges ? findRange(candidate.state, ranges)?.Comparisons?.[0] : undefined;
+          const levers = candidate.levers && judgedAgainst
+            ? leversFor(judgedAgainst.PropertyName, judgedAgainst.Operator,
+                effectiveDerivedDefinitions(thing, ctx.idx))
+            : [];
           return {
             state: candidate.state,
             reads: candidate.reads,
@@ -639,6 +714,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
             operator: judgedAgainst ? judgedAgainst.Operator : null,
             target: judgedAgainst ? nullableNumber(judgedAgainst.Value) : null,
             value: judgedAgainst ? nullableNumber(properties[judgedAgainst.PropertyName]) : null,
+            ...(levers.length ? { levers } : {}),
           };
         });
       }));

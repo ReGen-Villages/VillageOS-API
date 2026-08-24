@@ -63,7 +63,14 @@ function localizeColumns(columns: TableColumn[] | undefined, tr: SpecTranslator)
  *  one of the four the model's declarations answer with. */
 function localizeWording(binding: Binding | undefined, tr: SpecTranslator): Binding | undefined {
   if (binding?.kind === 'verdict') {
-    return { ...binding, states: binding.states.map((c) => ({ ...c, reads: tr(c.reads) })) };
+    return {
+      ...binding,
+      states: binding.states.map((c) => ({
+        ...c,
+        reads: tr(c.reads),
+        ...(c.levers ? { levers: { raise: tr(c.levers.raise), lower: tr(c.levers.lower) } } : {}),
+      })),
+    };
   }
   if (binding?.kind === 'origin') {
     const reads = Object.fromEntries(

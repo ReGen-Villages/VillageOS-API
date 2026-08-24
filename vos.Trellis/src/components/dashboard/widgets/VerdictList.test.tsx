@@ -125,6 +125,57 @@ describe('VerdictList', () => {
     expect(container.querySelectorAll('p')).toHaveLength(0);
   });
 
+  // Story #6476: a shortfall names what would move it. The wording is the spec's, the terms and
+  // directions the model's; the widget only joins them.
+  it('names each lever under the shortfall sentence, in the wording the state declares', () => {
+    const binding = {
+      kind: 'verdict',
+      thing: 'study-levers',
+      states: [{
+        state: 'EnergyShortOfTarget',
+        reads: 'short of the {target} target',
+        levers: { raise: 'more {term}', lower: 'less {term}' },
+      }],
+    } as unknown as Binding;
+    values.set(JSON.stringify(binding), [{
+      state: 'EnergyShortOfTarget',
+      reads: 'short of the {target} target',
+      property: 'pctOfConsumption',
+      operator: '<',
+      target: 100,
+      value: 73,
+      levers: [
+        { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise' },
+        { term: 'consumed', direction: 'lower' },
+      ],
+    }]);
+
+    draw(widgetWith({ label: 'Energy', format: 'pct100', verdicts: binding }));
+
+    expect(screen.getByText('panelAreaM2')).toBeInTheDocument();
+    expect(screen.getByText(/SolarArray/)).toBeInTheDocument();
+    expect(screen.getByText('consumed')).toBeInTheDocument();
+    expect(screen.getByText(/more/)).toBeInTheDocument();
+    expect(screen.getByText(/less/)).toBeInTheDocument();
+  });
+
+  it('draws no lever lines for a verdict that carries none', () => {
+    draw(widgetWith({
+      label: 'Energy',
+      format: 'pct100',
+      verdicts: bind([{
+        state: 'EnergyNetPositive',
+        reads: 'meets the {target} target',
+        property: 'pctOfConsumption',
+        operator: '>=',
+        target: 100,
+        value: 112,
+      }]),
+    }));
+
+    expect(screen.queryByText(/more|less/)).not.toBeInTheDocument();
+  });
+
   it('reads each balance of a several-row widget under its own label', () => {
     draw(widgetWith(
       {

@@ -251,6 +251,12 @@ export interface RelationStep {
 export interface VerdictCandidate {
   state: string;
   reads: string;
+  /** Marks this state as one that offers what would move the judged figure, and the wording each
+   *  offer reads as — `{term}` stands for the input's own name, which is never translated. Which
+   *  inputs and which way come from the model: the judged figure's derived definition declares what
+   *  it rises and falls with, and the held state's own comparison says which way the result must
+   *  move to leave it. The author marks *where* levers appear; the arithmetic decides what. */
+  levers?: { raise: string; lower: string };
 }
 
 /**

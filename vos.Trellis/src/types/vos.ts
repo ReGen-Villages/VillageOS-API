@@ -62,6 +62,11 @@ export interface DerivedDefinition {
   PropertyPath?: string;
   Scope?: string;
   Reads?: string[];
+  /** Which way the result moves as each input rises, where the definition's structure settles it —
+   *  each a subset of `Reads`. A name in `Reads` and in neither list has no one direction, and
+   *  nothing is offered for it: under a shortfall a wrong direction is worse than none. */
+  RisesWith?: string[];
+  FallsWith?: string[];
 }
 
 export interface InheritedPropertySet {

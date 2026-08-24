@@ -222,7 +222,11 @@ describe('localizeSpec over a verdict widget', () => {
                   verdicts: {
                     kind: 'verdict',
                     states: [
-                      { state: 'EnergyShortOfTarget', reads: 'short of the {target} target' },
+                      {
+                        state: 'EnergyShortOfTarget',
+                        reads: 'short of the {target} target',
+                        levers: { raise: 'more {term}', lower: 'less {term}' },
+                      },
                       { state: 'EnergyNotAssessed', reads: 'not assessed' },
                     ],
                   },
@@ -239,6 +243,8 @@ describe('localizeSpec over a verdict widget', () => {
           Energy: 'Energía',
           days: 'días',
           'short of the {target} target': 'por debajo del objetivo de {target}',
+          'more {term}': 'más {term}',
+          'less {term}': 'menos {term}',
           EnergyShortOfTarget: 'NUNCA',
         },
       },
@@ -263,6 +269,12 @@ describe('localizeSpec over a verdict widget', () => {
   // A state name is model vocabulary the platform resolves against, never display text.
   it('never rewrites the state name, even when a translation entry matches it', () => {
     expect(binding.states[0].state).toBe('EnergyShortOfTarget');
+  });
+
+  // The lever wording is display text the way `reads` is; the `{term}` placeholder stays for the
+  // model's own property name, which is never translated.
+  it('translates the lever wording a state declares, keeping its placeholder', () => {
+    expect(binding.states[0].levers).toEqual({ raise: 'más {term}', lower: 'menos {term}' });
   });
 
   it('translates the widget and row labels around it', () => {

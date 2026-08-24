@@ -1788,6 +1788,60 @@ reads are shared whatever the walk reaches, so reaching several costs no extra
 ones. A failed range read leaves the verdicts readable without the targets they
 name, rather than failing the row.
 
+### A shortfall names what would move it
+
+A verdict that falls short answers "is it good" and leaves "what would make it
+good" to a document. A state the spec marks with `levers` wording offers, under
+its sentence, the inputs at the bottom of the judged figure's derivation and
+which way each would have to move.
+
+**The author marks where; the arithmetic decides what.** A state entry gains a
+`levers` block naming the wording for each direction, with `{term}` standing for
+the input's own name:
+
+```jsonc
+{ "state": "EnergyShortOfTarget",
+  "reads": "The site generates {value} of what it consumes, short of the {target} target.",
+  "levers": { "raise": "more {term}", "lower": "less {term}" } }
+```
+
+Everything else comes from the model, twice over:
+
+- **Which way the result must move** comes from the held state's own comparison —
+  a state held by sitting below its target is left by rising, one held by sitting
+  above it by falling. No wording decides which way is better.
+- **Which way each input moves the result** comes from the derived definition,
+  which declares what its result rises and falls with beside the inputs it reads.
+  Trellis composes the two directions and parses nothing.
+
+**The offers name the leaves.** An input with its own definition is expanded
+into that definition's inputs, signs composed through the chain, so the lines
+name what a person could actually change — panel area, an assumed consumption —
+rather than an intermediate figure no one sets. An input each member holds is
+named with the members' archetype beside it, the way the working widget names
+it. An input reached along two agreeing routes is one offer; one whose routes
+disagree is dropped, since offering either direction would be Trellis taking a
+side. So is an input whose direction the definition does not settle, with its
+subtree — under a shortfall a wrong direction is worse than none, because it
+tells a reader to move an input the way that deepens the gap.
+
+**Where there is nothing to reason from there are no offers.** A figure the
+model does not derive, and a verdict the model withheld, both render their
+sentence and no lever lines: the model has not said what moves the figure, and
+Trellis does not guess.
+
+**Changing the formula in the compute service changes the offers, with no spec
+change and no client change** — the levers are read out of the same definition
+the platform evaluates with.
+
+The `raise` and `lower` wordings are display text and are translated the way the
+verdict's `reads` is. The `{term}` placeholder is filled with the model's own
+property name, which is never translated.
+
+**Cost.** Nothing beyond the verdict row's own reads: the definitions arrive
+with the Things the walk already selected, and the expansion is a walk over
+them in memory.
+
 ### Saying where a figure came from
 
 A dashboard figure says what a number is. It does not say whether anyone

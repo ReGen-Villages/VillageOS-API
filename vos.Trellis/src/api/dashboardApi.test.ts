@@ -1730,6 +1730,217 @@ describe('the working behind a figure', () => {
   });
 });
 
+// Story #6476: a balance that falls short names what would have to change to close the gap. The
+// levers come out of the model twice over — the definition says which way each input moves the
+// result, and the held state's own comparison says which way the result must move to leave it —
+// so changing the formula in the compute service changes the levers with no client change.
+describe('levers under a shortfall', () => {
+  const SHORT_WITH_LEVERS = [
+    { state: 'EnergyNetPositive', reads: 'clear' },
+    {
+      state: 'EnergyShortOfTarget',
+      reads: 'short',
+      levers: { raise: 'more {term}', lower: 'less {term}' },
+    },
+    { state: 'EnergyNotAssessed', reads: 'not assessed' },
+  ];
+
+  function range(Name: string, comparisons: CriteriaComparisonDto[]): RangeDto {
+    return { Name, Criteria: '', IsInherited: true, ActiveBindings: 0, Bindings: [], Comparisons: comparisons };
+  }
+
+  function rangesResponse(ranges: RangeDto[]): ThingRangesResponse {
+    return {
+      ThingId: 'study1',
+      ThingName: 'Site Study',
+      OwnRanges: [],
+      InheritedRanges: [{ SourceId: 'arch-study', SourceName: 'SiteStudy', InheritedAt: '', Ranges: ranges, Inherited: [] }],
+    };
+  }
+
+  // The energy chain the shipped analysis declares, cut down: the judged percentage stands on the
+  // total, the total on a reduction and a plain input, and the consumption divides.
+  const DEFINITIONS = {
+    pctOfConsumption: {
+      Expression: 'totalGeneration / consumed * 100',
+      Reads: ['totalGeneration', 'consumed'],
+      RisesWith: ['totalGeneration'],
+      FallsWith: ['consumed'],
+    },
+    totalGeneration: {
+      Expression: 'solarGeneration + otherGeneration',
+      Reads: ['solarGeneration', 'otherGeneration'],
+      RisesWith: ['solarGeneration', 'otherGeneration'],
+    },
+    solarGeneration: {
+      Function: 'Sum', Path: '*', RelatedType: 'SolarArray', PropertyPath: 'panelAreaM2',
+      Reads: ['panelAreaM2'], RisesWith: ['panelAreaM2'],
+    },
+  };
+
+  function studyContext(definitions: Record<string, unknown>): ResolveContext {
+    const things = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'arch-study', Name: 'SiteStudy', Properties: {}, IsArchetype: true, RollupProperties: definitions },
+      { Id: 'study1', Name: 'Site Study', Properties: {} },
+    ] as unknown as VosThing[];
+    const relationships: VosRelationship[] = [
+      { Id: 'r1', Name: 'study1 is arch-study', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
+    ];
+    return { idx: buildModelIndex(things, relationships), scopeId: 'study1' };
+  }
+
+  function holding(...states: string[]) {
+    vi.mocked(stateApi.getThingsInState).mockImplementation(async (state: string) =>
+      ({ Things: states.includes(state) ? [{ Id: 'study1', Name: 'Site Study', Properties: {} }] : [] }) as never,
+    );
+  }
+
+  const binding = { kind: 'verdict', thing: 'study1', states: SHORT_WITH_LEVERS } as Binding;
+
+  beforeEach(() => {
+    vi.mocked(rangeApi.getAll).mockReset().mockResolvedValue(rangesResponse([
+      range('EnergyNetPositive', [{ PropertyName: 'pctOfConsumption', Operator: '>=', Value: 100 }]),
+      range('EnergyShortOfTarget', [{ PropertyName: 'pctOfConsumption', Operator: '<', Value: 100 }]),
+      range('EnergyNotAssessed', []),
+    ]));
+  });
+
+  it('expands the shortfall to the leaves of the derivation, each with its direction', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS)) as Row[];
+
+    expect(rows[0].levers).toEqual([
+      { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'raise' },
+      { term: 'otherGeneration', direction: 'raise' },
+      { term: 'consumed', direction: 'lower' },
+    ]);
+  });
+
+  // The author marks where levers appear; the arithmetic decides what and which way. A state left
+  // unmarked gets none, however it was judged.
+  it('offers no levers on a state the spec does not mark', async () => {
+    holding('EnergyNetPositive');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS)) as Row[];
+
+    expect(rows[0].levers).toBeUndefined();
+  });
+
+  it('offers no levers for a figure the model does not derive', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({})) as Row[];
+
+    expect(rows[0].levers).toBeUndefined();
+  });
+
+  // A withheld verdict has no comparison, so there is no gap to close and nothing to reason from.
+  it('offers no levers on a verdict the model withheld', async () => {
+    holding('EnergyNotAssessed');
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS)) as Row[];
+
+    expect(rows[0].levers).toBeUndefined();
+  });
+
+  // A wrong direction under a shortfall deepens the gap, so a term the definition declares no
+  // direction for is offered nothing rather than a guess — and its subtree with it.
+  it('drops a term whose direction the definition does not settle', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({
+      pctOfConsumption: {
+        Expression: 'totalGeneration / consumed * 100',
+        Reads: ['totalGeneration', 'consumed'],
+        FallsWith: ['consumed'],
+      },
+      totalGeneration: DEFINITIONS.totalGeneration,
+    })) as Row[];
+
+    expect(rows[0].levers).toEqual([{ term: 'consumed', direction: 'lower' }]);
+  });
+
+  // A boundary the range admits with equality still says which side the value sits on.
+  it('reads an at-most comparison the same way as a below one', async () => {
+    holding('EnergyShortOfTarget');
+    vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([
+      range('EnergyShortOfTarget', [{ PropertyName: 'pctOfConsumption', Operator: '<=', Value: 99 }]),
+    ]));
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS)) as Row[];
+
+    expect((rows[0].levers as Row[]).map((lever) => lever.direction))
+      .toEqual(['raise', 'raise', 'lower']);
+  });
+
+  // A shortfall the other way round: the state holds because the value sits above the target, so
+  // every direction flips with the comparison and no client wording decides which way is better.
+  it('flips every direction when the held state sits above its target', async () => {
+    holding('EnergyShortOfTarget');
+    vi.mocked(rangeApi.getAll).mockResolvedValue(rangesResponse([
+      range('EnergyShortOfTarget', [{ PropertyName: 'pctOfConsumption', Operator: '>', Value: 100 }]),
+    ]));
+
+    const rows = await resolveBinding(binding, studyContext(DEFINITIONS)) as Row[];
+
+    expect(rows[0].levers).toEqual([
+      { term: 'panelAreaM2', memberArchetype: 'SolarArray', direction: 'lower' },
+      { term: 'otherGeneration', direction: 'lower' },
+      { term: 'consumed', direction: 'raise' },
+    ]);
+  });
+
+  // One input can reach the result along two routes. Agreeing routes are one lever named once;
+  // disagreeing routes cancel, and offering either direction would be the client taking a side.
+  it('names a leaf reached twice once, and drops one whose routes disagree', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({
+      pctOfConsumption: {
+        Expression: 'generated + boost - losses',
+        Reads: ['generated', 'boost', 'losses'],
+        RisesWith: ['generated', 'boost'],
+        FallsWith: ['losses'],
+      },
+      boost: {
+        Expression: 'generated * factor',
+        Reads: ['generated', 'factor'],
+        RisesWith: ['generated', 'factor'],
+      },
+      losses: {
+        Expression: 'factor * area',
+        Reads: ['factor', 'area'],
+        RisesWith: ['factor', 'area'],
+      },
+    })) as Row[];
+
+    // `generated` arrives directly and through `boost`, rising both ways — one lever. `factor`
+    // raises `boost` and raises `losses`, which falls — the routes disagree, so it is dropped.
+    expect(rows[0].levers).toEqual([
+      { term: 'generated', direction: 'raise' },
+      { term: 'area', direction: 'lower' },
+    ]);
+  });
+
+  // A definition may name a term whose own definition names it back. A broken model must not hang
+  // the page that renders it.
+  it('survives a cycle between two definitions', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({
+      pctOfConsumption: {
+        Expression: 'stored / 2', Reads: ['stored'], RisesWith: ['stored'],
+      },
+      stored: { Expression: 'held * 2', Reads: ['held'], RisesWith: ['held'] },
+      held: { Expression: 'stored / 3', Reads: ['stored'], RisesWith: ['stored'] },
+    })) as Row[];
+
+    expect(rows[0].levers).toEqual([{ term: 'stored', direction: 'raise' }]);
+  });
+});
+
 describe('origin binding', () => {
   const READS = {
     stated: 'as submitted',
