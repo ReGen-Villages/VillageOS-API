@@ -19,7 +19,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
-var signingKey = launchSettings.SigningKey;
+var verificationKey = launchSettings.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 ServiceHost.ConfigureLogging("Intake", "intake-.log", writeToFile: !isTestingEnv);
@@ -35,10 +35,10 @@ try
     builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = SubmissionSize.MaximumBytes);
     builder.Services.AddHttpClient();
 
-    var authEnabled = !string.IsNullOrEmpty(signingKey);
+    var authEnabled = !string.IsNullOrEmpty(verificationKey);
     if (authEnabled)
     {
-        builder.AddMyceliumTokenAuth(signingKey!, issuer: launchSettings.Issuer, audience: launchSettings.Audience);
+        builder.AddMyceliumTokenAuth(verificationKey!, issuer: launchSettings.Issuer, audience: launchSettings.Audience);
         Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", launchSettings.Issuer, launchSettings.Audience);
     }
 

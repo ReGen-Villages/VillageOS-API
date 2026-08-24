@@ -40,10 +40,10 @@ try
         o.MultipartBodyLengthLimit = launchSettings.MaxUploadBytes);
     builder.Services.AddHttpClient();
 
-    var authEnabled = !string.IsNullOrEmpty(launchSettings.Service.SigningKey);
+    var authEnabled = !string.IsNullOrEmpty(launchSettings.Service.VerificationKey);
     if (authEnabled)
     {
-        builder.AddMyceliumTokenAuth(launchSettings.Service.SigningKey!, issuer: launchSettings.Service.Issuer, audience: launchSettings.Service.Audience);
+        builder.AddMyceliumTokenAuth(launchSettings.Service.VerificationKey!, issuer: launchSettings.Service.Issuer, audience: launchSettings.Service.Audience);
         Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", launchSettings.Service.Issuer, launchSettings.Service.Audience);
     }
 

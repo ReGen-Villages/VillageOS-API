@@ -19,7 +19,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
-var signingKey = launchSettings.SigningKey;
+var verificationKey = launchSettings.VerificationKey;
 
 var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "echo-.log");
 Log.Logger = new LoggerConfiguration()
@@ -44,11 +44,11 @@ builder.WebHost.UseUrls($"http://localhost:{servicePort}");
 builder.Services.AddHttpClient();
 
 // Bug #5391: issuer/audience must come from the CLI so validation matches what Mycelium signed.
-var authEnabled = !string.IsNullOrEmpty(signingKey);
+var authEnabled = !string.IsNullOrEmpty(verificationKey);
 if (authEnabled)
 {
     builder.AddMyceliumTokenAuth(
-        signingKey!,
+        verificationKey!,
         issuer: launchSettings.Issuer,
         audience: launchSettings.Audience);
     Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",

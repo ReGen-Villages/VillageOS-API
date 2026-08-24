@@ -33,7 +33,7 @@ public class ServiceLaunchSettingsTests
 
         result.Should().NotBeNull();
         result!.Token.Should().BeNull();
-        result.SigningKey.Should().BeNull();
+        result.VerificationKey.Should().BeNull();
         result.Issuer.Should().BeNull();
         result.Audience.Should().BeNull();
     }
@@ -56,28 +56,28 @@ public class ServiceLaunchSettingsTests
     {
         var result = ServiceLaunchSettings.Parse([
             "--port=7111", "--myceliumUrl=https://localhost:7243",
-            "--token=my.jwt.token", "--signingKey=c29tZWtleQ=="
+            "--token=my.jwt.token", "--verificationKey=c29tZWtleQ=="
         ]);
 
         result.Should().NotBeNull();
         result!.Token.Should().BeNull();
-        result.SigningKey.Should().BeNull();
+        result.VerificationKey.Should().BeNull();
     }
 
     [Fact]
     public void Parse_WhenACredentialIsOnTheCommandLineAndInConfiguration_TakesTheConfiguredOne()
     {
         var configuration = ConfigurationFrom(
-            ("Token", "configured-token"), ("SigningKey", "configured-key"));
+            ("Token", "configured-token"), ("VerificationKey", "configured-key"));
 
         var result = ServiceLaunchSettings.Parse([
             "--port=7111", "--myceliumUrl=https://localhost:7243",
-            "--token=flag-token", "--signingKey=flag-key"
+            "--token=flag-token", "--verificationKey=flag-key"
         ], configuration);
 
         result.Should().NotBeNull();
         result!.Token.Should().Be("configured-token");
-        result.SigningKey.Should().Be("configured-key");
+        result.VerificationKey.Should().Be("configured-key");
     }
 
     [Fact]
@@ -180,14 +180,14 @@ public class ServiceLaunchSettingsTests
     {
         var configuration = ConfigurationFrom(
             ("Port", "5100"), ("MyceliumUrl", "http://mycelium"),
-            ("Token", "configured-token"), ("SigningKey", "configured-key"),
+            ("Token", "configured-token"), ("VerificationKey", "configured-key"),
             ("Issuer", "configured-issuer"), ("Audience", "configured-audience"));
 
         var result = ServiceLaunchSettings.Parse(Array.Empty<string>(), configuration);
 
         result.Should().NotBeNull();
         result!.Token.Should().Be("configured-token");
-        result.SigningKey.Should().Be("configured-key");
+        result.VerificationKey.Should().Be("configured-key");
         result.Issuer.Should().Be("configured-issuer");
         result.Audience.Should().Be("configured-audience");
     }
@@ -254,8 +254,8 @@ public class ServiceLaunchSettingsTests
     {
         var usage = ServiceLaunchSettings.UsageMessage;
 
-        usage.Should().NotContain("--token").And.NotContain("--signingKey");
-        usage.Should().Contain("Token").And.Contain("SigningKey");
+        usage.Should().NotContain("--token").And.NotContain("--verificationKey");
+        usage.Should().Contain("Token").And.Contain("VerificationKey");
     }
 
     [Fact]

@@ -20,7 +20,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Service.Port;
 var myceliumUrl = launchSettings.Service.MyceliumUrl;
 var serviceToken = launchSettings.Service.Token;
-var signingKey = launchSettings.Service.SigningKey;
+var verificationKey = launchSettings.Service.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 ServiceHost.ConfigureLogging("Confluence", "confluence-.log", writeToFile: !isTestingEnv);
@@ -35,11 +35,11 @@ try
     builder.WebHost.UseUrls($"http://localhost:{servicePort}");
     builder.Services.AddHttpClient();
 
-    var authEnabled = !string.IsNullOrEmpty(signingKey);
+    var authEnabled = !string.IsNullOrEmpty(verificationKey);
     if (authEnabled)
     {
         builder.AddMyceliumTokenAuth(
-            signingKey!,
+            verificationKey!,
             issuer: launchSettings.Service.Issuer,
             audience: launchSettings.Service.Audience);
         Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",

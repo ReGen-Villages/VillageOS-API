@@ -602,23 +602,37 @@ The two credentials are **not** command-line arguments. An argument list is visi
 | Setting | Environment variable | Required | Description |
 |---------|----------------------|----------|-------------|
 | `Token` | `Token` | No | Service JWT for authenticating outbound requests to Mycelium. If omitted, the service attempts to fetch one via `POST /api/auth/token` |
-| `SigningKey` | `SigningKey` | No | Base64-encoded Mycelium signing key. Lets the service validate inbound `/handle` requests from Mycelium. If omitted, inbound auth is disabled |
+| `VerificationKey` | `VerificationKey` | No | Base64 of Mycelium's **public** signing key. Lets the service check inbound `/handle` requests from Mycelium. It cannot produce a signature, only check one. If omitted, inbound auth is disabled |
 
 Mycelium sets both on the environment of every daemon it launches. You only need them when starting a service by hand.
 
-#### Obtaining `SigningKey`
+#### Obtaining `VerificationKey`
 
-Mycelium's signing key is stored in `data/vos-signing-key.json`. The setting expects the key value encoded as base64 of its UTF-8 bytes:
+Mycelium's key pair is stored in `data/vos-signing-key.json`, which holds the **private** half. The
+setting expects the **public** half, so derive it:
 
 ```bash
-# Read the raw key from Mycelium's key file
-KEY=$(python3 -c "import json; print(json.load(open('data/vos-signing-key.json'))['Key'])")
+# Take the private half out of Mycelium's key file
+python3 - <<'EOF'
+import base64, json
+open('/tmp/vos-signing-key.der', 'wb').write(
+    base64.b64decode(json.load(open('data/vos-signing-key.json'))['PrivateKey']))
+EOF
 
-# Base64-encode it (this is what SigningKey expects)
-export SigningKey=$(echo -n "$KEY" | base64)
+# Derive the public half (this is what VerificationKey expects)
+export VerificationKey=$(openssl pkey -inform DER -in /tmp/vos-signing-key.der \
+    -pubout -outform DER | base64 | tr -d '\n')
+rm /tmp/vos-signing-key.der
 ```
 
-If Mycelium uses the `Jwt__Key` environment variable or `Jwt:Key` in appsettings instead of the key file, use that value.
+With `VOS_MASTER_KEY` set, the key file is encrypted at rest and the first step will not read it —
+take the value from a Mycelium started without a master key, or from the deployment's own key
+material. If Mycelium was given its key through `Jwt__PrivateKey` or `Jwt:PrivateKey`, derive the
+public half from that value instead.
+
+You also need `--audience` set to this service's own recipient name, and `--issuer` set to what
+Mycelium signs with. Mycelium passes both when it launches a daemon; starting one by hand means
+supplying them, and a service given a verification key without them refuses to start.
 
 #### Obtaining `Token`
 

@@ -1,7 +1,7 @@
 # VillageOS Service Contract (HTTP + SSE)
 
 The contract every managed microservice speaks, independent of language. It is plain HTTP plus
-a single HS256 JWT — implementable in any stack. The Go, Node, Python, and Rust services in this
+a single JWT signed on the P-256 elliptic curve — implementable in any stack. The Go, Node, Python, and Rust services in this
 repo are reference implementations of the handler side; the shared .NET `SubscriptionClient` and
 Trellis are reference consumers of the subscription side.
 
@@ -34,20 +34,23 @@ reads them from configuration:
 | Setting | Meaning |
 |---------|---------|
 | `Token` | Pre-minted service JWT (else fetch from `POST /api/auth/token`) |
-| `SigningKey` | Base64 HMAC key for validating inbound `/handle` JWTs |
+| `VerificationKey` | Base64 of Mycelium's public signing key, for checking inbound `/handle` JWTs |
 
 A command line is readable by every process on the host and is recorded by anything that logs the
 line a service was started with, which is why neither credential travels there.
 
 ## Auth
 
-One HS256 JWT. The service token (the `Token` setting) carries `vos:token_type=service` and a scope
+One JWT, signed on the P-256 elliptic curve (ES256). The service token (the `Token` setting) carries `vos:token_type=service` and a scope
 that describes what the handler is for without restricting it — `TokenScope` in
 [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md) § How Relationship Services Work.
 Use it for the daemon's own registration/deregistration. Inbound `/handle` calls are signed by
-Mycelium with a short-lived service token carrying the request's `vos:model_id`; validate them
-against `SigningKey` with the given issuer/audience, and reuse the inbound token for any callback so
-a shared daemon acts on the request's model.
+Mycelium with a short-lived service token carrying the request's `vos:model_id`; check them against
+`VerificationKey` with the given issuer and this service's own recipient name, naming ES256 as the
+only algorithm you accept, and reuse the inbound token for any callback so a shared daemon acts on
+the request's model. `VerificationKey` is the public half of Mycelium's pair: it checks a signature
+and cannot make one. See [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md) § Inbound JWT validation for
+why naming the algorithm matters.
 
 EventSource and other streaming clients that can't set headers pass `?access_token=<token>` on the SSE
 stream URLs instead. That token is a **stream token** from `POST /api/auth/stream-token`, not the

@@ -25,7 +25,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
-var signingKey = launchSettings.SigningKey;
+var verificationKey = launchSettings.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 ServiceHost.ConfigureLogging("Tributary", "tributary-.log", writeToFile: !isTestingEnv);
@@ -41,11 +41,11 @@ try
     // Add JWT auth if mycelium provided a signing key. Bug #5391: use the
     // issuer/audience Mycelium passes via CLI so validation matches what
     // Mycelium signed.
-    var authEnabled = !string.IsNullOrEmpty(signingKey);
+    var authEnabled = !string.IsNullOrEmpty(verificationKey);
     if (authEnabled)
     {
         builder.AddMyceliumTokenAuth(
-            signingKey!,
+            verificationKey!,
             issuer: launchSettings.Issuer,
             audience: launchSettings.Audience);
         Log.Information("JWT authentication enabled for incoming mycelium requests (issuer={Issuer}, audience={Audience})",

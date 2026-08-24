@@ -1,6 +1,6 @@
 # Authoring a VillageOS managed microservice
 
-A **managed microservice** is an external handler that Mycelium (the VillageOS gateway) launches as a daemon and calls when a relationship using the service's predicate is created. The entire contract is **HTTP + a single HS256 JWT** — so a handler can be written in *any* language with an HTTP server and an HMAC-SHA256 library.
+A **managed microservice** is an external handler that Mycelium (the VillageOS gateway) launches as a daemon and calls when a relationship using the service's predicate is created. The entire contract is **HTTP + a single JWT signed on the P-256 elliptic curve** — so a handler can be written in *any* language with an HTTP server and a mainstream cryptography library.
 
 This document is the language-agnostic contract. Working reference implementations live alongside it:
 
@@ -58,7 +58,7 @@ The boundary sources are still wrong. That is not a reason to rewrite them on si
 sequenceDiagram
     participant M as Mycelium
     participant S as Your service
-    M->>S: launch: app --port --myceliumUrl --issuer --audience (Token + SigningKey in the environment)
+    M->>S: launch: app --port --myceliumUrl --issuer --audience (Token + VerificationKey in the environment)
     S->>M: POST /api/auth/token (skip if Token is set) → { token }
     S->>M: POST /api/mycelium/register (Bearer) → 200
     Note over M,S: relationship with your predicate is created
@@ -76,8 +76,8 @@ Mycelium launches your binary with `--key=value` flags. `--port` and `--mycelium
 |------|----------|---------|
 | `--port` | ✓ | Port to listen on (1–65535) |
 | `--myceliumUrl` | ✓ | Base URL of Mycelium, e.g. `https://localhost:7243` |
-| `--issuer` | | JWT issuer to validate against. **Required when `SigningKey` is set** (startup fails otherwise); must match what Mycelium signs |
-| `--audience` | | JWT audience to validate against. **Required when `SigningKey` is set** (startup fails otherwise); must match what Mycelium signs |
+| `--issuer` | | JWT issuer to check against. **Required when `VerificationKey` is set** (startup fails otherwise); must match what Mycelium signs |
+| `--audience` | | **Your service's own name**, which an inbound token must carry as its recipient. **Required when `VerificationKey` is set** (startup fails otherwise). There is no shared default: a token addressed to another service, or to a signed-in person's browser, must not be accepted here. Mycelium works the name out from the connection that dispatches to you — treat it as opaque and check the value you were given |
 
 ### Credentials
 
@@ -91,7 +91,10 @@ child's environment, not in its arguments. Xylem hands the IFC ingest tool its `
 | Setting | Meaning |
 |---------|---------|
 | `Token` | Pre-minted service JWT for outbound calls; if unset, fetch one from `POST /api/auth/token` |
-| `SigningKey` | Base64-encoded HMAC key for validating **inbound** requests. When present, `/handle` and `/shutdown` require auth; when absent, auth is disabled |
+| `VerificationKey` | Base64 of Mycelium's **public** signing key (its SubjectPublicKeyInfo encoding), for checking **inbound** requests. When present, `/handle` and `/shutdown` require auth; when absent, auth is disabled |
+
+`VerificationKey` checks a signature and cannot produce one. Mycelium keeps the private half and
+never releases it, so no handler — yours included — can mint a token Mycelium would accept.
 
 ## Registration
 
@@ -122,7 +125,7 @@ A 2xx means you're registered.
 | GET | `/stats` | — | Service metadata |
 | POST | `/shutdown` | ✓ | Graceful shutdown trigger |
 
-\* Auth enforced only when a `SigningKey` was supplied.
+\* Auth enforced only when a `VerificationKey` was supplied.
 
 **Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
 batch, `/handle` is called only after the whole fragment is applied — every Thing, edge, and
@@ -156,13 +159,22 @@ Return any 2xx; Mycelium logs non-2xx and continues. A reasonable body:
 
 ## Inbound JWT validation
 
-When a `SigningKey` is supplied, validate the Bearer JWT on `/handle` and `/shutdown`:
+When a `VerificationKey` is supplied, validate the Bearer JWT on `/handle` and `/shutdown`:
 
-1. **Key** = `base64decode(SigningKey)` → use directly as the **HMAC-SHA256** secret.
-2. **Algorithm** = HS256.
-3. **Claims** — validate `iss` and `aud` against the `--issuer` and `--audience` flags, and `exp`/`nbf`, allowing **30 seconds** clock skew.
+1. **Key** = `base64decode(VerificationKey)` → an elliptic-curve **public** key on the P-256 curve, in its SubjectPublicKeyInfo encoding. Most libraries read that directly; some want it wrapped in the `-----BEGIN PUBLIC KEY-----` envelope first.
+2. **Algorithm** = ES256, and **name it**. Tell your library that ES256 is the only algorithm you accept rather than letting it honour whatever the token's header claims. See the warning below.
+3. **Claims** — check `iss` against the `--issuer` flag and `aud` against the `--audience` flag, and check `exp`/`nbf`, allowing **30 seconds** clock skew.
 
-Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT carrying `iss`/`aud` and the request's `vos:model_id`; the platform validates this same HS256 JWT before dispatch, so your handler should apply the identical checks. Reject with 401 on any failure.
+The header also carries `kid`, the name of the key that signed the token. A handler holds one key and can ignore it; it is there so Mycelium can accept a token signed by a previous key while a new one takes over.
+
+**Name the algorithm, or the key you were given becomes a signing key.** Every handler holds the
+verification key, and it is not a secret. A library that takes a raw key and trusts the token's own
+`alg` header will happily check an `HS256` token using those same bytes as a shared secret — so
+anyone holding the public key can mint a token that such a handler accepts. Several mainstream
+libraries behave this way unless told otherwise. Pin ES256 explicitly; a token claiming any other
+algorithm, `none` included, must be refused.
+
+Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT carrying `iss`/`aud` and the request's `vos:model_id`; the platform validates this same token before dispatch, so your handler should apply the identical checks. Reject with 401 on any failure.
 
 **Calling back into Mycelium.** If your handler writes back during `/handle` (Facts, Observations, relationships), authenticate those calls with the **inbound** request token, not the startup JWT from `Token` — otherwise a daemon shared by several models writes to whichever model launched it. Handlers built on `MyceliumClientBase` get this for free: add `app.UseMyceliumModelToken()` after `UseAuthorization()`, and `GetTokenAsync()` prefers the bearer of the work in hand.
 
@@ -176,11 +188,12 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 ## Authoring checklist
 
 - [ ] Parse the `--key=value` flags; exit with usage if `--port`/`--myceliumUrl` missing
-- [ ] Read `Token` and `SigningKey` from configuration or the environment, not from the command line
+- [ ] Read `Token` and `VerificationKey` from configuration or the environment, not from the command line
 - [ ] Generate a `handlerId` UUID at startup
 - [ ] Get a token (the `Token` setting or `/api/auth/token`) and `POST /api/mycelium/register`
 - [ ] Serve `/handle`, `/health`, `/stats`, `/shutdown`
-- [ ] Validate the inbound HS256 JWT when a `SigningKey` is set (iss/aud/exp, 30s skew)
+- [ ] Validate the inbound JWT when a `VerificationKey` is set (ES256 named explicitly, iss/aud/exp, 30s skew)
+- [ ] Refuse a token whose recipient is not your own `--audience`, and one claiming any algorithm other than ES256
 - [ ] Add `app.UseMyceliumModelToken()` so `/handle` callbacks use the request's model token
 - [ ] Deregister on shutdown
 - [ ] Add tests for arg parsing + JWT validation (see any reference example)

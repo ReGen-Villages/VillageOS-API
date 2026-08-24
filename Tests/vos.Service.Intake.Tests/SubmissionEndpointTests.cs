@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Intake.Helpers;
+using vos.Tests.Shared;
 using Xunit;
 using static vos.Service.Intake.Tests.ModelStub;
 
@@ -66,7 +67,7 @@ public class SubmissionEndpointTests
         await using var factory = new IntakeWebApplicationFactory
         {
             HandlerCallback = Holds,
-            SigningKey = Convert.ToBase64String(new byte[32]),
+            VerificationKey = new MyceliumSigner().VerificationKey,
         };
         using var client = factory.CreateClient();
 

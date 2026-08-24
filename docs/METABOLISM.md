@@ -41,7 +41,7 @@ When a seed loads with 20 `consumes` relationships, all 20 get registered within
 ### Startup sequence
 
 ```text
-1. Parse the launch settings (--port, --myceliumUrl and --mode from the command line; Token and SigningKey from configuration)
+1. Parse the launch settings (--port, --myceliumUrl and --mode from the command line; Token and VerificationKey from configuration)
 2. Use the pre-minted service JWT from the Token setting for Mycelium authentication
 3. Start ASP.NET minimal API on the given port (with Mycelium token validation via vos.Auth.Shared)
 4. Open an SSE subscription to Mycelium for relationship property-change events

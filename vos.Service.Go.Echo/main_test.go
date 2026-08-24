@@ -1,8 +1,12 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -13,24 +17,63 @@ import (
 	"time"
 )
 
-// makeToken builds an HS256 JWT signed with key for use in auth tests.
-func makeToken(key []byte, claims map[string]any) string {
-	enc := func(v any) string {
-		b, _ := json.Marshal(v)
-		return base64.RawURLEncoding.EncodeToString(b)
+const thisHandler = "go-echo-handler"
+
+// myceliumKeyPair stands in for the pair Mycelium generates.
+func myceliumKeyPair(t *testing.T) *ecdsa.PrivateKey {
+	t.Helper()
+	pair, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("could not generate a key pair: %v", err)
 	}
-	head := enc(map[string]string{"alg": "HS256", "typ": "JWT"})
-	pay := enc(claims)
+	return pair
+}
+
+// verificationKey encodes the public half the way Mycelium hands it to a daemon.
+func verificationKey(t *testing.T, pair *ecdsa.PrivateKey) string {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(&pair.PublicKey)
+	if err != nil {
+		t.Fatalf("could not encode the public half: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(der)
+}
+
+func encodeSegment(v any) string {
+	b, _ := json.Marshal(v)
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+// makeToken signs claims the way Mycelium does.
+func makeToken(t *testing.T, pair *ecdsa.PrivateKey, claims map[string]any) string {
+	t.Helper()
+	signing := encodeSegment(map[string]string{"alg": "ES256", "typ": "JWT"}) + "." + encodeSegment(claims)
+	digest := sha256.Sum256([]byte(signing))
+	r, s, err := ecdsa.Sign(rand.Reader, pair, digest[:])
+	if err != nil {
+		t.Fatalf("could not sign: %v", err)
+	}
+	signature := make([]byte, 64)
+	r.FillBytes(signature[:32])
+	s.FillBytes(signature[32:])
+	return signing + "." + base64.RawURLEncoding.EncodeToString(signature)
+}
+
+// forgedFromTheVerificationKey is what someone who reads the key off a daemon can produce: a token
+// signed with the public half used as a plain shared secret.
+func forgedFromTheVerificationKey(t *testing.T, pair *ecdsa.PrivateKey, claims map[string]any) string {
+	t.Helper()
+	key, _ := base64.StdEncoding.DecodeString(verificationKey(t, pair))
+	signing := encodeSegment(map[string]string{"alg": "HS256", "typ": "JWT"}) + "." + encodeSegment(claims)
 	mac := hmac.New(sha256.New, key)
-	mac.Write([]byte(head + "." + pay))
-	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	return head + "." + pay + "." + sig
+	mac.Write([]byte(signing))
+	return signing + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
 func validClaims() map[string]any {
 	now := time.Now().Unix()
 	return map[string]any{
-		"iss": "VillageOS", "aud": "VosClients", "sub": "mycelium",
+		"iss": "VillageOS", "aud": thisHandler, "sub": "mycelium",
 		"vos:token_type": "mycelium_request",
 		"iat":            now, "nbf": now, "exp": now + 60,
 	}
@@ -46,8 +89,8 @@ func TestParseArgs(t *testing.T) {
 	if cfg.Port != 5101 || cfg.MyceliumURL != "https://localhost:7243" {
 		t.Fatalf("bad parse: %+v", cfg)
 	}
-	if cfg.Issuer != "VillageOS" || cfg.Audience != "VosClients" {
-		t.Fatalf("defaults not applied: %+v", cfg)
+	if cfg.Issuer != "" || cfg.Audience != "" {
+		t.Fatalf("no issuer or recipient name may be defaulted: %+v", cfg)
 	}
 	if _, err := parseArgs([]string{"--port=5101"}, emptyEnvironment); err == nil {
 		t.Fatal("expected error when --myceliumUrl missing")
@@ -58,9 +101,10 @@ func TestParseArgs(t *testing.T) {
 }
 
 func TestParseArgsTakesCredentialsFromTheEnvironment(t *testing.T) {
-	environment := map[string]string{"Token": "environment-token", "SigningKey": "ZW52aXJvbm1lbnQta2V5"}
+	environment := map[string]string{"Token": "environment-token", "VerificationKey": "ZW52aXJvbm1lbnQta2V5"}
 	cfg, err := parseArgs(
-		[]string{"--port=5101", "--myceliumUrl=https://localhost:7243"},
+		[]string{"--port=5101", "--myceliumUrl=https://localhost:7243",
+			"--issuer=VillageOS", "--audience=" + thisHandler},
 		func(name string) string { return environment[name] })
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -68,25 +112,40 @@ func TestParseArgsTakesCredentialsFromTheEnvironment(t *testing.T) {
 	if cfg.Token != "environment-token" {
 		t.Fatalf("token = %q, want the environment value", cfg.Token)
 	}
-	if cfg.SigningKey != "ZW52aXJvbm1lbnQta2V5" {
-		t.Fatalf("signing key = %q, want the environment value", cfg.SigningKey)
+	if cfg.VerificationKey != "ZW52aXJvbm1lbnQta2V5" {
+		t.Fatalf("verification key = %q, want the environment value", cfg.VerificationKey)
 	}
 }
 
 func TestParseArgsIgnoresCredentialsGivenAsFlags(t *testing.T) {
 	cfg, err := parseArgs(
-		[]string{"--port=5101", "--myceliumUrl=https://localhost:7243", "--token=flag-token", "--signingKey=flag-key"},
+		[]string{"--port=5101", "--myceliumUrl=https://localhost:7243", "--token=flag-token", "--verificationKey=flag-key"},
 		emptyEnvironment)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.Token != "" || cfg.SigningKey != "" {
+	if cfg.Token != "" || cfg.VerificationKey != "" {
 		t.Fatalf("a credential flag was accepted: %+v", cfg)
 	}
 }
 
-func TestVerifyHS256(t *testing.T) {
-	key := []byte("vos-test-signing-key-0123456789ab")
+// Each handler is addressed by its own name, so there is no shared default left that could be right.
+func TestParseArgsRefusesAVerificationKeyWithNoRecipientName(t *testing.T) {
+	environment := map[string]string{"VerificationKey": "ZW52aXJvbm1lbnQta2V5"}
+	read := func(name string) string { return environment[name] }
+
+	if _, err := parseArgs(
+		[]string{"--port=5101", "--myceliumUrl=https://x", "--issuer=VillageOS"}, read); err == nil {
+		t.Fatal("expected an error when no recipient name was given")
+	}
+	if _, err := parseArgs(
+		[]string{"--port=5101", "--myceliumUrl=https://x", "--audience=" + thisHandler}, read); err == nil {
+		t.Fatal("expected an error when no issuer was given")
+	}
+}
+
+func TestVerifyES256(t *testing.T) {
+	pair := myceliumKeyPair(t)
 	cases := []struct {
 		name   string
 		claims map[string]any
@@ -96,16 +155,17 @@ func TestVerifyHS256(t *testing.T) {
 		{"valid", validClaims(), nil, true},
 		{"expired", func() map[string]any { c := validClaims(); c["exp"] = time.Now().Unix() - 120; return c }(), nil, false},
 		{"wrong issuer", func() map[string]any { c := validClaims(); c["iss"] = "Attacker"; return c }(), nil, false},
-		{"wrong audience", func() map[string]any { c := validClaims(); c["aud"] = "Nope"; return c }(), nil, false},
+		{"addressed to another service", func() map[string]any { c := validClaims(); c["aud"] = "spring-handler"; return c }(), nil, false},
+		{"a person's browser token", func() map[string]any { c := validClaims(); c["aud"] = "VosClients"; return c }(), nil, false},
 		{"tampered", validClaims(), func(tok string) string { return tok + "x" }, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			tok := makeToken(key, tc.claims)
+			tok := makeToken(t, pair, tc.claims)
 			if tc.mutate != nil {
 				tok = tc.mutate(tok)
 			}
-			err := verifyHS256(tok, key, "VillageOS", "VosClients")
+			err := verifyES256(tok, &pair.PublicKey, "VillageOS", thisHandler)
 			if tc.wantOK && err != nil {
 				t.Fatalf("expected valid, got %v", err)
 			}
@@ -116,15 +176,38 @@ func TestVerifyHS256(t *testing.T) {
 	}
 }
 
-func TestVerifyHS256_WrongKey(t *testing.T) {
-	tok := makeToken([]byte("the-real-key"), validClaims())
-	if err := verifyHS256(tok, []byte("a-different-key"), "VillageOS", "VosClients"); err == nil {
-		t.Fatal("expected signature mismatch with wrong key")
+func TestVerifyES256_SignedByAnotherMycelium(t *testing.T) {
+	tok := makeToken(t, myceliumKeyPair(t), validClaims())
+	stranger := myceliumKeyPair(t)
+
+	if err := verifyES256(tok, &stranger.PublicKey, "VillageOS", thisHandler); err == nil {
+		t.Fatal("expected signature mismatch with a key from somewhere else")
+	}
+}
+
+// Every handler holds the verification key. A checker that honoured the algorithm the token names
+// would let any of them sign one.
+func TestVerifyES256_RefusesTheVerificationKeyUsedAsASharedSecret(t *testing.T) {
+	pair := myceliumKeyPair(t)
+	forged := forgedFromTheVerificationKey(t, pair, validClaims())
+
+	if err := verifyES256(forged, &pair.PublicKey, "VillageOS", thisHandler); err == nil {
+		t.Fatal("expected a token signed with the public half as a shared secret to be refused")
+	}
+}
+
+func TestVerifyES256_RefusesATokenCarryingNoSignature(t *testing.T) {
+	pair := myceliumKeyPair(t)
+	unsigned := encodeSegment(map[string]string{"alg": "none", "typ": "JWT"}) + "." +
+		encodeSegment(validClaims()) + "."
+
+	if err := verifyES256(unsigned, &pair.PublicKey, "VillageOS", thisHandler); err == nil {
+		t.Fatal("expected a token claiming no signature to be refused")
 	}
 }
 
 func TestHandleEcho(t *testing.T) {
-	s := &service{cfg: config{Issuer: "VillageOS", Audience: "VosClients"}, handlerID: "test-id"}
+	s := &service{cfg: config{Issuer: "VillageOS", Audience: thisHandler}, handlerID: "test-id"}
 	body := `{"relationshipId":"r1","subjectName":"A","properties":{"k":1}}`
 	req := httptest.NewRequest(http.MethodPost, "/handle", strings.NewReader(body))
 	rec := httptest.NewRecorder()
@@ -147,10 +230,10 @@ func TestHandleEcho(t *testing.T) {
 }
 
 func TestRequireAuth(t *testing.T) {
-	key := []byte("vos-test-signing-key-0123456789ab")
+	pair := myceliumKeyPair(t)
 	s := &service{cfg: config{
-		SigningKey: base64.StdEncoding.EncodeToString(key),
-		Issuer:     "VillageOS", Audience: "VosClients",
+		VerificationKey: verificationKey(t, pair),
+		Issuer:          "VillageOS", Audience: thisHandler,
 	}}
 	guarded := s.requireAuth(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -166,7 +249,7 @@ func TestRequireAuth(t *testing.T) {
 	// valid token -> 200
 	rec = httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/handle", nil)
-	req.Header.Set("Authorization", "Bearer "+makeToken(key, validClaims()))
+	req.Header.Set("Authorization", "Bearer "+makeToken(t, pair, validClaims()))
 	guarded(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("valid token: status = %d", rec.Code)

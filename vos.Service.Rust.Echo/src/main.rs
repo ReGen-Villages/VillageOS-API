@@ -2,7 +2,9 @@
 //!
 //! A managed microservice is a handler that Mycelium (the VillageOS gateway)
 //! launches as a daemon and calls when a relationship with the service's
-//! predicate is created. The whole contract is HTTP + a single HS256 JWT.
+//! predicate is created. The whole contract is HTTP + a single JWT signed on the
+//! P-256 elliptic curve (ES256). The key a handler holds checks a signature and
+//! cannot produce one.
 //!
 //! `is` is NOT an external predicate — Mycelium handles `is` inheritance
 //! in-process and never dispatches it. Register for a custom predicate instead.
@@ -34,9 +36,11 @@ struct Config {
     port: u16,
     mycelium_url: String,
     token: Option<String>,
-    signing_key: Option<String>, // base64-encoded HMAC key
+    /// Base64 of Mycelium's public signing key, for checking inbound requests.
+    verification_key: Option<String>,
     #[allow(dead_code)]
     issuer: String,
+    /// This service's own name. A token addressed to anything else is refused.
     audience: String,
 }
 
@@ -48,9 +52,9 @@ fn parse_args(args: &[String], environment: impl Fn(&str) -> Option<String>) -> 
     let mut port: Option<u16> = None;
     let mut mycelium_url: Option<String> = None;
     let token = environment("Token");
-    let signing_key = environment("SigningKey");
-    let mut issuer = "VillageOS".to_string();
-    let mut audience = "VosClients".to_string();
+    let verification_key = environment("VerificationKey");
+    let mut issuer = String::new();
+    let mut audience = String::new();
 
     for a in args {
         let Some((k, v)) = a.split_once('=') else { continue };
@@ -63,18 +67,25 @@ fn parse_args(args: &[String], environment: impl Fn(&str) -> Option<String>) -> 
         }
     }
 
+    // No default issuer or recipient name to fall back on. Each handler is addressed by its own
+    // name, so a shared default could not be correct for anyone and would refuse every call.
+    if verification_key.is_some() && (issuer.is_empty() || audience.is_empty()) {
+        return None;
+    }
+
     Some(Config {
         port: port?,
         mycelium_url: mycelium_url?,
         token,
-        signing_key,
+        verification_key,
         issuer,
         audience,
     })
 }
 
 const USAGE: &str = "Usage: app --port=<port> --myceliumUrl=<url> [--issuer=<iss>] [--audience=<aud>]\n\
-    Credentials come from the environment, never the command line: Token, SigningKey";
+    --issuer and --audience are required whenever a VerificationKey is set; --audience is this service's own name.\n\
+    Credentials come from the environment, never the command line: Token, VerificationKey";
 
 struct AppState {
     config: Config,
@@ -82,7 +93,7 @@ struct AppState {
     requests: AtomicU64,
 }
 
-// ---- inbound JWT validation (HS256) --------------------------------------
+// ---- inbound JWT validation (ES256) --------------------------------------
 
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
@@ -92,23 +103,38 @@ struct Claims {
     exp: usize,
 }
 
-/// Validates an HS256 JWT against the base64-encoded signing key, issuer and
-/// audience, allowing 30s clock skew — matching ServiceTokenValidator (.NET).
+/// Wraps the base64 SubjectPublicKeyInfo encoding Mycelium hands out in the PEM envelope the
+/// JWT library reads.
+fn public_key_pem(base64_key: &str) -> String {
+    let wrapped: Vec<&str> = base64_key.as_bytes().chunks(64)
+        .map(|line| std::str::from_utf8(line).unwrap_or_default())
+        .collect();
+    format!(
+        "-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----\n",
+        wrapped.join("\n"))
+}
+
+/// Validates the inbound JWT against Mycelium's public signing key, the issuer and this service's
+/// own name, allowing 30s clock skew — matching ServiceTokenValidator (.NET).
+///
+/// The accepted algorithm is named rather than taken from the token. A checker that honoured the
+/// token's own claim would accept a token signed with this public key used as a plain shared
+/// secret, which is a value every handler holds.
 fn verify_jwt(token: &str, base64_key: &str, issuer: &str, audience: &str) -> bool {
-    let Ok(key_bytes) = B64.decode(base64_key) else {
+    let Ok(key) = DecodingKey::from_ec_pem(public_key_pem(base64_key).as_bytes()) else {
         return false;
     };
-    let mut validation = Validation::new(Algorithm::HS256);
+    let mut validation = Validation::new(Algorithm::ES256);
     validation.set_issuer(&[issuer]);
     validation.set_audience(&[audience]);
     validation.leeway = 30;
-    decode::<Claims>(token, &DecodingKey::from_secret(&key_bytes), &validation).is_ok()
+    decode::<Claims>(token, &key, &validation).is_ok()
 }
 
-/// Axum middleware: when a signing key is configured, require a valid
+/// Axum middleware: when a verification key is configured, require a valid
 /// Mycelium-signed Bearer JWT. No-op otherwise (matches the .NET handlers).
 async fn auth(State(state): State<Arc<AppState>>, req: Request, next: Next) -> Response {
-    let Some(key) = state.config.signing_key.as_deref() else {
+    let Some(key) = state.config.verification_key.as_deref() else {
         return next.run(req).await;
     };
     let ok = req
@@ -490,7 +516,7 @@ async fn main() {
     };
 
     let port = config.port;
-    let auth_enabled = config.signing_key.is_some();
+    let auth_enabled = config.verification_key.is_some();
     let state = Arc::new(AppState {
         config,
         handler_id: uuid::Uuid::new_v4().to_string(),
@@ -557,10 +583,26 @@ mod tests {
     use jsonwebtoken::{encode, EncodingKey, Header};
     use serde::Serialize;
 
-    const KEY_RAW: &[u8] = b"vos-test-signing-key-0123456789ab";
+    const THIS_HANDLER: &str = "rust-echo-handler";
 
+    /// A throwaway P-256 pair generated for these tests alone, standing in for Mycelium's. Held as
+    /// base64 of the DER encodings, the same shape everything else in this file uses.
+    const MYCELIUM_PRIVATE_KEY: &str = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgV9WJFCZHey9GDpFAnXa6AzS2fyCsmDP+mrBN7H1fRT+hRANCAARtmT5X4JQdbx0PJA2zt1PZEPpvsBfQ0HGgomTeM9eOG+kePwktwPMO9LC07x81YCnqhZzLeE/XLq92DskNgQr5";
+
+    const MYCELIUM_PUBLIC_KEY: &str = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEbZk+V+CUHW8dDyQNs7dT2RD6b7AX0NBxoKJk3jPXjhvpHj8JLcDzDvSwtO8fNWAp6oWcy3hP1y6vdg7JDYEK+Q==";
+
+    /// The public half, as a daemon receives it.
     fn b64_key() -> String {
-        B64.encode(KEY_RAW)
+        MYCELIUM_PUBLIC_KEY.to_string()
+    }
+
+    fn private_key_pem() -> String {
+        let wrapped: Vec<&str> = MYCELIUM_PRIVATE_KEY.as_bytes().chunks(64)
+            .map(|line| std::str::from_utf8(line).unwrap())
+            .collect();
+        format!(
+            "-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----\n",
+            wrapped.join("\n"))
     }
 
     #[derive(Serialize)]
@@ -586,7 +628,27 @@ mod tests {
             nbf: now as usize,
             iat: now as usize,
         };
-        encode(&Header::new(Algorithm::HS256), &claims, &EncodingKey::from_secret(KEY_RAW)).unwrap()
+        let key = EncodingKey::from_ec_pem(private_key_pem().as_bytes()).unwrap();
+        encode(&Header::new(Algorithm::ES256), &claims, &key).unwrap()
+    }
+
+    /// What someone who reads the verification key off a daemon can produce: a token signed with
+    /// the public half used as a plain shared secret.
+    fn forged_from_the_verification_key(iss: &str, aud: &str) -> String {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let claims = TestClaims {
+            iss: iss.to_string(),
+            aud: aud.to_string(),
+            sub: "mycelium".to_string(),
+            exp: (now + 60) as usize,
+            nbf: now as usize,
+            iat: now as usize,
+        };
+        let secret = B64.decode(MYCELIUM_PUBLIC_KEY).unwrap();
+        encode(&Header::new(Algorithm::HS256), &claims, &EncodingKey::from_secret(&secret)).unwrap()
     }
 
     fn empty_environment(_: &str) -> Option<String> {
@@ -594,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_args_valid_with_defaults() {
+    fn parse_args_valid_and_defaults_nothing() {
         let cfg = parse_args(
             &[
                 "--port=5104".into(),
@@ -605,8 +667,25 @@ mod tests {
         .unwrap();
         assert_eq!(cfg.port, 5104);
         assert_eq!(cfg.mycelium_url, "https://localhost:7243");
-        assert_eq!(cfg.issuer, "VillageOS");
-        assert_eq!(cfg.audience, "VosClients");
+        assert_eq!(cfg.issuer, "");
+        assert_eq!(cfg.audience, "");
+    }
+
+    /// Each handler is addressed by its own name, so there is no shared default left that could
+    /// be right.
+    #[test]
+    fn parse_args_refuses_a_verification_key_with_no_recipient_name() {
+        let with_key = |name: &str| match name {
+            "VerificationKey" => Some("ZW52aXJvbm1lbnQta2V5".to_string()),
+            _ => None,
+        };
+        assert!(parse_args(
+            &["--port=5104".into(), "--myceliumUrl=https://x".into(), "--issuer=VillageOS".into()],
+            with_key).is_none());
+        assert!(parse_args(
+            &["--port=5104".into(), "--myceliumUrl=https://x".into(),
+              format!("--audience={THIS_HANDLER}")],
+            with_key).is_none());
     }
 
     #[test]
@@ -618,16 +697,17 @@ mod tests {
     #[test]
     fn parse_args_takes_credentials_from_the_environment() {
         let cfg = parse_args(
-            &["--port=5104".into(), "--myceliumUrl=https://localhost:7243".into()],
+            &["--port=5104".into(), "--myceliumUrl=https://localhost:7243".into(),
+              "--issuer=VillageOS".into(), format!("--audience={THIS_HANDLER}")],
             |name| match name {
                 "Token" => Some("environment-token".into()),
-                "SigningKey" => Some("ZW52aXJvbm1lbnQta2V5".into()),
+                "VerificationKey" => Some("ZW52aXJvbm1lbnQta2V5".into()),
                 _ => None,
             },
         )
         .unwrap();
         assert_eq!(cfg.token.as_deref(), Some("environment-token"));
-        assert_eq!(cfg.signing_key.as_deref(), Some("ZW52aXJvbm1lbnQta2V5"));
+        assert_eq!(cfg.verification_key.as_deref(), Some("ZW52aXJvbm1lbnQta2V5"));
     }
 
     #[test]
@@ -637,39 +717,49 @@ mod tests {
                 "--port=5104".into(),
                 "--myceliumUrl=https://localhost:7243".into(),
                 "--token=flag-token".into(),
-                "--signingKey=flag-key".into(),
+                "--verificationKey=flag-key".into(),
             ],
             empty_environment,
         )
         .unwrap();
         assert!(cfg.token.is_none());
-        assert!(cfg.signing_key.is_none());
+        assert!(cfg.verification_key.is_none());
     }
 
     #[test]
     fn verify_jwt_accepts_valid() {
-        let tok = make_token("VillageOS", "VosClients", 60);
-        assert!(verify_jwt(&tok, &b64_key(), "VillageOS", "VosClients"));
+        let tok = make_token("VillageOS", THIS_HANDLER, 60);
+        assert!(verify_jwt(&tok, &b64_key(), "VillageOS", THIS_HANDLER));
     }
 
     #[test]
     fn verify_jwt_rejects_tampered() {
-        let tok = make_token("VillageOS", "VosClients", 60) + "x";
-        assert!(!verify_jwt(&tok, &b64_key(), "VillageOS", "VosClients"));
+        let tok = make_token("VillageOS", THIS_HANDLER, 60) + "x";
+        assert!(!verify_jwt(&tok, &b64_key(), "VillageOS", THIS_HANDLER));
     }
 
     #[test]
     fn verify_jwt_rejects_expired() {
-        let tok = make_token("VillageOS", "VosClients", -120);
-        assert!(!verify_jwt(&tok, &b64_key(), "VillageOS", "VosClients"));
+        let tok = make_token("VillageOS", THIS_HANDLER, -120);
+        assert!(!verify_jwt(&tok, &b64_key(), "VillageOS", THIS_HANDLER));
     }
 
     #[test]
-    fn verify_jwt_rejects_wrong_issuer_and_audience() {
-        let bad_iss = make_token("Attacker", "VosClients", 60);
-        let bad_aud = make_token("VillageOS", "Nope", 60);
-        assert!(!verify_jwt(&bad_iss, &b64_key(), "VillageOS", "VosClients"));
-        assert!(!verify_jwt(&bad_aud, &b64_key(), "VillageOS", "VosClients"));
+    fn verify_jwt_rejects_wrong_issuer_and_another_services_name() {
+        let bad_iss = make_token("Attacker", THIS_HANDLER, 60);
+        let elsewhere = make_token("VillageOS", "spring-handler", 60);
+        let a_persons_browser_token = make_token("VillageOS", "VosClients", 60);
+        assert!(!verify_jwt(&bad_iss, &b64_key(), "VillageOS", THIS_HANDLER));
+        assert!(!verify_jwt(&elsewhere, &b64_key(), "VillageOS", THIS_HANDLER));
+        assert!(!verify_jwt(&a_persons_browser_token, &b64_key(), "VillageOS", THIS_HANDLER));
+    }
+
+    /// Every handler holds the verification key. A checker that honoured the algorithm the token
+    /// names would let any of them sign one.
+    #[test]
+    fn verify_jwt_rejects_the_verification_key_used_as_a_shared_secret() {
+        let forged = forged_from_the_verification_key("VillageOS", THIS_HANDLER);
+        assert!(!verify_jwt(&forged, &b64_key(), "VillageOS", THIS_HANDLER));
     }
 
     // ---- Write kinds (Fact / Observation / Sediment) ----
@@ -719,7 +809,7 @@ mod tests {
             port: 0,
             mycelium_url: url,
             token: Some("tok".into()),
-            signing_key: None,
+            verification_key: None,
             issuer: "VillageOS".into(),
             audience: "VosClients".into(),
         }
@@ -806,7 +896,7 @@ mod tests {
             port: 0,
             mycelium_url: url,
             token: Some("tok".into()),
-            signing_key: None,
+            verification_key: None,
             issuer: "VillageOS".into(),
             audience: "VosClients".into(),
         }

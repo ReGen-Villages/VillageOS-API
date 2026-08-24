@@ -2,13 +2,13 @@ using Microsoft.Extensions.Configuration;
 
 namespace vos.Service.Shared.Configuration;
 
-// The settings every service needs to start: the port it listens on, where the broker is, and the
-// credentials for calling the broker and for checking what the broker sends back.
+// The settings every service needs to start: the port it listens on, where the broker is, the token
+// for calling the broker, and the key for checking what the broker sends back.
 public record ServiceLaunchSettings(
     int Port,
     string MyceliumUrl,
     string? Token = null,
-    string? SigningKey = null,
+    string? VerificationKey = null,
     string? Issuer = null,
     string? Audience = null)
 {
@@ -32,7 +32,7 @@ public record ServiceLaunchSettings(
             port,
             myceliumUrl,
             reader.ReadCredential("token"),
-            reader.ReadCredential("signingKey"),
+            reader.ReadCredential("verificationKey"),
             reader.Read("issuer"),
             reader.Read("audience"));
     }
@@ -53,12 +53,12 @@ public record ServiceLaunchSettings(
         "  --port         Port number for the service to listen on\n" +
         "  --myceliumUrl  URL of the VOS Mycelium\n" +
         "  --issuer       JWT issuer Mycelium signs with, which must match for /handle authentication\n" +
-        "  --audience     JWT audience Mycelium signs with, which must match for /handle authentication";
+        "  --audience     This service's own recipient name, which an inbound token must name";
 
     private const string CredentialDescriptions =
-        "\n\nCredentials come from configuration or the environment, never the command line:\n" +
-        "  Token          Service JWT for authenticating with Mycelium (optional)\n" +
-        "  SigningKey     Base64-encoded signing key for validating Mycelium requests (optional)";
+        "\n\nSupplied through configuration or the environment, never the command line:\n" +
+        "  Token            Service JWT for authenticating with Mycelium (optional)\n" +
+        "  VerificationKey  Base64 of Mycelium's public signing key, for checking inbound requests (optional)";
 
     public static string UsageMessage => BuildUsageMessage();
 

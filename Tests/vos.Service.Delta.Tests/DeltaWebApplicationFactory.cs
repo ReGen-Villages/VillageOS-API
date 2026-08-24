@@ -18,7 +18,7 @@ namespace vos.Service.Delta.Tests;
 // (VillageOS Bug #5260).
 // Settings are injected via UseSetting on the host builder; ServiceLaunchSettings.Parse
 // falls back to those when no command-line flags are present, which is always the case here.
-// Tests that need a per-test signing key set SigningKey / Issuer /
+// Tests that need a per-test verification key set VerificationKey / Issuer /
 // Audience on the factory instance before creating a client.
 // The seed is supplied in-memory: ConfigureWebHost swaps the production
 // IEndpointSeedProvider (FileEndpointSeedProvider) for an
@@ -42,8 +42,8 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
     // other. Set BEFORE the first CreateClient().
     public bool AnswerConcurrently { get; set; }
 
-    // Base64 HMAC key for inbound-request JWT validation. Null = auth disabled.
-    public string? SigningKey { get; set; }
+    // Base64 of Mycelium's public signing key, for checking inbound requests. Null = auth disabled.
+    public string? VerificationKey { get; set; }
     public string? Issuer { get; set; }
     public string? Audience { get; set; }
 
@@ -85,7 +85,7 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
         builder.UseSetting("Port", "5000");
         builder.UseSetting("MyceliumUrl", "http://localhost");
         builder.UseSetting("Token", "test-token");
-        if (SigningKey != null) builder.UseSetting("SigningKey", SigningKey);
+        if (VerificationKey != null) builder.UseSetting("VerificationKey", VerificationKey);
         if (Issuer != null) builder.UseSetting("Issuer", Issuer);
         if (Audience != null) builder.UseSetting("Audience", Audience);
 

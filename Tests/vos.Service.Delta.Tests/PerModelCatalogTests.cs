@@ -1,12 +1,10 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
-using System.Text;
 using FluentAssertions;
-using Microsoft.IdentityModel.Tokens;
 using vos.Auth.Shared;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Delta.Tests;
@@ -19,8 +17,9 @@ namespace vos.Service.Delta.Tests;
 public class PerModelCatalogTests
 {
     private const string Issuer = "VillageOS";
-    private const string Audience = "VosClients";
-    private const string SigningKey = "a-signing-key-long-enough-for-hmac-sha256";
+    private const string Audience = "delta-handler";
+
+    private static readonly MyceliumSigner Mycelium = new();
 
     private static readonly Guid FirstModel = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid SecondModel = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -174,7 +173,7 @@ public class PerModelCatalogTests
         ModelPartitionedMycelium mycelium, bool answerConcurrently = false) => new()
     {
         SeedJson = TwoTemplateSeed,
-        SigningKey = Convert.ToBase64String(Encoding.UTF8.GetBytes(SigningKey)),
+        VerificationKey = Mycelium.VerificationKey,
         Issuer = Issuer,
         Audience = Audience,
         HandlerCallback = mycelium.Route,
@@ -188,17 +187,8 @@ public class PerModelCatalogTests
         return client;
     }
 
-    private static string BearerFor(Guid modelId)
-    {
-        var token = new JwtSecurityToken(
-            issuer: Issuer,
-            audience: Audience,
-            claims: new[] { new Claim(VosClaims.ModelId, modelId.ToString()) },
-            expires: DateTime.UtcNow.AddHours(1),
-            signingCredentials: new SigningCredentials(
-                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SigningKey)), SecurityAlgorithms.HmacSha256));
-        return new JwtSecurityTokenHandler().WriteToken(token);
-    }
+    private static string BearerFor(Guid modelId) =>
+        Mycelium.Token(Issuer, Audience, new Claim(VosClaims.ModelId, modelId.ToString()));
 
     private static object RegistrationUnder(string template, string name = "MyEndpoint") => new
     {

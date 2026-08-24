@@ -32,7 +32,7 @@ Reference material for engineers building or hosting services. Denser by design.
 
 | Doc | What it covers |
 |-----|----------------|
-| [SERVICE_AUTHORING.md](SERVICE_AUTHORING.md) | The language-agnostic contract for writing your own handler (HTTP + one HS256 JWT), with reference implementations in five languages. |
+| [SERVICE_AUTHORING.md](SERVICE_AUTHORING.md) | The language-agnostic contract for writing your own handler (HTTP + one JWT signed on the P-256 elliptic curve), with reference implementations in five languages. |
 | [SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) | The precise wire contract — endpoints, subscribe/SSE, and write-back kinds. |
 | [SERVICES.md](SERVICES.md) | The canonical reference for the shared C# service host and the services built on it. |
 | [SERVICE_HOST_ROADMAP.md](SERVICE_HOST_ROADMAP.md) | Planned work for consolidating the shared host across services. |
