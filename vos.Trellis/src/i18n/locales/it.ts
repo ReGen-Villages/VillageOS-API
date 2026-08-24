@@ -662,6 +662,7 @@ export const it: PartialResources = {
     mapLinkRead: "Coordinate lette dal collegamento.",
     mapLinkShortened: "Un collegamento abbreviato non può essere aperto da qui. Aprilo e copia le coordinate dalla barra degli indirizzi.",
     mapLinkUnrecognised: "Nessuna coordinata trovata in quel testo.",
+    mapNeedsPosition: "La mappa appare una volta indicate entrambe le coordinate.",
     latitude: "Latitudine",
     longitude: "Longitudine",
     statedArea: "Superficie del terreno",

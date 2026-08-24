@@ -662,6 +662,7 @@ export const nl: PartialResources = {
     mapLinkRead: "Coördinaten uit de link gelezen.",
     mapLinkShortened: "Een verkorte link kan hier niet geopend worden. Open hem en kopieer de coördinaten uit de adresbalk.",
     mapLinkUnrecognised: "Geen coördinaten in die tekst gevonden.",
+    mapNeedsPosition: "De kaart verschijnt zodra beide coördinaten zijn ingevuld.",
     latitude: "Breedtegraad",
     longitude: "Lengtegraad",
     statedArea: "Oppervlakte van de grond",

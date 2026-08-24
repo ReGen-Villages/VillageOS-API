@@ -792,6 +792,7 @@ export const ar: PartialResources & ArabicPlurals = {
     mapLinkRead: "قُرئت الإحداثيات من الرابط.",
     mapLinkShortened: "لا يمكن فتح الرابط المختصر من هنا. افتحه وانسخ الإحداثيات من شريط العنوان.",
     mapLinkUnrecognised: "لم يُعثر على إحداثيات في هذا النص.",
+    mapNeedsPosition: "تظهر الخريطة بعد إدخال كلا الإحداثيَّين.",
     latitude: "خط العرض",
     longitude: "خط الطول",
     statedArea: "مساحة الأرض",

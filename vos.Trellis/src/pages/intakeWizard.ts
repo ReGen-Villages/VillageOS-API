@@ -8,6 +8,8 @@
  * that is not a figure is absent rather than zero.
  */
 
+import { onEarth } from '../utils/mapLink';
+
 /** How the land area is being typed. What is stored and submitted is always hectares: a submission read
  *  in acres and recorded as hectares is a site two and a half times too small, and nothing downstream
  *  could tell. */
@@ -118,6 +120,15 @@ function numberFrom(typed: string): number | null {
   if (text.length === 0) return null;
   const value = Number(text);
   return Number.isFinite(value) ? value : null;
+}
+
+/** Where the site sits, which is what the map is centred on — or nowhere, while either half of the
+ *  position is missing, unreadable, or off the Earth. */
+export function coordinatesFrom(draft: SubmissionDraft): { latitude: number; longitude: number } | null {
+  const latitude = numberFrom(draft.latitude);
+  const longitude = numberFrom(draft.longitude);
+  if (latitude === null || longitude === null || !onEarth(latitude, longitude)) return null;
+  return { latitude, longitude };
 }
 
 // ── The programme split ──────────────────────────────────────────────────────

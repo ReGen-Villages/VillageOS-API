@@ -662,6 +662,7 @@ export const fr: PartialResources = {
     mapLinkRead: "Coordonnées lues dans le lien.",
     mapLinkShortened: "Un lien raccourci ne peut pas être ouvert d'ici. Ouvrez-le, puis copiez les coordonnées depuis la barre d'adresse.",
     mapLinkUnrecognised: "Aucune coordonnée trouvée dans ce texte.",
+    mapNeedsPosition: "La carte apparaît une fois les deux coordonnées renseignées.",
     latitude: "Latitude",
     longitude: "Longitude",
     statedArea: "Superficie du terrain",

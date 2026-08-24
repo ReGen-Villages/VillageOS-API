@@ -47,7 +47,7 @@ export function locationFromMapLink(pasted: string): MapLinkReading {
 
 /** A pair outside these bounds is a pair of numbers that happened to sit beside a comma — a zoom level,
  *  a tile index, a price. Refusing it is what keeps a wrong answer from reading like a right one. */
-function onEarth(latitude: number, longitude: number): boolean {
+export function onEarth(latitude: number, longitude: number): boolean {
   return (
     Number.isFinite(latitude) &&
     Number.isFinite(longitude) &&

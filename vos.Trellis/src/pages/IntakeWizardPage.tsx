@@ -8,20 +8,24 @@
  * a submitted word against the terms the model declares, so offering anything else would collect an
  * answer that is then refused.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import type { ParseKeys } from 'i18next';
 import { ClipboardList, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { discoverBasemapSources } from '../api/basemapApi';
+import { modelIndexFor } from '../api/dashboardApi';
 import { intakeApi, type SubmissionAccepted } from '../api/intakeApi';
 import { relationshipApi } from '../api/relationshipApi';
 import { thingApi } from '../api/thingApi';
 import { toast } from '../components/common/toastStore';
 import { useAuth } from '../hooks/useAuth';
+import type { BasemapSource } from '../types/basemap';
 import { locationFromMapLink, type MapLinkReading } from '../utils/mapLink';
 import { ALLOCATION_CATEGORY_ARCHETYPE_FLAG, termsMarked } from './modelVocabulary';
 import {
   STEPS,
   clearDraft,
+  coordinatesFrom,
   documentFrom,
   emptyDraft,
   fromHectares,
@@ -39,12 +43,15 @@ import {
   type SubmissionDraft,
 } from './intakeWizard';
 
+const MapView = lazy(() => import('../components/map/MapView').then((m) => ({ default: m.MapView })));
+
 export function IntakeWizardPage() {
   const { t } = useTranslation();
   const { modelId } = useAuth();
   const [draft, setDraft] = useState<SubmissionDraft | null>(null);
   const [step, setStep] = useState<StepId>('project');
   const [categories, setCategories] = useState<readonly string[]>([]);
+  const [basemapSources, setBasemapSources] = useState<BasemapSource[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState<SubmissionAccepted | null>(null);
 
@@ -68,10 +75,12 @@ export function IntakeWizardPage() {
       .then(([things, relationships, properties]) => {
         if (abandoned) return;
         setCategories(termsMarked({ things, relationships, properties }, ALLOCATION_CATEGORY_ARCHETYPE_FLAG));
+        setBasemapSources(discoverBasemapSources(modelIndexFor(things, relationships)));
       })
       .catch(() => {
         if (abandoned) return;
         setCategories([]);
+        setBasemapSources([]);
       });
     return () => {
       abandoned = true;
@@ -154,7 +163,7 @@ export function IntakeWizardPage() {
               <div className="mt-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5">
                 {step === 'project' && <ProjectStep draft={draft} onChange={change} />}
                 {step === 'contact' && <ContactStep draft={draft} onChange={change} />}
-                {step === 'location' && <LocationStep draft={draft} onChange={change} />}
+                {step === 'location' && <LocationStep draft={draft} sources={basemapSources} onChange={change} />}
                 {step === 'programme' && (
                   <ProgrammeStep draft={draft} categories={categories} onChange={change} />
                 )}
@@ -292,10 +301,11 @@ function ContactStep({ draft, onChange }: StepProps) {
   );
 }
 
-function LocationStep({ draft, onChange }: StepProps) {
+function LocationStep({ draft, sources, onChange }: StepProps & { sources: BasemapSource[] }) {
   const { t } = useTranslation();
   const [pasted, setPasted] = useState('');
   const [reading, setReading] = useState<MapLinkReading['kind'] | null>(null);
+  const position = coordinatesFrom(draft);
 
   function read(text: string): void {
     setPasted(text);
@@ -324,6 +334,16 @@ function LocationStep({ draft, onChange }: StepProps) {
         <Field labelKey="intake.latitude" value={draft.latitude} onChange={(latitude) => onChange({ latitude })} />
         <Field labelKey="intake.longitude" value={draft.longitude} onChange={(longitude) => onChange({ longitude })} />
       </div>
+
+      {position ? (
+        <div className="h-72 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
+          <Suspense fallback={null}>
+            <MapView latitude={position.latitude} longitude={position.longitude} sources={sources} />
+          </Suspense>
+        </div>
+      ) : (
+        <Note tone="quiet">{t('intake.mapNeedsPosition')}</Note>
+      )}
     </>
   );
 }
