@@ -397,6 +397,42 @@ GTI) is *discovered* here, while the **PV area** is *rolled up* reactively over 
 (#5797). Discovery (fetch a resource) and the ingester's structural knowledge (aggregate the assets) both
 feed the same compute node.
 
+## Example: a climate zone onto a Site (#6734)
+
+The two examples above are per-address registrations written by hand. This one ships as **seed data**:
+`open-data-sources.template.json` in the platform repository declares it, so every project created from
+that seed can resolve a site against it without registering anything. A site's `climateZone` takes
+observations only, so nobody can type it in and a fetch is the only thing that can write it.
+
+```jsonc
+// registration: climate-classification
+{ "name": "climate-classification",
+  "properties": {
+    "url": "https://climate.mapresso.com/api/koeppen/?lat={latitude}&lon={longitude}",
+    "httpMethod": "GET",
+    "responseTransform": "{\"properties\": {\"climateZone\": data[short='KG'].code}}"
+  } }
+```
+
+Three things about it are worth reading off:
+
+- **The placeholders are the Site's own property names.** `{latitude}` and `{longitude}` are filled per
+  call from the site's values, so one registration serves every site. Confluence passes a site's whole
+  value set to every source and the fill takes only the names the address uses.
+- **The reading names no Thing.** The discovery run supplies `subjectId`, so a name here would fit one
+  site and be wrong for every other — see *Naming the subject a call is about* above.
+- **The expression selects its classification scheme.** The provider answers with a code from every
+  scheme it holds — Köppen-Geiger, Trewartha, Cannon, Whittaker and more — so `data[0].code` returns
+  whichever happens to lead. `short='KG'` picks Köppen-Geiger, which is the scheme the codes on a Site
+  belong to. A zone read against the wrong scheme is a plausible value nothing can tell apart from the
+  right one, and a coordinate the provider cannot classify writes nothing rather than the nearest
+  scheme's code (see `ClimateZoneEndpointTests`).
+
+**Köppen-Geiger is the scheme, and it is recorded where a reader of the intake design finds it too** —
+[`LAND_INTAKE.md`](LAND_INTAKE.md#what-to-fetch-first), beside the registration's own comment in the
+template. Its classes become Things of their own under platform Task 6684, at which point `climateZone`
+stops being a code on the Site and becomes an edge to one.
+
 ## Pointers
 
 - `SERVICES.md` section 14 — how Mycelium hosts Tributary as an endpoint service

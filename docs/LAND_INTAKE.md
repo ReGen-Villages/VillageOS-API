@@ -466,12 +466,26 @@ did in fact cover the site.
 
 ### What to fetch first
 
-| Value | Replaces |
-|---|---|
-| Solar resource | A curve applied to latitude, feeding straight into the energy balance |
-| Rainfall | A number the planner is asked to type, feeding the water balance |
-| Hazard levels | Hand transcription of eight levels from a separate portal |
-| Elevation and terrain | A manually entered value |
+| Value | Replaces | State |
+|---|---|---|
+| Climate zone | A zone nobody could enter, because the property takes observations only | Registered as seed data (#6734) |
+| Solar resource | A curve applied to latitude, feeding straight into the energy balance | Reshape proven, not yet seeded |
+| Rainfall | A number the planner is asked to type, feeding the water balance | Reshape proven, not yet seeded |
+| Hazard levels | Hand transcription of eight levels from a separate portal | Portal identified, not callable per site (#6735) |
+| Elevation and terrain | A manually entered value | Nothing registered |
+
+**The registered sources ship in the seed, not in a call.** A registration lives in the project's own
+model, so a source every project uses belongs in the seed every project is created from — which is a
+template in the platform repository, `open-data-sources.template.json`. That template also declares the
+`Place` archetype coverage is walked over and the `isIn`, `covers` and `resolvedBy` predicates. See
+[`DELTA.md`](DELTA.md#which-model-a-registration-lives-in) for why a shared catalogue was refused.
+
+**A site's climate zone is a Köppen-Geiger code** — `Csa`, `BSk`, `BWh` and the rest of that scheme.
+Naming the scheme is what makes a code mean anything: the provider registered for it answers with a
+code from every classification it holds, and several of them use overlapping letters, so a zone read
+against the wrong scheme is a plausible value nothing can tell apart from the right one. The
+registration selects Köppen-Geiger by the marker the provider gives it; see
+[`TRIBUTARY.md`](TRIBUTARY.md#example-a-climate-zone-onto-a-site-6734).
 
 Not every provider can be registered. Some are map portals with no data interface; some are
 commercial products behind a licence. Those stay as links — but recorded **as Things in the model**,
@@ -831,6 +845,36 @@ River flood, landslide, wildfire, earthquake, cyclone, extreme heat, water scarc
 each graded on a scale from "no data" to "high". Today these are typed in by hand from a separate
 portal. After discovery they arrive as readings with a source and a date, which is
 the difference between an assessment and a recollection.
+
+**The portal is ThinkHazard, and its grading is the scale.** No grade is invented to close an item: the
+levels are the ones it publishes, and the two ends already named are its own.
+
+| Grade | Means |
+|---|---|
+| High | Potentially damaging and life-threatening events are expected at least once in the next ten years |
+| Medium | Damaging events are expected, less often than that |
+| Low | Events are possible but infrequent |
+| Very low | No hazard of this kind is expected |
+| No data | The portal holds nothing for this place, which is not the same as no hazard |
+
+"No data" is a grade of its own and is the reason an unassessed hazard must not read as a safe one: a
+hazard the portal holds nothing about stays unassessed rather than being graded "very low". Those five
+are also the vocabulary platform Task 6684 is waiting on for `hazardLevel` — each becomes a Thing, and
+the property becomes an edge to one.
+
+**The portal cannot yet be called for a site (#6735).** Every one of its routes takes an administrative
+division code, and its per-hazard route takes a two-letter code for the hazard type — `FL`, `LS`, `WF`.
+Neither value is in the model, so two things have to land before a registration can be written:
+
+- **The Place a site is in carries the portal's division code.** That is a natural home rather than a
+  workaround — the portal's divisions are exactly what a Place is, and coverage already walks
+  `Site isIn Place`, so the coverage read already returns the Thing the value would sit on.
+- **The hazard type carries the portal's own code for it.** The type is now a Thing under the
+  `HazardType` archetype, reached by `assesses` (Bug #6737), which is what makes this possible: a code
+  belonging to one portal can hang off that Thing, where a word on an assessment could carry nothing.
+
+Until both land the level takes observations only and nothing can write one, so every hazard a
+submission mints reads as unassessed — which is the honest answer, not a safe one.
 
 ---
 
