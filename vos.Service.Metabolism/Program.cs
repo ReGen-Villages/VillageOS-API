@@ -85,10 +85,9 @@ try
 
     app.UseRequestContractValidation();
 
-    // Skip shutdown deregister under tests — synthetic Mycelium URL would fail in a background task and pollute output.
+    // Skipped under tests — the background shutdown task would race test-host teardown and pollute output.
     if (!app.Environment.IsEnvironment("Testing"))
     {
-        var myceliumClient = app.Services.GetRequiredService<MyceliumClient>();
         var metabolism = app.Services.GetRequiredService<Metabolism>();
 
         app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
@@ -98,7 +97,6 @@ try
                 Log.Information("Shutting down '{Mode}' handler — stopping {Count} simulation(s), {Requests} registration(s) processed",
                     direction, metabolism.GetAll().Count(), requestCount);
                 await metabolism.StopAllAsync();
-                await myceliumClient.DeregisterAsync();
             }
             catch (Exception ex)
             {

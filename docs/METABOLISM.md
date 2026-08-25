@@ -144,7 +144,7 @@ vos.Service.Metabolism/
 
 **`Metabolism`** — The simulation engine. Holds a `ConcurrentDictionary<string, SimulationEntry>` keyed by relationship ID. Each entry has its own async loop running in a `Task`. Handles registration, cancellation, property hot-reload, and graceful shutdown.
 
-**`MyceliumClient`** — HTTP communication with Mycelium: pre-minted service token from the `Token` startup setting (with open-endpoint fallback), service registration/deregistration, and quantity increment/decrement API calls.
+**`MyceliumClient`** — HTTP communication with Mycelium: pre-minted service token from the `Token` startup setting (with open-endpoint fallback), service registration, and quantity increment/decrement API calls.
 
 **`MetabolismSubscriptionService`** — Hosted service owning the SSE subscription: streams `RelationshipPropertyChanged` events into the engine and keeps the subscription's membership in step with registered simulations (add on Register, remove on Cancel).
 
@@ -161,7 +161,7 @@ vos.Service.Metabolism/
 | `/simulations/{relationshipId}` | DELETE | Cancel a specific simulation |
 | `/health` | GET | Health check (active/total simulation counts) |
 | `/stats` | GET | Service metadata (handler ID, Mycelium URL, version) |
-| `/shutdown` | POST | Stop all simulations, deregister, exit |
+| `/shutdown` | POST | Stop all simulations, exit |
 
 ## Relationship Properties
 
@@ -263,8 +263,11 @@ On `ApplicationStopping`:
 
 1. All simulation loops are cancelled via their `CancellationTokenSource`
 2. `Task.WhenAll` waits for all loops to finish
-3. The handler deregisters from Mycelium via `DELETE /api/mycelium/services/{handlerId}`
-4. The SSE subscription is cancelled and unsubscribed
+3. The SSE subscription is cancelled and unsubscribed
+
+The registration stays with Mycelium until its liveness monitor notices the
+handler is gone — the removal route is admin-only, so a handler cannot
+withdraw itself.
 
 Mycelium can also trigger shutdown by POSTing to `/shutdown`, which follows the same sequence.
 

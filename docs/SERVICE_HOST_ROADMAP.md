@@ -154,12 +154,12 @@ removed at that point.
 
 `UseMyceliumLifecycle`'s `ApplicationStopping` hook does, in order:
 
-1. Calls `DeregisterAsync` on Mycelium so no new traffic arrives.
-2. Waits up to a configurable budget (default 5 s) for in-flight `/handle`
-   invocations to complete.
-3. After the budget, returns `503 Service Unavailable` to anything still
+1. Waits up to a configurable budget (default 5 s) for in-flight `/handle`
+   invocations to complete. New traffic can still arrive during the drain —
+   the registration is the broker's to remove, its route being admin-only.
+2. After the budget, returns `503 Service Unavailable` to anything still
    pending so the caller can dead-letter cleanly rather than hanging.
-4. Finally calls `lifetime.StopApplication()`.
+3. Finally calls `lifetime.StopApplication()`.
 
 The current per-service `/shutdown` endpoint becomes a thin caller that invokes
 the same drain path, so admin-initiated shutdown and pod termination behave
@@ -277,8 +277,8 @@ shape on everyone. Recorded so future readers know it was considered.
   at configured size; cache honors TTL.
 - `RequireDeliveryId()`: returns `400` when header is absent.
 - `UseMyceliumLifecycle` startup: calls `RegisterAsync`; logs registration result.
-- `UseMyceliumLifecycle` shutdown: calls `DeregisterAsync`; waits for in-flight
-  requests; forces `503` past the drain budget; calls `StopApplication`.
+- `UseMyceliumLifecycle` shutdown: waits for in-flight requests; forces `503`
+  past the drain budget; calls `StopApplication`.
 - `MapStandardEndpoints`: `/health` returns the §1.8 shape with service extras
   merged in; `/shutdown` triggers the same drain path as pod termination.
 - `MicroserviceCliArgs.Parse<T>`: validates required flags; rejects bad ports;

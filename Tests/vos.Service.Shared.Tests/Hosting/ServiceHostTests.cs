@@ -120,22 +120,24 @@ public class ServiceHostTests
         (await registered.Task).Method.Should().Be(HttpMethod.Post);
     }
 
+    // The deregistration route is admin-only, so a service asking to withdraw itself is refused on
+    // every shutdown. The broker's liveness monitor removes a registration whose service stops
+    // answering, so shutdown must not ask at all.
     [Fact]
-    public async Task AddMyceliumRegistration_WithdrawsTheServiceOnShutdown()
+    public async Task AddMyceliumRegistration_DoesNotAskTheBrokerToWithdrawOnShutdown()
     {
-        var withdrawn = new TaskCompletionSource<HttpRequestMessage>();
+        var deleted = new TaskCompletionSource<HttpRequestMessage>();
         await using var app = BuildApp(request =>
         {
             if (request.Method == HttpMethod.Delete)
-                withdrawn.TrySetResult(request);
+                deleted.TrySetResult(request);
             return new HttpResponseMessage(HttpStatusCode.OK);
         }, withMyceliumRegistration: true);
 
         await app.StartAsync();
         await app.StopAsync();
 
-        // The host awaits the withdrawal, so it has already happened by the time StopAsync returns.
-        withdrawn.Task.IsCompleted.Should().BeTrue("shutdown should withdraw the service from the broker");
+        deleted.Task.IsCompleted.Should().BeFalse("a service cannot deregister itself, so shutdown must not try");
     }
 
     // A broker that is slow, absent or refusing must not stop the service coming up.

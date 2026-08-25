@@ -158,34 +158,6 @@ public abstract class MyceliumClientBase
         }
     }
 
-    public virtual async Task DeregisterAsync()
-    {
-        try
-        {
-            var token = await GetTokenAsync();
-            if (token == null)
-            {
-                Logger.LogWarning("Cannot deregister: failed to get token");
-                return;
-            }
-
-            var client = HttpClientFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(5);
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            var response = await client.DeleteAsync($"{MyceliumUrl}/api/mycelium/services/{HandlerId}");
-
-            if (response.IsSuccessStatusCode)
-                Logger.LogInformation("Deregistered from mycelium");
-            else
-                Logger.LogWarning("Deregistration returned: {StatusCode}", response.StatusCode);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error deregistering from mycelium");
-        }
-    }
-
     // Write kinds — Facts, Observations, Sediment. Each validates its payload against an embedded
     // schema (Contracts/Schemas), then throws an HttpRequestException carrying the StatusCode on failure.
 

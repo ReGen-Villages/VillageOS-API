@@ -126,7 +126,7 @@ flowchart TB
 
    When the relationship arrives inside a `POST /api/model/fragment` batch, invocation happens only after the whole fragment is applied — every Thing, edge, and property value in the batch is readable, and roll-ups are recomputed — and multiple handled edges in one fragment are dispatched in creation order. A handler never observes a half-applied fragment.
 
-4. **Registration**: Handlers register with Mycelium on startup and deregister on shutdown. The register / deregister / health-monitoring lifecycle (payloads, health-status state machine, auto-deregistration, error scenarios) is the same for all microservices and is documented authoritatively in the broker's service registration & lifecycle flow (private Mycelium docs) — not repeated here.
+4. **Registration**: Handlers register with Mycelium on startup; the broker's liveness monitor removes one that has stopped answering. The register / deregister / health-monitoring lifecycle (payloads, health-status state machine, auto-deregistration, error scenarios) is the same for all microservices and is documented authoritatively in the broker's service registration & lifecycle flow (private Mycelium docs) — not repeated here.
 
 ### Handler startup context
 
@@ -306,7 +306,7 @@ The SSE subscription is independent of handler registration — if registration 
 | `/simulations/{relationshipId}` | DELETE | Cancel a specific simulation |
 | `/health` | GET | Health check with active/total simulation counts |
 | `/stats` | GET | Service statistics |
-| `/shutdown` | POST | Stop all simulations, deregister, and exit |
+| `/shutdown` | POST | Stop all simulations and exit |
 
 ### Example
 
@@ -503,7 +503,7 @@ The platform side of adding a relationship service is purely declarative — you
 2. **Discovery.** At seed load, Mycelium discovers connections by walking the `is`-chain and registers them with the service broker; those whose Service has `AutoStart: true` are invoked for existing relationships immediately.
 3. **Dispatch.** When a relationship using the predicate is created, the service broker delegates to the shared daemon lifecycle manager, which lazily launches the daemon (if needed), waits for health, and POSTs the relationship to the handler's `/handle` endpoint. (The daemon register/deregister/health lifecycle is documented in the broker's service-lifecycle flow — see the note below.)
 
-The handler's own obligations — implementing `/handle`, `/health`, `/shutdown`, and the register/deregister handshake — are the authoring contract documented in the API repo's SERVICE_AUTHORING.md linked above. The register/deregister/health lifecycle itself is documented in the broker's service registration & lifecycle flow (private Mycelium docs).
+The handler's own obligations — implementing `/handle`, `/health`, `/shutdown`, and the registration handshake — are the authoring contract documented in the API repo's SERVICE_AUTHORING.md linked above. The register/deregister/health lifecycle itself is documented in the broker's service registration & lifecycle flow (private Mycelium docs).
 
 ---
 
@@ -533,7 +533,7 @@ Mycelium-launched daemons receive a pre-minted service JWT through the `Token` e
 | `https://localhost:7243/api/things/{id}/properties/by-path/{path}` | GET | Get property by path |
 | `https://localhost:7243/api/relationships/{id}/properties/{propertyName}/increments` | POST | Increment a relationship property |
 | `https://localhost:7243/api/mycelium/register` | POST | Register handler with Mycelium |
-| `https://localhost:7243/api/mycelium/services/{handlerId}` | DELETE | Deregister handler |
+| `https://localhost:7243/api/mycelium/services/{handlerId}` | DELETE | Remove a handler's registration (admin-only) |
 
 ### Quantity Endpoint Payload
 
@@ -741,7 +741,7 @@ Mycelium tracks daemon state internally via its daemon state tracking. Key field
 
 1. **Bidirectional Auth**: Handler → Mycelium uses a short-lived JWT (pre-minted via the `Token` setting, or fetched via `POST /api/auth/token`); Mycelium → handler signs each `/handle` call with a short-lived, model-scoped service JWT carrying the request's `vos:model_id`, validated via `vos.Auth.Shared`
 2. **Short-lived JWTs**: Handlers authenticate with 5-minute JWTs, cached for 4 minutes and refreshed automatically
-3. **Per-request model scope**: Mycelium signs each `/handle` call with a 5-minute service JWT carrying the requesting user's `vos:model_id`. The handler reuses this inbound token for its callbacks into Mycelium (via the shared `UseMyceliumModelToken` middleware), so a daemon shared by several models acts on the model of the current request — never the model that first launched it. The startup JWT from the `Token` setting is used only for the daemon's own registration/deregistration, and as the model of last resort for work that begins outside any request.
+3. **Per-request model scope**: Mycelium signs each `/handle` call with a 5-minute service JWT carrying the requesting user's `vos:model_id`. The handler reuses this inbound token for its callbacks into Mycelium (via the shared `UseMyceliumModelToken` middleware), so a daemon shared by several models acts on the model of the current request — never the model that first launched it. The startup JWT from the `Token` setting is used only for the daemon's own registration, and as the model of last resort for work that begins outside any request.
 4. **Localhost Only**: Handlers bind to `http://localhost:{port}` (not exposed externally)
 5. **Mycelium Control**: Only Mycelium can launch and stop handler daemons
 6. **No Direct Access**: GUI and external users cannot call handler endpoints directly

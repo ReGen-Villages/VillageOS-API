@@ -13,8 +13,8 @@ namespace vos.Service.Metabolism.Tests;
 // (VillageOS Bug #5260).
 // Settings are injected via UseSetting on the host builder; MetabolismLaunchSettings.Parse
 // falls back to those when no command-line flags are present, which is always the case here.
-// The Testing environment guard in Program.cs already skips Serilog file logging,
-// SSE subscription, and mycelium deregister.
+// The Testing environment guard in Program.cs already skips Serilog file logging
+// and the SSE subscription.
 // The test still hits a real MyceliumClient instance inside Program.cs, but no method on it
 // is invoked by the /handle / /simulations / /health / /stats / /shutdown endpoints under
 // test (they call Metabolism / HandleRequestProcessor, not MyceliumClient). The mycelium URL

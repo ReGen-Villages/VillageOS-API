@@ -44,7 +44,7 @@ line a service was started with, which is why neither credential travels there.
 One JWT, signed on the P-256 elliptic curve (ES256). The service token (the `Token` setting) carries `vos:token_type=service` and a scope
 that describes what the handler is for without restricting it — `TokenScope` in
 [`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md) § How Relationship Services Work.
-Use it for the daemon's own registration/deregistration. Inbound `/handle` calls are signed by
+Use it for the daemon's own registration. Inbound `/handle` calls are signed by
 Mycelium with a short-lived service token carrying the request's `vos:model_id`; check them against
 `VerificationKey` with the given issuer and this service's own recipient name, naming ES256 as the
 only algorithm you accept, and reuse the inbound token for any callback so a shared daemon acts on
@@ -71,7 +71,7 @@ that is not a stream. A daemon can set a header, so it never needs one.
 |--------|------|---------------|
 | `POST` | `/handle` | Mycelium posts a relationship (`relationshipId`, `subjectId`, `targetId`, `properties`); reply `{ "success": true }` |
 | `GET` | `/health` | `200` `{ "status": "Healthy" }` |
-| `POST` | `/shutdown` | Begin graceful shutdown (stop work, deregister) |
+| `POST` | `/shutdown` | Begin graceful shutdown (stop work, exit) |
 
 **Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
 batch, `/handle` is called only after the whole fragment is applied — every Thing, edge, and

@@ -155,7 +155,7 @@ Return any 2xx; Mycelium logs non-2xx and continues. A reasonable body:
 
 **`GET /stats`** → `{ "service": "...", "version": "...", "requestsProcessed": <n>, "handlerId": "<uuid>", "myceliumUrl": "..." }`
 
-**`POST /shutdown`** → `{ "message": "..." }`, then exit (deregister first).
+**`POST /shutdown`** → `{ "message": "..." }`, then exit.
 
 ## Inbound JWT validation
 
@@ -182,7 +182,9 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 
 ## Deregistration & health
 
-- On `SIGINT`/`SIGTERM` and on `POST /shutdown`, send `DELETE {myceliumUrl}/api/mycelium/services/{handlerId}` (Bearer) before exiting.
+- Do not deregister on shutdown. `DELETE /api/mycelium/services/{handlerId}` is admin-only, so a
+  service token is refused; the broker's liveness monitor removes a registration whose service has
+  stopped answering.
 - Keep `/health` fast and dependency-free — Mycelium uses it to decide a daemon started successfully.
 
 ## Authoring checklist
@@ -195,5 +197,4 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 - [ ] Validate the inbound JWT when a `VerificationKey` is set (ES256 named explicitly, iss/aud/exp, 30s skew)
 - [ ] Refuse a token whose recipient is not your own `--audience`, and one claiming any algorithm other than ES256
 - [ ] Add `app.UseMyceliumModelToken()` so `/handle` callbacks use the request's model token
-- [ ] Deregister on shutdown
 - [ ] Add tests for arg parsing + JWT validation (see any reference example)

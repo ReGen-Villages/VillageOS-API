@@ -73,12 +73,6 @@ try
         }
     }));
 
-    app.Lifetime.ApplicationStopping.Register(() => _ = Task.Run(async () =>
-    {
-        try { await app.Services.GetRequiredService<MyceliumGateway>().DeregisterAsync(); }
-        catch (Exception ex) { Log.Error(ex, "Error during Phloem shutdown deregistration"); }
-    }));
-
     // Spawn-and-wait: { pipelineId, params? } -> run the DAG to completion -> return the result.
     var handleEndpoint = app.MapPost("/handle", async (HttpContext httpContext, PipelineExecutor executor) =>
     {
