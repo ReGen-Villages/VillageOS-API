@@ -106,6 +106,30 @@ public class SubmissionEndpointTests
             "a submission is a form's worth of answers and a boundary; anything larger must not be read into memory first");
     }
 
+    // A refusal is not a partial write. Every bound is checked before the fragment is composed, so a
+    // submission the service will not take never reaches the model at all.
+    [Theory]
+    [InlineData("'budgetEuros':250000")]
+    [InlineData("'site':{'name':'Willow Bend','latitude':91.0}")]
+    [InlineData("'allocations':[{'category':'residential','sharePct':900}]")]
+    public async Task A_refused_submission_writes_nothing(string shape)
+    {
+        var written = false;
+        await using var factory = new IntakeWebApplicationFactory
+        {
+            HandlerCallback = request =>
+            {
+                written |= IsFragment(request);
+                return Holds(request);
+            },
+        };
+        using var client = factory.CreateClient();
+
+        (await SubmitAsync(client, Document(shape))).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        written.Should().BeFalse();
+    }
+
     [Fact]
     public async Task A_model_refusal_is_answered_with_its_text_rather_than_a_bare_failure()
     {
@@ -139,10 +163,13 @@ public class SubmissionEndpointTests
         };
         using var client = factory.CreateClient();
 
-        var response = await SubmitAsync(client, WillowBendDocument);
+        var response = await SubmitAsync(client, WithAContact(""));
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
-        (await response.Content.ReadAsStringAsync()).Should().NotContain("7243");
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().NotContain("7243", "what is wrong with the deployment is not the submitter's to be told");
+        body.Should().NotContain("Ana Ferreira").And.NotContain("ana.ferreira@example.pt",
+            "a failure nobody planned for is where a submitted value gets echoed back");
         factory.Log.Lines.Should().Contain(line => line.Contains("Connection refused"),
             "what is actually wrong belongs in the log, where whoever runs the deployment reads it");
     }
