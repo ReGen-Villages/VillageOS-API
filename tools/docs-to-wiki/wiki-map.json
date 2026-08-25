@@ -22,10 +22,23 @@
     { "doc": "docs/TRIBUTARY.md", "page": "/Services/Tributary" },
     { "doc": "docs/CONFLUENCE.md", "page": "/Services/Confluence" },
     { "doc": "docs/METABOLISM.md", "page": "/Services/Metabolism" },
-    { "doc": "docs/MODELBRIDGE.md", "page": "/Services/ModelBridge" }
+    { "doc": "docs/MODELBRIDGE.md", "page": "/Services/ModelBridge" },
+    { "doc": "deploy/README.md", "page": "/Deployment" }
   ],
   "excluded": [
     { "doc": "docs/SERVICE_HOST_ROADMAP.md", "why": "Planned work, not reference material. Plans change faster than the wiki should." },
-    { "doc": "LICENSE-COMMERCIAL.md", "why": "Licence text. It belongs with the source, not on the wiki." }
+    { "doc": "LICENSE-COMMERCIAL.md", "why": "Licence text. It belongs with the source, not on the wiki." },
+    { "doc": "tools/docs-pdf/README.md", "why": "How to run one tool, kept beside it. A reader wanting a PDF is already in the directory." },
+    { "doc": "tools/docs-to-wiki/README.md", "why": "How to run the generator that builds this wiki. Publishing it would explain the wiki on the wiki." },
+    { "doc": "tools/wiki-mirror/README.md", "why": "How to run one tool, kept beside it — the reverse direction of docs-to-wiki." },
+    { "doc": "tools/layout-importer/README.md", "why": "How to run one tool, kept beside it. What it builds is described in the model documentation." },
+    { "doc": "tools/pipeline-playground/README.md", "why": "How to run the generator behind the Pipeline Playground; the playground itself is published." },
+    { "doc": "tools/simulator/README.md", "why": "How to run one tool, kept beside it." },
+    { "doc": "vos.Service.Go.Echo/README.md", "why": "How to build and run the Go example beside its source. The contract every example implements is published in Services/Authoring." },
+    { "doc": "vos.Service.Node.Echo/README.md", "why": "How to build and run the TypeScript example beside its source." },
+    { "doc": "vos.Service.Python.Echo/README.md", "why": "How to build and run the Python example beside its source." },
+    { "doc": "vos.Service.Rust.Echo/README.md", "why": "How to build and run the Rust example beside its source." },
+    { "doc": "vos.Service.Shared/Contracts/README.md", "why": "Describes the schema files it sits among, and is read with them open." },
+    { "doc": "Tests/vos.Tests.Shared/README.md", "why": "Test helpers for people already in the test projects. Nothing outside the repository uses them." }
   ]
 }
