@@ -8,7 +8,6 @@ namespace vos.Service.LandAllocation.Services;
 public sealed record ProgrammeSplit(
     double ParcelAreaHectares,
     IReadOnlyList<AllocatedCategory> Categories,
-    IReadOnlyDictionary<string, Guid> AllocationIdByCategory,
     IReadOnlyList<Guid> ReadsFrom,
     IReadOnlyList<string> Uncategorised);
 
@@ -71,7 +70,6 @@ public static class ProgrammeSplitReader
             .ToList();
 
         var categories = new List<AllocatedCategory>();
-        var allocationIdByCategory = new Dictionary<string, Guid>(StringComparer.Ordinal);
         var readsFrom = new List<Guid>();
         var uncategorised = new List<string>();
         double parcelArea = 0;
@@ -97,15 +95,13 @@ public static class ProgrammeSplitReader
                 continue;
             }
 
-            var name = category.Name ?? categoryId.Value.ToString();
-            categories.Add(new AllocatedCategory(name, share,
+            categories.Add(new AllocatedCategory(category.Name ?? categoryId.Value.ToString(), share,
                 Marked(category, BuiltFootprintFlag), Marked(category, ProductiveFootprintFlag)));
-            allocationIdByCategory[name] = id;
         }
 
-        return new ProgrammeSplit(parcelArea, categories, allocationIdByCategory, readsFrom, uncategorised);
+        return new ProgrammeSplit(parcelArea, categories, readsFrom, uncategorised);
 
-        ProgrammeSplit Empty() => new(0, [], new Dictionary<string, Guid>(), [], []);
+        ProgrammeSplit Empty() => new(0, [], [], []);
     }
 
     private static Guid? TargetOf(

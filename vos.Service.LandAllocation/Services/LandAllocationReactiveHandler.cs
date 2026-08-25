@@ -11,8 +11,11 @@ namespace vos.Service.LandAllocation.Services;
 // when it watches (#6539) and re-names them on every recompute — a planner can add or remove one, and a
 // set fixed at the first dispatch would go quietly stale.
 //
-// Where the results go follows the same rule: a category's area belongs to that category's allocation,
-// and only the two footprints — which are about the whole parcel — belong to the study.
+// What it writes is the two footprints, and only those. Each allocation's own area and normalised share
+// are formulas the shared analysis declares on the allocation, so the model works them out and refuses a
+// written value for either. The footprints stay here because each sums the allocations whose category
+// carries a mark, and a relationship path narrows by archetype rather than by a property a Thing carries,
+// so no path reaches only the marked ones.
 public sealed class LandAllocationReactiveHandler : MyceliumClientBase
 {
     private readonly ISubscriptionClient _subscriptions;
@@ -32,8 +35,6 @@ public sealed class LandAllocationReactiveHandler : MyceliumClientBase
 
     public const string BuiltFootprintOutput = "builtFootprintHectares";
     public const string ProductiveFootprintOutput = "productiveFootprintHectares";
-    public const string AllocatedAreaOutput = "allocatedAreaHectares";
-    public const string NormalisedShareOutput = "normalisedSharePct";
 
     public static IReadOnlySet<string> InputProperties => ProgrammeSplitReader.InputProperties;
 
@@ -57,13 +58,6 @@ public sealed class LandAllocationReactiveHandler : MyceliumClientBase
 
         var properties = new StudyProperties(
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30)), MyceliumUrl, "LandAllocation");
-
-        foreach (var (category, area) in result.AreaByCategory)
-        {
-            var allocationId = split.AllocationIdByCategory[category];
-            await properties.WriteAsync(allocationId, AllocatedAreaOutput, area, cancellationToken);
-            await properties.WriteAsync(allocationId, NormalisedShareOutput, result.NormalisedSharePct[category], cancellationToken);
-        }
 
         await properties.WriteAsync(studyId, BuiltFootprintOutput, result.BuiltFootprintHectares, cancellationToken);
         await properties.WriteAsync(studyId, ProductiveFootprintOutput, result.ProductiveFootprintHectares, cancellationToken);

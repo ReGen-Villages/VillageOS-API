@@ -117,34 +117,43 @@ public class LandAllocationReactiveHandlerTests
     }
 
     [Fact]
-    public async Task An_area_is_written_onto_the_allocation_it_describes_and_a_footprint_onto_the_study()
+    public async Task A_footprint_is_written_onto_the_study_and_nothing_onto_the_allocations()
     {
-        // The split belongs to the allocations; only the footprints are about the whole parcel.
+        // Each allocation works out its own area and its own normalised share from a formula the shared
+        // analysis declares on it, and a derived property refuses every value write. What is left here is
+        // the pair of footprints, which sum the allocations whose category carries a mark — a set a
+        // relationship path cannot narrow to, so no formula over one Thing expresses them.
         var (handler, http, _) = NewHandler(WillowBend());
 
         await handler.RecomputeAsync(Study);
 
         http.Writes.Should().Contain(write =>
-            write.Uri.Contains(Housing.ToString()) && write.Uri.Contains(LandAllocationReactiveHandler.AllocatedAreaOutput));
-        http.Writes.Should().Contain(write =>
             write.Uri.Contains(Study.ToString()) && write.Uri.Contains(LandAllocationReactiveHandler.BuiltFootprintOutput));
-        http.Writes.Should().NotContain(write =>
-            write.Uri.Contains(Study.ToString()) && write.Uri.Contains(LandAllocationReactiveHandler.AllocatedAreaOutput));
+        http.Writes.Should().NotContain(write => write.Uri.Contains(Housing.ToString()));
+    }
+
+    [Theory]
+    [InlineData("allocatedAreaHectares")]
+    [InlineData("normalisedSharePct")]
+    public async Task It_asserts_no_figure_an_allocation_derives_for_itself(string derived)
+    {
+        var (handler, http, _) = NewHandler(WillowBend());
+
+        await handler.RecomputeAsync(Study);
+
+        http.Writes.Should().NotContain(write => write.Uri.Contains(derived));
     }
 
     [Fact]
-    public async Task The_areas_written_are_the_ones_the_split_works_out()
+    public async Task The_areas_it_works_out_are_the_ones_the_split_describes()
     {
-        var (handler, http, _) = NewHandler(WillowBend());
+        var (handler, _, _) = NewHandler(WillowBend());
 
         var outputs = await handler.RecomputeAsync(Study);
 
         outputs.AreaByCategory["residential"].Should().BeApproximately(9.6, 1e-9);
         outputs.BuiltFootprintHectares.Should().BeApproximately(9.6, 1e-9);
         outputs.ProductiveFootprintHectares.Should().BeApproximately(14.4, 1e-9);
-        http.Writes.Single(w => w.Uri.Contains(Housing.ToString())
-                                && w.Uri.Contains(LandAllocationReactiveHandler.AllocatedAreaOutput))
-            .Body.Should().Contain("9.6");
     }
 
     [Fact]
@@ -200,7 +209,7 @@ public class LandAllocationReactiveHandlerTests
 
         var failure = await Assert.ThrowsAsync<HttpRequestException>(() => handler.RecomputeAsync(Study));
 
-        failure.Message.Should().Contain(LandAllocationReactiveHandler.AllocatedAreaOutput);
+        failure.Message.Should().Contain(LandAllocationReactiveHandler.BuiltFootprintOutput);
     }
 
     // Through the constructor the service itself uses, where every test above hands in a subscription
@@ -215,9 +224,8 @@ public class LandAllocationReactiveHandlerTests
         handler.ReadsFrom.Should().BeEmpty();
     }
 
-    // This service is the one where writing onto what it follows is unavoidable: the area and the
-    // normalised share land on the allocations it names as the Things it read from, so a change to either
-    // arrives as a change on a followed Thing. The share a planner set is what may wake it; the share it
+    // Both footprints land on the study rather than on the allocations this follows, so nothing it writes
+    // arrives as a change on a followed Thing any more. The share a planner set is what wakes it; what is
     // worked out from that is not.
     [Fact]
     public void None_of_the_outputs_it_writes_can_wake_it()

@@ -311,10 +311,11 @@ the work.
 }
 ```
 
-`allocatedAreaHectares` is shown above because the wire accepts it, but a submission need not carry it:
-land allocation writes that property and `normalisedSharePct` as its own outputs, so a figure submitted
-alongside the share is a second answer to a question the analysis already answers. The wizard sends the
-share alone.
+`allocatedAreaHectares` is shown above because the wire accepts it, but a submission must not carry it:
+the shared analysis declares that property and `normalisedSharePct` as formulas on the allocation itself,
+and a derived property refuses every value write. A figure submitted alongside the share is a second
+answer to a question the model already answers, and this one would be refused. The wizard sends the share
+alone.
 
 Each of these rules exists to stop a particular kind of quiet damage:
 
@@ -524,6 +525,13 @@ Two of the boxes need no service any more. Every water-reserve and food-balance 
 the study, so both services now assert nothing and their dispatch is waiting to be removed (#6747,
 #6748). The energy balance keeps only its verdict, and the rainwater harvest keeps the apportionment
 across the demands.
+
+**Each allocation's own area is a formula, not a write.** An allocation works out its normalised share of
+the stated programme and its share of the parcel from definitions the shared analysis declares on the
+`ProgrammeAllocation` archetype, so a page can show the working and no service asserts either figure. The
+two footprints stay with the service because each sums the allocations whose *category* carries a mark,
+and a relationship path narrows by archetype rather than by a property a Thing carries — so no path
+reaches only the marked ones.
 
 **Assumptions are inherited, not supplied per run.** Yield per hectare, runoff coefficient, energy per
 person, water per person — these are judgement calls a planner will want to vary, and they live on the
