@@ -33,9 +33,10 @@ public class SubmissionReaderTests
     public void Field_names_are_read_however_they_are_capitalised()
     {
         var submission = SubmissionReader.Read(
-            """{"SubmissionId":"willow-bend-2026-08","site":{"Name":"Willow Bend","latitude":39.5012}}""");
+            ("{'SubmissionId':'" + WillowBend.SubmissionId + "','site':{'Name':'Willow Bend','latitude':39.5012}}")
+            .Replace('\'', '"'));
 
-        submission.SubmissionId.Should().Be("willow-bend-2026-08");
+        submission.SubmissionId.Should().Be(WillowBend.SubmissionId);
         submission.Site!.Name.Should().Be("Willow Bend");
         submission.Site.Latitude.Should().Be(39.5012);
     }

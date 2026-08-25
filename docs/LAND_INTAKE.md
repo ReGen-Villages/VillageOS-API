@@ -259,7 +259,7 @@ the work.
 
 ```jsonc
 {
-  "submissionId": "willow-bend-2026-08",     // every identifier derives from this
+  "submissionId": "9f1c74d6-0b8e-4a52-bd31-6c7e5a92f048",  // every identifier derives from this
   "project": {                                // the undertaking; it holds the site
     "name": "Willow Bend Regeneration",
     "country": "Portugal",
@@ -319,6 +319,7 @@ Each of these rules exists to stop a particular kind of quiet damage:
 | **Identifiers derive from the submission** | A wizard saves as it goes and a planner can double-click. A freshly generated identifier would build a second site beside the first; a derived one lands on the same Things every time, which is also what lets promotion be idempotent later. |
 | **A field not filled in yet is left out, not zeroed** | An absent value reads as absent. A zero standing in for one cannot be told from a real answer — the same reason a computed output is declared and left empty. |
 | **A field the service does not write is refused** | A submission accepted and quietly dropped leaves the planner believing it was recorded. The refusal names the field. |
+| **The submission's identifier is a unique one** | Every Thing derives its identity from it, so two submissions carrying one identifier are one site. On a route anybody may post to, an identifier anybody could arrive at is a way to write over somebody else's submission. |
 
 The **measured area is computed by the service** from the boundary, not submitted alongside it, so the
 figure the planner saw and the figure the model holds cannot drift apart. Coordinates arrive as named
@@ -327,8 +328,16 @@ downstream can catch; the boundary is stored as a GeoJSON polygon, which is long
 
 The body is **capped at a few hundred kilobytes** — far above a form's worth of answers and a drawn
 boundary, and low enough that a body cannot cost the service its memory before anything has looked at
-it. That cap is a floor under the rate limiting and bot checks a public endpoint needs, not a
-substitute for them ([§9](#9-public-submissions-and-the-trust-boundary)).
+it. Every field inside it is bounded too: text has a length, coordinates a range, and areas, populations
+and shares a plausible span. `SubmissionLimits` holds the whole set, and each bound refuses by naming the
+field and never by quoting what was in it. The cap and the bounds sit under the rate limiting and the
+ticket a public endpoint needs, not in place of them
+([§9](#9-public-submissions-and-the-trust-boundary)).
+
+**The answer carries a reference and nothing else.** A submitter is told what to quote to whoever
+reviews the submission — the identifier the form generated — and not what the model called the Things it
+composed. A stranger has no business knowing the shape of the model they submitted into, and the planner
+using the wizard has the submissions page for that.
 
 ---
 
@@ -826,9 +835,10 @@ address. They are reachable only from the machine Mycelium runs on.
 
 **A signed-in submission goes through the intake service too.** Not because it has to — a signed-in
 wizard could compose the fragment itself — but because then there would be two mappings from a
-submission to the model, and the second one to change would be the one that was wrong. What differs
-between a planner and a stranger is what the service demands before it accepts the call, not what it
-writes.
+submission to the model, and the second one to change would be the one that was wrong. The planner's
+wizard and a stranger's form make the same two calls and carry no credential on either, so there is one
+path to keep working rather than a guarded one and an unguarded one that only the stranger ever
+exercises.
 
 **A refusal says only what the caller can act on.** A submission naming a field wrongly is answered
 `400` with the field named, because whoever filled the form in can correct it. Anything wrong with the
@@ -868,10 +878,34 @@ flowchart TB
 | Property | How it is achieved |
 |---|---|
 | Anonymous in | The service decides; no platform rule is widened |
-| Rate limited, size capped, bot checked | Owned by the service, where the public traffic is |
+| Rate limited, size capped, ticket checked | Owned by the service, where the public traffic is — see "What guards the route" below |
 | Cannot read project data | Its credential names only the intake model: a key created against a model is exchanged for a token naming that model, and refused one naming any other |
 | Writes go through normal auth | It mints a Mycelium token and posts a fragment, like any service |
 | Blast radius of a mistake | One service, not every endpoint in the model |
+
+### What guards the route
+
+`POST /submissions` demands no credential of anybody. Four guards stand in place of one, each answering a
+different way the route can be abused, and each owned by this service rather than by a platform rule.
+
+| Guard | What it does | What it does not do |
+|---|---|---|
+| **Body cap** | A body larger than a form's worth of answers is refused on its declared length, before anything reads it | Say anything about a body that fits |
+| **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span. A refusal names the field | Judge whether the answer is true |
+| **Ticket** | `GET /submissions/ticket` hands out a short-lived value this service signed, and a post carries it back in `X-Submission-Ticket`. A post that never asked is refused | Establish that the caller is a person: asking for a ticket costs nothing, so an automated submitter that fetches before each post satisfies it |
+| **Rate limit** | One source may make a fixed number of requests in a fixed window, ticket requests included. Over it, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
+
+The ticket and the rate limit work as a pair: the ticket makes an automated submitter come and ask, and
+the rate limit is what bounds how often it can. Neither is a challenge from a third-party service, and
+this platform is meant to run without one — so this is what it can honestly claim, and the staging model
+in front of a reviewer is what catches the rest.
+
+**A source is the address the reverse proxy forwards.** Every caller reaches this service through the
+proxy, so the connection itself is always from loopback; the caller's own address arrives in
+`X-Forwarded-For`, which the service reads and trusts only from loopback. Without that, one budget would
+be shared by everybody on the internet. The signing key for tickets is made when the process starts, so a
+ticket is only good at the instance that issued it — one service, one hostname, as in
+[`deploy/`](../deploy/README.md).
 
 **On "subdomain".** The routing label on an endpoint connection is called a subdomain, but it is a
 path segment, not DNS — nothing in the broker reads the request's host name. If you want
@@ -927,7 +961,7 @@ The main finding from designing this: most of it is already built.
 | — | |
 | A map, and drawing a parcel on it | **Exists** — the map module (#5346), the wizard showing the site on it (#6014), and parcel drawing with the drawn area checked against the stated area (#6015) |
 | The intake wizard | **Exists** — what a planner types (#6016), the site on the map (#6014), and the parcel step (#6015) |
-| Anonymous submission: rate limits, size caps, bot checks, the staging model | **New** — hardening around the service that already composes |
+| Anonymous submission: rate limits, size caps, field bounds, a ticket | **Exists** (#6026, #6027) — the route takes a submission from someone holding no credential, guarded as [§9](#what-guards-the-route) describes |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 
 ---
@@ -1000,7 +1034,7 @@ platform where personal data moves through application code, so it carries a sta
 | Source code | No contact details in constants, examples, presets or defaults |
 | Seed and example data | Invented people, invented addresses, invented numbers |
 | Test fixtures | Synthetic. Never a copied real submission |
-| Logs | A submission may be logged **by reference**, never by content. Rejected payloads are not logged verbatim |
+| Logs | A submission may be logged **by reference**, never by content. A refusal is logged by its reason and its source; rejected payloads are not logged verbatim |
 | Error responses | Name the field, not the value. Nothing echoes a submitted detail back |
 | Documentation and screenshots | Synthetic submissions only — as in this document |
 
@@ -1020,7 +1054,8 @@ invalid address back.
 Each is reasonable in the moment, and collectively it is how personal data ends up in a repository or
 a log aggregator. **One synthetic contact set, defined once and reused,** removes the temptation at
 source. Log rules are enforced by test, not convention — a rule survives about as long as the next
-debugging session otherwise.
+debugging session otherwise. `SubmissionEndpointTests` posts a submission carrying a synthetic contact
+and reads the service's own log back, both when the submission lands and when it is refused.
 
 ---
 

@@ -699,8 +699,7 @@ export const de: PartialResources = {
     refused: 'Die Einreichung wurde abgelehnt: {{reason}}',
     acceptedTitle: 'Eingereicht',
     acceptedBody: 'Die Einreichung liegt im Modell. Sie wartet auf der Seite der Einreichungen, bis jemand darüber entscheidet.',
-    siteThing: 'Standort',
-    studyThing: 'Studie',
+    reference: 'Referenz',
     startAnother: 'Weitere beginnen',
   },
   submissionReview: {

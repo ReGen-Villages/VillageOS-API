@@ -12,7 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\vos.Auth.Shared\vos.Auth.Shared.csproj" />
     <ProjectReference Include="..\vos.Service.Shared\vos.Service.Shared.csproj" />
   </ItemGroup>
 

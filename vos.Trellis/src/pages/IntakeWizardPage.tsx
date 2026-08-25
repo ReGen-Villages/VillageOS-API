@@ -603,13 +603,9 @@ function Accepted({
         <h3 className="text-lg font-semibold">{t('intake.acceptedTitle')}</h3>
       </div>
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{t('intake.acceptedBody')}</p>
-      <dl className="mt-3 text-xs font-mono text-zinc-500 dark:text-zinc-400 space-y-1">
-        <div>
-          <dt className="inline font-sans">{t('intake.siteThing')}</dt> <dd className="inline">{accepted.siteId}</dd>
-        </div>
-        <div>
-          <dt className="inline font-sans">{t('intake.studyThing')}</dt> <dd className="inline">{accepted.studyId}</dd>
-        </div>
+      <dl className="mt-3 text-xs font-mono text-zinc-500 dark:text-zinc-400">
+        <dt className="inline font-sans">{t('intake.reference')}</dt>{' '}
+        <dd className="inline">{accepted.reference}</dd>
       </dl>
       <button
         onClick={onStartAnother}

@@ -699,8 +699,7 @@ export const it: PartialResources = {
     refused: "L'invio è stato rifiutato: {{reason}}",
     acceptedTitle: "Inviato",
     acceptedBody: "L'invio è nel modello. Attende nella pagina degli invii finché qualcuno non decide.",
-    siteThing: "Sito",
-    studyThing: "Studio",
+    reference: "Riferimento",
     startAnother: "Iniziarne un altro",
   },
   submissionReview: {

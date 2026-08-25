@@ -697,8 +697,7 @@ export const en = {
     refused: 'The submission was refused: {{reason}}',
     acceptedTitle: 'Submitted',
     acceptedBody: 'The submission is in the model. It waits on the submissions page until a reviewer decides about it.',
-    siteThing: 'Site',
-    studyThing: 'Study',
+    reference: 'Reference',
     startAnother: 'Start another',
   },
   submissionReview: {
