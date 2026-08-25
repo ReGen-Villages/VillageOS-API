@@ -3,9 +3,13 @@ using vos.Service.Shared;
 namespace vos.Service.WaterReserve.Services;
 
 // The reactive (model-driven) form of the water analysis (User Story #5839). It reacts to a graph relationship whose
-// subject is the SiteStudy: reads its inputs straight off the study's effective properties, computes with
-// WaterReserveCalculator, and writes its outputs back onto the study as Facts — so the study's
-// WaterResilient range re-evaluates. No pipeline, no wires: the compute is a value on the study.
+// subject is the SiteStudy: reads its inputs straight off the study's effective properties and computes with
+// WaterReserveCalculator.
+//
+// None of the four figures is written back any more. The shared analysis declares all of them as expressions
+// over the study's own values, so the model derives them and refuses a written one — and because the refusal
+// throws, a service that still wrote the first would abandon every write after it. Nothing is left for this
+// form to assert, so the answer now only reaches a caller of /handle.
 public sealed class WaterReserveReactiveHandler : MyceliumClientBase
 {
     public WaterReserveReactiveHandler(
@@ -28,13 +32,7 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "WaterReserve");
 
         var inputs = await properties.ReadAsync(studyId, cancellationToken);
-        var result = WaterReserveCalculator.Compute(new WaterReserveInputs(
+        return WaterReserveCalculator.Compute(new WaterReserveInputs(
             inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2])));
-
-        await properties.WriteAsync(studyId, "daysOfSupply", result.DaysOfSupply, cancellationToken);
-        await properties.WriteAsync(studyId, "emergencyReserveM3", result.EmergencyReserveM3, cancellationToken);
-        await properties.WriteAsync(studyId, "annualConsumptionM3", result.AnnualConsumptionM3, cancellationToken);
-        await properties.WriteAsync(studyId, "pctAnnualConsumption", result.PctAnnualConsumption, cancellationToken);
-        return result;
     }
 }
