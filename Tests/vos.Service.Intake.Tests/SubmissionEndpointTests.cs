@@ -172,6 +172,25 @@ public class SubmissionEndpointTests
             "a post that never asked this service for anything first did not come from the form");
     }
 
+    // Whatever a caller puts in the header, the service answers rather than falling over: a ticket is
+    // read from what a stranger sent, and nothing about it is known before it has been read.
+    [Theory]
+    [InlineData("not a ticket at all")]
+    [InlineData("AAAA")]
+    public async Task Anything_in_the_header_that_is_not_a_ticket_is_refused(string presented)
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        using var client = factory.CreateClient();
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/submissions")
+        {
+            Content = Submission(WillowBendDocument),
+        };
+        request.Headers.Add(TicketHeader, presented);
+
+        (await client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     [Fact]
     public async Task A_ticket_this_service_did_not_issue_is_refused()
     {
@@ -230,6 +249,24 @@ public class SubmissionEndpointTests
 
         (await AskForATicket(client, from: "203.0.113.6")).StatusCode.Should().Be(HttpStatusCode.OK,
             "one source spending its budget must not close the service to everybody behind it");
+    }
+
+    // The service run with nothing in front of it. There is no address to tell callers apart by, so they
+    // are one source and the log says as much — rather than the route failing on the address it expected.
+    [Fact]
+    public async Task A_request_arriving_with_no_address_is_one_source_like_any_other()
+    {
+        await using var factory = new IntakeWebApplicationFactory
+        {
+            HandlerCallback = Holds,
+            ArrivesThroughAProxy = false,
+        };
+        using var client = factory.CreateClient();
+
+        (await SubmitAsync(client, WillowBendDocument)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PostAsync("/submissions", Submission(WillowBendDocument))).StatusCode
+            .Should().Be(HttpStatusCode.Forbidden);
+        factory.Log.Lines.Should().Contain(line => line.Contains("source unknown"));
     }
 
     private static async Task<HttpResponseMessage> AskForATicket(HttpClient client, string from)

@@ -41,6 +41,11 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     /// and carries none of what was submitted.</summary>
     public CapturingLogger<SubmissionIntakeService> Log { get; } = new();
 
+    /// <summary>Whether a request arrives with an address on it. False is the service run with nothing in
+    /// front of it, where every caller is one source because there is nothing to tell them apart by.
+    /// </summary>
+    public bool ArrivesThroughAProxy { get; set; } = true;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -65,7 +70,8 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
             services.AddSingleton<ILogger<SubmissionIntakeService>>(Log);
-            services.AddSingleton<IStartupFilter, ArrivingThroughTheProxy>();
+            if (ArrivesThroughAProxy)
+                services.AddSingleton<IStartupFilter, ArrivingThroughTheProxy>();
         });
     }
 
@@ -87,7 +93,6 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     }
 }
 
-/// <summary>A clock a test moves by hand.</summary>
 public sealed class MovableClock(DateTimeOffset start) : TimeProvider
 {
     private DateTimeOffset _now = start;

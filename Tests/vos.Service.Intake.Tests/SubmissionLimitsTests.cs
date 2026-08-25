@@ -33,6 +33,15 @@ public class SubmissionLimitsTests
         refusal.Message.Should().Contain("submissionId");
     }
 
+    // A submission carrying none at all is refused where it is composed, naming what every identifier
+    // derives from. Refusing it here instead would answer a missing field with a rule about its shape.
+    [Fact]
+    public void A_submission_carrying_no_identifier_gets_past_the_bound_on_its_shape()
+    {
+        SubmissionReader.Read("""{"site":{"name":"Willow Bend"}}""")
+            .SubmissionId.Should().BeNull();
+    }
+
     [Fact]
     public void The_identifier_a_wizard_generates_is_accepted()
     {
