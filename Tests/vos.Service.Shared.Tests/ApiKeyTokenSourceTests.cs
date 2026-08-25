@@ -81,13 +81,70 @@ public class ApiKeyTokenSourceTests
     [Fact]
     public async Task ATokenStatingNoExpiry_IsNotHeld()
     {
+        var now = Start;
         var unbounded = TestTokens.Jwt(new Dictionary<string, object> { ["vos:scope"] = "endpoint:test:*" });
-        var (source, handler) = Build(_ => Minted(unbounded));
+        var (source, handler) = Build(_ => Minted(unbounded), () => now);
 
         (await source.GetTokenAsync()).Should().BeNull();
+        now = Start.AddMinutes(1);
         (await source.GetTokenAsync()).Should().BeNull();
 
-        handler.Requests.Should().HaveCount(2, "a token with no stated end is never held, so each ask exchanges anew");
+        handler.Requests.Should().HaveCount(2, "a token with no stated end is never held, so a later ask exchanges anew");
+    }
+
+    [Fact]
+    public async Task EveryCallerWaitingOnOneExchange_IsServedByIt()
+    {
+        var minted = TestTokens.For(Guid.NewGuid(), Start.AddMinutes(5));
+        var (source, handler) = Build(_ => Minted(minted));
+
+        var answers = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => source.GetTokenAsync()));
+
+        answers.Should().AllBe(minted);
+        handler.Requests.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task AFruitlessExchange_IsNotRepeatedStraightAway()
+    {
+        var (source, handler) = Build(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+
+        await source.GetTokenAsync();
+        (await source.GetTokenAsync()).Should().BeNull();
+
+        handler.Requests.Should().ContainSingle(
+            "the refusal is remembered, so callers do not each take a turn at the full exchange timeout");
+    }
+
+    [Fact]
+    public async Task OnceTheRetryDelayHasPassed_TheKeyIsOfferedAgain()
+    {
+        var now = Start;
+        var (source, handler) = Build(_ => new HttpResponseMessage(HttpStatusCode.Forbidden), () => now);
+
+        await source.GetTokenAsync();
+        now = Start.AddSeconds(30);
+        await source.GetTokenAsync();
+
+        handler.Requests.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task AnExchangeThatSucceedsAfterARefusal_IsHeldLikeAnyOther()
+    {
+        var now = Start;
+        var minted = TestTokens.For(Guid.NewGuid(), Start.AddMinutes(5));
+        var refusing = true;
+        var (source, handler) = Build(
+            _ => refusing ? new HttpResponseMessage(HttpStatusCode.Forbidden) : Minted(minted), () => now);
+
+        await source.GetTokenAsync();
+        now = Start.AddSeconds(30);
+        refusing = false;
+
+        (await source.GetTokenAsync()).Should().Be(minted);
+        (await source.GetTokenAsync()).Should().Be(minted);
+        handler.Requests.Should().HaveCount(2, "the held token serves the third ask");
     }
 
     [Fact]

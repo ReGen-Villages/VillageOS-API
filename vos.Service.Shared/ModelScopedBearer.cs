@@ -12,8 +12,6 @@ namespace vos.Service.Shared;
 /// </summary>
 public sealed record ModelScopedBearer(string Token, Guid ModelId, DateTimeOffset ExpiresAt)
 {
-    private const string ExpiryClaim = "exp";
-
     /// <summary>Null when the token cannot be read, names no model, or states no expiry. A token with no
     /// stated end would otherwise be held forever and fail only once something depended on it.</summary>
     public static ModelScopedBearer? Read(string? token)
@@ -25,11 +23,9 @@ public sealed record ModelScopedBearer(string Token, Guid ModelId, DateTimeOffse
             !Guid.TryParse(modelId.GetString(), out var model))
             return null;
 
-        if (!payload.Value.TryGetProperty(ExpiryClaim, out var expiry) ||
-            !expiry.TryGetInt64(out var secondsSinceEpoch))
-            return null;
+        if (JwtPayload.ExpiryOf(payload.Value) is not { } expiresAt) return null;
 
-        return new ModelScopedBearer(token!, model, DateTimeOffset.FromUnixTimeSeconds(secondsSinceEpoch));
+        return new ModelScopedBearer(token!, model, expiresAt);
     }
 
     public bool IsDueForReplacement(DateTimeOffset now, TimeSpan leadTime) => ExpiresAt - now <= leadTime;

@@ -10,6 +10,11 @@ namespace vos.Service.Shared;
 /// the exchange repeated shortly before it runs out, rather than on every call, which would double
 /// the traffic of every write. A token stating no expiry is never held: it would be trusted forever
 /// and fail only once something depended on it.
+///
+/// An exchange that produced no usable token is remembered for a few seconds. One attempt runs at a
+/// time, so without that memory every caller waiting on a broker that is refusing or unreachable
+/// would take its turn at the full exchange timeout, and the last of them would wait for all the
+/// others first.
 /// </summary>
 public sealed class ApiKeyTokenSource
 {
@@ -17,7 +22,7 @@ public sealed class ApiKeyTokenSource
 
     private static readonly TimeSpan ReplacementLeadTime = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ExchangeTimeout = TimeSpan.FromSeconds(5);
-    private const string ExpiryClaim = "exp";
+    private static readonly TimeSpan RetryDelayAfterAFruitlessExchange = TimeSpan.FromSeconds(5);
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger _logger;
@@ -29,6 +34,7 @@ public sealed class ApiKeyTokenSource
     private sealed record HeldToken(string Token, DateTimeOffset ExpiresAt);
 
     private HeldToken? _held;
+    private DateTimeOffset _earliestNextExchange = DateTimeOffset.MinValue;
 
     public ApiKeyTokenSource(
         IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string apiKey,
@@ -52,10 +58,18 @@ public sealed class ApiKeyTokenSource
             if (Usable(_held) is { } refreshedMeanwhile)
                 return refreshedMeanwhile.Token;
 
+            if (_now() < _earliestNextExchange)
+                return null;
+
             var minted = await MintAsync(cancellationToken);
-            if (minted is not null)
-                _held = minted;
-            return minted?.Token;
+            if (minted is null)
+            {
+                _earliestNextExchange = _now() + RetryDelayAfterAFruitlessExchange;
+                return null;
+            }
+
+            _held = minted;
+            return minted.Token;
         }
         finally
         {
@@ -91,15 +105,13 @@ public sealed class ApiKeyTokenSource
             var token = issued.TryGetProperty("token", out var value) ? value.GetString() : null;
 
             var payload = JwtPayload.Read(token);
-            if (payload is null ||
-                !payload.Value.TryGetProperty(ExpiryClaim, out var expiry) ||
-                !expiry.TryGetInt64(out var secondsSinceEpoch))
+            if (payload is null || JwtPayload.ExpiryOf(payload.Value) is not { } expiresAt)
             {
                 _logger.LogWarning("Mycelium exchanged the API key for a token this service cannot hold");
                 return null;
             }
 
-            return new HeldToken(token!, DateTimeOffset.FromUnixTimeSeconds(secondsSinceEpoch));
+            return new HeldToken(token!, expiresAt);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
