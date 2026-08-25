@@ -14,13 +14,37 @@ namespace vos.Service.Shared;
 /// name in the message, which is how one gets fixed and the other is left as it was.</para></summary>
 public readonly struct StudyInputs(JsonElement properties, string serviceName)
 {
-    /// <summary>One input's value, refused by name when the study does not carry it or it is not a number.</summary>
+    /// <summary>One input's value, refused by name when the study does not carry it or it is not a number.
+    ///
+    /// <para>The route answers a study's own properties under their bare name and every inherited one
+    /// under a key qualified by the set it came from — <c>SiteStudy.perCapitaConsumptionM3</c>. Since the
+    /// shared archetype took over the assumptions, that is where nearly every input now lives, so a name
+    /// is resolved against the last segment of a key as well as the whole of it. An own value wins, as it
+    /// does in the model; two inherited ones under one leaf name are refused rather than guessed at.</para>
+    /// </summary>
     public double Number(string name)
     {
-        if (properties.ValueKind == JsonValueKind.Object)
-            foreach (var property in properties.EnumerateObject())
-                if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
-                    return Extract(property.Value, name);
+        if (properties.ValueKind != JsonValueKind.Object)
+            throw new KeyNotFoundException($"{serviceName} input '{name}' is not on the study.");
+
+        var qualified = new List<JsonProperty>();
+        foreach (var property in properties.EnumerateObject())
+        {
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                return Extract(property.Value, name);
+
+            var separator = property.Name.LastIndexOf('.');
+            if (separator >= 0 && string.Equals(property.Name[(separator + 1)..], name, StringComparison.OrdinalIgnoreCase))
+                qualified.Add(property);
+        }
+
+        if (qualified.Count > 1)
+            throw new InvalidOperationException(
+                $"{serviceName} input '{name}' is declared more than once on what the study inherits: "
+                + $"{string.Join(", ", qualified.Select(property => property.Name))}.");
+
+        if (qualified.Count == 1)
+            return Extract(qualified[0].Value, name);
 
         throw new KeyNotFoundException($"{serviceName} input '{name}' is not on the study.");
     }
