@@ -36,6 +36,14 @@ flowchart LR
 
 Both sources above cover `WillowBend`: one directly, one through the nesting.
 
+**Where that graph comes from.** The `Place` archetype, the three predicates and the sources every
+project shares are seed data: `open-data-sources.template.json` in the platform repository, read
+alongside the archetype set (platform User Story #6750). A registration lives in the project's own
+model, so a source every project uses belongs in the seed every project is created from — see
+[`DELTA.md`](DELTA.md#which-model-a-registration-lives-in). **A site's own `isIn` edge is written by
+its producer, not inherited from the archetype**, and the submission producer does not write one yet,
+so a submitted site reaches no Place and this walk selects nothing for it (Bug #6752).
+
 **Why not a `coverage` string.** The failure this path exists to prevent is a source that
 does cover the site being silently skipped because a country was written two ways —
 `Portugal` against `PT`, or a difference in case. Matching strings is what causes that;
