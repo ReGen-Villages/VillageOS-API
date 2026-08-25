@@ -294,7 +294,7 @@ the work.
   ],
   "hazards": [                                // no level here: that is read from the source
     {
-      "hazardType": "riverFlood",
+      "hazardType": "river-flood",       // a term the model declares, not free text
       "source": {                             // becomes a Thing the assessment hangs off
         "name": "National flood portal",
         "coverageDescription": "Mainland river catchments, updated yearly."
@@ -542,11 +542,12 @@ flowchart LR
   ST["<b>SiteStudy</b><br/><i>computed outputs</i><br/><i>judge-ranges</i>"]
   PA["<b>Parcel</b><br/>boundary · measured area"]
   AL["<b>ProgrammeAllocation</b><br/>share · area"]
-  HA["<b>HazardAssessment</b><br/>type · level · date"]
+  HA["<b>HazardAssessment</b><br/>level · date"]
   DS["<b>DataSource</b><br/>which source · coverage<br/>last resolved"]
 
   BS["<b>BoundarySource</b><br/>drawn-by-hand · imported-from-file<br/>generated-from-stated-area"]
   AC["<b>AllocationCategory</b><br/>residential · food-and-agriculture<br/>…one Thing per category"]
+  HT["<b>HazardType</b><br/>river-flood · landslide · wildfire<br/>…one Thing per hazard"]
 
   SU -->|proposes| SI
   SU -->|resolvedAs| SD
@@ -560,11 +561,12 @@ flowchart LR
   ST -->|studies| SI
   PA -->|obtainedBy| BS
   AL -->|categorizedAs| AC
+  HA -->|assesses| HT
 ```
 
-**A category and a boundary source are Things, and a submission relates to them.** Both vocabularies are
-declared in the model, so a project whose programme divides differently adds a Thing rather than changing
-a service. The composer resolves the submitted word against what the model declares and refuses one that
+**A category, a boundary source and a hazard type are Things, and a submission relates to them.** All
+three vocabularies are declared in the model, so a project whose programme divides differently, or whose
+hazards differ, adds a Thing rather than changing a service. The composer resolves the submitted word against what the model declares and refuses one that
 matches nothing, naming the terms the model holds. It finds each vocabulary by a mark its archetype
 carries and writes the edge through the predicate the model marks, never by either name — so a model that
 renames one keeps working, and land allocation reads the category's footprint flags off the Thing at the
@@ -604,6 +606,11 @@ dealt with, and that is what a reviewer's list is.
 fixed scale of levels, and modelling each assessment as a Thing lets it carry its date and reach the
 source that produced it. The current tool stores them as a flat map with no indication where any
 level came from.
+
+**The type is a Thing too, reached by an edge.** The eight above are declared in the model under a
+`HazardType` archetype, and an assessment `assesses` one of them (Bug #6737). A word could name a hazard
+that exists nowhere and nothing would notice; nothing could be asked of it either — what it means, which
+other sites carry it. A project whose hazards differ adds a Thing and deploys nothing.
 
 **An assessment reaches its source, rather than naming it.** The source is the `DataSource` Thing the
 assessment hangs off, not a name copied onto it. Two hazards read off one portal share one source, so

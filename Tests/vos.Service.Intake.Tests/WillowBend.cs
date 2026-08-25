@@ -45,8 +45,9 @@ public static class WillowBend
 
     public static readonly Guid CategorizedAsPredicateId = new("cccccccc-cccc-cccc-cccc-cccccccccccc");
     public static readonly Guid ObtainedByPredicateId = new("dddddddd-dddd-dddd-dddd-dddddddddddd");
+    public static readonly Guid AssessesPredicateId = new("0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a");
 
-    /// <summary>The two vocabularies the land-intake template declares, under the names it declares them
+    /// <summary>The vocabularies the land-intake template declares, under the names it declares them
     /// with. A submission names a term as the model spells it; how the term is displayed is the wizard's
     /// business and never reaches here.</summary>
     public static readonly string[] AllocationCategoryNames =
@@ -58,9 +59,16 @@ public static class WillowBend
     public static readonly string[] BoundarySourceNames =
         ["drawn-by-hand", "imported-from-file", "generated-from-stated-area"];
 
+    public static readonly string[] HazardTypeNames =
+    [
+        "river-flood", "landslide", "wildfire", "earthquake", "cyclone", "extreme-heat", "water-scarcity",
+        "urban-flood",
+    ];
+
     public static DeclaredVocabulary KnownVocabulary => new(
         Declared(CategorizedAsPredicateId, "categorizedAs", AllocationCategoryNames),
-        Declared(ObtainedByPredicateId, "obtainedBy", BoundarySourceNames));
+        Declared(ObtainedByPredicateId, "obtainedBy", BoundarySourceNames),
+        Declared(AssessesPredicateId, "assesses", HazardTypeNames));
 
     public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
 
@@ -112,7 +120,7 @@ public static class WillowBend
         [
             new SubmittedHazard
             {
-                HazardType = "riverFlood",
+                HazardType = "river-flood",
                 Source = new SubmittedDataSource
                 {
                     Name = "National flood portal",

@@ -21,6 +21,8 @@ public class DeclaredVocabularyReaderTests
             .BeEquivalentTo(WillowBend.AllocationCategoryNames);
         vocabulary.BoundarySources.Terms.Select(term => term.Name).Should()
             .BeEquivalentTo(WillowBend.BoundarySourceNames);
+        vocabulary.HazardTypes.Terms.Select(term => term.Name).Should()
+            .BeEquivalentTo(WillowBend.HazardTypeNames);
     }
 
     // A refusal names the terms in this order. Left as the snapshot happened to carry them, one unknown word
@@ -44,6 +46,7 @@ public class DeclaredVocabularyReaderTests
 
         vocabulary.AllocationCategories.Predicate.Id.Should().Be(model.Id("categorizedAs"));
         vocabulary.BoundarySources.Predicate.Id.Should().Be(model.Id("obtainedBy"));
+        vocabulary.HazardTypes.Predicate.Id.Should().Be(model.Id("assesses"));
     }
 
     // The archetype is not one of its own terms. Left in, it would resolve as a category a planner could
@@ -55,6 +58,7 @@ public class DeclaredVocabularyReaderTests
 
         vocabulary.AllocationCategories.Terms.Should().NotContain(term => term.Name == "AllocationCategory");
         vocabulary.BoundarySources.Terms.Should().NotContain(term => term.Name == "BoundarySource");
+        vocabulary.HazardTypes.Terms.Should().NotContain(term => term.Name == "HazardType");
     }
 
     // A model may group terms under a sub-type. The mark is on the archetype at the top, so the walk has to
@@ -80,6 +84,8 @@ public class DeclaredVocabularyReaderTests
     [InlineData("categorizedAs")]
     [InlineData("BoundarySource")]
     [InlineData("obtainedBy")]
+    [InlineData("HazardType")]
+    [InlineData("assesses")]
     public void A_model_missing_either_half_of_a_vocabulary_is_refused(string absent)
     {
         var model = DeclaredModel.Seeded().Without(absent);
@@ -116,7 +122,7 @@ public class DeclaredVocabularyReaderTests
         refusal.Message.Should().Contain("not a type");
     }
 
-    // The selector asks for both vocabularies by mark and for nothing by name but `is`, which the walk from
+    // The selector asks for every vocabulary by mark and for nothing by name but `is`, which the walk from
     // an archetype to its terms has to recognise among the edges the snapshot carries.
     [Fact]
     public void The_read_asks_for_the_vocabularies_by_mark_rather_than_by_name()
@@ -125,10 +131,12 @@ public class DeclaredVocabularyReaderTests
 
         selector.MarkedTypes.Should().BeEquivalentTo(
             DeclaredVocabularyReader.AllocationCategoryArchetypeFlag,
-            DeclaredVocabularyReader.BoundarySourceArchetypeFlag);
+            DeclaredVocabularyReader.BoundarySourceArchetypeFlag,
+            DeclaredVocabularyReader.HazardTypeArchetypeFlag);
         selector.MarkedArchetypes.Should().BeEquivalentTo(
             DeclaredVocabularyReader.AllocationCategoryPredicateFlag,
-            DeclaredVocabularyReader.BoundarySourcePredicateFlag);
+            DeclaredVocabularyReader.BoundarySourcePredicateFlag,
+            DeclaredVocabularyReader.HazardTypePredicateFlag);
         selector.Names.Should().Equal(SubmissionFragmentComposer.IsPredicateName);
         selector.IncludeRelationships.Should().BeTrue();
     }

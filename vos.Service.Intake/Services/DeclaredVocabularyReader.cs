@@ -6,7 +6,7 @@ namespace vos.Service.Intake.Services;
 
 /// <summary>
 /// The vocabularies a submitted word is resolved against, read from the model that declares them: what a
-/// programme allocation is for, and how a parcel boundary was obtained.
+/// programme allocation is for, how a parcel boundary was obtained, and what a hazard assessment is about.
 /// </summary>
 /// <remarks>
 /// Nothing here names an archetype or a predicate. Each vocabulary is found by the mark its archetype
@@ -25,15 +25,18 @@ public static class DeclaredVocabularyReader
     public const string AllocationCategoryPredicateFlag = "__IsAllocationCategoryPredicate";
     public const string BoundarySourceArchetypeFlag = "__IsBoundarySourceArchetype";
     public const string BoundarySourcePredicateFlag = "__IsBoundarySourcePredicate";
+    public const string HazardTypeArchetypeFlag = "__IsHazardTypeArchetype";
+    public const string HazardTypePredicateFlag = "__IsHazardTypePredicate";
 
-    /// <summary>Both vocabularies in one read. The terms come from the archetype marks and the predicates
+    /// <summary>Every vocabulary in one read. The terms come from the archetype marks and the predicates
     /// from their own, and `is` is named so the walk from an archetype to its terms can recognise the
     /// edges the snapshot carries.</summary>
     public static SubscriptionSelector Selector() => new()
     {
         Names = [SubmissionFragmentComposer.IsPredicateName],
-        MarkedTypes = [AllocationCategoryArchetypeFlag, BoundarySourceArchetypeFlag],
-        MarkedArchetypes = [AllocationCategoryPredicateFlag, BoundarySourcePredicateFlag],
+        MarkedTypes = [AllocationCategoryArchetypeFlag, BoundarySourceArchetypeFlag, HazardTypeArchetypeFlag],
+        MarkedArchetypes =
+            [AllocationCategoryPredicateFlag, BoundarySourcePredicateFlag, HazardTypePredicateFlag],
         IncludeRelationships = true,
     };
 
@@ -41,7 +44,9 @@ public static class DeclaredVocabularyReader
         TermsMarked(snapshot, AllocationCategoryArchetypeFlag, AllocationCategoryPredicateFlag,
             "what a programme allocation is for"),
         TermsMarked(snapshot, BoundarySourceArchetypeFlag, BoundarySourcePredicateFlag,
-            "how a parcel boundary was obtained"));
+            "how a parcel boundary was obtained"),
+        TermsMarked(snapshot, HazardTypeArchetypeFlag, HazardTypePredicateFlag,
+            "what a hazard assessment is about"));
 
     private static DeclaredTerms TermsMarked(
         SnapshotDocument snapshot, string archetypeFlag, string predicateFlag, string whatItDeclares)

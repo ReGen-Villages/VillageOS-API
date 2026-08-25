@@ -35,11 +35,12 @@ namespace vos.Service.Intake.Services;
 /// a name added here narrows which models the reference says anything about.
 /// </para>
 /// <para>
-/// The two vocabularies a submission uses — what an allocation is for, and how a boundary was obtained —
-/// are neither named nor listed here, and neither is written as a property. A submitted word is resolved
-/// against the Things the model declares (see <see cref="DeclaredVocabularyReader"/>) and written only as
-/// an edge to the one it names, so a project that adds a term edits the model and deploys nothing, and a
-/// reader asking what an allocation is for follows the edge to a Thing it can ask further questions of.
+/// The vocabularies a submission uses — what an allocation is for, how a boundary was obtained, and what
+/// an assessment is about — are neither named nor listed here, and none is written as a property. A
+/// submitted word is resolved against the Things the model declares (see
+/// <see cref="DeclaredVocabularyReader"/>) and written only as an edge to the one it names, so a project
+/// that adds a term edits the model and deploys nothing, and a reader asking what an allocation is for
+/// follows the edge to a Thing it can ask further questions of.
 /// </para>
 /// </remarks>
 public static class SubmissionFragmentComposer
@@ -197,23 +198,28 @@ public static class SubmissionFragmentComposer
         // source's name for the same reason an allocation's comes from its category.
         var sourcesAlreadyMinted = new Dictionary<string, NamedThing>();
         var coverageAlreadyGiven = new Dictionary<string, string?>();
-        var hazardsAlreadyGiven = new Dictionary<string, string>();
+        var hazardsAlreadyGiven = new Dictionary<Guid, string>();
         foreach (var hazard in submission.Hazards ?? [])
         {
-            var hazardType = Required(hazard.HazardType, "hazard.hazardType",
+            var submittedType = Required(hazard.HazardType, "hazard.hazardType",
                 "an assessment is about one named hazard").Trim();
-            var typeKey = Key(hazardType);
-            if (hazardsAlreadyGiven.TryGetValue(typeKey, out var alreadyGiven))
+            var hazardType = Resolve(vocabulary.HazardTypes, "hazard.hazardType", submittedType);
+
+            // Identity comes from the resolved term rather than the word submitted, for the same reason an
+            // allocation's comes from its category: two spellings of one hazard are one assessment.
+            if (hazardsAlreadyGiven.TryGetValue(hazardType.Id, out var alreadyGiven))
                 throw new SubmissionError(
-                    $"'hazards' gives '{alreadyGiven}' and '{hazardType}' as separate assessments of one "
+                    $"'hazards' gives '{alreadyGiven}' and '{submittedType}' as separate assessments of one "
                     + "hazard: they disagree about it and nothing here can say which was meant.");
-            hazardsAlreadyGiven[typeKey] = hazardType;
+            hazardsAlreadyGiven[hazardType.Id] = submittedType;
 
             var hazardThing = new NamedThing(
-                StableIdentity.Derive(submissionId, $"hazard:{typeKey}"), $"{siteName} {hazardType}");
-            things.Add(new FragmentThing(hazardThing.Id, hazardThing.Name, HazardProperties(hazard with { HazardType = hazardType })));
+                StableIdentity.Derive(submissionId, $"hazard:{Key(hazardType.Name)}"),
+                $"{siteName} {hazardType.Name}");
+            things.Add(new FragmentThing(hazardThing.Id, hazardThing.Name, HazardProperties()));
             Relate(siteThing, predicates.Has, hazardThing);
             BeArchetype(hazardThing, archetypes.HazardAssessment, HazardAssessmentArchetypeName);
+            RelateToTerm(hazardThing, vocabulary.HazardTypes, hazardType);
 
             if (hazard.Source is not { } source)
                 continue;
@@ -308,14 +314,13 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
-    // The level and the date it was assessed on are absent by design. Both take observations only, written
-    // when the source is resolved; a level a planner remembered would read as an assessment and is not one.
-    private static Dictionary<string, TypedValue> HazardProperties(SubmittedHazard hazard)
-    {
-        var properties = new Dictionary<string, TypedValue>();
-        Write(properties, "hazardType", VosTypeNames.String, hazard.HazardType);
-        return properties;
-    }
+    // A submission writes nothing onto an assessment. What it is about is the edge to the declared term;
+    // the level and the date it was assessed on take observations only, written when the source is resolved,
+    // and a level a planner remembered would read as an assessment and is not one.
+    //
+    // The empty map is not an omission: the model reference finds these by name, so a map that vanished
+    // could not be told from one that was renamed.
+    private static Dictionary<string, TypedValue> HazardProperties() => [];
 
     private static Dictionary<string, TypedValue> DataSourceProperties(SubmittedDataSource source)
     {
