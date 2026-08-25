@@ -8,7 +8,9 @@ namespace vos.Service.Intake.Tests;
 /// each other.</summary>
 public static class WillowBend
 {
-    public const string SubmissionId = "willow-bend-2026-08";
+    /// <summary>What a wizard generates: an identifier nobody else could arrive at, which is what keeps one
+    /// submission from landing on the Things another submission minted.</summary>
+    public const string SubmissionId = "9f1c74d6-0b8e-4a52-bd31-6c7e5a92f048";
 
     public static readonly Guid StudiesPredicateId = new("11111111-1111-1111-1111-111111111111");
     public static readonly Guid HasPredicateId = new("22222222-2222-2222-2222-222222222222");

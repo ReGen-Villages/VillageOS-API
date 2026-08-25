@@ -27,3 +27,8 @@ where `root` points, and run `caddy run --config deploy/Caddyfile`.
 - **The intake service holds an API key** (`ApiKey` in configuration or the environment) created
   against the intake model, so its credential does not expire and reaches no project model — see
   "Giving a service an API key" in [`../docs/SERVICES.md`](../docs/SERVICES.md).
+- **The proxy passes the caller's address on.** The submission route is anonymous and rate limited per
+  source, and every caller reaches the service from loopback, so the address the limit partitions on is
+  the one in `X-Forwarded-For`. Caddy's `reverse_proxy` sets it; a different proxy has to be configured
+  to. Without it every submitter on the internet shares one budget. The service reads the header only
+  from loopback, which is the only place it can be reached from.

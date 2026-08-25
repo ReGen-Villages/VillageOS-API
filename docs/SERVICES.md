@@ -64,8 +64,10 @@ register with Mycelium and is not reachable through the endpoint-forward route �
 where to forward from data in the model, so a submission path opened there would put whatever the model
 happens to name within reach of whoever can call it. So it registers nothing, holds its own credential,
 maps `/health` without the `/stats` that would describe a registration it does not keep, and caps the
-request body, since it reads a submission into memory whole. The submission document is in
-[`LAND_INTAKE.md`](LAND_INTAKE.md) §4.
+request body, since it reads a submission into memory whole. It is also the one service that **checks no
+inbound credential at all**: its submission route takes a submission from someone who holds none, and a
+ticket, a per-source rate limit and bounds on every field stand where a token would. The submission
+document is in [`LAND_INTAKE.md`](LAND_INTAKE.md) §4 and what guards the route is in §9.
 
 **Two kinds of predicates — the extension point.** `is` is the *only* predicate built into
 Mycelium; **every other predicate that does work is a *Handled Predicate*** dispatched to a

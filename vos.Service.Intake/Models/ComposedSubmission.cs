@@ -1,8 +1,11 @@
 namespace vos.Service.Intake.Models;
 
-/// <summary>The fragment a submission becomes, with the identifiers it minted — the caller gets them back so
-/// a wizard can carry on editing the same site rather than starting another one.</summary>
-public sealed record ComposedSubmission(ModelFragment Fragment, Guid SiteId, Guid StudyId, Guid? ParcelId);
+/// <summary>The fragment a submission becomes, with the identifiers it minted and the reference the
+/// submitter is answered with. The identifiers stay inside this service: the route is anonymous, so what
+/// the model called the Things is not a stranger's to be told, and the reference is what a reviewer can
+/// look the submission up under.</summary>
+public sealed record ComposedSubmission(
+    ModelFragment Fragment, string Reference, Guid SiteId, Guid StudyId, Guid? ParcelId);
 
 /// <summary>A predicate the fragment relates Things with. <see cref="Minted"/> says the model does not hold
 /// one under this name yet, so the fragment carries it.</summary>

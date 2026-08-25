@@ -109,7 +109,7 @@ beforeEach(() => {
   vi.mocked(relationshipApi.getAll).mockResolvedValue(EDGES);
   vi.mocked(thingApi.getAllProperties).mockResolvedValue(PROPERTIES);
   vi.mocked(intakeApi.configured).mockReturnValue(true);
-  vi.mocked(intakeApi.submit).mockResolvedValue({ siteId: 'site-1', studyId: 'study-1' });
+  vi.mocked(intakeApi.submit).mockResolvedValue({ reference: 'sub-0001' });
 });
 
 /** Walk to a step by pressing Next, which is also what makes each one reachable again. */
@@ -465,7 +465,7 @@ describe('posting the submission', () => {
     expect(screen.getByText('No intake service address is configured.')).toBeInTheDocument();
   });
 
-  it('posts what was collected and shows the Things it became', async () => {
+  it('posts what was collected and answers with the reference to quote', async () => {
     saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend', statedArea: '24' });
     render(<IntakeWizardPage />);
     goToStep(4);
@@ -476,7 +476,7 @@ describe('posting the submission', () => {
     expect(intakeApi.submit).toHaveBeenCalledWith(
       expect.objectContaining({ submissionId: 'sub-0001', site: { name: 'Willow Bend', statedAreaHectares: 24 } }),
     );
-    expect(screen.getByText('site-1')).toBeInTheDocument();
+    expect(screen.getByText('sub-0001')).toBeInTheDocument();
   });
 
   it('posts the boundary and how it was obtained along with everything else', async () => {

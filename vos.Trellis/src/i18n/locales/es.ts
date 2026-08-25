@@ -699,8 +699,7 @@ export const es: PartialResources = {
     refused: "El envío fue rechazado: {{reason}}",
     acceptedTitle: "Enviado",
     acceptedBody: "El envío está en el modelo. Espera en la página de envíos hasta que alguien decida sobre él.",
-    siteThing: "Emplazamiento",
-    studyThing: "Estudio",
+    reference: "Referencia",
     startAnother: "Empezar otro",
   },
   submissionReview: {

@@ -249,7 +249,7 @@ public static class SubmissionFragmentComposer
         }
 
         var fragment = new ModelFragment($"{siteName} submission", [.. mintedPredicates.Values, .. things], relationships);
-        return new ComposedSubmission(fragment, siteThing.Id, studyThing.Id, parcelId);
+        return new ComposedSubmission(fragment, submissionId, siteThing.Id, studyThing.Id, parcelId);
     }
 
     private readonly record struct NamedThing(Guid Id, string Name);

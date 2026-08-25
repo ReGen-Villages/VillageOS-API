@@ -699,8 +699,7 @@ export const nl: PartialResources = {
     refused: "De inzending is geweigerd: {{reason}}",
     acceptedTitle: "Ingezonden",
     acceptedBody: "De inzending staat in het model. Ze wacht op de pagina met inzendingen tot iemand erover beslist.",
-    siteThing: "Locatie",
-    studyThing: "Studie",
+    reference: "Referentie",
     startAnother: "Nog een beginnen",
   },
   submissionReview: {

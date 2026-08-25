@@ -829,8 +829,7 @@ export const ar: PartialResources & ArabicPlurals = {
     refused: "رُفض التقديم: {{reason}}",
     acceptedTitle: "أُرسل",
     acceptedBody: "التقديم في النموذج، وينتظر في صفحة التقديمات حتى يبتّ فيه أحد.",
-    siteThing: "الموقع",
-    studyThing: "الدراسة",
+    reference: "المرجع",
     startAnother: "ابدأ تقديمًا آخر",
   },
   submissionReview: {

@@ -1,9 +1,13 @@
 using System.Net;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using vos.Service.Intake.Services;
 using vos.Tests.Shared;
 
 namespace vos.Service.Intake.Tests;
@@ -16,10 +20,9 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     public Func<HttpRequestMessage, HttpResponseMessage> HandlerCallback { get; set; }
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
 
-    /// <summary>Base64 of Mycelium's public signing key, for checking inbound requests. Null leaves the
-    /// service open, as it runs when no broker handed it one. Issuer and recipient name travel with it:
-    /// the auth wireup refuses a key without them rather than falling back to a default that would
-    /// reject every call.</summary>
+    /// <summary>Base64 of Mycelium's public signing key. This service checks no inbound credential, so
+    /// setting it changes nothing — which is what a test says out loud, because it is one of the settings
+    /// every service is launched with and could easily be believed to close the public route.</summary>
     public string? VerificationKey { get; set; }
 
     public string Issuer { get; set; } = "VillageOS";
@@ -29,6 +32,19 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     /// <summary>Origin(s) of the public form allowed to call this service across origins. Null leaves
     /// every cross-origin caller refused, the default a public service must start from.</summary>
     public string? PublicFormOrigin { get; set; }
+
+    /// <summary>Time as the service reads it. A ticket is judged by how long ago it was issued, so a test
+    /// that let the real clock run could only say the elapsed time was small.</summary>
+    public MovableClock Clock { get; } = new(new DateTimeOffset(2026, 8, 22, 9, 30, 0, TimeSpan.Zero));
+
+    /// <summary>What the service logged about submissions, so a test can say a line names the submission
+    /// and carries none of what was submitted.</summary>
+    public CapturingLogger<SubmissionIntakeService> Log { get; } = new();
+
+    /// <summary>Whether a request arrives with an address on it. False is the service run with nothing in
+    /// front of it, where every caller is one source because there is nothing to tell them apart by.
+    /// </summary>
+    public bool ArrivesThroughAProxy { get; set; } = true;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -51,6 +67,37 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<IHttpClientFactory>();
             services.AddSingleton<IHttpClientFactory>(
                 new PerCallHttpClientFactory(new MockHttpMessageHandler(request => HandlerCallback(request))));
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(Clock);
+            services.AddSingleton<ILogger<SubmissionIntakeService>>(Log);
+            if (ArrivesThroughAProxy)
+                services.AddSingleton<IStartupFilter, ArrivingThroughTheProxy>();
         });
     }
+
+    /// <summary>The test host opens no socket, so a request arrives with no address on it and the service
+    /// reads every caller as one source. Behind the reverse proxy the connection is from loopback and the
+    /// caller's own address is in the forwarded header, which is what this reproduces.</summary>
+    private sealed class ArrivingThroughTheProxy : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) =>
+            builder =>
+            {
+                builder.Use(async (context, following) =>
+                {
+                    context.Connection.RemoteIpAddress = IPAddress.Loopback;
+                    await following(context);
+                });
+                next(builder);
+            };
+    }
+}
+
+public sealed class MovableClock(DateTimeOffset start) : TimeProvider
+{
+    private DateTimeOffset _now = start;
+
+    public override DateTimeOffset GetUtcNow() => _now;
+
+    public void Advance(TimeSpan by) => _now = _now.Add(by);
 }

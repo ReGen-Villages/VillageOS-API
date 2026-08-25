@@ -699,8 +699,7 @@ export const fr: PartialResources = {
     refused: "La soumission a été refusée : {{reason}}",
     acceptedTitle: "Soumis",
     acceptedBody: "La soumission est dans le modèle. Elle attend sur la page des soumissions qu'une personne se prononce.",
-    siteThing: "Site",
-    studyThing: "Étude",
+    reference: "Référence",
     startAnother: "En commencer une autre",
   },
   submissionReview: {
