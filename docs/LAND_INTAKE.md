@@ -137,7 +137,12 @@ is described entirely by configuration, never by code written for that provider.
 **Delta** — the service that validates and registers those provider descriptions.
 
 **Compute service** — a microservice that reads its inputs off one Thing, computes, and writes its
-outputs back onto the same Thing. Energy, water, land allocation and food each are one.
+outputs back onto the same Thing. What is left to one is what a formula on the study cannot express: a
+verdict, and anything worked out across a set.
+
+**Derived property** — a formula the study declares and the model computes, over the study's own values
+and what it inherits. It refuses every value write, which is why nothing else may assert a figure
+declared this way.
 
 ### How a calculation is started and kept current
 
@@ -466,12 +471,22 @@ flagged as needing a manual read, so the gap is visible rather than implied by a
 
 ## 6. Phase three — analysis
 
-The compute services read what is in the model, compute, and write their results back onto the study.
-They make no outside calls.
+The analysis reads what is in the model and answers back onto the study. It makes no outside calls.
 
-Each balance is a **reactive service**, not a node in a graph. A relationship whose subject is the
+**A figure the study can work out for itself is declared on the study, not asserted by a service.** The
+shared `SiteStudy` archetype carries the formula for each one, and the model computes it when the model
+loads and again whenever a term moves — so the arithmetic is checked against the properties the study
+declares, a page can show a figure's working, and a term with no answer leaves the figure unknown rather
+than failing the service that would have written it. That last part is what lets a site nobody surveyed
+read as not assessed instead of as a site that failed.
+
+What is left to a service is what a formula over one Thing cannot express: a verdict, which is a boolean
+where an expression yields a number, and anything worked out **across a set** — the land shares
+apportioned over the allocations, and the harvest apportioned over the demands in serving order.
+
+Each of those is a **reactive service**, not a node in a graph. A relationship whose subject is the
 study and whose predicate is the connection bound to the service is what dispatches it: the service
-reads the study's effective properties, computes, writes its outputs back as Facts, and starts
+reads the study's effective properties, computes, writes what is its to write back as Facts, and starts
 watching the study. Every later change to an input recomputes on its own.
 
 ```mermaid
@@ -493,8 +508,13 @@ flowchart TB
 ```
 
 The arrows are property reads and writes on one Thing, not wires. Land allocation writes the two
-footprints; the three balances read them and re-fire. Nothing sequences them — each recomputes when an
+footprints; the balances read them and re-fire. Nothing sequences them — each recomputes when an
 input it declared moves, and the cascade is bounded by the model's recompute round limit.
+
+Two of the boxes need no service any more. Every water-reserve and food-balance figure is a formula on
+the study, so both services now assert nothing and their dispatch is waiting to be removed (#6747,
+#6748). The energy balance keeps only its verdict, and the rainwater harvest keeps the apportionment
+across the demands.
 
 **Assumptions are inherited, not supplied per run.** Yield per hectare, runoff coefficient, energy per
 person, water per person — these are judgement calls a planner will want to vary, and they live on the
@@ -503,14 +523,14 @@ to the model rather than a redeploy, and a planner varying one sees the balances
 for anything to run again. That last point is why this shape was chosen over a graph run once per
 request.
 
-**A missing discovered value is reported, not defaulted.** If rainfall did not resolve, the balance
-that needs it leaves its output unwritten, and the study's "not assessed" range holds. A balance
-computed against a silently substituted number is worse than no answer, because it looks like an
-answer.
+**A missing discovered value is reported, not defaulted.** If rainfall did not resolve, the harvest
+volume the formula reads it into stays unknown rather than falling to nought, and the study's "not
+assessed" range holds. A balance computed against a silently substituted number is worse than no answer,
+because it looks like an answer.
 
 ### What a service call looks like
 
-A dispatched relationship names the study; the service answers with what it wrote:
+A dispatched relationship names the study; the service answers with what it computed:
 
 ```jsonc
 // Mycelium → the service                   // the service → Mycelium
@@ -644,8 +664,8 @@ Each computed output is **declared on the study with its type and no value** unt
 (#6159). A seeded zero cannot be told from a real result, and a range reading it would report a verdict
 about an analysis that never ran.
 
-> **Settled: `pctOfConsumption`.** The reactive energy service writes it, the shared `SiteStudy`
-> archetype declares it, and that archetype's `EnergyNetPositive` range reads it. A submission's study
+> **Settled: `pctOfConsumption`.** The shared `SiteStudy` archetype declares the formula for it, the
+> model computes it, and that archetype's `EnergyNetPositive` range reads it. A submission's study
 > declares no computed output of its own — it `is` the archetype and inherits every one, so there is one
 > place the name is answered rather than two that can disagree.
 
@@ -719,8 +739,9 @@ The yield is `peopleFedPerHectarePerYear` on the shared study archetype: regener
 producing a full diet supports roughly two to three people per hectare. Correcting it there moves the
 answer for every study.
 
-Two lines of arithmetic, and still worth being a service — because the result then carries which yield
-assumption produced it and which parcel area it read, and it moves on its own when either changes. A
+Two lines of arithmetic, and both are declared on the study rather than run by a service. The result
+still carries which yield assumption produced it and which parcel area it read, and still moves on its
+own when either changes — that is what a declared formula gives, without an executable to deploy. A
 number worked out in a page carries neither.
 
 Neither figure is rounded where it is computed. People fed is conceptually a whole number, but rounding

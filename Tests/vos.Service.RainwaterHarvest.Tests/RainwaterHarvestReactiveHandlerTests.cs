@@ -121,14 +121,30 @@ public class RainwaterHarvestReactiveHandlerTests
         outputs.HarvestM3PerYear.Should().BeApproximately(49728, 1e-6);
         foreach (var output in new[]
                  {
-                     RainwaterHarvestReactiveHandler.HarvestOutput,
                      RainwaterHarvestReactiveHandler.TotalWaterDemandOutput,
-                     RainwaterHarvestReactiveHandler.PctOfWaterDemandOutput,
                      "domesticDemandM3PerYear", "pctOfDomesticDemand", "domesticShortfallM3PerYear",
                      "irrigationDemandM3PerYear", "pctOfIrrigationDemand", "irrigationShortfallM3PerYear",
                  })
             http.Requests.Should().ContainSingle(request => request.Method == HttpMethod.Post
                 && request.Uri == $"http://mycelium/api/things/{Study}/properties/{output}/facts");
+    }
+
+    // The harvest volume and the coverage of the whole demand are declared as expressions on the shared
+    // study archetype, so the model works them out and a derived property refuses every value write. What
+    // stays here is what is worked out across the set of demands the model declares — each demand's size,
+    // the total, and the apportionment in serving order — which is a reduction's shape, not an
+    // expression's.
+    [Theory]
+    [InlineData("harvestM3PerYear")]
+    [InlineData("pctOfWaterDemand")]
+    public async Task It_asserts_no_figure_the_model_derives_for_itself(string derived)
+    {
+        var http = Serving(WillowBend);
+
+        await NewHandler(http).RecomputeAsync(Study);
+
+        http.Requests.Should().NotContain(request => request.Method == HttpMethod.Post
+            && request.Uri == $"http://mycelium/api/things/{Study}/properties/{derived}/facts");
     }
 
     // Each answer lands on the property its own demand names, not on one the handler chose. A pair
@@ -240,7 +256,7 @@ public class RainwaterHarvestReactiveHandlerTests
 
         var failure = await Assert.ThrowsAsync<HttpRequestException>(() => NewHandler(http).RecomputeAsync(Study));
 
-        failure.Message.Should().Contain(RainwaterHarvestReactiveHandler.HarvestOutput);
+        failure.Message.Should().Contain(RainwaterHarvestReactiveHandler.TotalWaterDemandOutput);
     }
 
     // What wakes this service is the three the harvest volume is worked out from plus whatever properties
@@ -345,9 +361,9 @@ public class RainwaterHarvestReactiveHandlerTests
         handler.WatchedProperties.Should().BeEquivalentTo(RainwaterHarvestReactiveHandler.InputProperties);
     }
 
-    // It writes all three of these onto the study it watches, so a set holding one of them would recompute
-    // forever rather than compute a wrong number. The rest of what it writes is named by the model, and
-    // the refusal above is what covers those.
+    // It writes the total onto the study it watches, so a set holding it would recompute forever rather
+    // than compute a wrong number. The rest of what it writes is named by the model, and the refusal above
+    // is what covers those.
     [Fact]
     public void None_of_the_outputs_it_names_itself_can_wake_it()
     {
