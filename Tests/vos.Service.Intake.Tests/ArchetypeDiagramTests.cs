@@ -42,7 +42,7 @@ public class ArchetypeDiagramTests
         // runtime, which is why they are kept apart from those above. `resolvedAs` joins them as a spelling
         // the model owns: no submission writes it, and the edge is drawn because it is what a reviewer's
         // decision becomes.
-        var spelledByTheTemplate = new[] { "categorizedAs", "obtainedBy", "resolvedAs" };
+        var spelledByTheTemplate = new[] { "categorizedAs", "obtainedBy", "assesses", "resolvedAs" };
         var mayBeDrawn = namedByTheComposer.Concat(spelledByTheTemplate).ToList();
 
         var drawn = LabelledArrow.Matches(diagram)

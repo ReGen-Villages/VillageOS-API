@@ -12,7 +12,7 @@ public sealed class DeclaredModel
     private readonly List<SnapshotThing> _things = [];
     private readonly List<SnapshotRelationship> _edges = [];
 
-    /// <summary>A model seeded from the land-intake template: both vocabularies, each under a marked
+    /// <summary>A model seeded from the land-intake template: every vocabulary, each under a marked
     /// archetype and reached through a marked predicate.</summary>
     public static DeclaredModel Seeded()
     {
@@ -20,12 +20,16 @@ public sealed class DeclaredModel
             .WithArchetype("AllocationCategory", DeclaredVocabularyReader.AllocationCategoryArchetypeFlag)
             .With("categorizedAs", DeclaredVocabularyReader.AllocationCategoryPredicateFlag)
             .WithArchetype("BoundarySource", DeclaredVocabularyReader.BoundarySourceArchetypeFlag)
-            .With("obtainedBy", DeclaredVocabularyReader.BoundarySourcePredicateFlag);
+            .With("obtainedBy", DeclaredVocabularyReader.BoundarySourcePredicateFlag)
+            .WithArchetype("HazardType", DeclaredVocabularyReader.HazardTypeArchetypeFlag)
+            .With("assesses", DeclaredVocabularyReader.HazardTypePredicateFlag);
 
         foreach (var category in WillowBend.AllocationCategoryNames)
             model.Relate(category, "is", "AllocationCategory");
         foreach (var source in WillowBend.BoundarySourceNames)
             model.Relate(source, "is", "BoundarySource");
+        foreach (var hazardType in WillowBend.HazardTypeNames)
+            model.Relate(hazardType, "is", "HazardType");
 
         return model;
     }

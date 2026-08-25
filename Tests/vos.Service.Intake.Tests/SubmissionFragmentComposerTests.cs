@@ -324,7 +324,73 @@ public class SubmissionFragmentComposerTests
     }
 
     private static IEnumerable<FragmentThing> Hazards(ComposedSubmission composed) =>
-        composed.Fragment.Things.Where(thing => thing.Properties.ContainsKey("hazardType"));
+        composed.Fragment.Things.Where(thing =>
+            IsEdgeTo(composed, thing.Id, WillowBend.HazardAssessmentArchetypeId));
+
+    private static FragmentThing HazardOf(ComposedSubmission composed, string hazardType) =>
+        Hazards(composed).Single(thing =>
+            Relates(composed, thing.Id, WillowBend.AssessesPredicateId, WillowBend.TermId(hazardType)));
+
+    // What the assessment is about, as an edge to the Thing the model declares. A word could name a hazard
+    // that exists nowhere and nothing would notice; nothing can be asked of it either — not what it means,
+    // not which other sites carry it.
+    [Fact]
+    public void A_hazard_reaches_the_type_the_model_declares_and_carries_no_word_for_it()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        var flood = HazardOf(composed, "river-flood");
+
+        flood.Properties.Should().NotContainKey("hazardType",
+            "a word beside the edge can be read but not walked from, and the two can come to disagree");
+        Relates(composed, flood.Id, WillowBend.AssessesPredicateId, WillowBend.TermId("river-flood"))
+            .Should().BeTrue();
+    }
+
+    // The predicate comes from the model, like the term. One minted here would carry no mark, so every
+    // reader that follows this vocabulary by mark would miss the edge entirely.
+    [Fact]
+    public void The_edge_to_a_hazard_type_uses_the_predicate_the_model_declares()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        composed.Fragment.Things.Should().NotContain(thing => thing.Id == WillowBend.AssessesPredicateId,
+            "a predicate the model already holds is used as it stands, never minted beside it");
+    }
+
+    [Fact]
+    public void A_hazard_the_model_declares_no_type_for_is_refused_naming_what_it_does_declare()
+    {
+        var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
+        {
+            Hazards = [new SubmittedHazard { HazardType = "volcano" }],
+        }));
+
+        refusal.Message.Should().Contain("hazard.hazardType").And.Contain("volcano");
+        foreach (var declared in WillowBend.HazardTypeNames)
+            refusal.Message.Should().Contain(declared);
+    }
+
+    // A term added to the model reaches the next submission without this service being rebuilt, which is
+    // the whole reason the types are Things.
+    [Fact]
+    public void A_type_the_model_adds_is_accepted_without_a_change_here()
+    {
+        var declared = WillowBend.KnownVocabulary;
+        var withVolcano = declared with
+        {
+            HazardTypes = new DeclaredTerms(
+                declared.HazardTypes.Predicate,
+                [.. declared.HazardTypes.Terms, new DeclaredTerm("volcano", WillowBend.TermId("volcano"))]),
+        };
+
+        var composed = SubmissionFragmentComposer.Compose(
+            WillowBend.Submission() with { Hazards = [new SubmittedHazard { HazardType = "volcano" }] },
+            WillowBend.KnownPredicates, WillowBend.KnownArchetypes, withVolcano, WillowBend.ArrivedAt);
+
+        Relates(composed, Hazards(composed).Single().Id, WillowBend.AssessesPredicateId,
+            WillowBend.TermId("volcano")).Should().BeTrue();
+    }
 
     // The whole point of the archetype change: a hazard says which source assessed it by hanging off that
     // source, so a reader can walk from one to the other. A name copied onto the hazard could be walked to
@@ -334,7 +400,7 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission());
 
-        var flood = Hazards(composed).Single(thing => (string)thing.Properties["hazardType"].Value! == "riverFlood");
+        var flood = HazardOf(composed, "river-flood");
         var source = Named(composed, "National flood portal");
 
         Holds(composed, flood.Id, source.Id).Should().BeTrue();
@@ -385,12 +451,12 @@ public class SubmissionFragmentComposerTests
         {
             Hazards =
             [
-                new SubmittedHazard { HazardType = "riverFlood" },
-                new SubmittedHazard { HazardType = " RiverFlood " },
+                new SubmittedHazard { HazardType = "river-flood" },
+                new SubmittedHazard { HazardType = " River-Flood " },
             ],
         }));
 
-        refusal.Message.Should().Contain("riverFlood").And.Contain("RiverFlood");
+        refusal.Message.Should().Contain("river-flood").And.Contain("River-Flood");
     }
 
     // One source is one Thing, so a second description has nowhere to land. Keeping the first silently would
@@ -405,7 +471,7 @@ public class SubmissionFragmentComposerTests
             [
                 new SubmittedHazard
                 {
-                    HazardType = "riverFlood",
+                    HazardType = "river-flood",
                     Source = new SubmittedDataSource { Name = "Portal", CoverageDescription = "Rivers." },
                 },
                 new SubmittedHazard
@@ -447,7 +513,8 @@ public class SubmissionFragmentComposerTests
             Hazards = [new SubmittedHazard { HazardType = "landslide" }],
         });
 
-        Hazards(composed).Single().Properties["hazardType"].Value.Should().Be("landslide");
+        Relates(composed, Hazards(composed).Single().Id, WillowBend.AssessesPredicateId,
+            WillowBend.TermId("landslide")).Should().BeTrue();
         composed.Fragment.Relationships.Should()
             .NotContain(edge => edge.Target == WillowBend.DataSourceArchetypeId);
     }

@@ -30,4 +30,5 @@ public sealed record DeclaredTerm(string Name, Guid Id);
 public sealed record DeclaredTerms(DeclaredTerm Predicate, IReadOnlyList<DeclaredTerm> Terms);
 
 /// <summary>The vocabularies a submission's words are resolved against before it becomes a fragment.</summary>
-public sealed record DeclaredVocabulary(DeclaredTerms AllocationCategories, DeclaredTerms BoundarySources);
+public sealed record DeclaredVocabulary(
+    DeclaredTerms AllocationCategories, DeclaredTerms BoundarySources, DeclaredTerms HazardTypes);
