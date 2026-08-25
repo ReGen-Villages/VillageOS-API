@@ -11,10 +11,15 @@ var builder = WebApplication.CreateBuilder(args);
 var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
 if (launchSettings == null)
 {
-    Console.WriteLine(ServiceLaunchSettings.UsageMessage);
+    Console.WriteLine(ServiceLaunchSettings.BuildUsageMessage(
+        " [--publicFormOrigin=<origin>[,<origin>]]",
+        "\n  --publicFormOrigin  Origin(s) of the public form allowed to call this service across origins"));
     Environment.Exit(1);
     return;
 }
+
+var publicFormOrigins = new LaunchSettingReader(args, builder.Configuration).Read("publicFormOrigin")
+    ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
 
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
@@ -34,6 +39,17 @@ try
     // is not the rate limiting and bot checks a public endpoint needs (#6043) — it is the floor under them.
     builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = SubmissionSize.MaximumBytes);
     builder.Services.AddHttpClient();
+
+    // The public form lives on the main hostname and this service answers on its own, so the browser
+    // asks whether that origin may call it. Nothing configured means no cross-origin caller at all.
+    if (publicFormOrigins.Length > 0)
+    {
+        builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+            .WithOrigins(publicFormOrigins)
+            .WithMethods("POST")
+            .WithHeaders("Content-Type")));
+        Log.Information("Cross-origin submissions allowed from {Origins}", string.Join(", ", publicFormOrigins));
+    }
 
     var authEnabled = !string.IsNullOrEmpty(verificationKey);
     if (authEnabled)
@@ -60,6 +76,9 @@ try
     builder.Services.AddSingleton<SubmissionIntakeService>();
 
     var app = builder.Build();
+
+    if (publicFormOrigins.Length > 0)
+        app.UseCors();
 
     if (authEnabled)
     {

@@ -1,0 +1,28 @@
+# The one place the deployment's hostnames are split. TLS terminates here for both hosts (Caddy
+# provisions certificates itself); everything behind the proxy listens on loopback only, which
+# Tests/vos.ContinuousIntegration.Tests/ServicesBindLoopbackTests pins.
+#
+# Replace the hostnames and the intake port with the deployment's own. The broker knows nothing
+# about hostnames — this file is deliberately the only place the split exists.
+
+# The main host: the GUI and the broker's API.
+app.example.org {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy localhost:7243
+	}
+
+	# The GUI is the built single-page app; every non-API path falls through to it.
+	handle {
+		root * /srv/villageos/trellis
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# The intake host: the public submission service and nothing else. The service is started with
+# --publicFormOrigin=https://app.example.org so the form on the main host may call it.
+intake.example.org {
+	reverse_proxy localhost:7300
+}

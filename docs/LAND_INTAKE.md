@@ -876,7 +876,9 @@ flowchart TB
 **On "subdomain".** The routing label on an endpoint connection is called a subdomain, but it is a
 path segment, not DNS — nothing in the broker reads the request's host name. If you want
 `intake.example.org`, that split belongs in the reverse proxy. Do not teach the broker host-header
-routing; it currently knows nothing about deployment topology, and that is a feature.
+routing; it currently knows nothing about deployment topology, and that is a feature. The proxy
+configuration that makes the split — both hostnames, TLS termination, and the form's cross-origin
+allowance — lives in [`deploy/`](../deploy/README.md).
 
 ### From submission to project
 
