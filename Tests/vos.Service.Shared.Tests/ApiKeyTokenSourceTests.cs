@@ -22,10 +22,12 @@ public class ApiKeyTokenSourceTests
         return (new ApiKeyTokenSource(factory, NullLogger.Instance, MyceliumUrl, Key, now ?? (() => Start)), handler);
     }
 
-    private static HttpResponseMessage Minted(string token) => new(HttpStatusCode.OK)
+    private static HttpResponseMessage JsonAnswer(string body) => new(HttpStatusCode.OK)
     {
-        Content = new StringContent($"{{\"token\":\"{token}\"}}", Encoding.UTF8, "application/json")
+        Content = new StringContent(body, Encoding.UTF8, "application/json")
     };
+
+    private static HttpResponseMessage Minted(string token) => JsonAnswer($"{{\"token\":\"{token}\"}}");
 
     [Fact]
     public async Task TheKeyIsSentAsTheHeader_AndTheMintedTokenComesBack()
@@ -92,16 +94,68 @@ public class ApiKeyTokenSourceTests
         handler.Requests.Should().HaveCount(2, "a token with no stated end is never held, so a later ask exchanges anew");
     }
 
+    // Asking runs on the caller's thread as far as the wait for the exchange, so the second ask below is
+    // queued behind the first by the time it hands a task back — no delay is needed to arrange the race.
     [Fact]
-    public async Task EveryCallerWaitingOnOneExchange_IsServedByIt()
+    public async Task ACallerThatWaitedForAnExchange_IsServedByItRatherThanExchangingAgain()
     {
         var minted = TestTokens.For(Guid.NewGuid(), Start.AddMinutes(5));
-        var (source, handler) = Build(_ => Minted(minted));
+        var exchangeStarted = new TaskCompletionSource();
+        var finishExchange = new TaskCompletionSource();
+        var handler = MockHttpMessageHandler.AnsweringAsynchronously(async _ =>
+        {
+            exchangeStarted.TrySetResult();
+            await finishExchange.Task;
+            return Minted(minted);
+        });
+        var source = new ApiKeyTokenSource(
+            new TestHttpClientFactory(new HttpClient(handler)), NullLogger.Instance, MyceliumUrl, Key, () => Start);
 
-        var answers = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => source.GetTokenAsync()));
+        var first = source.GetTokenAsync();
+        await exchangeStarted.Task;
+        var second = source.GetTokenAsync();
+        finishExchange.SetResult();
 
-        answers.Should().AllBe(minted);
+        (await first).Should().Be(minted);
+        (await second).Should().Be(minted);
         handler.Requests.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task AnAnswerCarryingNoToken_IsNotHeld()
+    {
+        var (source, _) = Build(_ => JsonAnswer("{\"issued\":true}"));
+
+        (await source.GetTokenAsync()).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AnAnswerWhoseTokenIsNotAJwt_IsNotHeld()
+    {
+        var (source, _) = Build(_ => Minted("not-a-jwt"));
+
+        (await source.GetTokenAsync()).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AnAskCancelledMidExchange_SaysSoRatherThanAnsweringNull()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var exchangeStarted = new TaskCompletionSource();
+        var handler = MockHttpMessageHandler.ObservingCancellation(async (_, cancellationToken) =>
+        {
+            exchangeStarted.TrySetResult();
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var source = new ApiKeyTokenSource(
+            new TestHttpClientFactory(new HttpClient(handler)), NullLogger.Instance, MyceliumUrl, Key, () => Start);
+
+        var ask = source.GetTokenAsync(cancellation.Token);
+        await exchangeStarted.Task;
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ask);
     }
 
     [Fact]
