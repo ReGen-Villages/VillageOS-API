@@ -14,8 +14,8 @@ namespace vos.Service.ModelBridge.Services;
 public sealed class ModelBridgeNode : DagNodeService
 {
     public ModelBridgeNode(IHttpClientFactory httpClientFactory, ILogger<ModelBridgeNode> logger,
-        string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
     {
     }
 

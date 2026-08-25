@@ -83,6 +83,18 @@ public class ModelScopedBearerTests
         })).Should().BeNull();
     }
 
+    [Theory]
+    [InlineData(long.MaxValue)]
+    [InlineData(long.MinValue)]
+    public void An_expiry_too_far_off_to_hold_yields_nothing_rather_than_throwing(long secondsSinceEpoch)
+    {
+        ModelScopedBearer.Read(Jwt(new Dictionary<string, object>
+        {
+            ["vos:model_id"] = Model.ToString(),
+            ["exp"] = secondsSinceEpoch,
+        })).Should().BeNull();
+    }
+
     [Fact]
     public void A_bearer_is_due_for_replacement_once_it_is_inside_the_lead_time()
     {

@@ -9,8 +9,8 @@ namespace vos.Service.WaterReserve.Services;
 public sealed class WaterReserveNode : DagNodeService
 {
     public WaterReserveNode(IHttpClientFactory httpClientFactory, ILogger<WaterReserveNode> logger,
-        string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
     {
     }
 

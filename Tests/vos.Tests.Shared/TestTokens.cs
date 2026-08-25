@@ -1,11 +1,11 @@
 using System.Text;
 using System.Text.Json;
 
-namespace vos.Service.Shared.Tests;
+namespace vos.Tests.Shared;
 
 /// <summary>Unsigned tokens shaped like the ones Mycelium mints. Nothing here validates a signature — the
 /// service reads its own credential to learn which project it speaks for and when to replace it.</summary>
-internal static class TestTokens
+public static class TestTokens
 {
     public static string For(Guid modelId, DateTimeOffset expiresAt, string scope = "endpoint:test:*") =>
         Jwt(new Dictionary<string, object>

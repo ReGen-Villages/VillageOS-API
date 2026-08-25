@@ -24,6 +24,7 @@ var servicePort = launchSettings.Service.Port;
 var myceliumUrl = launchSettings.Service.MyceliumUrl;
 var direction = launchSettings.Direction;
 var serviceToken = launchSettings.Service.Token;
+var apiKey = launchSettings.Service.ApiKey;
 var verificationKey = launchSettings.Service.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
@@ -55,7 +56,7 @@ try
         new MyceliumClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumClient>>(),
-            myceliumUrl, direction, serviceToken));
+            myceliumUrl, direction, serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton(sp =>
         new Metabolism(
             sp.GetRequiredService<MyceliumClient>(),
@@ -66,7 +67,7 @@ try
         new SubscriptionClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<SubscriptionClient>>(),
-            myceliumUrl, serviceToken));
+            myceliumUrl, serviceToken, apiKey: apiKey));
     builder.Services.AddHostedService<MetabolismSubscriptionService>();
 
     var requestCount = 0;

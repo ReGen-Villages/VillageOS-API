@@ -764,14 +764,26 @@ Full reference: the **Mycelium Guide** on Mycelium repo's wiki
 `/swagger` when Mycelium is running (default
 `https://localhost:7243/swagger`).
 
-### Creating a service API key
+### Giving a service an API key
 
 Microservices authenticate with a pre-minted JWT supplied through the `Token`
 setting (Mycelium mints it and sets it on the daemon's environment when it
-launches the daemon). They do **not**
-accept an API key directly — there is no `--api-key` argument or `VOS_API_KEY`
-support in the microservice host. A service API key is still useful for
-operators/CLI to *obtain* a token; create one like this:
+launches the daemon). A service nobody launches on demand — the public intake
+service most of all — needs a credential that does not expire, so a service can
+hold an **API key** instead, supplied through the `ApiKey` setting
+(configuration or environment, never the command line). `ServiceCredential`
+exchanges it at `POST /api/auth/token` with the `X-API-Key` header, holds the
+minted token, and exchanges again shortly before it expires — never per call.
+When both `ApiKey` and `Token` are set the key answers, because it is the
+durable credential and may be confined to one model; a failed exchange answers
+nothing rather than falling back to a broader credential.
+
+Every service presents what `ServiceCredential` answers, whether it calls
+through the shared client or builds the request itself, so a service written
+either way honours `ApiKey`. Xylem, which reaches the broker directly to clear
+a model and to launch the ingest tool, asks the same thing.
+
+Create a key like this:
 
 ```bash
 TOKEN=$(curl -s -X POST https://localhost:7243/api/auth/login \
@@ -785,9 +797,9 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 ```
 
 The response includes a `rawKey` field (e.g. `vos_sk_...`) — store it securely,
-it is only shown once. Exchange it for a JWT via `POST /api/auth/token`
-(`X-API-Key: <rawKey>`); give the resulting token to a service through the
-`Token` setting.
+it is only shown once. Give it to a service through the `ApiKey` setting, or
+exchange it yourself via `POST /api/auth/token` (`X-API-Key: <rawKey>`) and
+hand the short-lived token over through the `Token` setting.
 
 ### Related docs
 

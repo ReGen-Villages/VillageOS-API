@@ -24,6 +24,7 @@ var publicFormOrigins = new LaunchSettingReader(args, builder.Configuration).Rea
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
+var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
@@ -63,14 +64,14 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<IntakeMyceliumClient>>(),
             myceliumUrl,
-            serviceToken));
+            serviceToken, apiKey: apiKey));
 
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>
         new SubscriptionClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<SubscriptionClient>>(),
             myceliumUrl,
-            serviceToken));
+            serviceToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddSingleton<SubmissionIntakeService>();

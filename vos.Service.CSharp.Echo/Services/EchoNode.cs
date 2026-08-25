@@ -6,8 +6,8 @@ namespace vos.Service.CSharp.Echo.Services;
 // echo output. The reference node — the smallest thing that proves the envelope end to end.
 public sealed class EchoNode : DagNodeService
 {
-    public EchoNode(IHttpClientFactory httpClientFactory, ILogger<EchoNode> logger, string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+    public EchoNode(IHttpClientFactory httpClientFactory, ILogger<EchoNode> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
     {
     }
 

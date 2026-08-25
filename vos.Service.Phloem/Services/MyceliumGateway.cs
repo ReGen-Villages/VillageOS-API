@@ -18,8 +18,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     private readonly ConcurrentDictionary<string, Guid> _archetypeIdByRoleFlag = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, byte> _createdNodeRuns = new();
 
-    public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken) { }
+    public MyceliumGateway(IHttpClientFactory httpClientFactory, ILogger<MyceliumGateway> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
 
     public Task<bool> RegisterAsync(int port) => RegisterAsync(port, "Phloem", "endpoint-service");
 

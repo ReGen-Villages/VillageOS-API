@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Shared.Subscriptions;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Shared.Tests.Subscriptions;

@@ -20,6 +20,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
+var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
@@ -46,7 +47,7 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<MyceliumGateway>>(),
             myceliumUrl,
-            serviceToken));
+            serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<IMyceliumGateway>(sp => sp.GetRequiredService<MyceliumGateway>());
     builder.Services.AddSingleton<PipelineExecutor>();
 

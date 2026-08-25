@@ -12,8 +12,8 @@ namespace vos.Service.Shared.DagNode;
 // optional /manifest endpoint and the Trellis palette.
 public abstract class DagNodeService : MyceliumClientBase
 {
-    protected DagNodeService(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken)
+    protected DagNodeService(IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
     {
     }
 

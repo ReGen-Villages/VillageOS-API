@@ -10,8 +10,8 @@ namespace vos.Service.Delta.Services;
 // Adds Delta-specific operations (thing/relationship CRUD).
 public class MyceliumClient : MyceliumClientBase
 {
-    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken) { }
+    public MyceliumClient(IHttpClientFactory httpClientFactory, ILogger<MyceliumClient> logger, string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) { }
 
     public readonly record struct MyceliumThing(Guid Id, string Name, Dictionary<string, object?> Properties);
 

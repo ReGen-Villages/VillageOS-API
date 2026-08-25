@@ -20,9 +20,9 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
 
     public RainwaterHarvestReactiveHandler(
         IHttpClientFactory httpClientFactory, ILogger<RainwaterHarvestReactiveHandler> logger,
-        string myceliumUrl, string? serviceToken = null)
-        : base(httpClientFactory, logger, myceliumUrl, serviceToken) =>
-        _subscriptions = new SubscriptionClient(httpClientFactory, logger, myceliumUrl, serviceToken);
+        string myceliumUrl, string? serviceToken = null, string? apiKey = null)
+        : base(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey) =>
+        _subscriptions = new SubscriptionClient(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey);
 
     /// <summary>The subscription client is supplied rather than built, so a test can hand it a snapshot
     /// instead of a broker.</summary>

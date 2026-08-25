@@ -19,8 +19,8 @@ public abstract class MyceliumClientBase
     protected readonly IHttpClientFactory HttpClientFactory;
     protected readonly ILogger Logger;
     public string MyceliumUrl { get; }
-    private readonly string? _serviceToken;
     private readonly Func<Task<string?>>? _tokenProvider;
+    private readonly ServiceCredential _credential;
 
     public Guid HandlerId { get; } = Guid.NewGuid();
 
@@ -49,13 +49,13 @@ public abstract class MyceliumClientBase
 
     protected MyceliumClientBase(
         IHttpClientFactory httpClientFactory, ILogger logger, string myceliumUrl, string? serviceToken = null,
-        Func<Task<string?>>? tokenProvider = null)
+        Func<Task<string?>>? tokenProvider = null, string? apiKey = null)
     {
         HttpClientFactory = httpClientFactory;
         Logger = logger;
         MyceliumUrl = myceliumUrl;
-        _serviceToken = serviceToken;
         _tokenProvider = tokenProvider;
+        _credential = new ServiceCredential(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey);
     }
 
     public async Task<string?> GetTokenAsync()
@@ -65,11 +65,10 @@ public abstract class MyceliumClientBase
         if (_tokenProvider != null)
             return await _tokenProvider();
 
-        if (!string.IsNullOrEmpty(MyceliumModelToken.Current))
-            return MyceliumModelToken.Current;
-
-        if (!string.IsNullOrEmpty(_serviceToken))
-            return _serviceToken;
+        // Whatever the service holds is final, including a key whose exchange came back with nothing:
+        // asking the broker below would reach further than the credential the operator chose.
+        if (_credential.Holds)
+            return await _credential.GetTokenAsync();
 
         string body;
         try

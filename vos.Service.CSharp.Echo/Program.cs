@@ -19,6 +19,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
+var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 var logPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "logs", "echo-.log");
@@ -63,14 +64,14 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
         "Echo",
         myceliumUrl,
-        serviceToken));
+        serviceToken, apiKey: apiKey));
 
 builder.Services.AddSingleton(sp =>
     new EchoNode(
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<ILogger<EchoNode>>(),
         myceliumUrl,
-        serviceToken));
+        serviceToken, apiKey: apiKey));
 
 var app = builder.Build();
 
@@ -171,7 +172,7 @@ var selectorEndpoint = app.MapPost("/demo/subscribe",
     async (SelectorDemoRequest? req, IHttpClientFactory httpFactory, ILoggerFactory loggerFactory) =>
 {
     var subscriptions = new SubscriptionClient(
-        httpFactory, loggerFactory.CreateLogger("SelectorDemo"), myceliumUrl, serviceToken);
+        httpFactory, loggerFactory.CreateLogger("SelectorDemo"), myceliumUrl, serviceToken, apiKey: apiKey);
     var selector = SelectorDemo.SliceByTypeAndTraverse(req?.Type ?? "Battery", req?.Predicate ?? "powers");
     var result = await new SelectorDemo(subscriptions).RunAsync(selector);
     return Results.Ok(result);

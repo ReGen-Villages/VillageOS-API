@@ -20,6 +20,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
+var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 ServiceHost.ConfigureLogging("RainwaterHarvest", "rainwater-harvest-.log");
@@ -45,11 +46,11 @@ try
             sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
             "RainwaterHarvest",
             myceliumUrl,
-            serviceToken));
+            serviceToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new RainwaterHarvestReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<RainwaterHarvestReactiveHandler>>(), myceliumUrl, serviceToken));
+            sp.GetRequiredService<ILogger<RainwaterHarvestReactiveHandler>>(), myceliumUrl, serviceToken, apiKey: apiKey));
 
     // Recompute when an input moves. Both footprints are among them, so a re-run of land allocation
     // carries through to this balance without anything dispatching it again.

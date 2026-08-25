@@ -20,6 +20,7 @@ if (launchSettings == null)
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
+var apiKey = launchSettings.ApiKey;
 var verificationKey = launchSettings.VerificationKey;
 
 ServiceHost.ConfigureLogging("FoodBalance", "food-balance-.log");
@@ -45,11 +46,11 @@ try
             sp.GetRequiredService<ILogger<EndpointServiceMyceliumClient>>(),
             "FoodBalance",
             myceliumUrl,
-            serviceToken));
+            serviceToken, apiKey: apiKey));
 
     builder.Services.AddSingleton(sp =>
         new FoodBalanceReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<FoodBalanceReactiveHandler>>(), myceliumUrl, serviceToken));
+            sp.GetRequiredService<ILogger<FoodBalanceReactiveHandler>>(), myceliumUrl, serviceToken, apiKey: apiKey));
 
     // Recompute when an input moves. The productive footprint is one of them, so a re-run of land
     // allocation carries through to this balance without anything dispatching it again.
