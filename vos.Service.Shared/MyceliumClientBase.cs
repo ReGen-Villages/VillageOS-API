@@ -19,9 +19,8 @@ public abstract class MyceliumClientBase
     protected readonly IHttpClientFactory HttpClientFactory;
     protected readonly ILogger Logger;
     public string MyceliumUrl { get; }
-    private readonly string? _serviceToken;
     private readonly Func<Task<string?>>? _tokenProvider;
-    private readonly ApiKeyTokenSource? _apiKeyTokens;
+    private readonly ServiceCredential _credential;
 
     public Guid HandlerId { get; } = Guid.NewGuid();
 
@@ -55,11 +54,8 @@ public abstract class MyceliumClientBase
         HttpClientFactory = httpClientFactory;
         Logger = logger;
         MyceliumUrl = myceliumUrl;
-        _serviceToken = serviceToken;
         _tokenProvider = tokenProvider;
-        _apiKeyTokens = string.IsNullOrEmpty(apiKey)
-            ? null
-            : new ApiKeyTokenSource(httpClientFactory, logger, myceliumUrl, apiKey);
+        _credential = new ServiceCredential(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey);
     }
 
     public async Task<string?> GetTokenAsync()
@@ -69,17 +65,10 @@ public abstract class MyceliumClientBase
         if (_tokenProvider != null)
             return await _tokenProvider();
 
-        if (!string.IsNullOrEmpty(MyceliumModelToken.Current))
-            return MyceliumModelToken.Current;
-
-        // The key answers before a static token because it is the durable credential and may be
-        // confined to one model — and a failed exchange answers null rather than falling back to a
-        // broader credential.
-        if (_apiKeyTokens != null)
-            return await _apiKeyTokens.GetTokenAsync();
-
-        if (!string.IsNullOrEmpty(_serviceToken))
-            return _serviceToken;
+        // Whatever the service holds is final, including a key whose exchange came back with nothing:
+        // asking the broker below would reach further than the credential the operator chose.
+        if (_credential.Holds)
+            return await _credential.GetTokenAsync();
 
         string body;
         try

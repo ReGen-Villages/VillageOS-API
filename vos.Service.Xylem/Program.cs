@@ -1,5 +1,6 @@
 using vos.Auth.Shared;
 using vos.Service.Xylem.Configuration;
+using vos.Service.Shared;
 using vos.Service.Shared.Configuration;
 using vos.Service.Xylem.Services;
 using Serilog;
@@ -47,10 +48,17 @@ try
         Log.Information("JWT authentication enabled (issuer={Issuer}, audience={Audience})", launchSettings.Service.Issuer, launchSettings.Service.Audience);
     }
 
+    // One credential for the whole service: the ingest tool and the model clear present the same thing,
+    // and a key is exchanged once rather than once per caller.
+    builder.Services.AddSingleton(sp => new ServiceCredential(
+        sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<ILogger<ServiceCredential>>(),
+        launchSettings.Service.MyceliumUrl, launchSettings.Service.Token, launchSettings.Service.ApiKey));
     builder.Services.AddSingleton<IModelIngestRunner>(sp => new ModelIngestRunner(
-        launchSettings.ModelIngestDll ?? "", launchSettings.Service.MyceliumUrl, launchSettings.Service.Token, sp.GetRequiredService<ILogger<ModelIngestRunner>>()));
+        launchSettings.ModelIngestDll ?? "", launchSettings.Service.MyceliumUrl,
+        sp.GetRequiredService<ServiceCredential>(), sp.GetRequiredService<ILogger<ModelIngestRunner>>()));
     builder.Services.AddSingleton<IModelPreparer>(sp => new HttpModelPreparer(
-        sp.GetRequiredService<IHttpClientFactory>(), launchSettings.Service.MyceliumUrl, launchSettings.Service.Token));
+        sp.GetRequiredService<IHttpClientFactory>(), launchSettings.Service.MyceliumUrl,
+        sp.GetRequiredService<ServiceCredential>()));
     builder.Services.AddSingleton(sp => new IngestHandler(
         sp.GetRequiredService<IModelIngestRunner>(), sp.GetRequiredService<IModelPreparer>()));
     builder.Services.AddSingleton<IngestJobStore>();

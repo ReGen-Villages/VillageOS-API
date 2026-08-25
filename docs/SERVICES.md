@@ -771,12 +771,17 @@ setting (Mycelium mints it and sets it on the daemon's environment when it
 launches the daemon). A service nobody launches on demand — the public intake
 service most of all — needs a credential that does not expire, so a service can
 hold an **API key** instead, supplied through the `ApiKey` setting
-(configuration or environment, never the command line). The shared client
+(configuration or environment, never the command line). `ServiceCredential`
 exchanges it at `POST /api/auth/token` with the `X-API-Key` header, holds the
 minted token, and exchanges again shortly before it expires — never per call.
 When both `ApiKey` and `Token` are set the key answers, because it is the
 durable credential and may be confined to one model; a failed exchange answers
 nothing rather than falling back to a broader credential.
+
+Every service presents what `ServiceCredential` answers, whether it calls
+through the shared client or builds the request itself, so a service written
+either way honours `ApiKey`. Xylem, which reaches the broker directly to clear
+a model and to launch the ingest tool, asks the same thing.
 
 Create a key like this:
 

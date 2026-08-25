@@ -53,9 +53,11 @@ and cannot make one. See [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md) § Inbou
 why naming the algorithm matters.
 
 A service that must outlive any JWT — one nobody starts on demand — holds an **API key** (the
-`ApiKey` setting) instead of a `Token`: the shared client exchanges it at `POST /api/auth/token`
+`ApiKey` setting) instead of a `Token`: `ServiceCredential` exchanges it at `POST /api/auth/token`
 with the `X-API-Key` header, holds the minted token, and exchanges again shortly before it expires.
-A key can be confined to one model, which is what confines the service.
+A key can be confined to one model, which is what confines the service. Ask `ServiceCredential` for
+what to present rather than reading the `Token` setting, so a service that builds its own requests
+honours a key as well as one calling through the shared client.
 
 EventSource and other streaming clients that can't set headers pass `?access_token=<token>` on the SSE
 stream URLs instead. That token is a **stream token** from `POST /api/auth/stream-token`, not the

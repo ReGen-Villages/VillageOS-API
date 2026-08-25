@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using vos.Service.Shared;
 
 namespace vos.Service.Xylem.Services;
 
@@ -18,14 +19,15 @@ public sealed class ModelIngestRunner : IModelIngestRunner
 
     private readonly string _modelIngestDll;
     private readonly string _myceliumUrl;
-    private readonly string? _token;
+    private readonly ServiceCredential _credential;
     private readonly ILogger<ModelIngestRunner> _log;
 
-    public ModelIngestRunner(string modelIngestDll, string myceliumUrl, string? token, ILogger<ModelIngestRunner> log)
+    public ModelIngestRunner(
+        string modelIngestDll, string myceliumUrl, ServiceCredential credential, ILogger<ModelIngestRunner> log)
     {
         _modelIngestDll = modelIngestDll;
         _myceliumUrl = myceliumUrl;
-        _token = token;
+        _credential = credential;
         _log = log;
     }
 
@@ -34,7 +36,7 @@ public sealed class ModelIngestRunner : IModelIngestRunner
         if (string.IsNullOrEmpty(_modelIngestDll) || !File.Exists(_modelIngestDll))
             return new IngestRunResult(false, 0, 0, 0, $"ModelIngest tool not found at '{_modelIngestDll}'.");
 
-        using var proc = Process.Start(BuildStartInfo(ifcPath, modelName));
+        using var proc = Process.Start(await BuildStartInfoAsync(ifcPath, modelName, ct));
         if (proc is null) return new IngestRunResult(false, 0, 0, 0, "Failed to start ModelIngest process.");
 
         var stdout = await proc.StandardOutput.ReadToEndAsync(ct);
@@ -55,7 +57,7 @@ public sealed class ModelIngestRunner : IModelIngestRunner
     // readable by anything that can list processes, and by any diagnostic that captures a command line.
     // An absent token is removed rather than left inherited, so the ingest tool authenticates with this
     // setting and nothing else.
-    internal ProcessStartInfo BuildStartInfo(string ifcPath, string modelName)
+    internal async Task<ProcessStartInfo> BuildStartInfoAsync(string ifcPath, string modelName, CancellationToken ct)
     {
         var psi = new ProcessStartInfo("dotnet")
         {
@@ -69,8 +71,9 @@ public sealed class ModelIngestRunner : IModelIngestRunner
         psi.ArgumentList.Add("--name"); psi.ArgumentList.Add(modelName);
         psi.ArgumentList.Add("--profile"); psi.ArgumentList.Add("analysis");
 
-        if (string.IsNullOrEmpty(_token)) psi.Environment.Remove("Token");
-        else psi.Environment["Token"] = _token;
+        var token = await _credential.GetTokenAsync(ct);
+        if (string.IsNullOrEmpty(token)) psi.Environment.Remove("Token");
+        else psi.Environment["Token"] = token;
 
         return psi;
     }
