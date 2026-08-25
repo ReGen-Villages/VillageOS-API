@@ -856,12 +856,17 @@ the property becomes an edge to one.
 
 **The portal cannot yet be called for a site (#6735).** Every one of its routes takes an administrative
 division code, and its per-hazard route takes a two-letter code for the hazard type — `FL`, `LS`, `WF`.
-Neither is in the model: a site carries coordinates, and a `HazardAssessment` carries the hazard type as
-a word. Two things have to exist before a registration can be written. The Place a site is in has to
-carry the portal's division code, which is a natural home for it because the portal's divisions are
-exactly what a Place is. And the hazard type has to be a Thing that can carry the portal's own code for
-it, which is the migration Bug #6736 begins. Until then the level takes observations only and nothing
-can write one, so every hazard a submission mints reads as unassessed.
+Neither value is in the model, so two things have to land before a registration can be written:
+
+- **The Place a site is in carries the portal's division code.** That is a natural home rather than a
+  workaround — the portal's divisions are exactly what a Place is, and coverage already walks
+  `Site isIn Place`, so the coverage read already returns the Thing the value would sit on.
+- **The hazard type carries the portal's own code for it.** The type is now a Thing under the
+  `HazardType` archetype, reached by `assesses` (Bug #6737), which is what makes this possible: a code
+  belonging to one portal can hang off that Thing, where a word on an assessment could carry nothing.
+
+Until both land the level takes observations only and nothing can write one, so every hazard a
+submission mints reads as unassessed — which is the honest answer, not a safe one.
 
 ---
 
