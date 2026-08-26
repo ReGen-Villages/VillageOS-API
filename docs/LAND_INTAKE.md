@@ -311,11 +311,12 @@ the work.
 }
 ```
 
-`allocatedAreaHectares` is shown above because the wire accepts it, but a submission must not carry it:
-the shared analysis declares that property and `normalisedSharePct` as formulas on the allocation itself,
-and a derived property refuses every value write. A figure submitted alongside the share is a second
-answer to a question the model already answers, and this one would be refused. The wizard sends the share
-alone.
+`allocatedAreaHectares` is shown above because the wire still accepts it, but **nothing is done with it**.
+The shared analysis declares that property and `normalisedSharePct` as formulas on the allocation itself,
+computed from its own share and the parcel its site holds, and a derived property refuses every value
+write. So an area a caller supplies is bounds-checked with everything else and then discarded rather than
+written — passing it through would fail the whole fragment on a field the wire advertises (Bug #6762).
+The wizard sends the share alone.
 
 Each of these rules exists to stop a particular kind of quiet damage:
 
