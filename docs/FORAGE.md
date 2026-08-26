@@ -98,10 +98,33 @@ A failed read returns **502**, never an empty list. An unreachable gateway must 
 "no source covers this site" — the two answers look identical to a caller and only one of
 them is true.
 
+## What starts a run
+
+**A site entering a state, not a call.** The model declares a range on the `Site` archetype,
+`SiteAwaitingDiscovery` — coordinates known, and nothing has written onto the site yet — and a
+connection bound to this service watches it. A site entering that state makes the platform write a
+durable record-edge from the site to the connection and dispatch it. Nothing in either repository
+calls Forage, and nothing has to: **what started a run is a fact in the model afterwards**, which a
+call over HTTP would have left only in a log.
+
+| | How it happens |
+|---|---|
+| A run starts | A site's coordinates are written and no source has yet observed it |
+| A run does not start again | The first source to ingest relates its registration to the site through `observed`, the count moves off nought, and the site leaves the state on its own |
+| A run that reached nothing retries | No source resolved means no `observed` edge, so the site stays in the state and the next load dispatches again — bounded by the platform's oscillation guard |
+| A surveyed site | Enters the same state and is discovered the same way; nothing here is particular to a submission |
+
+The range and the connection are declared in the platform repository — the range beside the `Site`
+archetype in `land-intake.template.json`, the connection beside the sources in
+`open-data-sources.template.json` (platform Task #6771). A deployment that never fetches reads
+neither file and runs no discovery service.
+
 ## The run
 
-`POST /handle { siteId }` resolves the site against every covering source and answers with both
-halves:
+`POST /handle { subjectId }` resolves the site against every covering source. The body is whatever
+the platform posts for a dispatch — the record-edge's own fields — and the subject is read from it
+through the classifier every dispatched service shares, so this service declares no request shape of
+its own. The answer carries both halves:
 
 ```jsonc
 { "siteId": "…",

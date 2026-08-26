@@ -94,7 +94,7 @@ public class AnalysisSpawnTests
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
-        return await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+        return await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
     }
 
     [Fact]
