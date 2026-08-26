@@ -63,9 +63,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Intake.Tests", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.ContinuousIntegration.Tests", "Tests\vos.ContinuousIntegration.Tests\vos.ContinuousIntegration.Tests.csproj", "{98EC7670-7822-4D24-B165-48295397DCB6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Confluence", "vos.Service.Confluence\vos.Service.Confluence.csproj", "{F764CE21-B11E-49E7-91AC-FAD8E01221C6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Forage", "vos.Service.Forage\vos.Service.Forage.csproj", "{F764CE21-B11E-49E7-91AC-FAD8E01221C6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Confluence.Tests", "Tests\vos.Service.Confluence.Tests\vos.Service.Confluence.Tests.csproj", "{88EA6FD5-A34E-4094-B6C8-B69713D71E18}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.Forage.Tests", "Tests\vos.Service.Forage.Tests\vos.Service.Forage.Tests.csproj", "{88EA6FD5-A34E-4094-B6C8-B69713D71E18}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vos.Service.LandAllocation", "vos.Service.LandAllocation\vos.Service.LandAllocation.csproj", "{0F610CB8-9B99-4EA8-86DD-D9D2EC67D340}"
 EndProject

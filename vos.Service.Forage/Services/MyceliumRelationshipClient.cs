@@ -3,7 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using vos.Service.Shared;
 
-namespace vos.Service.Confluence.Services;
+namespace vos.Service.Forage.Services;
 
 // The one write starting an analysis needs. Separate from the fetcher, which speaks to endpoint
 // services rather than to the model.

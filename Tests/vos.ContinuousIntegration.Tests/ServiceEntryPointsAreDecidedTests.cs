@@ -26,7 +26,7 @@ public class ServiceEntryPointsAreDecidedTests
 
     private static readonly Dictionary<string, string> CountedOnPurpose = new()
     {
-        ["vos.Service.Confluence"] = "its endpoints are driven end to end through WebApplicationFactory",
+        ["vos.Service.Forage"] = "its endpoints are driven end to end through WebApplicationFactory",
         ["vos.Service.Intake"] = "its endpoints are driven end to end through WebApplicationFactory",
         ["vos.Service.Phloem"] = "its entry point still holds request handling with no tests behind it",
         ["vos.Service.Xylem"] = "its entry point still holds request handling with no tests behind it",

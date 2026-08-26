@@ -1,9 +1,10 @@
-# Confluence
+# Forage
 
-Confluence resolves a site against the outside world. Given a Site, it works out which data
+Forage resolves a site against the outside world. Given a Site, it works out which data
 sources cover that site, calls each one through Tributary with the site's coordinates, and
-reports what did and did not resolve. The name is where tributaries meet: many Tributary
-calls converging on one Site.
+reports what did and did not resolve. The name is what an organism does when it goes out to
+find what its surroundings hold and brings it back — which is the whole of this service, and
+what `Mycelium` is named for doing underground.
 
 It runs **before** the analysis, never inside it. Discovery populates the Site; the compute
 services read what discovery wrote. That keeps the compute free of any network dependency, so
@@ -120,7 +121,7 @@ sources cannot open a burst of connections that reads as abuse. Any one source i
 than one that refuses outright, and it must not hold up the run. A run cancelled by its caller is
 never reported as a timeout — that would put a fabricated outage in front of a planner.
 
-**Fetching is not done here.** Confluence asks Mycelium to forward each call to the endpoint service
+**Fetching is not done here.** Forage asks Mycelium to forward each call to the endpoint service
 named by `--fetcherSubdomain`, which resolves the registration, fills the address placeholders,
 reshapes the response and writes the observation onto the Site. **Each call names the site as its
 subject**, so the reading lands on the site the run is for rather than on whatever entity the shared
@@ -138,7 +139,7 @@ never reaches the ingest, so it leaves no edge suggesting it did.
 
 ## Starting the analysis
 
-**When the run finishes, Confluence relates the site's study to each compute service** — one
+**When the run finishes, Forage relates the site's study to each compute service** — one
 `SiteStudy -connection-> prototype` edge per marked connection. A connection bound to a service is a
 handled predicate, so creating that edge is what dispatches it; no compute service is called from
 here. The model carries the trigger, which means there is one way to start an analysis rather than
@@ -169,7 +170,7 @@ them. A write that fails for one connection names that connection.
 
 ## Pointers
 
-- [`TRIBUTARY.md`](TRIBUTARY.md) — the fetcher Confluence calls, its per-call address
+- [`TRIBUTARY.md`](TRIBUTARY.md) — the fetcher Forage calls, its per-call address
   parameters, and how a reshape expression turns a response into an observation on the Site.
 - [`LAND_INTAKE.md`](LAND_INTAKE.md) — the intake design this serves, and the model the
   Site, Parcel and DataSource archetypes sit in.

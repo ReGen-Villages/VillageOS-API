@@ -1,7 +1,7 @@
 using System.Text.Json;
 using vos.Service.Shared.Subscriptions;
 
-namespace vos.Service.Confluence.Helpers;
+namespace vos.Service.Forage.Helpers;
 
 // The site's own property values, as the parameters a source's address may name.
 //

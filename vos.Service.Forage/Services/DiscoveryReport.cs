@@ -1,4 +1,4 @@
-namespace vos.Service.Confluence.Services;
+namespace vos.Service.Forage.Services;
 
 // What one source's fetch came to. A source is resolved or it is not; an unresolved one always
 // carries a reason, because a list that says only "not resolved" is the silently-short list this

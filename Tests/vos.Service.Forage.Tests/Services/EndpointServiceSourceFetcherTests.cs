@@ -2,11 +2,11 @@ using System.Net;
 using System.Text;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using vos.Service.Confluence.Services;
+using vos.Service.Forage.Services;
 using vos.Tests.Shared;
 using Xunit;
 
-namespace vos.Service.Confluence.Tests.Services;
+namespace vos.Service.Forage.Tests.Services;
 
 public class EndpointServiceSourceFetcherTests
 {

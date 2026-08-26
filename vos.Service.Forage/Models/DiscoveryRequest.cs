@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace vos.Service.Confluence.Models;
+namespace vos.Service.Forage.Models;
 
 public class DiscoveryRequest
 {

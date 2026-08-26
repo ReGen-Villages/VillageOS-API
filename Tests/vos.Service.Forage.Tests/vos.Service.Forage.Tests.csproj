@@ -22,7 +22,7 @@
     <PackageReference Include="FluentAssertions" Version="6.12.0"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\vos.Service.Confluence\vos.Service.Confluence.csproj"/>
+    <ProjectReference Include="..\..\vos.Service.Forage\vos.Service.Forage.csproj"/>
     <ProjectReference Include="..\vos.Tests.Shared\vos.Tests.Shared.csproj"/>
   </ItemGroup>
 </Project>

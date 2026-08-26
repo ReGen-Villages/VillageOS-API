@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text;
 
-namespace vos.Service.Confluence.Tests;
+namespace vos.Service.Forage.Tests;
 
-// The one Mycelium read Confluence makes: a scoped snapshot. Builds the payload a real subscription
+// The one Mycelium read Forage makes: a scoped snapshot. Builds the payload a real subscription
 // returns, so a test declares a model rather than a JSON document.
 internal static class ModelSnapshotStub
 {

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using vos.Service.Shared.Subscriptions;
 
-namespace vos.Service.Confluence.Helpers;
+namespace vos.Service.Forage.Helpers;
 
 // A source that covers the site, and the endpoint registration a call to it goes through.
 public sealed record CoveringSource(string Name, string EndpointName);

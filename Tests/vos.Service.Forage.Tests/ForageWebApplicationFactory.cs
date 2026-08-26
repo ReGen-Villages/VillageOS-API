@@ -7,12 +7,12 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using vos.Tests.Shared;
 using Xunit;
 
-namespace vos.Service.Confluence.Tests;
+namespace vos.Service.Forage.Tests;
 
 // Mirrors TributaryWebApplicationFactory: settings arrive through UseSetting because the settings
 // reader falls back to those when no command-line flags are present, which is always the case here,
 // and IHttpClientFactory is replaced so the subscription read routes through the per-test handler.
-public class ConfluenceWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
+public class ForageWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     public Func<HttpRequestMessage, HttpResponseMessage> HandlerCallback { get; set; }
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);

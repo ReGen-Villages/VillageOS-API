@@ -3,11 +3,11 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-using vos.Service.Confluence.Helpers;
+using vos.Service.Forage.Helpers;
 using Xunit;
-using static vos.Service.Confluence.Tests.ModelSnapshotStub;
+using static vos.Service.Forage.Tests.ModelSnapshotStub;
 
-namespace vos.Service.Confluence.Tests;
+namespace vos.Service.Forage.Tests;
 
 // What happens once the run finishes: the site's analysis starts, whatever mixture of sources resolved.
 // Driven through /handle, because the thing worth pinning is that discovery and the analysis are one
@@ -84,7 +84,7 @@ public class AnalysisSpawnTests
         Dictionary<string, Guid> ids, Edge[] edges, SpawnRecorder spawns,
         Func<HttpRequestMessage, HttpResponseMessage?>? intercept = null)
     {
-        await using var factory = new ConfluenceWebApplicationFactory();
+        await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = request =>
             intercept?.Invoke(request)

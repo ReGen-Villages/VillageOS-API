@@ -417,7 +417,7 @@ observations only, so nobody can type it in and a fetch is the only thing that c
 Three things about it are worth reading off:
 
 - **The placeholders are the Site's own property names.** `{latitude}` and `{longitude}` are filled per
-  call from the site's values, so one registration serves every site. Confluence passes a site's whole
+  call from the site's values, so one registration serves every site. Forage passes a site's whole
   value set to every source and the fill takes only the names the address uses.
 - **The reading names no Thing.** The discovery run supplies `subjectId`, so a name here would fit one
   site and be wrong for every other — see *Naming the subject a call is about* above.
