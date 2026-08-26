@@ -89,7 +89,7 @@ try
 
     // A run is started by the site entering the state the discovery connection watches, so the body is
     // whatever the broker posts for a dispatch and the subject is read through the shared classifier
-    // rather than a shape of this service's own (Task #6753).
+    // rather than a shape of this service's own.
     var handleEndpoint = app.MapPost("/handle", async (
         CoveringSourceService coveringSources,
         DiscoveryRunner runner,
