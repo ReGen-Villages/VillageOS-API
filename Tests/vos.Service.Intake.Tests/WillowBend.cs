@@ -67,10 +67,14 @@ public static class WillowBend
         "urban-flood",
     ];
 
+    public static readonly Guid IsInPredicateId = StableIdentity.Derive("isIn", "predicate");
+    public static readonly Guid RootPlaceId = StableIdentity.Derive("Earth", "place");
+
     public static DeclaredVocabulary KnownVocabulary => new(
         Declared(CategorizedAsPredicateId, "categorizedAs", AllocationCategoryNames),
         Declared(ObtainedByPredicateId, "obtainedBy", BoundarySourceNames),
-        Declared(AssessesPredicateId, "assesses", HazardTypeNames));
+        Declared(AssessesPredicateId, "assesses", HazardTypeNames),
+        new DeclaredPlace(new DeclaredTerm("isIn", IsInPredicateId), new DeclaredTerm("Earth", RootPlaceId)));
 
     public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
 

@@ -105,6 +105,17 @@ public static class SubmissionFragmentComposer
         BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
         BeArchetype(studyThing, archetypes.SiteStudy, SiteStudyArchetypeName);
 
+        // Discovery walks outwards from the site through this edge to find which sources cover it, so a
+        // site related to no Place reaches none and every source reads as covering nowhere — which is
+        // indistinguishable from a model holding no source at all, and reports neither a resolved source
+        // nor an unresolved one. The root is enough for a source that covers everything. Narrower Places
+        // are not minted from the submitted country: that is an open set nobody enumerates, `country` is
+        // optional, and a term the model does not hold would have to be refused (Task 6684).
+        Relate(siteThing,
+            new PredicateIdentity(
+                vocabulary.PlaceNesting.Predicate.Name, vocabulary.PlaceNesting.Predicate.Id, Minted: false),
+            new NamedThing(vocabulary.PlaceNesting.Root.Id, vocabulary.PlaceNesting.Root.Name));
+
         // The arrival itself, kept where a reviewer can ask about it. It proposes the site rather than
         // holding it: a promotion carries the group reachable from the site through `has` and `studies`,
         // and this record belongs to intake — it is resolved after the copy has landed, so a copy of it in

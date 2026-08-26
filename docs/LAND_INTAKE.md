@@ -626,6 +626,20 @@ end of the edge. **The edge is the only record**: neither term is also written a
 came from, because a copy beside the edge can be read but not walked from, and two readings of one value
 can come to disagree with nothing to notice.
 
+**A site is also related to the Place it sits in, and that is not a vocabulary.** Nothing is resolved
+against it — a submission names no Place. The producer relates every site to the one Place marked as the
+root, through the predicate marked as the nesting one, because discovery walks outwards from the site
+through that edge to find which sources cover it. A site related to no Place reaches none, every source
+then reads as covering nowhere, and the run reports neither a resolved source nor an unresolved one — a
+planner is told nothing was found rather than that nothing was looked for.
+
+**Why the country is not used for this.** It is tempting to relate the site to the country the submitter
+named, and wrong twice over: `country` is optional, and the vocabulary pattern above *refuses* a word the
+model does not hold, which would turn an undeclared country into a rejected submission. Countries are an
+open set nobody can enumerate, so they stay text. A source covering the root covers every site, which is
+all the registered sources need today; the first source with narrower coverage is what should force a
+narrower Place, and the hazard portal needs one carrying its administrative division code.
+
 The design decisions worth stating:
 
 **The parcel is its own Thing, not a property on the site.** A site can be re-surveyed. Keeping the

@@ -28,6 +28,12 @@ public static class DeclaredVocabularyReader
     public const string HazardTypeArchetypeFlag = "__IsHazardTypeArchetype";
     public const string HazardTypePredicateFlag = "__IsHazardTypePredicate";
 
+    // Where a site sits, rather than what a submitted word means. Both are marks for the same reason the
+    // vocabularies are: a producer naming `Earth` relates nothing, and says nothing, in a model that calls
+    // its root something else — and a site related to no Place is one no source is ever selected for.
+    public const string RootPlaceFlag = "__IsRootPlace";
+    public const string PlaceNestingPredicateFlag = "__IsPlaceNestingPredicate";
+
     /// <summary>Every vocabulary in one read. The terms come from the archetype marks and the predicates
     /// from their own, and `is` is named so the walk from an archetype to its terms can recognise the
     /// edges the snapshot carries.</summary>
@@ -35,8 +41,13 @@ public static class DeclaredVocabularyReader
     {
         Names = [SubmissionFragmentComposer.IsPredicateName],
         MarkedTypes = [AllocationCategoryArchetypeFlag, BoundarySourceArchetypeFlag, HazardTypeArchetypeFlag],
+        // The root Place belongs here beside the predicates rather than with the marked types: it is a
+        // Thing whose id an edge is written to, not an archetype whose members are wanted.
         MarkedArchetypes =
-            [AllocationCategoryPredicateFlag, BoundarySourcePredicateFlag, HazardTypePredicateFlag],
+        [
+            AllocationCategoryPredicateFlag, BoundarySourcePredicateFlag, HazardTypePredicateFlag,
+            RootPlaceFlag, PlaceNestingPredicateFlag,
+        ],
         IncludeRelationships = true,
     };
 
@@ -46,7 +57,21 @@ public static class DeclaredVocabularyReader
         TermsMarked(snapshot, BoundarySourceArchetypeFlag, BoundarySourcePredicateFlag,
             "how a parcel boundary was obtained"),
         TermsMarked(snapshot, HazardTypeArchetypeFlag, HazardTypePredicateFlag,
-            "what a hazard assessment is about"));
+            "what a hazard assessment is about"),
+        PlaceNesting(snapshot));
+
+    // No terms to walk: a submission names no Place, so this reads the two Things an edge is written from
+    // and to. The same one-carrier rule applies — two roots would put a site under a different one on
+    // different submissions, and the sources selected for it would differ by run.
+    private static DeclaredPlace PlaceNesting(SnapshotDocument snapshot)
+    {
+        const string whatItDeclares = "where a site sits";
+        var predicate = OneCarrying(snapshot, PlaceNestingPredicateFlag, whatItDeclares);
+        var root = OneCarrying(snapshot, RootPlaceFlag, whatItDeclares);
+        return new DeclaredPlace(
+            new DeclaredTerm(predicate.Name ?? string.Empty, predicate.Id),
+            new DeclaredTerm(root.Name ?? string.Empty, root.Id));
+    }
 
     private static DeclaredTerms TermsMarked(
         SnapshotDocument snapshot, string archetypeFlag, string predicateFlag, string whatItDeclares)

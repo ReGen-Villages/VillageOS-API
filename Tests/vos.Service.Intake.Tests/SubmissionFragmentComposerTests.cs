@@ -795,4 +795,40 @@ public class SubmissionFragmentComposerTests
 
     private static SubmissionError Refusal(Submission submission) =>
         Assert.Throws<SubmissionError>(() => Compose(submission));
+
+    // Coverage is walked from the site outwards through `isIn`, so a site related to no Place reaches no
+    // Place, and every source reads as covering nowhere. That is indistinguishable from a model holding no
+    // source at all: the run reports neither a resolved source nor an unresolved one, and a planner is told
+    // nothing was found rather than that nothing was looked for.
+    [Fact]
+    public void The_site_is_related_to_the_root_place_so_a_covering_source_can_be_selected_for_it()
+    {
+        var composed = Compose(WillowBend.Submission());
+        var site = Named(composed, "Willow Bend");
+
+        Relates(composed, site.Id, WillowBend.IsInPredicateId, WillowBend.RootPlaceId).Should().BeTrue();
+    }
+
+    // A source covering the root covers every site, so one edge is all a global source needs. Narrower
+    // Places are not minted here: a country is an open set nobody enumerates, and `country` stays text.
+    [Fact]
+    public void No_place_is_created_for_the_country_the_submission_named()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        composed.Fragment.Things.Should().NotContain(thing => thing.Name == "Portugal");
+    }
+
+    // The edge is written once however the submission arrives again, the same rule every other edge the
+    // producer writes follows — a fragment upserts, so a second copy would be a second edge to one Place.
+    [Fact]
+    public void The_site_reaches_the_root_place_exactly_once()
+    {
+        var composed = Compose(WillowBend.Submission());
+        var site = Named(composed, "Willow Bend");
+
+        composed.Fragment.Relationships
+            .Count(edge => edge.Subject == site.Id && edge.Predicate == WillowBend.IsInPredicateId)
+            .Should().Be(1);
+    }
 }

@@ -42,8 +42,18 @@ project shares are seed data: `open-data-sources.template.json` in the platform 
 alongside the archetype set (platform User Story #6750). A registration lives in the project's own
 model, so a source every project uses belongs in the seed every project is created from — see
 [`DELTA.md`](DELTA.md#which-model-a-registration-lives-in). **A site's own `isIn` edge is written by
-its producer, not inherited from the archetype**, and the submission producer does not write one yet,
-so a submitted site reaches no Place and this walk selects nothing for it (Bug #6752).
+its producer, not inherited from the archetype.** The submission producer writes one per site, to the
+Place carrying `__IsRootPlace` through the predicate carrying `__IsPlaceNestingPredicate` — both found
+by mark, because a producer naming `Earth` would relate nothing, and say nothing, in a model that
+called its root something else (Bug #6752).
+
+**The root is enough for a source that covers everything, and no more is claimed.** A submitted site
+is not related to a country or a region: `country` on a submission is optional and stays text, it
+names an open set nobody can enumerate, and the vocabulary pattern used elsewhere here *refuses* a
+term the model does not hold — which would turn "we have not declared your country" into "your land
+cannot be submitted". The first source whose coverage is narrower than the whole world is what should
+force that design, and the hazard portal needs a Place carrying its administrative division code, so
+that is where it belongs.
 
 **Why not a `coverage` string.** The failure this path exists to prevent is a source that
 does cover the site being silently skipped because a country was written two ways —
