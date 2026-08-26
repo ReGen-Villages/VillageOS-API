@@ -71,7 +71,7 @@ public class LandAllocationReactiveHandlerTests
             new Dictionary<string, SnapshotProperty>(), new Dictionary<string, InheritedPropertySet>(), []);
 
     // 24 ha split 40/60 between a built category and a productive one.
-    private static SnapshotDocument WillowBend(bool categoriseGrowing = true)
+    private static SnapshotDocument WillowBend(bool categoriseGrowing = true, double parcelAreaHectares = 24.0)
     {
         var studies = Guid.NewGuid();
         var has = Guid.NewGuid();
@@ -86,7 +86,7 @@ public class LandAllocationReactiveHandlerTests
             Thing(categorizedAs, "categorizedAs", (ProgrammeSplitReader.CategoryFlag, true)),
             Thing(residential, "residential", (ProgrammeSplitReader.BuiltFootprintFlag, true)),
             Thing(food, "food-and-agriculture", (ProgrammeSplitReader.ProductiveFootprintFlag, true)),
-            Thing(Parcel, "parcel", (ProgrammeSplitReader.ParcelAreaProperty, 24.0)),
+            Thing(Parcel, "parcel", (ProgrammeSplitReader.ParcelAreaProperty, parcelAreaHectares)),
             Thing(Housing, "housing", (ProgrammeSplitReader.SharePctProperty, 40.0)),
             Thing(Growing, "growing", (ProgrammeSplitReader.SharePctProperty, 60.0)),
         };
@@ -167,6 +167,32 @@ public class LandAllocationReactiveHandlerTests
 
         refusal.Message.Should().Contain("growing");
         http.Writes.Should().BeEmpty();
+    }
+
+    // Bug 6767: computing over a site with no parcel wrote footprints of nought, and nought is a figure
+    // every guard accepts — so a site nobody had described was judged as one that genuinely falls short.
+    [Fact]
+    public async Task A_study_that_reaches_no_parcel_writes_neither_footprint()
+    {
+        var (handler, http, _) = NewHandler(new SnapshotDocument(0, [], []));
+
+        var result = await handler.RecomputeAsync(Study);
+
+        result.Should().BeNull();
+        http.Writes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_parcel_stating_nought_hectares_is_still_computed_and_written()
+    {
+        // A described parcel of nought hectares is an answer about the site, unlike no parcel at all.
+        var (handler, http, _) = NewHandler(WillowBend(parcelAreaHectares: 0.0));
+
+        var result = await handler.RecomputeAsync(Study);
+
+        result.Should().NotBeNull();
+        http.Writes.Should().Contain(write =>
+            write.Uri.Contains(LandAllocationReactiveHandler.BuiltFootprintOutput));
     }
 
     [Fact]
