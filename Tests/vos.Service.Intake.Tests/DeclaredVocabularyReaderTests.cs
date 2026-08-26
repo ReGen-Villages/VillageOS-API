@@ -136,8 +136,55 @@ public class DeclaredVocabularyReaderTests
         selector.MarkedArchetypes.Should().BeEquivalentTo(
             DeclaredVocabularyReader.AllocationCategoryPredicateFlag,
             DeclaredVocabularyReader.BoundarySourcePredicateFlag,
-            DeclaredVocabularyReader.HazardTypePredicateFlag);
+            DeclaredVocabularyReader.HazardTypePredicateFlag,
+            DeclaredVocabularyReader.RootPlaceFlag,
+            DeclaredVocabularyReader.PlaceNestingPredicateFlag);
         selector.Names.Should().Equal(SubmissionFragmentComposer.IsPredicateName);
         selector.IncludeRelationships.Should().BeTrue();
+    }
+
+    // The root Place a site is related to, and the predicate that edge is written with. Both are found by
+    // a mark rather than by name for the same reason every other vocabulary is: a producer naming `Earth`
+    // relates nothing, and says nothing, in a model that calls its root something else — and a site
+    // related to no Place is one no source is ever selected for.
+    [Fact]
+    public void The_root_place_and_its_nesting_predicate_are_found_by_their_marks()
+    {
+        var vocabulary = DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build());
+
+        vocabulary.PlaceNesting.Root.Name.Should().Be("Earth");
+        vocabulary.PlaceNesting.Predicate.Name.Should().Be("isIn");
+    }
+
+    [Fact]
+    public void A_model_declaring_no_root_place_is_refused_rather_than_leaving_the_site_unrelated()
+    {
+        var model = DeclaredModel.Seeded().Without("Earth");
+
+        var refusal = () => DeclaredVocabularyReader.Read(model.Build());
+
+        refusal.Should().Throw<ModelNotSeededError>().WithMessage("*__IsRootPlace*");
+    }
+
+    // Two roots leave nothing able to say which one a site sits under, and a site would land beneath a
+    // different one on different submissions — so the sources selected for it would differ by run.
+    [Fact]
+    public void A_model_marking_two_root_places_is_refused_rather_than_picked_between()
+    {
+        var model = DeclaredModel.Seeded().With("Mars", DeclaredVocabularyReader.RootPlaceFlag);
+
+        var refusal = () => DeclaredVocabularyReader.Read(model.Build());
+
+        refusal.Should().Throw<ModelNotSeededError>().WithMessage("*more than one*");
+    }
+
+    [Fact]
+    public void A_model_declaring_no_nesting_predicate_is_refused()
+    {
+        var model = DeclaredModel.Seeded().Without("isIn");
+
+        var refusal = () => DeclaredVocabularyReader.Read(model.Build());
+
+        refusal.Should().Throw<ModelNotSeededError>().WithMessage("*__IsPlaceNestingPredicate*");
     }
 }
