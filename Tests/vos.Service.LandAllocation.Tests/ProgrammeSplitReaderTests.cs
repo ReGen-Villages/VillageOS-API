@@ -205,8 +205,32 @@ public class ProgrammeSplitReaderTests
         var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
 
         split.Categories.Should().BeEmpty();
-        split.ParcelAreaHectares.Should().Be(0);
+        split.ParcelAreaHectares.Should().BeNull();
         split.ReadsFrom.Should().BeEmpty();
+    }
+
+    // Bug 6767: no parcel and a parcel of nought hectares are different answers, and reading both as
+    // nought let a site nobody had described report a definite food shortfall. The reader says which it
+    // found; what to do about it is the handler's.
+    [Fact]
+    public void A_site_holding_no_parcel_reads_as_no_area_rather_than_nought_hectares()
+    {
+        var model = new ModelBuilder().With("study").With("site")
+            .Relate("study", "studies", "site");
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.ParcelAreaHectares.Should().BeNull();
+    }
+
+    [Fact]
+    public void A_parcel_that_states_nought_hectares_reads_as_nought()
+    {
+        var model = WillowBend().With("parcel", (ProgrammeSplitReader.ParcelAreaProperty, 0.0));
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.ParcelAreaHectares.Should().Be(0);
     }
 
     [Fact]

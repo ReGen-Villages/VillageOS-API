@@ -4,9 +4,14 @@ namespace vos.Service.LandAllocation.Services;
 
 /// <summary>What the split reads as: the study's site and parcel, each allocation with the category it
 /// names, and the allocations to follow for changes. An allocation naming no category the model holds is
-/// carried as a gap rather than dropped — a split silently short by one describes a different parcel.</summary>
+/// carried as a gap rather than dropped — a split silently short by one describes a different parcel.
+///
+/// <para>A null area is no parcel reached at all, which is not the same answer as a parcel stating nought
+/// hectares: one is a site nobody has described, the other is a description. Read as the same number,
+/// the first produced footprints of nought that every guard accepted, and a site nothing had assessed
+/// reported a definite food shortfall (6767).</para></summary>
 public sealed record ProgrammeSplit(
-    double ParcelAreaHectares,
+    double? ParcelAreaHectares,
     IReadOnlyList<AllocatedCategory> Categories,
     IReadOnlyList<Guid> ReadsFrom,
     IReadOnlyList<string> Uncategorised);
@@ -72,7 +77,7 @@ public static class ProgrammeSplitReader
         var categories = new List<AllocatedCategory>();
         var readsFrom = new List<Guid>();
         var uncategorised = new List<string>();
-        double parcelArea = 0;
+        double? parcelArea = null;
 
         foreach (var id in held)
         {
@@ -101,7 +106,7 @@ public static class ProgrammeSplitReader
 
         return new ProgrammeSplit(parcelArea, categories, readsFrom, uncategorised);
 
-        ProgrammeSplit Empty() => new(0, [], [], []);
+        ProgrammeSplit Empty() => new(null, [], [], []);
     }
 
     private static Guid? TargetOf(
