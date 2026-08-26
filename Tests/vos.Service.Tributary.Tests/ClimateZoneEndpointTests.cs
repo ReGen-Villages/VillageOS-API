@@ -20,7 +20,7 @@ public class ClimateZoneEndpointTests
     // selected by the marker the provider gives Köppen-Geiger. The reading names no Thing: the discovery
     // run says which site a call is about, and a name here would fit only one site.
     private const string ClimateZoneReshape =
-        "{\"properties\": {\"climateZone\": data[short='KG'].code}}";
+        "{\"properties\": {\"climateZone\": data[short='KG' and text].code}}";
 
     // One point query at a site's coordinates, trimmed to the schemes that matter to the assertions. The
     // Köppen-Geiger entry is deliberately not first: reading the first entry is the mistake this guards.
@@ -33,6 +33,20 @@ public class ClimateZoneEndpointTests
         { "type": "Trewartha", "code": "BS", "short": "T", "text": "Steppe or Semiarid" },
         { "type": "Köppen-Geiger", "code": "Csa", "short": "KG", "text": "Hot-summer Mediterranean climate" },
         { "type": "Whittaker (1970)", "code": "Woodland/shrubland", "short": "W" }
+      ]
+    }
+    """;
+
+    // What the provider answers where its own variants disagree: the primary entry joins both codes and
+    // carries no description, while the variants it read each name one. Verbatim from 13.1, 80.3.
+    private const string ProviderHedges = """
+    {
+      "results": { "lat": 13.1, "lon": 80.3, "version": "0.90-pyzonae" },
+      "status": "OK",
+      "data": [
+        { "type": "Köppen-Geiger", "code": "As/Aw", "short": "KG" },
+        { "type": "Köppen-Geiger, Kottek", "code": "As", "short": "KGk", "text": "Tropical savanna climate with dry-summer characteristics" },
+        { "type": "Köppen-Geiger, Peel", "code": "Aw", "short": "KGp", "text": "Tropical savanna climate with dry-winter characteristics" }
       ]
     }
     """;
@@ -78,6 +92,54 @@ public class ClimateZoneEndpointTests
         // A site the provider cannot classify keeps no zone, rather than taking the nearest scheme's code
         // as though it were one. Nothing is written, which is what leaves the property honestly unknown.
         ok.Should().BeTrue(error);
+        transformed.Should().NotContain("climateZone");
+    }
+
+    // A hedge is the provider declining to say which class applies, so writing either would invent
+    // precision it explicitly withheld, and writing the pair would put a value that is no class at all
+    // onto the site. Nothing is written, which is what leaves the zone honestly unknown — the same
+    // answer a coordinate it holds no classification for already gets.
+    [Fact]
+    public void Reshape_writes_nothing_where_the_provider_hedges_between_two_classes()
+    {
+        var ok = Ingest().TryTransform(
+            ProviderHedges, new JsonataTransform(ClimateZoneReshape), out var transformed, out var error);
+
+        ok.Should().BeTrue(error);
+        transformed.Should().NotContain("As/Aw");
+        transformed.Should().NotContain("climateZone");
+    }
+
+    // The variants are still in the answer and each names one class. Reading one of them is the mistake
+    // this guards: it would look like a confident classification and would disagree with the other half
+    // of the provider's own answer.
+    [Fact]
+    public void Reshape_does_not_fall_back_to_a_variant_the_provider_did_not_settle_on()
+    {
+        var ok = Ingest().TryTransform(
+            ProviderHedges, new JsonataTransform(ClimateZoneReshape), out var transformed, out var error);
+
+        ok.Should().BeTrue(error);
+        transformed.Should().NotContain("\"As\"");
+        transformed.Should().NotContain("\"Aw\"");
+    }
+
+    // A description present but empty is not a description. `$exists` would accept one and let the
+    // hedge through; a plain truth test on the field rejects both, which is why the expression reads
+    // that way. The provider omits the field today — this holds the guard to the intent rather than to
+    // the one shape of absence that has been seen.
+    [Fact]
+    public void Reshape_writes_nothing_where_the_description_is_present_but_empty()
+    {
+        const string emptyDescription = """
+        { "status": "OK", "data": [ { "type": "Köppen-Geiger", "code": "As/Aw", "short": "KG", "text": "" } ] }
+        """;
+
+        var ok = Ingest().TryTransform(
+            emptyDescription, new JsonataTransform(ClimateZoneReshape), out var transformed, out var error);
+
+        ok.Should().BeTrue(error);
+        transformed.Should().NotContain("As/Aw");
         transformed.Should().NotContain("climateZone");
     }
 }
