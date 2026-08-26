@@ -4,11 +4,11 @@ using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
 using Xunit;
-using static vos.Service.Confluence.Tests.ModelSnapshotStub;
+using static vos.Service.Forage.Tests.ModelSnapshotStub;
 
-namespace vos.Service.Confluence.Tests;
+namespace vos.Service.Forage.Tests;
 
-// The /handle surface in vos.Service.Confluence/Program.cs, driven end to end: read the model, call
+// The /handle surface in vos.Service.Forage/Program.cs, driven end to end: read the model, call
 // each covering source through the fetching service, report both halves. The coverage rules are
 // pinned in Helpers/CoveringSourceResolverTests and the run's own behaviour in
 // Services/DiscoveryRunnerTests; these cover what the endpoint composes from them.
@@ -47,7 +47,7 @@ public class HandleEndpointTests
     {
         var ids = TwoSourceNames();
         var fetched = new ConcurrentBag<string>();
-        await using var factory = new ConfluenceWebApplicationFactory();
+        await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
@@ -78,7 +78,7 @@ public class HandleEndpointTests
     public async Task Handle_OneSourceFailing_StillIngestsTheOthersAndReportsTheReason()
     {
         var ids = TwoSourceNames();
-        await using var factory = new ConfluenceWebApplicationFactory();
+        await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
@@ -111,7 +111,7 @@ public class HandleEndpointTests
     {
         var ids = TwoSourceNames();
         var bodies = new ConcurrentBag<string>();
-        await using var factory = new ConfluenceWebApplicationFactory();
+        await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
@@ -139,7 +139,7 @@ public class HandleEndpointTests
         // Covered by nothing is a real answer about the model, not a failure.
         var ids = Names("WillowBend", "Portugal", "isIn", "covers", "resolvedBy");
         var fetches = 0;
-        await using var factory = new ConfluenceWebApplicationFactory();
+        await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
@@ -162,7 +162,7 @@ public class HandleEndpointTests
     {
         // The distinction the whole path exists for: an unreachable gateway must not read as "no
         // source covers this site", which is the silently-short list that hides real sources.
-        await using var factory = new ConfluenceWebApplicationFactory();
+        await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = _ => new HttpResponseMessage(HttpStatusCode.InternalServerError);
         using var client = factory.CreateClient();
@@ -176,7 +176,7 @@ public class HandleEndpointTests
     [Fact]
     public async Task Handle_MissingSiteId_Returns400()
     {
-        await using var factory = new ConfluenceWebApplicationFactory();
+        await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
@@ -193,7 +193,7 @@ public class HandleEndpointTests
         // the process.
         var ids = Names("WillowBend", "isIn", "covers", "resolvedBy");
         var released = 0;
-        await using var factory = new ConfluenceWebApplicationFactory();
+        await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
@@ -212,7 +212,7 @@ public class HandleEndpointTests
     [Fact]
     public async Task Health_ReportsTheService()
     {
-        await using var factory = new ConfluenceWebApplicationFactory();
+        await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
@@ -220,19 +220,19 @@ public class HandleEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("\"status\":\"Healthy\"").And.Contain("\"service\":\"Confluence\"");
+        body.Should().Contain("\"status\":\"Healthy\"").And.Contain("\"service\":\"Forage\"");
     }
 
     [Fact]
     public async Task Shutdown_Returns200WithMessage()
     {
-        await using var factory = new ConfluenceWebApplicationFactory();
+        await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         using var client = factory.CreateClient();
 
         var response = await client.PostAsync("/shutdown", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("Shutting down Confluence");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Shutting down Forage");
     }
 }

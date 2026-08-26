@@ -1,10 +1,10 @@
 using System.Text.Json;
 using FluentAssertions;
-using vos.Service.Confluence.Helpers;
+using vos.Service.Forage.Helpers;
 using vos.Service.Shared.Subscriptions;
 using Xunit;
 
-namespace vos.Service.Confluence.Tests.Helpers;
+namespace vos.Service.Forage.Tests.Helpers;
 
 public class SiteValuesTests
 {

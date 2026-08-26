@@ -1,7 +1,7 @@
 using vos.Auth.Shared;
-using vos.Service.Confluence.Configuration;
-using vos.Service.Confluence.Models;
-using vos.Service.Confluence.Services;
+using vos.Service.Forage.Configuration;
+using vos.Service.Forage.Models;
+using vos.Service.Forage.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Subscriptions;
@@ -9,10 +9,10 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var launchSettings = ConfluenceLaunchSettings.Parse(args, builder.Configuration);
+var launchSettings = ForageLaunchSettings.Parse(args, builder.Configuration);
 if (launchSettings == null)
 {
-    Console.WriteLine(ConfluenceLaunchSettings.UsageMessage);
+    Console.WriteLine(ForageLaunchSettings.UsageMessage);
     Environment.Exit(1);
     return;
 }
@@ -24,12 +24,12 @@ var apiKey = launchSettings.Service.ApiKey;
 var verificationKey = launchSettings.Service.VerificationKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
-ServiceHost.ConfigureLogging("Confluence", "confluence-.log", writeToFile: !isTestingEnv);
+ServiceHost.ConfigureLogging("Forage", "forage-.log", writeToFile: !isTestingEnv);
 
 try
 {
     Log.Information(
-        "VillageOS Confluence Service - Port: {Port}, Mycelium: {MyceliumUrl}, fetching through {Subdomain}",
+        "VillageOS Forage Service - Port: {Port}, Mycelium: {MyceliumUrl}, fetching through {Subdomain}",
         servicePort, myceliumUrl, launchSettings.FetcherSubdomain);
 
     builder.Host.UseSerilog();
@@ -126,7 +126,7 @@ try
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
-    app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Confluence" }));
+    app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Forage" }));
 
     var shutdownEndpoint = app.MapPost("/shutdown", (IHostApplicationLifetime lifetime) =>
     {
@@ -136,7 +136,7 @@ try
             lifetime.StopApplication();
         });
 
-        return Results.Ok(new { message = "Shutting down Confluence" });
+        return Results.Ok(new { message = "Shutting down Forage" });
     });
     if (authEnabled) shutdownEndpoint.RequireAuthorization();
 
@@ -144,7 +144,7 @@ try
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "Confluence terminated unexpectedly");
+    Log.Fatal(ex, "Forage terminated unexpectedly");
 }
 finally
 {

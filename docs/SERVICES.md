@@ -21,14 +21,14 @@ reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
-Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `FoodBalance`, `LandAllocation`, `Metabolism`, `Phloem`,
+Today's .NET services: `Echo`, `Tributary`, `Forage`, `Delta`, `FoodBalance`, `LandAllocation`, `Metabolism`, `Phloem`,
 `RainwaterHarvest`, `WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
 provisions the endpoint-template catalog into a model on that model's first registration, and
 validates every endpoint
 registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
-fetch side of the same endpoint story; `Confluence` resolves a site against every source
+fetch side of the same endpoint story; `Forage` resolves a site against every source
 covering it, calls Tributary for each, and then starts the site's analysis by relating its
-`SiteStudy` to each marked compute connection (see [`CONFLUENCE.md`](CONFLUENCE.md)). `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
+`SiteStudy` to each marked compute connection (see [`FORAGE.md`](FORAGE.md)). `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
 site-analysis nodes: `WaterReserve` computes emergency reserve / days-of-supply / %
 consumption (feeding the 14-day resilience range); `EnergyBalance` computes solar + other
 generation vs consumption → % of consumption and net-positive. Besides the DAG-node path (wired ports),

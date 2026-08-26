@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
-using vos.Service.Confluence.Helpers;
+using vos.Service.Forage.Helpers;
 
-namespace vos.Service.Confluence.Services;
+namespace vos.Service.Forage.Services;
 
 // Runs one site against every source covering it: fetch each through the configured fetcher, bounded
 // in flight, and report both halves.

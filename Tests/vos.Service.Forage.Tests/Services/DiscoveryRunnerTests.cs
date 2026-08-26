@@ -1,10 +1,10 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using vos.Service.Confluence.Helpers;
-using vos.Service.Confluence.Services;
+using vos.Service.Forage.Helpers;
+using vos.Service.Forage.Services;
 using Xunit;
 
-namespace vos.Service.Confluence.Tests.Services;
+namespace vos.Service.Forage.Tests.Services;
 
 public class DiscoveryRunnerTests
 {

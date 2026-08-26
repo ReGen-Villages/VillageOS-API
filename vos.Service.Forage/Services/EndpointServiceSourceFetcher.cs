@@ -2,11 +2,11 @@ using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using vos.Service.Shared;
 
-namespace vos.Service.Confluence.Services;
+namespace vos.Service.Forage.Services;
 
 // Fetches one source by asking Mycelium to forward to the endpoint service that performs fetches.
 // Mycelium proxies the body through to that service's /handle, so the reshape and the write onto the
-// Site both happen there — Confluence decides which sources and with what values, never how a fetch
+// Site both happen there — Forage decides which sources and with what values, never how a fetch
 // is made.
 public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFetcher
 {

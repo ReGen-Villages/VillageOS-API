@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
-using vos.Service.Confluence.Helpers;
+using vos.Service.Forage.Helpers;
 using vos.Service.Shared.Subscriptions;
 
-namespace vos.Service.Confluence.Services;
+namespace vos.Service.Forage.Services;
 
 // What one model read answers: which sources cover the site, and the site's own values a source's
 // address may name. Both come from the same snapshot, so a run reads the model once.

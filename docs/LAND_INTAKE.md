@@ -428,35 +428,35 @@ that time. The site now carries a solar figure that came from somewhere, with a 
 ```mermaid
 sequenceDiagram
   participant Planner
-  participant Confluence
+  participant Forage
   participant Mycelium
   participant Tributary
   participant Provider as Outside provider
-  Planner->>Confluence: Discover data for this site
-  Confluence->>Mycelium: which sources cover this site?
-  Mycelium-->>Confluence: sources reached by walking<br/>isIn and covers edges
+  Planner->>Forage: Discover data for this site
+  Forage->>Mycelium: which sources cover this site?
+  Mycelium-->>Forage: sources reached by walking<br/>isIn and covers edges
   loop each covering source, bounded concurrency
-    Confluence->>Tributary: call <source> with the site's lat/lng<br/>and the site as the subject
+    Forage->>Tributary: call <source> with the site's lat/lng<br/>and the site as the subject
     Tributary->>Provider: HTTP request
     Provider-->>Tributary: response
     Tributary->>Tributary: reshape into a reading
     Tributary->>Mycelium: relate the registration to the Site<br/>through observed, once
     Tributary->>Mycelium: write observation onto the Site
   end
-  Confluence->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
+  Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
   Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the edge starts it
-  Confluence-->>Planner: resolved · unresolved, each with a reason
+  Forage-->>Planner: resolved · unresolved, each with a reason
 ```
 
 The analysis starts whatever mixture resolved, including none — a site whose sources were all
-unavailable is the case a planner most needs an answer about. Confluence never calls a compute
+unavailable is the case a planner most needs an answer about. Forage never calls a compute
 service: it writes the edges and the platform dispatches, so there is one way to start an analysis
 rather than two. The subject is the study, because that is where a service reads its inputs.
-See [CONFLUENCE.md](CONFLUENCE.md#starting-the-analysis).
+See [FORAGE.md](FORAGE.md#starting-the-analysis).
 
 Selection is a **graph walk, not a string match**: a source `covers` a Place, the site `isIn` a
 Place, and Places nest. A source cannot be silently skipped because a country was spelled two ways
-— see [CONFLUENCE.md](CONFLUENCE.md). Coverage selection lives in a service rather than in Mycelium,
+— see [FORAGE.md](FORAGE.md). Coverage selection lives in a service rather than in Mycelium,
 which carries no intake vocabulary.
 
 **Partial failure is normal and must be tolerated.** Public data portals go down. One source failing

@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Configuration;
 using vos.Service.Shared.Configuration;
 
-namespace vos.Service.Confluence.Configuration;
+namespace vos.Service.Forage.Configuration;
 
 // The common service settings plus what a discovery run needs to bound itself: which endpoint
 // service performs the fetch, how many sources may be in flight at once, and how long any one
 // source may take.
-public sealed record ConfluenceLaunchSettings(
+public sealed record ForageLaunchSettings(
     ServiceLaunchSettings Service,
     // The subdomain Mycelium forwards a fetch to. Configuration rather than a name in code: which
     // service fetches is a deployment's arrangement, and a service that names a sibling in a string
@@ -26,7 +26,7 @@ public sealed record ConfluenceLaunchSettings(
     // healthy source needs, short enough that one silent provider cannot hold up the run.
     public static readonly TimeSpan DefaultSourceTimeout = TimeSpan.FromSeconds(60);
 
-    public static ConfluenceLaunchSettings? Parse(string[]? arguments, IConfiguration? configuration = null)
+    public static ForageLaunchSettings? Parse(string[]? arguments, IConfiguration? configuration = null)
     {
         var reader = new LaunchSettingReader(arguments, configuration);
 
@@ -34,7 +34,7 @@ public sealed record ConfluenceLaunchSettings(
         if (service is null)
             return null;
 
-        return new ConfluenceLaunchSettings(
+        return new ForageLaunchSettings(
             service,
             ReadFetcherSubdomain(reader),
             ReadMaxConcurrentSources(reader),
