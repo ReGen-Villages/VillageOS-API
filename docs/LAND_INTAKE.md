@@ -293,8 +293,8 @@ the work.
     ]
   },
   "allocations": [                            // shares are taken as given and normalised later
-    { "category": "residential", "sharePct": 22, "allocatedAreaHectares": 5.28 },
-    { "category": "food-and-agriculture", "sharePct": 34, "allocatedAreaHectares": 8.16 }
+    { "category": "residential", "sharePct": 22 },
+    { "category": "food-and-agriculture", "sharePct": 34 }
     // …one entry per category, each naming a category only once
   ],
   "hazards": [                                // no level here: that is read from the source
@@ -311,12 +311,12 @@ the work.
 }
 ```
 
-`allocatedAreaHectares` is shown above because the wire still accepts it, but **nothing is done with it**.
-The shared analysis declares that property and `normalisedSharePct` as formulas on the allocation itself,
-computed from its own share and the parcel its site holds, and a derived property refuses every value
-write. So an area a caller supplies is bounds-checked with everything else and then discarded rather than
-written — passing it through would fail the whole fragment on a field the wire advertises (Bug #6762).
-The wizard sends the share alone.
+**An allocation carries a share and nothing else.** The shared analysis declares
+`allocatedAreaHectares` and `normalisedSharePct` as formulas on the allocation itself, computed from its
+own share and the parcel its site holds, so a submitted area is a second answer to a question the model
+already answers — and writing one would fail the whole fragment, since a derived property refuses every
+value write. The wire therefore does not take one, and a caller that sends it is told which field by name
+(Bug #6762). It is the same rule as the measured area below, and for the same reason.
 
 Each of these rules exists to stop a particular kind of quiet damage:
 

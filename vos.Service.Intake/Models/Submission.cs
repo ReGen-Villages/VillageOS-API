@@ -48,7 +48,6 @@ public sealed record SubmittedAllocation
     public string? Category { get; init; }
 
     public double? SharePct { get; init; }
-    public double? AllocatedAreaHectares { get; init; }
 }
 
 /// <summary>What the submission is for. Its properties are the planner's own account of the undertaking,

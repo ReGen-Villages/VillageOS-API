@@ -120,11 +120,14 @@ public class SubmissionLimitsTests
             .Message.Should().Contain("site.statedAreaHectares");
     }
 
+    // An allocation's area is a formula the model works out from the share and the parcel, so the wire does
+    // not take one. A caller that sends it is told which field by name rather than having it accepted and
+    // dropped, which is the rule this service holds for every field it does not write (Bug #6762).
     [Fact]
-    public void An_allocated_area_no_landholding_could_measure_is_refused()
+    public void An_area_the_model_works_out_for_itself_is_refused_by_name()
     {
-        Refusing("'allocations':[{'category':'residential','allocatedAreaHectares':-1}]")
-            .Message.Should().Contain("allocation.allocatedAreaHectares");
+        Refusing("'allocations':[{'category':'residential','sharePct':22,'allocatedAreaHectares':5.28}]")
+            .Message.Should().Contain("allocatedAreaHectares");
     }
 
     [Fact]

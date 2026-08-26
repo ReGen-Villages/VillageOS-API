@@ -307,10 +307,11 @@ public static class SubmissionFragmentComposer
     // analysis, so a set that does not reach a hundred is a wizard part-filled, and judging whether they add
     // up is a range's work on the study rather than this service's.
     //
-    // An area a caller supplies is read off the wire, bounds-checked with everything else, and then
-    // discarded. The shared analysis declares it as a formula over the allocation's own share and the parcel
-    // its site holds, and a derived property refuses every value write — so passing one through does not
-    // duplicate an answer, it fails the whole fragment on a field the wire still accepts (Bug #6762).
+    // An area is not among them and is not on the wire either. The shared analysis declares it as a formula
+    // over the allocation's own share and the parcel its site holds, so a submitted one is a second answer
+    // to a question the model already answers — and writing it would fail the whole fragment, since a
+    // derived property refuses every value write (Bug #6762). A caller that sends one is told which field
+    // by name, the way this service refuses every field it does not write.
     private static Dictionary<string, TypedValue> AllocationProperties(SubmittedAllocation allocation)
     {
         var properties = new Dictionary<string, TypedValue>();
