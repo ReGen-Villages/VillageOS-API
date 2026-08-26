@@ -206,9 +206,22 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission());
 
-        var residential = AllocationFor(composed, "residential");
-        residential.Properties["sharePct"].Value.Should().Be(22.0);
-        residential.Properties["allocatedAreaHectares"].Value.Should().Be(5.28);
+        AllocationFor(composed, "residential").Properties["sharePct"].Value.Should().Be(22.0);
+    }
+
+    // The shared analysis declares an allocation's area as a formula over its own share and the parcel its
+    // site holds, and a derived property refuses every value write — so writing a submitted area would not
+    // duplicate the answer, it would fail the whole fragment. An allocation carries its share and nothing
+    // else this service could write (Bug #6762).
+    [Fact]
+    public void An_allocation_carries_no_figure_the_model_works_out_for_itself()
+    {
+        var composed = Compose(WillowBend.Submission() with
+        {
+            Allocations = [new SubmittedAllocation { Category = "residential", SharePct = 22 }],
+        });
+
+        AllocationFor(composed, "residential").Properties.Keys.Should().Equal("sharePct");
     }
 
     // Shares are normalised across the chosen categories further down the analysis, so a set that does not

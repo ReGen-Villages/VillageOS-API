@@ -109,12 +109,12 @@ public static class WillowBend
         // categories further down the analysis.
         Allocations =
         [
-            new SubmittedAllocation { Category = "residential", SharePct = 22, AllocatedAreaHectares = 5.28 },
-            new SubmittedAllocation { Category = "food-and-agriculture", SharePct = 34, AllocatedAreaHectares = 8.16 },
-            new SubmittedAllocation { Category = "green-water-and-restoration", SharePct = 20, AllocatedAreaHectares = 4.80 },
-            new SubmittedAllocation { Category = "commercial-and-retail", SharePct = 8, AllocatedAreaHectares = 1.92 },
-            new SubmittedAllocation { Category = "community-education-and-health", SharePct = 9, AllocatedAreaHectares = 2.16 },
-            new SubmittedAllocation { Category = "mobility-and-infrastructure", SharePct = 7, AllocatedAreaHectares = 1.68 },
+            new SubmittedAllocation { Category = "residential", SharePct = 22 },
+            new SubmittedAllocation { Category = "food-and-agriculture", SharePct = 34 },
+            new SubmittedAllocation { Category = "green-water-and-restoration", SharePct = 20 },
+            new SubmittedAllocation { Category = "commercial-and-retail", SharePct = 8 },
+            new SubmittedAllocation { Category = "community-education-and-health", SharePct = 9 },
+            new SubmittedAllocation { Category = "mobility-and-infrastructure", SharePct = 7 },
         ],
         // Two hazards read off one portal, so the source is one Thing both hang off. LAND_INTAKE.md §8
         // calls a level without a source a recollection rather than an assessment, so neither is here.

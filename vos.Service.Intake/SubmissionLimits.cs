@@ -79,8 +79,6 @@ public static class SubmissionLimits
         {
             Text(allocation.Category, "allocation.category");
             Between(allocation.SharePct, 0, 100, "allocation.sharePct", "per cent");
-            Between(allocation.AllocatedAreaHectares, 0, LargestAreaHectares,
-                "allocation.allocatedAreaHectares", "hectares");
         }
 
         AtMost(submission.Hazards?.Count, MostHazards, "hazards", "assessments");
