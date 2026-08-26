@@ -77,6 +77,7 @@ try
             myceliumUrl,
             serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<AnalysisSpawner>();
+    builder.Services.AddSingleton<IDiscoveryRunStarter, DiscoveryRunStarter>();
 
     var app = builder.Build();
 
@@ -94,6 +95,7 @@ try
         CoveringSourceService coveringSources,
         DiscoveryRunner runner,
         AnalysisSpawner analysis,
+        IDiscoveryRunStarter starter,
         HttpContext httpContext) =>
     {
         using var reader = new StreamReader(httpContext.Request.Body);
@@ -102,33 +104,12 @@ try
         if (HandleRequestRouter.Classify(root, out var siteId) != HandleRequestKind.RelationshipSubject)
             return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") });
 
-        var coverage = await coveringSources.ForSiteAsync(siteId, httpContext.RequestAborted);
-        if (coverage == null)
-            return Results.Problem(
-                detail: "Failed to read which sources cover the site. Refusing rather than reporting that none do.",
-                statusCode: 502,
-                title: "Coverage resolution failed");
+        starter.Start(token => Discover(siteId, coveringSources, runner, analysis, token));
 
-        var report = await runner.RunAsync(
-            siteId, coverage.Covering, coverage.Values, httpContext.RequestAborted);
-
-        // Whatever mixture resolved, including none. The analysis reports against what discovery left
-        // it, and a site whose sources were all unavailable is exactly the case a planner needs the
-        // analysis to say something about rather than silently never running.
-        var spawn = await analysis.SpawnAsync(
-            siteId, coverage.Analysis, httpContext.RequestAborted);
-
-        return Results.Ok(new
-        {
-            siteId = report.SiteId,
-            resolved = report.Resolved.Select(outcome => outcome.Source),
-            unresolved = report.Unresolved.Select(outcome => new
-            {
-                source = outcome.Source,
-                reason = outcome.Reason
-            }),
-            analysis = new { started = spawn.Started, reason = spawn.Reason }
-        });
+        // Accepted, not done. What the run found never travels back through this response: the caller is
+        // the broker, which discards a body, and the model is what closes the dispatch — the site showing
+        // that a source has written onto it.
+        return Results.Accepted(value: new { success = true, siteId, accepted = true });
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
@@ -155,6 +136,39 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+// One run, off the request that dispatched it. Nothing returns from here: what a run found is reported to
+// the log, and what closes the dispatch is the site showing that a source has written onto it.
+static async Task Discover(
+    Guid siteId,
+    CoveringSourceService coveringSources,
+    DiscoveryRunner runner,
+    AnalysisSpawner analysis,
+    CancellationToken cancellationToken)
+{
+    var coverage = await coveringSources.ForSiteAsync(siteId, cancellationToken);
+    if (coverage == null)
+    {
+        // Nothing is written and the analysis is not started, so the site stays in the state that
+        // dispatched this and the run is driven again. Carrying on would report that no source covers
+        // the site, which is the answer an unreachable gateway must never be mistaken for.
+        Log.Error("Could not read which sources cover site {SiteId}; leaving the run outstanding rather " +
+                  "than reporting that none do", siteId);
+        return;
+    }
+
+    var report = await runner.RunAsync(siteId, coverage.Covering, coverage.Values, cancellationToken);
+    foreach (var outcome in report.Unresolved)
+        Log.Warning("Source {Source} left site {SiteId} undiscovered: {Reason}",
+            outcome.Source, siteId, outcome.Reason);
+
+    // Whatever mixture resolved, including none. The analysis reports against what discovery left it, and
+    // a site whose sources were all unavailable is exactly the case a planner needs the analysis to say
+    // something about rather than silently never running.
+    var spawn = await analysis.SpawnAsync(siteId, coverage.Analysis, cancellationToken);
+    if (!spawn.Started)
+        Log.Information("No analysis started for site {SiteId}: {Reason}", siteId, spawn.Reason);
 }
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.

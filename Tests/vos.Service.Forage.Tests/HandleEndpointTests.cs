@@ -63,11 +63,9 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        await factory.RunsStarted();
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("NationalFloodPortal").And.Contain("OpenMeteo");
-        body.Should().Contain("\"unresolved\":[]");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         fetched.Should().HaveCount(2);
         // The fetch names the registration, never the source — one is a planner's word for a
         // provider, the other is what the fetching service resolves.
@@ -75,10 +73,13 @@ public class HandleEndpointTests
             .Contain("NationalFloodPortalEndpoint").And.Contain("OpenMeteoEndpoint");
     }
 
+    // What a failed source leaves behind is the runner's own answer, covered in DiscoveryRunnerTests. What
+    // this holds is that one provider being down does not stop the sources beside it.
     [Fact]
-    public async Task Handle_OneSourceFailing_StillIngestsTheOthersAndReportsTheReason()
+    public async Task Handle_OneSourceFailing_StillIngestsTheOthers()
     {
         var ids = TwoSourceNames();
+        var fetched = new ConcurrentBag<string>();
         await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
@@ -86,6 +87,7 @@ public class HandleEndpointTests
             if (req.RequestUri!.AbsolutePath == FetchRoute)
             {
                 var body = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                fetched.Add(body);
                 return body.Contains("NationalFloodPortalEndpoint")
                     ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
                     {
@@ -99,12 +101,10 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        await factory.RunsStarted();
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK, "one provider being down is not the run failing");
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("\"resolved\":[\"OpenMeteo\"]");
-        body.Should().Contain("NationalFloodPortal").And.Contain("503");
-        body.Should().Contain("portal is down for maintenance", "the provider's own words are the most useful reason");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted, "one provider being down is not the run failing");
+        fetched.Should().HaveCount(2, "a provider that is down does not stop the sources beside it");
     }
 
     [Fact]
@@ -128,8 +128,9 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        await factory.RunsStarted();
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         bodies.Should().HaveCount(2);
         bodies.Should().OnlyContain(body => body.Contains("-25.75") && body.Contains("28.19"));
     }
@@ -151,27 +152,37 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        await factory.RunsStarted();
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("\"resolved\":[]").And.Contain("\"unresolved\":[]");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         fetches.Should().Be(0);
     }
 
     [Fact]
-    public async Task Handle_ModelReadFails_Returns502RatherThanReportingNoCoverage()
+    public async Task Handle_ModelReadFails_WritesNothingRatherThanReportingNoCoverage()
     {
-        // The distinction the whole path exists for: an unreachable gateway must not read as "no
-        // source covers this site", which is the silently-short list that hides real sources.
+        // The distinction the whole path exists for: an unreachable gateway must not read as "no source
+        // covers this site", which is the silently-short list that hides real sources. The run can no
+        // longer say so in its answer — it has already given one — so it says it by writing nothing. The
+        // site stays in the state that dispatched it, and the run is driven again.
+        var fetches = 0;
+        var writes = 0;
         await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
-        factory.HandlerCallback = _ => new HttpResponseMessage(HttpStatusCode.InternalServerError);
+        factory.HandlerCallback = request =>
+        {
+            if (request.RequestUri!.AbsolutePath == FetchRoute) fetches++;
+            if (request.RequestUri.AbsolutePath == "/api/relationships") writes++;
+            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+        };
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/handle", new { subjectId = Guid.NewGuid() });
+        await factory.RunsStarted();
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("Refusing rather than reporting that none do");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        fetches.Should().Be(0, "a coverage read that failed selected no sources, and no source is not none");
+        writes.Should().Be(0, "starting the analysis would claim a discovery that never happened");
     }
 
     // The body Mycelium posts when a site enters the state the discovery connection watches. Every field
@@ -206,7 +217,7 @@ public class HandleEndpointTests
             properties = new Dictionary<string, object?> { ["__DispatchState"] = "Pending" },
         });
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         fetched.Should().HaveCount(2);
         string.Join(" ", fetched).Should().Contain(ids["WillowBend"].ToString());
     }
@@ -244,6 +255,7 @@ public class HandleEndpointTests
         using var client = factory.CreateClient();
 
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        await factory.RunsStarted();
 
         released.Should().Be(1);
     }

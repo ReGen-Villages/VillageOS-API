@@ -94,7 +94,10 @@ public class AnalysisSpawnTests
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
-        return await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        // The run leaves the request that dispatched it, so what it wrote is only there once it ends.
+        await factory.RunsStarted();
+        return response;
     }
 
     [Fact]
@@ -105,8 +108,7 @@ public class AnalysisSpawnTests
 
         var response = await RunDiscovery(ids, OneSourceAndOneBalance(), spawns);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("\"started\":true");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         spawns.Written.Should().ContainSingle()
             .Which.Should().Be((
                 ids["WillowBendStudy"], ids["balancesEnergy"], ids["EnergyBalance prototype"]));
@@ -130,7 +132,6 @@ public class AnalysisSpawnTests
 
         var response = await RunDiscovery(ids, edges, spawns);
 
-        (await response.Content.ReadAsStringAsync()).Should().Contain("\"started\":true");
         spawns.Written.Should().BeEquivalentTo(new[]
         {
             (ids["WillowBendStudy"], ids["balancesEnergy"], ids["EnergyBalance prototype"]),
@@ -174,9 +175,7 @@ public class AnalysisSpawnTests
                     { Content = new StringContent("portal down", Encoding.UTF8, "text/plain") }
                 : null);
 
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("OpenMeteo").And.Contain("\"resolved\":[]");
-        body.Should().Contain("\"started\":true");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         spawns.Written.Should().ContainSingle();
     }
 
@@ -189,12 +188,12 @@ public class AnalysisSpawnTests
 
         var response = await RunDiscovery(ids, edges, spawns);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         spawns.Written.Should().ContainSingle();
     }
 
     [Fact]
-    public async Task Handle_SiteHasNoStudy_StartsNothingAndSaysWhy()
+    public async Task Handle_SiteHasNoStudy_StartsNothing()
     {
         var ids = SiteWithOneSource();
         var spawns = new SpawnRecorder();
@@ -210,15 +209,12 @@ public class AnalysisSpawnTests
 
         var response = await RunDiscovery(ids, edges, spawns);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("OpenMeteo");
-        body.Should().Contain("\"started\":false").And.Contain("no study to analyse");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         spawns.Written.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Handle_ModelMarksNoAnalysisConnection_StartsNothingAndSaysWhy()
+    public async Task Handle_ModelMarksNoAnalysisConnection_StartsNothing()
     {
         // The state a model seeded without its compute connections is in. It is reported as a gap in
         // the model rather than as a discovery that failed, because discovery did not fail.
@@ -234,14 +230,12 @@ public class AnalysisSpawnTests
 
         var response = await RunDiscovery(ids, edges, spawns);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadAsStringAsync()).Should()
-            .Contain("\"started\":false").And.Contain("marks no connection");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         spawns.Written.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Handle_StartingTheAnalysisFails_StillReportsWhatDiscoveryFound()
+    public async Task Handle_StartingTheAnalysisFails_DoesNotFailTheRun()
     {
         // Discovery's observations are already written by the time the analysis is asked for. Losing
         // the report because a service could not be started would throw away work that succeeded.
@@ -254,10 +248,7 @@ public class AnalysisSpawnTests
                 ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
                 : null);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("OpenMeteo").And.Contain("\"unresolved\":[]");
-        body.Should().Contain("\"started\":false").And.Contain("balancesEnergy");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted, "a run whose analysis could not be started still ran");
     }
 
     [Fact]
@@ -274,8 +265,6 @@ public class AnalysisSpawnTests
                 ? throw new HttpRequestException("the model is unreachable")
                 : null);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("OpenMeteo").And.Contain("\"started\":false");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted, "an unreachable model does not escape as a failure");
     }
 }
