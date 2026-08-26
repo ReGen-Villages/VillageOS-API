@@ -410,7 +410,7 @@ observations only, so nobody can type it in and a fetch is the only thing that c
   "properties": {
     "url": "https://climate.mapresso.com/api/koeppen/?lat={latitude}&lon={longitude}",
     "httpMethod": "GET",
-    "responseTransform": "{\"properties\": {\"climateZone\": data[short='KG' and $exists(text)].code}}"
+    "responseTransform": "{\"properties\": {\"climateZone\": data[short='KG' and text].code}}"
   } }
 ```
 
@@ -428,8 +428,10 @@ Three things about it are worth reading off:
   right one.
 - **And it takes only a class the provider was sure of.** That entry is itself read from three variants
   of the scheme, and where they disagree it answers with both codes joined — `As/Aw` — and **no
-  description**. The absent description is the provider's own signal, so `$exists(text)` is what
-  separates a class from a hedge rather than anything this platform infers about the shape of a code.
+  description**. The missing description is the provider's own signal, so testing that field is what
+  separates a class from a hedge — rather than anything this platform infers about the shape of a code.
+  It is a plain truth test and not `$exists`, because a description present but empty is not a
+  description, and `$exists` would let that hedge through.
   A hedge writes nothing, the same answer a coordinate the provider cannot classify already gets:
   writing either half would invent precision the source explicitly withheld, and writing the pair would
   put a value that is no class at all onto the Site (Bug #6772, see `ClimateZoneEndpointTests`).

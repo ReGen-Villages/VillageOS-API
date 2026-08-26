@@ -20,7 +20,7 @@ public class ClimateZoneEndpointTests
     // selected by the marker the provider gives Köppen-Geiger. The reading names no Thing: the discovery
     // run says which site a call is about, and a name here would fit only one site.
     private const string ClimateZoneReshape =
-        "{\"properties\": {\"climateZone\": data[short='KG' and $exists(text)].code}}";
+        "{\"properties\": {\"climateZone\": data[short='KG' and text].code}}";
 
     // One point query at a site's coordinates, trimmed to the schemes that matter to the assertions. The
     // Köppen-Geiger entry is deliberately not first: reading the first entry is the mistake this guards.
@@ -122,5 +122,24 @@ public class ClimateZoneEndpointTests
         ok.Should().BeTrue(error);
         transformed.Should().NotContain("\"As\"");
         transformed.Should().NotContain("\"Aw\"");
+    }
+
+    // A description present but empty is not a description. `$exists` would accept one and let the
+    // hedge through; a plain truth test on the field rejects both, which is why the expression reads
+    // that way. The provider omits the field today — this holds the guard to the intent rather than to
+    // the one shape of absence that has been seen.
+    [Fact]
+    public void Reshape_writes_nothing_where_the_description_is_present_but_empty()
+    {
+        const string emptyDescription = """
+        { "status": "OK", "data": [ { "type": "Köppen-Geiger", "code": "As/Aw", "short": "KG", "text": "" } ] }
+        """;
+
+        var ok = Ingest().TryTransform(
+            emptyDescription, new JsonataTransform(ClimateZoneReshape), out var transformed, out var error);
+
+        ok.Should().BeTrue(error);
+        transformed.Should().NotContain("As/Aw");
+        transformed.Should().NotContain("climateZone");
     }
 }
