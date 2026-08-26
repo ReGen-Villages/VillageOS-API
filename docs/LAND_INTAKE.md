@@ -427,12 +427,14 @@ that time. The site now carries a solar figure that came from somewhere, with a 
 
 ```mermaid
 sequenceDiagram
-  participant Planner
-  participant Forage
+  participant Site
   participant Mycelium
+  participant Forage
   participant Tributary
   participant Provider as Outside provider
-  Planner->>Forage: Discover data for this site
+  Site->>Mycelium: coordinates written, nothing has observed it
+  Note over Mycelium: the site enters SiteAwaitingDiscovery,<br/>which the discovery connection watches
+  Mycelium->>Forage: dispatch, naming the site as the subject
   Forage->>Mycelium: which sources cover this site?
   Mycelium-->>Forage: sources reached by walking<br/>isIn and covers edges
   loop each covering source, bounded concurrency
@@ -443,10 +445,15 @@ sequenceDiagram
     Tributary->>Mycelium: relate the registration to the Site<br/>through observed, once
     Tributary->>Mycelium: write observation onto the Site
   end
+  Note over Site: the first observation takes it out of<br/>the state, so nothing fetches again
   Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
   Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the edge starts it
-  Forage-->>Planner: resolved · unresolved, each with a reason
+  Forage-->>Mycelium: resolved · unresolved, each with a reason
 ```
+
+**Nothing calls Forage.** The site entering `SiteAwaitingDiscovery` is what dispatches it, and the
+edge that dispatch writes is what a reader asks afterwards to find out what started a run — see
+[FORAGE.md](FORAGE.md#what-starts-a-run).
 
 The analysis starts whatever mixture resolved, including none — a site whose sources were all
 unavailable is the case a planner most needs an answer about. Forage never calls a compute

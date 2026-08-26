@@ -1,8 +1,9 @@
+using System.Text.Json;
 using vos.Auth.Shared;
 using vos.Service.Forage.Configuration;
-using vos.Service.Forage.Models;
 using vos.Service.Forage.Services;
 using vos.Service.Shared;
+using vos.Service.Shared.DagNode;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Subscriptions;
 using Serilog;
@@ -86,17 +87,22 @@ try
         app.UseMyceliumModelToken();
     }
 
+    // A run is started by the site entering the state the discovery connection watches, so the body is
+    // whatever the broker posts for a dispatch and the subject is read through the shared classifier
+    // rather than a shape of this service's own (Task #6753).
     var handleEndpoint = app.MapPost("/handle", async (
-        DiscoveryRequest request,
         CoveringSourceService coveringSources,
         DiscoveryRunner runner,
         AnalysisSpawner analysis,
         HttpContext httpContext) =>
     {
-        if (request.SiteId == Guid.Empty)
-            return Results.Json(new { error = "Request must include a siteId." }, statusCode: 400);
+        using var reader = new StreamReader(httpContext.Request.Body);
+        var root = JsonSerializer.Deserialize<JsonElement>(await reader.ReadToEndAsync());
 
-        var coverage = await coveringSources.ForSiteAsync(request.SiteId, httpContext.RequestAborted);
+        if (HandleRequestRouter.Classify(root, out var siteId) != HandleRequestKind.RelationshipSubject)
+            return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") });
+
+        var coverage = await coveringSources.ForSiteAsync(siteId, httpContext.RequestAborted);
         if (coverage == null)
             return Results.Problem(
                 detail: "Failed to read which sources cover the site. Refusing rather than reporting that none do.",
@@ -104,13 +110,13 @@ try
                 title: "Coverage resolution failed");
 
         var report = await runner.RunAsync(
-            request.SiteId, coverage.Covering, coverage.Values, httpContext.RequestAborted);
+            siteId, coverage.Covering, coverage.Values, httpContext.RequestAborted);
 
         // Whatever mixture resolved, including none. The analysis reports against what discovery left
         // it, and a site whose sources were all unavailable is exactly the case a planner needs the
         // analysis to say something about rather than silently never running.
         var spawn = await analysis.SpawnAsync(
-            request.SiteId, coverage.Analysis, httpContext.RequestAborted);
+            siteId, coverage.Analysis, httpContext.RequestAborted);
 
         return Results.Ok(new
         {

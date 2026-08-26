@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
+using vos.Service.Shared.DagNode;
 using Xunit;
 using static vos.Service.Forage.Tests.ModelSnapshotStub;
 
@@ -61,7 +62,7 @@ public class HandleEndpointTests
         };
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+        var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
@@ -97,7 +98,7 @@ public class HandleEndpointTests
         };
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+        var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK, "one provider being down is not the run failing");
         var body = await response.Content.ReadAsStringAsync();
@@ -126,7 +127,7 @@ public class HandleEndpointTests
         };
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+        var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         bodies.Should().HaveCount(2);
@@ -149,7 +150,7 @@ public class HandleEndpointTests
         };
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+        var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
@@ -167,14 +168,51 @@ public class HandleEndpointTests
         factory.HandlerCallback = _ => new HttpResponseMessage(HttpStatusCode.InternalServerError);
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/handle", new { siteId = Guid.NewGuid() });
+        var response = await client.PostAsJsonAsync("/handle", new { subjectId = Guid.NewGuid() });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
         (await response.Content.ReadAsStringAsync()).Should().Contain("Refusing rather than reporting that none do");
     }
 
+    // The body Mycelium posts when a site enters the state the discovery connection watches. Every field
+    // beside the subject belongs to the record-edge the dispatch wrote, and a run reads none of them — but
+    // a service that refused the whole body over them is a service nothing in the platform can dispatch.
     [Fact]
-    public async Task Handle_MissingSiteId_Returns400()
+    public async Task Handle_TheBodyADispatchPosts_RunsTheSiteItNames()
+    {
+        var ids = TwoSourceNames();
+        var fetched = new ConcurrentBag<string>();
+        await using var factory = new ForageWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.AbsolutePath == FetchRoute)
+            {
+                fetched.Add(req.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                return Ok("""{"success":true}""");
+            }
+            return RouteSubscription(req, ids, TwoCoveringSources())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new
+        {
+            relationshipId = Guid.NewGuid().ToString(),
+            subjectId = ids["WillowBend"].ToString(),
+            targetId = Guid.NewGuid().ToString(),
+            subjectName = "WillowBend",
+            targetName = "discoversSite",
+            properties = new Dictionary<string, object?> { ["__DispatchState"] = "Pending" },
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        fetched.Should().HaveCount(2);
+        string.Join(" ", fetched).Should().Contain(ids["WillowBend"].ToString());
+    }
+
+    [Fact]
+    public async Task Handle_ABodyNamingNoSubject_IsRefusedInTheSharedWords()
     {
         await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
@@ -183,7 +221,8 @@ public class HandleEndpointTests
         var response = await client.PostAsJsonAsync("/handle", new { });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await response.Content.ReadAsStringAsync()).Should().Contain("siteId");
+        (await response.Content.ReadAsStringAsync()).Should()
+            .Contain(HandleRequestRouter.DescribeExpectedShapes("Forage"));
     }
 
     [Fact]
@@ -204,7 +243,7 @@ public class HandleEndpointTests
         };
         using var client = factory.CreateClient();
 
-        await client.PostAsJsonAsync("/handle", new { siteId = ids["WillowBend"] });
+        await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
 
         released.Should().Be(1);
     }
