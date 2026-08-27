@@ -27,6 +27,9 @@ var publicFormOrigins = new LaunchSettingReader(args, builder.Configuration).Rea
 var servicePort = launchSettings.Port;
 var myceliumUrl = launchSettings.MyceliumUrl;
 var serviceToken = launchSettings.Token;
+// Nothing launches this service, so no token is ever minted for it and none is refreshed when one
+// expires. The key is the credential it runs on, and every client it reaches the broker with holds it.
+var apiKey = launchSettings.ApiKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 ServiceHost.ConfigureLogging("Intake", "intake-.log", writeToFile: !isTestingEnv);
@@ -95,14 +98,16 @@ try
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<IntakeMyceliumClient>>(),
             myceliumUrl,
-            serviceToken));
+            serviceToken,
+            apiKey));
 
     builder.Services.AddSingleton<ISubscriptionClient>(sp =>
         new SubscriptionClient(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<SubscriptionClient>>(),
             myceliumUrl,
-            serviceToken));
+            serviceToken,
+            apiKey: apiKey));
 
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddSingleton<SubmissionTicket>();
