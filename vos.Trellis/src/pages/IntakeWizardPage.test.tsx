@@ -11,7 +11,7 @@ vi.mock('../api/relationshipApi', () => ({
   relationshipApi: { getAll: vi.fn() },
 }));
 vi.mock('../api/intakeApi', () => ({
-  intakeApi: { configured: vi.fn(), submit: vi.fn() },
+  intakeApi: { configured: vi.fn(), submit: vi.fn(), askForCode: vi.fn() },
 }));
 vi.mock('../components/common/toastStore', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -110,6 +110,7 @@ beforeEach(() => {
   vi.mocked(thingApi.getAllProperties).mockResolvedValue(PROPERTIES);
   vi.mocked(intakeApi.configured).mockReturnValue(true);
   vi.mocked(intakeApi.submit).mockResolvedValue({ reference: 'sub-0001' });
+  vi.mocked(intakeApi.askForCode).mockResolvedValue(undefined);
 });
 
 /** Walk to a step by pressing Next, which is also what makes each one reachable again. */
@@ -447,34 +448,71 @@ describe('the parcel step', () => {
 });
 
 describe('posting the submission', () => {
-  it('will not submit without a site name, which is what a Thing is created under', () => {
+  /** A draft carrying what a submission cannot go without: the site, the project it belongs to, and who
+   *  to tell what was decided about it. */
+  function submittable(patch: Partial<SubmissionDraft> = {}): SubmissionDraft {
+    return {
+      ...emptyDraft('sub-0001'),
+      siteName: 'Willow Bend',
+      projectName: 'Willow Bend Regeneration',
+      contactName: 'Ana Ferreira',
+      emailAddress: 'ana.ferreira@example.pt',
+      ...patch,
+    };
+  }
+
+  /** The whole of what submitting is now: ask for a code, read it off the mail the person got, and send
+   *  the submission under it. */
+  async function askForACodeAndSubmit(code = '314159'): Promise<void> {
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+    await waitFor(() => expect(intakeApi.askForCode).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Code'), { target: { value: code } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+  }
+
+  it('will not ask for a code until it names the site, the project, and who to send it to', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
-    expect(screen.getByText('A site name is needed.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
+    expect(
+      screen.getByText(
+        'A site name, a project name, and a contact name and email address are all needed.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('will not submit a site nobody can be told the decision about', () => {
+    saveDraft('model-1', submittable({ emailAddress: '' }));
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
   });
 
   it('will not submit where no intake address is configured, and says so', () => {
     vi.mocked(intakeApi.configured).mockReturnValue(false);
-    saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
+    saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
     expect(screen.getByText('No intake service address is configured.')).toBeInTheDocument();
   });
 
   it('posts what was collected and answers with the reference to quote', async () => {
-    saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend', statedArea: '24' });
+    saveDraft('model-1', submittable({ statedArea: '24' }));
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await askForACodeAndSubmit();
 
     await waitFor(() => expect(screen.getByText('Submitted')).toBeInTheDocument());
+    expect(intakeApi.askForCode).toHaveBeenCalledWith('ana.ferreira@example.pt');
     expect(intakeApi.submit).toHaveBeenCalledWith(
       expect.objectContaining({ submissionId: 'sub-0001', site: { name: 'Willow Bend', statedAreaHectares: 24 } }),
+      '314159',
     );
     expect(screen.getByText('sub-0001')).toBeInTheDocument();
   });
@@ -485,39 +523,35 @@ describe('posting the submission', () => {
       { latitude: 39.502, longitude: -8.41 },
       { latitude: 39.502, longitude: -8.408 },
     ];
-    saveDraft('model-1', {
-      ...emptyDraft('sub-0001'),
-      siteName: 'Willow Bend',
-      boundary: corners,
-      boundarySource: 'drawn-by-hand',
-    });
+    saveDraft('model-1', submittable({ boundary: corners, boundarySource: 'drawn-by-hand' }));
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await askForACodeAndSubmit();
 
     await waitFor(() =>
       expect(intakeApi.submit).toHaveBeenCalledWith(
         expect.objectContaining({ parcel: { boundarySource: 'drawn-by-hand', boundary: corners } }),
+        '314159',
       ),
     );
   });
 
   it('clears the draft once it is in the model, so reopening starts a new submission', async () => {
-    saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
+    saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await askForACodeAndSubmit();
 
     await waitFor(() => expect(loadDraft('model-1')).toBeNull());
   });
 
   it('starts a fresh submission after one has landed, under a new identifier', async () => {
-    saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
+    saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
     goToStep(4);
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await askForACodeAndSubmit();
     await waitFor(() => expect(screen.getByText('Submitted')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Start another' }));
@@ -528,14 +562,62 @@ describe('posting the submission', () => {
 
   it('keeps the draft when the service refuses it, and says what was wrong', async () => {
     vi.mocked(intakeApi.submit).mockRejectedValue(new Error("'site.name' is missing"));
-    saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
+    saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await askForACodeAndSubmit();
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(loadDraft('model-1')?.siteName).toBe('Willow Bend');
+  });
+
+  // A code that never arrived is where a submitter is left with a form and nothing to do, so the page
+  // says what went wrong and stays where it was rather than asking for a code it never sent.
+  it('says why no code could be sent, and does not ask for one back', async () => {
+    vi.mocked(intakeApi.askForCode).mockRejectedValue(
+      new Error('That address has been sent as many codes as it can be for now.'),
+    );
+    saveDraft('model-1', submittable());
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Code')).not.toBeInTheDocument();
+    expect(intakeApi.submit).not.toHaveBeenCalled();
+  });
+
+  // The code was sent to the address as it read at the time. Going back and changing it leaves that code
+  // good for a mailbox this submission no longer names, and the service would refuse it — so the page
+  // asks again rather than offering a box whose code cannot work.
+  it('asks for a new code when the address is changed after one was sent', async () => {
+    saveDraft('model-1', submittable());
+    render(<IntakeWizardPage />);
+    goToStep(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+    await waitFor(() => expect(screen.getByLabelText('Code')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: '2. Contact' }));
+    typeInto('Email address', 'somebody.else@example.pt');
+    goToStep(3);
+
+    expect(screen.queryByLabelText('Code')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send a code' })).toBeInTheDocument();
+  });
+
+  // The code is what says this address can be read by whoever is submitting, so the submission cannot go
+  // before one has been entered.
+  it('will not submit with the code box empty', async () => {
+    saveDraft('model-1', submittable());
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+    await waitFor(() => expect(screen.getByLabelText('Code')).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
   });
 });
 

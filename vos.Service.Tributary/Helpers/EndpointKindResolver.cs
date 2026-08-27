@@ -91,11 +91,8 @@ public static class EndpointKindResolver
 
     // What the endpoint's kind for this role requires and the endpoint does not supply. Empty when the
     // kind is satisfied, and when there is no kind to satisfy.
-    // Takes the map the caller already holds. Widening this to a read-only view would mean copying it
-    // once per requirement checked, on the path that serves an outbound call — see Bug 6486, which
-    // makes the shared lookup read-only and lets this widen for free.
     public static IReadOnlyList<string> MissingRequirements(
-        ResolvedKind? kind, Dictionary<string, System.Text.Json.JsonElement> effective) =>
+        ResolvedKind? kind, IReadOnlyDictionary<string, System.Text.Json.JsonElement> effective) =>
         kind == null
             ? Array.Empty<string>()
             : kind.Requires.Where(required => !Supplies(effective, required)).ToList();
@@ -104,7 +101,7 @@ public static class EndpointKindResolver
     // says "whoever registers this fills it in", so treating it as present would let exactly the
     // endpoint this check exists to catch through.
     private static bool Supplies(
-        Dictionary<string, System.Text.Json.JsonElement> effective, string required) =>
+        IReadOnlyDictionary<string, System.Text.Json.JsonElement> effective, string required) =>
         EffectivePropertyResolver.TryGetEffectiveProperty(effective, required, out var value, out _)
         && value.ValueKind != System.Text.Json.JsonValueKind.Null
         && !(value.ValueKind == System.Text.Json.JsonValueKind.String

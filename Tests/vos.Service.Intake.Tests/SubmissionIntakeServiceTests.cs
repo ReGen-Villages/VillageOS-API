@@ -3,6 +3,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Intake.Helpers;
+using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
@@ -13,12 +14,18 @@ namespace vos.Service.Intake.Tests;
 
 public class SubmissionIntakeServiceTests
 {
-    private const string Document = $$"""
+    private const string DocumentText = $$"""
         {
           "submissionId": "{{WillowBend.SubmissionId}}",
+          "project": { "name": "Willow Bend Regeneration" },
+          "contact": { "name": "Ana Ferreira", "emailAddress": "ana.ferreira@example.pt" },
           "site": { "name": "Willow Bend", "statedAreaHectares": 24.0, "population": 320 }
         }
         """;
+
+    /// <summary>What the route hands this service. Reading a posted document is the route's, because the
+    /// ticket is checked against the address in it before anything is written.</summary>
+    private static Submission Document => SubmissionReader.Read(DocumentText);
 
     /// <summary>A service talking to a model seeded from the analysis templates: the archetypes answer, and
     /// the test says what happens to everything else. <see cref="ServiceOfAnUnseededModel"/> is the one

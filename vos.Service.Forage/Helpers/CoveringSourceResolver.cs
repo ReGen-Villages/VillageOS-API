@@ -3,8 +3,16 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Helpers;
 
-// A source that covers the site, and the endpoint registration a call to it goes through.
-public sealed record CoveringSource(string Name, string EndpointName);
+// One fetch a covering source is called through: the Thing the reading is about, and the values the
+// registration's address may name. A source is usually called once with the site as the subject; a
+// source that resolves onto an archetype is called once per Thing the site has of it.
+public sealed record SourceCall(
+    Guid SubjectId, string SubjectName, IReadOnlyDictionary<string, string> Values);
+
+// A source that covers the site, the endpoint registration a call to it goes through, and the calls
+// a run makes to it. A source with no calls declared what it resolves onto and the site holds
+// nothing of it — nothing to fetch, and not a failure.
+public sealed record CoveringSource(string Name, string EndpointName, IReadOnlyList<SourceCall> Calls);
 
 // One compute service to start on the site's study: the connection to relate through, and the service
 // prototype the edge points at. The connection is the predicate, which is what makes the edge dispatch.
@@ -24,6 +32,8 @@ public static class CoveringSourceResolver
     public const string CoversPredicate = "covers";
     public const string IsInPredicate = "isIn";
     public const string ResolvedByPredicate = "resolvedBy";
+    public const string ResolvesOntoPredicate = "resolvesOnto";
+    public const string AssessesPredicate = "assesses";
     public const string StudiesPredicate = "studies";
     public const string HasPredicate = "has";
     public const string IsPredicateName = "is";
@@ -44,7 +54,10 @@ public static class CoveringSourceResolver
     // compares those names, so a predicate left out here reads as "covers nothing" — a wrong answer
     // wearing the shape of a valid one.
     private static readonly string[] PredicatesRead =
-        [IsInPredicate, CoversPredicate, ResolvedByPredicate, StudiesPredicate, HasPredicate, IsPredicateName];
+    [
+        IsInPredicate, CoversPredicate, ResolvedByPredicate, ResolvesOntoPredicate,
+        AssessesPredicate, StudiesPredicate, HasPredicate, IsPredicateName,
+    ];
 
     // Everything in one read: the site's Places, every source whose coverage reaches one of them, the
     // study of the site, and every connection a site analysis dispatches with the service each one binds.
@@ -63,10 +76,15 @@ public static class CoveringSourceResolver
             // Incoming: the edge runs source -> place, and the set so far holds the places.
             new TraverseRule { Predicate = CoversPredicate, Direction = "incoming" },
             new TraverseRule { Predicate = ResolvedByPredicate },
+            // After covers: the sources are in the set, and what each declares it resolves onto joins it.
+            new TraverseRule { Predicate = ResolvesOntoPredicate },
             // Incoming: the edge runs study -> site.
             new TraverseRule { Predicate = StudiesPredicate, Direction = "incoming" },
-            // Reaches each connection's service, whose `is` ancestor is the prototype the edge targets.
+            // Reaches each connection's service, and everything the site has — a per-subject call below
+            // is addressed with what its subject reaches, so the subjects must be in the set first.
             new TraverseRule { Predicate = HasPredicate },
+            // After has: what each of the site's assessments is about carries a portal's code for it.
+            new TraverseRule { Predicate = AssessesPredicate },
         ],
         IncludeRelationships = true,
     };
@@ -76,7 +94,13 @@ public static class CoveringSourceResolver
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
         var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
 
-        var places = PlacesReachedFrom(snapshot, siteId, namesById);
+        var placesByDepth = PlacesByDepth(snapshot, siteId, namesById);
+        var places = placesByDepth.SelectMany(level => level).ToHashSet();
+
+        // The site's own values first, then each Place's, nearest first: a value the site carries is
+        // about the site, and a division's value is about somewhere smaller than its country's.
+        var siteValues = Layered(
+            [OwnValues.Of(snapshot, siteId), .. placesByDepth.Select(level => AgreedValues(snapshot, level))]);
 
         var covering = new List<CoveringSource>();
         var alreadyTaken = new HashSet<Guid>();
@@ -92,10 +116,115 @@ public static class CoveringSourceResolver
             // that was never callable, and leaving it out here would report it as an outage later.
             if (EndpointOf(snapshot, namesById, thingsById, edge.SubjectId) is not { } endpoint) continue;
 
-            covering.Add(new CoveringSource(source.Name ?? string.Empty, endpoint.Name ?? string.Empty));
+            var calls = CallsFor(snapshot, thingsById, namesById, edge.SubjectId, siteId, siteValues);
+            covering.Add(new CoveringSource(
+                source.Name ?? string.Empty, endpoint.Name ?? string.Empty, calls));
         }
 
         return covering;
+    }
+
+    // The calls one covering source is fetched through. A source that declares nothing it resolves
+    // onto is called once, about the site. One that does is called once per Thing the site has of the
+    // declared archetype, about that Thing — addressed with the subject's own values, then the values
+    // of what it reaches, then the site's, so the most specific holder of a name decides it.
+    private static IReadOnlyList<SourceCall> CallsFor(
+        SnapshotDocument snapshot,
+        IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
+        IReadOnlyDictionary<Guid, string> namesById,
+        Guid sourceId,
+        Guid siteId,
+        IReadOnlyDictionary<string, string> siteValues)
+    {
+        var declared = snapshot.Relationships
+            .Where(edge => edge.SubjectId == sourceId
+                && IsPredicate(namesById, edge.PredicateId, ResolvesOntoPredicate))
+            .Select(edge => edge.TargetId)
+            .ToList();
+
+        if (declared.Count == 0)
+            return [new SourceCall(siteId, namesById.GetValueOrDefault(siteId, string.Empty), siteValues)];
+
+        // A declaration pointing at anything but an archetype resolves onto nothing. Falling back to
+        // a per-site call would be refused for its unfilled placeholders, and the run would report
+        // the provider for an outage it had no part in.
+        var resolutionArchetypes = declared
+            .Where(targetId => thingsById.TryGetValue(targetId, out var target) && target.IsArchetype)
+            .ToList();
+
+        var owned = snapshot.Relationships
+            .Where(edge => edge.SubjectId == siteId && IsPredicate(namesById, edge.PredicateId, HasPredicate))
+            .Select(edge => edge.TargetId)
+            .ToHashSet();
+
+        var subjects = MembersReachedFrom(snapshot, thingsById, namesById, resolutionArchetypes)
+            .Where(owned.Contains)
+            .OrderBy(subjectId => namesById.GetValueOrDefault(subjectId, string.Empty), StringComparer.Ordinal)
+            .ThenBy(subjectId => subjectId)
+            .ToList();
+
+        return subjects
+            .Select(subjectId => new SourceCall(
+                subjectId,
+                namesById.GetValueOrDefault(subjectId, string.Empty),
+                Layered(
+                [
+                    OwnValues.Of(snapshot, subjectId),
+                    AgreedValues(snapshot, VocabularyOf(snapshot, namesById, subjectId)),
+                    siteValues,
+                ])))
+            .ToList();
+    }
+
+    // The Things a subject reaches by its own outgoing edges — for an assessment, the type it assesses
+    // and the source it hangs off. `is` is not among them: a type's values are defaults for a kind, the
+    // same reason inherited values never address a call.
+    private static List<Guid> VocabularyOf(
+        SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid subjectId) =>
+        snapshot.Relationships
+            .Where(edge => edge.SubjectId == subjectId
+                && !IsPredicate(namesById, edge.PredicateId, IsPredicateName))
+            .Select(edge => edge.TargetId)
+            .ToList();
+
+    // One set of values from several Things standing at the same distance. A name they agree on is a
+    // value; one they disagree on is dropped, because relationship order is not defined and taking
+    // either would address different calls on different runs.
+    private static Dictionary<string, string> AgreedValues(SnapshotDocument snapshot, IEnumerable<Guid> ids)
+    {
+        var agreed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var contested = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in ids)
+        {
+            foreach (var (name, value) in OwnValues.Of(snapshot, id))
+            {
+                if (contested.Contains(name)) continue;
+                if (!agreed.TryGetValue(name, out var existing))
+                {
+                    agreed[name] = value;
+                }
+                else if (!string.Equals(existing, value, StringComparison.Ordinal))
+                {
+                    agreed.Remove(name);
+                    contested.Add(name);
+                }
+            }
+        }
+
+        return agreed;
+    }
+
+    // Most specific first: a layer fills only the names no earlier layer decided.
+    private static Dictionary<string, string> Layered(
+        IReadOnlyList<IReadOnlyDictionary<string, string>> layers)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var layer in layers)
+            foreach (var (name, value) in layer)
+                if (!values.ContainsKey(name))
+                    values[name] = value;
+
+        return values;
     }
 
     // The study of the site and the services that compute it, or null when the site has no study. A site
@@ -171,18 +300,24 @@ public static class CoveringSourceResolver
         return null;
     }
 
-    // Every Thing that `is` — directly or through intermediate types — an archetype carrying the flag.
-    // Walked outwards from the marked archetypes rather than upwards from each Thing, so the snapshot's
-    // relationships are read once per level instead of once per Thing.
-    //
-    // An archetype does not play its own role, so a marked archetype is not among its own members, and
-    // an intermediate type between a member and the mark is a type rather than a connection.
     private static List<Guid> MembersOfArchetypesCarrying(
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
-        IReadOnlyDictionary<Guid, string> namesById, string flag)
+        IReadOnlyDictionary<Guid, string> namesById, string flag) =>
+        MembersReachedFrom(
+            snapshot, thingsById, namesById,
+            snapshot.Things.Where(thing => CarriesFlag(thing, flag)).Select(thing => thing.Id));
+
+    // Every Thing that `is` — directly or through intermediate types — one of the given archetypes.
+    // Walked outwards from them rather than upwards from each Thing, so the snapshot's relationships
+    // are read once per level instead of once per Thing.
+    //
+    // An archetype does not play its own role, so an archetype is not among its own members, and an
+    // intermediate type between a member and the top is a type rather than a member.
+    private static List<Guid> MembersReachedFrom(
+        SnapshotDocument snapshot, IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
+        IReadOnlyDictionary<Guid, string> namesById, IEnumerable<Guid> archetypeIds)
     {
-        var reached = new HashSet<Guid>(snapshot.Things.Where(thing => CarriesFlag(thing, flag))
-            .Select(thing => thing.Id));
+        var reached = new HashSet<Guid>(archetypeIds);
         var members = new List<Guid>();
         var frontier = new Queue<Guid>(reached);
 
@@ -208,30 +343,33 @@ public static class CoveringSourceResolver
         thing.Properties.TryGetValue(flag, out var property)
         && property.Value.ValueKind == JsonValueKind.True;
 
-    // The site's own Place and every Place containing it. A site relates to one Place; the nesting is
-    // what makes a source covering the root cover every site under it without naming any of them.
-    private static HashSet<Guid> PlacesReachedFrom(
+    // The site's own Place and every Place containing it, grouped by how many isIn edges away each
+    // stands. The nesting is what makes a source covering the root cover every site under it without
+    // naming any of them; the grouping is what lets the nearest Place's value win an address name.
+    private static List<List<Guid>> PlacesByDepth(
         SnapshotDocument snapshot, Guid siteId, IReadOnlyDictionary<Guid, string> namesById)
     {
-        var reached = new HashSet<Guid>();
-        var frontier = new Queue<Guid>();
-        frontier.Enqueue(siteId);
+        var levels = new List<List<Guid>>();
         var seen = new HashSet<Guid> { siteId };
+        var frontier = new List<Guid> { siteId };
 
         while (frontier.Count > 0)
         {
-            var current = frontier.Dequeue();
-            foreach (var edge in snapshot.Relationships)
-            {
-                if (edge.SubjectId != current) continue;
-                if (!IsPredicate(namesById, edge.PredicateId, IsInPredicate)) continue;
-                reached.Add(edge.TargetId);
-                if (seen.Add(edge.TargetId))
-                    frontier.Enqueue(edge.TargetId);
-            }
+            var next = new List<Guid>();
+            foreach (var current in frontier)
+                foreach (var edge in snapshot.Relationships)
+                {
+                    if (edge.SubjectId != current) continue;
+                    if (!IsPredicate(namesById, edge.PredicateId, IsInPredicate)) continue;
+                    if (seen.Add(edge.TargetId))
+                        next.Add(edge.TargetId);
+                }
+
+            if (next.Count > 0) levels.Add(next);
+            frontier = next;
         }
 
-        return reached;
+        return levels;
     }
 
     private static SnapshotThing? EndpointOf(

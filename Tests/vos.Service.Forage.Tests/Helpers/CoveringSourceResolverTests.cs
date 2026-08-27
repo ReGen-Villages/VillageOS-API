@@ -69,6 +69,23 @@ public class CoveringSourceResolverTests
             return this;
         }
 
+        public ModelBuilder WithValue(string name, string property, string json)
+        {
+            var id = Id(name);
+            var existing = _things.Single(thing => thing.Id == id);
+            var properties = new Dictionary<string, SnapshotProperty>(existing.Properties)
+            {
+                [property] = new(JsonDocument.Parse(json).RootElement, null, null),
+            };
+
+            _things.RemoveAll(thing => thing.Id == id);
+            _things.Add(new SnapshotThing(
+                id, existing.Name, existing.IsArchetype, properties,
+                new Dictionary<string, InheritedPropertySet>(),
+                Array.Empty<string>(), Array.Empty<Guid>()));
+            return this;
+        }
+
         public SnapshotDocument Build() => new(0, _things, _edges);
     }
 
@@ -213,6 +230,241 @@ public class CoveringSourceResolverTests
         var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
 
         covering.Select(source => source.Name).Should().Equal("Copernicus");
+    }
+
+    [Fact]
+    public void Resolve_SourceDeclaringNothingItResolvesOnto_IsCalledOnceAboutTheSite()
+    {
+        var model = new ModelBuilder().Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal");
+        SourceCovering(model, "OpenMeteo", "Portugal");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering[0].Calls.Should().ContainSingle()
+            .Which.SubjectId.Should().Be(model.Id("WillowBend"));
+    }
+
+    [Fact]
+    public void Resolve_ACallCarriesTheSitesOwnValues()
+    {
+        var model = new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")
+            .WithValue("WillowBend", "latitude", "39.4");
+        SourceCovering(model, "OpenMeteo", "Portugal");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering[0].Calls[0].Values["latitude"].Should().Be("39.4");
+    }
+
+    [Fact]
+    public void Resolve_APlacesValueAddressesTheCall()
+    {
+        // The portal's divisions are exactly what a Place is, so the division code a call needs sits
+        // on the Place — and the coverage walk already returns it, so this costs no extra read.
+        var model = new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")
+            .WithValue("Portugal", "hazardPortalDivision", "\"2062\"");
+        SourceCovering(model, "HazardPortal", "Portugal");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering[0].Calls[0].Values["hazardPortalDivision"].Should().Be("2062");
+    }
+
+    [Fact]
+    public void Resolve_TheNearestPlacesValueWins()
+    {
+        // A division's value is about somewhere smaller than its country's. Taking the far one would
+        // address every call at the widest place that happens to carry the name.
+        var model = new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Santarem")
+            .Relate("Santarem", CoveringSourceResolver.IsInPredicate, "Portugal")
+            .WithValue("Santarem", "hazardPortalDivision", "\"2062\"")
+            .WithValue("Portugal", "hazardPortalDivision", "\"185\"");
+        SourceCovering(model, "HazardPortal", "Portugal");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering[0].Calls[0].Values["hazardPortalDivision"].Should().Be("2062");
+    }
+
+    [Fact]
+    public void Resolve_TheSitesOwnValueBeatsAPlaces()
+    {
+        var model = new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")
+            .WithValue("WillowBend", "elevation", "\"120\"")
+            .WithValue("Portugal", "elevation", "\"9\"");
+        SourceCovering(model, "OpenMeteo", "Portugal");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering[0].Calls[0].Values["elevation"].Should().Be("120");
+    }
+
+    [Fact]
+    public void Resolve_TwoPlacesAtTheSameDistanceDisagreeing_DropTheName()
+    {
+        // Relationship order is not defined, so taking either would address different calls on
+        // different runs. A name the places agree on is still a value.
+        var model = new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Santarem")
+            .WithValue("Portugal", "hazardPortalDivision", "\"185\"")
+            .WithValue("Santarem", "hazardPortalDivision", "\"2062\"")
+            .WithValue("Portugal", "region", "\"iberia\"")
+            .WithValue("Santarem", "region", "\"iberia\"");
+        SourceCovering(model, "OpenMeteo", "Portugal");
+
+        var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"))[0].Calls[0].Values;
+
+        values.Should().NotContainKey("hazardPortalDivision");
+        values["region"].Should().Be("iberia");
+    }
+
+    // A source that resolves onto an archetype, and a site holding two Things of it — the shape the
+    // hazard portal is registered in, where every route wants one assessment's codes.
+    private static ModelBuilder ResolvingOnto(string source, string archetype, params string[] owned)
+    {
+        var model = new ModelBuilder().Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal");
+        SourceCovering(model, source, "Portugal");
+        model.Relate(source, CoveringSourceResolver.ResolvesOntoPredicate, archetype);
+        model.Archetype(archetype);
+        foreach (var thing in owned)
+        {
+            model.Relate("WillowBend", CoveringSourceResolver.HasPredicate, thing)
+                 .Relate(thing, CoveringSourceResolver.IsPredicateName, archetype);
+        }
+
+        return model;
+    }
+
+    [Fact]
+    public void Resolve_SourceResolvingOntoAnArchetype_IsCalledOncePerThingTheSiteHasOfIt()
+    {
+        var model = ResolvingOnto("HazardPortal", "HazardAssessment", "wildfire assessment", "flood assessment");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering[0].Calls.Select(call => call.SubjectName)
+            .Should().Equal("flood assessment", "wildfire assessment");
+        covering[0].Calls.Select(call => call.SubjectId)
+            .Should().Equal(model.Id("flood assessment"), model.Id("wildfire assessment"));
+    }
+
+    [Fact]
+    public void Resolve_APerSubjectCallIsAddressedByWhatItsSubjectReaches()
+    {
+        // The portal's code for a hazard hangs off the type Thing the assessment assesses — a word on
+        // the assessment could carry nothing — and the division code still arrives from the Place, so
+        // one call holds both halves of the address.
+        var model = ResolvingOnto("HazardPortal", "HazardAssessment", "flood assessment")
+            .Relate("flood assessment", CoveringSourceResolver.AssessesPredicate, "river-flood")
+            .WithValue("river-flood", "hazardPortalCode", "\"FL\"")
+            .WithValue("Portugal", "hazardPortalDivision", "\"185\"");
+
+        var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"))[0].Calls[0].Values;
+
+        values["hazardPortalCode"].Should().Be("FL");
+        values["hazardPortalDivision"].Should().Be("185");
+    }
+
+    [Fact]
+    public void Resolve_ASubjectsOwnValueBeatsItsVocabularysAndTheSites()
+    {
+        var model = ResolvingOnto("HazardPortal", "HazardAssessment", "flood assessment")
+            .Relate("flood assessment", CoveringSourceResolver.AssessesPredicate, "river-flood")
+            .WithValue("flood assessment", "detail", "\"own\"")
+            .WithValue("river-flood", "detail", "\"vocabulary\"")
+            .WithValue("WillowBend", "detail", "\"site\"")
+            .WithValue("river-flood", "hazardPortalCode", "\"FL\"")
+            .WithValue("WillowBend", "hazardPortalCode", "\"site\"");
+
+        var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"))[0].Calls[0].Values;
+
+        values["detail"].Should().Be("own");
+        values["hazardPortalCode"].Should().Be("FL", "what the subject reaches is nearer than the site");
+    }
+
+    [Fact]
+    public void Resolve_AnArchetypesValuesDoNotAddressACall()
+    {
+        // A type's value is a default for a kind, the same reason inherited values never address a
+        // call — so the is edge is not among the edges a subject's address is drawn along.
+        var model = ResolvingOnto("HazardPortal", "HazardAssessment", "flood assessment")
+            .WithValue("HazardAssessment", "hazardPortalCode", "\"XX\"");
+
+        var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"))[0].Calls[0].Values;
+
+        values.Should().NotContainKey("hazardPortalCode");
+    }
+
+    [Fact]
+    public void Resolve_AThingTheSiteHasThatIsNotOfTheArchetype_IsNotCalledAbout()
+    {
+        var model = ResolvingOnto("HazardPortal", "HazardAssessment", "flood assessment");
+        model.Relate("WillowBend", CoveringSourceResolver.HasPredicate, "a contact");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering[0].Calls.Select(call => call.SubjectName).Should().Equal("flood assessment");
+    }
+
+    [Fact]
+    public void Resolve_AThingOfTheArchetypeTheSiteDoesNotHave_IsNotCalledAbout()
+    {
+        // Another site's assessment is of the same archetype. Calling about it would write a reading
+        // onto a Thing this run was never dispatched for.
+        var model = ResolvingOnto("HazardPortal", "HazardAssessment", "flood assessment");
+        model.Relate("elsewhere assessment", CoveringSourceResolver.IsPredicateName, "HazardAssessment");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering[0].Calls.Select(call => call.SubjectName).Should().Equal("flood assessment");
+    }
+
+    [Fact]
+    public void Resolve_SourceResolvingOntoThingsTheSiteHasNoneOf_KeepsTheSourceWithNoCalls()
+    {
+        // Nothing to fetch is not a failure — the caller reports it as nothing to resolve rather
+        // than an outage, the same rule a site with no study is reported under.
+        var model = ResolvingOnto("HazardPortal", "HazardAssessment");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering.Should().ContainSingle();
+        covering[0].Calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Resolve_ResolutionThroughAnIntermediateType_IsStillCalledAbout()
+    {
+        var model = ResolvingOnto("HazardPortal", "HazardAssessment")
+            .Relate("WillowBend", CoveringSourceResolver.HasPredicate, "flood assessment")
+            .Relate("flood assessment", CoveringSourceResolver.IsPredicateName, "ProjectAssessment")
+            .Relate("ProjectAssessment", CoveringSourceResolver.IsPredicateName, "HazardAssessment");
+        model.Archetype("ProjectAssessment");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering[0].Calls.Select(call => call.SubjectName).Should().Equal("flood assessment");
+    }
+
+    [Fact]
+    public void Resolve_ResolvesOntoAThingThatIsNotAnArchetype_MakesNoCallAtAll()
+    {
+        // The declaration is there and unusable. A per-site call in its place would be refused for
+        // its unfilled placeholders, and the run would report the provider for an outage it had no
+        // part in.
+        var model = new ModelBuilder().Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal");
+        SourceCovering(model, "HazardPortal", "Portugal");
+        model.Relate("HazardPortal", CoveringSourceResolver.ResolvesOntoPredicate, "not a type");
+
+        var covering = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"));
+
+        covering.Should().ContainSingle();
+        covering[0].Calls.Should().BeEmpty();
     }
 
     [Fact]
@@ -489,10 +741,27 @@ public class CoveringSourceResolverTests
             CoveringSourceResolver.IsInPredicate,
             CoveringSourceResolver.CoversPredicate,
             CoveringSourceResolver.ResolvedByPredicate,
+            CoveringSourceResolver.ResolvesOntoPredicate,
+            CoveringSourceResolver.AssessesPredicate,
             CoveringSourceResolver.StudiesPredicate,
             CoveringSourceResolver.HasPredicate,
             CoveringSourceResolver.IsPredicateName,
         });
+    }
+
+    [Fact]
+    public void SelectorFor_WalksWhatHoldsASubjectBeforeWhatAddressesIt()
+    {
+        // Same composition rule as isIn before covers: what a source resolves onto joins the set
+        // only once the sources are in it, and what an assessment assesses only once the site's
+        // assessments are — a rule applied before its starting points exist finds nothing.
+        var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
+        var predicates = selector.Traverse!.Select(rule => rule.Predicate).ToList();
+
+        predicates.IndexOf(CoveringSourceResolver.CoversPredicate)
+            .Should().BeLessThan(predicates.IndexOf(CoveringSourceResolver.ResolvesOntoPredicate));
+        predicates.IndexOf(CoveringSourceResolver.HasPredicate)
+            .Should().BeLessThan(predicates.IndexOf(CoveringSourceResolver.AssessesPredicate));
     }
 
     [Fact]

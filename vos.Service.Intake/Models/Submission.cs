@@ -1,10 +1,11 @@
 namespace vos.Service.Intake.Models;
 
 /// <summary>
-/// What an intake wizard collected, as it is posted. Every field beyond the submission's own identifier
-/// and the site's name is optional: a wizard saves as the planner fills it in, and a value that has not
-/// been given is absent rather than zero — the same rule that keeps a computed output declared and empty
-/// until something computes it.
+/// What an intake wizard collected, as it is posted. A submission carries its own identifier, the site's
+/// name, a project, and a contact with a name and an email address — the last because a submission is
+/// reviewed and whoever made it has to be told what was decided. Every other field is optional: a wizard
+/// saves as the planner fills it in, and a value that has not been given is absent rather than zero —
+/// the same rule that keeps a computed output declared and empty until something computes it.
 /// </summary>
 public sealed record Submission
 {

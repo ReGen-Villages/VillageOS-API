@@ -113,7 +113,7 @@ public sealed class EndpointCallService
     // Refused before any outbound call, which is the whole reason a kind declares its requirements
     // instead of the code knowing them.
     private static string? UnmetRequirement(
-        ResolvedKind? kind, Dictionary<string, JsonElement> effective)
+        ResolvedKind? kind, IReadOnlyDictionary<string, JsonElement> effective)
     {
         var missing = EndpointKindResolver.MissingRequirements(kind, effective);
         return missing.Count == 0
@@ -571,7 +571,7 @@ public sealed class EndpointCallService
         EndpointCallResult.Failure(new ProblemError(status, title, detail));
 
     private static bool TryResolveOptionalMap(
-        Dictionary<string, JsonElement> effective, string name, out Dictionary<string, string>? map, out EndpointCallError? error)
+        IReadOnlyDictionary<string, JsonElement> effective, string name, out Dictionary<string, string>? map, out EndpointCallError? error)
     {
         map = null;
         error = null;
@@ -586,7 +586,7 @@ public sealed class EndpointCallService
     }
 
     private static bool TryResolveOptionalString(
-        Dictionary<string, JsonElement> effective, string name, out string? value, out EndpointCallError? error)
+        IReadOnlyDictionary<string, JsonElement> effective, string name, out string? value, out EndpointCallError? error)
     {
         value = null;
         error = null;

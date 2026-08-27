@@ -85,6 +85,41 @@ public class SubmissionLimitsTests
         Refusing(shape.Replace("@@", overLong)).Message.Should().Contain(field);
     }
 
+    // Whoever reviews a submission has to be able to tell the submitter what was decided, and the address
+    // on the submission is the only way back to them. What the shape catches is a mistake in the typing;
+    // that somebody reads what is sent there is what verification establishes, not this.
+    [Theory]
+    [InlineData("ana.ferreira")]
+    [InlineData("ana.ferreira@")]
+    [InlineData("@example.pt")]
+    [InlineData("ana@ferreira@example.pt")]
+    [InlineData("ana ferreira@example.pt")]
+    [InlineData("ana.ferreira@example")]
+    [InlineData("ana.ferreira@example..pt")]
+    [InlineData("ana.ferreira@.pt")]
+    [InlineData("ana.ferreira@example.p")]
+    public void An_address_no_mail_could_reach_is_refused(string address)
+    {
+        var refusal = Refusing("'contact':{'name':'Ana','emailAddress':'" + address + "'}");
+
+        refusal.Message.Should().Contain("contact.emailAddress");
+        refusal.Message.Should().NotContain(address,
+            "a refusal names the field to correct and never quotes what was submitted back");
+    }
+
+    [Theory]
+    [InlineData("ana.ferreira@example.pt")]
+    [InlineData("ana+willow-bend@example.co.uk")]
+    [InlineData("a@b.io")]
+    [InlineData("  ana.ferreira@example.pt  ")]
+    public void An_address_mail_could_reach_is_accepted(string address)
+    {
+        var act = () => SubmissionReader.Read(
+            Document("'contact':{'name':'Ana','emailAddress':'" + address + "'}"));
+
+        act.Should().NotThrow();
+    }
+
     [Theory]
     [InlineData(90.1)]
     [InlineData(-90.1)]

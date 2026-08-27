@@ -18,6 +18,10 @@ public static class SubmissionLimits
     /// anything has looked at it.</summary>
     public const long MaximumBodyBytes = 256 * 1024;
 
+    /// <summary>A verification body is an address and a six-figure code. Nothing that size can cost this
+    /// service anything, and a body far past it was never one.</summary>
+    public const long MaximumVerificationBytes = 1024;
+
     /// <summary>A name, a country, a relationship, an address, a phone number.</summary>
     public const int LongestText = 200;
 
@@ -65,6 +69,7 @@ public static class SubmissionLimits
             Text(contact.Name, "contact.name");
             Text(contact.RelationshipToProject, "contact.relationshipToProject");
             Text(contact.EmailAddress, "contact.emailAddress");
+            EmailAddress(contact.EmailAddress, "contact.emailAddress");
             Text(contact.PhoneNumber, "contact.phoneNumber");
         }
 
@@ -113,6 +118,29 @@ public static class SubmissionLimits
             Between(corner.Latitude, -90, 90, "parcel.boundary", "degrees of latitude");
             Between(corner.Longitude, -180, 180, "parcel.boundary", "degrees of longitude");
         }
+    }
+
+    // Whoever reviews a submission has to be able to tell the submitter what was decided, and this is the
+    // only way back to them. The shape is as far as a form gets on its own: it catches a mistake in the
+    // typing, and that somebody reads what is sent there is what verification establishes.
+    public static void EmailAddress(string? value, string field)
+    {
+        if (value is null || CouldBeWrittenTo(value.Trim())) return;
+
+        throw new SubmissionError(
+            $"'{field}' is not the shape of an email address: a mailbox, an '@', "
+            + "and a host with a dot in it.");
+    }
+
+    private static bool CouldBeWrittenTo(string address)
+    {
+        if (address.Any(char.IsWhiteSpace)) return false;
+
+        var mailboxAndHost = address.Split('@');
+        if (mailboxAndHost.Length != 2 || mailboxAndHost[0].Length == 0) return false;
+
+        var labels = mailboxAndHost[1].Split('.');
+        return labels.Length >= 2 && labels.All(label => label.Length > 0) && labels[^1].Length >= 2;
     }
 
     private static void Text(string? value, string field) => NoLongerThan(value, LongestText, field);

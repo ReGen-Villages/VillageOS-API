@@ -3,7 +3,8 @@
 > **Status: partly built.** The archetypes exist and a model can be seeded with them, the intake
 > service composes a submission into them, and the wizard collects what a planner types and posts it
 > (#6016), shows the site on the map as the position is given (#6014), and draws the parcel boundary
-> checked against the stated area (#6015). Anonymous submission and open-data discovery are still
+> checked against the stated area (#6015). Anybody may submit without a credential, having answered a
+> code sent to the address on the submission (#6026, #6027, #6799, #6803). Open-data discovery is still
 > design.
 > Tracked as Epic
 > [#6012](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6012) (client, services)
@@ -222,6 +223,10 @@ instead of failing the whole thing.
 | **Size and programme** | Land area (hectares or acres), population, household size, and which programme categories the village needs with roughly how the land divides between them |
 | **Parcel** | The actual boundary, drawn on a map |
 
+The wizard holds a submission back until the site name, the project name, and the contact's name and
+email address are filled in. Everything else can be left for later. The address is where the reviewer's
+decision is sent, which is why it is not among the fields a part-filled submission may go without.
+
 The programme categories are residential; food and agriculture; green, water and restoration;
 commercial and retail; community, education and health; and mobility and infrastructure. Each is
 toggled on or off and given a share.
@@ -325,6 +330,7 @@ Each of these rules exists to stop a particular kind of quiet damage:
 | **One place composes the fragment** | The signed-in wizard and a public submission post the same document to the same service, so there is one mapping from a submission to the model rather than one per caller. |
 | **Identifiers derive from the submission** | A wizard saves as it goes and a planner can double-click. A freshly generated identifier would build a second site beside the first; a derived one lands on the same Things every time, which is also what lets promotion be idempotent later. |
 | **A field not filled in yet is left out, not zeroed** | An absent value reads as absent. A zero standing in for one cannot be told from a real answer — the same reason a computed output is declared and left empty. |
+| **A submission names somebody to answer** | A submission is reviewed, and a decision nobody can be told is a decision nobody acts on. The project, a contact name and an email address are the fields a part-filled wizard may not leave out; the address is checked for the shape of one, which catches a mistake in the typing and nothing more. |
 | **A field the service does not write is refused** | A submission accepted and quietly dropped leaves the planner believing it was recorded. The refusal names the field. |
 | **The submission's identifier is a unique one** | Every Thing derives its identity from it, so two submissions carrying one identifier are one site. On a route anybody may post to, an identifier anybody could arrive at is a way to write over somebody else's submission. |
 
@@ -480,13 +486,14 @@ did in fact cover the site.
 | Climate zone | A zone nobody could enter, because the property takes observations only | Registered as seed data (#6734) |
 | Solar resource | A curve applied to latitude, feeding straight into the energy balance | Reshape proven, not yet seeded |
 | Rainfall | A number the planner is asked to type, feeding the water balance | Reshape proven, not yet seeded |
-| Hazard levels | Hand transcription of eight levels from a separate portal | Portal identified, not callable per site (#6735) |
+| Hazard levels | Hand transcription of eight levels from a separate portal | Registered as seed data, called once per assessment (#6735) |
 | Elevation and terrain | A manually entered value | Nothing registered |
 
 **The registered sources ship in the seed, not in a call.** A registration lives in the project's own
 model, so a source every project uses belongs in the seed every project is created from — which is a
 template in the platform repository, `open-data-sources.template.json`. That template also declares the
-`Place` archetype coverage is walked over and the `isIn`, `covers` and `resolvedBy` predicates. See
+`Place` archetype coverage is walked over and the `isIn`, `covers`, `resolvedBy` and `resolvesOnto`
+predicates. See
 [`DELTA.md`](DELTA.md#which-model-a-registration-lives-in) for why a shared catalogue was refused.
 
 **A site's climate zone is a Köppen-Geiger code** — `Csa`, `BSk`, `BWh` and the rest of that scheme.
@@ -885,19 +892,26 @@ hazard the portal holds nothing about stays unassessed rather than being graded 
 are also the vocabulary platform Task 6684 is waiting on for `hazardLevel` — each becomes a Thing, and
 the property becomes an edge to one.
 
-**The portal cannot yet be called for a site (#6735).** Every one of its routes takes an administrative
+**The portal is called once per assessment (#6735).** Every one of its routes takes an administrative
 division code, and its per-hazard route takes a two-letter code for the hazard type — `FL`, `LS`, `WF`.
-Neither value is in the model, so two things have to land before a registration can be written:
+Neither is a value a site carries, so the registration leans on the model holding both as Things:
 
-- **The Place a site is in carries the portal's division code.** That is a natural home rather than a
-  workaround — the portal's divisions are exactly what a Place is, and coverage already walks
-  `Site isIn Place`, so the coverage read already returns the Thing the value would sit on.
-- **The hazard type carries the portal's own code for it.** The type is now a Thing under the
-  `HazardType` archetype, reached by `assesses` (Bug #6737), which is what makes this possible: a code
-  belonging to one portal can hang off that Thing, where a word on an assessment could carry nothing.
+- **The Place a site is in carries the portal's division code**, as `hazardPortalDivision`. That is a
+  natural home rather than a workaround — the portal's divisions are exactly what a Place is, and
+  coverage already walks `Site isIn Place`, so the coverage read already returns the Thing the value
+  sits on. A project declares its division Place, relates its sites into it, and deploys nothing.
+- **The hazard type carries the portal's own code for it**, as `hazardPortalCode` on the Thing under
+  the `HazardType` archetype reached by `assesses` (Bug #6737) — a code belonging to one portal hangs
+  off the type Thing, where a word on an assessment could carry nothing.
 
-Until both land the level takes observations only and nothing can write one, so every hazard a
-submission mints reads as unassessed — which is the honest answer, not a safe one.
+The source declares that it resolves onto the assessment archetype, so a discovery run calls it once
+per assessment the site has, with that assessment as the call's subject: the reading — `hazardLevel`
+as the vocabulary word, and `assessedOn` — lands on the assessment it grades, and relating the word
+to the `HazardLevel` Thing it names is the vocabulary's remaining migration step. A division the
+portal holds no data about for a hazard is answered 404, so nothing is written and that hazard stays
+honestly unassessed. A site whose Places carry no division code has every hazard call refused before
+the provider is contacted and reported with the unfilled placeholder named — the model gap said out
+loud, not an outage invented for the portal.
 
 ---
 
@@ -981,7 +995,7 @@ flowchart TB
 | Property | How it is achieved |
 |---|---|
 | Anonymous in | The service decides; no platform rule is widened |
-| Rate limited, size capped, ticket checked | Owned by the service, where the public traffic is — see "What guards the route" below |
+| Rate limited, size capped, address verified | Owned by the service, where the public traffic is — see "What guards the route" below |
 | Cannot read project data | Its credential names only the intake model: a key created against a model is exchanged for a token naming that model, and refused one naming any other |
 | Writes go through normal auth | It mints a Mycelium token and posts a fragment, like any service |
 | Blast radius of a mistake | One service, not every endpoint in the model |
@@ -994,14 +1008,39 @@ different way the route can be abused, and each owned by this service rather tha
 | Guard | What it does | What it does not do |
 |---|---|---|
 | **Body cap** | A body larger than a form's worth of answers is refused on its declared length, before anything reads it | Say anything about a body that fits |
-| **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span. A refusal names the field | Judge whether the answer is true |
-| **Ticket** | `GET /submissions/ticket` hands out a short-lived value this service signed, and a post carries it back in `X-Submission-Ticket`. A post that never asked is refused | Establish that the caller is a person: asking for a ticket costs nothing, so an automated submitter that fetches before each post satisfies it |
-| **Rate limit** | One source may make a fixed number of requests in a fixed window, ticket requests included. Over it, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
+| **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span, and an email address the shape of one. A refusal names the field | Judge whether the answer is true |
+| **Verified address** | `POST /submissions/verification` sends a code to an address; `POST /submissions/ticket` exchanges that code for a short-lived ticket signed against it; `POST /submissions` reads the ticket back in `X-Submission-Ticket` and refuses a submission naming any other address | Say who the person is. It establishes that somebody reads that mailbox, and a person may hold as many mailboxes as they like |
+| **Rate limit** | One source may make a fixed number of requests in a fixed window, verification and ticket requests included. Over it, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
 
-The ticket and the rate limit work as a pair: the ticket makes an automated submitter come and ask, and
-the rate limit is what bounds how often it can. Neither is a challenge from a third-party service, and
-this platform is meant to run without one — so this is what it can honestly claim, and the staging model
-in front of a reviewer is what catches the rest.
+The verification and the rate limit work as a pair: answering a code costs a submitter a mailbox and a
+wait, and the rate limit is what bounds how fast they can spend either. Neither is a challenge from a
+third-party service, and this platform is meant to run without one — so this is what it can honestly
+claim, and the staging model in front of a reviewer is what catches the rest.
+
+**What bounds the sending itself.** The verification route is the one thing this service does to somebody
+who did not ask, because the address is a stranger's word for whose mailbox it is. A code lasts fifteen
+minutes and dies after a handful of wrong answers, so guessing six figures runs out rather than merely
+being unlikely; one address is sent only a few codes an hour, so the route cannot be pointed at a mailbox
+its owner never gave us; and what is held pending is capped, so a stranger asking about a fresh address
+each time cannot make the service grow. A send that fails hands the budget back, so a mail server having
+a bad afternoon does not lock an address out for the hour with no code delivered.
+
+**Answering a code tells the caller nothing about the address.** Every refusal on that route is worded
+identically — a wrong code, an expired one, a code answered too often, and an address nothing was ever
+sent to all read the same. Answering costs a caller nothing and they name the address themselves, so a
+message that told those apart would answer "has somebody just started a submission under this address"
+for any address anybody cared to type.
+
+**Asking for a code is not silent in the same way, and that is a deliberate trade.** The route answers
+`429` once an address has had its few codes for the hour, so a caller counting requests until that
+refusal can learn roughly how many codes an address was recently sent. Closing that would mean answering
+`202` to a request nothing was sent for, which leaves somebody who asked again in good faith waiting for
+mail that is never coming. The disclosure is narrow and costs the caller a real message to the mailbox
+they are probing on every attempt, which is the abuse the per-source rate limit is there to catch.
+
+**Nothing pending survives a restart.** A code is good for minutes and the person whose was lost asks for
+another. Keeping them would mean writing addresses to disk, which is the one thing this flow exists to
+avoid.
 
 **A source is the address the reverse proxy forwards.** Every caller reaches this service through the
 proxy, so the connection itself is always from loopback; the caller's own address arrives in
@@ -1064,7 +1103,7 @@ The main finding from designing this: most of it is already built.
 | — | |
 | A map, and drawing a parcel on it | **Exists** — the map module (#5346), the wizard showing the site on it (#6014), and parcel drawing with the drawn area checked against the stated area (#6015) |
 | The intake wizard | **Exists** — what a planner types (#6016), the site on the map (#6014), and the parcel step (#6015) |
-| Anonymous submission: rate limits, size caps, field bounds, a ticket | **Exists** (#6026, #6027) — the route takes a submission from someone holding no credential, guarded as [§9](#what-guards-the-route) describes |
+| Anonymous submission: rate limits, size caps, field bounds, a verified address | **Exists** (#6026, #6027, #6799, #6803) — the route takes a submission from someone holding no credential and having proved they read mail at the address on it, guarded as [§9](#what-guards-the-route) describes |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 
 ---

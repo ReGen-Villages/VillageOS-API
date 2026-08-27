@@ -1,8 +1,8 @@
 # Forage
 
 Forage resolves a site against the outside world. Given a Site, it works out which data
-sources cover that site, calls each one through Tributary with the site's coordinates, and
-reports what did and did not resolve. The name is what an organism does when it goes out to
+sources cover that site, calls each one through Tributary with the values the model holds
+for the call, and reports what did and did not resolve. The name is what an organism does when it goes out to
 find what its surroundings hold and brings it back — which is the whole of this service, and
 what `Mycelium` is named for doing underground.
 
@@ -51,9 +51,11 @@ called its root something else (Bug #6752).
 is not related to a country or a region: `country` on a submission is optional and stays text, it
 names an open set nobody can enumerate, and the vocabulary pattern used elsewhere here *refuses* a
 term the model does not hold — which would turn "we have not declared your country" into "your land
-cannot be submitted". The first source whose coverage is narrower than the whole world is what should
-force that design, and the hazard portal needs a Place carrying its administrative division code, so
-that is where it belongs.
+cannot be submitted". The hazard portal covers the root too — it is global — but its address needs a
+Place carrying its administrative division code (`hazardPortalDivision`), which a project declares in
+its own model and relates its sites into. A site reaching no such Place has the portal's calls
+refused before the provider is contacted and reported with the unfilled placeholder named: the model
+gap said out loud, where hiding the source would leave a quietly short report.
 
 **Why not a `coverage` string.** The failure this path exists to prevent is a source that
 does cover the site being silently skipped because a country was written two ways —
@@ -71,8 +73,10 @@ unresolved list either, because nothing knew to look for it.
 | `isIn` | `Site isIn Place`, `Place isIn Place` | Where the site is, and what contains that. Walked to any depth, so nesting can be as deep as a model wants. |
 | `covers` | `DataSource covers Place` | Where a source applies. Several `covers` edges are fine; the source is still selected once. |
 | `resolvedBy` | `DataSource resolvedBy Endpoint` | Which Tributary registration a call goes through. A relation, not a copied name, so renaming the registration cannot strand the source. |
+| `resolvesOnto` | `DataSource resolvesOnto archetype` | What a source's readings are about, where that is not the site itself. A source naming an archetype is called once per Thing the site `has` of it, with that Thing as the call's subject — the hazard portal grades one assessment per call. |
 | `studies` | `SiteStudy studies Site` | The study the analysis computes. Read incoming, because the edge runs from the study to the site. |
-| `has`, `is` | `Connection has Service`, `Service is prototype` | Which service a connection dispatches, and the prototype an analysis edge points at. |
+| `has`, `is` | `Connection has Service`, `Service is prototype`, `Site has HazardAssessment` | Which service a connection dispatches, the prototype an analysis edge points at, and the Things a per-subject source is called about. |
+| `assesses` | `HazardAssessment assesses HazardType` | What an assessment is about. The type Thing carries the portal's code for it, and a per-assessment call is addressed with what its subject reaches — a second per-subject source whose vocabulary hangs off a different predicate adds that predicate here. |
 
 Connections are **not** read by name. Every connection a site analysis starts `is` an archetype
 carrying `__IsSiteAnalysisConnectionArchetype`, and they are asked for by that mark, model-wide —
@@ -160,15 +164,32 @@ the provider's own words where there are any, because that is the most useful th
 be told about why a value is missing. Reporting what did *not* resolve matters as much as reporting
 what did: a quietly short list is the failure of the tool being replaced.
 
-**The site's own values go to every source.** Whatever the Site carries — coordinates, elevation,
-climate zone — is passed as the address parameters of every call. A source's address takes only the
-placeholders it names and the fetcher ignores the rest, so one set of values serves a source wanting
-coordinates, one wanting elevation, and one wanting neither, with no per-source arrangement here.
-Inherited values are left out: a value from an archetype is a default for a *kind* of site, and
-calling a provider with a default location would return a confident reading about somewhere else.
+**A call is addressed from its subject outward.** Whatever the call's subject carries — coordinates,
+elevation, climate zone — is passed as its address parameters, and behind it, layered so the most
+specific holder of a name decides it: the subject's own values first, then (for a per-subject call)
+the values of the Things it reaches by its own outgoing edges, then the site's, then each Place the
+site is in, nearest first. A source's address takes only the placeholders it names and the fetcher
+ignores the rest, so one set of values serves a source wanting coordinates, one wanting a division
+code, and one wanting neither, with no per-source arrangement here. Inherited values are left out — a
+value from an archetype is a default for a *kind* of site, and calling a provider with a default
+location would return a confident reading about somewhere else — and so are the double-underscored
+marks readers find Things by, and any name that Things standing at the same distance disagree on,
+because relationship order is undefined and taking either would address different calls on different
+runs.
 
-**Bounds.** Sources resolve concurrently up to `--maxConcurrentSources`, so a site covered by many
-sources cannot open a burst of connections that reads as abuse. Any one source is bounded by
+**A source that declares what it resolves onto is called once per Thing, not once per site.** The
+hazard portal grades one assessment per call: its `resolvesOnto` edge names the `HazardAssessment`
+archetype, so a run calls it once for each assessment the site `has`, with that assessment as the
+call's subject — the reading lands on the assessment it grades, and the division and hazard codes
+arrive from the Place and from the type Thing the assessment `assesses`. A declared source on a site
+holding nothing of its archetype has nothing to fetch: that is logged and is not a failure, the same
+rule a site with no study is reported under. A failed per-subject call names its subject in the
+report, because a portal answering for five assessments and not the sixth must not read as a source
+that failed outright.
+
+**Bounds.** Calls run concurrently up to `--maxConcurrentSources`, held across every call rather
+than per source, so a site covered by many sources — or a source called once per assessment — cannot
+open a burst of connections that reads as abuse. Any one source is bounded by
 `--sourceTimeoutSeconds`: a provider that accepts the connection and then goes quiet is more common
 than one that refuses outright, and it must not hold up the run. A run cancelled by its caller is
 never reported as a timeout — that would put a fabricated outage in front of a planner.

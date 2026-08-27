@@ -45,6 +45,9 @@ public sealed class ModelPartitionedMycelium
         var model = ModelFor(modelId);
         var path = request.RequestUri!.AbsolutePath;
 
+        if (CatalogEdgeRead.Answer(request, model.Relationships) is { } catalogEdges)
+            return catalogEdges;
+
         if (request.Method == HttpMethod.Get && path == "/api/things")
         {
             var name = NameParameter(request);
@@ -68,6 +71,7 @@ public sealed class ModelPartitionedMycelium
             var (subject, predicate, target) = RelationshipInBody(request);
             if (_deleted.Contains(target))
                 return new HttpResponseMessage(HttpStatusCode.NotFound);
+            model.Relationships.Add((subject, predicate, target));
             Record(() => RelationshipsCreated.Add((modelId, subject, predicate, target)));
             return Json("{}");
         }
@@ -131,5 +135,7 @@ public sealed class ModelPartitionedMycelium
     private sealed class Model
     {
         public ConcurrentDictionary<string, Guid> Things { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public ConcurrentBag<(Guid Subject, Guid Predicate, Guid Target)> Relationships { get; } = new();
     }
 }

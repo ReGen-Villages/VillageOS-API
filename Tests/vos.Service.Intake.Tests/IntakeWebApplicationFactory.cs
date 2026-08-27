@@ -54,15 +54,25 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     /// none.</summary>
     public string? ApiKey { get; set; }
 
+    /// <summary>Where a verification code goes instead of a mail server, so a test can read back the code
+    /// a person would have read in their mail.</summary>
+    public CapturingMailer Mailer { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("Port", "5000");
         builder.UseSetting("MyceliumUrl", "http://localhost");
+        // A non-empty token short-circuits the /api/auth/token round trip in MyceliumClientBase, which is
+        // why a test about the key sets Token to null.
         if (Token != null)
             builder.UseSetting("Token", Token);
         if (ApiKey != null)
             builder.UseSetting("ApiKey", ApiKey);
+        // The service refuses to start without these, so every test supplies them; nothing here reaches a
+        // mail server, because the mailer below is what actually sends.
+        builder.UseSetting("MailHost", "smtp.example.test");
+        builder.UseSetting("MailFrom", "intake@example.test");
         if (VerificationKey != null)
         {
             builder.UseSetting("VerificationKey", VerificationKey);
@@ -80,6 +90,8 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
             services.AddSingleton<ILogger<SubmissionIntakeService>>(Log);
+            services.RemoveAll<IVerificationMailer>();
+            services.AddSingleton<IVerificationMailer>(Mailer);
             if (ArrivesThroughAProxy)
                 services.AddSingleton<IStartupFilter, ArrivingThroughTheProxy>();
         });
@@ -100,6 +112,29 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 });
                 next(builder);
             };
+    }
+}
+
+/// <summary>Where a verification code goes with no mail server to send it. A test reads the code back
+/// because reading it out of a mailbox is the one step in the exchange it cannot take.</summary>
+public sealed class CapturingMailer : IVerificationMailer
+{
+    private readonly List<(string EmailAddress, string Code)> _sent = [];
+
+    /// <summary>What the mail server does instead of accepting the message, where a test is about a
+    /// deployment whose mail is not working.</summary>
+    public Exception? Refuses { get; set; }
+
+    public IReadOnlyList<(string EmailAddress, string Code)> Sent => _sent;
+
+    public string CodeSentTo(string emailAddress) =>
+        _sent.Last(sent => sent.EmailAddress == emailAddress).Code;
+
+    public Task SendAsync(string emailAddress, string code, CancellationToken cancellation)
+    {
+        if (Refuses is { } refusal) return Task.FromException(refusal);
+        _sent.Add((emailAddress, code));
+        return Task.CompletedTask;
     }
 }
 
