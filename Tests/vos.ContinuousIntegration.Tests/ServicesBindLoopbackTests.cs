@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using vos.Tests.Shared;
@@ -21,7 +20,7 @@ public class ServicesBindLoopbackTests
     {
         var root = RepositoryRoot.Find();
 
-        var unbound = ServiceEntryPoints(root)
+        var unbound = ServiceEntryPoints.Under(root)
             .Where(entryPoint => !File.ReadAllText(entryPoint).Contains(LoopbackBinding, StringComparison.Ordinal))
             .Select(entryPoint => Path.GetRelativePath(root, entryPoint))
             .ToList();
@@ -36,7 +35,7 @@ public class ServicesBindLoopbackTests
     {
         var root = RepositoryRoot.Find();
 
-        var exposed = ServiceEntryPoints(root)
+        var exposed = ServiceEntryPoints.Under(root)
             .Select(entryPoint => (Path: Path.GetRelativePath(root, entryPoint), Source: File.ReadAllText(entryPoint)))
             .Where(entryPoint => new[] { "0.0.0.0", "[::]", "AnyIP", "ListenAnyIP" }
                 .Any(binding => entryPoint.Source.Contains(binding, StringComparison.Ordinal)))
@@ -46,10 +45,4 @@ public class ServicesBindLoopbackTests
         Assert.True(exposed.Count == 0,
             $"these service entry points bind beyond loopback: {string.Join(", ", exposed)}");
     }
-
-    private static IEnumerable<string> ServiceEntryPoints(string root) =>
-        new DirectoryInfo(root)
-            .EnumerateDirectories("vos.Service.*")
-            .Select(service => Path.Combine(service.FullName, "Program.cs"))
-            .Where(File.Exists);
 }
