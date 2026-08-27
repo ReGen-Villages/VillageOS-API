@@ -11,7 +11,7 @@ vi.mock('../api/relationshipApi', () => ({
   relationshipApi: { getAll: vi.fn() },
 }));
 vi.mock('../api/intakeApi', () => ({
-  intakeApi: { configured: vi.fn(), submit: vi.fn() },
+  intakeApi: { configured: vi.fn(), submit: vi.fn(), askForCode: vi.fn() },
 }));
 vi.mock('../components/common/toastStore', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -110,6 +110,7 @@ beforeEach(() => {
   vi.mocked(thingApi.getAllProperties).mockResolvedValue(PROPERTIES);
   vi.mocked(intakeApi.configured).mockReturnValue(true);
   vi.mocked(intakeApi.submit).mockResolvedValue({ reference: 'sub-0001' });
+  vi.mocked(intakeApi.askForCode).mockResolvedValue(undefined);
 });
 
 /** Walk to a step by pressing Next, which is also what makes each one reachable again. */
@@ -460,11 +461,21 @@ describe('posting the submission', () => {
     };
   }
 
-  it('will not submit until it names the site, the project, and who to tell what was decided', () => {
+  /** The whole of what submitting is now: ask for a code, read it off the mail the person got, and send
+   *  the submission under it. */
+  async function askForACodeAndSubmit(code = '314159'): Promise<void> {
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+    await waitFor(() => expect(intakeApi.askForCode).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Code'), { target: { value: code } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+  }
+
+  it('will not ask for a code until it names the site, the project, and who to send it to', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
     expect(
       screen.getByText(
         'A site name, a project name, and a contact name and email address are all needed.',
@@ -477,7 +488,7 @@ describe('posting the submission', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
   });
 
   it('will not submit where no intake address is configured, and says so', () => {
@@ -486,7 +497,7 @@ describe('posting the submission', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
     expect(screen.getByText('No intake service address is configured.')).toBeInTheDocument();
   });
 
@@ -495,11 +506,13 @@ describe('posting the submission', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await askForACodeAndSubmit();
 
     await waitFor(() => expect(screen.getByText('Submitted')).toBeInTheDocument());
+    expect(intakeApi.askForCode).toHaveBeenCalledWith('ana.ferreira@example.pt');
     expect(intakeApi.submit).toHaveBeenCalledWith(
       expect.objectContaining({ submissionId: 'sub-0001', site: { name: 'Willow Bend', statedAreaHectares: 24 } }),
+      '314159',
     );
     expect(screen.getByText('sub-0001')).toBeInTheDocument();
   });
@@ -514,11 +527,12 @@ describe('posting the submission', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await askForACodeAndSubmit();
 
     await waitFor(() =>
       expect(intakeApi.submit).toHaveBeenCalledWith(
         expect.objectContaining({ parcel: { boundarySource: 'drawn-by-hand', boundary: corners } }),
+        '314159',
       ),
     );
   });
@@ -528,7 +542,7 @@ describe('posting the submission', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await askForACodeAndSubmit();
 
     await waitFor(() => expect(loadDraft('model-1')).toBeNull());
   });
@@ -537,7 +551,7 @@ describe('posting the submission', () => {
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
     goToStep(4);
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await askForACodeAndSubmit();
     await waitFor(() => expect(screen.getByText('Submitted')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Start another' }));
@@ -552,10 +566,40 @@ describe('posting the submission', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await askForACodeAndSubmit();
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(loadDraft('model-1')?.siteName).toBe('Willow Bend');
+  });
+
+  // A code that never arrived is where a submitter is left with a form and nothing to do, so the page
+  // says what went wrong and stays where it was rather than asking for a code it never sent.
+  it('says why no code could be sent, and does not ask for one back', async () => {
+    vi.mocked(intakeApi.askForCode).mockRejectedValue(
+      new Error('That address has been sent as many codes as it can be for now.'),
+    );
+    saveDraft('model-1', submittable());
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Code')).not.toBeInTheDocument();
+    expect(intakeApi.submit).not.toHaveBeenCalled();
+  });
+
+  // The code is what says this address can be read by whoever is submitting, so the submission cannot go
+  // before one has been entered.
+  it('will not submit with the code box empty', async () => {
+    saveDraft('model-1', submittable());
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+    await waitFor(() => expect(screen.getByLabelText('Code')).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
   });
 });
 

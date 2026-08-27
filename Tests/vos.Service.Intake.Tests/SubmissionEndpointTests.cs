@@ -35,11 +35,18 @@ public class SubmissionEndpointTests
     private static StringContent Submission(string document) =>
         new(document, Encoding.UTF8, "application/json");
 
-    /// <summary>A form's whole exchange: ask for a ticket, then post under it.</summary>
-    private static async Task<HttpResponseMessage> SubmitAsync(HttpClient client, string document)
-    {
-        var ticket = await TicketFrom(client);
+    /// <summary>The address the submissions here name, which is therefore the one they verify.</summary>
+    private const string AnasAddress = "ana.ferreira@example.pt";
 
+    /// <summary>A form's whole exchange: ask for a code, answer it, then post under the ticket that
+    /// comes back.</summary>
+    private static async Task<HttpResponseMessage> SubmitAsync(
+        IntakeWebApplicationFactory factory, HttpClient client, string document) =>
+        await PostAsync(client, document, await TicketFor(factory, client, AnasAddress));
+
+    private static async Task<HttpResponseMessage> PostAsync(
+        HttpClient client, string document, string ticket)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/submissions")
         {
             Content = Submission(document),
@@ -48,12 +55,20 @@ public class SubmissionEndpointTests
         return await client.SendAsync(request);
     }
 
-    private static async Task<string> TicketFrom(HttpClient client)
+    private static async Task<string> TicketFor(
+        IntakeWebApplicationFactory factory, HttpClient client, string emailAddress)
     {
-        var response = await client.GetAsync("/submissions/ticket");
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("ticket").GetString()!;
+        (await AskForACodeAsync(client, emailAddress)).EnsureSuccessStatusCode();
+
+        var exchanged = await client.PostAsJsonAsync(
+            "/submissions/ticket",
+            new { emailAddress, code = factory.Mailer.CodeSentTo(emailAddress) });
+        exchanged.EnsureSuccessStatusCode();
+        return (await exchanged.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("ticket").GetString()!;
     }
+
+    private static Task<HttpResponseMessage> AskForACodeAsync(HttpClient client, string emailAddress) =>
+        client.PostAsJsonAsync("/submissions/verification", new { emailAddress });
 
     [Fact]
     public async Task An_accepted_submission_answers_with_a_reference_and_nothing_of_the_model()
@@ -61,7 +76,7 @@ public class SubmissionEndpointTests
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
         using var client = factory.CreateClient();
 
-        var response = await SubmitAsync(client, WillowBendDocument);
+        var response = await SubmitAsync(factory, client, WillowBendDocument);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
@@ -84,7 +99,7 @@ public class SubmissionEndpointTests
         };
         using var client = factory.CreateClient();
 
-        (await SubmitAsync(client, WillowBendDocument)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await SubmitAsync(factory, client, WillowBendDocument)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await client.GetAsync("/health")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -94,7 +109,7 @@ public class SubmissionEndpointTests
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
         using var client = factory.CreateClient();
 
-        var response = await SubmitAsync(client, Document("'budgetEuros':250000"));
+        var response = await SubmitAsync(factory, client, Document("'budgetEuros':250000"));
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await response.Content.ReadAsStringAsync()).Should().Contain("budgetEuros");
@@ -110,7 +125,7 @@ public class SubmissionEndpointTests
         var document = Document("'site':{'name':'Willow Bend'},"
                                 + "'parcel':{'boundarySource':'drawn-by-hand','boundary':[" + corners + "]}");
 
-        var response = await SubmitAsync(client, document);
+        var response = await SubmitAsync(factory, client, document);
 
         response.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge,
             "a submission is a form's worth of answers and a boundary; anything larger must not be read into memory first");
@@ -135,7 +150,7 @@ public class SubmissionEndpointTests
         };
         using var client = factory.CreateClient();
 
-        (await SubmitAsync(client, Document(shape))).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await SubmitAsync(factory, client, Document(shape))).StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         written.Should().BeFalse();
     }
@@ -154,7 +169,7 @@ public class SubmissionEndpointTests
         };
         using var client = factory.CreateClient();
 
-        var response = await SubmitAsync(client, WillowBendDocument);
+        var response = await SubmitAsync(factory, client, WillowBendDocument);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await response.Content.ReadAsStringAsync()).Should().Contain("Duplicate Thing id");
@@ -173,7 +188,7 @@ public class SubmissionEndpointTests
         };
         using var client = factory.CreateClient();
 
-        var response = await SubmitAsync(client, AboutTheSite(""));
+        var response = await SubmitAsync(factory, client, AboutTheSite(""));
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         var body = await response.Content.ReadAsStringAsync();
@@ -185,16 +200,141 @@ public class SubmissionEndpointTests
     }
 
     [Fact]
-    public async Task A_ticket_is_offered_to_whoever_asks_for_one()
+    public async Task A_ticket_is_offered_to_whoever_answers_the_code_that_was_sent()
     {
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
         using var client = factory.CreateClient();
 
-        var offered = await client.GetFromJsonAsync<JsonElement>("/submissions/ticket");
+        (await AskForACodeAsync(client, AnasAddress)).StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var exchanged = await client.PostAsJsonAsync(
+            "/submissions/ticket",
+            new { emailAddress = AnasAddress, code = factory.Mailer.CodeSentTo(AnasAddress) });
 
+        var offered = await exchanged.Content.ReadFromJsonAsync<JsonElement>();
         offered.GetProperty("ticket").GetString().Should().NotBeNullOrWhiteSpace();
         offered.GetProperty("validForSeconds").GetInt32()
             .Should().Be((int)SubmissionTicket.ValidFor.TotalSeconds);
+    }
+
+    [Fact]
+    public async Task A_ticket_is_refused_to_whoever_cannot_answer_the_code()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        using var client = factory.CreateClient();
+
+        await AskForACodeAsync(client, AnasAddress);
+        var refused = await client.PostAsJsonAsync(
+            "/submissions/ticket", new { emailAddress = AnasAddress, code = "000000" });
+
+        refused.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "the code is the whole of what says this address can be read by whoever is submitting");
+    }
+
+    // The ticket says which address it was issued against, so it cannot be spent on a submission naming
+    // somebody else's. Without this, one verified address would be a ticket to submit under any.
+    [Fact]
+    public async Task A_submission_naming_an_address_the_ticket_was_not_issued_for_is_refused()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        using var client = factory.CreateClient();
+
+        var ticket = await TicketFor(factory, client, "somebody.else@example.pt");
+
+        var refused = await PostAsync(client, WillowBendDocument, ticket);
+
+        refused.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await refused.Content.ReadAsStringAsync()).Should().NotContain(AnasAddress,
+            "a refusal names no address, whether the submitted one or the verified one");
+    }
+
+    // The address a code was sent to and the address on the submission are the same mailbox however each
+    // was typed, so a ticket has to survive the difference rather than turn a submitter away over it.
+    [Fact]
+    public async Task An_address_verified_under_another_spelling_still_carries_its_ticket()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        using var client = factory.CreateClient();
+
+        var ticket = await TicketFor(factory, client, "  Ana.Ferreira@Example.PT  ");
+
+        (await PostAsync(client, WillowBendDocument, ticket)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task An_address_asked_for_more_codes_than_the_window_allows_is_sent_no_more()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        using var client = factory.CreateClient();
+
+        for (var asked = 0; asked < AddressVerification.CodesPerAddress; asked++)
+            (await AskForACodeAsync(client, AnasAddress)).EnsureSuccessStatusCode();
+
+        var refused = await AskForACodeAsync(client, AnasAddress);
+
+        refused.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        factory.Mailer.Sent.Should().HaveCount(AddressVerification.CodesPerAddress,
+            "a route that sends on demand is a way to post to a mailbox its owner never gave us");
+    }
+
+    [Fact]
+    public async Task A_code_answered_wrongly_too_often_stops_working()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        using var client = factory.CreateClient();
+
+        await AskForACodeAsync(client, AnasAddress);
+        var code = factory.Mailer.CodeSentTo(AnasAddress);
+        for (var guess = 0; guess < AddressVerification.AnswersAllowed; guess++)
+            await client.PostAsJsonAsync(
+                "/submissions/ticket", new { emailAddress = AnasAddress, code = "000000" });
+
+        var refused = await client.PostAsJsonAsync(
+            "/submissions/ticket", new { emailAddress = AnasAddress, code });
+
+        refused.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "guessing a six-figure code has to run out rather than merely be unlikely");
+    }
+
+    [Fact]
+    public async Task A_deployment_whose_mail_is_not_working_says_nothing_of_what_is_wrong()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        factory.Mailer.Refuses = new InvalidOperationException("relay access denied for intake@example.test");
+        using var client = factory.CreateClient();
+
+        var response = await AskForACodeAsync(client, AnasAddress);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await response.Content.ReadAsStringAsync()).Should().NotContain("relay access denied");
+        factory.Log.Lines.Should().Contain(line => line.Contains("relay access denied"),
+            "what is wrong with the deployment belongs where whoever runs it reads it");
+    }
+
+    [Fact]
+    public async Task Asking_to_verify_something_that_is_not_an_address_is_refused_by_name()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        using var client = factory.CreateClient();
+
+        var refused = await AskForACodeAsync(client, "ana ferreira");
+
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await refused.Content.ReadAsStringAsync()).Should().Contain("emailAddress").And.NotContain("ana ferreira");
+        factory.Mailer.Sent.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Neither_an_address_nor_a_code_is_ever_written_down()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        using var client = factory.CreateClient();
+
+        await AskForACodeAsync(client, AnasAddress);
+        var code = factory.Mailer.CodeSentTo(AnasAddress);
+        await client.PostAsJsonAsync("/submissions/ticket", new { emailAddress = AnasAddress, code = "000000" });
+        await client.PostAsJsonAsync("/submissions/ticket", new { emailAddress = AnasAddress, code });
+
+        factory.Log.Lines.Should().NotContain(line => line.Contains(AnasAddress) || line.Contains(code));
     }
 
     [Fact]
@@ -234,7 +374,7 @@ public class SubmissionEndpointTests
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
         using var client = factory.CreateClient();
 
-        var ticket = await TicketFrom(client);
+        var ticket = await TicketFor(factory, client, AnasAddress);
         using var request = new HttpRequestMessage(HttpMethod.Post, "/submissions")
         {
             Content = Submission(WillowBendDocument),
@@ -250,7 +390,7 @@ public class SubmissionEndpointTests
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
         using var client = factory.CreateClient();
 
-        var ticket = await TicketFrom(client);
+        var ticket = await TicketFor(factory, client, AnasAddress);
         factory.Clock.Advance(SubmissionTicket.ValidFor + TimeSpan.FromMinutes(1));
         using var request = new HttpRequestMessage(HttpMethod.Post, "/submissions")
         {
@@ -269,7 +409,7 @@ public class SubmissionEndpointTests
 
         HttpResponseMessage? refused = null;
         for (var attempt = 0; attempt <= SubmissionRate.RequestsAllowed; attempt++)
-            refused = await AskForATicket(client, from: "203.0.113.5");
+            refused = await AskFromAsync(client, from: "203.0.113.5", attempt);
 
         refused!.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         refused.Headers.RetryAfter.Should().NotBeNull("a refusal a caller cannot time is a refusal it retries into");
@@ -282,10 +422,11 @@ public class SubmissionEndpointTests
         using var client = factory.CreateClient();
 
         for (var attempt = 0; attempt <= SubmissionRate.RequestsAllowed; attempt++)
-            await AskForATicket(client, from: "203.0.113.5");
+            await AskFromAsync(client, from: "203.0.113.5", attempt);
 
-        (await AskForATicket(client, from: "203.0.113.6")).StatusCode.Should().Be(HttpStatusCode.OK,
-            "one source spending its budget must not close the service to everybody behind it");
+        (await AskFromAsync(client, from: "203.0.113.6", attempt: 0)).StatusCode
+            .Should().Be(HttpStatusCode.Accepted,
+                "one source spending its budget must not close the service to everybody behind it");
     }
 
     // The service run with nothing in front of it. There is no address to tell callers apart by, so they
@@ -300,15 +441,20 @@ public class SubmissionEndpointTests
         };
         using var client = factory.CreateClient();
 
-        (await SubmitAsync(client, WillowBendDocument)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await SubmitAsync(factory, client, WillowBendDocument)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await client.PostAsync("/submissions", Submission(WillowBendDocument))).StatusCode
             .Should().Be(HttpStatusCode.Forbidden);
         factory.Log.Lines.Should().Contain(line => line.Contains("source unknown"));
     }
 
-    private static async Task<HttpResponseMessage> AskForATicket(HttpClient client, string from)
+    /// <summary>One request against a source's budget. A different address each time, so what runs out is
+    /// the source's share of the route and never the budget one address has for codes.</summary>
+    private static async Task<HttpResponseMessage> AskFromAsync(HttpClient client, string from, int attempt)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/submissions/ticket");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/submissions/verification")
+        {
+            Content = JsonContent.Create(new { emailAddress = $"asker-{from}-{attempt}@example.pt" }),
+        };
         request.Headers.Add("X-Forwarded-For", from);
         return await client.SendAsync(request);
     }
@@ -319,7 +465,7 @@ public class SubmissionEndpointTests
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
         using var client = factory.CreateClient();
 
-        (await SubmitAsync(client, AboutTheSite(""))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await SubmitAsync(factory, client, AboutTheSite(""))).StatusCode.Should().Be(HttpStatusCode.OK);
 
         factory.Log.Lines.Should().Contain(line => line.Contains(WillowBend.SubmissionId),
             "a reviewer looks the submission up under what the submitter was answered with");
@@ -333,7 +479,7 @@ public class SubmissionEndpointTests
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
         using var client = factory.CreateClient();
 
-        var refused = await SubmitAsync(client, AboutTheSite(",'latitude':91.0"));
+        var refused = await SubmitAsync(factory, client, AboutTheSite(",'latitude':91.0"));
 
         refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         factory.Log.Lines.Should().Contain(line => line.Contains("site.latitude"));
