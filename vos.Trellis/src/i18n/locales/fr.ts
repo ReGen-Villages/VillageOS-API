@@ -693,7 +693,7 @@ export const fr: PartialResources = {
     back: "Retour",
     next: "Suivant",
     submit: "Soumettre",
-    siteNameNeeded: "Un nom de site est nécessaire.",
+    fieldsNeeded: "Un nom de site, un nom de projet, ainsi que le nom et l'adresse e-mail d'un contact sont nécessaires.",
     notConfigured: "Aucune adresse du service de réception n'est configurée.",
     accepted: "{{site}} soumis.",
     refused: "La soumission a été refusée : {{reason}}",

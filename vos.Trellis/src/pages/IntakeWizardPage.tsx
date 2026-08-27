@@ -258,7 +258,7 @@ function Navigation({
           <span className="text-xs text-amber-600 dark:text-amber-400">{t('intake.notConfigured')}</span>
         )}
         {last && configured && !ready && (
-          <span className="text-xs text-amber-600 dark:text-amber-400">{t('intake.siteNameNeeded')}</span>
+          <span className="text-xs text-amber-600 dark:text-amber-400">{t('intake.fieldsNeeded')}</span>
         )}
         <button
           onClick={() => (last ? onSubmit() : onGoTo(STEPS[index + 1]))}

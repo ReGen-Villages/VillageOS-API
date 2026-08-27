@@ -823,7 +823,7 @@ export const ar: PartialResources & ArabicPlurals = {
     back: "رجوع",
     next: "التالي",
     submit: "إرسال",
-    siteNameNeeded: "يلزم اسم للموقع.",
+    fieldsNeeded: "يلزم اسم للموقع واسم للمشروع واسم وعنوان بريد إلكتروني لجهة اتصال.",
     notConfigured: "لم يُضبط أي عنوان لخدمة الاستقبال.",
     accepted: "أُرسل {{site}}.",
     refused: "رُفض التقديم: {{reason}}",

@@ -691,7 +691,7 @@ export const en = {
     back: 'Back',
     next: 'Next',
     submit: 'Submit',
-    siteNameNeeded: 'A site name is needed.',
+    fieldsNeeded: 'A site name, a project name, and a contact name and email address are all needed.',
     notConfigured: 'No intake service address is configured.',
     accepted: 'Submitted {{site}}.',
     refused: 'The submission was refused: {{reason}}',
