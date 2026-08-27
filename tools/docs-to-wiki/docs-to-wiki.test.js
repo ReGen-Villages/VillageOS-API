@@ -174,6 +174,46 @@ test('a document git ignores is a working note, not a document the repository ca
   }
 });
 
+// The blind spot this discovery was widened for: a document written anywhere but docs/ or the root was
+// invisible here, so it was neither published nor recorded as withheld and the guard above stayed green
+// while the wiki silently lacked it.
+test('a document in any other directory is carried too', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
+  try {
+    execFileSync('git', ['init', '--quiet'], { cwd: root });
+    fs.mkdirSync(path.join(root, 'docs'));
+    fs.writeFileSync(path.join(root, 'docs', 'GUIDE.md'), '# Guide\n');
+    fs.mkdirSync(path.join(root, 'deploy'));
+    fs.writeFileSync(path.join(root, 'deploy', 'README.md'), '# Deployment\n');
+    fs.mkdirSync(path.join(root, 'tools', 'a-tool'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'tools', 'a-tool', 'README.md'), '# A tool\n');
+
+    assert.deepEqual(repositoryDocuments(root).sort(),
+      ['deploy/README.md', 'docs/GUIDE.md', 'tools/a-tool/README.md']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// Walking every directory would otherwise wander into dependency and build trees, which hold thousands
+// of documents that are nobody's decision.
+test('build and dependency directories are not walked', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-to-wiki-'));
+  try {
+    execFileSync('git', ['init', '--quiet'], { cwd: root });
+    fs.mkdirSync(path.join(root, 'docs'));
+    fs.writeFileSync(path.join(root, 'docs', 'GUIDE.md'), '# Guide\n');
+    for (const directory of ['node_modules', 'bin', 'obj']) {
+      fs.mkdirSync(path.join(root, 'a-project', directory), { recursive: true });
+      fs.writeFileSync(path.join(root, 'a-project', directory, 'README.md'), '# Not ours\n');
+    }
+
+    assert.deepEqual(repositoryDocuments(root).sort(), ['docs/GUIDE.md']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // A handoff may carry a downstream product's vocabulary, so the rule that keeps it out of the
 // repository has to hold on a clone whose filesystem tells upper and lower case apart. gitignore
 // matches those patterns literally, and a developer on macOS never sees the difference.
@@ -282,6 +322,12 @@ test('a link to a mapped document becomes a wiki page link', () => {
 test('a link labelled with the file name is relabelled with the page name', () => {
   assert.equal(rewrite('[B.md](B.md)'), '[B](/Services/B)');
   assert.equal(rewrite('[../README.md](../README.md)'), '[Project Guide](/Project Guide)');
+});
+
+// A path set as code is still a path, and reads as one on a wiki where no such file exists.
+test('a link labelled with the file name in backticks is relabelled too', () => {
+  assert.equal(rewrite('[`B.md`](B.md)'), '[B](/Services/B)');
+  assert.equal(rewrite('[`../README.md`](../README.md)'), '[Project Guide](/Project Guide)');
 });
 
 test('a link with real wording keeps its own text', () => {

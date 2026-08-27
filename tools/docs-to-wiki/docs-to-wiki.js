@@ -18,11 +18,24 @@ const ATTACHMENTS = '.attachments';
 
 /** The markdown a clone of the repository would contain. A file git ignores is a working note
  *  somebody keeps locally, so the wiki manifest is never expected to account for it. */
+// Walked rather than listed from two known directories: a document is a decision wherever it sits, and
+// one written outside them used to be invisible here — neither published nor recorded as withheld.
+// These are skipped for speed, not for correctness; git ignores them anyway, and check-ignore below is
+// what actually decides.
+const NOT_WORTH_WALKING = new Set(['.git', 'node_modules', 'bin', 'obj']);
+
+function markdownUnder(directory, root) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return NOT_WORTH_WALKING.has(entry.name) ? [] : markdownUnder(full, root);
+    }
+    return entry.name.endsWith('.md') ? [path.relative(root, full).split(path.sep).join('/')] : [];
+  });
+}
+
 function repositoryDocuments(root) {
-  const documents = [
-    ...fs.readdirSync(path.join(root, 'docs')).filter((f) => f.endsWith('.md')).map((f) => `docs/${f}`),
-    ...fs.readdirSync(root).filter((f) => f.endsWith('.md')),
-  ];
+  const documents = markdownUnder(root, root);
   const check = spawnSync('git', ['check-ignore', '--stdin'], {
     cwd: root,
     input: documents.join('\n'),
@@ -140,8 +153,10 @@ function rewriteLinks(markdown, { docPath, wiki, pageOf, anchorsOf, imagesSeen }
     const page = pageOf(file);
     if (page) {
       const translated = anchor ? (anchorsOf(file) ?? {})[anchor] : undefined;
-      // A doc index labels its links with file names; on the wiki those read as page names.
-      const label = text === path.posix.basename(targetPath) || text === targetPath
+      // A doc index labels its links with file names; on the wiki those read as page names. The name
+      // is often set as code, and a path in backticks is still a path to the reader.
+      const named = text.replaceAll('`', '');
+      const label = named === path.posix.basename(targetPath) || named === targetPath
         ? page.split('/').pop()
         : text;
       return `[${label}](${page}${translated ? `#${translated}` : ''})`;

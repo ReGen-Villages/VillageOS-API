@@ -36,6 +36,7 @@ Reference material for engineers building or hosting services. Denser by design.
 | [SERVICE_CONTRACT.md](SERVICE_CONTRACT.md) | The precise wire contract — endpoints, subscribe/SSE, and write-back kinds. |
 | [SERVICES.md](SERVICES.md) | The canonical reference for the shared C# service host and the services built on it. |
 | [SERVICE_HOST_ROADMAP.md](SERVICE_HOST_ROADMAP.md) | Planned work for consolidating the shared host across services. |
+| [../deploy/README.md](../deploy/README.md) | How a deployment routes requests: the reverse proxy that splits the hostnames, what each service must bind, and the origin the public form posts from. |
 
 > These files are also published to the
 > [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is
