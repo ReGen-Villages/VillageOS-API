@@ -1,4 +1,4 @@
-using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using vos.Tests.Shared;
@@ -7,42 +7,68 @@ using Xunit;
 namespace vos.ContinuousIntegration.Tests;
 
 /// <summary>
-/// Every service is reachable only through the reverse proxy, which reaches it over loopback. A
-/// service that binds any other address is on the network the moment it starts, with whatever
-/// authentication it happens to have — so the binding is pinned here rather than trusted.
+/// Every service is reachable only through the reverse proxy, which reaches it over loopback. A service
+/// that binds any other address is on the network the moment it starts, with whatever authentication it
+/// happens to have — so the binding is pinned here rather than trusted.
+///
+/// Two questions, asked as widely as each can be answered. What an entry point binds is read from the
+/// binding calls themselves, which only the managed services can be read for. Whether an entry point
+/// names an address reaching past the machine is asked of every service in every language, because that
+/// is the answer that matters and it needs no parsing.
 /// </summary>
 public class ServicesBindLoopbackTests
 {
-    private const string LoopbackBinding = "UseUrls($\"http://localhost:";
+    /// <summary>The file that decides what a service listens on, per language. The managed one is
+    /// <see cref="ServiceEntryPoints"/>'s business, so it is not named twice.</summary>
+    private static readonly string[] EntryPointFiles =
+        ["main.go", Path.Combine("src", "index.ts"), "app.py", Path.Combine("src", "main.rs")];
 
     [Fact]
-    public void Every_service_entry_point_binds_loopback_and_nothing_else()
+    public void Every_managed_service_states_a_binding_and_every_binding_it_states_is_loopback()
     {
         var root = RepositoryRoot.Find();
 
-        var unbound = ServiceEntryPoints.Under(root)
-            .Where(entryPoint => !File.ReadAllText(entryPoint).Contains(LoopbackBinding, StringComparison.Ordinal))
-            .Select(entryPoint => Path.GetRelativePath(root, entryPoint))
-            .ToList();
-
-        Assert.True(unbound.Count == 0,
-            "these service entry points do not bind http://localhost explicitly, so they listen wherever "
-            + $"the host's defaults point: {string.Join(", ", unbound)}");
-    }
-
-    [Fact]
-    public void No_service_entry_point_binds_beyond_loopback()
-    {
-        var root = RepositoryRoot.Find();
-
-        var exposed = ServiceEntryPoints.Under(root)
-            .Select(entryPoint => (Path: Path.GetRelativePath(root, entryPoint), Source: File.ReadAllText(entryPoint)))
-            .Where(entryPoint => new[] { "0.0.0.0", "[::]", "AnyIP", "ListenAnyIP" }
-                .Any(binding => entryPoint.Source.Contains(binding, StringComparison.Ordinal)))
+        var wrong = ServiceEntryPoints.Under(root)
+            .Select(entryPoint => (Path: Path.GetRelativePath(root, entryPoint), Calls: ServiceBindings.BindingCallsIn(File.ReadAllText(entryPoint))))
+            .Where(entryPoint => entryPoint.Calls.Count == 0 || !entryPoint.Calls.All(ServiceBindings.IsLoopback))
             .Select(entryPoint => entryPoint.Path)
             .ToList();
 
-        Assert.True(exposed.Count == 0,
-            $"these service entry points bind beyond loopback: {string.Join(", ", exposed)}");
+        Assert.True(wrong.Count == 0,
+            "these service entry points either state no binding, so they listen wherever the host's "
+            + $"defaults point, or state one that reaches past this machine: {string.Join(", ", wrong)}");
     }
+
+    [Fact]
+    public void No_service_in_any_language_names_an_address_beyond_loopback()
+    {
+        var root = RepositoryRoot.Find();
+
+        var exposed = EntryPoints(root)
+            .Where(entryPoint => ServiceBindings.ReachesBeyondLoopback(File.ReadAllText(entryPoint)))
+            .Select(entryPoint => Path.GetRelativePath(root, entryPoint))
+            .ToList();
+
+        Assert.True(exposed.Count == 0,
+            $"these service entry points name an address beyond loopback: {string.Join(", ", exposed)}");
+    }
+
+    // Without this the two tests above pass by finding nothing, which is how a guard stops guarding
+    // without anyone noticing — a service moved or a directory renamed leaves them green.
+    [Fact]
+    public void The_sweep_finds_a_service_in_every_language_the_repository_carries()
+    {
+        var root = RepositoryRoot.Find();
+
+        var found = EntryPoints(root).Select(Path.GetExtension).Distinct().OrderBy(extension => extension);
+
+        Assert.Equal([".cs", ".go", ".py", ".rs", ".ts"], found);
+    }
+
+    private static IEnumerable<string> EntryPoints(string root) =>
+        ServiceEntryPoints.Under(root).Concat(
+            new DirectoryInfo(root)
+                .EnumerateDirectories("vos.Service.*")
+                .SelectMany(service => EntryPointFiles.Select(file => Path.Combine(service.FullName, file)))
+                .Where(File.Exists));
 }

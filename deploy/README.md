@@ -15,9 +15,12 @@ where `root` points, and run `caddy run --config deploy/Caddyfile`.
 
 ## What the services must do
 
-- **Bind loopback.** Every service binds `http://localhost:<port>` and is unreachable except
-  through the proxy. A test pins this for every service entry point:
-  `Tests/vos.ContinuousIntegration.Tests/ServicesBindLoopbackTests`.
+- **Bind loopback.** Every service listens on this machine only and is unreachable except through
+  the proxy. Write the binding whichever way the language allows — `localhost`, `127.0.0.1` or a
+  Kestrel listen call are all read the same.
+  `Tests/vos.ContinuousIntegration.Tests/ServicesBindLoopbackTests` pins it: no service in any
+  language may name an address reaching past this machine, and every managed service must state a
+  binding, all of which must be loopback.
 - **The broker stays unaware of hostnames.** Nothing in it reads the request's host name, and that
   is deliberate — see the "On subdomain" note in [`../docs/LAND_INTAKE.md`](../docs/LAND_INTAKE.md).
 - **The intake service names the form's origin.** The public form is served from the main host and
