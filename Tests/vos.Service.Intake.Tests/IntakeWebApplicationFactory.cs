@@ -46,6 +46,14 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     /// </summary>
     public bool ArrivesThroughAProxy { get; set; } = true;
 
+    /// <summary>The service JWT. A non-empty one short-circuits the token exchange, so a test about the
+    /// key the service holds sets this to null to make the exchange happen.</summary>
+    public string? Token { get; set; } = "test-token";
+
+    /// <summary>The durable credential a service nobody launches has to hold. Null is a service given
+    /// none.</summary>
+    public string? ApiKey { get; set; }
+
     /// <summary>Where a verification code goes instead of a mail server, so a test can read back the code
     /// a person would have read in their mail.</summary>
     public CapturingMailer Mailer { get; } = new();
@@ -55,8 +63,12 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.UseSetting("Port", "5000");
         builder.UseSetting("MyceliumUrl", "http://localhost");
-        // A non-empty token short-circuits the /api/auth/token round trip in MyceliumClientBase.
-        builder.UseSetting("Token", "test-token");
+        // A non-empty token short-circuits the /api/auth/token round trip in MyceliumClientBase, which is
+        // why a test about the key sets Token to null.
+        if (Token != null)
+            builder.UseSetting("Token", Token);
+        if (ApiKey != null)
+            builder.UseSetting("ApiKey", ApiKey);
         // The service refuses to start without these, so every test supplies them; nothing here reaches a
         // mail server, because the mailer below is what actually sends.
         builder.UseSetting("MailHost", "smtp.example.test");
