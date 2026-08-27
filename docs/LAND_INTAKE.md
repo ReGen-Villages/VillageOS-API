@@ -889,8 +889,9 @@ levels are the ones it publishes, and the two ends already named are its own.
 
 "No data" is a grade of its own and is the reason an unassessed hazard must not read as a safe one: a
 hazard the portal holds nothing about stays unassessed rather than being graded "very low". Those five
-are also the vocabulary platform Task 6684 is waiting on for `hazardLevel` — each becomes a Thing, and
-the property becomes an edge to one.
+are also the `HazardLevel` Things the platform's intake template declares (platform Task 6684); the
+declaration a discovery run resolves the written word by is platform User Story 6773, and performing
+the resolution is User Story 6809.
 
 **The portal is called once per assessment (#6735).** Every one of its routes takes an administrative
 division code, and its per-hazard route takes a two-letter code for the hazard type — `FL`, `LS`, `WF`.
@@ -906,8 +907,10 @@ Neither is a value a site carries, so the registration leans on the model holdin
 
 The source declares that it resolves onto the assessment archetype, so a discovery run calls it once
 per assessment the site has, with that assessment as the call's subject: the reading — `hazardLevel`
-as the vocabulary word, and `assessedOn` — lands on the assessment it grades, and relating the word
-to the `HazardLevel` Thing it names is the vocabulary's remaining migration step. A division the
+as the vocabulary word, and `assessedOn` — lands on the assessment it grades. Relating the word to
+the `HazardLevel` Thing it names is User Story 6809, reading the declaration the platform model
+carries (platform User Story 6773); the word stays on the series as the record of what the portal
+answered. A division the
 portal holds no data about for a hazard is answered 404, so nothing is written and that hazard stays
 honestly unassessed. A site whose Places carry no division code has every hazard call refused before
 the provider is contacted and reported with the unfilled placeholder named — the model gap said out
