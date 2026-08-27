@@ -6,7 +6,7 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
-public class SiteValuesTests
+public class OwnValuesTests
 {
     private static SnapshotProperty Property(string json) =>
         new(JsonDocument.Parse(json).RootElement, null, null);
@@ -33,7 +33,7 @@ public class SiteValuesTests
             ["climateZone"] = Property("\"Csa\""),
         }));
 
-        var values = SiteValues.Of(snapshot, siteId);
+        var values = OwnValues.Of(snapshot, siteId);
 
         values["lat"].Should().Be("-25.75");
         values["lng"].Should().Be("28.19");
@@ -52,7 +52,7 @@ public class SiteValuesTests
             ["elevation"] = Property("1200"),
         }));
 
-        var values = SiteValues.Of(snapshot, siteId);
+        var values = OwnValues.Of(snapshot, siteId);
 
         values["lng"].Should().Be("28.19");
         values["elevation"].Should().Be("1200");
@@ -74,7 +74,7 @@ public class SiteValuesTests
                 }),
             }));
 
-        var values = SiteValues.Of(snapshot, siteId);
+        var values = OwnValues.Of(snapshot, siteId);
 
         values.Should().ContainKey("lat");
         values.Should().NotContainKey("lng");
@@ -92,7 +92,7 @@ public class SiteValuesTests
             ["blank"] = Property("\"   \""),
         }));
 
-        var values = SiteValues.Of(snapshot, siteId);
+        var values = OwnValues.Of(snapshot, siteId);
 
         values.Keys.Should().Equal("lat");
     }
@@ -106,13 +106,31 @@ public class SiteValuesTests
             ["coastal"] = Property("true"),
         }));
 
-        SiteValues.Of(snapshot, siteId)["coastal"].Should().Be("true");
+        OwnValues.Of(snapshot, siteId)["coastal"].Should().Be("true");
+    }
+
+    [Fact]
+    public void Of_MarksAreNotValues()
+    {
+        // A double-underscored property is how a reader finds a Thing, not something true of the
+        // place or assessment a call is about — a mark sent as an address value would fill a
+        // placeholder no provider means.
+        var thingId = Guid.NewGuid();
+        var snapshot = Snapshot(Site(thingId, new Dictionary<string, SnapshotProperty>
+        {
+            ["__IsRootPlace"] = Property("true"),
+            ["hazardPortalDivision"] = Property("\"2062\""),
+        }));
+
+        var values = OwnValues.Of(snapshot, thingId);
+
+        values.Keys.Should().Equal("hazardPortalDivision");
     }
 
     [Fact]
     public void Of_SiteNotInTheSnapshot_ReturnsNoValues()
     {
-        var values = SiteValues.Of(Snapshot(Site(Guid.NewGuid())), Guid.NewGuid());
+        var values = OwnValues.Of(Snapshot(Site(Guid.NewGuid())), Guid.NewGuid());
 
         values.Should().BeEmpty();
     }
@@ -128,6 +146,6 @@ public class SiteValuesTests
             ["lat"] = Property("-25.75"),
         }));
 
-        SiteValues.Of(snapshot, siteId).ContainsKey("LAT").Should().BeTrue();
+        OwnValues.Of(snapshot, siteId).ContainsKey("LAT").Should().BeTrue();
     }
 }

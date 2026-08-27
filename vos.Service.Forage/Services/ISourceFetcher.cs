@@ -5,7 +5,7 @@ namespace vos.Service.Forage.Services;
 public interface ISourceFetcher
 {
     Task<SourceOutcome> FetchAsync(
-        Guid siteId,
+        Guid subjectId,
         string sourceName,
         string endpointName,
         IReadOnlyDictionary<string, string> addressParameters,
