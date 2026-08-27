@@ -7,46 +7,37 @@ namespace vos.Service.Shared.Tests.DagNode;
 
 public class HandleRequestRouterTests
 {
-    private static JsonElement Body(string json) => JsonSerializer.Deserialize<JsonElement>(json);
-
     [Fact]
     public void Classify_WithRunIdAndNodeId_IsANodeEnvelope()
     {
-        var kind = HandleRequestRouter.Classify(
-            Body("""{"runId":"a1b2","nodeId":"n1","inputs":{}}"""), out var subjectId);
+        var request = HandleRequestRouter.Classify("""{"runId":"a1b2","nodeId":"n1","inputs":{}}""");
 
-        kind.Should().Be(HandleRequestKind.NodeEnvelope);
-        subjectId.Should().Be(Guid.Empty);
+        request.Kind.Should().Be(HandleRequestKind.NodeEnvelope);
+        request.SubjectId.Should().Be(Guid.Empty);
     }
 
     [Fact]
     public void Classify_PrefersTheNodeEnvelopeWhenABodyCarriesBothShapes()
     {
-        var kind = HandleRequestRouter.Classify(
-            Body("""{"runId":"a1b2","nodeId":"n1","subjectId":"6f9619ff-8b86-d011-b42d-00cf4fc964ff"}"""),
-            out _);
+        var request = HandleRequestRouter.Classify(
+            """{"runId":"a1b2","nodeId":"n1","subjectId":"6f9619ff-8b86-d011-b42d-00cf4fc964ff"}""");
 
-        kind.Should().Be(HandleRequestKind.NodeEnvelope);
+        request.Kind.Should().Be(HandleRequestKind.NodeEnvelope);
     }
 
     [Theory]
     [InlineData("""{"runId":"a1b2"}""")]
     [InlineData("""{"nodeId":"n1"}""")]
-    public void Classify_WithOnlyHalfOfTheEnvelope_IsNotANodeEnvelope(string json)
-    {
-        var kind = HandleRequestRouter.Classify(Body(json), out _);
-
-        kind.Should().Be(HandleRequestKind.Unrecognised);
-    }
+    public void Classify_WithOnlyHalfOfTheEnvelope_IsNotANodeEnvelope(string json) =>
+        HandleRequestRouter.Classify(json).Kind.Should().Be(HandleRequestKind.Unrecognised);
 
     [Fact]
     public void Classify_WithASubjectId_NamesTheThingToActOn()
     {
-        var kind = HandleRequestRouter.Classify(
-            Body("""{"subjectId":"6f9619ff-8b86-d011-b42d-00cf4fc964ff"}"""), out var subjectId);
+        var request = HandleRequestRouter.Classify("""{"subjectId":"6f9619ff-8b86-d011-b42d-00cf4fc964ff"}""");
 
-        kind.Should().Be(HandleRequestKind.RelationshipSubject);
-        subjectId.Should().Be(Guid.Parse("6f9619ff-8b86-d011-b42d-00cf4fc964ff"));
+        request.Kind.Should().Be(HandleRequestKind.RelationshipSubject);
+        request.SubjectId.Should().Be(Guid.Parse("6f9619ff-8b86-d011-b42d-00cf4fc964ff"));
     }
 
     [Theory]
@@ -56,11 +47,11 @@ public class HandleRequestRouterTests
     [InlineData("subjectid")]
     public void Classify_ReadsTheSubjectIdWhateverItsCasing(string propertyName)
     {
-        var kind = HandleRequestRouter.Classify(
-            Body($$"""{"{{propertyName}}":"6f9619ff-8b86-d011-b42d-00cf4fc964ff"}"""), out var subjectId);
+        var request = HandleRequestRouter.Classify(
+            $$"""{"{{propertyName}}":"6f9619ff-8b86-d011-b42d-00cf4fc964ff"}""");
 
-        kind.Should().Be(HandleRequestKind.RelationshipSubject);
-        subjectId.Should().Be(Guid.Parse("6f9619ff-8b86-d011-b42d-00cf4fc964ff"));
+        request.Kind.Should().Be(HandleRequestKind.RelationshipSubject);
+        request.SubjectId.Should().Be(Guid.Parse("6f9619ff-8b86-d011-b42d-00cf4fc964ff"));
     }
 
     [Theory]
@@ -70,15 +61,15 @@ public class HandleRequestRouterTests
     [InlineData("""{"subjectId":""}""")]
     public void Classify_WithASubjectIdThatIsNotAnIdentifier_IsUnrecognised(string json)
     {
-        var kind = HandleRequestRouter.Classify(Body(json), out var subjectId);
+        var request = HandleRequestRouter.Classify(json);
 
-        kind.Should().Be(HandleRequestKind.Unrecognised);
-        subjectId.Should().Be(Guid.Empty);
+        request.Kind.Should().Be(HandleRequestKind.Unrecognised);
+        request.SubjectId.Should().Be(Guid.Empty);
     }
 
     [Fact]
     public void Classify_WithAnEmptyObject_IsUnrecognised() =>
-        HandleRequestRouter.Classify(Body("{}"), out _).Should().Be(HandleRequestKind.Unrecognised);
+        HandleRequestRouter.Classify("{}").Kind.Should().Be(HandleRequestKind.Unrecognised);
 
     [Theory]
     [InlineData("[]")]
@@ -88,21 +79,47 @@ public class HandleRequestRouterTests
     [InlineData("true")]
     public void Classify_WhenTheBodyIsNotAnObject_IsUnrecognised(string json)
     {
-        var kind = HandleRequestRouter.Classify(Body(json), out var subjectId);
+        var request = HandleRequestRouter.Classify(json);
 
-        kind.Should().Be(HandleRequestKind.Unrecognised);
-        subjectId.Should().Be(Guid.Empty);
+        request.Kind.Should().Be(HandleRequestKind.Unrecognised);
+        request.SubjectId.Should().Be(Guid.Empty);
     }
 
     [Fact]
     public void Classify_FindsTheSubjectIdAmongOtherProperties()
     {
-        var kind = HandleRequestRouter.Classify(
-            Body("""{"other":"x","subjectId":"6f9619ff-8b86-d011-b42d-00cf4fc964ff","more":1}"""),
-            out var subjectId);
+        var request = HandleRequestRouter.Classify(
+            """{"other":"x","subjectId":"6f9619ff-8b86-d011-b42d-00cf4fc964ff","more":1}""");
 
-        kind.Should().Be(HandleRequestKind.RelationshipSubject);
-        subjectId.Should().Be(Guid.Parse("6f9619ff-8b86-d011-b42d-00cf4fc964ff"));
+        request.Kind.Should().Be(HandleRequestKind.RelationshipSubject);
+        request.SubjectId.Should().Be(Guid.Parse("6f9619ff-8b86-d011-b42d-00cf4fc964ff"));
+    }
+
+    // Text a service cannot read at all is the same answer as JSON it can read and cannot act on:
+    // a body it refuses, not a request that fails.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("this is not json")]
+    [InlineData("""{"subjectId":""")]
+    [InlineData("""{"subjectId":"6f9619ff-8b86-d011-b42d-00cf4fc964ff"} and then some""")]
+    public void Classify_WhenTheBodyIsNotJson_IsUnrecognisedRatherThanRaising(string? body)
+    {
+        var request = HandleRequestRouter.Classify(body);
+
+        request.Kind.Should().Be(HandleRequestKind.Unrecognised);
+        request.SubjectId.Should().Be(Guid.Empty);
+        request.IsJson.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Classify_HandsBackABodyThatOutlivesTheDocumentItWasReadFrom()
+    {
+        var request = HandleRequestRouter.Classify("""{"runId":"a1b2","nodeId":"n1","inputs":{"depth":3}}""");
+
+        request.IsJson.Should().BeTrue();
+        request.Json.GetProperty("inputs").GetProperty("depth").GetInt32().Should().Be(3);
     }
 
     [Fact]

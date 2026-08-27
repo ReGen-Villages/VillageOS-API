@@ -236,6 +236,28 @@ public class HandleEndpointTests
             .Contain(HandleRequestRouter.DescribeExpectedShapes("Forage"));
     }
 
+    // A body the service cannot read at all is still a body it can refuse. Raising instead leaves the
+    // caller with a failed request, and a failed dispatch is re-driven — so text that can never parse
+    // would be retried on a loop rather than turned down once.
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("this is not json")]
+    [InlineData("{\"subjectId\":")]
+    public async Task Handle_ABodyThatIsNotJson_IsRefusedInTheSharedWords(string body)
+    {
+        await using var factory = new ForageWebApplicationFactory();
+        await factory.InitializeAsync();
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync(
+            "/handle", new StringContent(body, Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.Content.ReadAsStringAsync()).Should()
+            .Contain(HandleRequestRouter.DescribeExpectedShapes("Forage"));
+    }
+
     [Fact]
     public async Task Handle_ReleasesTheSubscriptionItOpened()
     {
