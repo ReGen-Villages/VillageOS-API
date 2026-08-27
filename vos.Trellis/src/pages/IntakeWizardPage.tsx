@@ -57,6 +57,8 @@ export function IntakeWizardPage() {
   const [categories, setCategories] = useState<readonly string[]>([]);
   const [basemapSources, setBasemapSources] = useState<BasemapSource[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [awaitingCode, setAwaitingCode] = useState(false);
+  const [code, setCode] = useState('');
   const [accepted, setAccepted] = useState<SubmissionAccepted | null>(null);
 
   // A draft belongs to the model it proposes land into, so it is picked up once that is known — and a
@@ -116,12 +118,31 @@ export function IntakeWizardPage() {
     [modelId],
   );
 
+  // Submitting is two acts with a person in the middle of them: the service sends a code to the address
+  // on the form, and the submission goes once that code has been read back off it. The code is held only
+  // until it is spent — it is not part of the draft, and a draft come back to tomorrow starts here again.
+  async function askForCode(): Promise<void> {
+    if (!draft) return;
+    setSubmitting(true);
+    try {
+      await intakeApi.askForCode(draft.emailAddress.trim());
+      setAwaitingCode(true);
+      toast.success(t('intake.codeSent', { address: draft.emailAddress.trim() }));
+    } catch (error) {
+      toast.error(t('intake.refused', { reason: error instanceof Error ? error.message : String(error) }));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function submit(): Promise<void> {
     if (!draft) return;
     setSubmitting(true);
     try {
-      const result = await intakeApi.submit(documentFrom(draft));
+      const result = await intakeApi.submit(documentFrom(draft), code.trim());
       setAccepted(result);
+      setAwaitingCode(false);
+      setCode('');
       if (modelId) clearDraft(modelId);
       toast.success(t('intake.accepted', { site: draft.siteName.trim() }));
     } catch (error) {
@@ -133,6 +154,8 @@ export function IntakeWizardPage() {
 
   function startAnother(): void {
     setAccepted(null);
+    setAwaitingCode(false);
+    setCode('');
     setDraft(emptyDraft(crypto.randomUUID()));
     setStep('project');
   }
@@ -178,8 +201,11 @@ export function IntakeWizardPage() {
                 ready={readyToSubmit(draft)}
                 submitting={submitting}
                 configured={intakeApi.configured()}
+                awaitingCode={awaitingCode}
+                code={code}
+                onCodeChange={setCode}
                 onGoTo={goTo}
-                onSubmit={() => void submit()}
+                onSubmit={() => void (awaitingCode ? submit() : askForCode())}
               />
             </>
           )}
@@ -229,6 +255,9 @@ function Navigation({
   ready,
   submitting,
   configured,
+  awaitingCode,
+  code,
+  onCodeChange,
   onGoTo,
   onSubmit,
 }: {
@@ -236,12 +265,16 @@ function Navigation({
   ready: boolean;
   submitting: boolean;
   configured: boolean;
+  awaitingCode: boolean;
+  code: string;
+  onCodeChange: (code: string) => void;
   onGoTo: (step: StepId) => void;
   onSubmit: () => void;
 }) {
   const { t } = useTranslation();
   const index = STEPS.indexOf(step);
   const last = index === STEPS.length - 1;
+  const held = last && (submitting || !configured || !ready || (awaitingCode && code.trim().length === 0));
 
   return (
     <div className="mt-4 flex items-center justify-between gap-3">
@@ -260,12 +293,21 @@ function Navigation({
         {last && configured && !ready && (
           <span className="text-xs text-amber-600 dark:text-amber-400">{t('intake.fieldsNeeded')}</span>
         )}
+        {last && awaitingCode && (
+          <input
+            aria-label={t('intake.code')}
+            value={code}
+            onChange={(event) => onCodeChange(event.target.value)}
+            placeholder={t('intake.codePlaceholder')}
+            className="w-28 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+          />
+        )}
         <button
           onClick={() => (last ? onSubmit() : onGoTo(STEPS[index + 1]))}
-          disabled={last && (submitting || !configured || !ready)}
+          disabled={held}
           className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
         >
-          {last ? t('intake.submit') : t('intake.next')}
+          {!last ? t('intake.next') : awaitingCode ? t('intake.submit') : t('intake.sendCode')}
         </button>
       </div>
     </div>

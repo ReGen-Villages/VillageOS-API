@@ -24,10 +24,8 @@ public sealed class SubmissionIntakeService(
         SubmissionFragmentComposer.SubmissionArchetypeName,
     ];
 
-    public async Task<ComposedSubmission> SubmitAsync(string document, CancellationToken cancellation)
+    public async Task<ComposedSubmission> SubmitAsync(Submission submission, CancellationToken cancellation)
     {
-        var submission = SubmissionReader.Read(document);
-
         // None of these lookups reads another's answer, and a fragment upserts so a wizard posts the whole
         // submission again on every save. Awaited one after another they would spend a round trip each on
         // every keystroke's worth of progress, and one more again for every archetype added later.

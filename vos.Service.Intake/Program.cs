@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
@@ -12,11 +13,13 @@ using vos.Service.Shared.Subscriptions;
 var builder = WebApplication.CreateBuilder(args);
 
 var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
-if (launchSettings == null)
+var mailSettings = MailSettings.Parse(args, builder.Configuration);
+if (launchSettings == null || mailSettings == null)
 {
     Console.WriteLine(ServiceLaunchSettings.BuildUsageMessage(
-        " [--publicFormOrigin=<origin>[,<origin>]]",
-        "\n  --publicFormOrigin  Origin(s) of the public form allowed to call this service across origins"));
+        " [--publicFormOrigin=<origin>[,<origin>]] --mailHost=<host> --mailFrom=<address>",
+        "\n  --publicFormOrigin  Origin(s) of the public form allowed to call this service across origins"
+        + MailSettings.UsageMessage));
     Environment.Exit(1);
     return;
 }
@@ -105,6 +108,9 @@ try
             serviceToken));
 
     builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddSingleton(mailSettings);
+    builder.Services.AddSingleton<IVerificationMailer, SmtpVerificationMailer>();
+    builder.Services.AddSingleton<AddressVerification>();
     builder.Services.AddSingleton<SubmissionTicket>();
     builder.Services.AddSingleton<SubmissionIntakeService>();
 
@@ -124,13 +130,72 @@ try
     //
     // Nothing here checks an inbound credential, and that is the decision rather than an omission: the
     // route takes a submission from someone who holds none. A verification key wired up but demanded
-    // nowhere would read as protection and be none. What stands in its place is in SubmissionTicket,
-    // SubmissionRate and SubmissionLimits.
-    app.MapGet("/submissions/ticket", (SubmissionTicket tickets) => Results.Ok(new
+    // nowhere would read as protection and be none. What stands in its place is in AddressVerification,
+    // SubmissionTicket, SubmissionRate and SubmissionLimits.
+
+    // Sending a code is the one thing this service does to somebody who did not ask for it, because the
+    // address is a stranger's word for whose mailbox it is. Two things bound that: the rate limit on the
+    // caller, and the budget one address has for codes.
+    app.MapPost("/submissions/verification", async (
+        HttpContext context,
+        AddressVerification verification,
+        IVerificationMailer mailer,
+        ILogger<SubmissionIntakeService> logger) =>
     {
-        ticket = tickets.Issue(),
-        validForSeconds = (int)SubmissionTicket.ValidFor.TotalSeconds,
-    })).RequireRateLimiting(SubmissionRate.PolicyName);
+        var asked = await ReadAsync<VerificationAsked>(context);
+        if (asked?.EmailAddress is not { } emailAddress)
+            return Refused(context, "no address was given to verify",
+                Results.BadRequest(new { error = "'emailAddress' is missing: there is nowhere to send a code." }));
+
+        try
+        {
+            SubmissionLimits.EmailAddress(emailAddress, "emailAddress");
+        }
+        catch (SubmissionError error)
+        {
+            return Refused(context, error.Message, Results.BadRequest(new { error = error.Message }));
+        }
+
+        if (verification.CodeFor(emailAddress) is not { } code)
+            return Refused(context, "the address has been sent as many codes as the window allows",
+                Results.Json(
+                    new { error = "That address has been sent as many codes as it can be for now." },
+                    statusCode: StatusCodes.Status429TooManyRequests));
+
+        try
+        {
+            await mailer.SendAsync(emailAddress, code, context.RequestAborted);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // The address is a stranger's, so a server refusing it says nothing about this deployment
+            // being unwell — but neither this service nor the submitter can tell the two apart, and what
+            // went wrong belongs where whoever runs the deployment reads it rather than in the answer.
+            logger.LogError(error, "A verification code could not be sent: {Reason}", error.Message);
+            return Results.Problem("This service cannot send a code at the moment.", statusCode: 503);
+        }
+
+        return Results.Accepted();
+    }).RequireRateLimiting(SubmissionRate.PolicyName);
+
+    app.MapPost("/submissions/ticket", async (
+        HttpContext context, AddressVerification verification, SubmissionTicket tickets) =>
+    {
+        var answered = await ReadAsync<VerificationAnswered>(context);
+        if (answered?.EmailAddress is not { } emailAddress)
+            return Refused(context, "no address was given with the code",
+                Results.BadRequest(new { error = "'emailAddress' is missing: a ticket is issued against one." }));
+
+        if (verification.WhyRefused(emailAddress, answered.Code) is { } wrongCode)
+            return Refused(context, "the code was not accepted",
+                Results.Json(new { error = wrongCode }, statusCode: StatusCodes.Status403Forbidden));
+
+        return Results.Ok(new
+        {
+            ticket = tickets.Issue(emailAddress),
+            validForSeconds = (int)SubmissionTicket.ValidFor.TotalSeconds,
+        });
+    }).RequireRateLimiting(SubmissionRate.PolicyName);
 
     app.MapPost("/submissions", async (
         HttpContext context,
@@ -142,7 +207,8 @@ try
             return Refused(context, "the body is beyond the cap",
                 Results.StatusCode(StatusCodes.Status413PayloadTooLarge));
 
-        if (tickets.WhyRefused(context.Request.Headers[SubmissionTicket.HeaderName]) is { } notFromAForm)
+        var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
+        if (tickets.WhyRefused(presented) is { } notFromAForm)
             return Refused(context, "the ticket was not accepted",
                 Results.Json(new { error = notFromAForm }, statusCode: StatusCodes.Status403Forbidden));
 
@@ -151,7 +217,18 @@ try
 
         try
         {
-            var accepted = await intake.SubmitAsync(document, context.RequestAborted);
+            var submission = SubmissionReader.Read(document);
+
+            // A submission naming no address falls through to the composer, which refuses it by name. A
+            // ticket check first would answer a missing field with a rule about a ticket.
+            if (submission.Contact?.EmailAddress?.Trim() is { Length: > 0 } claimed
+                && !tickets.WasIssuedFor(presented, claimed))
+                return Refused(context, "the ticket was issued against a different address",
+                    Results.Json(
+                        new { error = "This submission names an address that was not the one verified." },
+                        statusCode: StatusCodes.Status403Forbidden));
+
+            var accepted = await intake.SubmitAsync(submission, context.RequestAborted);
             logger.LogInformation("Submission {Reference} was written into the model", accepted.Reference);
             return Results.Ok(new { reference = accepted.Reference });
         }
@@ -192,6 +269,17 @@ static IResult Refused(HttpContext context, string reason, IResult answer)
     return answer;
 }
 
+// The two verification bodies are an address and a code. Anything that does not read as one is nothing
+// rather than an exception, and the route says which field is missing.
+static async Task<T?> ReadAsync<T>(HttpContext context) where T : class
+{
+    if (context.Request.ContentLength > SubmissionLimits.MaximumVerificationBytes) return null;
+
+    try { return await context.Request.ReadFromJsonAsync<T>(context.RequestAborted); }
+    catch (JsonException) { return null; }
+    catch (BadHttpRequestException) { return null; }
+}
+
 // A refusal is logged by why it was refused and by where it came from, and never by what was submitted.
 // Contact details arrive on this route by design, and a log line is the one place they would leave the
 // model behind — see docs/LAND_INTAKE.md §12.
@@ -199,6 +287,12 @@ static void LogRefusal(HttpContext context, string reason) =>
     context.RequestServices.GetRequiredService<ILogger<SubmissionIntakeService>>()
         .LogWarning("A submission was refused: {Reason}, source {Source}",
             reason, context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+
+/// <summary>An address somebody wants a code sent to.</summary>
+public sealed record VerificationAsked(string? EmailAddress);
+
+/// <summary>The address and the code that was sent to it, exchanged for a ticket.</summary>
+public sealed record VerificationAnswered(string? EmailAddress, string? Code);
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.
 public partial class Program { }
