@@ -7,6 +7,7 @@ using NSubstitute;
 using vos.Service.Delta.Models;
 using vos.Service.Delta.Services;
 using vos.Service.Delta.Tests.Services;
+using vos.Service.Shared.Subscriptions;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -229,16 +230,19 @@ public class TemplateCatalogProvisionerTests
     }
 
     [Fact]
-    public async Task ProvisionAsync_AllTemplatesAlreadyExist_CreatesNothingAndWiresNothing()
+    public async Task ProvisionAsync_AllTemplatesAlreadyExistAndAreWired_CreatesNothingAndWiresNothing()
     {
         var stub = new MyceliumStub();
-        stub.Preexist("Endpoint", Guid.NewGuid());
-        stub.Preexist("EsriEndpoint", Guid.NewGuid());
+        var endpointId = Guid.NewGuid();
+        var esriId = Guid.NewGuid();
+        stub.Preexist("Endpoint", endpointId);
+        stub.Preexist("EsriEndpoint", esriId);
+        stub.PreexistEdge(esriId, stub.IsId, endpointId);
 
         await Provisioner(stub, TwoLevelSeed).ProvisionAsync();
 
         stub.ThingPostCount.Should().Be(0, "find-or-create is idempotent across restarts");
-        stub.Relationships.Should().BeEmpty("existing things are assumed already wired");
+        stub.Relationships.Should().BeEmpty("an edge the model already carries is not written a second time");
     }
 
     [Fact]
@@ -378,6 +382,44 @@ public class TemplateCatalogProvisionerTests
             "without the is edge the key is not inherited, so writing it would create the shadow this avoids");
     }
 
+    // The run that fails the edge still leaves the thing behind, and a name lookup cannot tell that
+    // thing from a finished one. Without repair the template answers with the parent's values for the
+    // rest of the model's life, and only the run that first failed ever says so.
+    [Fact]
+    public async Task ProvisionAsync_EarlierRunLeftTheIsEdgeUnwired_WiresItAndThenWritesTheNarrowedKey()
+    {
+        var stub = new MyceliumStub { FailRelationships = true };
+        await Provisioner(stub, NarrowingSeed).ProvisionAsync();
+        stub.FailRelationships = false;
+
+        await Provisioner(stub, NarrowingSeed).ProvisionAsync();
+
+        stub.Relationships.Should().ContainSingle()
+            .Which.Should().Match<(Guid Subject, Guid Predicate, Guid Target)>(r =>
+                r.Subject == stub.CreatedByName["EsriEndpoint"]
+                && r.Predicate == stub.IsId
+                && r.Target == stub.CreatedByName["Endpoint"]);
+        stub.PropertyWrites.Should().ContainSingle()
+            .Which.Should().Match<(Guid ThingId, string Name, string Body)>(w =>
+                w.ThingId == stub.CreatedByName["EsriEndpoint"] && w.Name == "requestContentType");
+        stub.Calls.IndexOf("property:EsriEndpoint.requestContentType")
+            .Should().BeGreaterThan(stub.Calls.IndexOf("relationship:EsriEndpoint->Endpoint"));
+    }
+
+    [Fact]
+    public async Task ProvisionAsync_SecondRunOverAFinishedCatalogue_WritesNothing()
+    {
+        var stub = new MyceliumStub();
+        await Provisioner(stub, KindSeed).ProvisionAsync();
+        var afterFirstRun = stub.Calls.Count;
+        var thingsAfterFirstRun = stub.ThingPostCount;
+
+        await Provisioner(stub, KindSeed).ProvisionAsync();
+
+        stub.Calls.Should().HaveCount(afterFirstRun, "every edge and every narrowed key is already there");
+        stub.ThingPostCount.Should().Be(thingsAfterFirstRun);
+    }
+
     [Fact]
     public async Task ProvisionAsync_TemplateDeclaringNoProperties_IsCreatedAndWired()
     {
@@ -403,13 +445,17 @@ public class TemplateCatalogProvisionerTests
 
     // ---------- Harness ----------
 
-    private static TemplateCatalogProvisioner Provisioner(MyceliumStub stub, string seedJson) =>
-        new(MyceliumClientOver(stub.Handler()),
+    // Both clients share one handler, so the writes one makes are what the other's snapshot reports —
+    // which is the whole subject of a repair run.
+    private static TemplateCatalogProvisioner Provisioner(MyceliumStub stub, string seedJson)
+    {
+        var factory = new PerCallFactory(stub.Handler());
+        return new(
+            new MyceliumClient(factory, Substitute.For<ILogger<MyceliumClient>>(), "http://localhost", "test-token"),
+            new SubscriptionClient(factory, Substitute.For<ILogger<SubscriptionClient>>(), "http://localhost", "test-token"),
             new InMemoryEndpointSeedProvider(seedJson).LoadGraph(),
             Substitute.For<ILogger<TemplateCatalogProvisioner>>());
-
-    private static MyceliumClient MyceliumClientOver(MockHttpMessageHandler handler) =>
-        new(new PerCallFactory(handler), Substitute.For<ILogger<MyceliumClient>>(), "http://localhost", "test-token");
+    }
 
     private sealed class PerCallFactory : IHttpClientFactory
     {
@@ -424,7 +470,7 @@ public class TemplateCatalogProvisionerTests
         public Guid IsId { get; } = Guid.NewGuid();
         public bool IsPredicatePresent { get; init; } = true;
         public string? FailCreateName { get; init; }
-        public bool FailRelationships { get; init; }
+        public bool FailRelationships { get; set; }
         public bool FailPropertyWrites { get; init; }
 
         private readonly Dictionary<string, Guid> _preexisting = new(StringComparer.OrdinalIgnoreCase);
@@ -438,13 +484,23 @@ public class TemplateCatalogProvisionerTests
         public List<string> Calls { get; } = new();
         public int ThingPostCount => ThingPostBodies.Count;
 
+        // Kept apart from Relationships, which records only what this run wrote — the two must not
+        // collapse, or a test asserting nothing was wired could not tell a skipped write from any write.
+        private readonly List<(Guid Subject, Guid Predicate, Guid Target)> _preexistingEdges = new();
+
         public void Preexist(string name, Guid id) => _preexisting[name] = id;
+
+        public void PreexistEdge(Guid subject, Guid predicate, Guid target) =>
+            _preexistingEdges.Add((subject, predicate, target));
 
         public MockHttpMessageHandler Handler() => new(Route);
 
         private HttpResponseMessage Route(HttpRequestMessage req)
         {
             var path = req.RequestUri!.AbsolutePath;
+
+            if (CatalogEdgeRead.Answer(req, _preexistingEdges.Concat(Relationships)) is { } catalogEdges)
+                return catalogEdges;
 
             if (req.Method == HttpMethod.Get && path == "/api/things")
             {
@@ -453,6 +509,8 @@ public class TemplateCatalogProvisionerTests
                     return IsPredicatePresent ? Thing(IsId, "is") : Json("null");
                 if (name != null && _preexisting.TryGetValue(name, out var id))
                     return Thing(id, name);
+                if (name != null && CreatedByName.TryGetValue(name, out var created))
+                    return Thing(created, name);
                 return Json("null");
             }
 

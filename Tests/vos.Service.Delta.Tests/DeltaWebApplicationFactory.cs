@@ -68,6 +68,17 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
     }
     """;
 
+    // Provisioning reads the catalog's existing edges before it writes anything. A test that routes
+    // nothing for that read is saying nothing about it rather than saying it fails, so it is answered
+    // here — after the callback, so a test with something to say about it still has the first word.
+    private HttpResponseMessage Route(HttpRequestMessage request)
+    {
+        var routed = HandlerCallback(request);
+        return routed.StatusCode == HttpStatusCode.NotFound
+            ? CatalogEdgeRead.Answer(request) ?? routed
+            : routed;
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public new Task DisposeAsync() => base.DisposeAsync().AsTask();
@@ -93,8 +104,8 @@ public class DeltaWebApplicationFactory : WebApplicationFactory<Program>, IAsync
         {
             services.RemoveAll<IHttpClientFactory>();
             Handler = AnswerConcurrently
-                ? MockHttpMessageHandler.AnsweringAsynchronously(req => Task.Run(() => HandlerCallback(req)))
-                : new MockHttpMessageHandler(req => HandlerCallback(req));
+                ? MockHttpMessageHandler.AnsweringAsynchronously(req => Task.Run(() => Route(req)))
+                : new MockHttpMessageHandler(Route);
             services.AddSingleton<IHttpClientFactory>(new PerCallHttpClientFactory(Handler));
 
             services.RemoveAll<IEndpointSeedProvider>();
