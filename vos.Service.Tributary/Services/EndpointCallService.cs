@@ -544,7 +544,8 @@ public sealed class EndpointCallService
                     return Json(400, new { error = ingestResult.Error, detail = ingestResult.Detail }, ingestResult.Error ?? "Observation ingest failed.");
 
                 return EndpointCallResult.Ingested(new IngestSummary(
-                    thing.Value.Id, ingestResult.EntitiesTouched, ingestResult.ObservationsSubmitted));
+                    thing.Value.Id, ingestResult.EntitiesTouched, ingestResult.ObservationsSubmitted,
+                    ingestResult.Written));
             }
 
             return EndpointCallResult.Body(body, contentType ?? "application/json");

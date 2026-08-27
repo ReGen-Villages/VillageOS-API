@@ -76,6 +76,7 @@ try
             myceliumUrl,
             serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<AnalysisSpawner>();
+    builder.Services.AddSingleton<VocabularyEdgeWriter>();
     builder.Services.AddSingleton<IDiscoveryRunStarter, DiscoveryRunStarter>();
 
     var app = builder.Build();
@@ -94,6 +95,7 @@ try
         CoveringSourceService coveringSources,
         DiscoveryRunner runner,
         AnalysisSpawner analysis,
+        VocabularyEdgeWriter vocabularyEdges,
         IDiscoveryRunStarter starter,
         HttpContext httpContext) =>
     {
@@ -106,7 +108,7 @@ try
         // Named here so the run captures the site alone; capturing the request would hold the parsed
         // body for as long as the run takes.
         var siteId = request.SubjectId;
-        starter.Start(token => Discover(siteId, coveringSources, runner, analysis, token));
+        starter.Start(token => Discover(siteId, coveringSources, runner, analysis, vocabularyEdges, token));
 
         // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's
         // own contract: a body declaring it false is a failed dispatch whatever the status said.
@@ -145,6 +147,7 @@ static async Task Discover(
     CoveringSourceService coveringSources,
     DiscoveryRunner runner,
     AnalysisSpawner analysis,
+    VocabularyEdgeWriter vocabularyEdges,
     CancellationToken cancellationToken)
 {
     var coverage = await coveringSources.ForSiteAsync(siteId, cancellationToken);
@@ -167,6 +170,10 @@ static async Task Discover(
     foreach (var outcome in report.Unresolved)
         Log.Warning("Source {Source} left {Subject} undiscovered: {Reason}",
             outcome.Source, outcome.Subject ?? $"site {siteId}", outcome.Reason);
+
+    // A fetched word becomes the edge the model declares before the analysis starts, so what the
+    // analysis reads is already resolved (#6809).
+    await vocabularyEdges.ResolveAsync(siteId, report, cancellationToken);
 
     // Whatever mixture resolved, including none. The analysis reports against what discovery left it, and
     // a site whose sources were all unavailable is exactly the case a planner needs the analysis to say

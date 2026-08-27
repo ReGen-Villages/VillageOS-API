@@ -27,5 +27,11 @@ public sealed record JsonError(int StatusCode, object Body, string Message) : En
 // A ProblemDetails error (application/problem+json), as Results.Problem produced.
 public sealed record ProblemError(int StatusCode, string Title, string Detail) : EndpointCallError(StatusCode, Detail);
 
-// The summary returned when a response transform ingests readings as observations.
-public sealed record IngestSummary(Guid EndpointThingId, int EntitiesTouched, int ObservationsSubmitted);
+// The summary returned when a response transform ingests readings as observations. Written carries
+// what a subject-supplied call put onto its subject and is null on the bulk path — see
+// ObservationIngestResult for why the two paths answer differently.
+public sealed record IngestSummary(
+    Guid EndpointThingId,
+    int EntitiesTouched,
+    int ObservationsSubmitted,
+    IReadOnlyDictionary<string, object?>? Written = null);

@@ -7,11 +7,15 @@ namespace vos.Service.Forage.Tests;
 // returns, so a test declares a model rather than a JSON document.
 internal static class ModelSnapshotStub
 {
-    internal sealed record Edge(string Subject, string Predicate, string Target);
+    // Id pins the relationship's identity where a test asserts on it — a delete names the edge it
+    // removes — and is minted where no test cares.
+    internal sealed record Edge(string Subject, string Predicate, string Target, Guid? Id = null);
 
     // A Thing the snapshot presents as a type rather than a member of one, and the flag it carries when
-    // it is one a reader finds by mark. Names match the ids dictionary the scenario declares.
-    internal sealed record Archetype(string Name, string? Flag = null);
+    // it is one a reader finds by mark. Names match the ids dictionary the scenario declares. Values are
+    // raw JSON — a string value arrives quoted — for a declaration the archetype carries beside its flag.
+    internal sealed record Archetype(
+        string Name, string? Flag = null, IReadOnlyDictionary<string, string>? Values = null);
 
     internal static HttpResponseMessage? RouteSubscription(
         HttpRequestMessage request, IReadOnlyDictionary<string, Guid> ids, params Edge[] edges) =>
@@ -46,7 +50,7 @@ internal static class ModelSnapshotStub
             entry.Key == siteName ? siteValues : null,
             byName.GetValueOrDefault(entry.Key)));
         var relationships = edges.Select(edge =>
-            "{\"id\":\"" + Guid.NewGuid() + "\",\"name\":null,\"subjectId\":\"" + ids[edge.Subject]
+            "{\"id\":\"" + (edge.Id ?? Guid.NewGuid()) + "\",\"name\":null,\"subjectId\":\"" + ids[edge.Subject]
             + "\",\"predicateId\":\"" + ids[edge.Predicate] + "\",\"targetId\":\"" + ids[edge.Target]
             + "\",\"properties\":{},\"inheritedProperties\":{},\"states\":[]}");
 
@@ -68,6 +72,9 @@ internal static class ModelSnapshotStub
         if (archetype?.Flag != null)
             declared = declared.Append(
                 "\"" + archetype.Flag + "\":{\"value\":true,\"typeInfo\":null,\"mode\":null}");
+        if (archetype?.Values != null)
+            declared = declared.Concat(archetype.Values.Select(value =>
+                "\"" + value.Key + "\":{\"value\":" + value.Value + ",\"typeInfo\":null,\"mode\":null}"));
 
         return "{\"id\":\"" + id + "\",\"name\":\"" + name + "\","
             + "\"isArchetype\":" + (archetype != null ? "true" : "false") + ","

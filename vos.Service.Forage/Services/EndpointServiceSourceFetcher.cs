@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using vos.Service.Shared;
 
@@ -49,23 +50,54 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
                 bounded.Token);
 
             if (response.IsSuccessStatusCode)
-                return new SourceOutcome(sourceName, true, null);
+                return new SourceOutcome(sourceName, true, null,
+                    SubjectId: subjectId,
+                    Written: await WrittenIn(response, bounded.Token));
 
             // The upstream body can carry a provider's own message; it is the most useful thing a
             // planner can be told about why a value is missing, so it is reported rather than logged
             // and replaced with a generic line.
             var body = await response.Content.ReadAsStringAsync(bounded.Token);
-            return new SourceOutcome(sourceName, false, $"{(int)response.StatusCode}: {Summarize(body)}");
+            return new SourceOutcome(sourceName, false, $"{(int)response.StatusCode}: {Summarize(body)}",
+                SubjectId: subjectId);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return new SourceOutcome(
-                sourceName, false, $"No answer within {_sourceTimeout.TotalSeconds:0} seconds.");
+                sourceName, false, $"No answer within {_sourceTimeout.TotalSeconds:0} seconds.",
+                SubjectId: subjectId);
         }
         catch (Exception exception)
         {
             Logger.LogWarning(exception, "Fetching {Source} through {Subdomain} failed", sourceName, _fetcherSubdomain);
-            return new SourceOutcome(sourceName, false, exception.Message);
+            return new SourceOutcome(sourceName, false, exception.Message, SubjectId: subjectId);
+        }
+    }
+
+    // The values the call wrote, from the fetching service's own report of them. Only text can name a
+    // vocabulary member, so only text is kept. Null where the body carries no report — an ingest that
+    // went through the bulk path, or a body this cannot read — which resolves nothing rather than
+    // failing a fetch that already succeeded.
+    private static async Task<IReadOnlyDictionary<string, string>?> WrittenIn(
+        HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            if (body.RootElement.ValueKind != JsonValueKind.Object
+                || !body.RootElement.TryGetProperty("written", out var written)
+                || written.ValueKind != JsonValueKind.Object)
+                return null;
+
+            var values = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var entry in written.EnumerateObject())
+                if (entry.Value.ValueKind == JsonValueKind.String)
+                    values[entry.Name] = entry.Value.GetString() ?? string.Empty;
+            return values;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 
