@@ -3,7 +3,8 @@
 > **Status: partly built.** The archetypes exist and a model can be seeded with them, the intake
 > service composes a submission into them, and the wizard collects what a planner types and posts it
 > (#6016), shows the site on the map as the position is given (#6014), and draws the parcel boundary
-> checked against the stated area (#6015). Anonymous submission and open-data discovery are still
+> checked against the stated area (#6015). Anybody may submit without a credential, having answered a
+> code sent to the address on the submission (#6026, #6027, #6799, #6803). Open-data discovery is still
 > design.
 > Tracked as Epic
 > [#6012](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6012) (client, services)
@@ -994,7 +995,7 @@ flowchart TB
 | Property | How it is achieved |
 |---|---|
 | Anonymous in | The service decides; no platform rule is widened |
-| Rate limited, size capped, ticket checked | Owned by the service, where the public traffic is — see "What guards the route" below |
+| Rate limited, size capped, address verified | Owned by the service, where the public traffic is — see "What guards the route" below |
 | Cannot read project data | Its credential names only the intake model: a key created against a model is exchanged for a token naming that model, and refused one naming any other |
 | Writes go through normal auth | It mints a Mycelium token and posts a fragment, like any service |
 | Blast radius of a mistake | One service, not every endpoint in the model |
@@ -1007,14 +1008,39 @@ different way the route can be abused, and each owned by this service rather tha
 | Guard | What it does | What it does not do |
 |---|---|---|
 | **Body cap** | A body larger than a form's worth of answers is refused on its declared length, before anything reads it | Say anything about a body that fits |
-| **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span, and an email address the shape of one. A refusal names the field | Judge whether the answer is true, or that anybody reads what is sent to the address |
-| **Ticket** | `GET /submissions/ticket` hands out a short-lived value this service signed, and a post carries it back in `X-Submission-Ticket`. A post that never asked is refused | Establish that the caller is a person: asking for a ticket costs nothing, so an automated submitter that fetches before each post satisfies it |
-| **Rate limit** | One source may make a fixed number of requests in a fixed window, ticket requests included. Over it, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
+| **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span, and an email address the shape of one. A refusal names the field | Judge whether the answer is true |
+| **Verified address** | `POST /submissions/verification` sends a code to an address; `POST /submissions/ticket` exchanges that code for a short-lived ticket signed against it; `POST /submissions` reads the ticket back in `X-Submission-Ticket` and refuses a submission naming any other address | Say who the person is. It establishes that somebody reads that mailbox, and a person may hold as many mailboxes as they like |
+| **Rate limit** | One source may make a fixed number of requests in a fixed window, verification and ticket requests included. Over it, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
 
-The ticket and the rate limit work as a pair: the ticket makes an automated submitter come and ask, and
-the rate limit is what bounds how often it can. Neither is a challenge from a third-party service, and
-this platform is meant to run without one — so this is what it can honestly claim, and the staging model
-in front of a reviewer is what catches the rest.
+The verification and the rate limit work as a pair: answering a code costs a submitter a mailbox and a
+wait, and the rate limit is what bounds how fast they can spend either. Neither is a challenge from a
+third-party service, and this platform is meant to run without one — so this is what it can honestly
+claim, and the staging model in front of a reviewer is what catches the rest.
+
+**What bounds the sending itself.** The verification route is the one thing this service does to somebody
+who did not ask, because the address is a stranger's word for whose mailbox it is. A code lasts fifteen
+minutes and dies after a handful of wrong answers, so guessing six figures runs out rather than merely
+being unlikely; one address is sent only a few codes an hour, so the route cannot be pointed at a mailbox
+its owner never gave us; and what is held pending is capped, so a stranger asking about a fresh address
+each time cannot make the service grow. A send that fails hands the budget back, so a mail server having
+a bad afternoon does not lock an address out for the hour with no code delivered.
+
+**Answering a code tells the caller nothing about the address.** Every refusal on that route is worded
+identically — a wrong code, an expired one, a code answered too often, and an address nothing was ever
+sent to all read the same. Answering costs a caller nothing and they name the address themselves, so a
+message that told those apart would answer "has somebody just started a submission under this address"
+for any address anybody cared to type.
+
+**Asking for a code is not silent in the same way, and that is a deliberate trade.** The route answers
+`429` once an address has had its few codes for the hour, so a caller counting requests until that
+refusal can learn roughly how many codes an address was recently sent. Closing that would mean answering
+`202` to a request nothing was sent for, which leaves somebody who asked again in good faith waiting for
+mail that is never coming. The disclosure is narrow and costs the caller a real message to the mailbox
+they are probing on every attempt, which is the abuse the per-source rate limit is there to catch.
+
+**Nothing pending survives a restart.** A code is good for minutes and the person whose was lost asks for
+another. Keeping them would mean writing addresses to disk, which is the one thing this flow exists to
+avoid.
 
 **A source is the address the reverse proxy forwards.** Every caller reaches this service through the
 proxy, so the connection itself is always from loopback; the caller's own address arrives in
@@ -1077,7 +1103,7 @@ The main finding from designing this: most of it is already built.
 | — | |
 | A map, and drawing a parcel on it | **Exists** — the map module (#5346), the wizard showing the site on it (#6014), and parcel drawing with the drawn area checked against the stated area (#6015) |
 | The intake wizard | **Exists** — what a planner types (#6016), the site on the map (#6014), and the parcel step (#6015) |
-| Anonymous submission: rate limits, size caps, field bounds, a ticket | **Exists** (#6026, #6027) — the route takes a submission from someone holding no credential, guarded as [§9](#what-guards-the-route) describes |
+| Anonymous submission: rate limits, size caps, field bounds, a verified address | **Exists** (#6026, #6027, #6799, #6803) — the route takes a submission from someone holding no credential and having proved they read mail at the address on it, guarded as [§9](#what-guards-the-route) describes |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 
 ---
