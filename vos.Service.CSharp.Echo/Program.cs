@@ -106,14 +106,19 @@ var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx, EchoNode nod
 
     using var reader = new StreamReader(ctx.Request.Body);
     var rawJson = await reader.ReadToEndAsync();
-    var root = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(rawJson);
+    var request = HandleRequestRouter.Classify(rawJson);
+
+    // There is nothing to echo back of a body that is not JSON, so it is turned down rather than
+    // raising — every other shape is still answered.
+    if (!request.IsJson)
+        return Results.BadRequest(new { error = "Echo expects a JSON body." });
 
     // Additive DAG-node path: an orchestrator invocation carries runId+nodeId. Everything else
     // is a legacy echo request and is handled exactly as before.
-    if (DagNodeService.IsNodeEnvelope(root))
+    if (request.Kind == HandleRequestKind.NodeEnvelope)
     {
         Log.Information("Echo node invocation #{Count}", count);
-        return Results.Ok(await node.HandleNodeAsync(root, ctx.RequestAborted));
+        return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
     }
 
     Log.Information("Echo request #{Count} received", count);
@@ -123,7 +128,7 @@ var handleEndpoint = app.MapPost("/handle", async (HttpContext ctx, EchoNode nod
         service = "echo",
         requestNumber = count,
         receivedBytes = rawJson.Length,
-        echo = root
+        echo = request.Json
     });
 });
 if (authEnabled) handleEndpoint.RequireAuthorization();

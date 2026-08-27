@@ -1,4 +1,3 @@
-using System.Text.Json;
 using vos.Auth.Shared;
 using vos.Service.Forage.Configuration;
 using vos.Service.Forage.Services;
@@ -99,11 +98,12 @@ try
         HttpContext httpContext) =>
     {
         using var reader = new StreamReader(httpContext.Request.Body);
-        var root = JsonSerializer.Deserialize<JsonElement>(await reader.ReadToEndAsync());
+        var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
 
-        if (HandleRequestRouter.Classify(root, out var siteId) != HandleRequestKind.RelationshipSubject)
+        if (request.Kind != HandleRequestKind.RelationshipSubject)
             return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") });
 
+        var siteId = request.SubjectId;
         starter.Start(token => Discover(siteId, coveringSources, runner, analysis, token));
 
         // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's

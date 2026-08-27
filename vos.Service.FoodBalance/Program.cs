@@ -75,17 +75,17 @@ try
         InputChangeRecomputeService following) =>
     {
         using var reader = new StreamReader(ctx.Request.Body);
-        var root = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(await reader.ReadToEndAsync());
+        var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
 
-        if (HandleRequestRouter.Classify(root, out var studyId) != HandleRequestKind.RelationshipSubject)
+        if (request.Kind != HandleRequestKind.RelationshipSubject)
             return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("FoodBalance") });
 
         // Watched before the compute, not after: this balance is dispatched with the analysis, and the
         // footprint it reads is written later by a service on the layer below. The first compute
         // therefore fails on a study whose land has not been allocated yet, and the watch registered
         // here is what brings the balance back when that footprint arrives.
-        following.Watch(studyId);
-        var outputs = await reactive.RecomputeAsync(studyId, ctx.RequestAborted);
+        following.Watch(request.SubjectId);
+        var outputs = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
         return Results.Ok(new { success = true, outputs });
     });
     if (authEnabled) handle.RequireAuthorization();
