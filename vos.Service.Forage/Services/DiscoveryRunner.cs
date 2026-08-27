@@ -51,7 +51,7 @@ public sealed class DiscoveryRunner
             "Discovery for site {SiteId}: {Resolved} resolved, {Unresolved} unresolved",
             siteId, resolved.Count, unresolved.Count);
 
-        return new DiscoveryReport(siteId, resolved, unresolved);
+        return new DiscoveryReport(resolved, unresolved);
     }
 
     // The fetcher reports a failed source rather than throwing, but it reaches the network and a

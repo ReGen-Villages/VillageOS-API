@@ -121,10 +121,29 @@ neither file and runs no discovery service.
 
 ## The run
 
-`POST /handle { subjectId }` resolves the site against every covering source. The body is whatever
-the platform posts for a dispatch — the record-edge's own fields — and the subject is read from it
-through the classifier every dispatched service shares, so this service declares no request shape of
-its own. The answer carries both halves:
+`POST /handle { subjectId }` **accepts** a run and answers `202` at once; the fetching happens after.
+The body is whatever the platform posts for a dispatch — the record-edge's own fields — and the
+subject is read from it through the classifier every dispatched service shares, so this service
+declares no request shape of its own.
+
+**The answer says accepted, not done.** A run fetches every covering source before it could say what
+it found, and the platform gives a dispatch **15 seconds**; with tens of shared sources, fetched
+`--maxConcurrentSources` at a time and each allowed `--sourceTimeoutSeconds`, a run outlasts that call
+routinely. Judged by the call, finished work would be recorded Failed and driven again. So what closes
+the dispatch is the model: the connection names `SiteDiscovered` as its `done_when`, the record stays
+in flight until the site shows a source has written onto it, and `done_within` presumes dead a run
+nobody will finish. Completion is *observed* rather than *announced* because nothing exposes a route
+for a service to announce one.
+
+**A coverage read that fails writes nothing.** It cannot refuse in the answer any more — one has
+already been given — so it says so by leaving no trace: no fetch, no analysis started, and the site
+still in the state that dispatched it, which is what drives the run again. An unreachable gateway must
+never be mistaken for "no source covers this site".
+
+What a run found goes to the log, per source and with the provider's own words. Persisting it where a
+planner can read it afterwards is platform Task #6779, which needs it for a different reason.
+
+A run's report, as the log records it:
 
 ```jsonc
 { "siteId": "…",

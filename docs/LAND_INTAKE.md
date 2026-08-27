@@ -435,6 +435,7 @@ sequenceDiagram
   Site->>Mycelium: coordinates written, nothing has observed it
   Note over Mycelium: the site enters SiteAwaitingDiscovery,<br/>which the discovery connection watches
   Mycelium->>Forage: dispatch, naming the site as the subject
+  Forage-->>Mycelium: accepted — the fetching has not started
   Forage->>Mycelium: which sources cover this site?
   Mycelium-->>Forage: sources reached by walking<br/>isIn and covers edges
   loop each covering source, bounded concurrency
@@ -448,7 +449,7 @@ sequenceDiagram
   Note over Site: the first observation takes it out of<br/>the state, so nothing fetches again
   Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
   Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the edge starts it
-  Forage-->>Mycelium: resolved · unresolved, each with a reason
+  Note over Mycelium: the site reaching SiteDiscovered is what<br/>closes the dispatch, not the call
 ```
 
 **Nothing calls Forage.** The site entering `SiteAwaitingDiscovery` is what dispatches it, and the

@@ -6,8 +6,9 @@ namespace vos.Service.Forage.Services;
 public sealed record SourceOutcome(string Source, bool Resolved, string? Reason);
 
 // Everything one run did. Both halves are reported: what resolved is the answer, what did not is
-// the gap the analysis has to be able to report against.
+// the gap the analysis has to be able to report against. The site is not among them — a report is
+// handed straight back to the caller that named the site, and carrying its own copy only invited a
+// reader to trust the copy.
 public sealed record DiscoveryReport(
-    Guid SiteId,
     IReadOnlyList<SourceOutcome> Resolved,
     IReadOnlyList<SourceOutcome> Unresolved);

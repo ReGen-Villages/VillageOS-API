@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using vos.Service.Forage.Services;
 using vos.Tests.Shared;
 using Xunit;
 
@@ -16,6 +17,28 @@ public class ForageWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
 {
     public Func<HttpRequestMessage, HttpResponseMessage> HandlerCallback { get; set; }
         = _ => new HttpResponseMessage(HttpStatusCode.NotFound);
+
+    // A run leaves the request that dispatched it, so a test has to be able to wait for the one it
+    // started. This keeps every started run and hands them back; the production starter drops them onto
+    // the thread pool, where nothing could await one.
+    private readonly StartedRuns _runs = new();
+
+    public Task RunsStarted() => _runs.All();
+
+    private sealed class StartedRuns : IDiscoveryRunStarter
+    {
+        private readonly List<Task> _started = new();
+
+        public void Start(Func<CancellationToken, Task> run)
+        {
+            lock (_started) _started.Add(run(CancellationToken.None));
+        }
+
+        public Task All()
+        {
+            lock (_started) return Task.WhenAll(_started.ToArray());
+        }
+    }
 
     public Task InitializeAsync() => Task.CompletedTask;
 
@@ -41,6 +64,9 @@ public class ForageWebApplicationFactory : WebApplicationFactory<Program>, IAsyn
             services.RemoveAll<IHttpClientFactory>();
             services.AddSingleton<IHttpClientFactory>(
                 new PerCallHttpClientFactory(new MockHttpMessageHandler(req => HandlerCallback(req))));
+
+            services.RemoveAll<IDiscoveryRunStarter>();
+            services.AddSingleton<IDiscoveryRunStarter>(_runs);
         });
     }
 }
