@@ -46,13 +46,23 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     /// </summary>
     public bool ArrivesThroughAProxy { get; set; } = true;
 
+    /// <summary>The service JWT. A non-empty one short-circuits the token exchange, so a test about the
+    /// key the service holds sets this to null to make the exchange happen.</summary>
+    public string? Token { get; set; } = "test-token";
+
+    /// <summary>The durable credential a service nobody launches has to hold. Null is a service given
+    /// none.</summary>
+    public string? ApiKey { get; set; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("Port", "5000");
         builder.UseSetting("MyceliumUrl", "http://localhost");
-        // A non-empty token short-circuits the /api/auth/token round trip in MyceliumClientBase.
-        builder.UseSetting("Token", "test-token");
+        if (Token != null)
+            builder.UseSetting("Token", Token);
+        if (ApiKey != null)
+            builder.UseSetting("ApiKey", ApiKey);
         if (VerificationKey != null)
         {
             builder.UseSetting("VerificationKey", VerificationKey);
