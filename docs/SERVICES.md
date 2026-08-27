@@ -66,7 +66,8 @@ happens to name within reach of whoever can call it. So it registers nothing, ho
 maps `/health` without the `/stats` that would describe a registration it does not keep, and caps the
 request body, since it reads a submission into memory whole. It is also the one service that **checks no
 inbound credential at all**: its submission route takes a submission from someone who holds none, and a
-ticket, a per-source rate limit and bounds on every field stand where a token would. The submission
+verified address, a per-source rate limit and bounds on every field stand where a token would. It is
+also the one service that sends mail, and it will not start without somewhere to send it. The submission
 document is in [`LAND_INTAKE.md`](LAND_INTAKE.md) §4 and what guards the route is in §9.
 
 **Two kinds of predicates — the extension point.** `is` is the *only* predicate built into
