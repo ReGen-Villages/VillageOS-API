@@ -4,11 +4,11 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Services;
 
-// What one model read answers: which sources cover the site, and the site's own values a source's
-// address may name. Both come from the same snapshot, so a run reads the model once.
+// What one model read answers: which sources cover the site, each with the calls a run makes to it
+// and the values addressing each call. All of it comes from the same snapshot, so a run reads the
+// model once.
 public sealed record SiteCoverage(
     IReadOnlyList<CoveringSource> Covering,
-    IReadOnlyDictionary<string, string> Values,
     SiteAnalysis? Analysis);
 
 // Reads a site's coverage from the model in one scoped snapshot.
@@ -45,7 +45,6 @@ public sealed class CoveringSourceService
         {
             return new SiteCoverage(
                 CoveringSourceResolver.Resolve(subscribed.Snapshot, siteId),
-                SiteValues.Of(subscribed.Snapshot, siteId),
                 CoveringSourceResolver.AnalysisOf(subscribed.Snapshot, siteId));
         }
         finally

@@ -3,10 +3,10 @@ using vos.Service.Forage.Helpers;
 
 namespace vos.Service.Forage.Services;
 
-// Runs one site against every source covering it: fetch each through the configured fetcher, bounded
-// in flight, and report both halves.
+// Runs one site against every source covering it: fetch each of a source's calls through the
+// configured fetcher, bounded in flight, and report both halves.
 //
-// A source that fails leaves its value undiscovered and does not stop the others. Public data
+// A call that fails leaves its value undiscovered and does not stop the others. Public data
 // portals go down, and an intake that aborted because one provider was unavailable would be
 // abandoned — so a failure is an outcome the report carries rather than an exception that ends the
 // run.
@@ -26,13 +26,17 @@ public sealed class DiscoveryRunner
     public async Task<DiscoveryReport> RunAsync(
         Guid siteId,
         IReadOnlyList<CoveringSource> covering,
-        IReadOnlyDictionary<string, string> addressParameters,
         CancellationToken cancellationToken)
     {
-        var outcomes = new SourceOutcome[covering.Count];
+        // The bound holds across every call, not per source: a source called once per assessment
+        // must not widen the burst the bound exists to keep polite.
+        var calls = covering
+            .SelectMany(source => source.Calls.Select(call => (Source: source, Call: call)))
+            .ToList();
+        var outcomes = new SourceOutcome[calls.Count];
 
         await Parallel.ForEachAsync(
-            Enumerable.Range(0, covering.Count),
+            Enumerable.Range(0, calls.Count),
             new ParallelOptions
             {
                 MaxDegreeOfParallelism = _maxConcurrentSources,
@@ -40,15 +44,18 @@ public sealed class DiscoveryRunner
             },
             async (index, token) =>
             {
-                var source = covering[index];
-                outcomes[index] = await FetchOneAsync(siteId, source, addressParameters, token);
+                var (source, call) = calls[index];
+                var outcome = await FetchOneAsync(source, call, token);
+                outcomes[index] = call.SubjectId == siteId
+                    ? outcome
+                    : outcome with { Subject = call.SubjectName };
             });
 
         var resolved = outcomes.Where(outcome => outcome.Resolved).ToList();
         var unresolved = outcomes.Where(outcome => !outcome.Resolved).ToList();
 
         _logger.LogInformation(
-            "Discovery for site {SiteId}: {Resolved} resolved, {Unresolved} unresolved",
+            "Discovery for site {SiteId}: {Resolved} calls resolved, {Unresolved} unresolved",
             siteId, resolved.Count, unresolved.Count);
 
         return new DiscoveryReport(resolved, unresolved);
@@ -58,15 +65,14 @@ public sealed class DiscoveryRunner
     // caller of this run must not be handed an exception raised on one source's behalf. Catching
     // here is what keeps one provider from ending the run for every other.
     private async Task<SourceOutcome> FetchOneAsync(
-        Guid siteId,
         CoveringSource source,
-        IReadOnlyDictionary<string, string> addressParameters,
+        SourceCall call,
         CancellationToken cancellationToken)
     {
         try
         {
             return await _fetcher.FetchAsync(
-                siteId, source.Name, source.EndpointName, addressParameters, cancellationToken);
+                call.SubjectId, source.Name, source.EndpointName, call.Values, cancellationToken);
         }
         catch (Exception exception)
         {

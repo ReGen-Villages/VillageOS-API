@@ -441,6 +441,36 @@ Three things about it are worth reading off:
 template. Its classes become Things of their own under platform Task 6684, at which point `climateZone`
 stops being a code on the Site and becomes an edge to one.
 
+## Example: a hazard grading onto an assessment (#6735)
+
+Seed data like the climate source, but its subject is never the site: the portal grades one hazard at
+one administrative division per call, so the discovery run calls it once per assessment the site has,
+naming that assessment as the `subjectId` — the source declares this by a `resolvesOnto` edge to the
+assessment archetype, read in [`FORAGE.md`](FORAGE.md#the-predicates-it-reads). An assessment's
+`hazardLevel` and `assessedOn` take observations only, so a fetch is the only thing that can write them.
+
+```jsonc
+// registration: hazard-grading
+{ "name": "hazard-grading",
+  "properties": {
+    "url": "https://www.thinkhazard.org/en/report/{hazardPortalDivision}/{hazardPortalCode}.json",
+    "httpMethod": "GET",
+    "responseTransform": "($level := hazard_category[hazard_level and $lowercase(hazard_level) != 'no data'].hazard_level; $level ? {\"properties\": {\"hazardLevel\": $replace($lowercase($level), \" \", \"-\"), \"assessedOn\": $now()}} : {\"properties\": {}})"
+  } }
+```
+
+- **Neither placeholder is a value the subject itself carries.** `{hazardPortalDivision}` sits on a
+  Place the site is in, `{hazardPortalCode}` on the `HazardType` Thing the assessment `assesses` —
+  the run layers a call's address from its subject outward, so both arrive with no per-source code.
+- **The grade is written as the vocabulary term.** `High` becomes `high`, `Very low` becomes
+  `very-low` — the names of the `HazardLevel` Things the model declares, so the word resolves against
+  the vocabulary when a later step relates it instead.
+- **"No data" writes nothing.** The portal answers 404 for a division it holds nothing about, which
+  never reaches the expression; a body carrying the grade anyway is refused by the filter. Either way
+  the assessment stays honestly unassessed — no level, and no date suggesting one was read.
+- **The date is the fetch's own.** The portal publishes no assessment date, so `assessedOn` records
+  when the grade was read, and only beside a grade (see `HazardGradingEndpointTests`).
+
 ## Pointers
 
 - `SERVICES.md` section 14 — how Mycelium hosts Tributary as an endpoint service
