@@ -693,7 +693,7 @@ export const it: PartialResources = {
     back: "Indietro",
     next: "Avanti",
     submit: "Invia",
-    siteNameNeeded: "Serve un nome del sito.",
+    fieldsNeeded: "Servono un nome del sito, un nome del progetto e il nome e l'indirizzo email di un contatto.",
     notConfigured: "Non è configurato alcun indirizzo del servizio di acquisizione.",
     accepted: "{{site}} inviato.",
     refused: "L'invio è stato rifiutato: {{reason}}",

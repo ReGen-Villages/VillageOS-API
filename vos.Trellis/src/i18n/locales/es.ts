@@ -693,7 +693,7 @@ export const es: PartialResources = {
     back: "Atrás",
     next: "Siguiente",
     submit: "Enviar",
-    siteNameNeeded: "Hace falta un nombre de emplazamiento.",
+    fieldsNeeded: "Hacen falta un nombre de emplazamiento, un nombre de proyecto y el nombre y correo electrónico de un contacto.",
     notConfigured: "No hay configurada ninguna dirección del servicio de recepción.",
     accepted: "{{site}} enviado.",
     refused: "El envío fue rechazado: {{reason}}",

@@ -16,6 +16,8 @@ public class SubmissionIntakeServiceTests
     private const string Document = $$"""
         {
           "submissionId": "{{WillowBend.SubmissionId}}",
+          "project": { "name": "Willow Bend Regeneration" },
+          "contact": { "name": "Ana Ferreira", "emailAddress": "ana.ferreira@example.pt" },
           "site": { "name": "Willow Bend", "statedAreaHectares": 24.0, "population": 320 }
         }
         """;

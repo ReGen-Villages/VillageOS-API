@@ -693,7 +693,7 @@ export const de: PartialResources = {
     back: 'Zurück',
     next: 'Weiter',
     submit: 'Einreichen',
-    siteNameNeeded: 'Ein Standortname wird benötigt.',
+    fieldsNeeded: 'Ein Standortname, ein Projektname sowie Name und E-Mail-Adresse eines Kontakts werden benötigt.',
     notConfigured: 'Es ist keine Adresse des Aufnahmedienstes konfiguriert.',
     accepted: '{{site}} eingereicht.',
     refused: 'Die Einreichung wurde abgelehnt: {{reason}}',

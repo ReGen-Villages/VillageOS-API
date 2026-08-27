@@ -447,17 +447,42 @@ describe('the parcel step', () => {
 });
 
 describe('posting the submission', () => {
-  it('will not submit without a site name, which is what a Thing is created under', () => {
+  /** A draft carrying what a submission cannot go without: the site, the project it belongs to, and who
+   *  to tell what was decided about it. */
+  function submittable(patch: Partial<SubmissionDraft> = {}): SubmissionDraft {
+    return {
+      ...emptyDraft('sub-0001'),
+      siteName: 'Willow Bend',
+      projectName: 'Willow Bend Regeneration',
+      contactName: 'Ana Ferreira',
+      emailAddress: 'ana.ferreira@example.pt',
+      ...patch,
+    };
+  }
+
+  it('will not submit until it names the site, the project, and who to tell what was decided', () => {
     render(<IntakeWizardPage />);
     goToStep(4);
 
     expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
-    expect(screen.getByText('A site name is needed.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'A site name, a project name, and a contact name and email address are all needed.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('will not submit a site nobody can be told the decision about', () => {
+    saveDraft('model-1', submittable({ emailAddress: '' }));
+    render(<IntakeWizardPage />);
+    goToStep(4);
+
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
   });
 
   it('will not submit where no intake address is configured, and says so', () => {
     vi.mocked(intakeApi.configured).mockReturnValue(false);
-    saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
+    saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
     goToStep(4);
 
@@ -466,7 +491,7 @@ describe('posting the submission', () => {
   });
 
   it('posts what was collected and answers with the reference to quote', async () => {
-    saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend', statedArea: '24' });
+    saveDraft('model-1', submittable({ statedArea: '24' }));
     render(<IntakeWizardPage />);
     goToStep(4);
 
@@ -485,12 +510,7 @@ describe('posting the submission', () => {
       { latitude: 39.502, longitude: -8.41 },
       { latitude: 39.502, longitude: -8.408 },
     ];
-    saveDraft('model-1', {
-      ...emptyDraft('sub-0001'),
-      siteName: 'Willow Bend',
-      boundary: corners,
-      boundarySource: 'drawn-by-hand',
-    });
+    saveDraft('model-1', submittable({ boundary: corners, boundarySource: 'drawn-by-hand' }));
     render(<IntakeWizardPage />);
     goToStep(4);
 
@@ -504,7 +524,7 @@ describe('posting the submission', () => {
   });
 
   it('clears the draft once it is in the model, so reopening starts a new submission', async () => {
-    saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
+    saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
     goToStep(4);
 
@@ -514,7 +534,7 @@ describe('posting the submission', () => {
   });
 
   it('starts a fresh submission after one has landed, under a new identifier', async () => {
-    saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
+    saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
     goToStep(4);
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
@@ -528,7 +548,7 @@ describe('posting the submission', () => {
 
   it('keeps the draft when the service refuses it, and says what was wrong', async () => {
     vi.mocked(intakeApi.submit).mockRejectedValue(new Error("'site.name' is missing"));
-    saveDraft('model-1', { ...emptyDraft('sub-0001'), siteName: 'Willow Bend' });
+    saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
     goToStep(4);
 

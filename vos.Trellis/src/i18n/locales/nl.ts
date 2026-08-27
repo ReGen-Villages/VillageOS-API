@@ -693,7 +693,7 @@ export const nl: PartialResources = {
     back: "Terug",
     next: "Verder",
     submit: "Inzenden",
-    siteNameNeeded: "Er is een naam voor de locatie nodig.",
+    fieldsNeeded: "Er zijn een naam voor de locatie, een projectnaam en de naam en het e-mailadres van een contactpersoon nodig.",
     notConfigured: "Er is geen adres van de aanmelddienst geconfigureerd.",
     accepted: "{{site}} ingezonden.",
     refused: "De inzending is geweigerd: {{reason}}",

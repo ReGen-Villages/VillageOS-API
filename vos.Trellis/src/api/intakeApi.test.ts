@@ -7,6 +7,8 @@ const fetchMock = vi.fn();
 
 const SUBMISSION: SubmissionDocument = {
   submissionId: '9f1c74d6-0b8e-4a52-bd31-6c7e5a92f048',
+  project: { name: 'Willow Bend Regeneration' },
+  contact: { name: 'Ana Ferreira', emailAddress: 'ana.ferreira@example.pt' },
   site: { name: 'Willow Bend', latitude: 39.5012, longitude: -8.4137 },
 };
 

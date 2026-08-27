@@ -79,26 +79,55 @@ public class SubmissionFragmentComposerTests
             .ContainKeys("relationshipToProject", "emailAddress", "phoneNumber");
     }
 
-    // Every field beyond the submission identifier and the site name is optional, because a wizard saves as
-    // the planner fills it in.
+    // A submission is reviewed and the decision has to reach whoever made it, so who to tell is not among
+    // the fields a part-filled wizard may leave out.
     [Fact]
-    public void A_submission_naming_no_project_mints_neither_it_nor_a_contact()
+    public void A_submission_naming_nobody_to_tell_the_decision_to_is_refused()
     {
-        var composed = Compose(WillowBend.Submission() with { Project = null, Contact = null });
-
-        composed.Fragment.Things.Should().OnlyContain(thing => thing.Name != "Willow Bend Regeneration");
-        composed.Fragment.Things.Select(thing => thing.Name).Should().NotContain("Ana Ferreira");
+        Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with { Contact = null }))
+            .Message.Should().Contain("contact");
     }
 
-    // A contact has nowhere to hang without a project, and a fragment that silently dropped it would leave
-    // the planner believing it was recorded.
     [Fact]
-    public void A_contact_given_without_a_project_is_refused()
+    public void A_contact_nobody_can_be_written_to_is_refused()
     {
-        var refusal = Assert.Throws<SubmissionError>(() =>
-            Compose(WillowBend.Submission() with { Project = null }));
+        var withoutAnAddress = WillowBend.Submission().Contact! with { EmailAddress = null };
 
-        refusal.Message.Should().Contain("contact").And.Contain("project");
+        Assert.Throws<SubmissionError>(() =>
+                Compose(WillowBend.Submission() with { Contact = withoutAnAddress }))
+            .Message.Should().Contain("contact.emailAddress");
+    }
+
+    [Fact]
+    public void A_contact_carrying_no_name_is_refused()
+    {
+        var unnamed = WillowBend.Submission().Contact! with { Name = null };
+
+        Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with { Contact = unnamed }))
+            .Message.Should().Contain("contact.name");
+    }
+
+    // A contact hangs off the project it can be asked about, so a submission carrying no project has
+    // nowhere to put the contact every submission has to carry.
+    [Fact]
+    public void A_submission_naming_no_project_is_refused()
+    {
+        Assert.Throws<SubmissionError>(() =>
+                Compose(WillowBend.Submission() with { Project = null, Contact = null }))
+            .Message.Should().Contain("project");
+    }
+
+    // The address is what a decision is sent to, so it is stored as it would be written to rather than as
+    // it happened to be pasted in.
+    [Fact]
+    public void An_address_pasted_with_space_around_it_is_stored_without()
+    {
+        var pasted = WillowBend.Submission().Contact! with { EmailAddress = "  ana.ferreira@example.pt  " };
+
+        var composed = Compose(WillowBend.Submission() with { Contact = pasted });
+
+        Named(composed, "Ana Ferreira").Properties["emailAddress"].Value
+            .Should().Be("ana.ferreira@example.pt");
     }
 
     private static IEnumerable<FragmentThing> Allocations(ComposedSubmission composed) =>

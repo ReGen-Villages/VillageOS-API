@@ -62,13 +62,14 @@ export interface SubmissionDraft {
   readonly visited: readonly StepId[];
 }
 
-/** The document the intake service takes. Every field is optional to it except the identifier and the
- *  site's name, and a field it does not declare is refused outright rather than dropped, so nothing is
- *  sent here that the service has no home for. */
+/** The document the intake service takes. It requires the identifier, the site's name, the project, and a
+ *  contact carrying a name and an email address; every other field is optional. A field it does not
+ *  declare is refused outright rather than dropped, so nothing is sent here that the service has no home
+ *  for. */
 export interface SubmissionDocument {
   submissionId: string;
-  project?: { name?: string; country?: string; nearestCity?: string; existingDataNotes?: string };
-  contact?: { name?: string; relationshipToProject?: string; emailAddress?: string; phoneNumber?: string };
+  project: { name: string; country?: string; nearestCity?: string; existingDataNotes?: string };
+  contact: { name: string; relationshipToProject?: string; emailAddress: string; phoneNumber?: string };
   site: {
     name: string;
     latitude?: number;
@@ -252,30 +253,41 @@ export function withStepVisited(draft: SubmissionDraft, step: StepId): Submissio
 
 // ── What is posted ───────────────────────────────────────────────────────────
 
-/** The site's name is what a Thing is created under, so a draft without one cannot be submitted. */
+/**
+ * The site's name and the project's are what Things are created under, and a submission is reviewed by
+ * somebody who has to be able to say what was decided — so a draft is held back until it names who to
+ * tell and where.
+ *
+ * Whether the address is one is left to the service. A second rule here could only disagree with it, and
+ * a refusal names the field to correct.
+ */
 export function readyToSubmit(draft: SubmissionDraft): boolean {
-  return draft.siteName.trim().length > 0;
+  return [draft.siteName, draft.projectName, draft.contactName, draft.emailAddress].every(
+    (given) => given.trim().length > 0,
+  );
 }
 
 export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
-  const project = given({
-    name: draft.projectName,
-    country: draft.country,
-    nearestCity: draft.nearestCity,
-    existingDataNotes: draft.existingDataNotes,
-  });
-  const contact = given({
-    name: draft.contactName,
-    relationshipToProject: draft.relationshipToProject,
-    emailAddress: draft.emailAddress,
-    phoneNumber: draft.phoneNumber,
-  });
   const allocations = Object.entries(draft.shares).map(([category, sharePct]) => ({ category, sharePct }));
 
   return {
     submissionId: draft.submissionId,
-    ...(project && { project }),
-    ...(contact && { contact }),
+    project: {
+      name: draft.projectName.trim(),
+      ...given({
+        country: draft.country,
+        nearestCity: draft.nearestCity,
+        existingDataNotes: draft.existingDataNotes,
+      }),
+    },
+    contact: {
+      name: draft.contactName.trim(),
+      emailAddress: draft.emailAddress.trim(),
+      ...given({
+        relationshipToProject: draft.relationshipToProject,
+        phoneNumber: draft.phoneNumber,
+      }),
+    },
     site: {
       name: draft.siteName.trim(),
       ...defined('latitude', numberFrom(draft.latitude)),
@@ -311,12 +323,14 @@ function defined(name: string, value: number | null): Record<string, number> {
   return value === null ? {} : { [name]: value };
 }
 
-/** A group of text fields, or nothing where the planner filled none of them in. An empty group would
- *  create a Thing carrying no values, which reads as a contact nobody can be reached at. */
-function given<T extends Record<string, string>>(fields: T): Partial<T> | null {
-  const filled = Object.entries(fields).filter(([, value]) => value.trim().length > 0);
-  if (filled.length === 0) return null;
-  return Object.fromEntries(filled.map(([name, value]) => [name, value.trim()])) as Partial<T>;
+/** The optional text fields a planner filled in. A blank one is left out rather than sent as an empty
+ *  string, so nothing writes a value nobody typed. */
+function given<T extends Record<string, string>>(fields: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(fields)
+      .filter(([, value]) => value.trim().length > 0)
+      .map(([name, value]) => [name, value.trim()]),
+  ) as Partial<T>;
 }
 
 // ── Keeping the draft across a closed tab ────────────────────────────────────
