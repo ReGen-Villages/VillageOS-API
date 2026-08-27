@@ -23,8 +23,14 @@ public class IntakeCredentialTests
     private const string KeyHeader = "X-API-Key";
     private const string TheKey = "vos_sk_a-key-the-broker-would-accept";
 
+    /// <summary>The address the submission names, and therefore the one it verifies.</summary>
+    private const string AnasAddress = "ana.ferreira@example.pt";
+
     private static readonly string WillowBendDocument =
-        ("{'submissionId':'" + WillowBend.SubmissionId + "','site':{'name':'Willow Bend','population':320}}")
+        ("{'submissionId':'" + WillowBend.SubmissionId + "',"
+         + "'project':{'name':'Willow Bend Regeneration'},"
+         + "'contact':{'name':'Ana Ferreira','emailAddress':'" + AnasAddress + "'},"
+         + "'site':{'name':'Willow Bend','population':320}}")
         .Replace('\'', '"');
 
     private static bool IsTokenExchange(HttpRequestMessage request) =>
@@ -41,7 +47,7 @@ public class IntakeCredentialTests
         };
         using var client = factory.CreateClient();
 
-        var response = await SubmitAsync(client, WillowBendDocument);
+        var response = await SubmitAsync(factory, client, WillowBendDocument);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             "the key is the only credential this service can hold, so a broker that demands one must be reachable");
@@ -63,7 +69,7 @@ public class IntakeCredentialTests
         };
         using var client = factory.CreateClient();
 
-        await SubmitAsync(client, WillowBendDocument);
+        await SubmitAsync(factory, client, WillowBendDocument);
 
         exchangesWithoutTheKey.Should().Be(0,
             "a client built without the key authenticates as nobody, and a submission is refused for a "
@@ -88,9 +94,18 @@ public class IntakeCredentialTests
         request.Headers.TryGetValues(KeyHeader, out var values)
         && values.Contains(TheKey);
 
-    private static async Task<HttpResponseMessage> SubmitAsync(HttpClient client, string document)
+    /// <summary>The whole exchange a submitter makes. Only the last of it reaches the broker — verifying
+    /// an address is between this service and the person reading their mail — which is what leaves the
+    /// token exchange below as the one thing these tests are about.</summary>
+    private static async Task<HttpResponseMessage> SubmitAsync(
+        IntakeWebApplicationFactory factory, HttpClient client, string document)
     {
-        var ticket = await client.GetAsync("/submissions/ticket");
+        (await client.PostAsJsonAsync("/submissions/verification", new { emailAddress = AnasAddress }))
+            .EnsureSuccessStatusCode();
+
+        var ticket = await client.PostAsJsonAsync(
+            "/submissions/ticket",
+            new { emailAddress = AnasAddress, code = factory.Mailer.CodeSentTo(AnasAddress) });
         ticket.EnsureSuccessStatusCode();
         var value = (await ticket.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("ticket").GetString()!;
 
