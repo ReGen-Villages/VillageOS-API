@@ -158,10 +158,15 @@ static async Task Discover(
         return;
     }
 
-    var report = await runner.RunAsync(siteId, coverage.Covering, coverage.Values, cancellationToken);
+    // Not a failure: the source said what it resolves onto, and this site holds nothing of it.
+    foreach (var source in coverage.Covering.Where(source => source.Calls.Count == 0))
+        Log.Information("Source {Source} resolves onto Things site {SiteId} holds none of; nothing to fetch",
+            source.Name, siteId);
+
+    var report = await runner.RunAsync(siteId, coverage.Covering, cancellationToken);
     foreach (var outcome in report.Unresolved)
-        Log.Warning("Source {Source} left site {SiteId} undiscovered: {Reason}",
-            outcome.Source, siteId, outcome.Reason);
+        Log.Warning("Source {Source} left {Subject} undiscovered: {Reason}",
+            outcome.Source, outcome.Subject ?? $"site {siteId}", outcome.Reason);
 
     // Whatever mixture resolved, including none. The analysis reports against what discovery left it, and
     // a site whose sources were all unavailable is exactly the case a planner needs the analysis to say
