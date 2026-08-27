@@ -222,6 +222,10 @@ instead of failing the whole thing.
 | **Size and programme** | Land area (hectares or acres), population, household size, and which programme categories the village needs with roughly how the land divides between them |
 | **Parcel** | The actual boundary, drawn on a map |
 
+The wizard holds a submission back until the site name, the project name, and the contact's name and
+email address are filled in. Everything else can be left for later. The address is where the reviewer's
+decision is sent, which is why it is not among the fields a part-filled submission may go without.
+
 The programme categories are residential; food and agriculture; green, water and restoration;
 commercial and retail; community, education and health; and mobility and infrastructure. Each is
 toggled on or off and given a share.
@@ -325,6 +329,7 @@ Each of these rules exists to stop a particular kind of quiet damage:
 | **One place composes the fragment** | The signed-in wizard and a public submission post the same document to the same service, so there is one mapping from a submission to the model rather than one per caller. |
 | **Identifiers derive from the submission** | A wizard saves as it goes and a planner can double-click. A freshly generated identifier would build a second site beside the first; a derived one lands on the same Things every time, which is also what lets promotion be idempotent later. |
 | **A field not filled in yet is left out, not zeroed** | An absent value reads as absent. A zero standing in for one cannot be told from a real answer — the same reason a computed output is declared and left empty. |
+| **A submission names somebody to answer** | A submission is reviewed, and a decision nobody can be told is a decision nobody acts on. The project, a contact name and an email address are the fields a part-filled wizard may not leave out; the address is checked for the shape of one, which catches a mistake in the typing and nothing more. |
 | **A field the service does not write is refused** | A submission accepted and quietly dropped leaves the planner believing it was recorded. The refusal names the field. |
 | **The submission's identifier is a unique one** | Every Thing derives its identity from it, so two submissions carrying one identifier are one site. On a route anybody may post to, an identifier anybody could arrive at is a way to write over somebody else's submission. |
 
@@ -994,7 +999,7 @@ different way the route can be abused, and each owned by this service rather tha
 | Guard | What it does | What it does not do |
 |---|---|---|
 | **Body cap** | A body larger than a form's worth of answers is refused on its declared length, before anything reads it | Say anything about a body that fits |
-| **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span. A refusal names the field | Judge whether the answer is true |
+| **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span, and an email address the shape of one. A refusal names the field | Judge whether the answer is true, or that anybody reads what is sent to the address |
 | **Ticket** | `GET /submissions/ticket` hands out a short-lived value this service signed, and a post carries it back in `X-Submission-Ticket`. A post that never asked is refused | Establish that the caller is a person: asking for a ticket costs nothing, so an automated submitter that fetches before each post satisfies it |
 | **Rate limit** | One source may make a fixed number of requests in a fixed window, ticket requests included. Over it, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
 
