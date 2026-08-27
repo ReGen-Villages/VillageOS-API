@@ -325,19 +325,33 @@ describe('the document that is posted', () => {
     });
   });
 
-  it('leaves out a group the planner filled none of in, rather than creating a Thing with no values', () => {
-    const document = documentFrom({ ...emptyDraft('sub-0002'), siteName: 'Old Quarry' });
+  it('leaves out an optional field nobody filled in, and carries the ones a submission cannot go without', () => {
+    const document = documentFrom({
+      ...emptyDraft('sub-0002'),
+      projectName: 'Old Quarry Regeneration',
+      contactName: 'Ana Ferreira',
+      emailAddress: 'ana.ferreira@example.pt',
+      siteName: 'Old Quarry',
+    });
 
-    expect(document).toEqual({ submissionId: 'sub-0002', site: { name: 'Old Quarry' } });
+    expect(document).toEqual({
+      submissionId: 'sub-0002',
+      project: { name: 'Old Quarry Regeneration' },
+      contact: { name: 'Ana Ferreira', emailAddress: 'ana.ferreira@example.pt' },
+      site: { name: 'Old Quarry' },
+    });
   });
 
   it('refuses a population typed with a decimal point rather than rounding it', () => {
     expect(documentFrom(filled({ population: '320.5' })).site.population).toBeUndefined();
   });
 
-  it('cannot be submitted without a site name, which is what a Thing is created under', () => {
-    expect(readyToSubmit(filled({ siteName: '  ' }))).toBe(false);
+  it('cannot be submitted until it names the site, the project, and who to tell what was decided', () => {
     expect(readyToSubmit(filled())).toBe(true);
+    expect(readyToSubmit(filled({ siteName: '  ' }))).toBe(false);
+    expect(readyToSubmit(filled({ projectName: '' }))).toBe(false);
+    expect(readyToSubmit(filled({ contactName: '' }))).toBe(false);
+    expect(readyToSubmit(filled({ emailAddress: '  ' }))).toBe(false);
   });
 });
 

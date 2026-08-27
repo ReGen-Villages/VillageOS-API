@@ -18,16 +18,17 @@ namespace vos.ContinuousIntegration.Tests;
 /// </summary>
 public class ServicesBindLoopbackTests
 {
-    /// <summary>The file that decides what a service listens on, per language.</summary>
+    /// <summary>The file that decides what a service listens on, per language. The managed one is
+    /// <see cref="ServiceEntryPoints"/>'s business, so it is not named twice.</summary>
     private static readonly string[] EntryPointFiles =
-        ["Program.cs", "main.go", Path.Combine("src", "index.ts"), "app.py", Path.Combine("src", "main.rs")];
+        ["main.go", Path.Combine("src", "index.ts"), "app.py", Path.Combine("src", "main.rs")];
 
     [Fact]
     public void Every_managed_service_states_a_binding_and_every_binding_it_states_is_loopback()
     {
         var root = RepositoryRoot.Find();
 
-        var wrong = ManagedEntryPoints(root)
+        var wrong = ServiceEntryPoints.Under(root)
             .Select(entryPoint => (Path: Path.GetRelativePath(root, entryPoint), Calls: ServiceBindings.BindingCallsIn(File.ReadAllText(entryPoint))))
             .Where(entryPoint => entryPoint.Calls.Count == 0 || !entryPoint.Calls.All(ServiceBindings.IsLoopback))
             .Select(entryPoint => entryPoint.Path)
@@ -64,12 +65,10 @@ public class ServicesBindLoopbackTests
         Assert.Equal([".cs", ".go", ".py", ".rs", ".ts"], found);
     }
 
-    private static IEnumerable<string> ManagedEntryPoints(string root) =>
-        EntryPoints(root).Where(entryPoint => Path.GetExtension(entryPoint) == ".cs");
-
     private static IEnumerable<string> EntryPoints(string root) =>
-        new DirectoryInfo(root)
-            .EnumerateDirectories("vos.Service.*")
-            .SelectMany(service => EntryPointFiles.Select(file => Path.Combine(service.FullName, file)))
-            .Where(File.Exists);
+        ServiceEntryPoints.Under(root).Concat(
+            new DirectoryInfo(root)
+                .EnumerateDirectories("vos.Service.*")
+                .SelectMany(service => EntryPointFiles.Select(file => Path.Combine(service.FullName, file)))
+                .Where(File.Exists));
 }

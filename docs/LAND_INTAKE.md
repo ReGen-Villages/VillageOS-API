@@ -3,7 +3,8 @@
 > **Status: partly built.** The archetypes exist and a model can be seeded with them, the intake
 > service composes a submission into them, and the wizard collects what a planner types and posts it
 > (#6016), shows the site on the map as the position is given (#6014), and draws the parcel boundary
-> checked against the stated area (#6015). Anonymous submission and open-data discovery are still
+> checked against the stated area (#6015). Anybody may submit without a credential, having answered a
+> code sent to the address on the submission (#6026, #6027, #6799, #6803). Open-data discovery is still
 > design.
 > Tracked as Epic
 > [#6012](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6012) (client, services)
@@ -137,7 +138,12 @@ is described entirely by configuration, never by code written for that provider.
 **Delta** — the service that validates and registers those provider descriptions.
 
 **Compute service** — a microservice that reads its inputs off one Thing, computes, and writes its
-outputs back onto the same Thing. Energy, water, land allocation and food each are one.
+outputs back onto the same Thing. What is left to one is what a formula on the study cannot express: a
+verdict, and anything worked out across a set.
+
+**Derived property** — a formula the study declares and the model computes, over the study's own values
+and what it inherits. It refuses every value write, which is why nothing else may assert a figure
+declared this way.
 
 ### How a calculation is started and kept current
 
@@ -217,6 +223,10 @@ instead of failing the whole thing.
 | **Size and programme** | Land area (hectares or acres), population, household size, and which programme categories the village needs with roughly how the land divides between them |
 | **Parcel** | The actual boundary, drawn on a map |
 
+The wizard holds a submission back until the site name, the project name, and the contact's name and
+email address are filled in. Everything else can be left for later. The address is where the reviewer's
+decision is sent, which is why it is not among the fields a part-filled submission may go without.
+
 The programme categories are residential; food and agriculture; green, water and restoration;
 commercial and retail; community, education and health; and mobility and infrastructure. Each is
 toggled on or off and given a share.
@@ -288,8 +298,8 @@ the work.
     ]
   },
   "allocations": [                            // shares are taken as given and normalised later
-    { "category": "residential", "sharePct": 22, "allocatedAreaHectares": 5.28 },
-    { "category": "food-and-agriculture", "sharePct": 34, "allocatedAreaHectares": 8.16 }
+    { "category": "residential", "sharePct": 22 },
+    { "category": "food-and-agriculture", "sharePct": 34 }
     // …one entry per category, each naming a category only once
   ],
   "hazards": [                                // no level here: that is read from the source
@@ -306,10 +316,12 @@ the work.
 }
 ```
 
-`allocatedAreaHectares` is shown above because the wire accepts it, but a submission need not carry it:
-land allocation writes that property and `normalisedSharePct` as its own outputs, so a figure submitted
-alongside the share is a second answer to a question the analysis already answers. The wizard sends the
-share alone.
+**An allocation carries a share and nothing else.** The shared analysis declares
+`allocatedAreaHectares` and `normalisedSharePct` as formulas on the allocation itself, computed from its
+own share and the parcel its site holds, so a submitted area is a second answer to a question the model
+already answers — and writing one would fail the whole fragment, since a derived property refuses every
+value write. The wire therefore does not take one, and a caller that sends it is told which field by name
+(Bug #6762). It is the same rule as the measured area below, and for the same reason.
 
 Each of these rules exists to stop a particular kind of quiet damage:
 
@@ -318,6 +330,7 @@ Each of these rules exists to stop a particular kind of quiet damage:
 | **One place composes the fragment** | The signed-in wizard and a public submission post the same document to the same service, so there is one mapping from a submission to the model rather than one per caller. |
 | **Identifiers derive from the submission** | A wizard saves as it goes and a planner can double-click. A freshly generated identifier would build a second site beside the first; a derived one lands on the same Things every time, which is also what lets promotion be idempotent later. |
 | **A field not filled in yet is left out, not zeroed** | An absent value reads as absent. A zero standing in for one cannot be told from a real answer — the same reason a computed output is declared and left empty. |
+| **A submission names somebody to answer** | A submission is reviewed, and a decision nobody can be told is a decision nobody acts on. The project, a contact name and an email address are the fields a part-filled wizard may not leave out; the address is checked for the shape of one, which catches a mistake in the typing and nothing more. |
 | **A field the service does not write is refused** | A submission accepted and quietly dropped leaves the planner believing it was recorded. The refusal names the field. |
 | **The submission's identifier is a unique one** | Every Thing derives its identity from it, so two submissions carrying one identifier are one site. On a route anybody may post to, an identifier anybody could arrive at is a way to write over somebody else's submission. |
 
@@ -420,36 +433,44 @@ that time. The site now carries a solar figure that came from somewhere, with a 
 
 ```mermaid
 sequenceDiagram
-  participant Planner
-  participant Confluence
+  participant Site
   participant Mycelium
+  participant Forage
   participant Tributary
   participant Provider as Outside provider
-  Planner->>Confluence: Discover data for this site
-  Confluence->>Mycelium: which sources cover this site?
-  Mycelium-->>Confluence: sources reached by walking<br/>isIn and covers edges
+  Site->>Mycelium: coordinates written, nothing has observed it
+  Note over Mycelium: the site enters SiteAwaitingDiscovery,<br/>which the discovery connection watches
+  Mycelium->>Forage: dispatch, naming the site as the subject
+  Forage-->>Mycelium: accepted — the fetching has not started
+  Forage->>Mycelium: which sources cover this site?
+  Mycelium-->>Forage: sources reached by walking<br/>isIn and covers edges
   loop each covering source, bounded concurrency
-    Confluence->>Tributary: call <source> with the site's lat/lng<br/>and the site as the subject
+    Forage->>Tributary: call <source> with the site's lat/lng<br/>and the site as the subject
     Tributary->>Provider: HTTP request
     Provider-->>Tributary: response
     Tributary->>Tributary: reshape into a reading
     Tributary->>Mycelium: relate the registration to the Site<br/>through observed, once
     Tributary->>Mycelium: write observation onto the Site
   end
-  Confluence->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
+  Note over Site: the first observation takes it out of<br/>the state, so nothing fetches again
+  Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
   Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the edge starts it
-  Confluence-->>Planner: resolved · unresolved, each with a reason
+  Note over Mycelium: the site reaching SiteDiscovered is what<br/>closes the dispatch, not the call
 ```
 
+**Nothing calls Forage.** The site entering `SiteAwaitingDiscovery` is what dispatches it, and the
+edge that dispatch writes is what a reader asks afterwards to find out what started a run — see
+[FORAGE.md](FORAGE.md#what-starts-a-run).
+
 The analysis starts whatever mixture resolved, including none — a site whose sources were all
-unavailable is the case a planner most needs an answer about. Confluence never calls a compute
+unavailable is the case a planner most needs an answer about. Forage never calls a compute
 service: it writes the edges and the platform dispatches, so there is one way to start an analysis
 rather than two. The subject is the study, because that is where a service reads its inputs.
-See [CONFLUENCE.md](CONFLUENCE.md#starting-the-analysis).
+See [FORAGE.md](FORAGE.md#starting-the-analysis).
 
 Selection is a **graph walk, not a string match**: a source `covers` a Place, the site `isIn` a
 Place, and Places nest. A source cannot be silently skipped because a country was spelled two ways
-— see [CONFLUENCE.md](CONFLUENCE.md). Coverage selection lives in a service rather than in Mycelium,
+— see [FORAGE.md](FORAGE.md). Coverage selection lives in a service rather than in Mycelium,
 which carries no intake vocabulary.
 
 **Partial failure is normal and must be tolerated.** Public data portals go down. One source failing
@@ -460,12 +481,27 @@ did in fact cover the site.
 
 ### What to fetch first
 
-| Value | Replaces |
-|---|---|
-| Solar resource | A curve applied to latitude, feeding straight into the energy balance |
-| Rainfall | A number the planner is asked to type, feeding the water balance |
-| Hazard levels | Hand transcription of eight levels from a separate portal |
-| Elevation and terrain | A manually entered value |
+| Value | Replaces | State |
+|---|---|---|
+| Climate zone | A zone nobody could enter, because the property takes observations only | Registered as seed data (#6734) |
+| Solar resource | A curve applied to latitude, feeding straight into the energy balance | Reshape proven, not yet seeded |
+| Rainfall | A number the planner is asked to type, feeding the water balance | Reshape proven, not yet seeded |
+| Hazard levels | Hand transcription of eight levels from a separate portal | Registered as seed data, called once per assessment (#6735) |
+| Elevation and terrain | A manually entered value | Nothing registered |
+
+**The registered sources ship in the seed, not in a call.** A registration lives in the project's own
+model, so a source every project uses belongs in the seed every project is created from — which is a
+template in the platform repository, `open-data-sources.template.json`. That template also declares the
+`Place` archetype coverage is walked over and the `isIn`, `covers`, `resolvedBy` and `resolvesOnto`
+predicates. See
+[`DELTA.md`](DELTA.md#which-model-a-registration-lives-in) for why a shared catalogue was refused.
+
+**A site's climate zone is a Köppen-Geiger code** — `Csa`, `BSk`, `BWh` and the rest of that scheme.
+Naming the scheme is what makes a code mean anything: the provider registered for it answers with a
+code from every classification it holds, and several of them use overlapping letters, so a zone read
+against the wrong scheme is a plausible value nothing can tell apart from the right one. The
+registration selects Köppen-Geiger by the marker the provider gives it; see
+[`TRIBUTARY.md`](TRIBUTARY.md#example-a-climate-zone-onto-a-site-6734).
 
 Not every provider can be registered. Some are map portals with no data interface; some are
 commercial products behind a licence. Those stay as links — but recorded **as Things in the model**,
@@ -475,12 +511,22 @@ flagged as needing a manual read, so the gap is visible rather than implied by a
 
 ## 6. Phase three — analysis
 
-The compute services read what is in the model, compute, and write their results back onto the study.
-They make no outside calls.
+The analysis reads what is in the model and answers back onto the study. It makes no outside calls.
 
-Each balance is a **reactive service**, not a node in a graph. A relationship whose subject is the
+**A figure the study can work out for itself is declared on the study, not asserted by a service.** The
+shared `SiteStudy` archetype carries the formula for each one, and the model computes it when the model
+loads and again whenever a term moves — so the arithmetic is checked against the properties the study
+declares, a page can show a figure's working, and a term with no answer leaves the figure unknown rather
+than failing the service that would have written it. That last part is what lets a site nobody surveyed
+read as not assessed instead of as a site that failed.
+
+What is left to a service is what a formula over one Thing cannot express: a verdict, which is a boolean
+where an expression yields a number, and anything worked out **across a set** — the land shares
+apportioned over the allocations, and the harvest apportioned over the demands in serving order.
+
+Each of those is a **reactive service**, not a node in a graph. A relationship whose subject is the
 study and whose predicate is the connection bound to the service is what dispatches it: the service
-reads the study's effective properties, computes, writes its outputs back as Facts, and starts
+reads the study's effective properties, computes, writes what is its to write back as Facts, and starts
 watching the study. Every later change to an input recomputes on its own.
 
 ```mermaid
@@ -502,8 +548,20 @@ flowchart TB
 ```
 
 The arrows are property reads and writes on one Thing, not wires. Land allocation writes the two
-footprints; the three balances read them and re-fire. Nothing sequences them — each recomputes when an
+footprints; the balances read them and re-fire. Nothing sequences them — each recomputes when an
 input it declared moves, and the cascade is bounded by the model's recompute round limit.
+
+Two of the boxes need no service any more. Every water-reserve and food-balance figure is a formula on
+the study, so both services now assert nothing and their dispatch is waiting to be removed (#6747,
+#6748). The energy balance keeps only its verdict, and the rainwater harvest keeps the apportionment
+across the demands.
+
+**Each allocation's own area is a formula, not a write.** An allocation works out its normalised share of
+the stated programme and its share of the parcel from definitions the shared analysis declares on the
+`ProgrammeAllocation` archetype, so a page can show the working and no service asserts either figure. The
+two footprints stay with the service because each sums the allocations whose *category* carries a mark,
+and a relationship path narrows by archetype rather than by a property a Thing carries — so no path
+reaches only the marked ones.
 
 **Assumptions are inherited, not supplied per run.** Yield per hectare, runoff coefficient, energy per
 person, water per person — these are judgement calls a planner will want to vary, and they live on the
@@ -512,14 +570,14 @@ to the model rather than a redeploy, and a planner varying one sees the balances
 for anything to run again. That last point is why this shape was chosen over a graph run once per
 request.
 
-**A missing discovered value is reported, not defaulted.** If rainfall did not resolve, the balance
-that needs it leaves its output unwritten, and the study's "not assessed" range holds. A balance
-computed against a silently substituted number is worse than no answer, because it looks like an
-answer.
+**A missing discovered value is reported, not defaulted.** If rainfall did not resolve, the harvest
+volume the formula reads it into stays unknown rather than falling to nought, and the study's "not
+assessed" range holds. A balance computed against a silently substituted number is worse than no answer,
+because it looks like an answer.
 
 ### What a service call looks like
 
-A dispatched relationship names the study; the service answers with what it wrote:
+A dispatched relationship names the study; the service answers with what it computed:
 
 ```jsonc
 // Mycelium → the service                   // the service → Mycelium
@@ -582,6 +640,20 @@ renames one keeps working, and land allocation reads the category's footprint fl
 end of the edge. **The edge is the only record**: neither term is also written as a word on the Thing it
 came from, because a copy beside the edge can be read but not walked from, and two readings of one value
 can come to disagree with nothing to notice.
+
+**A site is also related to the Place it sits in, and that is not a vocabulary.** Nothing is resolved
+against it — a submission names no Place. The producer relates every site to the one Place marked as the
+root, through the predicate marked as the nesting one, because discovery walks outwards from the site
+through that edge to find which sources cover it. A site related to no Place reaches none, every source
+then reads as covering nowhere, and the run reports neither a resolved source nor an unresolved one — a
+planner is told nothing was found rather than that nothing was looked for.
+
+**Why the country is not used for this.** It is tempting to relate the site to the country the submitter
+named, and wrong twice over: `country` is optional, and the vocabulary pattern above *refuses* a word the
+model does not hold, which would turn an undeclared country into a rejected submission. Countries are an
+open set nobody can enumerate, so they stay text. A source covering the root covers every site, which is
+all the registered sources need today; the first source with narrower coverage is what should force a
+narrower Place, and the hazard portal needs one carrying its administrative division code.
 
 The design decisions worth stating:
 
@@ -660,8 +732,8 @@ Each computed output is **declared on the study with its type and no value** unt
 (#6159). A seeded zero cannot be told from a real result, and a range reading it would report a verdict
 about an analysis that never ran.
 
-> **Settled: `pctOfConsumption`.** The reactive energy service writes it, the shared `SiteStudy`
-> archetype declares it, and that archetype's `EnergyNetPositive` range reads it. A submission's study
+> **Settled: `pctOfConsumption`.** The shared `SiteStudy` archetype declares the formula for it, the
+> model computes it, and that archetype's `EnergyNetPositive` range reads it. A submission's study
 > declares no computed output of its own — it `is` the archetype and inherits every one, so there is one
 > place the name is answered rather than two that can disagree.
 
@@ -735,8 +807,9 @@ The yield is `peopleFedPerHectarePerYear` on the shared study archetype: regener
 producing a full diet supports roughly two to three people per hectare. Correcting it there moves the
 answer for every study.
 
-Two lines of arithmetic, and still worth being a service — because the result then carries which yield
-assumption produced it and which parcel area it read, and it moves on its own when either changes. A
+Two lines of arithmetic, and both are declared on the study rather than run by a service. The result
+still carries which yield assumption produced it and which parcel area it read, and still moves on its
+own when either changes — that is what a declared formula gives, without an executable to deploy. A
 number worked out in a page carries neither.
 
 Neither figure is rounded where it is computed. People fed is conceptually a whole number, but rounding
@@ -802,6 +875,43 @@ River flood, landslide, wildfire, earthquake, cyclone, extreme heat, water scarc
 each graded on a scale from "no data" to "high". Today these are typed in by hand from a separate
 portal. After discovery they arrive as readings with a source and a date, which is
 the difference between an assessment and a recollection.
+
+**The portal is ThinkHazard, and its grading is the scale.** No grade is invented to close an item: the
+levels are the ones it publishes, and the two ends already named are its own.
+
+| Grade | Means |
+|---|---|
+| High | Potentially damaging and life-threatening events are expected at least once in the next ten years |
+| Medium | Damaging events are expected, less often than that |
+| Low | Events are possible but infrequent |
+| Very low | No hazard of this kind is expected |
+| No data | The portal holds nothing for this place, which is not the same as no hazard |
+
+"No data" is a grade of its own and is the reason an unassessed hazard must not read as a safe one: a
+hazard the portal holds nothing about stays unassessed rather than being graded "very low". Those five
+are also the vocabulary platform Task 6684 is waiting on for `hazardLevel` — each becomes a Thing, and
+the property becomes an edge to one.
+
+**The portal is called once per assessment (#6735).** Every one of its routes takes an administrative
+division code, and its per-hazard route takes a two-letter code for the hazard type — `FL`, `LS`, `WF`.
+Neither is a value a site carries, so the registration leans on the model holding both as Things:
+
+- **The Place a site is in carries the portal's division code**, as `hazardPortalDivision`. That is a
+  natural home rather than a workaround — the portal's divisions are exactly what a Place is, and
+  coverage already walks `Site isIn Place`, so the coverage read already returns the Thing the value
+  sits on. A project declares its division Place, relates its sites into it, and deploys nothing.
+- **The hazard type carries the portal's own code for it**, as `hazardPortalCode` on the Thing under
+  the `HazardType` archetype reached by `assesses` (Bug #6737) — a code belonging to one portal hangs
+  off the type Thing, where a word on an assessment could carry nothing.
+
+The source declares that it resolves onto the assessment archetype, so a discovery run calls it once
+per assessment the site has, with that assessment as the call's subject: the reading — `hazardLevel`
+as the vocabulary word, and `assessedOn` — lands on the assessment it grades, and relating the word
+to the `HazardLevel` Thing it names is the vocabulary's remaining migration step. A division the
+portal holds no data about for a hazard is answered 404, so nothing is written and that hazard stays
+honestly unassessed. A site whose Places carry no division code has every hazard call refused before
+the provider is contacted and reported with the unfilled placeholder named — the model gap said out
+loud, not an outage invented for the portal.
 
 ---
 
@@ -885,7 +995,7 @@ flowchart TB
 | Property | How it is achieved |
 |---|---|
 | Anonymous in | The service decides; no platform rule is widened |
-| Rate limited, size capped, ticket checked | Owned by the service, where the public traffic is — see "What guards the route" below |
+| Rate limited, size capped, address verified | Owned by the service, where the public traffic is — see "What guards the route" below |
 | Cannot read project data | Its credential names only the intake model: a key created against a model is exchanged for a token naming that model, and refused one naming any other |
 | Writes go through normal auth | It mints a Mycelium token and posts a fragment, like any service |
 | Blast radius of a mistake | One service, not every endpoint in the model |
@@ -898,14 +1008,39 @@ different way the route can be abused, and each owned by this service rather tha
 | Guard | What it does | What it does not do |
 |---|---|---|
 | **Body cap** | A body larger than a form's worth of answers is refused on its declared length, before anything reads it | Say anything about a body that fits |
-| **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span. A refusal names the field | Judge whether the answer is true |
-| **Ticket** | `GET /submissions/ticket` hands out a short-lived value this service signed, and a post carries it back in `X-Submission-Ticket`. A post that never asked is refused | Establish that the caller is a person: asking for a ticket costs nothing, so an automated submitter that fetches before each post satisfies it |
-| **Rate limit** | One source may make a fixed number of requests in a fixed window, ticket requests included. Over it, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
+| **Field bounds** | Text has a length, a coordinate a range, an area and a population a plausible span, and an email address the shape of one. A refusal names the field | Judge whether the answer is true |
+| **Verified address** | `POST /submissions/verification` sends a code to an address; `POST /submissions/ticket` exchanges that code for a short-lived ticket signed against it; `POST /submissions` reads the ticket back in `X-Submission-Ticket` and refuses a submission naming any other address | Say who the person is. It establishes that somebody reads that mailbox, and a person may hold as many mailboxes as they like |
+| **Rate limit** | One source may make a fixed number of requests in a fixed window, verification and ticket requests included. Over it, `429` with a `Retry-After` telling the caller when to come back | Tell two submitters behind one address apart |
 
-The ticket and the rate limit work as a pair: the ticket makes an automated submitter come and ask, and
-the rate limit is what bounds how often it can. Neither is a challenge from a third-party service, and
-this platform is meant to run without one — so this is what it can honestly claim, and the staging model
-in front of a reviewer is what catches the rest.
+The verification and the rate limit work as a pair: answering a code costs a submitter a mailbox and a
+wait, and the rate limit is what bounds how fast they can spend either. Neither is a challenge from a
+third-party service, and this platform is meant to run without one — so this is what it can honestly
+claim, and the staging model in front of a reviewer is what catches the rest.
+
+**What bounds the sending itself.** The verification route is the one thing this service does to somebody
+who did not ask, because the address is a stranger's word for whose mailbox it is. A code lasts fifteen
+minutes and dies after a handful of wrong answers, so guessing six figures runs out rather than merely
+being unlikely; one address is sent only a few codes an hour, so the route cannot be pointed at a mailbox
+its owner never gave us; and what is held pending is capped, so a stranger asking about a fresh address
+each time cannot make the service grow. A send that fails hands the budget back, so a mail server having
+a bad afternoon does not lock an address out for the hour with no code delivered.
+
+**Answering a code tells the caller nothing about the address.** Every refusal on that route is worded
+identically — a wrong code, an expired one, a code answered too often, and an address nothing was ever
+sent to all read the same. Answering costs a caller nothing and they name the address themselves, so a
+message that told those apart would answer "has somebody just started a submission under this address"
+for any address anybody cared to type.
+
+**Asking for a code is not silent in the same way, and that is a deliberate trade.** The route answers
+`429` once an address has had its few codes for the hour, so a caller counting requests until that
+refusal can learn roughly how many codes an address was recently sent. Closing that would mean answering
+`202` to a request nothing was sent for, which leaves somebody who asked again in good faith waiting for
+mail that is never coming. The disclosure is narrow and costs the caller a real message to the mailbox
+they are probing on every attempt, which is the abuse the per-source rate limit is there to catch.
+
+**Nothing pending survives a restart.** A code is good for minutes and the person whose was lost asks for
+another. Keeping them would mean writing addresses to disk, which is the one thing this flow exists to
+avoid.
 
 **A source is the address the reverse proxy forwards.** Every caller reaches this service through the
 proxy, so the connection itself is always from loopback; the caller's own address arrives in
@@ -968,7 +1103,7 @@ The main finding from designing this: most of it is already built.
 | — | |
 | A map, and drawing a parcel on it | **Exists** — the map module (#5346), the wizard showing the site on it (#6014), and parcel drawing with the drawn area checked against the stated area (#6015) |
 | The intake wizard | **Exists** — what a planner types (#6016), the site on the map (#6014), and the parcel step (#6015) |
-| Anonymous submission: rate limits, size caps, field bounds, a ticket | **Exists** (#6026, #6027) — the route takes a submission from someone holding no credential, guarded as [§9](#what-guards-the-route) describes |
+| Anonymous submission: rate limits, size caps, field bounds, a verified address | **Exists** (#6026, #6027, #6799, #6803) — the route takes a submission from someone holding no credential and having proved they read mail at the address on it, guarded as [§9](#what-guards-the-route) describes |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 
 ---

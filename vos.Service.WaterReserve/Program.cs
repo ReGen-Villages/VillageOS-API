@@ -76,16 +76,16 @@ try
         InputChangeRecomputeService following) =>
     {
         using var reader = new StreamReader(ctx.Request.Body);
-        var root = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(await reader.ReadToEndAsync());
+        var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
 
-        switch (HandleRequestRouter.Classify(root, out var studyId))
+        switch (request.Kind)
         {
             case HandleRequestKind.NodeEnvelope:
-                return Results.Ok(await node.HandleNodeAsync(root, ctx.RequestAborted));
+                return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
 
             case HandleRequestKind.RelationshipSubject:
-                following.Watch(studyId);
-                var outputs = await reactive.RecomputeAsync(studyId, ctx.RequestAborted);
+                following.Watch(request.SubjectId);
+                var outputs = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
                 return Results.Ok(new { success = true, outputs });
 
             default:

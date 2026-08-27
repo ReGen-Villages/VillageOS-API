@@ -7,6 +7,8 @@ const fetchMock = vi.fn();
 
 const SUBMISSION: SubmissionDocument = {
   submissionId: '9f1c74d6-0b8e-4a52-bd31-6c7e5a92f048',
+  project: { name: 'Willow Bend Regeneration' },
+  contact: { name: 'Ana Ferreira', emailAddress: 'ana.ferreira@example.pt' },
   site: { name: 'Willow Bend', latitude: 39.5012, longitude: -8.4137 },
 };
 
@@ -28,12 +30,17 @@ beforeEach(() => {
 });
 
 describe('posting a submission', () => {
-  it('asks for a ticket and posts the document under it', async () => {
+  it('spends the code on a ticket and posts the document under it', async () => {
     answering({ ok: true, json: () => Promise.resolve({ reference: 'sub-ref-1' }) });
 
-    const accepted = await intakeApi.submit(SUBMISSION);
+    const accepted = await intakeApi.submit(SUBMISSION, '314159');
 
-    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:6200/submissions/ticket');
+    const [ticketUrl, ticketInit] = fetchMock.mock.calls[0];
+    expect(ticketUrl).toBe('http://localhost:6200/submissions/ticket');
+    expect(JSON.parse(ticketInit.body)).toEqual({
+      emailAddress: 'ana.ferreira@example.pt',
+      code: '314159',
+    });
     const [url, init] = fetchMock.mock.calls[1];
     expect(url).toBe('http://localhost:6200/submissions');
     expect(init.method).toBe('POST');
@@ -48,7 +55,7 @@ describe('posting a submission', () => {
   it('carries no credential', async () => {
     answering({ ok: true, json: () => Promise.resolve({ reference: 'sub-ref-1' }) });
 
-    await intakeApi.submit(SUBMISSION);
+    await intakeApi.submit(SUBMISSION, '314159');
 
     expect(fetchMock.mock.calls[1][1].headers.Authorization).toBeUndefined();
   });
@@ -57,7 +64,7 @@ describe('posting a submission', () => {
     (import.meta.env as Record<string, string>).VITE_INTAKE_URL = 'http://localhost:6200/';
     answering({ ok: true, json: () => Promise.resolve({ reference: 'sub-ref-1' }) });
 
-    await intakeApi.submit(SUBMISSION);
+    await intakeApi.submit(SUBMISSION, '314159');
 
     expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:6200/submissions/ticket');
     expect(fetchMock.mock.calls[1][0]).toBe('http://localhost:6200/submissions');
@@ -70,7 +77,7 @@ describe('posting a submission', () => {
       json: () => Promise.resolve({ error: "'site.name' is missing: a Thing is created under a name." }),
     });
 
-    await expect(intakeApi.submit(SUBMISSION)).rejects.toThrow("'site.name' is missing");
+    await expect(intakeApi.submit(SUBMISSION, '314159')).rejects.toThrow("'site.name' is missing");
   });
 
   it('raises the detail where the service answered with a problem document instead', async () => {
@@ -80,13 +87,13 @@ describe('posting a submission', () => {
       json: () => Promise.resolve({ title: 'Service unavailable', detail: 'This service cannot accept submissions at the moment.' }),
     });
 
-    await expect(intakeApi.submit(SUBMISSION)).rejects.toThrow('cannot accept submissions');
+    await expect(intakeApi.submit(SUBMISSION, '314159')).rejects.toThrow('cannot accept submissions');
   });
 
   it('still says the submission was refused when the refusal carries no readable body', async () => {
     answering({ ok: false, status: 503, json: () => Promise.reject(new Error('no body')) });
 
-    await expect(intakeApi.submit(SUBMISSION)).rejects.toThrow('503');
+    await expect(intakeApi.submit(SUBMISSION, '314159')).rejects.toThrow('503');
   });
 
   it('raises the refusal where the ticket itself could not be had', async () => {
@@ -96,14 +103,14 @@ describe('posting a submission', () => {
       json: () => Promise.resolve({ error: 'Too many requests. Try again in 600 seconds.' }),
     });
 
-    await expect(intakeApi.submit(SUBMISSION)).rejects.toThrow('Too many requests');
+    await expect(intakeApi.submit(SUBMISSION, '314159')).rejects.toThrow('Too many requests');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('refuses to post at all when no intake address is configured', async () => {
     (import.meta.env as Record<string, string>).VITE_INTAKE_URL = '';
 
-    await expect(intakeApi.submit(SUBMISSION)).rejects.toThrow('VITE_INTAKE_URL');
+    await expect(intakeApi.submit(SUBMISSION, '314159')).rejects.toThrow('VITE_INTAKE_URL');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -111,5 +118,29 @@ describe('posting a submission', () => {
     expect(intakeApi.configured()).toBe(true);
     (import.meta.env as Record<string, string>).VITE_INTAKE_URL = '';
     expect(intakeApi.configured()).toBe(false);
+  });
+});
+
+describe('asking for a code', () => {
+  it('names the address the code is to be sent to', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+
+    await intakeApi.askForCode('ana.ferreira@example.pt');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://localhost:6200/submissions/verification');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ emailAddress: 'ana.ferreira@example.pt' });
+    expect(init.headers.Authorization).toBeUndefined();
+  });
+
+  it('raises what the service said was wrong', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: () => Promise.resolve({ error: 'That address has been sent as many codes as it can be for now.' }),
+    });
+
+    await expect(intakeApi.askForCode('ana.ferreira@example.pt')).rejects.toThrow('as many codes');
   });
 });

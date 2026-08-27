@@ -4,11 +4,15 @@ namespace vos.Service.LandAllocation.Services;
 
 /// <summary>What the split reads as: the study's site and parcel, each allocation with the category it
 /// names, and the allocations to follow for changes. An allocation naming no category the model holds is
-/// carried as a gap rather than dropped — a split silently short by one describes a different parcel.</summary>
+/// carried as a gap rather than dropped — a split silently short by one describes a different parcel.
+///
+/// <para>A null area is no parcel reached at all, which is not the same answer as a parcel stating nought
+/// hectares: one is a site nobody has described, the other is a description. Read as the same number,
+/// the first produced footprints of nought that every guard accepted, and a site nothing had assessed
+/// reported a definite food shortfall (6767).</para></summary>
 public sealed record ProgrammeSplit(
-    double ParcelAreaHectares,
+    double? ParcelAreaHectares,
     IReadOnlyList<AllocatedCategory> Categories,
-    IReadOnlyDictionary<string, Guid> AllocationIdByCategory,
     IReadOnlyList<Guid> ReadsFrom,
     IReadOnlyList<string> Uncategorised);
 
@@ -71,10 +75,9 @@ public static class ProgrammeSplitReader
             .ToList();
 
         var categories = new List<AllocatedCategory>();
-        var allocationIdByCategory = new Dictionary<string, Guid>(StringComparer.Ordinal);
         var readsFrom = new List<Guid>();
         var uncategorised = new List<string>();
-        double parcelArea = 0;
+        double? parcelArea = null;
 
         foreach (var id in held)
         {
@@ -97,15 +100,13 @@ public static class ProgrammeSplitReader
                 continue;
             }
 
-            var name = category.Name ?? categoryId.Value.ToString();
-            categories.Add(new AllocatedCategory(name, share,
+            categories.Add(new AllocatedCategory(category.Name ?? categoryId.Value.ToString(), share,
                 Marked(category, BuiltFootprintFlag), Marked(category, ProductiveFootprintFlag)));
-            allocationIdByCategory[name] = id;
         }
 
-        return new ProgrammeSplit(parcelArea, categories, allocationIdByCategory, readsFrom, uncategorised);
+        return new ProgrammeSplit(parcelArea, categories, readsFrom, uncategorised);
 
-        ProgrammeSplit Empty() => new(0, [], new Dictionary<string, Guid>(), [], []);
+        ProgrammeSplit Empty() => new(null, [], [], []);
     }
 
     private static Guid? TargetOf(

@@ -139,7 +139,9 @@ public class EndpointKindResolverTests
         EndpointKindResolver.MissingRequirements(null, Effective()).Should().BeEmpty();
     }
 
-    private static Dictionary<string, JsonElement> Effective(params (string Key, string Value)[] entries) =>
+    // Handed back as a view nothing can write to, which is what the call path holds and what the
+    // check has to be able to read without copying.
+    private static IReadOnlyDictionary<string, JsonElement> Effective(params (string Key, string Value)[] entries) =>
         entries.ToDictionary(
             entry => entry.Key,
             entry => JsonDocument.Parse($"\"{entry.Value}\"").RootElement,

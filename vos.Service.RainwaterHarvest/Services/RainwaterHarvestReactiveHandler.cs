@@ -4,8 +4,14 @@ using vos.Service.Shared.Subscriptions;
 namespace vos.Service.RainwaterHarvest.Services;
 
 // The reactive form, and the only one (#6020): a relationship naming the study makes this read the
-// study's effective properties, compute, and write the harvest, what each demand asked for, how much of
-// it was covered and what is left short, back onto the study as Facts.
+// study's effective properties, compute, and write what each demand asked for, the total of those, how
+// much of each was covered and what is left short, back onto the study as Facts.
+//
+// The harvest volume and its coverage of the whole demand are not written any more: the shared analysis
+// declares both as expressions over the study's own values, and a derived property refuses a written one.
+// What stays here is what is worked out across the set of demands the model declares, which is a
+// reduction's shape rather than an expression's — the total sums that set, and the coverages apportion one
+// body of water across it in serving order.
 //
 // Both footprints are written by LandAllocation onto the same study, which puts this on the second layer
 // of the analysis: one dispatch, and every later move of either footprint recomputes on its own.
@@ -36,9 +42,7 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
     private const string RainfallInput = "rainfallMillimetresPerYear";
     private const string RunoffCoefficientInput = "runoffCoefficient";
 
-    public const string HarvestOutput = "harvestM3PerYear";
     public const string TotalWaterDemandOutput = "totalWaterDemandM3PerYear";
-    public const string PctOfWaterDemandOutput = "pctOfWaterDemand";
 
     /// <summary>What this handler reads off the study itself, whatever demands the model puts on the
     /// harvest. The figures the demands are sized by are named by the model, not here.</summary>
@@ -74,9 +78,7 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
 
         _watched = watched;
 
-        await properties.WriteAsync(studyId, HarvestOutput, result.HarvestM3PerYear, cancellationToken);
         await properties.WriteAsync(studyId, TotalWaterDemandOutput, result.TotalWaterDemandM3PerYear, cancellationToken);
-        await properties.WriteAsync(studyId, PctOfWaterDemandOutput, result.PctOfWaterDemand, cancellationToken);
 
         var byName = components.ToDictionary(component => component.Name, StringComparer.Ordinal);
         foreach (var demand in result.Served)

@@ -4,6 +4,7 @@ using vos.Service.Delta.Models;
 using vos.Service.Delta.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.Hosting;
+using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared.Configuration;
 using vos.Service.Shared.Validation;
 using Serilog;
@@ -55,6 +56,15 @@ try
             myceliumUrl,
             serviceToken, apiKey: apiKey));
 
+    // Reads the edges the template catalog already carries. A scoped snapshot, not a property read,
+    // because what provisioning needs to know is which relationships exist.
+    builder.Services.AddSingleton<ISubscriptionClient>(sp =>
+        new SubscriptionClient(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ILogger<SubscriptionClient>>(),
+            myceliumUrl,
+            serviceToken, apiKey: apiKey));
+
     builder.Services.AddSingleton<IEndpointSeedProvider, FileEndpointSeedProvider>();
 
     var app = builder.Build();
@@ -73,6 +83,7 @@ try
     // launch token names, and one Delta process answers every project.
     var provisioner = new TemplateCatalogProvisioner(
         app.Services.GetRequiredService<MyceliumClient>(),
+        app.Services.GetRequiredService<ISubscriptionClient>(),
         graph,
         app.Services.GetRequiredService<ILogger<TemplateCatalogProvisioner>>());
     var templateCatalog = new ModelTemplateCatalog();

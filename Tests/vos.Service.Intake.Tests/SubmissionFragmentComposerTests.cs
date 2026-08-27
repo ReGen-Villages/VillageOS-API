@@ -79,26 +79,55 @@ public class SubmissionFragmentComposerTests
             .ContainKeys("relationshipToProject", "emailAddress", "phoneNumber");
     }
 
-    // Every field beyond the submission identifier and the site name is optional, because a wizard saves as
-    // the planner fills it in.
+    // A submission is reviewed and the decision has to reach whoever made it, so who to tell is not among
+    // the fields a part-filled wizard may leave out.
     [Fact]
-    public void A_submission_naming_no_project_mints_neither_it_nor_a_contact()
+    public void A_submission_naming_nobody_to_tell_the_decision_to_is_refused()
     {
-        var composed = Compose(WillowBend.Submission() with { Project = null, Contact = null });
-
-        composed.Fragment.Things.Should().OnlyContain(thing => thing.Name != "Willow Bend Regeneration");
-        composed.Fragment.Things.Select(thing => thing.Name).Should().NotContain("Ana Ferreira");
+        Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with { Contact = null }))
+            .Message.Should().Contain("contact");
     }
 
-    // A contact has nowhere to hang without a project, and a fragment that silently dropped it would leave
-    // the planner believing it was recorded.
     [Fact]
-    public void A_contact_given_without_a_project_is_refused()
+    public void A_contact_nobody_can_be_written_to_is_refused()
     {
-        var refusal = Assert.Throws<SubmissionError>(() =>
-            Compose(WillowBend.Submission() with { Project = null }));
+        var withoutAnAddress = WillowBend.Submission().Contact! with { EmailAddress = null };
 
-        refusal.Message.Should().Contain("contact").And.Contain("project");
+        Assert.Throws<SubmissionError>(() =>
+                Compose(WillowBend.Submission() with { Contact = withoutAnAddress }))
+            .Message.Should().Contain("contact.emailAddress");
+    }
+
+    [Fact]
+    public void A_contact_carrying_no_name_is_refused()
+    {
+        var unnamed = WillowBend.Submission().Contact! with { Name = null };
+
+        Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with { Contact = unnamed }))
+            .Message.Should().Contain("contact.name");
+    }
+
+    // A contact hangs off the project it can be asked about, so a submission carrying no project has
+    // nowhere to put the contact every submission has to carry.
+    [Fact]
+    public void A_submission_naming_no_project_is_refused()
+    {
+        Assert.Throws<SubmissionError>(() =>
+                Compose(WillowBend.Submission() with { Project = null, Contact = null }))
+            .Message.Should().Contain("project");
+    }
+
+    // The address is what a decision is sent to, so it is stored as it would be written to rather than as
+    // it happened to be pasted in.
+    [Fact]
+    public void An_address_pasted_with_space_around_it_is_stored_without()
+    {
+        var pasted = WillowBend.Submission().Contact! with { EmailAddress = "  ana.ferreira@example.pt  " };
+
+        var composed = Compose(WillowBend.Submission() with { Contact = pasted });
+
+        Named(composed, "Ana Ferreira").Properties["emailAddress"].Value
+            .Should().Be("ana.ferreira@example.pt");
     }
 
     private static IEnumerable<FragmentThing> Allocations(ComposedSubmission composed) =>
@@ -206,9 +235,22 @@ public class SubmissionFragmentComposerTests
     {
         var composed = Compose(WillowBend.Submission());
 
-        var residential = AllocationFor(composed, "residential");
-        residential.Properties["sharePct"].Value.Should().Be(22.0);
-        residential.Properties["allocatedAreaHectares"].Value.Should().Be(5.28);
+        AllocationFor(composed, "residential").Properties["sharePct"].Value.Should().Be(22.0);
+    }
+
+    // The shared analysis declares an allocation's area as a formula over its own share and the parcel its
+    // site holds, and a derived property refuses every value write — so writing a submitted area would not
+    // duplicate the answer, it would fail the whole fragment. An allocation carries its share and nothing
+    // else this service could write (Bug #6762).
+    [Fact]
+    public void An_allocation_carries_no_figure_the_model_works_out_for_itself()
+    {
+        var composed = Compose(WillowBend.Submission() with
+        {
+            Allocations = [new SubmittedAllocation { Category = "residential", SharePct = 22 }],
+        });
+
+        AllocationFor(composed, "residential").Properties.Keys.Should().Equal("sharePct");
     }
 
     // Shares are normalised across the chosen categories further down the analysis, so a set that does not
@@ -782,4 +824,40 @@ public class SubmissionFragmentComposerTests
 
     private static SubmissionError Refusal(Submission submission) =>
         Assert.Throws<SubmissionError>(() => Compose(submission));
+
+    // Coverage is walked from the site outwards through `isIn`, so a site related to no Place reaches no
+    // Place, and every source reads as covering nowhere. That is indistinguishable from a model holding no
+    // source at all: the run reports neither a resolved source nor an unresolved one, and a planner is told
+    // nothing was found rather than that nothing was looked for.
+    [Fact]
+    public void The_site_is_related_to_the_root_place_so_a_covering_source_can_be_selected_for_it()
+    {
+        var composed = Compose(WillowBend.Submission());
+        var site = Named(composed, "Willow Bend");
+
+        Relates(composed, site.Id, WillowBend.IsInPredicateId, WillowBend.RootPlaceId).Should().BeTrue();
+    }
+
+    // A source covering the root covers every site, so one edge is all a global source needs. Narrower
+    // Places are not minted here: a country is an open set nobody enumerates, and `country` stays text.
+    [Fact]
+    public void No_place_is_created_for_the_country_the_submission_named()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        composed.Fragment.Things.Should().NotContain(thing => thing.Name == "Portugal");
+    }
+
+    // The edge is written once however the submission arrives again, the same rule every other edge the
+    // producer writes follows — a fragment upserts, so a second copy would be a second edge to one Place.
+    [Fact]
+    public void The_site_reaches_the_root_place_exactly_once()
+    {
+        var composed = Compose(WillowBend.Submission());
+        var site = Named(composed, "Willow Bend");
+
+        composed.Fragment.Relationships
+            .Count(edge => edge.Subject == site.Id && edge.Predicate == WillowBend.IsInPredicateId)
+            .Should().Be(1);
+    }
 }

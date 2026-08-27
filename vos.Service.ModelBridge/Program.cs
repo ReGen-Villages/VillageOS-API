@@ -65,9 +65,9 @@ try
     var handle = app.MapPost("/handle", async (HttpContext ctx, ModelBridgeNode node) =>
     {
         using var reader = new StreamReader(ctx.Request.Body);
-        var root = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(await reader.ReadToEndAsync());
-        if (DagNodeService.IsNodeEnvelope(root))
-            return Results.Ok(await node.HandleNodeAsync(root, ctx.RequestAborted));
+        var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
+        if (request.Kind == HandleRequestKind.NodeEnvelope)
+            return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
         return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedNodeEnvelope("ModelBridge") });
     });
     if (authEnabled) handle.RequireAuthorization();

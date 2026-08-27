@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Tributary.Helpers;
@@ -13,6 +14,21 @@ public class EffectivePropertyResolverTests
     public void TryGetEffectiveProperty_ExactKeyMatch_ReturnsTrueAndValue()
     {
         var props = new Dictionary<string, JsonElement> { ["url"] = El("\"https://x\"") };
+
+        var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "url", out var value, out var conflicts);
+
+        found.Should().BeTrue();
+        value.GetString().Should().Be("https://x");
+        conflicts.Should().BeNull();
+    }
+
+    // The map an endpoint's resolved properties arrive in is one nothing writes to. Asking for a
+    // changeable one made every holder of a read-only view copy the whole map to ask one question.
+    [Fact]
+    public void TryGetEffectiveProperty_MapThatCannotBeChanged_IsAnsweredAsItStands()
+    {
+        IReadOnlyDictionary<string, JsonElement> props = new ReadOnlyDictionary<string, JsonElement>(
+            new Dictionary<string, JsonElement> { ["http.url"] = El("\"https://x\"") });
 
         var found = EffectivePropertyResolver.TryGetEffectiveProperty(props, "url", out var value, out var conflicts);
 

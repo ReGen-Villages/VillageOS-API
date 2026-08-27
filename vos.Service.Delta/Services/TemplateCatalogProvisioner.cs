@@ -1,31 +1,36 @@
 using vos.Service.Delta.Models;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Delta.Services;
 
 // Idempotently provisions the endpoint-template catalog into one model. Idempotency rests on
-// find-or-create by name; a template's is edge is created only when the thing was newly created
-// this run. The is predicate is a model primitive and is never created — if missing, provisioning
-// logs and returns null, and the caller refuses the registration.
+// find-or-create by name and on one read of the edges the catalog already carries: a name lookup
+// alone cannot tell a finished template from one whose `is` edge failed on an earlier run, and the
+// second keeps resolving to its parent's values while looking correct. The is predicate is a model
+// primitive and is never created — if missing, provisioning logs and returns null, and the caller
+// refuses the registration.
 // A template is provisioned in three steps rather than one, because the order decides how Mycelium
 // stores a key the template narrows: create the thing with the keys no ancestor declares, wire its
 // is edge, then write the narrowed keys, which by then resolve as inherited and are stored as
 // overrides (see NarrowedKeys).
-// Known gap: if a thing was created on a prior run but its is edge failed, a later run finds the
-// thing and cannot repair the missing edge — no mycelium relationship-query API exists to detect it.
-// The same gap leaves that run's narrowed keys unwritten, so the template silently keeps the
-// parent's values.
+// The narrowed keys hang off the edge rather than off the create, which is what makes a repair whole:
+// a run that wires an edge some earlier run left unwritten writes them too, and a run that finds the
+// edge already there writes nothing at all.
 public sealed class TemplateCatalogProvisioner
 {
     private readonly MyceliumClient _myceliumClient;
+    private readonly ISubscriptionClient _subscriptions;
     private readonly EndpointSeedGraph _graph;
     private readonly ILogger<TemplateCatalogProvisioner> _logger;
 
     public TemplateCatalogProvisioner(
         MyceliumClient myceliumClient,
+        ISubscriptionClient subscriptions,
         EndpointSeedGraph graph,
         ILogger<TemplateCatalogProvisioner> logger)
     {
         _myceliumClient = myceliumClient;
+        _subscriptions = subscriptions;
         _graph = graph;
         _logger = logger;
     }
@@ -39,6 +44,9 @@ public sealed class TemplateCatalogProvisioner
             return null;
         }
 
+        if (await ReadExistingEdgesAsync() is not { } existingEdges)
+            return null;
+
         // Ascending chain length is a valid topological order: a template's chain is strictly longer
         // than its parent's, so parents are always provisioned before their children.
         var templatesRootFirst = _graph.Templates.Values
@@ -51,31 +59,34 @@ public sealed class TemplateCatalogProvisioner
 
         foreach (var template in templatesRootFirst)
         {
-            var existing = await _myceliumClient.FindThingByNameAsync(template.Name);
-            if (existing != null)
-            {
-                idByName[template.Name] = existing.Value.Id;
-                continue;
-            }
-
             var parentName = _graph.ParentName(template.Name);
             var narrowedKeys = NarrowedKeys(template, parentName);
 
-            var createdThing = await _myceliumClient.CreateThingAsync(new RegisterEndpointRequest
+            var existing = await _myceliumClient.FindThingByNameAsync(template.Name);
+            Guid templateId;
+            if (existing != null)
             {
-                Name = template.Name,
-                Properties = PropertiesOtherThan(template, narrowedKeys)
-            });
-            if (createdThing == null)
+                templateId = existing.Value.Id;
+            }
+            else
             {
-                _logger.LogError(
-                    "Failed to create endpoint template thing '{Template}'; its descendants cannot be wired this run.",
-                    template.Name);
-                continue;
+                var createdThing = await _myceliumClient.CreateThingAsync(new RegisterEndpointRequest
+                {
+                    Name = template.Name,
+                    Properties = PropertiesOtherThan(template, narrowedKeys)
+                });
+                if (createdThing == null)
+                {
+                    _logger.LogError(
+                        "Failed to create endpoint template thing '{Template}'; its descendants cannot be wired this run.",
+                        template.Name);
+                    continue;
+                }
+                templateId = createdThing.Value.Id;
+                createdCount++;
             }
 
-            idByName[template.Name] = createdThing.Value.Id;
-            createdCount++;
+            idByName[template.Name] = templateId;
 
             if (parentName == null)
                 continue;
@@ -88,7 +99,10 @@ public sealed class TemplateCatalogProvisioner
                 continue;
             }
 
-            if (!await _myceliumClient.CreateRelationshipAsync(createdThing.Value.Id, isPredicate.Value.Id, parentId))
+            if (existingEdges.Contains((templateId, isPredicate.Value.Id, parentId)))
+                continue;
+
+            if (!await _myceliumClient.CreateRelationshipAsync(templateId, isPredicate.Value.Id, parentId))
             {
                 _logger.LogError(
                     "Failed to wire 'is' relationship '{Template}' -> '{Parent}'; leaving its narrowed properties "
@@ -100,7 +114,7 @@ public sealed class TemplateCatalogProvisioner
 
             foreach (var key in narrowedKeys)
             {
-                if (!await _myceliumClient.SetThingPropertyAsync(createdThing.Value.Id, key, template.Properties![key]))
+                if (!await _myceliumClient.SetThingPropertyAsync(templateId, key, template.Properties![key]))
                     _logger.LogError(
                         "Failed to narrow property '{Property}' on endpoint template '{Template}'; it keeps the "
                         + "value inherited from '{Parent}'.",
@@ -111,7 +125,7 @@ public sealed class TemplateCatalogProvisioner
         // Kinds last: a role edge is written onto a template, so the template must already exist and
         // already be in its own `is` chain, or the edge lands on a Thing whose narrowed keys are still
         // unwritten and a reader resolving through it sees the parent's values.
-        var kindEdges = await ProvisionKindsAsync(idByName);
+        var kindEdges = await ProvisionKindsAsync(idByName, existingEdges);
 
         _logger.LogInformation(
             "Endpoint template catalog provisioned: {Created} thing(s) created, {Wired} 'is' relationship(s) wired, "
@@ -121,10 +135,62 @@ public sealed class TemplateCatalogProvisioner
         return new ProvisionedCatalog(isPredicate.Value.Id, idByName);
     }
 
+    // The edges the catalog already carries, read in one call before anything is written. A subscribe
+    // is the read: it answers from the snapshot it returns, and that snapshot carries the relationships
+    // a name lookup cannot.
+    //
+    // Refusing on a failed read, because neither reading it as "no edges" nor as "every edge" is
+    // survivable: the first rewrites every edge of a finished catalog, and the second is exactly the
+    // silence this class exists to end.
+    private async Task<HashSet<(Guid Subject, Guid Predicate, Guid Target)>?> ReadExistingEdgesAsync()
+    {
+        // Every edge a template carries is incident to that template, so naming the templates reaches
+        // the `is` edges and the kind edges alike without naming either predicate.
+        var selector = new SubscriptionSelector
+        {
+            Names = [.. _graph.Templates.Values.Select(template => template.Name)],
+            IncludeRelationships = true,
+        };
+
+        SubscribeResult subscribed;
+        try
+        {
+            subscribed = await _subscriptions.SubscribeAsync(selector);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception,
+                "Failed to read which edges the endpoint template catalog already carries; provisioning nothing "
+                + "rather than guessing at what is already wired.");
+            return null;
+        }
+
+        try
+        {
+            return [.. subscribed.Snapshot.Relationships.Select(
+                edge => (edge.SubjectId, edge.PredicateId, edge.TargetId))];
+        }
+        finally
+        {
+            try
+            {
+                await _subscriptions.UnsubscribeAsync(subscribed.SubscriptionId);
+            }
+            catch (Exception exception)
+            {
+                // The read already succeeded; failing to release the subscription must not lose it.
+                _logger.LogWarning(exception, "Failed to release the catalog-read subscription {SubscriptionId}",
+                    subscribed.SubscriptionId);
+            }
+        }
+    }
+
     // Mints each kind and each role predicate find-or-create, then relates every template to the kind
     // it declares. A kind that cannot be minted takes its edges with it: an endpoint reaching nothing
     // is refused by Tributary, where an endpoint reaching a Thing that does not exist is not.
-    private async Task<int> ProvisionKindsAsync(Dictionary<string, Guid> templateIds)
+    private async Task<int> ProvisionKindsAsync(
+        Dictionary<string, Guid> templateIds,
+        HashSet<(Guid Subject, Guid Predicate, Guid Target)> existingEdges)
     {
         var wired = 0;
         var kindIds = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
@@ -158,6 +224,9 @@ public sealed class TemplateCatalogProvisioner
                 }
                 roleIds[role] = roleId = minted.Value;
             }
+
+            if (existingEdges.Contains((subjectId, roleId, targetId)))
+                continue;
 
             if (await _myceliumClient.CreateRelationshipAsync(subjectId, roleId, targetId))
                 wired++;

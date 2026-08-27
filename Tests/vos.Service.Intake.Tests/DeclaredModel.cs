@@ -22,7 +22,9 @@ public sealed class DeclaredModel
             .WithArchetype("BoundarySource", DeclaredVocabularyReader.BoundarySourceArchetypeFlag)
             .With("obtainedBy", DeclaredVocabularyReader.BoundarySourcePredicateFlag)
             .WithArchetype("HazardType", DeclaredVocabularyReader.HazardTypeArchetypeFlag)
-            .With("assesses", DeclaredVocabularyReader.HazardTypePredicateFlag);
+            .With("assesses", DeclaredVocabularyReader.HazardTypePredicateFlag)
+            .With("Earth", DeclaredVocabularyReader.RootPlaceFlag)
+            .With("isIn", DeclaredVocabularyReader.PlaceNestingPredicateFlag);
 
         foreach (var category in WillowBend.AllocationCategoryNames)
             model.Relate(category, "is", "AllocationCategory");
