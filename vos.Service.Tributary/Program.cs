@@ -139,6 +139,7 @@ static IResult ToHttpResult(EndpointCallResult result)
             endpointThingId = ingest.EndpointThingId,
             entitiesTouched = ingest.EntitiesTouched,
             observationsSubmitted = ingest.ObservationsSubmitted,
+            written = ingest.Written,
             message = "Readings ingested as observations on entity series."
         });
     return Results.Content(result.Content!, result.ContentType ?? "application/json");

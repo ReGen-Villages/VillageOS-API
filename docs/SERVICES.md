@@ -27,7 +27,8 @@ provisions the endpoint-template catalog into a model on that model's first regi
 validates every endpoint
 registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
 fetch side of the same endpoint story; `Forage` resolves a site against every source
-covering it, calls Tributary for each, and then starts the site's analysis by relating its
+covering it, calls Tributary for each, relates each fetched vocabulary word to the Thing it names,
+and then starts the site's analysis by relating its
 `SiteStudy` to each marked compute connection (see [`FORAGE.md`](FORAGE.md)). `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
 site-analysis nodes: `WaterReserve` computes emergency reserve / days-of-supply / %
 consumption (feeding the 14-day resilience range); `EnergyBalance` computes solar + other

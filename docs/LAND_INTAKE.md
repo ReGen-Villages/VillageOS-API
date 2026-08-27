@@ -453,6 +453,7 @@ sequenceDiagram
     Tributary->>Mycelium: write observation onto the Site
   end
   Note over Site: the first observation takes it out of<br/>the state, so nothing fetches again
+  Forage->>Mycelium: WillowBend classifiedAs Csa<br/>each fetched word becomes its declared edge
   Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
   Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the edge starts it
   Note over Mycelium: the site reaching SiteDiscovered is what<br/>closes the dispatch, not the call
@@ -890,8 +891,8 @@ levels are the ones it publishes, and the two ends already named are its own.
 "No data" is a grade of its own and is the reason an unassessed hazard must not read as a safe one: a
 hazard the portal holds nothing about stays unassessed rather than being graded "very low". Those five
 are also the `HazardLevel` Things the platform's intake template declares (platform Task 6684); the
-declaration a discovery run resolves the written word by is platform User Story 6773, and performing
-the resolution is User Story 6809.
+discovery run resolves the written word against them by the declaration that template carries
+(platform User Story 6773; the resolution is #6809).
 
 **The portal is called once per assessment (#6735).** Every one of its routes takes an administrative
 division code, and its per-hazard route takes a two-letter code for the hazard type — `FL`, `LS`, `WF`.
@@ -907,9 +908,10 @@ Neither is a value a site carries, so the registration leans on the model holdin
 
 The source declares that it resolves onto the assessment archetype, so a discovery run calls it once
 per assessment the site has, with that assessment as the call's subject: the reading — `hazardLevel`
-as the vocabulary word, and `assessedOn` — lands on the assessment it grades. Relating the word to
-the `HazardLevel` Thing it names is User Story 6809, reading the declaration the platform model
-carries (platform User Story 6773); the word stays on the series as the record of what the portal
+as the vocabulary word, and `assessedOn` — lands on the assessment it grades. The run then relates
+the assessment to the `HazardLevel` Thing the word names (#6809), reading the declaration the
+platform model carries (platform User Story 6773); a word the vocabulary does not hold writes no
+edge and is reported, and either way the word stays on the series as the record of what the portal
 answered. A division the
 portal holds no data about for a hazard is answered 404, so nothing is written and that hazard stays
 honestly unassessed. A site whose Places carry no division code has every hazard call refused before

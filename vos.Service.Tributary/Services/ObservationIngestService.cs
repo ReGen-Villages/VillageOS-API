@@ -5,12 +5,18 @@ using vos.Service.Tributary.Helpers;
 
 namespace vos.Service.Tributary.Services;
 
+// Written is what a subject-supplied call put onto its subject, property by property, and null on the
+// bulk path (#6809): the caller that names a subject is a discovery run needing to resolve what was
+// written, and the response is the one place it can learn that without racing the observation
+// drainer — while the bulk path ingests whole fetched pages, and echoing those back would put every
+// page into every response.
 public record ObservationIngestResult(
     bool Success,
     int EntitiesTouched,
     int ObservationsSubmitted,
     string? Error,
-    string? Detail);
+    string? Detail,
+    IReadOnlyDictionary<string, object?>? Written = null);
 
 // Ingests fetched-and-reshaped readings as time-series observations (Phase 5b hybrid, #5587).
 // Each reading names an entity and carries a bag of property values at an observed time. Entities
@@ -159,9 +165,10 @@ public class ObservationIngestService
         // Nothing resolved, nothing created, nothing written — so nothing to report, and no edge
         // claiming a source produced a value it did not. This is deliberately not what the name path
         // answers: that one counts the entity it resolved even when the reading gave it no values,
-        // because resolving is work this path never does.
+        // because resolving is work this path never does. The empty set is still reported: a call that
+        // succeeded and wrote nothing must not read like a call whose path never reports writes.
         if (samples.Count == 0)
-            return new ObservationIngestResult(true, 0, 0, null, null);
+            return new ObservationIngestResult(true, 0, 0, null, null, EmptyWritten);
 
         if (await provenance.EnsureObservedAsync(subjectId) is { } failure)
             return new ObservationIngestResult(false, 1, 0, failure, null);
@@ -169,7 +176,20 @@ public class ObservationIngestService
         if (!await _myceliumClient.SubmitObservationsAsync(subjectId, samples))
             return new ObservationIngestResult(false, 1, 0, "Failed to submit observations for entity.", null);
 
-        return new ObservationIngestResult(true, 1, samples.Count, null, null);
+        return new ObservationIngestResult(true, 1, samples.Count, null, null, WrittenOf(samples));
+    }
+
+    private static readonly IReadOnlyDictionary<string, object?> EmptyWritten =
+        new Dictionary<string, object?>();
+
+    // A property sampled more than once in one call keeps the last reading, matching the value the
+    // series will answer with as its latest.
+    private static Dictionary<string, object?> WrittenOf(IEnumerable<ObservationSample> samples)
+    {
+        var written = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var sample in samples)
+            written[sample.Property] = sample.Value;
+        return written;
     }
 
     // Writes the edge saying this endpoint observed a Thing, once per Thing. The edges the endpoint
