@@ -362,16 +362,27 @@ envelope or a graph relationship naming the Thing to act on.
 covered by its own tests, so the entry point only dispatches on the answer:
 
 ```csharp
-switch (HandleRequestRouter.Classify(root, out var subjectId))
+using var reader = new StreamReader(ctx.Request.Body);
+var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
+
+switch (request.Kind)
 {
     case HandleRequestKind.NodeEnvelope:
-        return Results.Ok(await node.HandleNodeAsync(root, ctx.RequestAborted));
+        return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
     case HandleRequestKind.RelationshipSubject:
-        return Results.Ok(new { success = true, outputs = await reactive.RecomputeAsync(subjectId, ctx.RequestAborted) });
+        return Results.Ok(new { success = true, outputs = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted) });
     default:
         return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes(serviceName) });
 }
 ```
+
+**The classifier is handed the body text, never a parsed body.** It reads the text itself
+so that it can answer `Unrecognised` for a body that is empty or is not JSON at all —
+the same answer it gives JSON that names no subject. A service that parsed its own body
+would raise on such text instead, and the caller would get a failed request where it
+should have had a refusal — which the broker then re-drives, posting the same unusable
+body again. No service parses a `/handle` body itself, and a guard in
+`vos.ContinuousIntegration.Tests` holds every entry point to that.
 
 **Staying current (#6155).** A dispatch computes once. `InputChangeRecomputeService`
 (`vos.Service.Shared.Subscriptions`) keeps the result current afterwards: `/handle` calls
@@ -656,7 +667,7 @@ Both live in `vos.Service.Shared` and are covered once, thoroughly, in
 | `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, refusal and token failure returning false, withdrawal, a supplied token short-circuiting the token call |
 | `MyceliumRoutesTests.cs` | The routes every service builds its requests from, and that a property name which would otherwise change the path is escaped into one segment |
 | `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, withdrawal on shutdown, a failing broker not stopping the service serving |
-| `DagNode/HandleRequestRouterTests.cs` | Which shape a `/handle` body is, and what an unusable one is answered with |
+| `DagNode/HandleRequestRouterTests.cs` | Which shape a `/handle` body is, what an unusable one is answered with, and that text which is not JSON is answered rather than raising |
 
 Copying a test is the same problem as copying the code. If a behaviour is the
 same in every service, it belongs in the shared suite, not repeated per service.
