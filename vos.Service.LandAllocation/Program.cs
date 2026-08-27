@@ -76,15 +76,20 @@ try
         InputChangeRecomputeService following) =>
     {
         using var reader = new StreamReader(ctx.Request.Body);
-        var root = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(await reader.ReadToEndAsync());
+        var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
 
-        if (HandleRequestRouter.Classify(root, out var studyId) != HandleRequestKind.RelationshipSubject)
+        if (request.Kind != HandleRequestKind.RelationshipSubject)
             return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("LandAllocation") });
 
-        var outputs = await reactive.RecomputeAsync(studyId, ctx.RequestAborted);
+        var outputs = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
         // Registered after the read, because what this reads its inputs from is only known once it has.
-        following.Watch(studyId, [.. reactive.ReadsFrom]);
-        return Results.Ok(new { success = true, outputs });
+        following.Watch(request.SubjectId, [.. reactive.ReadsFrom]);
+        // A study reaching no parcel is answered rather than refused — there is nothing wrong with the
+        // request — but the answer says which of the two it is, since "no outputs" alone reads the same
+        // as a computation that produced none.
+        return outputs is null
+            ? Results.Ok(new { success = true, outputs, reason = "the study reaches no parcel, so neither footprint was worked out" })
+            : Results.Ok(new { success = true, outputs });
     });
     if (authEnabled) handle.RequireAuthorization();
 

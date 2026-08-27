@@ -32,6 +32,14 @@ public sealed record DeclaredTerm(string Name, Guid Id);
 /// renames the predicate changes the model and nothing else.</summary>
 public sealed record DeclaredTerms(DeclaredTerm Predicate, IReadOnlyList<DeclaredTerm> Terms);
 
-/// <summary>The vocabularies a submission's words are resolved against before it becomes a fragment.</summary>
+/// <summary>Where a site sits: the Place every other Place nests under, and the predicate that edge is
+/// written with. Not a vocabulary — nothing is resolved against it, because a submission names no Place.
+/// A source covering the root covers every site, so this one edge is what lets a covering source be
+/// selected at all.</summary>
+public sealed record DeclaredPlace(DeclaredTerm Predicate, DeclaredTerm Root);
+
+/// <summary>The vocabularies a submission's words are resolved against before it becomes a fragment, and
+/// the Place its site is related to.</summary>
 public sealed record DeclaredVocabulary(
-    DeclaredTerms AllocationCategories, DeclaredTerms BoundarySources, DeclaredTerms HazardTypes);
+    DeclaredTerms AllocationCategories, DeclaredTerms BoundarySources, DeclaredTerms HazardTypes,
+    DeclaredPlace PlaceNesting);

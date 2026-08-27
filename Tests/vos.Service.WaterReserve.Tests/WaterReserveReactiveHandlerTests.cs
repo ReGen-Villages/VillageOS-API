@@ -42,7 +42,7 @@ public class WaterReserveReactiveHandlerTests
     }
 
     [Fact]
-    public async Task Reads_inputs_computes_and_writes_days_of_supply_onto_the_anchor()
+    public async Task Reads_the_anchor_and_computes_days_of_supply()
     {
         var handler = new RecordingHttpMessageHandler(req => req.Method == HttpMethod.Get
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(AnchorInputs, Encoding.UTF8, "application/json") }
@@ -52,7 +52,26 @@ public class WaterReserveReactiveHandlerTests
 
         Assert.Equal(21.9, outputs.DaysOfSupply, 1);
         Assert.Contains(handler.Requests, r => r.Method == HttpMethod.Get && r.Uri.Contains($"/api/things/{Anchor}/properties"));
-        Assert.Single(handler.Requests, r => r.Method == HttpMethod.Post && r.Uri.Contains("/properties/daysOfSupply/facts"));
+    }
+
+    // All four figures are declared as expressions on the shared study archetype, so the model works them
+    // out and a derived property refuses every value write. A write left here would throw on the first and
+    // abandon the rest, which is why this service now asserts nothing at all.
+    [Theory]
+    [InlineData("daysOfSupply")]
+    [InlineData("emergencyReserveM3")]
+    [InlineData("annualConsumptionM3")]
+    [InlineData("pctAnnualConsumption")]
+    public async Task It_asserts_no_figure_the_model_derives_for_itself(string derived)
+    {
+        var handler = new RecordingHttpMessageHandler(req => req.Method == HttpMethod.Get
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(AnchorInputs, Encoding.UTF8, "application/json") }
+            : new HttpResponseMessage(HttpStatusCode.OK));
+
+        await NewHandler(handler).RecomputeAsync(Anchor);
+
+        Assert.DoesNotContain(handler.Requests,
+            r => r.Method == HttpMethod.Post && r.Uri.Contains($"/properties/{derived}/facts"));
     }
 
     // A string-valued input goes through double.TryParse rather than GetDouble. A regional format

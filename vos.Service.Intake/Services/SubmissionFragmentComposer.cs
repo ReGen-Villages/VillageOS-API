@@ -105,6 +105,17 @@ public static class SubmissionFragmentComposer
         BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
         BeArchetype(studyThing, archetypes.SiteStudy, SiteStudyArchetypeName);
 
+        // Discovery walks outwards from the site through this edge to find which sources cover it, so a
+        // site related to no Place reaches none and every source reads as covering nowhere — which is
+        // indistinguishable from a model holding no source at all, and reports neither a resolved source
+        // nor an unresolved one. The root is enough for a source that covers everything. Narrower Places
+        // are not minted from the submitted country: that is an open set nobody enumerates, `country` is
+        // optional, and a term the model does not hold would have to be refused (Task 6684).
+        Relate(siteThing,
+            new PredicateIdentity(
+                vocabulary.PlaceNesting.Predicate.Name, vocabulary.PlaceNesting.Predicate.Id, Minted: false),
+            new NamedThing(vocabulary.PlaceNesting.Root.Id, vocabulary.PlaceNesting.Root.Name));
+
         // The arrival itself, kept where a reviewer can ask about it. It proposes the site rather than
         // holding it: a promotion carries the group reachable from the site through `has` and `studies`,
         // and this record belongs to intake — it is resolved after the copy has landed, so a copy of it in
@@ -118,32 +129,32 @@ public static class SubmissionFragmentComposer
         BeArchetype(submissionThing, archetypes.Submission, SubmissionArchetypeName);
 
         // The project holds the site rather than the other way round: a submission is one planner's
-        // undertaking, and the site is what it is about.
-        if (submission.Project is { } project)
-        {
-            var projectThing = new NamedThing(
-                StableIdentity.Derive(submissionId, "project"),
-                Required(project.Name, "project.name", "a Thing is created under a name"));
-            things.Add(new FragmentThing(projectThing.Id, projectThing.Name, ProjectProperties(project)));
-            Relate(projectThing, predicates.Has, siteThing);
-            BeArchetype(projectThing, archetypes.Project, ProjectArchetypeName);
+        // undertaking, and the site is what it is about. A contact is required because a submission is
+        // reviewed and the decision has to reach somebody, and the project with it because that is what
+        // the contact hangs off.
+        var project = submission.Project ?? throw new SubmissionError(
+            "'project' is missing: a submission is one planner's undertaking, and it is what the contact "
+            + "to answer hangs off.");
+        var contact = submission.Contact ?? throw new SubmissionError(
+            "'contact' is missing: a submission is reviewed, and whoever made it has to be told what was "
+            + "decided about it.");
 
-            if (submission.Contact is { } contact)
-            {
-                var contactThing = new NamedThing(
-                    StableIdentity.Derive(submissionId, "contact"),
-                    Required(contact.Name, "contact.name", "a Thing is created under a name"));
-                things.Add(new FragmentThing(contactThing.Id, contactThing.Name, ContactProperties(contact)));
-                Relate(projectThing, predicates.Has, contactThing);
-                BeArchetype(contactThing, archetypes.Contact, ContactArchetypeName);
-            }
-        }
-        else if (submission.Contact is not null)
-        {
-            throw new SubmissionError(
-                "'contact' was given without 'project': a contact hangs off the project it can be asked about, "
-                + "so there is nowhere to put one on its own.");
-        }
+        var projectThing = new NamedThing(
+            StableIdentity.Derive(submissionId, "project"),
+            Required(project.Name, "project.name", "a Thing is created under a name"));
+        things.Add(new FragmentThing(projectThing.Id, projectThing.Name, ProjectProperties(project)));
+        Relate(projectThing, predicates.Has, siteThing);
+        BeArchetype(projectThing, archetypes.Project, ProjectArchetypeName);
+
+        var contactThing = new NamedThing(
+            StableIdentity.Derive(submissionId, "contact"),
+            Required(contact.Name, "contact.name", "a Thing is created under a name"));
+        var emailAddress = Required(contact.EmailAddress, "contact.emailAddress",
+            "it is where what was decided about the submission is sent").Trim();
+        things.Add(new FragmentThing(
+            contactThing.Id, contactThing.Name, ContactProperties(contact, emailAddress)));
+        Relate(projectThing, predicates.Has, contactThing);
+        BeArchetype(contactThing, archetypes.Contact, ContactArchetypeName);
 
         // An edge to a term the model declares, through the predicate the model marks for that vocabulary.
         // Never minted: the term and the predicate both come from the model, and a predicate invented here
@@ -292,11 +303,14 @@ public static class SubmissionFragmentComposer
         return properties;
     }
 
-    private static Dictionary<string, TypedValue> ContactProperties(SubmittedContact contact)
+    // The address comes in separately because it is required and trimmed where the contact is built: it
+    // is what a decision is sent to, not something only read back.
+    private static Dictionary<string, TypedValue> ContactProperties(
+        SubmittedContact contact, string emailAddress)
     {
         var properties = new Dictionary<string, TypedValue>();
         Write(properties, "relationshipToProject", VosTypeNames.String, contact.RelationshipToProject);
-        Write(properties, "emailAddress", VosTypeNames.String, contact.EmailAddress);
+        Write(properties, "emailAddress", VosTypeNames.String, emailAddress);
         Write(properties, "phoneNumber", VosTypeNames.String, contact.PhoneNumber);
         return properties;
     }
@@ -306,11 +320,16 @@ public static class SubmissionFragmentComposer
     // The share is written as given. Shares are normalised across the chosen categories further down the
     // analysis, so a set that does not reach a hundred is a wizard part-filled, and judging whether they add
     // up is a range's work on the study rather than this service's.
+    //
+    // An area is not among them and is not on the wire either. The shared analysis declares it as a formula
+    // over the allocation's own share and the parcel its site holds, so a submitted one is a second answer
+    // to a question the model already answers — and writing it would fail the whole fragment, since a
+    // derived property refuses every value write (Bug #6762). A caller that sends one is told which field
+    // by name, the way this service refuses every field it does not write.
     private static Dictionary<string, TypedValue> AllocationProperties(SubmittedAllocation allocation)
     {
         var properties = new Dictionary<string, TypedValue>();
         Write(properties, "sharePct", VosTypeNames.Double, allocation.SharePct);
-        Write(properties, "allocatedAreaHectares", VosTypeNames.Double, allocation.AllocatedAreaHectares);
         return properties;
     }
 

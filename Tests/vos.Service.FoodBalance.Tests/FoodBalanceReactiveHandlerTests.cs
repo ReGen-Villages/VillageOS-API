@@ -34,30 +34,30 @@ public class FoodBalanceReactiveHandlerTests
             : new HttpResponseMessage(HttpStatusCode.OK));
 
     [Fact]
-    public async Task Both_outputs_are_written_back_onto_the_study_as_facts()
+    public async Task Both_figures_are_computed_and_reported_to_the_caller()
     {
         var http = Serving(WillowBend);
 
         var outputs = await NewHandler(http).RecomputeAsync(Study);
 
         outputs.PeopleFed.Should().BeApproximately(20.4, 1e-9);
-        http.Requests.Should().ContainSingle(request => request.Method == HttpMethod.Post
-            && request.Uri == $"http://mycelium/api/things/{Study}/properties/{FoodBalanceReactiveHandler.PeopleFedOutput}/facts");
-        http.Requests.Should().ContainSingle(request => request.Method == HttpMethod.Post
-            && request.Uri == $"http://mycelium/api/things/{Study}/properties/{FoodBalanceReactiveHandler.PctOfPopulationFedOutput}/facts");
+        outputs.PctOfPopulationFed.Should().BeApproximately(6.375, 1e-9);
     }
 
-    [Fact]
-    public async Task The_value_written_is_the_one_computed_and_not_a_rounded_reading_of_it()
+    // Both figures are declared as expressions on the shared study archetype, so the model works them out
+    // and a derived property refuses every value write. A write left here would throw on the first and
+    // abandon the rest, which is why this service now asserts nothing at all.
+    [Theory]
+    [InlineData("peopleFed")]
+    [InlineData("pctOfPopulationFed")]
+    public async Task It_asserts_no_figure_the_model_derives_for_itself(string derived)
     {
         var http = Serving(WillowBend);
 
         await NewHandler(http).RecomputeAsync(Study);
 
-        http.Requests.Single(request => request.Uri.Contains(FoodBalanceReactiveHandler.PeopleFedOutput))
-            .Body.Should().Contain("20.4");
-        http.Requests.Single(request => request.Uri.Contains(FoodBalanceReactiveHandler.PctOfPopulationFedOutput))
-            .Body.Should().Contain("6.375");
+        http.Requests.Should().NotContain(request => request.Method == HttpMethod.Post
+            && request.Uri == $"http://mycelium/api/things/{Study}/properties/{derived}/facts");
     }
 
     // The yield is a judgement about growing, not about this place, so it is declared on the shared study
@@ -111,21 +111,6 @@ public class FoodBalanceReactiveHandlerTests
         failure.Message.Should().Contain(Study.ToString()).And.Contain("FoodBalance");
     }
 
-    [Fact]
-    public async Task A_refused_write_is_raised_rather_than_reported_as_a_computed_study()
-    {
-        var http = new RecordingHttpMessageHandler(request => request.Method == HttpMethod.Get
-            ? new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(WillowBend, Encoding.UTF8, "application/json"),
-            }
-            : new HttpResponseMessage(HttpStatusCode.InternalServerError));
-
-        var failure = await Assert.ThrowsAsync<HttpRequestException>(() => NewHandler(http).RecomputeAsync(Study));
-
-        failure.Message.Should().Contain(FoodBalanceReactiveHandler.PeopleFedOutput);
-    }
-
     // Nothing checks that the declared set and the set Compute reads are the same set. A name declared
     // but never read recomputes for a change that cannot move the answer; a name read but never
     // declared leaves the answer stale until something else happens to wake it. The two below say the
@@ -154,13 +139,4 @@ public class FoodBalanceReactiveHandlerTests
 
     public static TheoryData<string> DeclaredInputs =>
         new(FoodBalanceReactiveHandler.InputProperties.ToArray());
-
-    // It writes both outputs onto the study it watches, so a set holding one of them would recompute
-    // forever rather than compute a wrong number.
-    [Fact]
-    public void None_of_the_outputs_it_writes_can_wake_it()
-    {
-        FoodBalanceReactiveHandler.InputProperties.Should()
-            .NotIntersectWith(DeclaredOutputs.Of<FoodBalanceReactiveHandler>());
-    }
 }

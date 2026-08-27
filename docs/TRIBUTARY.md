@@ -397,6 +397,80 @@ GTI) is *discovered* here, while the **PV area** is *rolled up* reactively over 
 (#5797). Discovery (fetch a resource) and the ingester's structural knowledge (aggregate the assets) both
 feed the same compute node.
 
+## Example: a climate zone onto a Site (#6734)
+
+The two examples above are per-address registrations written by hand. This one ships as **seed data**:
+`open-data-sources.template.json` in the platform repository declares it, so every project created from
+that seed can resolve a site against it without registering anything. A site's `climateZone` takes
+observations only, so nobody can type it in and a fetch is the only thing that can write it.
+
+```jsonc
+// registration: climate-classification
+{ "name": "climate-classification",
+  "properties": {
+    "url": "https://climate.mapresso.com/api/koeppen/?lat={latitude}&lon={longitude}",
+    "httpMethod": "GET",
+    "responseTransform": "{\"properties\": {\"climateZone\": data[short='KG' and text].code}}"
+  } }
+```
+
+Three things about it are worth reading off:
+
+- **The placeholders are the Site's own property names.** `{latitude}` and `{longitude}` are filled per
+  call from the site's values, so one registration serves every site. Forage passes a site's whole
+  value set to every source and the fill takes only the names the address uses.
+- **The reading names no Thing.** The discovery run supplies `subjectId`, so a name here would fit one
+  site and be wrong for every other — see *Naming the subject a call is about* above.
+- **The expression selects its classification scheme.** The provider answers with a code from every
+  scheme it holds — Köppen-Geiger, Trewartha, Cannon, Whittaker and more — so `data[0].code` returns
+  whichever happens to lead. `short='KG'` picks Köppen-Geiger, which is the scheme the codes on a Site
+  belong to. A zone read against the wrong scheme is a plausible value nothing can tell apart from the
+  right one.
+- **And it takes only a class the provider was sure of.** That entry is itself read from three variants
+  of the scheme, and where they disagree it answers with both codes joined — `As/Aw` — and **no
+  description**. The missing description is the provider's own signal, so testing that field is what
+  separates a class from a hedge — rather than anything this platform infers about the shape of a code.
+  It is a plain truth test and not `$exists`, because a description present but empty is not a
+  description, and `$exists` would let that hedge through.
+  A hedge writes nothing, the same answer a coordinate the provider cannot classify already gets:
+  writing either half would invent precision the source explicitly withheld, and writing the pair would
+  put a value that is no class at all onto the Site (Bug #6772, see `ClimateZoneEndpointTests`).
+
+**Köppen-Geiger is the scheme, and it is recorded where a reader of the intake design finds it too** —
+[`LAND_INTAKE.md`](LAND_INTAKE.md#what-to-fetch-first), beside the registration's own comment in the
+template. Its classes become Things of their own under platform Task 6684, at which point `climateZone`
+stops being a code on the Site and becomes an edge to one.
+
+## Example: a hazard grading onto an assessment (#6735)
+
+Seed data like the climate source, but its subject is never the site: the portal grades one hazard at
+one administrative division per call, so the discovery run calls it once per assessment the site has,
+naming that assessment as the `subjectId` — the source declares this by a `resolvesOnto` edge to the
+assessment archetype, read in [`FORAGE.md`](FORAGE.md#the-predicates-it-reads). An assessment's
+`hazardLevel` and `assessedOn` take observations only, so a fetch is the only thing that can write them.
+
+```jsonc
+// registration: hazard-grading
+{ "name": "hazard-grading",
+  "properties": {
+    "url": "https://www.thinkhazard.org/en/report/{hazardPortalDivision}/{hazardPortalCode}.json",
+    "httpMethod": "GET",
+    "responseTransform": "($level := hazard_category[hazard_level and $lowercase(hazard_level) != 'no data'].hazard_level; $level ? {\"properties\": {\"hazardLevel\": $replace($lowercase($level), \" \", \"-\"), \"assessedOn\": $now()}} : {\"properties\": {}})"
+  } }
+```
+
+- **Neither placeholder is a value the subject itself carries.** `{hazardPortalDivision}` sits on a
+  Place the site is in, `{hazardPortalCode}` on the `HazardType` Thing the assessment `assesses` —
+  the run layers a call's address from its subject outward, so both arrive with no per-source code.
+- **The grade is written as the vocabulary term.** `High` becomes `high`, `Very low` becomes
+  `very-low` — the names of the `HazardLevel` Things the model declares, so the word resolves against
+  the vocabulary when a later step relates it instead.
+- **"No data" writes nothing.** The portal answers 404 for a division it holds nothing about, which
+  never reaches the expression; a body carrying the grade anyway is refused by the filter. Either way
+  the assessment stays honestly unassessed — no level, and no date suggesting one was read.
+- **The date is the fetch's own.** The portal publishes no assessment date, so `assessedOn` records
+  when the grade was read, and only beside a grade (see `HazardGradingEndpointTests`).
+
 ## Pointers
 
 - `SERVICES.md` section 14 — how Mycelium hosts Tributary as an endpoint service

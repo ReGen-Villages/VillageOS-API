@@ -20,7 +20,7 @@
     { "doc": "docs/SERVICE_CONTRACT.md", "page": "/Services/Contract" },
     { "doc": "docs/DELTA.md", "page": "/Services/Delta" },
     { "doc": "docs/TRIBUTARY.md", "page": "/Services/Tributary" },
-    { "doc": "docs/CONFLUENCE.md", "page": "/Services/Confluence" },
+    { "doc": "docs/FORAGE.md", "page": "/Services/Forage" },
     { "doc": "docs/METABOLISM.md", "page": "/Services/Metabolism" },
     { "doc": "docs/MODELBRIDGE.md", "page": "/Services/ModelBridge" },
     { "doc": "deploy/README.md", "page": "/Deployment" }

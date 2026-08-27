@@ -3,8 +3,12 @@ using vos.Service.Shared;
 namespace vos.Service.FoodBalance.Services;
 
 // The reactive form, and the only one (#6020): a relationship naming the study makes this read the
-// study's effective properties, compute, and write the two outputs back onto it as Facts, so the ranges
-// that judge them re-evaluate.
+// study's effective properties and compute.
+//
+// Neither figure is written back any more. The shared analysis declares both as expressions over the
+// study's own values, so the model derives them and refuses a written one — and because the refusal
+// throws, a service that still wrote the first would abandon every write after it. Nothing is left for
+// this to assert, so the answer now only reaches a caller of /handle.
 //
 // Its productive area is written by LandAllocation onto the same study, which puts this on the second
 // layer of the analysis: one dispatch, and every later move of that footprint recomputes on its own.
@@ -17,17 +21,13 @@ public sealed class FoodBalanceReactiveHandler : MyceliumClientBase
     {
     }
 
-    public const string PeopleFedOutput = "peopleFed";
-    public const string PctOfPopulationFedOutput = "pctOfPopulationFed";
-
     // Read off the study by name. The footprint is land allocation's output, the yield is an assumption
     // inherited from the shared SiteStudy archetype, and the population is the site's own figure.
     private static readonly string[] Inputs =
         ["productiveFootprintHectares", "peopleFedPerHectarePerYear", "population"];
 
     // The same names as a set, for the subscription that recomputes when one moves. Derived from Inputs
-    // rather than restated, so the filter cannot come to disagree with what Compute reads — and holding
-    // neither output, because this writes both onto the study it watches.
+    // rather than restated, so the filter cannot come to disagree with what Compute reads.
     public static readonly IReadOnlySet<string> InputProperties = new HashSet<string>(Inputs, StringComparer.Ordinal);
 
     public async Task<FoodBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
@@ -36,11 +36,7 @@ public sealed class FoodBalanceReactiveHandler : MyceliumClientBase
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "FoodBalance");
 
         var inputs = await properties.ReadAsync(studyId, cancellationToken);
-        var result = FoodBalanceCalculator.Compute(new FoodBalanceInputs(
+        return FoodBalanceCalculator.Compute(new FoodBalanceInputs(
             inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2])));
-
-        await properties.WriteAsync(studyId, PeopleFedOutput, result.PeopleFed, cancellationToken);
-        await properties.WriteAsync(studyId, PctOfPopulationFedOutput, result.PctOfPopulationFed, cancellationToken);
-        return result;
     }
 }

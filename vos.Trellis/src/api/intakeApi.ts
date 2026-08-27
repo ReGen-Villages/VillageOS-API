@@ -18,8 +18,9 @@ export interface SubmissionAccepted {
  */
 const intakeUrl = () => (import.meta.env.VITE_INTAKE_URL as string | undefined) || '';
 
-/** The service refuses a submission that did not ask for one of these first, which is what a submitter
- *  posting blind at the address never does. */
+/** The service issues one of these in exchange for a code it sent, and reads it back when the form is
+ *  posted. It is signed against the address it was issued for, so a submission naming another does not
+ *  carry a ticket for itself. */
 const TICKET_HEADER = 'X-Submission-Ticket';
 
 export const intakeApi = {
@@ -27,16 +28,33 @@ export const intakeApi = {
    *  all: a wizard that collects a submission it cannot post is worse than no wizard. */
   configured: () => intakeUrl().length > 0,
 
-  submit: async (submission: SubmissionDocument): Promise<SubmissionAccepted> => {
-    const base = intakeUrl().replace(/\/$/, '');
-    if (!base) throw new Error('The intake service address is not configured (set VITE_INTAKE_URL).');
+  /** Asks the service to send a code to the address, which is the step that establishes somebody reads
+   *  what is sent there. Answers nothing: what happens next is the person reading their mail. */
+  askForCode: async (emailAddress: string): Promise<void> => {
+    const response = await fetch(`${serviceAddress()}/submissions/verification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailAddress }),
+    });
 
-    const ticket = await fetch(`${base}/submissions/ticket`);
-    if (!ticket.ok) throw new Error(await refusalFrom(ticket));
+    if (!response.ok) throw new Error(await refusalFrom(response));
+  },
+
+  /** The code is spent on a ticket and the ticket on the submission, in one act: a ticket lasts minutes
+   *  and is no use to the page beyond the post it was got for. */
+  submit: async (submission: SubmissionDocument, code: string): Promise<SubmissionAccepted> => {
+    const base = serviceAddress();
+
+    const exchanged = await fetch(`${base}/submissions/ticket`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emailAddress: submission.contact.emailAddress, code }),
+    });
+    if (!exchanged.ok) throw new Error(await refusalFrom(exchanged));
 
     const response = await fetch(`${base}/submissions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', [TICKET_HEADER]: (await ticket.json()).ticket },
+      headers: { 'Content-Type': 'application/json', [TICKET_HEADER]: (await exchanged.json()).ticket },
       body: JSON.stringify(submission),
     });
 
@@ -44,6 +62,12 @@ export const intakeApi = {
     return response.json();
   },
 };
+
+function serviceAddress(): string {
+  const base = intakeUrl().replace(/\/$/, '');
+  if (!base) throw new Error('The intake service address is not configured (set VITE_INTAKE_URL).');
+  return base;
+}
 
 /** What the service said, rather than the status code it said it under. A refused submission names the
  *  field to correct, and that is the whole value of the answer to whoever filled the form in. */

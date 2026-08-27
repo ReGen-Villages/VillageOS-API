@@ -21,14 +21,14 @@ reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
-Today's .NET services: `Echo`, `Tributary`, `Confluence`, `Delta`, `FoodBalance`, `LandAllocation`, `Metabolism`, `Phloem`,
+Today's .NET services: `Echo`, `Tributary`, `Forage`, `Delta`, `FoodBalance`, `LandAllocation`, `Metabolism`, `Phloem`,
 `RainwaterHarvest`, `WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
 provisions the endpoint-template catalog into a model on that model's first registration, and
 validates every endpoint
 registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
-fetch side of the same endpoint story; `Confluence` resolves a site against every source
+fetch side of the same endpoint story; `Forage` resolves a site against every source
 covering it, calls Tributary for each, and then starts the site's analysis by relating its
-`SiteStudy` to each marked compute connection (see [`CONFLUENCE.md`](CONFLUENCE.md)). `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
+`SiteStudy` to each marked compute connection (see [`FORAGE.md`](FORAGE.md)). `WaterReserve` (#5805) and `EnergyBalance` (#5806) are
 site-analysis nodes: `WaterReserve` computes emergency reserve / days-of-supply / %
 consumption (feeding the 14-day resilience range); `EnergyBalance` computes solar + other
 generation vs consumption → % of consumption and net-positive. Besides the DAG-node path (wired ports),
@@ -66,7 +66,8 @@ happens to name within reach of whoever can call it. So it registers nothing, ho
 maps `/health` without the `/stats` that would describe a registration it does not keep, and caps the
 request body, since it reads a submission into memory whole. It is also the one service that **checks no
 inbound credential at all**: its submission route takes a submission from someone who holds none, and a
-ticket, a per-source rate limit and bounds on every field stand where a token would. The submission
+verified address, a per-source rate limit and bounds on every field stand where a token would. It is
+also the one service that sends mail, and it will not start without somewhere to send it. The submission
 document is in [`LAND_INTAKE.md`](LAND_INTAKE.md) §4 and what guards the route is in §9.
 
 **Two kinds of predicates — the extension point.** `is` is the *only* predicate built into
@@ -362,16 +363,27 @@ envelope or a graph relationship naming the Thing to act on.
 covered by its own tests, so the entry point only dispatches on the answer:
 
 ```csharp
-switch (HandleRequestRouter.Classify(root, out var subjectId))
+using var reader = new StreamReader(ctx.Request.Body);
+var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
+
+switch (request.Kind)
 {
     case HandleRequestKind.NodeEnvelope:
-        return Results.Ok(await node.HandleNodeAsync(root, ctx.RequestAborted));
+        return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
     case HandleRequestKind.RelationshipSubject:
-        return Results.Ok(new { success = true, outputs = await reactive.RecomputeAsync(subjectId, ctx.RequestAborted) });
+        return Results.Ok(new { success = true, outputs = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted) });
     default:
         return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes(serviceName) });
 }
 ```
+
+**The classifier is handed the body text, never a parsed body.** It reads the text itself
+so that it can answer `Unrecognised` for a body that is empty or is not JSON at all —
+the same answer it gives JSON that names no subject. A service that parsed its own body
+would raise on such text instead, and the caller would get a failed request where it
+should have had a refusal — which the broker then re-drives, posting the same unusable
+body again. No service parses a `/handle` body itself, and a guard in
+`vos.ContinuousIntegration.Tests` holds every entry point to that.
 
 **Staying current (#6155).** A dispatch computes once. `InputChangeRecomputeService`
 (`vos.Service.Shared.Subscriptions`) keeps the result current afterwards: `/handle` calls
@@ -656,7 +668,7 @@ Both live in `vos.Service.Shared` and are covered once, thoroughly, in
 | `EndpointServiceMyceliumClientTests.cs` | Registration under each service's name, the endpoints Mycelium is given, refusal and token failure returning false, withdrawal, a supplied token short-circuiting the token call |
 | `MyceliumRoutesTests.cs` | The routes every service builds its requests from, and that a property name which would otherwise change the path is escaped into one segment |
 | `Hosting/ServiceHostTests.cs` | Health and statistics, shutdown answering before it stops, registration on startup, withdrawal on shutdown, a failing broker not stopping the service serving |
-| `DagNode/HandleRequestRouterTests.cs` | Which shape a `/handle` body is, and what an unusable one is answered with |
+| `DagNode/HandleRequestRouterTests.cs` | Which shape a `/handle` body is, what an unusable one is answered with, and that text which is not JSON is answered rather than raising |
 
 Copying a test is the same problem as copying the code. If a behaviour is the
 same in every service, it belongs in the shared suite, not repeated per service.

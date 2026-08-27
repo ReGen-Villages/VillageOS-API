@@ -9,7 +9,7 @@ namespace vos.SiteAnalysis.Tests;
 
 // What each of the three services that compute a site analysis assumes about the other two, which none of
 // them can check on its own. Land allocation works out the footprints; the rainwater harvest and the food
-// balance read them off the same study and write their own results back onto it.
+// balance read them off the same study.
 //
 // The three were specified together and built separately, which is why those assumptions are checked here
 // against what was actually built.
@@ -43,20 +43,19 @@ public class SiteAnalysisChainTests
         TakenBy<FoodBalanceInputs>().Should().Contain(LandAllocationReactiveHandler.ProductiveFootprintOutput);
     }
 
-    // A footprint moving wakes both balances, each writes its results onto the study it was woken by, and
-    // nothing is woken after that, because nothing in the chain reads what a balance writes. That is why a
-    // planner moving a programme share settles in one round rather than running up against the model's
-    // round limit, and it is the half of the arrangement no single service can state.
+    // A footprint moving wakes both balances, the harvest writes its results onto the study it was woken
+    // by, and nothing is woken after that, because nothing in the chain reads what a balance writes. That
+    // is why a planner moving a programme share settles in one round rather than running up against the
+    // model's round limit, and it is the half of the arrangement no single service can state.
     //
-    // The harvest's per-demand results are named by the model rather than declared here, so this covers
-    // the three it names itself; the handler refuses a demand writing onto anything it wakes on, which is
-    // the same guarantee for the rest.
+    // The food balance asserts nothing at all now — every one of its figures is a formula on the study —
+    // so what is left to check is the harvest. Its per-demand results are named by the model rather than
+    // declared here, so this covers the one it names itself; the handler refuses a demand writing onto
+    // anything it wakes on, which is the same guarantee for the rest.
     [Fact]
     public void Nothing_in_the_chain_is_woken_by_what_a_balance_writes()
     {
-        var balanceResults = DeclaredOutputs.Of<RainwaterHarvestReactiveHandler>()
-            .Concat(DeclaredOutputs.Of<FoodBalanceReactiveHandler>())
-            .ToArray();
+        var balanceResults = DeclaredOutputs.Of<RainwaterHarvestReactiveHandler>();
 
         foreach (var woken in new[]
                  {
