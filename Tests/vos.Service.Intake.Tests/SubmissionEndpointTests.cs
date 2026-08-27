@@ -14,8 +14,18 @@ public class SubmissionEndpointTests
 {
     private const string TicketHeader = "X-Submission-Ticket";
 
-    private static readonly string WillowBendDocument =
-        Document("'site':{'name':'Willow Bend','population':320}");
+    private static readonly string WillowBendDocument = AboutTheSite(",'population':320");
+
+    /// <summary>The project and contact every submission carries. The details are a synthetic enquiry:
+    /// they reach this service by design, and a log line is the one place they would leave the model
+    /// behind.</summary>
+    private const string ProjectAndContact =
+        "'project':{'name':'Willow Bend Regeneration'},"
+        + "'contact':{'name':'Ana Ferreira','emailAddress':'ana.ferreira@example.pt'},";
+
+    /// <summary>A whole submission, varying only what is known about the land.</summary>
+    private static string AboutTheSite(string sitePart) =>
+        Document(ProjectAndContact + "'site':{'name':'Willow Bend'" + sitePart + "}");
 
     /// <summary>A submission written with apostrophes where JSON wants quotation marks, so a fragment reads
     /// as the object it is rather than as escaping.</summary>
@@ -163,7 +173,7 @@ public class SubmissionEndpointTests
         };
         using var client = factory.CreateClient();
 
-        var response = await SubmitAsync(client, WithAContact(""));
+        var response = await SubmitAsync(client, AboutTheSite(""));
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         var body = await response.Content.ReadAsStringAsync();
@@ -303,20 +313,13 @@ public class SubmissionEndpointTests
         return await client.SendAsync(request);
     }
 
-    /// <summary>A synthetic enquiry. Contact details reach this service by design, and a log line is the
-    /// one place they would leave the model behind.</summary>
-    private static string WithAContact(string sitePart) =>
-        Document("'project':{'name':'Willow Bend Regeneration'},"
-                 + "'contact':{'name':'Ana Ferreira','emailAddress':'ana.ferreira@example.pt'},"
-                 + "'site':{'name':'Willow Bend'" + sitePart + "}");
-
     [Fact]
     public async Task An_accepted_submission_is_logged_by_reference_and_by_nothing_else_it_carries()
     {
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
         using var client = factory.CreateClient();
 
-        (await SubmitAsync(client, WithAContact(""))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await SubmitAsync(client, AboutTheSite(""))).StatusCode.Should().Be(HttpStatusCode.OK);
 
         factory.Log.Lines.Should().Contain(line => line.Contains(WillowBend.SubmissionId),
             "a reviewer looks the submission up under what the submitter was answered with");
@@ -330,7 +333,7 @@ public class SubmissionEndpointTests
         await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
         using var client = factory.CreateClient();
 
-        var refused = await SubmitAsync(client, WithAContact(",'latitude':91.0"));
+        var refused = await SubmitAsync(client, AboutTheSite(",'latitude':91.0"));
 
         refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         factory.Log.Lines.Should().Contain(line => line.Contains("site.latitude"));
