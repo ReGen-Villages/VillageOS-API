@@ -3,7 +3,8 @@ namespace vos.Service.Forage.Services;
 // Starts a run off the request that dispatched it. The platform gives a dispatch fifteen seconds, and a
 // run over a catalogue of tens of sources fetched a few at a time outlasts that — so answering first is
 // what keeps finished work from being recorded as failed and driven a second time. What ends the dispatch
-// is the model: the site shows a source has written onto it.
+// instead is the model: the connection names a state, and the record stays in flight until the site
+// reaches it.
 //
 // An interface so a test can run the work where it can be awaited. Nothing else about it varies.
 public interface IDiscoveryRunStarter

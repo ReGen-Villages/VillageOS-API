@@ -106,10 +106,9 @@ try
 
         starter.Start(token => Discover(siteId, coveringSources, runner, analysis, token));
 
-        // Accepted, not done. What the run found never travels back through this response: the caller is
-        // the broker, which discards a body, and the model is what closes the dispatch — the site showing
-        // that a source has written onto it.
-        return Results.Accepted(value: new { success = true, siteId, accepted = true });
+        // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's
+        // own contract: a body declaring it false is a failed dispatch whatever the status said.
+        return Results.Accepted(value: new { success = true, siteId });
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
@@ -138,8 +137,7 @@ finally
     Log.CloseAndFlush();
 }
 
-// One run, off the request that dispatched it. Nothing returns from here: what a run found is reported to
-// the log, and what closes the dispatch is the site showing that a source has written onto it.
+// One run. Nothing returns from here, so what it found is reported to the log.
 static async Task Discover(
     Guid siteId,
     CoveringSourceService coveringSources,
