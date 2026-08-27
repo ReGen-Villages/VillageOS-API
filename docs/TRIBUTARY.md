@@ -438,8 +438,10 @@ Three things about it are worth reading off:
 
 **Köppen-Geiger is the scheme, and it is recorded where a reader of the intake design finds it too** —
 [`LAND_INTAKE.md`](LAND_INTAKE.md#what-to-fetch-first), beside the registration's own comment in the
-template. Its classes become Things of their own under platform Task 6684, at which point `climateZone`
-stops being a code on the Site and becomes an edge to one.
+template. Its classes are Things of their own in the platform's intake template (platform Task 6684).
+A discovery run resolves the fetched code against them by the declaration platform User Story 6773
+adds — performing that is User Story 6809 — and the code stays on the Site's series as the record of
+what the provider answered, with the `classifiedAs` edge carrying the classification.
 
 ## Example: a hazard grading onto an assessment (#6735)
 
