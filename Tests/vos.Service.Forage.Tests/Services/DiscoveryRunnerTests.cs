@@ -8,12 +8,17 @@ namespace vos.Service.Forage.Tests.Services;
 
 public class DiscoveryRunnerTests
 {
-    private static CoveringSource Source(string name) => new(name, name + "Endpoint");
-
-    private static IReadOnlyList<CoveringSource> Sources(params string[] names) =>
-        names.Select(Source).ToList();
-
     private static readonly Dictionary<string, string> NoParameters = new();
+
+    private static SourceCall CallAbout(Guid subject, string name = "",
+        IReadOnlyDictionary<string, string>? values = null) =>
+        new(subject, name, values ?? NoParameters);
+
+    private static CoveringSource Source(string name, params SourceCall[] calls) =>
+        new(name, name + "Endpoint", calls);
+
+    private static IReadOnlyList<CoveringSource> SourcesAbout(Guid site, params string[] names) =>
+        names.Select(name => Source(name, CallAbout(site))).ToList();
 
     // A fetcher a test drives by name, so a scenario reads as "this one fails, that one is slow".
     private sealed class ScriptedFetcher : ISourceFetcher
@@ -29,10 +34,10 @@ public class DiscoveryRunnerTests
         public List<Guid> Subjects { get; } = new();
 
         public async Task<SourceOutcome> FetchAsync(
-            Guid siteId, string sourceName, string endpointName,
+            Guid subjectId, string sourceName, string endpointName,
             IReadOnlyDictionary<string, string> addressParameters, CancellationToken cancellationToken)
         {
-            lock (Called) { Called.Add(sourceName); Subjects.Add(siteId); }
+            lock (Called) { Called.Add(sourceName); Subjects.Add(subjectId); }
             var now = Interlocked.Increment(ref _inFlight);
             lock (Called) PeakInFlight = Math.Max(PeakInFlight, now);
             try
@@ -56,9 +61,10 @@ public class DiscoveryRunnerTests
     public async Task RunAsync_CallsEverySourceCoveringTheSite()
     {
         var fetcher = new ScriptedFetcher(name => Resolved(name));
+        var site = Guid.NewGuid();
 
         var report = await Runner(fetcher).RunAsync(
-            Guid.NewGuid(), Sources("OpenMeteo", "FloodPortal", "Copernicus"), NoParameters, default);
+            site, SourcesAbout(site, "OpenMeteo", "FloodPortal", "Copernicus"), default);
 
         fetcher.Called.Should().BeEquivalentTo("OpenMeteo", "FloodPortal", "Copernicus");
         report.Resolved.Select(outcome => outcome.Source)
@@ -74,9 +80,10 @@ public class DiscoveryRunnerTests
         var fetcher = new ScriptedFetcher(name => name == "FloodPortal"
             ? Task.FromResult(new SourceOutcome(name, false, "503 from the provider"))
             : Resolved(name));
+        var site = Guid.NewGuid();
 
         var report = await Runner(fetcher).RunAsync(
-            Guid.NewGuid(), Sources("OpenMeteo", "FloodPortal", "Copernicus"), NoParameters, default);
+            site, SourcesAbout(site, "OpenMeteo", "FloodPortal", "Copernicus"), default);
 
         report.Resolved.Select(outcome => outcome.Source).Should().BeEquivalentTo("OpenMeteo", "Copernicus");
         report.Unresolved.Should().ContainSingle()
@@ -91,9 +98,9 @@ public class DiscoveryRunnerTests
         var fetcher = new ScriptedFetcher(name => name == "Broken"
             ? throw new HttpRequestException("connection reset")
             : Resolved(name));
+        var site = Guid.NewGuid();
 
-        var report = await Runner(fetcher).RunAsync(
-            Guid.NewGuid(), Sources("OpenMeteo", "Broken"), NoParameters, default);
+        var report = await Runner(fetcher).RunAsync(site, SourcesAbout(site, "OpenMeteo", "Broken"), default);
 
         report.Resolved.Select(outcome => outcome.Source).Should().Equal("OpenMeteo");
         report.Unresolved.Should().ContainSingle();
@@ -110,28 +117,33 @@ public class DiscoveryRunnerTests
             "Refused" => Task.FromResult(new SourceOutcome(name, false, "404 from the provider")),
             _ => Resolved(name),
         });
+        var site = Guid.NewGuid();
 
         var report = await Runner(fetcher).RunAsync(
-            Guid.NewGuid(), Sources("TimedOut", "Refused", "Fine"), NoParameters, default);
+            site, SourcesAbout(site, "TimedOut", "Refused", "Fine"), default);
 
         report.Unresolved.Should().HaveCount(2);
         report.Unresolved.Should().OnlyContain(outcome => !string.IsNullOrWhiteSpace(outcome.Reason));
     }
 
     [Fact]
-    public async Task RunAsync_HoldsSourcesInFlightToTheConfiguredBound()
+    public async Task RunAsync_HoldsCallsInFlightToTheConfiguredBound()
     {
-        // A site covered by many sources must not open a burst of connections that reads as abuse.
+        // A site covered by many sources must not open a burst of connections that reads as abuse —
+        // and a source called once per assessment must not widen the burst either, so the bound is
+        // held across every call rather than per source.
         var release = new TaskCompletionSource();
         var fetcher = new ScriptedFetcher(async name =>
         {
             await release.Task;
             return new SourceOutcome(name, true, null);
         });
-        var sources = Sources("a", "b", "c", "d", "e", "f", "g", "h");
+        var site = Guid.NewGuid();
+        var sources = SourcesAbout(site, "a", "b", "c", "d", "e", "f")
+            .Append(Source("perAssessment", CallAbout(Guid.NewGuid()), CallAbout(Guid.NewGuid())))
+            .ToList();
 
-        var run = Runner(fetcher, maxConcurrent: 3)
-            .RunAsync(Guid.NewGuid(), sources, NoParameters, default);
+        var run = Runner(fetcher, maxConcurrent: 3).RunAsync(site, sources, default);
         // Bounded, and generously: a wait with no bound hangs the suite rather than failing it when
         // the runner admits too few, and CI agents are far slower than a development machine.
         var waited = TimeSpan.Zero;
@@ -153,8 +165,9 @@ public class DiscoveryRunnerTests
     public async Task RunAsync_NoCoveringSources_ReportsBothHalvesEmpty()
     {
         var fetcher = new ScriptedFetcher(name => Resolved(name));
+        var site = Guid.NewGuid();
 
-        var report = await Runner(fetcher).RunAsync(Guid.NewGuid(), Sources(), NoParameters, default);
+        var report = await Runner(fetcher).RunAsync(site, SourcesAbout(site), default);
 
         report.Resolved.Should().BeEmpty();
         report.Unresolved.Should().BeEmpty();
@@ -162,29 +175,87 @@ public class DiscoveryRunnerTests
     }
 
     [Fact]
-    public async Task RunAsync_PassesTheSitesValuesToEverySource()
+    public async Task RunAsync_SourceWithNoCalls_IsNotFetchedAndNotReported()
     {
-        var seen = new List<IReadOnlyDictionary<string, string>>();
-        var fetcher = new CapturingFetcher(seen);
-        var parameters = new Dictionary<string, string> { ["lat"] = "-25.75", ["lng"] = "28.19" };
+        // It declared what it resolves onto and the site holds nothing of it. Nothing to fetch is
+        // not a failure, and an outcome either way would say more than the run knows.
+        var fetcher = new ScriptedFetcher(name => Resolved(name));
+        var site = Guid.NewGuid();
 
-        await Runner(fetcher).RunAsync(Guid.NewGuid(), Sources("OpenMeteo", "FloodPortal"), parameters, default);
+        var report = await Runner(fetcher).RunAsync(site, new[] { Source("HazardPortal") }, default);
 
-        seen.Should().HaveCount(2);
-        seen.Should().OnlyContain(values => values["lat"] == "-25.75" && values["lng"] == "28.19");
+        report.Resolved.Should().BeEmpty();
+        report.Unresolved.Should().BeEmpty();
+        fetcher.Called.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task RunAsync_TellsEverySourceWhichSiteTheCallIsAbout()
+    public async Task RunAsync_PassesEachCallsOwnValuesToTheFetcher()
+    {
+        var seen = new List<IReadOnlyDictionary<string, string>>();
+        var fetcher = new CapturingFetcher(seen);
+        var site = Guid.NewGuid();
+        var sources = new[]
+        {
+            Source("OpenMeteo", CallAbout(site, values: new Dictionary<string, string> { ["lat"] = "-25.75" })),
+            Source("HazardPortal",
+                CallAbout(Guid.NewGuid(), values: new Dictionary<string, string> { ["hazardPortalCode"] = "FL" }),
+                CallAbout(Guid.NewGuid(), values: new Dictionary<string, string> { ["hazardPortalCode"] = "WF" })),
+        };
+
+        await Runner(fetcher).RunAsync(site, sources, default);
+
+        seen.Should().HaveCount(3);
+        seen.Count(values => values.ContainsKey("lat")).Should().Be(1);
+        seen.Count(values => values.TryGetValue("hazardPortalCode", out var code) && code == "FL").Should().Be(1);
+        seen.Count(values => values.TryGetValue("hazardPortalCode", out var code) && code == "WF").Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RunAsync_TellsEverySourceWhichSubjectTheCallIsAbout()
     {
         // The fetch writes its reading onto the subject the run names. A source called without it
         // would land its value on whatever Thing the registration's expression names (Bug #6532).
         var fetcher = new ScriptedFetcher(source => Task.FromResult(new SourceOutcome(source, true, null)));
         var site = Guid.NewGuid();
+        var assessment = Guid.NewGuid();
+        var sources = new[]
+        {
+            Source("OpenMeteo", CallAbout(site)),
+            Source("HazardPortal", CallAbout(assessment, "flood assessment")),
+        };
 
-        await Runner(fetcher).RunAsync(site, Sources("OpenMeteo", "FloodPortal"), NoParameters, default);
+        await Runner(fetcher).RunAsync(site, sources, default);
 
-        fetcher.Subjects.Should().Equal(site, site);
+        fetcher.Subjects.Should().BeEquivalentTo(new[] { site, assessment });
+    }
+
+    [Fact]
+    public async Task RunAsync_AFailedCallAboutAnotherSubject_NamesItInItsOutcome()
+    {
+        // A portal answering for five of a site's assessments and not the sixth is reported per
+        // assessment; blamed as one failure, the half it did resolve would read as lost too.
+        var fetcher = new ScriptedFetcher(name => Task.FromResult(
+            new SourceOutcome(name, false, "404: no data for this division and hazardtype")));
+        var site = Guid.NewGuid();
+        var sources = new[] { Source("HazardPortal", CallAbout(Guid.NewGuid(), "cyclone assessment")) };
+
+        var report = await Runner(fetcher).RunAsync(site, sources, default);
+
+        report.Unresolved.Should().ContainSingle().Which.Subject.Should().Be("cyclone assessment");
+    }
+
+    [Fact]
+    public async Task RunAsync_ACallAboutTheSiteItself_NamesNoSubject()
+    {
+        // The report is handed back to the caller that named the site; repeating the site on every
+        // ordinary outcome would only invite a reader to trust the copy.
+        var fetcher = new ScriptedFetcher(name => Resolved(name));
+        var site = Guid.NewGuid();
+
+        var report = await Runner(fetcher).RunAsync(site, SourcesAbout(site, "OpenMeteo"), default);
+
+        report.Resolved.Should().ContainSingle().Which.Subject.Should().BeNull();
     }
 
     private sealed class CapturingFetcher : ISourceFetcher
@@ -193,7 +264,7 @@ public class DiscoveryRunnerTests
         public CapturingFetcher(List<IReadOnlyDictionary<string, string>> seen) => _seen = seen;
 
         public Task<SourceOutcome> FetchAsync(
-            Guid siteId, string sourceName, string endpointName,
+            Guid subjectId, string sourceName, string endpointName,
             IReadOnlyDictionary<string, string> addressParameters, CancellationToken cancellationToken)
         {
             lock (_seen) _seen.Add(addressParameters);
