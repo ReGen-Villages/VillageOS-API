@@ -453,6 +453,7 @@ sequenceDiagram
     Tributary->>Mycelium: write observation onto the Site
   end
   Note over Site: the first observation takes it out of<br/>the state, so nothing fetches again
+  Forage->>Mycelium: WillowBend classifiedAs Csa<br/>each fetched word becomes its declared edge
   Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
   Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the edge starts it
   Note over Mycelium: the site reaching SiteDiscovered is what<br/>closes the dispatch, not the call

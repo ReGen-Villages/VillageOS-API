@@ -210,6 +210,42 @@ it is the ingest's, and it is written once per registration per site however oft
 see [`TRIBUTARY.md`](TRIBUTARY.md#which-registration-wrote-a-value). A source that did not resolve
 never reaches the ingest, so it leaves no edge suggesting it did.
 
+## Resolving the fetched words
+
+**A fetched word becomes the edge the model declares, inside the run that fetched it (#6809).** Some
+vocabularies take their word from a fetch — a site's climate class, an assessment's hazard grade —
+and a fetch writes property values, never edges. So after the fetches, the run resolves each written
+word against the vocabulary the model declares and relates the subject to the member it names.
+
+**Everything is read from the declaration** (platform User Story 6773): the vocabulary archetype
+carries `__IsDiscoveredVocabularyArchetype` and names, in `resolvedFromProperty`, the property its
+word arrives under; an archetype-level edge — `Site classifiedAs ClimateZone`,
+`HazardAssessment gradedAs HazardLevel` — names the Thing the word is written onto and the predicate
+the resolved edge is written through. Nothing here names a vocabulary, an archetype, a predicate or a
+property of any model, so a project adding a vocabulary edits its model and deploys nothing.
+
+**The words come from the fetch responses, not from reading the model back.** An observation is
+accepted into a queue and applied by the drainer after the write returns, so a read straight after
+the call races it; the fetching service reports what each subject call wrote (`written`, see
+[`TRIBUTARY.md`](TRIBUTARY.md)), and that report is what is resolved.
+
+**A changed word moves the edge.** An edge already pointing at the named member is left alone; one
+pointing elsewhere is removed before its replacement is written, so a re-graded assessment never
+carries two levels. A stale edge that will not go blocks its replacement — a reader must never meet
+two answers — and the next run resolves again.
+
+**A word the vocabulary does not hold writes no edge and is reported**, naming the source, the
+subject, the property, the word and the vocabulary. Writing it would invent a member the scheme does
+not hold; refusing the fetch would turn a provider's odd answer into an outage. The word stays on the
+subject's series as the record of what the source answered — for these vocabularies the series is the
+provenance and the edge is the conclusion, which is why no retired-word rule applies to them. A word
+that matches a member only up to case, and a member name two Things carry, are reported the same way
+rather than guessed at.
+
+**A failed declaration read resolves nothing and says so.** The observations are already written and
+the site has left the state that dispatches runs, so nothing retries by itself; the words stay words
+until something runs discovery again.
+
 ## Starting the analysis
 
 **When the run finishes, Forage relates the site's study to each compute service** — one

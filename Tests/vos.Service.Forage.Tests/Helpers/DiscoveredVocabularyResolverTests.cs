@@ -171,6 +171,22 @@ public class DiscoveredVocabularyResolverTests
         resolution.Unresolved.Should().ContainSingle();
     }
 
+    // Ordered so two runs over one model write their edges the same way twice, which is what makes
+    // the logs of two runs comparable — the same rule the run report is ordered under.
+    [Fact]
+    public void Planned_edges_arrive_in_one_order_however_the_snapshot_held_them()
+    {
+        var brook = Guid.NewGuid();
+        var model = Declared(Edge(brook, _is, _spring));
+        model.Things.Add(Thing(brook, "Alder Brook spring"));
+
+        var resolution = DiscoveredVocabularyResolver.Resolve(
+            model, [Fetched(_willowBend, "steady"), Fetched(brook, "flashy")]);
+
+        resolution.Edges.Select(edge => edge.SubjectName).Should()
+            .Equal("Alder Brook spring", "Willow Bend spring");
+    }
+
     // Seed validation refuses the half-declared shape before any model loads; meeting one anyway must
     // resolve nothing rather than guess, and it is the validator's job to have said why.
     [Fact]

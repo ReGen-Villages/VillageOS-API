@@ -154,6 +154,80 @@ public class VocabularyEdgeTests
         recorder.Written.Should().BeEmpty();
     }
 
+    // A fetching service answering something this cannot read — an older one, a proxy error page —
+    // resolves nothing rather than failing a fetch that already succeeded.
+    [Fact]
+    public async Task A_fetch_answer_this_cannot_read_resolves_nothing_and_the_run_completes()
+    {
+        var ids = CatchmentWithOneSource();
+        var recorder = new EdgeRecorder();
+
+        var response = await RunDiscovery(ids, DeclaredModel(), recorder, "not a json body");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        recorder.Written.Should().BeEmpty();
+    }
+
+    // A refused edge write is logged and the run carries on — it must not throw the run away, and it
+    // must not retry into a burst; the next discovery run resolves again.
+    [Fact]
+    public async Task A_refused_edge_write_is_attempted_once_and_the_run_carries_on()
+    {
+        var ids = CatchmentWithOneSource();
+        var attempts = 0;
+
+        await using var factory = new ForageWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = request =>
+        {
+            if (request.Method == HttpMethod.Post
+                && request.RequestUri!.AbsolutePath == "/api/relationships")
+            {
+                attempts++;
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            }
+            return (request.RequestUri!.AbsolutePath == FetchRoute
+                    ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
+                ?? RouteSubscription(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        await factory.RunsStarted();
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        attempts.Should().Be(1);
+    }
+
+    // The read already succeeded, so a subscription release that fails must not lose it: the edge is
+    // still written. The release ignores what the gateway answers, so only a dropped connection can
+    // fail it — which is what the thrown handler stages.
+    [Fact]
+    public async Task A_failed_subscription_release_does_not_lose_the_resolution()
+    {
+        var ids = CatchmentWithOneSource();
+        var recorder = new EdgeRecorder();
+
+        await using var factory = new ForageWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = request =>
+        {
+            if (request.Method == HttpMethod.Delete
+                && request.RequestUri!.AbsolutePath.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
+                throw new HttpRequestException("connection dropped");
+            return recorder.Route(request)
+                ?? (request.RequestUri!.AbsolutePath == FetchRoute
+                    ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
+                ?? RouteSubscription(request, ids, DeclaredModel(), siteValues: null, DeclaredArchetypes())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+        await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        await factory.RunsStarted();
+
+        recorder.Written.Should().Contain((ids["WillowBend"], ids["flowsAs"], ids["steady"]));
+    }
+
     // Writing beside an edge that would not go would leave a reader two answers; leaving the stale one
     // alone keeps exactly one, and the next run resolves again.
     [Fact]
