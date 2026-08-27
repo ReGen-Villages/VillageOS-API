@@ -46,6 +46,10 @@ public sealed class AddressVerification(TimeProvider time)
 
     private const int CodeDigits = 6;
 
+    // Derived rather than written out beside the digits, because two numbers that have to agree are two
+    // numbers that can stop agreeing.
+    private static readonly int CodesPossible = (int)Math.Pow(10, CodeDigits);
+
     private readonly Dictionary<string, Pending> _pending = [];
     private readonly Lock _gate = new();
 
@@ -59,12 +63,10 @@ public sealed class AddressVerification(TimeProvider time)
 
         lock (_gate)
         {
-            DropWhatIsSpent(now);
-
             if (!_pending.TryGetValue(key, out var held) || now - held.BudgetOpenedAt >= CodeBudgetWindow)
             {
                 held = new Pending { BudgetOpenedAt = now };
-                MakeRoom();
+                MakeRoom(now);
                 _pending[key] = held;
             }
 
@@ -78,17 +80,17 @@ public sealed class AddressVerification(TimeProvider time)
         }
     }
 
-    /// <summary>Why the code was not accepted, or null when it was — in which case it is spent, and a
-    /// ticket is what the caller carries from here on.</summary>
-    /// <remarks>
-    /// Every refusal is worded the same, and that is the point rather than an economy. A caller names the
-    /// address, so a message that distinguished a wrong code from an address nothing was sent to would
-    /// answer the question "has somebody just asked to submit under this address" for any address
-    /// anybody cared to type.
-    /// </remarks>
+    /// <summary>
+    /// The one thing a refused code is ever told, and the sameness is the point rather than an economy.
+    /// Answering a code costs a caller nothing and they name the address themselves, so a message that
+    /// distinguished a wrong code from an address nothing was sent to would answer "has somebody just
+    /// started a submission under this address" for any address anybody cared to type.
+    /// </summary>
     public const string NotTheCode =
         "That code is not one this service is waiting for. Check it, or ask for a new one.";
 
+    /// <summary>Why the code was not accepted, or null when it was — in which case it is spent, and a
+    /// ticket is what the caller carries from here on.</summary>
     public string? WhyRefused(string emailAddress, string? answered)
     {
         var key = Key(emailAddress);
@@ -109,13 +111,27 @@ public sealed class AddressVerification(TimeProvider time)
         }
     }
 
+    /// <summary>Takes back a code that never left this service, so a mail server having a bad afternoon
+    /// does not spend an address's budget on codes nobody could read and lock its owner out for the
+    /// hour.</summary>
+    public void NothingWasSent(string emailAddress)
+    {
+        lock (_gate)
+        {
+            if (!_pending.TryGetValue(Key(emailAddress), out var held)) return;
+
+            held.Code = null;
+            if (held.CodesSent > 0) held.CodesSent--;
+        }
+    }
+
     // Case and surrounding space are not part of an address anybody meant, and a code sent to one spelling
     // has to be answerable by the other — otherwise a person who verified `Ana@example.pt` and submitted
     // `ana@example.pt` would be turned away by the ticket check with nothing to correct.
     public static string Key(string emailAddress) => emailAddress.Trim().ToLowerInvariant();
 
     private static string FreshCode() =>
-        RandomNumberGenerator.GetInt32(0, 1_000_000).ToString($"D{CodeDigits}");
+        RandomNumberGenerator.GetInt32(0, CodesPossible).ToString($"D{CodeDigits}");
 
     // Fixed-time, because a comparison that stops at the first wrong figure tells a caller how much of the
     // code they had right.
@@ -124,24 +140,24 @@ public sealed class AddressVerification(TimeProvider time)
         && CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(held), Encoding.UTF8.GetBytes(answered.Trim()));
 
-    // A record is kept while either half of it still applies: the code somebody is about to answer, or the
-    // budget that stops the address being sent more.
-    private void DropWhatIsSpent(DateTimeOffset now)
+    // Only when the room has run out, never on the way past. Sweeping everything held on each request
+    // would make one caller's verification cost a walk of every address any caller had named, and nothing
+    // depends on the sweep: an expired code is refused by its own expiry and a spent budget by its window.
+    // So this reclaims, and what it does not reclaim is bounded by the cap.
+    private void MakeRoom(DateTimeOffset now)
     {
+        if (_pending.Count < MostAddressesHeld) return;
+
+        // A record is kept while either half of it still applies: the code somebody is about to answer, or
+        // the budget that stops the address being sent more.
         foreach (var (key, held) in _pending.ToArray())
         {
             if (now >= held.CodeExpiresAt && now - held.BudgetOpenedAt >= CodeBudgetWindow)
                 _pending.Remove(key);
         }
-    }
 
-    private void MakeRoom()
-    {
         while (_pending.Count >= MostAddressesHeld)
-        {
-            var oldest = _pending.MinBy(held => held.Value.BudgetOpenedAt).Key;
-            _pending.Remove(oldest);
-        }
+            _pending.Remove(_pending.MinBy(held => held.Value.BudgetOpenedAt).Key);
     }
 
     private sealed class Pending

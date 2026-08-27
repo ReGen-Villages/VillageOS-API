@@ -117,6 +117,43 @@ public class AddressVerificationTests
             .BeNull("the one asked about after the rest were let go is held like any other");
     }
 
+    // A mail server having a bad afternoon must not spend the budget on codes nobody could read. Without
+    // this, three failures nobody saw lock the address's owner out for the hour.
+    [Fact]
+    public void A_code_that_never_left_the_service_costs_the_address_nothing()
+    {
+        var verification = new AddressVerification(AClock());
+
+        for (var failed = 0; failed < AddressVerification.CodesPerAddress * 2; failed++)
+        {
+            verification.CodeFor(Address).Should().NotBeNull();
+            verification.NothingWasSent(Address);
+        }
+
+        verification.CodeFor(Address).Should().NotBeNull();
+    }
+
+    [Fact]
+    public void A_code_that_never_left_the_service_cannot_be_answered()
+    {
+        var verification = new AddressVerification(AClock());
+        var code = verification.CodeFor(Address)!;
+
+        verification.NothingWasSent(Address);
+
+        verification.WhyRefused(Address, code).Should().Be(AddressVerification.NotTheCode);
+    }
+
+    [Fact]
+    public void Taking_back_a_code_for_an_address_nothing_was_sent_to_does_nothing()
+    {
+        var verification = new AddressVerification(AClock());
+
+        var act = () => verification.NothingWasSent("somebody.else@example.pt");
+
+        act.Should().NotThrow();
+    }
+
     // Nothing has expired here, so what makes room is the cap rather than the sweep. Without it a
     // stranger asking about a fresh address every few seconds grows this a request at a time.
     [Fact]

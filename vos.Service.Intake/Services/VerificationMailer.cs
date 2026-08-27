@@ -29,7 +29,7 @@ public sealed class SmtpVerificationMailer(MailSettings settings) : IVerificatio
 {
     /// <summary>What the code arrives as. Separate from the sending because this is the part worth
     /// checking: what a message carries is a decision, and handing it to a server is not.</summary>
-    public static MailMessage MessageFor(MailSettings settings, string emailAddress, string code) =>
+    public MailMessage MessageFor(string emailAddress, string code) =>
         new(settings.From, emailAddress)
         {
             Subject = "Your land submission code",
@@ -43,7 +43,7 @@ public sealed class SmtpVerificationMailer(MailSettings settings) : IVerificatio
     /// <summary>What to relay under, or null where the server asks for nothing. Separate because relaying
     /// anonymously when a deployment configured an account is a failure it would only see in its mail
     /// server's log.</summary>
-    public static NetworkCredential? CredentialFor(MailSettings settings) =>
+    public NetworkCredential? Credential =>
         string.IsNullOrWhiteSpace(settings.Username)
             ? null
             : new NetworkCredential(settings.Username, settings.Password);
@@ -53,9 +53,9 @@ public sealed class SmtpVerificationMailer(MailSettings settings) : IVerificatio
         using var client = new SmtpClient(settings.Host, settings.Port)
         {
             EnableSsl = true,
-            Credentials = CredentialFor(settings),
+            Credentials = Credential,
         };
-        using var message = MessageFor(settings, emailAddress, code);
+        using var message = MessageFor(emailAddress, code);
 
         await client.SendMailAsync(message, cancellation);
     }

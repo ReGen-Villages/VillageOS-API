@@ -171,6 +171,8 @@ try
             // The address is a stranger's, so a server refusing it says nothing about this deployment
             // being unwell — but neither this service nor the submitter can tell the two apart, and what
             // went wrong belongs where whoever runs the deployment reads it rather than in the answer.
+            // The budget goes back, or three failures nobody saw would lock the address out for the hour.
+            verification.NothingWasSent(emailAddress);
             logger.LogError(error, "A verification code could not be sent: {Reason}", error.Message);
             return Results.Problem("This service cannot send a code at the moment.", statusCode: 503);
         }

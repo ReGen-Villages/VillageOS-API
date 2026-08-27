@@ -1014,9 +1014,21 @@ who did not ask, because the address is a stranger's word for whose mailbox it i
 minutes and dies after a handful of wrong answers, so guessing six figures runs out rather than merely
 being unlikely; one address is sent only a few codes an hour, so the route cannot be pointed at a mailbox
 its owner never gave us; and what is held pending is capped, so a stranger asking about a fresh address
-each time cannot make the service grow. Every refusal on the code route is worded the same, because a
-message that told a wrong code from an address nothing was sent to would answer "has somebody just
-started a submission under this address" for any address anybody cared to type.
+each time cannot make the service grow. A send that fails hands the budget back, so a mail server having
+a bad afternoon does not lock an address out for the hour with no code delivered.
+
+**Answering a code tells the caller nothing about the address.** Every refusal on that route is worded
+identically — a wrong code, an expired one, a code answered too often, and an address nothing was ever
+sent to all read the same. Answering costs a caller nothing and they name the address themselves, so a
+message that told those apart would answer "has somebody just started a submission under this address"
+for any address anybody cared to type.
+
+**Asking for a code is not silent in the same way, and that is a deliberate trade.** The route answers
+`429` once an address has had its few codes for the hour, so a caller counting requests until that
+refusal can learn roughly how many codes an address was recently sent. Closing that would mean answering
+`202` to a request nothing was sent for, which leaves somebody who asked again in good faith waiting for
+mail that is never coming. The disclosure is narrow and costs the caller a real message to the mailbox
+they are probing on every attempt, which is the abuse the per-source rate limit is there to catch.
 
 **Nothing pending survives a restart.** A code is good for minutes and the person whose was lost asks for
 another. Keeping them would mean writing addresses to disk, which is the one thing this flow exists to

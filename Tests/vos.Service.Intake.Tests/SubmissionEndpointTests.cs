@@ -295,6 +295,42 @@ public class SubmissionEndpointTests
             "guessing a six-figure code has to run out rather than merely be unlikely");
     }
 
+    // The composer refuses a submission carrying no address, by name. Asking the ticket first would answer
+    // a missing field with a rule about a ticket, which is not what whoever filled the form in can correct.
+    [Fact]
+    public async Task A_submission_carrying_no_address_at_all_is_refused_by_the_field_it_is_missing()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        using var client = factory.CreateClient();
+        var ticket = await TicketFor(factory, client, AnasAddress);
+
+        var refused = await PostAsync(
+            client,
+            Document("'project':{'name':'Willow Bend Regeneration'},'site':{'name':'Willow Bend'}"),
+            ticket);
+
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await refused.Content.ReadAsStringAsync()).Should().Contain("contact");
+    }
+
+    // Three failures nobody saw would otherwise leave the address unable to be sent anything for the hour,
+    // with no code ever delivered to show for it.
+    [Fact]
+    public async Task A_send_that_failed_costs_the_address_none_of_its_budget()
+    {
+        await using var factory = new IntakeWebApplicationFactory { HandlerCallback = Holds };
+        factory.Mailer.Refuses = new InvalidOperationException("the relay is not answering");
+        using var client = factory.CreateClient();
+
+        for (var failed = 0; failed < AddressVerification.CodesPerAddress; failed++)
+            (await AskForACodeAsync(client, AnasAddress)).StatusCode
+                .Should().Be(HttpStatusCode.ServiceUnavailable);
+
+        factory.Mailer.Refuses = null;
+
+        (await AskForACodeAsync(client, AnasAddress)).StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
     [Fact]
     public async Task A_deployment_whose_mail_is_not_working_says_nothing_of_what_is_wrong()
     {

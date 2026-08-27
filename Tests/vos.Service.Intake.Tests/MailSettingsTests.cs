@@ -47,6 +47,29 @@ public class MailSettingsTests
         MailSettings.Parse(arguments, Configured()).Should().BeNull();
     }
 
+    // A port typed as something that is not one is a mistake, not a request for the default. Starting on a
+    // port nobody chose is the kind of silent fallback whoever runs the deployment finds out about from a
+    // submitter who cannot submit.
+    [Fact]
+    public void A_port_that_is_not_a_number_stops_the_service_rather_than_defaulting()
+    {
+        MailSettings.Parse(
+                ["--mailHost=smtp.example.test", "--mailFrom=intake@example.test", "--mailPort=submission"],
+                Configured())
+            .Should().BeNull();
+    }
+
+    // A record prints every property it holds, so anything that ever writes these down — a startup line, a
+    // diagnostic somebody adds later — would write the relay password down with them.
+    [Fact]
+    public void Writing_the_settings_down_never_writes_the_password_down()
+    {
+        var settings = Relay with { Username = "intake", Password = "a-secret-nobody-should-read" };
+
+        $"{settings}".Should().NotContain("a-secret-nobody-should-read")
+            .And.Contain("smtp.example.test").And.Contain("intake");
+    }
+
     // The command line is visible to every process on the host and to anything recording how a service was
     // started, which is why this one setting is read from configuration alone.
     [Fact]
@@ -76,13 +99,13 @@ public class MailSettingsTests
     [Fact]
     public void A_server_that_asks_for_no_account_is_relayed_to_without_one()
     {
-        SmtpVerificationMailer.CredentialFor(Relay).Should().BeNull();
+        new SmtpVerificationMailer(Relay).Credential.Should().BeNull();
     }
 
     [Fact]
     public void A_server_that_asks_for_an_account_is_relayed_to_under_it()
     {
-        var credential = SmtpVerificationMailer.CredentialFor(Relay with { Username = "intake", Password = "secret" });
+        var credential = new SmtpVerificationMailer(Relay with { Username = "intake", Password = "secret" }).Credential;
 
         credential!.UserName.Should().Be("intake");
         credential.Password.Should().Be("secret");
@@ -93,7 +116,7 @@ public class MailSettingsTests
     [Fact]
     public void The_message_carries_the_code_and_nothing_of_what_is_being_submitted()
     {
-        using var message = SmtpVerificationMailer.MessageFor(Relay, "ana.ferreira@example.pt", "314159");
+        using var message = new SmtpVerificationMailer(Relay).MessageFor("ana.ferreira@example.pt", "314159");
 
         message.To.Single().Address.Should().Be("ana.ferreira@example.pt");
         message.From!.Address.Should().Be("intake@example.test");
@@ -108,7 +131,7 @@ public class MailSettingsTests
     [Fact]
     public void The_message_says_what_to_do_where_nobody_asked_for_it()
     {
-        using var message = SmtpVerificationMailer.MessageFor(Relay, "ana.ferreira@example.pt", "314159");
+        using var message = new SmtpVerificationMailer(Relay).MessageFor("ana.ferreira@example.pt", "314159");
 
         message.Body.Should().Contain("did not ask");
     }

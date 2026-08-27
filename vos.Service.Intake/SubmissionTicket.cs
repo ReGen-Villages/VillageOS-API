@@ -6,8 +6,8 @@ using System.Text;
 namespace vos.Service.Intake;
 
 /// <summary>
-/// A short-lived value this service issues to a form and reads back when the form is posted. It is the
-/// automated-submission check on the one route anybody may call.
+/// A short-lived value this service issues in exchange for a verified address, and reads back when the
+/// form is posted. It is what carries the verification from the one exchange to the other.
 /// </summary>
 /// <remarks>
 /// What it establishes: whoever posted answered a code sent to one particular address, recently. A post

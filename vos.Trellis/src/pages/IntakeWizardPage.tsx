@@ -95,6 +95,13 @@ export function IntakeWizardPage() {
 
   const change = useCallback(
     (patch: Partial<SubmissionDraft>) => {
+      // A code is sent to the address as it read when it was asked for. Touching that field leaves the
+      // code good for a mailbox this submission may no longer name, so the exchange starts again rather
+      // than offering a box whose code the service will refuse.
+      if (patch.emailAddress !== undefined) {
+        setAwaitingCode(false);
+        setCode('');
+      }
       setDraft((current) => {
         if (!current) return current;
         const next = { ...current, ...patch };
@@ -274,7 +281,8 @@ function Navigation({
   const { t } = useTranslation();
   const index = STEPS.indexOf(step);
   const last = index === STEPS.length - 1;
-  const held = last && (submitting || !configured || !ready || (awaitingCode && code.trim().length === 0));
+  const heldBack =
+    last && (submitting || !configured || !ready || (awaitingCode && code.trim().length === 0));
 
   return (
     <div className="mt-4 flex items-center justify-between gap-3">
@@ -304,7 +312,7 @@ function Navigation({
         )}
         <button
           onClick={() => (last ? onSubmit() : onGoTo(STEPS[index + 1]))}
-          disabled={held}
+          disabled={heldBack}
           className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
         >
           {!last ? t('intake.next') : awaitingCode ? t('intake.submit') : t('intake.sendCode')}

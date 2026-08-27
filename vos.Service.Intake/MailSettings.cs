@@ -27,9 +27,19 @@ public sealed record MailSettings(string Host, int Port, string From, string? Us
         var from = reader.Read("mailFrom");
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(from)) return null;
 
-        var port = int.TryParse(reader.Read("mailPort"), out var given) ? given : SubmissionPort;
+        // A port given as something that is not one is a mistake, not a request for the default. Falling
+        // back would start the service against a port nobody chose and say nothing about it.
+        var port = SubmissionPort;
+        if (reader.Read("mailPort") is { } named && !int.TryParse(named, out port)) return null;
+
         return new MailSettings(host, port, from, reader.Read("mailUser"), reader.ReadCredential("mailPassword"));
     }
+
+    /// <summary>Says where mail goes and never what it goes under. A record prints every property it
+    /// holds, so anything that ever writes these down would otherwise write the relay password down with
+    /// them.</summary>
+    public override string ToString() =>
+        $"{Host}:{Port} from {From} as {Username ?? "no account"}";
 
     public static string UsageMessage =>
         "\n  --mailHost      Mail server that relays verification codes"

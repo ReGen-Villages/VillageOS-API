@@ -589,6 +589,24 @@ describe('posting the submission', () => {
     expect(intakeApi.submit).not.toHaveBeenCalled();
   });
 
+  // The code was sent to the address as it read at the time. Going back and changing it leaves that code
+  // good for a mailbox this submission no longer names, and the service would refuse it — so the page
+  // asks again rather than offering a box whose code cannot work.
+  it('asks for a new code when the address is changed after one was sent', async () => {
+    saveDraft('model-1', submittable());
+    render(<IntakeWizardPage />);
+    goToStep(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
+    await waitFor(() => expect(screen.getByLabelText('Code')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: '2. Contact' }));
+    typeInto('Email address', 'somebody.else@example.pt');
+    goToStep(3);
+
+    expect(screen.queryByLabelText('Code')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send a code' })).toBeInTheDocument();
+  });
+
   // The code is what says this address can be read by whoever is submitting, so the submission cannot go
   // before one has been entered.
   it('will not submit with the code box empty', async () => {
