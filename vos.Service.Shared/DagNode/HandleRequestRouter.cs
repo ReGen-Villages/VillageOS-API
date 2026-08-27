@@ -17,8 +17,8 @@ public enum HandleRequestKind
 }
 
 // What a posted body turned out to be: the shape to act on, the Thing it names when it names one,
-// and the parsed body for the node path to read. Json is left undefined when the text was not JSON,
-// which IsJson answers for the one service that echoes a body back rather than acting on it.
+// and the parsed body for a service that reads more of it than the shape. Json is left undefined
+// when the text was not JSON at all, which is what IsJson answers.
 public readonly record struct HandleRequest(HandleRequestKind Kind, Guid SubjectId, JsonElement Json)
 {
     public bool IsJson => Json.ValueKind != JsonValueKind.Undefined;

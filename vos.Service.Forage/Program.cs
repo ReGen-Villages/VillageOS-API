@@ -103,6 +103,8 @@ try
         if (request.Kind != HandleRequestKind.RelationshipSubject)
             return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") });
 
+        // Named here so the run captures the site alone; capturing the request would hold the parsed
+        // body for as long as the run takes.
         var siteId = request.SubjectId;
         starter.Start(token => Discover(siteId, coveringSources, runner, analysis, token));
 
