@@ -4,20 +4,28 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Services;
 
-// What one model read answers: which sources cover the site, each with the calls a run makes to it
-// and the values addressing each call. All of it comes from the same snapshot, so a run reads the
-// model once.
+// What one model read answers about the calls a run is concerned with: the sources, each with the calls
+// to it and the values addressing each; what the model already records of those calls; and the
+// vocabulary a coverage is minted in. All of it comes from the same snapshot, so a run reads the model
+// once for it.
+public record Coverage(
+    IReadOnlyList<CoveringSource> Covering,
+    IReadOnlyList<RecordedCoverage> Recorded,
+    CoverageVocabulary? Vocabulary);
+
+// A site's: the sources covering it, and the analysis to start once the run has fetched.
 public sealed record SiteCoverage(
     IReadOnlyList<CoveringSource> Covering,
     SiteAnalysis? Analysis,
     IReadOnlyList<RecordedCoverage> Recorded,
-    CoverageVocabulary? Vocabulary);
+    CoverageVocabulary? Vocabulary) : Coverage(Covering, Recorded, Vocabulary);
 
-// Reads a site's coverage from the model in one scoped snapshot.
+// Reads the model in one scoped snapshot per question: what a dispatch named, a site's coverage, or the
+// sites a source reaches.
 //
-// Null means the read failed, never that the site is covered by nothing. Collapsing the two would
-// report a gateway outage as "no source covers this site", which is the silently-short list this
-// whole path exists to prevent.
+// Null means the read failed, never that the answer is empty. Collapsing the two would report a gateway
+// outage as "no source covers this site", which is the silently-short list this whole path exists to
+// prevent — or as a source that reaches no site, which would then be stamped as offered to all of them.
 public sealed class CoveringSourceService
 {
     private readonly ISubscriptionClient _subscriptions;
@@ -29,27 +37,54 @@ public sealed class CoveringSourceService
         _logger = logger;
     }
 
-    public async Task<SiteCoverage?> ForSiteAsync(Guid siteId, CancellationToken cancellationToken)
+    public Task<SubjectKind?> KindOfAsync(Guid subjectId, CancellationToken cancellationToken) =>
+        ReadAsync(
+            CoveringSourceResolver.KindSelectorFor(subjectId),
+            snapshot => (SubjectKind?)CoveringSourceResolver.KindOf(snapshot, subjectId),
+            $"what {subjectId} is",
+            cancellationToken);
+
+    public Task<SiteCoverage?> ForSiteAsync(Guid siteId, CancellationToken cancellationToken) =>
+        ReadAsync(
+            CoveringSourceResolver.SelectorFor(siteId),
+            snapshot => new SiteCoverage(
+                CoveringSourceResolver.Resolve(snapshot, siteId),
+                CoveringSourceResolver.AnalysisOf(snapshot, siteId),
+                CoveringSourceResolver.RecordedCoverageIn(snapshot),
+                CoveringSourceResolver.CoverageVocabularyIn(snapshot)),
+            $"which sources cover site {siteId}",
+            cancellationToken);
+
+    public Task<Coverage?> ForSourceAsync(Guid sourceId, CancellationToken cancellationToken) =>
+        ReadAsync(
+            CoveringSourceResolver.SelectorForSource(sourceId),
+            snapshot => new Coverage(
+                CoveringSourceResolver.Reach(snapshot, sourceId),
+                CoveringSourceResolver.RecordedCoverageIn(snapshot),
+                CoveringSourceResolver.CoverageVocabularyIn(snapshot)),
+            $"which sites source {sourceId} reaches",
+            cancellationToken);
+
+    private async Task<T?> ReadAsync<T>(
+        SubscriptionSelector selector,
+        Func<SnapshotDocument, T> resolve,
+        string question,
+        CancellationToken cancellationToken)
     {
         SubscribeResult subscribed;
         try
         {
-            subscribed = await _subscriptions.SubscribeAsync(
-                CoveringSourceResolver.SelectorFor(siteId), cancellationToken);
+            subscribed = await _subscriptions.SubscribeAsync(selector, cancellationToken);
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to read which sources cover site {SiteId}", siteId);
-            return null;
+            _logger.LogError(exception, "Failed to read {Question}", question);
+            return default;
         }
 
         try
         {
-            return new SiteCoverage(
-                CoveringSourceResolver.Resolve(subscribed.Snapshot, siteId),
-                CoveringSourceResolver.AnalysisOf(subscribed.Snapshot, siteId),
-                CoveringSourceResolver.RecordedCoverageIn(subscribed.Snapshot),
-                CoveringSourceResolver.CoverageVocabularyIn(subscribed.Snapshot));
+            return resolve(subscribed.Snapshot);
         }
         finally
         {

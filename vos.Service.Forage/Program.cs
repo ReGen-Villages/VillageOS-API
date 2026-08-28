@@ -110,15 +110,15 @@ try
         if (request.Kind != HandleRequestKind.RelationshipSubject)
             return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("Forage") });
 
-        // Named here so the run captures the site alone; capturing the request would hold the parsed
+        // Named here so the run captures the subject alone; capturing the request would hold the parsed
         // body for as long as the run takes.
-        var siteId = request.SubjectId;
+        var subjectId = request.SubjectId;
         starter.Start(token =>
-            Discover(siteId, coveringSources, runner, ledger, analysis, vocabularyEdges, token));
+            Discover(subjectId, coveringSources, runner, ledger, analysis, vocabularyEdges, token));
 
         // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's
         // own contract: a body declaring it false is a failed dispatch whatever the status said.
-        return Results.Accepted(value: new { success = true, siteId });
+        return Results.Accepted(value: new { success = true, subjectId });
     });
     if (authEnabled) handleEndpoint.RequireAuthorization();
 
@@ -147,8 +147,78 @@ finally
     Log.CloseAndFlush();
 }
 
-// One run. Nothing returns from here, so what it found is reported to the log.
+// One run. Nothing returns from here, so what it found is reported to the log. What the dispatch named
+// decides which run it is: a site is fetched and recorded; a source is offered to the sites it covers.
 static async Task Discover(
+    Guid subjectId,
+    CoveringSourceService coveringSources,
+    DiscoveryRunner runner,
+    CoverageLedger ledger,
+    AnalysisSpawner analysis,
+    VocabularyEdgeWriter vocabularyEdges,
+    CancellationToken cancellationToken)
+{
+    switch (await coveringSources.KindOfAsync(subjectId, cancellationToken))
+    {
+        case null:
+            Log.Error("Could not read what {SubjectId} is; leaving the run outstanding", subjectId);
+            return;
+        case SubjectKind.Site:
+            await DiscoverSite(subjectId, coveringSources, runner, ledger, analysis, vocabularyEdges, cancellationToken);
+            return;
+        case SubjectKind.ModelMarksNoSite:
+            Log.Warning("The model marks no site archetype, so {SubjectId} is taken for a site; such a model " +
+                        "cannot dispatch a source", subjectId);
+            await DiscoverSite(subjectId, coveringSources, runner, ledger, analysis, vocabularyEdges, cancellationToken);
+            return;
+        case SubjectKind.Source:
+            await OfferSource(subjectId, coveringSources, ledger, cancellationToken);
+            return;
+        default:
+            Log.Error("{SubjectId} is neither a site nor a source, so the dispatch names a Thing this service " +
+                      "has no run for; nothing is written", subjectId);
+            return;
+    }
+}
+
+// A source offered to every site under the Places it covers: a coverage minted per call those sites
+// would make, and nothing fetched. A minted coverage is outstanding, which is what puts each site back in
+// the state its own run is dispatched by — and that run asks only this source. The stamp is what tells a
+// source offered to every site it covers from one never offered.
+static async Task OfferSource(
+    Guid sourceId,
+    CoveringSourceService coveringSources,
+    CoverageLedger ledger,
+    CancellationToken cancellationToken)
+{
+    var coverage = await coveringSources.ForSourceAsync(sourceId, cancellationToken);
+    if (coverage == null)
+    {
+        // Stamped, the source would read as offered to every site it covers while having reached none,
+        // and nothing would offer it again. Written nothing, it stays in the state that dispatched this.
+        Log.Error("Could not read which sites source {SourceId} reaches; leaving the run outstanding rather " +
+                  "than recording the source as offered", sourceId);
+        return;
+    }
+
+    if (coverage.Vocabulary == null)
+    {
+        Log.Error("The model declares no coverage archetype, so source {SourceId} cannot be offered to the " +
+                  "sites it covers; nothing is written", sourceId);
+        return;
+    }
+
+    if (coverage.Covering.Count == 0)
+        Log.Information("Source {SourceId} has no registration to be called through; offered to no site", sourceId);
+
+    var outstanding = await ledger.OutstandingAsync(coverage, cancellationToken);
+    Log.Information("Source {SourceId} offered to the sites it reaches: {Outstanding} calls outstanding",
+        sourceId, outstanding.Count);
+
+    await ledger.StampWorkedOutAsync(sourceId, cancellationToken);
+}
+
+static async Task DiscoverSite(
     Guid siteId,
     CoveringSourceService coveringSources,
     DiscoveryRunner runner,
