@@ -436,4 +436,41 @@ public class ProgrammeSplitReaderTests
         selector.Traverse!.Should().Contain(rule => rule.PredicateFlag == ProgrammeSplitReader.CategoryFlag);
         selector.Names.Should().Contain(new[] { ProgrammeSplitReader.StudiesPredicate, ProgrammeSplitReader.HasPredicate });
     }
+
+    /// <summary>The read tells an allocation's category edge from its other edges by the mark on the
+    /// predicate Thing, so that Thing has to be in the snapshot. A traversal brings what an edge points at
+    /// and never the predicate it was followed through, and the two structural predicates are in only
+    /// because they are asked for by name — so without this the marked set is empty, every allocation
+    /// reads as naming no category, and the service refuses the whole split (#6805).</summary>
+    [Fact]
+    public void The_selector_asks_for_the_category_predicate_thing_itself()
+    {
+        var selector = ProgrammeSplitReader.SelectorFor(Guid.NewGuid());
+
+        selector.MarkedArchetypes.Should().Contain(ProgrammeSplitReader.CategoryFlag);
+        selector.MarkedTypes.Should().BeNull(
+            "the predicate's members are every allocation in the model, and the read needs only the predicate");
+    }
+
+    /// <summary>A snapshot carrying the allocations and their categories but not the predicate Thing the
+    /// category edge runs through — which is what the selector answered with before it asked for one.
+    /// Every allocation then names no category the reader can find, and the split it hands back would have
+    /// the service refuse rather than allocate.</summary>
+    [Fact]
+    public void An_allocation_reads_as_uncategorised_where_the_snapshot_left_out_the_predicate_thing()
+    {
+        var model = new ModelBuilder()
+            .With("residential", (ProgrammeSplitReader.BuiltFootprintFlag, true))
+            .Stating("parcel", (ProgrammeSplitReader.ParcelAreaProperty, 28.39))
+            .Stating("housing", (ProgrammeSplitReader.SharePctProperty, 100.0))
+            .Relate("study", "studies", "WillowBend")
+            .Relate("WillowBend", "has", "parcel")
+            .Relate("WillowBend", "has", "housing")
+            .Relate("housing", "categorizedAs", "residential");
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.Uncategorised.Should().ContainSingle().Which.Should().Be("housing");
+        split.Categories.Should().BeEmpty();
+    }
 }

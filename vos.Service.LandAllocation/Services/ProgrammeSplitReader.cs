@@ -50,6 +50,12 @@ public static class ProgrammeSplitReader
     {
         Ids = [studyId],
         Names = [StudiesPredicate, HasPredicate],
+        // The category predicate Thing itself, which nothing else in this selector reaches: a traversal
+        // brings what an edge points at and never the predicate it was followed through, and the read
+        // needs the Thing to tell that edge from every other edge an allocation has. Asked for by the mark
+        // rather than by name for the same reason the traversal is, and as an archetype so that its
+        // members — every allocation in the model — do not come with it.
+        MarkedArchetypes = [CategoryFlag],
         Traverse =
         [
             // Incoming: the edge runs study -> site, and the study is the seed.
