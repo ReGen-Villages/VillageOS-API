@@ -260,7 +260,7 @@ public static class CoveringSourceResolver
     }
 
     private static List<Guid> ArchetypesCarrying(SnapshotDocument snapshot, string flag) =>
-        snapshot.Things.Where(thing => CarriesFlag(thing, flag)).Select(thing => thing.Id).ToList();
+        snapshot.Things.Where(thing => thing.CarriesFlag(flag)).Select(thing => thing.Id).ToList();
 
     // Every coverage the snapshot holds. Not filtered by site: the read is already scoped to one site's
     // reachable set, and a coverage hangs off whichever Thing its call was about — the site itself, or
@@ -295,7 +295,7 @@ public static class CoveringSourceResolver
     // that never read the template declaring it, and refusing says so.
     public static CoverageVocabulary? CoverageVocabularyIn(SnapshotDocument snapshot)
     {
-        var archetype = snapshot.Things.FirstOrDefault(thing => CarriesFlag(thing, SourceCoverageArchetypeFlag));
+        var archetype = snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(SourceCoverageArchetypeFlag));
         if (archetype == null) return null;
 
         Guid? Predicate(string name) => snapshot.Things
@@ -588,9 +588,6 @@ public static class CoveringSourceResolver
 
         return members;
     }
-
-    private static bool CarriesFlag(SnapshotThing thing, string flag) =>
-        thing.StatedValue(flag) is { } property && property.Value.ValueKind == JsonValueKind.True;
 
     // The site's own Place and every Place containing it, grouped by how many isIn edges away each
     // stands. The nesting is what makes a source covering the root cover every site under it without

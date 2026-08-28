@@ -245,7 +245,7 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
-    public void Resolve_ACallCarriesTheSitesOwnValues()
+    public void Resolve_ACallCarriesWhatTheSiteStates()
     {
         var model = new ModelBuilder()
             .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")

@@ -194,7 +194,7 @@ public class DiscoveryRunnerTests
     }
 
     [Fact]
-    public async Task RunAsync_PassesEachCallsOwnValuesToTheFetcher()
+    public async Task RunAsync_PassesWhatEachCallsSubjectStatesToTheFetcher()
     {
         var seen = new List<IReadOnlyDictionary<string, string>>();
         var fetcher = new CapturingFetcher(seen);

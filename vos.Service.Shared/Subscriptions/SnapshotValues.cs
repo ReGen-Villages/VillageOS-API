@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace vos.Service.Shared.Subscriptions;
 
 /// <summary>What a Thing in a snapshot says for itself, as against what its type says for it.
@@ -18,8 +20,12 @@ public static class SnapshotValues
     public static SnapshotProperty? StatedValue(this SnapshotThing thing, string name) =>
         StatedIn(thing.Properties, thing.InheritedOverrides, name);
 
-    public static SnapshotProperty? StatedValue(this SnapshotRelationship relationship, string name) =>
-        StatedIn(relationship.Properties, relationship.InheritedOverrides, name);
+    /// <summary>Whether the Thing itself carries a mark. Asked of what it states rather than of what the
+    /// `is` chain resolves, because a mark is an ordinary property and so is inherited: a resolving reader
+    /// would answer with every member of the archetype as well as the archetype, leaving nothing to select
+    /// a vocabulary or a role by.</summary>
+    public static bool CarriesFlag(this SnapshotThing thing, string flag) =>
+        thing.StatedValue(flag) is { } marked && marked.Value.ValueKind == JsonValueKind.True;
 
     /// <summary>Every value the Thing states, for a reader that takes what it finds rather than asking for
     /// a name it already knows. Own properties answer first, so a name stated twice is read once.</summary>

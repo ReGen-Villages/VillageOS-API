@@ -109,7 +109,7 @@ public class HandleEndpointTests
     }
 
     [Fact]
-    public async Task Handle_PassesTheSitesOwnValuesToEverySource()
+    public async Task Handle_PassesWhatTheSiteStatesToEverySource()
     {
         var ids = TwoSourceNames();
         var bodies = new ConcurrentBag<string>();

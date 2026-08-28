@@ -126,7 +126,7 @@ public static class DiscoveredVocabularyResolver
         var declarations = new List<Declaration>();
         foreach (var vocabulary in snapshot.Things)
         {
-            if (!CarriesOwnFlag(vocabulary, ArchetypeFlag)) continue;
+            if (!vocabulary.CarriesFlag(ArchetypeFlag)) continue;
             if (OwnString(vocabulary, ResolvedFromProperty) is not { } word) continue;
 
             var members = new Dictionary<string, Guid>(StringComparer.Ordinal);
@@ -223,9 +223,6 @@ public static class DiscoveredVocabularyResolver
 
         return members;
     }
-
-    private static bool CarriesOwnFlag(SnapshotThing thing, string flag) =>
-        thing.StatedValue(flag) is { } property && property.Value.ValueKind == JsonValueKind.True;
 
     private static string? OwnString(SnapshotThing thing, string name) =>
         thing.StatedValue(name) is { } property

@@ -92,7 +92,7 @@ public static class DeclaredVocabularyReader
     // belongs to, and picking either would resolve the same word two ways on two submissions.
     private static SnapshotThing OneCarrying(SnapshotDocument snapshot, string flag, string whatItDeclares)
     {
-        var carrying = snapshot.Things.Where(thing => Marked(thing, flag)).ToList();
+        var carrying = snapshot.Things.Where(thing => thing.CarriesFlag(flag)).ToList();
         return carrying.Count switch
         {
             1 => carrying[0],
@@ -141,10 +141,4 @@ public static class DeclaredVocabularyReader
         terms.Sort((left, right) => string.CompareOrdinal(left.Name, right.Name));
         return terms;
     }
-
-    // What the Thing states, never what the `is` chain resolves: a mark is inherited, so a resolving
-    // reader would answer with every term as well as the archetype, and there would be no archetype left
-    // to select.
-    private static bool Marked(SnapshotThing thing, string flag) =>
-        thing.StatedValue(flag) is { } property && property.Value.ValueKind == JsonValueKind.True;
 }

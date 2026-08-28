@@ -103,7 +103,7 @@ public static class ProgrammeSplitReader
             }
 
             categories.Add(new AllocatedCategory(category.Name ?? categoryId.Value.ToString(), share,
-                Marked(category, BuiltFootprintFlag), Marked(category, ProductiveFootprintFlag)));
+                category.CarriesFlag(BuiltFootprintFlag), category.CarriesFlag(ProductiveFootprintFlag)));
         }
 
         return new ProgrammeSplit(parcelArea, categories, readsFrom, uncategorised);
@@ -138,11 +138,7 @@ public static class ProgrammeSplitReader
     // The snapshot carries the predicate Things because the traversal named their flag, so the marks are
     // resolved here once rather than per edge.
     private static IReadOnlySet<Guid> PredicatesCarrying(SnapshotDocument snapshot, string flag) =>
-        snapshot.Things.Where(thing => Marked(thing, flag)).Select(thing => thing.Id).ToHashSet();
-
-    private static bool Marked(SnapshotThing thing, string flag) =>
-        thing.StatedValue(flag) is { } property
-        && property.Value.ValueKind == System.Text.Json.JsonValueKind.True;
+        snapshot.Things.Where(thing => thing.CarriesFlag(flag)).Select(thing => thing.Id).ToHashSet();
 
     /// <summary>Null means the Thing does not carry the property at all, which is how the walk tells a
     /// parcel from an allocation from anything else the site holds. A value it does carry and cannot read
