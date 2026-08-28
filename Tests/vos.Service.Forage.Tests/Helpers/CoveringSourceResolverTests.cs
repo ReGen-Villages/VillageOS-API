@@ -705,10 +705,14 @@ public class CoveringSourceResolverTests
     public void SelectorFor_AsksForTheAnalysisConnectionsModelWide()
     {
         // The study is not related to its connections yet — relating it is what the read is for — so a
-        // traversal from the site reaches none of them.
+        // traversal from the site reaches none of them. The coverage archetype is asked for model-wide
+        // for a different reason: a run mints against it, so it has to arrive before any coverage exists
+        // and there is nothing to traverse from.
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
 
-        selector.MarkedTypes.Should().Equal(CoveringSourceResolver.SiteAnalysisConnectionFlag);
+        selector.MarkedTypes.Should().Equal(
+            CoveringSourceResolver.SiteAnalysisConnectionFlag,
+            CoveringSourceResolver.SourceCoverageArchetypeFlag);
     }
 
     [Fact]

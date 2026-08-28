@@ -15,7 +15,7 @@ public class DiscoveryRunnerTests
         new(subject, name, values ?? NoParameters);
 
     private static CoveringSource Source(string name, params SourceCall[] calls) =>
-        new(name, name + "Endpoint", calls);
+        new(Guid.NewGuid(), name, name + "Endpoint", calls);
 
     private static IReadOnlyList<CoveringSource> SourcesAbout(Guid site, params string[] names) =>
         names.Select(name => Source(name, CallAbout(site))).ToList();
@@ -87,7 +87,11 @@ public class DiscoveryRunnerTests
 
         report.Resolved.Select(outcome => outcome.Source).Should().BeEquivalentTo("OpenMeteo", "Copernicus");
         report.Unresolved.Should().ContainSingle()
-            .Which.Should().BeEquivalentTo(new SourceOutcome("FloodPortal", false, "503 from the provider"));
+            .Which.Should().BeEquivalentTo(
+                new SourceOutcome("FloodPortal", false, "503 from the provider"),
+                // The identifiers a run records the answer against are asserted where they matter, on
+                // the ledger; here the outcome's own words are what is being held.
+                options => options.Excluding(outcome => outcome.SubjectId).Excluding(outcome => outcome.SourceId));
     }
 
     [Fact]
