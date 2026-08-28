@@ -123,6 +123,36 @@ archetype in `land-intake.template.json`, the connection beside the sources in
 `open-data-sources.template.json` (platform Task #6771). A deployment that never fetches reads
 neither file and runs no discovery service.
 
+## What a run records, and what it therefore skips
+
+**Every call a run makes has a `SourceCoverage` to record what it came to** — one Thing per subject and
+source, declared by the platform (Task #6779) and filled here. It carries `resolvedAt` when the answer
+landed, and `lastAttemptAt`, `attempts` and `failureReason` when it did not. A run mints one for any call
+the model has none for, relating it `appliesTo` the subject and `sourcedFrom` the source.
+
+**A call whose coverage already carries `resolvedAt` is not made again.** That is the point of the
+Things: a source answering for one subject and failing for another leaves exactly the second outstanding,
+and a run over the same site afterwards calls only that one. A source every one of whose calls has been
+answered drops out of the run entirely rather than being called with nothing to fetch.
+
+**The subject, not the site.** A source that `resolvesOnto` an archetype is called once per Thing the
+site has of it, so its coverage of one assessment is a different Thing from its coverage of another. A
+portal answering for five of a site's assessments and not the sixth records five resolved and one
+outstanding; per source, the sixth would either be lost or re-call all six.
+
+**This is where a run's report lives.** It was a response body the broker discarded, then a log line
+(Task #6777). On the coverages it is durable and per call, and a planner reaches it from the gap it
+explains. `attempts` is added to rather than overwritten, so a provider that has failed every run since
+the site was submitted reads differently from one that failed once.
+
+`coverageWorkedOutAt` is stamped on the site whatever the run found, including nothing: a site no source
+covers has been looked at, and saying so is what tells it apart from one still waiting to be.
+
+**A model that declares no coverage vocabulary still fetches.** It records nothing and asks again next
+time, which is the behaviour that shipped before these Things existed — discovering nothing at all would
+be worse than the once-ever discovery they replace. The archetype is found by the mark the platform
+declares it with, never by name.
+
 ## The run
 
 `POST /handle { subjectId }` **accepts** a run and answers `202` at once; the fetching happens after.
