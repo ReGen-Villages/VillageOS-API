@@ -20,9 +20,11 @@ public sealed record ProgrammeSplit(
 // from each allocation the category Thing it names.
 //
 // Every predicate is followed by the flag the model marks it with, never by a name compiled in here
-// (#6551) — which is the whole reason the category is a Thing rather than a word. A category's footprint
-// membership is then read off its own properties, because a flag is inherited through the `is` chain and
-// a resolving reader would answer with every member of anything carrying it.
+// (#6551) — which is the whole reason the category is a Thing rather than a word. Every value and every
+// mark is read as what the Thing states rather than as what the `is` chain resolves: resolving would
+// answer with every member of anything carrying a flag, while reading own properties alone would miss
+// what a submission wrote, since a value written for a name an archetype declares is stored as an
+// override (#6805).
 public static class ProgrammeSplitReader
 {
     // `has` is the platform's own structural predicate and is named, as every reader names it. `studies`
@@ -139,7 +141,7 @@ public static class ProgrammeSplitReader
         snapshot.Things.Where(thing => Marked(thing, flag)).Select(thing => thing.Id).ToHashSet();
 
     private static bool Marked(SnapshotThing thing, string flag) =>
-        thing.Properties.TryGetValue(flag, out var property)
+        thing.StatedValue(flag) is { } property
         && property.Value.ValueKind == System.Text.Json.JsonValueKind.True;
 
     /// <summary>Null means the Thing does not carry the property at all, which is how the walk tells a
@@ -148,7 +150,7 @@ public static class ProgrammeSplitReader
     /// divides the parcel between the rest as though the split were whole (#6576).</summary>
     private static double? Number(SnapshotThing thing, string name)
     {
-        if (!thing.Properties.TryGetValue(name, out var property)) return null;
+        if (thing.StatedValue(name) is not { } property) return null;
         return property.Value.ValueKind switch
         {
             System.Text.Json.JsonValueKind.Number => property.Value.GetDouble(),

@@ -225,11 +225,10 @@ public static class DiscoveredVocabularyResolver
     }
 
     private static bool CarriesOwnFlag(SnapshotThing thing, string flag) =>
-        thing.Properties.TryGetValue(flag, out var property)
-        && property.Value.ValueKind == JsonValueKind.True;
+        thing.StatedValue(flag) is { } property && property.Value.ValueKind == JsonValueKind.True;
 
     private static string? OwnString(SnapshotThing thing, string name) =>
-        thing.Properties.TryGetValue(name, out var property)
+        thing.StatedValue(name) is { } property
         && property.Value.ValueKind == JsonValueKind.String
             ? property.Value.GetString()
             : null;

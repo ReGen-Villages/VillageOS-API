@@ -65,7 +65,7 @@ public static class WaterDemandComponentReader
 
     private static long Order(SnapshotThing thing)
     {
-        var stated = Effective(thing, ServingOrderField)?.Value;
+        var stated = thing.StatedValue(ServingOrderField)?.Value;
         return stated?.ValueKind switch
         {
             JsonValueKind.Number => stated.Value.GetInt64(),
@@ -77,7 +77,7 @@ public static class WaterDemandComponentReader
 
     private static string Names(SnapshotThing thing, string field)
     {
-        var named = Effective(thing, field)?.Value;
+        var named = thing.StatedValue(field)?.Value;
         var property = named?.ValueKind == JsonValueKind.String ? named.Value.GetString() : null;
 
         return string.IsNullOrWhiteSpace(property)
@@ -87,21 +87,7 @@ public static class WaterDemandComponentReader
             : property;
     }
 
-    /// <summary>Own first, then what the Thing states over the type it `is`. A member that states a value
-    /// over its archetype's declaration carries it as an override rather than as its own — seed
-    /// normalization relocates it there — so a reader of own properties alone finds every component
-    /// blank.</summary>
-    private static SnapshotProperty? Effective(SnapshotThing thing, string name)
-    {
-        if (thing.Properties.TryGetValue(name, out var own)) return own;
-
-        foreach (var stated in thing.InheritedProperties.Values)
-            if (stated.Properties.TryGetValue(name, out var over)) return over;
-
-        return null;
-    }
-
     private static string Refusal(SnapshotThing thing, string field, string why) =>
         $"The water demand component '{thing.Name ?? thing.Id.ToString()}' states "
-        + $"'{field}' as {Effective(thing, field)?.Value.ToString() ?? "nothing at all"}, {why}.";
+        + $"'{field}' as {thing.StatedValue(field)?.Value.ToString() ?? "nothing at all"}, {why}.";
 }

@@ -311,14 +311,14 @@ public static class CoveringSourceResolver
     // Nought where the coverage carries no count, which is a coverage nothing has tried yet — the same
     // answer as a count of nought, and the run's next write makes it one either way.
     private static long AttemptsOn(SnapshotThing coverage)
-        => coverage.Properties.TryGetValue(AttemptsProperty, out var property)
+        => coverage.StatedValue(AttemptsProperty) is { } property
            && property.Value.ValueKind == JsonValueKind.Number
            && property.Value.TryGetInt64(out var attempts)
             ? attempts
             : 0;
 
     private static bool HasResolvedAt(SnapshotThing coverage)
-        => coverage.Properties.TryGetValue(ResolvedAtProperty, out var property)
+        => coverage.StatedValue(ResolvedAtProperty) is { } property
            && property.Value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined);
 
     private static Guid? SourceOf(
@@ -342,7 +342,7 @@ public static class CoveringSourceResolver
         // The site's own values first, then each Place's, nearest first: a value the site carries is
         // about the site, and a division's value is about somewhere smaller than its country's.
         var siteValues = Layered(
-            [OwnValues.Of(snapshot, siteId), .. placesByDepth.Select(level => AgreedValues(snapshot, level))]);
+            [StatedValues.Of(snapshot, siteId), .. placesByDepth.Select(level => AgreedValues(snapshot, level))]);
 
         var covering = new List<CoveringSource>();
         var alreadyTaken = new HashSet<Guid>();
@@ -385,7 +385,7 @@ public static class CoveringSourceResolver
                     ? siteValues
                     : Layered(
                     [
-                        OwnValues.Of(snapshot, subjectId),
+                        StatedValues.Of(snapshot, subjectId),
                         AgreedValues(snapshot, VocabularyOf(snapshot, namesById, subjectId)),
                         siteValues,
                     ])))
@@ -448,7 +448,7 @@ public static class CoveringSourceResolver
         var contested = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var id in ids)
         {
-            foreach (var (name, value) in OwnValues.Of(snapshot, id))
+            foreach (var (name, value) in StatedValues.Of(snapshot, id))
             {
                 if (contested.Contains(name)) continue;
                 if (!agreed.TryGetValue(name, out var existing))
@@ -590,8 +590,7 @@ public static class CoveringSourceResolver
     }
 
     private static bool CarriesFlag(SnapshotThing thing, string flag) =>
-        thing.Properties.TryGetValue(flag, out var property)
-        && property.Value.ValueKind == JsonValueKind.True;
+        thing.StatedValue(flag) is { } property && property.Value.ValueKind == JsonValueKind.True;
 
     // The site's own Place and every Place containing it, grouped by how many isIn edges away each
     // stands. The nesting is what makes a source covering the root cover every site under it without

@@ -142,9 +142,9 @@ public static class DeclaredVocabularyReader
         return terms;
     }
 
-    // Own properties only. A mark is inherited through the `is` chain, so a resolving reader would answer
-    // with every term as well as the archetype, and there would be no archetype left to select.
+    // What the Thing states, never what the `is` chain resolves: a mark is inherited, so a resolving
+    // reader would answer with every term as well as the archetype, and there would be no archetype left
+    // to select.
     private static bool Marked(SnapshotThing thing, string flag) =>
-        thing.Properties.TryGetValue(flag, out var property)
-        && property.Value.ValueKind == JsonValueKind.True;
+        thing.StatedValue(flag) is { } property && property.Value.ValueKind == JsonValueKind.True;
 }

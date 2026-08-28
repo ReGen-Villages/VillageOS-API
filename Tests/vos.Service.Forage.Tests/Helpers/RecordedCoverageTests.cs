@@ -79,6 +79,18 @@ public class RecordedCoverageTests
             .Should().ContainSingle().Which.Attempts.Should().Be(0);
     }
 
+    // The count a run adds to. Read as nought where the coverage plainly states a number, a source that
+    // has failed its last allowed attempt is asked again on every run for ever.
+    [Fact]
+    public void ACoverageStatesHowManyTimesItsSourceHasBeenAsked()
+    {
+        var model = CoverageOf("WillowBend/climate", "WillowBend", "Mapresso")
+            .Carrying("WillowBend/climate", Attempts, 2);
+
+        CoveringSourceResolver.RecordedCoverageIn(model.Build())
+            .Should().ContainSingle().Which.Attempts.Should().Be(2);
+    }
+
     // A source that resolves onto an archetype is called once per Thing the site has of it, so the
     // portal's coverage of one assessment is a different Thing from its coverage of another. Reading
     // them as one would re-call every assessment because one of them failed.
