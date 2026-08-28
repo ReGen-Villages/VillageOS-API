@@ -68,7 +68,7 @@ public class StatedValuesTests
         var snapshot = Snapshot(Site(siteId,
             inherited: new Dictionary<string, InheritedPropertySet>
             {
-                ["SiteArchetype"] = new("Site", new Dictionary<string, SnapshotProperty>
+                ["Site"] = new("Site", new Dictionary<string, SnapshotProperty>
                 {
                     ["lat"] = Property("-25.75"),
                     ["lng"] = Property("28.19"),

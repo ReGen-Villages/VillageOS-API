@@ -452,12 +452,12 @@ public class ProgrammeSplitReaderTests
             "the predicate's members are every allocation in the model, and the read needs only the predicate");
     }
 
-    /// <summary>A snapshot carrying the allocations and their categories but not the predicate Thing the
-    /// category edge runs through — which is what the selector answered with before it asked for one.
-    /// Every allocation then names no category the reader can find, and the split it hands back would have
-    /// the service refuse rather than allocate.</summary>
+    /// <summary>A snapshot whose category predicate carries no mark — which is what a selector that never
+    /// asked for the predicate Thing left the reader with, since a Thing reached only as an edge's
+    /// predicate arrives carrying nothing. Every allocation then names no category the reader can find, and
+    /// the split it hands back has the service refuse rather than allocate.</summary>
     [Fact]
-    public void An_allocation_reads_as_uncategorised_where_the_snapshot_left_out_the_predicate_thing()
+    public void An_allocation_whose_category_predicate_carries_no_mark_reads_as_uncategorised()
     {
         var model = new ModelBuilder()
             .With("residential", (ProgrammeSplitReader.BuiltFootprintFlag, true))

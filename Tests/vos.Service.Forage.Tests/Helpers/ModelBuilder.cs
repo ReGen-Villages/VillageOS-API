@@ -7,6 +7,9 @@ namespace vos.Service.Forage.Tests.Helpers;
 // Shared by every test over what a run reads out of the model.
 internal sealed class ModelBuilder
 {
+    // The archetype a coverage's values are stored under, standing for the one the model declares.
+    private const string StatedOver = "SourceCoverage";
+
     private readonly Dictionary<string, Guid> _ids = new(StringComparer.Ordinal);
     private readonly List<SnapshotThing> _things = new();
     private readonly List<SnapshotRelationship> _edges = new();
@@ -75,8 +78,6 @@ internal sealed class ModelBuilder
             });
         return this;
     }
-
-    private const string StatedOver = "SourceCoverage";
 
     private void Replace(
         Guid id, string name, bool isArchetype, Dictionary<string, SnapshotProperty> properties,
