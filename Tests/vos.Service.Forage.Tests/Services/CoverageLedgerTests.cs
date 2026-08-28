@@ -299,8 +299,8 @@ public class CoverageLedgerTests
             new OutstandingCall(second, Call(SiteId), secondCoverage, 0),
         };
         var report = new DiscoveryReport(
-            [new SourceOutcome(first.Name, true, null, null, SiteId, first.SourceId)],
-            [new SourceOutcome(second.Name, false, "503", null, SiteId, second.SourceId)]);
+            [new SourceOutcome(first.Name, true, null, SubjectId: SiteId, SourceId: first.SourceId)],
+            [new SourceOutcome(second.Name, false, "503", SubjectId: SiteId, SourceId: second.SourceId)]);
 
         await Ledger().RecordAllAsync(outstanding, report, default);
 

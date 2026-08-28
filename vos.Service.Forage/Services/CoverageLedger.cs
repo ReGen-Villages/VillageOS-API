@@ -95,8 +95,13 @@ public sealed class CoverageLedger
         var byCall = outstanding.ToDictionary(call => (call.Call.SubjectId, call.Source.SourceId));
 
         foreach (var outcome in report.Resolved.Concat(report.Unresolved))
-            if (byCall.TryGetValue((outcome.SubjectId, outcome.SourceId), out var call))
+        {
+            // An outcome naming neither came from no call this run made, so there is no coverage it
+            // belongs on. Recording it against a guess would put one source's answer on another's.
+            if (outcome.SubjectId is not { } subjectId || outcome.SourceId is not { } sourceId) continue;
+            if (byCall.TryGetValue((subjectId, sourceId), out var call))
                 await RecordAsync(call, outcome, cancellationToken);
+        }
     }
 
     // What one call came to. A resolved call is stamped and stops being asked; a failed one keeps the

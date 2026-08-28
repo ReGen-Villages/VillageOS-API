@@ -262,6 +262,28 @@ public class DiscoveryRunnerTests
         report.Resolved.Should().ContainSingle().Which.Subject.Should().BeNull();
     }
 
+    // Every outcome carries which call it came from, by identity. The run records the answer on the
+    // coverage of that subject by that source, and an outcome naming neither is matched to no coverage
+    // — so a run would fetch, report, and record nothing, with only the absence to show for it.
+    [Fact]
+    public async Task RunAsync_EveryOutcomeNamesTheCallItCameFrom()
+    {
+        var fetcher = new ScriptedFetcher(name => name == "FloodPortal"
+            ? Task.FromResult(new SourceOutcome(name, false, "503 from the provider"))
+            : Resolved(name));
+        var site = Guid.NewGuid();
+        var sources = SourcesAbout(site, "OpenMeteo", "FloodPortal");
+
+        var report = await Runner(fetcher).RunAsync(site, sources, default);
+
+        foreach (var outcome in report.Resolved.Concat(report.Unresolved))
+        {
+            outcome.SubjectId.Should().Be(site);
+            outcome.SourceId.Should().Be(
+                sources.Single(source => source.Name == outcome.Source).SourceId);
+        }
+    }
+
     private sealed class CapturingFetcher : ISourceFetcher
     {
         private readonly List<IReadOnlyDictionary<string, string>> _seen;
