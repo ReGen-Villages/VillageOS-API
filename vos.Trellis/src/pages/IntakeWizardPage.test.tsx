@@ -112,7 +112,7 @@ beforeEach(() => {
   vi.mocked(intakeApi.submit).mockResolvedValue({ reference: 'sub-0001' });
   // Resolved a tick late, the way a real request does, so the code field appears after the click
   // rather than with it. A mock resolving at once hid that a test read the field before it existed,
-  // which only a loaded build agent showed (Bug #6819).
+  // which only a loaded build agent showed.
   vi.mocked(intakeApi.askForCode).mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 0)));
 });
 
