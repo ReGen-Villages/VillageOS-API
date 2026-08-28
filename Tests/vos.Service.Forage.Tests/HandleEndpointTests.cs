@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
+using vos.Service.Forage.Helpers;
 using vos.Service.Shared.DagNode;
 using Xunit;
 using static vos.Service.Forage.Tests.ModelSnapshotStub;
@@ -185,6 +186,42 @@ public class HandleEndpointTests
         writes.Should().Be(0, "starting the analysis would claim a discovery that never happened");
     }
 
+    // The same rule one read later: the subject was read as a site, and it is the read of what covers it
+    // that fails. Told by the mark the site's read asks for, so that the read failing is the one meant.
+    [Fact]
+    public async Task Handle_TheSitesCoverageReadFails_WritesNothingRatherThanReportingNoCoverage()
+    {
+        var ids = TwoSourceNames();
+        var coverageReads = 0;
+        var fetches = 0;
+        var writes = 0;
+        await using var factory = new ForageWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = request =>
+        {
+            if (request.Method == HttpMethod.Post
+                && request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()
+                    .Contains(CoveringSourceResolver.SiteAnalysisConnectionFlag, StringComparison.Ordinal))
+            {
+                coverageReads++;
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            }
+            if (request.RequestUri!.AbsolutePath == FetchRoute) fetches++;
+            if (request.Method == HttpMethod.Post && request.RequestUri.AbsolutePath.EndsWith("/facts", StringComparison.Ordinal)) writes++;
+            return RouteSubscription(request, ids, TwoCoveringSources())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        await factory.RunsStarted();
+
+        coverageReads.Should().Be(1);
+        fetches.Should().Be(0);
+        writes.Should().Be(0, "stamped, the site would read as worked out by a run that read nothing");
+    }
+
     // The body Mycelium posts when a site enters the state the discovery connection watches. Every field
     // beside the subject belongs to the record-edge the dispatch wrote, and a run reads none of them — but
     // a service that refused the whole body over them is a service nothing in the platform can dispatch.
@@ -262,13 +299,17 @@ public class HandleEndpointTests
     public async Task Handle_ReleasesTheSubscriptionItOpened()
     {
         // A read that leaves its subscription live would leak one per discovery run for the life of
-        // the process.
+        // the process. A run reads more than once — what the subject is, then what it reaches — and
+        // every one of those has to be released.
         var ids = Names("WillowBend", "isIn", "covers", "resolvedBy");
+        var opened = 0;
         var released = 0;
         await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
+            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath == "/api/subscriptions")
+                opened++;
             if (req.Method == HttpMethod.Delete
                 && req.RequestUri!.AbsolutePath.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
                 released++;
@@ -279,7 +320,8 @@ public class HandleEndpointTests
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
         await factory.RunsStarted();
 
-        released.Should().Be(1);
+        opened.Should().BeGreaterThan(0);
+        released.Should().Be(opened);
     }
 
     [Fact]

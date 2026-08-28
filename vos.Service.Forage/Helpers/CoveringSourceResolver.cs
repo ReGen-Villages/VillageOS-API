@@ -36,7 +36,7 @@ public sealed record AnalysisTrigger(string ConnectionName, Guid ConnectionId, G
 // The study to compute, and every service that computes part of it.
 public sealed record SiteAnalysis(Guid StudyId, IReadOnlyList<AnalysisTrigger> Triggers);
 
-// Reads which sources cover a site, from one scoped snapshot.
+// Reads which sources cover a site, and which sites a source reaches, each from one scoped snapshot.
 //
 // Coverage is edges, never a string: a source `covers` a Place, a site `isIn` a Place, and Places nest
 // through `isIn` so a source covering a continent — or the root every Place sits under — covers every
@@ -63,6 +63,15 @@ public static class CoveringSourceResolver
     // mark rather than by name, so adding a balance is an edit to the model: name them here and the two
     // repositories would agree about the analysis only by spelling, which is what #6516 removed.
     public const string SiteAnalysisConnectionFlag = "__IsSiteAnalysisConnectionArchetype";
+
+    // The archetype every site `is`, marked by the platform (Task #6811) so that a walk reaching Places
+    // and sites alike can tell the two apart — and so that a dispatch naming a source is told from one
+    // naming a site by the model, never by the name of the connection that dispatched it.
+    public const string SiteArchetypeFlag = "__IsSiteArchetype";
+
+    // Nothing offered to a site is fetched here, so the calls a source reaches carry no address; the run
+    // that fetches is the site's own, which addresses each call from the site outward.
+    private static readonly IReadOnlyDictionary<string, string> NoAddress = new Dictionary<string, string>();
 
     // Place nesting is a handful of levels — a country inside a region inside the root is the deepest
     // shape anyone has needed. Far beyond that, and costing one unused set expansion per level, which
@@ -104,9 +113,12 @@ public static class CoveringSourceResolver
         Names = [.. PredicatesRead],
         // Model-wide rather than reached from the site: the study is not related to its connections yet,
         // because relating it is what this read is for.
-        // The coverage archetype is asked for model-wide for a different reason than the connections: a
-        // run mints against it, so it has to arrive before any coverage exists to traverse from.
-        MarkedTypes = [SiteAnalysisConnectionFlag, SourceCoverageArchetypeFlag],
+        MarkedTypes = [SiteAnalysisConnectionFlag],
+        // The coverage archetype is asked for model-wide for a different reason: a run mints against it,
+        // so it has to arrive before any coverage exists to traverse from. Alone, though — with its
+        // members, every coverage in the model arrived on every site's read (Bug #6818); the ones about
+        // this site come through the `appliesTo` traversal below.
+        MarkedArchetypes = [SourceCoverageArchetypeFlag],
         Traverse =
         [
             new TraverseRule { Predicate = IsInPredicate, Depth = PlaceNestingDepth },
@@ -131,6 +143,124 @@ public static class CoveringSourceResolver
         ],
         IncludeRelationships = true,
     };
+
+    // What a dispatch named. The subject's own `is` chain arrives with the ancestors the broker closes
+    // over; the site archetype is asked for on its own so that a model without the mark reads as one,
+    // rather than as a subject that is not a site — and alone, because with its members every site in
+    // the model would arrive to answer a question about one Thing.
+    public static SubscriptionSelector KindSelectorFor(Guid subjectId) => new()
+    {
+        Ids = [subjectId],
+        Names = [IsPredicateName, CoversPredicate, ResolvedByPredicate],
+        MarkedArchetypes = [SiteArchetypeFlag],
+        IncludeRelationships = true,
+    };
+
+    // A site is whatever `is` the marked archetype, directly or through intermediate types. A source is
+    // whatever else covers a Place or is resolved by a registration — the two edges that make it one —
+    // rather than anything that is not a site, because anything else taken for a source would be stamped
+    // as worked out, and a stamp on the archetype itself is inherited by every site.
+    public static SubjectKind KindOf(SnapshotDocument snapshot, Guid subjectId)
+    {
+        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
+        var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
+
+        var siteArchetypes = ArchetypesCarrying(snapshot, SiteArchetypeFlag);
+        if (siteArchetypes.Count == 0) return SubjectKind.ModelMarksNoSite;
+
+        if (MembersReachedFrom(snapshot, thingsById, namesById, siteArchetypes).Contains(subjectId))
+            return SubjectKind.Site;
+
+        var callable = snapshot.Relationships.Any(edge =>
+            edge.SubjectId == subjectId
+            && (IsPredicate(namesById, edge.PredicateId, CoversPredicate)
+                || IsPredicate(namesById, edge.PredicateId, ResolvedByPredicate)));
+
+        return callable ? SubjectKind.Source : SubjectKind.NeitherSiteNorSource;
+    }
+
+    // Everything in one read, from the other end: the Places the source covers, everything nested in
+    // them to the depth a site's own walk climbs, what each site there has of what the source resolves
+    // onto, and the coverages already recorded for those subjects. The sites are told from the Places by
+    // the marked archetype, which needs no asking for — every site the nesting reaches brings its own `is`
+    // chain with the ancestors the broker closes over.
+    public static SubscriptionSelector SelectorForSource(Guid sourceId) => new()
+    {
+        Ids = [sourceId],
+        Names = [.. PredicatesRead],
+        MarkedArchetypes = [SourceCoverageArchetypeFlag],
+        Traverse =
+        [
+            new TraverseRule { Predicate = CoversPredicate },
+            new TraverseRule { Predicate = ResolvedByPredicate },
+            new TraverseRule { Predicate = ResolvesOntoPredicate },
+            // Incoming and downwards: the edge runs site -> place, and the set so far holds the places.
+            new TraverseRule { Predicate = IsInPredicate, Direction = "incoming", Depth = PlaceNestingDepth },
+            // After the nesting: what each site there has, which is what a per-subject source is called about.
+            new TraverseRule { Predicate = HasPredicate },
+            new TraverseRule { Predicate = AppliesToPredicate, Direction = "incoming" },
+            new TraverseRule { Predicate = SourcedFromPredicate },
+        ],
+        IncludeRelationships = true,
+    };
+
+    // The source, with a call for every subject the sites under the Places it covers would be called
+    // about — so the coverages minted from these are exactly the ones those sites' own runs look for.
+    // Empty when the source has no registration, for the reason the site's walk leaves such a source
+    // out: nothing can call it, and a coverage minted for it would hold every site outstanding for ever.
+    public static IReadOnlyList<CoveringSource> Reach(SnapshotDocument snapshot, Guid sourceId)
+    {
+        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
+        var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
+
+        if (!thingsById.TryGetValue(sourceId, out var source)) return [];
+        if (EndpointOf(snapshot, namesById, thingsById, sourceId) is not { } endpoint) return [];
+
+        var covered = snapshot.Relationships
+            .Where(edge => edge.SubjectId == sourceId && IsPredicate(namesById, edge.PredicateId, CoversPredicate))
+            .Select(edge => edge.TargetId);
+        var within = NestedWithin(snapshot, namesById, covered);
+
+        // Ordered by name so two runs offer a source the same way twice, which is what makes their logs
+        // comparable.
+        var sites = MembersOfArchetypesCarrying(snapshot, thingsById, namesById, SiteArchetypeFlag)
+            .Where(within.Contains)
+            .OrderBy(siteId => namesById.GetValueOrDefault(siteId, string.Empty), StringComparer.Ordinal)
+            .ThenBy(siteId => siteId);
+
+        var calls = sites
+            .SelectMany(siteId => SubjectsCalledAbout(snapshot, thingsById, namesById, sourceId, siteId))
+            .Select(subjectId => new SourceCall(
+                subjectId, namesById.GetValueOrDefault(subjectId, string.Empty), NoAddress))
+            .ToList();
+
+        return [new CoveringSource(sourceId, source.Name ?? string.Empty, endpoint.Name ?? string.Empty, calls)];
+    }
+
+    // The covered Places and everything nested in them, walking `isIn` against its direction to any
+    // depth. The Places themselves are among them, so a source relating straight to a site covers it.
+    private static HashSet<Guid> NestedWithin(
+        SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, IEnumerable<Guid> places)
+    {
+        var within = new HashSet<Guid>(places);
+        var frontier = new Queue<Guid>(within);
+
+        while (frontier.Count > 0)
+        {
+            var current = frontier.Dequeue();
+            foreach (var edge in snapshot.Relationships)
+            {
+                if (edge.TargetId != current) continue;
+                if (!IsPredicate(namesById, edge.PredicateId, IsInPredicate)) continue;
+                if (within.Add(edge.SubjectId)) frontier.Enqueue(edge.SubjectId);
+            }
+        }
+
+        return within;
+    }
+
+    private static List<Guid> ArchetypesCarrying(SnapshotDocument snapshot, string flag) =>
+        snapshot.Things.Where(thing => CarriesFlag(thing, flag)).Select(thing => thing.Id).ToList();
 
     // Every coverage the snapshot holds. Not filtered by site: the read is already scoped to one site's
     // reachable set, and a coverage hangs off whichever Thing its call was about — the site itself, or
@@ -236,17 +366,40 @@ public static class CoveringSourceResolver
         return covering;
     }
 
-    // The calls one covering source is fetched through. A source that declares nothing it resolves
-    // onto is called once, about the site. One that does is called once per Thing the site has of the
-    // declared archetype, about that Thing — addressed with the subject's own values, then the values
-    // of what it reaches, then the site's, so the most specific holder of a name decides it.
+    // The calls one covering source is fetched through, each addressed from its subject outward: a call
+    // about the site takes the site's values; one about a Thing the site has takes the subject's own
+    // values, then the values of what it reaches, then the site's, so the most specific holder of a name
+    // decides it.
     private static IReadOnlyList<SourceCall> CallsFor(
         SnapshotDocument snapshot,
         IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
         IReadOnlyDictionary<Guid, string> namesById,
         Guid sourceId,
         Guid siteId,
-        IReadOnlyDictionary<string, string> siteValues)
+        IReadOnlyDictionary<string, string> siteValues) =>
+        SubjectsCalledAbout(snapshot, thingsById, namesById, sourceId, siteId)
+            .Select(subjectId => new SourceCall(
+                subjectId,
+                namesById.GetValueOrDefault(subjectId, string.Empty),
+                subjectId == siteId
+                    ? siteValues
+                    : Layered(
+                    [
+                        OwnValues.Of(snapshot, subjectId),
+                        AgreedValues(snapshot, VocabularyOf(snapshot, namesById, subjectId)),
+                        siteValues,
+                    ])))
+            .ToList();
+
+    // The Things one source is called about for one site. A source that declares nothing it resolves
+    // onto is called once, about the site; one that does is called once per Thing the site has of the
+    // declared archetype, by name then identity so a run calls them the same way twice.
+    private static List<Guid> SubjectsCalledAbout(
+        SnapshotDocument snapshot,
+        IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
+        IReadOnlyDictionary<Guid, string> namesById,
+        Guid sourceId,
+        Guid siteId)
     {
         var declared = snapshot.Relationships
             .Where(edge => edge.SubjectId == sourceId
@@ -254,8 +407,7 @@ public static class CoveringSourceResolver
             .Select(edge => edge.TargetId)
             .ToList();
 
-        if (declared.Count == 0)
-            return [new SourceCall(siteId, namesById.GetValueOrDefault(siteId, string.Empty), siteValues)];
+        if (declared.Count == 0) return [siteId];
 
         // A declaration pointing at anything but an archetype resolves onto nothing. Falling back to
         // a per-site call would be refused for its unfilled placeholders, and the run would report
@@ -269,22 +421,10 @@ public static class CoveringSourceResolver
             .Select(edge => edge.TargetId)
             .ToHashSet();
 
-        var subjects = MembersReachedFrom(snapshot, thingsById, namesById, resolutionArchetypes)
+        return MembersReachedFrom(snapshot, thingsById, namesById, resolutionArchetypes)
             .Where(owned.Contains)
             .OrderBy(subjectId => namesById.GetValueOrDefault(subjectId, string.Empty), StringComparer.Ordinal)
             .ThenBy(subjectId => subjectId)
-            .ToList();
-
-        return subjects
-            .Select(subjectId => new SourceCall(
-                subjectId,
-                namesById.GetValueOrDefault(subjectId, string.Empty),
-                Layered(
-                [
-                    OwnValues.Of(snapshot, subjectId),
-                    AgreedValues(snapshot, VocabularyOf(snapshot, namesById, subjectId)),
-                    siteValues,
-                ])))
             .ToList();
     }
 
@@ -415,9 +555,7 @@ public static class CoveringSourceResolver
     private static List<Guid> MembersOfArchetypesCarrying(
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
         IReadOnlyDictionary<Guid, string> namesById, string flag) =>
-        MembersReachedFrom(
-            snapshot, thingsById, namesById,
-            snapshot.Things.Where(thing => CarriesFlag(thing, flag)).Select(thing => thing.Id));
+        MembersReachedFrom(snapshot, thingsById, namesById, ArchetypesCarrying(snapshot, flag));
 
     // Every Thing that `is` — directly or through intermediate types — one of the given archetypes.
     // Walked outwards from them rather than upwards from each Thing, so the snapshot's relationships

@@ -70,12 +70,12 @@ unresolved list either, because nothing knew to look for it.
 
 | Predicate | Reads | Why |
 |---|---|---|
-| `isIn` | `Site isIn Place`, `Place isIn Place` | Where the site is, and what contains that. Walked to any depth, so nesting can be as deep as a model wants. |
+| `isIn` | `Site isIn Place`, `Place isIn Place` | Where the site is, and what contains that. Walked to any depth, so nesting can be as deep as a model wants — upwards from a site, and downwards from the Places a source covers when the source is what was dispatched. |
 | `covers` | `DataSource covers Place` | Where a source applies. Several `covers` edges are fine; the source is still selected once. |
 | `resolvedBy` | `DataSource resolvedBy Endpoint` | Which Tributary registration a call goes through. A relation, not a copied name, so renaming the registration cannot strand the source. |
 | `resolvesOnto` | `DataSource resolvesOnto archetype` | What a source's readings are about, where that is not the site itself. A source naming an archetype is called once per Thing the site `has` of it, with that Thing as the call's subject — the hazard portal grades one assessment per call. |
 | `studies` | `SiteStudy studies Site` | The study the analysis computes. Read incoming, because the edge runs from the study to the site. |
-| `has`, `is` | `Connection has Service`, `Service is prototype`, `Site has HazardAssessment` | Which service a connection dispatches, the prototype an analysis edge points at, and the Things a per-subject source is called about. |
+| `has`, `is` | `Connection has Service`, `Service is prototype`, `Site has HazardAssessment`, `Site is Site` | Which service a connection dispatches, the prototype an analysis edge points at, the Things a per-subject source is called about — and whether a Thing is a site, by the `__IsSiteArchetype` mark on what it `is`. |
 | `assesses` | `HazardAssessment assesses HazardType` | What an assessment is about. The type Thing carries the portal's code for it, and a per-assessment call is addressed with what its subject reaches — a second per-subject source whose vocabulary hangs off a different predicate adds that predicate here. |
 
 Connections are **not** read by name. Every connection a site analysis starts `is` an archetype
@@ -92,15 +92,27 @@ is no outage for an operator to look into.
 
 ## Reading the model
 
-One scoped snapshot answers everything: the site's Places, then every source whose coverage
-reaches one of them, then those sources' registrations. Traverse rules compose over the set
-built so far, so the walk must ask for `isIn` **first** — asking for the incoming `covers`
-edges before the Places are in the set finds nothing. That is the same ordering trap the
-Tributary endpoint kinds hit; see [`TRIBUTARY.md`](TRIBUTARY.md).
+One scoped snapshot answers each question. **What the dispatch named** is read first: the subject with
+its `is` chain, and the site archetype the platform marks with `__IsSiteArchetype` (platform Task
+#6811) — asked for on its own, because with its members every site in the model would arrive to
+answer a question about one Thing. A subject that `is` that archetype, directly or through
+intermediate types, is a site; one that is not and `covers` a Place or is `resolvedBy` a registration
+is a source; anything else is neither, and the run writes nothing for it. A model that marks no site
+archetype cannot tell the two apart, and every subject in it is taken for a site — such a model cannot
+have declared the connection that dispatches a source either.
 
-A failed read returns **502**, never an empty list. An unreachable gateway must not read as
+**A site's read** then answers everything about it: the site's Places, then every source whose coverage
+reaches one of them, then those sources' registrations. Traverse rules compose over the set built so
+far, so the walk must ask for `isIn` **first** — asking for the incoming `covers` edges before the
+Places are in the set finds nothing. That is the same ordering trap the Tributary endpoint kinds hit;
+see [`TRIBUTARY.md`](TRIBUTARY.md). **A source's read** is the same walk from the other end: the Places
+it `covers`, then `isIn` walked *downwards* through their nesting, then what each site there `has` —
+see [A source added to the catalogue](#a-source-added-to-the-catalogue).
+
+A failed read writes nothing, never an empty answer. An unreachable gateway must not read as
 "no source covers this site" — the two answers look identical to a caller and only one of
-them is true.
+them is true — nor as a source that reaches no site, which would then be stamped as offered to all
+of them.
 
 ## What starts a run
 
@@ -117,11 +129,16 @@ the model afterwards**, which a call over HTTP would have left only in a log.
 | A run does not start again | The run records each source's answer on that source's own coverage and stamps `coverageWorkedOutAt` on the site; once no coverage is outstanding the site leaves the state on its own |
 | A run in which a source failed | Leaves that source's coverage outstanding, so the site stays in the state; the dispatch record waits out its `done_within`, the run is driven again, and it asks only that source |
 | A run whose model read failed | Writes nothing and stamps nothing, so the site stays in the state and the next load dispatches again — bounded by the platform's oscillation guard |
-| A source added to the catalogue later | Reaches a site already discovered once a coverage is minted for it: one outstanding coverage puts the site back in the state, and the run asks only that source (the minting half is Task #6812) |
+| A source added to the catalogue later | Is dispatched itself, from its own state, and offered to every site under the Places it covers: a coverage minted per call those sites would make, nothing fetched. One outstanding coverage puts each site back in the state, and that site's run asks only this source — see [A source added to the catalogue](#a-source-added-to-the-catalogue) |
 | A surveyed site | Enters the same state and is discovered the same way; nothing here is particular to a submission |
 
-The range and the connection are declared in the platform repository — the range beside the `Site`
-archetype in `land-intake.template.json`, the connection beside the sources in
+**A source has a state of its own.** `SourceAwaitingSites` on the `DataSource` archetype — its
+`coverageWorkedOutAt` unknown — is what dispatches a source, and a source declared in a template is in
+it the moment the seed loads, so the sites already in the model are offered it without anything calling
+anything. The run stamps the source when it has reached every site, which is what takes it out.
+
+The ranges and the connections are declared in the platform repository — the ranges beside the `Site`
+and `DataSource` archetypes in `land-intake.template.json`, the connections beside the sources in
 `open-data-sources.template.json` (platform Tasks #6771 and #6790). A deployment that never fetches
 reads neither file and runs no discovery service.
 
@@ -155,12 +172,47 @@ time, which is the behaviour that shipped before these Things existed — discov
 be worse than the once-ever discovery they replace. The archetype is found by the mark the platform
 declares it with, never by name.
 
+## A source added to the catalogue
+
+**A source is dispatched too, and its run is the site's run in reverse: it mints and fetches nothing**
+(Task #6812). A site's run walks from the site up through its Places to the sources covering them; a
+source's run walks from the source through the Places it `covers` and *down* their nesting to every
+site in them. Places and sites arrive by the same walk, and the mark the platform puts on the site
+archetype (`__IsSiteArchetype`, platform Task #6811) is what tells them apart — the `proposes` edge
+could not, because it reaches a submitted site only and a surveyed site has no such edge.
+
+**One coverage per call those sites would make.** The run works out, for each site it reaches, the
+calls the source would be asked — one about the site, or one per Thing the site has of what the source
+`resolvesOnto` — and mints a coverage for every call the model records none for, relating it
+`appliesTo` the subject and `sourcedFrom` the source, exactly as the site's run would. A call already
+recorded, answered or not, is left alone: a second coverage would let a site be judged against one and
+recorded on the other. A site in a Place the source does not cover is not offered it, however many other
+sources cover that Place.
+
+**Nothing is fetched here.** A minted coverage is outstanding, and that is what puts each site back in
+`SiteAwaitingDiscovery`; the run that fetches is the site's own, and it asks only this source. Running
+the fetches from the source's side would call every site's providers from one dispatch, unbounded by
+the concurrency a site's run holds to.
+
+**`coverageWorkedOutAt` is stamped on the source when the run has reached every site**, including a
+source with no registration — offered to nothing, because nothing can call it — so it leaves
+`SourceAwaitingSites` rather than being dispatched again on every load. A run whose read failed stamps
+nothing and mints nothing: stamped, the source would read as offered to every site it covers while
+having reached none, and nothing would offer it again. A model declaring no coverage vocabulary has
+nothing to mint, so the run writes nothing and says so.
+
+**A subject that is neither a site nor a source is a dispatch the model got wrong**, and the run says so
+by writing nothing — the site's run would stamp a Place as worked out, and a source's run would offer it
+to nothing and do the same. An archetype is never a site: a stamp on the site archetype itself would be
+inherited by every site and take all of them out of the state their runs are dispatched by.
+
 ## The run
 
 `POST /handle { subjectId }` **accepts** a run and answers `202` at once; the fetching happens after.
 The body is whatever the platform posts for a dispatch — the record-edge's own fields — and the
 subject is read from it through the classifier every dispatched service shares, so this service
-declares no request shape of its own.
+declares no request shape of its own. The subject is a site or a source, and the model says which (see
+[Reading the model](#reading-the-model)); the rest of this section is a site's run.
 
 **The answer says accepted, not done.** A run fetches every covering source before it could say what
 it found, and the platform gives a dispatch **15 seconds**; with tens of shared sources, fetched

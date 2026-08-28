@@ -44,7 +44,7 @@ public sealed class CoverageLedger
     // any call the model has none for. A call whose coverage resolved is left out, which is the whole of
     // "a source that already answered is not called again while its answer stands".
     public async Task<IReadOnlyList<OutstandingCall>> OutstandingAsync(
-        SiteCoverage coverage, CancellationToken cancellationToken)
+        Coverage coverage, CancellationToken cancellationToken)
     {
         var recorded = coverage.Recorded.ToDictionary(entry => (entry.SubjectId, entry.SourceId));
         var outstanding = new List<OutstandingCall>();
