@@ -110,7 +110,10 @@ beforeEach(() => {
   vi.mocked(thingApi.getAllProperties).mockResolvedValue(PROPERTIES);
   vi.mocked(intakeApi.configured).mockReturnValue(true);
   vi.mocked(intakeApi.submit).mockResolvedValue({ reference: 'sub-0001' });
-  vi.mocked(intakeApi.askForCode).mockResolvedValue(undefined);
+  // Resolved a tick late, the way a real request does, so the code field appears after the click
+  // rather than with it. A mock resolving at once hid that a test read the field before it existed,
+  // which only a loaded build agent showed.
+  vi.mocked(intakeApi.askForCode).mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 0)));
 });
 
 /** Walk to a step by pressing Next, which is also what makes each one reachable again. */
@@ -465,9 +468,10 @@ describe('posting the submission', () => {
    *  the submission under it. */
   async function askForACodeAndSubmit(code = '314159'): Promise<void> {
     fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
-    await waitFor(() => expect(intakeApi.askForCode).toHaveBeenCalled());
 
-    fireEvent.change(screen.getByLabelText('Code'), { target: { value: code } });
+    // Waited for the field itself, not for the request that leads to it: the field appears when the
+    // request resolves, a tick after it was made.
+    fireEvent.change(await screen.findByLabelText('Code'), { target: { value: code } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
   }
 
