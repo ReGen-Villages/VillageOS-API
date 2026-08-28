@@ -112,6 +112,17 @@ Returns `{ subscriptionId, watermark, snapshot }`. The snapshot lists `things` a
 `relationships`, each with own `Properties` and `InheritedOverrides` (kept separate), `States`,
 and incident relationship ids. `watermark` is the commit sequence the snapshot was taken at.
 
+**Read both, and read them through `StatedValue`.** A value written for a property name the Thing's
+archetype declares is not an own property: the platform clones the declaration into an override under
+that archetype's id and writes there, so the instance keeps its own value without touching the type.
+`InheritedOverrides` is where it lands, and `Properties` is empty. Almost every figure a submission
+sends is of that kind, so a reader of `Properties` alone finds them all absent while the same figures
+read back over the REST routes, which resolve. `SnapshotValues.StatedValue(name)` answers the question
+a service is asking — did this Thing state this — by reading own properties first, then the override
+sets and any nested inside them, and never up the `is` chain, so a member never answers with the mark
+or the default its archetype carries. `ValuesStated()` does the same for a reader taking whatever it
+finds.
+
 A Thing also carries `RollupProperties` — **how each computed value it owns is worked out**, keyed
 the way its properties are, and absent rather than empty when it owns none. A value the platform
 derives reads back as a type alone (`vos.DecimalExpression` for a formula), which says that it was

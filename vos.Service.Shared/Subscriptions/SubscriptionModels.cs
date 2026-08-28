@@ -48,19 +48,27 @@ public sealed record SnapshotDocument(
 
 public sealed record SnapshotProperty(JsonElement Value, string? TypeInfo, string? Mode);
 
-// Properties inherited from one type ancestor, kept separate from own properties (no shadowing).
+// What a Thing states for a name one of its type ancestors declares, kept apart from its own properties
+// because the snapshot never shadows one with the other. `Inherited` nests one set per further ancestor,
+// for a name declared further up the chain than the type the Thing directly `is`.
 public sealed record InheritedPropertySet(
     string? SourceName,
-    Dictionary<string, SnapshotProperty> Properties);
+    Dictionary<string, SnapshotProperty> Properties,
+    Dictionary<string, InheritedPropertySet>? Inherited);
 
 // IsArchetype tells a type from a member of one. Read it before walking the members of a type, or
 // the type itself comes back among them — nothing else in the payload separates the two.
+//
+// InheritedOverrides is named as Mycelium serializes it. A member named anything else binds to nothing,
+// and since that is where every value a Thing states over its archetype's declaration is carried, a
+// reader of Properties alone finds each of them absent. Read both through
+// <see cref="SnapshotValues.StatedValue(SnapshotThing, string)"/> rather than either directly.
 public sealed record SnapshotThing(
     Guid Id,
     string? Name,
     bool IsArchetype,
     Dictionary<string, SnapshotProperty> Properties,
-    Dictionary<string, InheritedPropertySet> InheritedProperties,
+    Dictionary<string, InheritedPropertySet>? InheritedOverrides,
     string[] States,
     Guid[] Relationships);
 
@@ -71,7 +79,7 @@ public sealed record SnapshotRelationship(
     Guid PredicateId,
     Guid TargetId,
     Dictionary<string, SnapshotProperty> Properties,
-    Dictionary<string, InheritedPropertySet> InheritedProperties,
+    Dictionary<string, InheritedPropertySet>? InheritedOverrides,
     string[] States);
 
 // Sequence is the commit sequence (the SSE event id) used for Last-Event-ID resume.

@@ -30,17 +30,37 @@ public class ProgrammeSplitReaderTests
         {
             var id = Id(name);
             _things.RemoveAll(thing => thing.Id == id);
-            _things.Add(Thing(id, name, properties.ToDictionary(
-                property => property.Key,
-                property => new SnapshotProperty(
-                    JsonDocument.Parse(JsonSerializer.Serialize(property.Value)).RootElement, null, null))));
+            _things.Add(Thing(id, name, Values(properties)));
             return this;
         }
+
+        /// <summary>The same Thing as a submission leaves it. A value written for a name the Thing's
+        /// archetype declares — which every figure a submission sends is — is stored as an override under
+        /// that archetype rather than among the Thing's own properties, so this is the shape the reader
+        /// actually meets on a live model and <see cref="With"/> is the shape a seeded template mints.</summary>
+        public ModelBuilder Stating(string name, params (string Key, object Value)[] properties)
+        {
+            var id = Id(name);
+            _things.RemoveAll(thing => thing.Id == id);
+            _things.Add(new SnapshotThing(id, name, false, new Dictionary<string, SnapshotProperty>(),
+                new Dictionary<string, InheritedPropertySet>
+                {
+                    [$"{name}-archetype"] = new($"{name}-archetype", Values(properties), null),
+                },
+                [], []));
+            return this;
+        }
+
+        private static Dictionary<string, SnapshotProperty> Values((string Key, object Value)[] properties) =>
+            properties.ToDictionary(
+                property => property.Key,
+                property => new SnapshotProperty(
+                    JsonDocument.Parse(JsonSerializer.Serialize(property.Value)).RootElement, null, null));
 
         public ModelBuilder Relate(string subject, string predicate, string target)
         {
             _edges.Add(new SnapshotRelationship(Guid.NewGuid(), null, Id(subject), Id(predicate), Id(target),
-                new Dictionary<string, SnapshotProperty>(), new Dictionary<string, InheritedPropertySet>(), []));
+                new Dictionary<string, SnapshotProperty>(), null, []));
             return this;
         }
 
@@ -59,7 +79,7 @@ public class ProgrammeSplitReaderTests
         public SnapshotDocument Build() => new(0, _things, _edges);
 
         private static SnapshotThing Thing(Guid id, string name, Dictionary<string, SnapshotProperty> properties) =>
-            new(id, name, false, properties, new Dictionary<string, InheritedPropertySet>(), [], []);
+            new(id, name, false, properties, null, [], []);
     }
 
     // A site with a parcel and two allocations, each naming a marked category.
@@ -93,6 +113,37 @@ public class ProgrammeSplitReaderTests
         split.Categories.Select(category => category.Name).Should().BeEquivalentTo("residential", "food-and-agriculture");
         split.Categories.Single(c => c.Name == "residential").IsBuilt.Should().BeTrue();
         split.Categories.Single(c => c.Name == "food-and-agriculture").IsProductive.Should().BeTrue();
+    }
+
+    /// <summary>The same site as a submission leaves it (#6805). Every figure a submission sends is written
+    /// for a name its archetype declares, so the model stores it as an override and the Thing's own
+    /// properties are empty. Read from own properties alone, the parcel is not a parcel and an allocation
+    /// is not an allocation: the split comes back empty, the study is reported as reaching no parcel, and
+    /// nothing is left in what the split was read from for a later change to re-drive.</summary>
+    [Fact]
+    public void The_split_reads_what_a_submitted_site_states_over_its_archetypes_declarations()
+    {
+        var model = new ModelBuilder()
+            .With("categorizedAs", (ProgrammeSplitReader.CategoryFlag, true))
+            .With("residential", (ProgrammeSplitReader.BuiltFootprintFlag, true))
+            .With("food-and-agriculture", (ProgrammeSplitReader.ProductiveFootprintFlag, true))
+            .Stating("parcel", (ProgrammeSplitReader.ParcelAreaProperty, 28.39))
+            .Stating("housing", (ProgrammeSplitReader.SharePctProperty, 40.0))
+            .Stating("growing", (ProgrammeSplitReader.SharePctProperty, 60.0))
+            .Relate("study", "studies", "WillowBend")
+            .Relate("WillowBend", "has", "parcel")
+            .Relate("WillowBend", "has", "housing")
+            .Relate("WillowBend", "has", "growing")
+            .Relate("housing", "categorizedAs", "residential")
+            .Relate("growing", "categorizedAs", "food-and-agriculture");
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.ParcelAreaHectares.Should().Be(28.39);
+        split.Categories.Select(category => category.Name)
+            .Should().BeEquivalentTo("residential", "food-and-agriculture");
+        split.ReadsFrom.Should().BeEquivalentTo(
+            [model.Id("parcel"), model.Id("housing"), model.Id("growing")]);
     }
 
     [Fact]
@@ -384,5 +435,42 @@ public class ProgrammeSplitReaderTests
 
         selector.Traverse!.Should().Contain(rule => rule.PredicateFlag == ProgrammeSplitReader.CategoryFlag);
         selector.Names.Should().Contain(new[] { ProgrammeSplitReader.StudiesPredicate, ProgrammeSplitReader.HasPredicate });
+    }
+
+    /// <summary>The read tells an allocation's category edge from its other edges by the mark on the
+    /// predicate Thing, so that Thing has to be in the snapshot. A traversal brings what an edge points at
+    /// and never the predicate it was followed through, and the two structural predicates are in only
+    /// because they are asked for by name — so without this the marked set is empty, every allocation
+    /// reads as naming no category, and the service refuses the whole split (#6805).</summary>
+    [Fact]
+    public void The_selector_asks_for_the_category_predicate_thing_itself()
+    {
+        var selector = ProgrammeSplitReader.SelectorFor(Guid.NewGuid());
+
+        selector.MarkedArchetypes.Should().Contain(ProgrammeSplitReader.CategoryFlag);
+        selector.MarkedTypes.Should().BeNull(
+            "the predicate's members are every allocation in the model, and the read needs only the predicate");
+    }
+
+    /// <summary>A snapshot whose category predicate carries no mark — which is what a selector that never
+    /// asked for the predicate Thing left the reader with, since a Thing reached only as an edge's
+    /// predicate arrives carrying nothing. Every allocation then names no category the reader can find, and
+    /// the split it hands back has the service refuse rather than allocate.</summary>
+    [Fact]
+    public void An_allocation_whose_category_predicate_carries_no_mark_reads_as_uncategorised()
+    {
+        var model = new ModelBuilder()
+            .With("residential", (ProgrammeSplitReader.BuiltFootprintFlag, true))
+            .Stating("parcel", (ProgrammeSplitReader.ParcelAreaProperty, 28.39))
+            .Stating("housing", (ProgrammeSplitReader.SharePctProperty, 100.0))
+            .Relate("study", "studies", "WillowBend")
+            .Relate("WillowBend", "has", "parcel")
+            .Relate("WillowBend", "has", "housing")
+            .Relate("housing", "categorizedAs", "residential");
+
+        var split = ProgrammeSplitReader.Read(model.Build(), model.Id("study"));
+
+        split.Uncategorised.Should().ContainSingle().Which.Should().Be("housing");
+        split.Categories.Should().BeEmpty();
     }
 }

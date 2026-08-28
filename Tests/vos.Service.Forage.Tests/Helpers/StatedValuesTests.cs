@@ -6,7 +6,7 @@ using Xunit;
 
 namespace vos.Service.Forage.Tests.Helpers;
 
-public class OwnValuesTests
+public class StatedValuesTests
 {
     private static SnapshotProperty Property(string json) =>
         new(JsonDocument.Parse(json).RootElement, null, null);
@@ -23,7 +23,7 @@ public class OwnValuesTests
         new(0, things.ToList(), new List<SnapshotRelationship>());
 
     [Fact]
-    public void Of_ReturnsTheSitesOwnValues()
+    public void Of_ReturnsTheSitesStatedValues()
     {
         var siteId = Guid.NewGuid();
         var snapshot = Snapshot(Site(siteId, new Dictionary<string, SnapshotProperty>
@@ -33,7 +33,7 @@ public class OwnValuesTests
             ["climateZone"] = Property("\"Csa\""),
         }));
 
-        var values = OwnValues.Of(snapshot, siteId);
+        var values = StatedValues.Of(snapshot, siteId);
 
         values["lat"].Should().Be("-25.75");
         values["lng"].Should().Be("28.19");
@@ -52,29 +52,51 @@ public class OwnValuesTests
             ["elevation"] = Property("1200"),
         }));
 
-        var values = OwnValues.Of(snapshot, siteId);
+        var values = StatedValues.Of(snapshot, siteId);
 
         values["lng"].Should().Be("28.19");
         values["elevation"].Should().Be("1200");
     }
 
+    /// <summary>A submitted site states its coordinates over the names its archetype declares, so the
+    /// model stores them as overrides and its own properties are empty. Read as inherited defaults and
+    /// left out, every submitted site addressed its sources with nothing (#6805).</summary>
     [Fact]
-    public void Of_LeavesOutInheritedValues()
+    public void Of_CarriesWhatTheSiteStatesOverItsArchetypesDeclaration()
     {
-        // A value inherited from an archetype is a default for a kind of site. Calling a provider
-        // with a default location would return a confident reading about somewhere else.
         var siteId = Guid.NewGuid();
         var snapshot = Snapshot(Site(siteId,
-            own: new Dictionary<string, SnapshotProperty> { ["lat"] = Property("-25.75") },
             inherited: new Dictionary<string, InheritedPropertySet>
             {
-                ["SiteArchetype"] = new("SiteArchetype", new Dictionary<string, SnapshotProperty>
+                ["Site"] = new("Site", new Dictionary<string, SnapshotProperty>
                 {
-                    ["lng"] = Property("0"),
-                }),
+                    ["lat"] = Property("-25.75"),
+                    ["lng"] = Property("28.19"),
+                }, null),
             }));
 
-        var values = OwnValues.Of(snapshot, siteId);
+        var values = StatedValues.Of(snapshot, siteId);
+
+        values["lat"].Should().Be("-25.75");
+        values["lng"].Should().Be("28.19");
+    }
+
+    /// <summary>What the archetype itself carries stays on the archetype. The snapshot puts a value the
+    /// instance never wrote nowhere in the instance's payload, so a default for a kind of site cannot
+    /// reach a provider as though it were this site's own.</summary>
+    [Fact]
+    public void Of_LeavesOutWhatOnlyTheArchetypeCarries()
+    {
+        var siteId = Guid.NewGuid();
+        var archetype = new SnapshotThing(
+            Guid.NewGuid(), "Site", true,
+            new Dictionary<string, SnapshotProperty> { ["lng"] = Property("0") },
+            null, Array.Empty<string>(), Array.Empty<Guid>());
+        var snapshot = Snapshot(
+            Site(siteId, own: new Dictionary<string, SnapshotProperty> { ["lat"] = Property("-25.75") }),
+            archetype);
+
+        var values = StatedValues.Of(snapshot, siteId);
 
         values.Should().ContainKey("lat");
         values.Should().NotContainKey("lng");
@@ -92,7 +114,7 @@ public class OwnValuesTests
             ["blank"] = Property("\"   \""),
         }));
 
-        var values = OwnValues.Of(snapshot, siteId);
+        var values = StatedValues.Of(snapshot, siteId);
 
         values.Keys.Should().Equal("lat");
     }
@@ -106,7 +128,7 @@ public class OwnValuesTests
             ["coastal"] = Property("true"),
         }));
 
-        OwnValues.Of(snapshot, siteId)["coastal"].Should().Be("true");
+        StatedValues.Of(snapshot, siteId)["coastal"].Should().Be("true");
     }
 
     [Fact]
@@ -122,7 +144,7 @@ public class OwnValuesTests
             ["hazardPortalDivision"] = Property("\"2062\""),
         }));
 
-        var values = OwnValues.Of(snapshot, thingId);
+        var values = StatedValues.Of(snapshot, thingId);
 
         values.Keys.Should().Equal("hazardPortalDivision");
     }
@@ -130,7 +152,7 @@ public class OwnValuesTests
     [Fact]
     public void Of_SiteNotInTheSnapshot_ReturnsNoValues()
     {
-        var values = OwnValues.Of(Snapshot(Site(Guid.NewGuid())), Guid.NewGuid());
+        var values = StatedValues.Of(Snapshot(Site(Guid.NewGuid())), Guid.NewGuid());
 
         values.Should().BeEmpty();
     }
@@ -146,6 +168,6 @@ public class OwnValuesTests
             ["lat"] = Property("-25.75"),
         }));
 
-        OwnValues.Of(snapshot, siteId).ContainsKey("LAT").Should().BeTrue();
+        StatedValues.Of(snapshot, siteId).ContainsKey("LAT").Should().BeTrue();
     }
 }

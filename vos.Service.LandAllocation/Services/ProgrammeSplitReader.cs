@@ -20,9 +20,11 @@ public sealed record ProgrammeSplit(
 // from each allocation the category Thing it names.
 //
 // Every predicate is followed by the flag the model marks it with, never by a name compiled in here
-// (#6551) — which is the whole reason the category is a Thing rather than a word. A category's footprint
-// membership is then read off its own properties, because a flag is inherited through the `is` chain and
-// a resolving reader would answer with every member of anything carrying it.
+// (#6551) — which is the whole reason the category is a Thing rather than a word. Every value and every
+// mark is read as what the Thing states rather than as what the `is` chain resolves: resolving would
+// answer with every member of anything carrying a flag, while reading own properties alone would miss
+// what a submission wrote, since a value written for a name an archetype declares is stored as an
+// override (#6805).
 public static class ProgrammeSplitReader
 {
     // `has` is the platform's own structural predicate and is named, as every reader names it. `studies`
@@ -48,6 +50,12 @@ public static class ProgrammeSplitReader
     {
         Ids = [studyId],
         Names = [StudiesPredicate, HasPredicate],
+        // The category predicate Thing itself, which nothing else in this selector reaches: a traversal
+        // brings what an edge points at and never the predicate it was followed through, and the read
+        // needs the Thing to tell that edge from every other edge an allocation has. Asked for by the mark
+        // rather than by name for the same reason the traversal is, and as an archetype so that its
+        // members — every allocation in the model — do not come with it.
+        MarkedArchetypes = [CategoryFlag],
         Traverse =
         [
             // Incoming: the edge runs study -> site, and the study is the seed.
@@ -101,7 +109,7 @@ public static class ProgrammeSplitReader
             }
 
             categories.Add(new AllocatedCategory(category.Name ?? categoryId.Value.ToString(), share,
-                Marked(category, BuiltFootprintFlag), Marked(category, ProductiveFootprintFlag)));
+                category.CarriesFlag(BuiltFootprintFlag), category.CarriesFlag(ProductiveFootprintFlag)));
         }
 
         return new ProgrammeSplit(parcelArea, categories, readsFrom, uncategorised);
@@ -136,11 +144,7 @@ public static class ProgrammeSplitReader
     // The snapshot carries the predicate Things because the traversal named their flag, so the marks are
     // resolved here once rather than per edge.
     private static IReadOnlySet<Guid> PredicatesCarrying(SnapshotDocument snapshot, string flag) =>
-        snapshot.Things.Where(thing => Marked(thing, flag)).Select(thing => thing.Id).ToHashSet();
-
-    private static bool Marked(SnapshotThing thing, string flag) =>
-        thing.Properties.TryGetValue(flag, out var property)
-        && property.Value.ValueKind == System.Text.Json.JsonValueKind.True;
+        snapshot.Things.Where(thing => thing.CarriesFlag(flag)).Select(thing => thing.Id).ToHashSet();
 
     /// <summary>Null means the Thing does not carry the property at all, which is how the walk tells a
     /// parcel from an allocation from anything else the site holds. A value it does carry and cannot read
@@ -148,7 +152,7 @@ public static class ProgrammeSplitReader
     /// divides the parcel between the rest as though the split were whole (#6576).</summary>
     private static double? Number(SnapshotThing thing, string name)
     {
-        if (!thing.Properties.TryGetValue(name, out var property)) return null;
+        if (thing.StatedValue(name) is not { } property) return null;
         return property.Value.ValueKind switch
         {
             System.Text.Json.JsonValueKind.Number => property.Value.GetDouble(),

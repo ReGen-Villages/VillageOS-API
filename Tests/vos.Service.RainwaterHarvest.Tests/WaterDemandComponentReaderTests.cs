@@ -48,7 +48,7 @@ public class WaterDemandComponentReaderTests
         new(id, name, false, new Dictionary<string, SnapshotProperty>(),
             new Dictionary<string, InheritedPropertySet>
             {
-                ["WaterDemandComponent"] = new("WaterDemandComponent", stated),
+                ["WaterDemandComponent"] = new("WaterDemandComponent", stated, null),
             }, [], []);
 
     private static SnapshotThing TheArchetype => new(
@@ -244,8 +244,8 @@ public class WaterDemandComponentReaderTests
             Domestic, "domestic-demand", false, new Dictionary<string, SnapshotProperty>(),
             new Dictionary<string, InheritedPropertySet>
             {
-                ["Somewhere"] = new("Somewhere", elsewhere),
-                ["WaterDemandComponent"] = new("WaterDemandComponent", carried),
+                ["Somewhere"] = new("Somewhere", elsewhere, null),
+                ["WaterDemandComponent"] = new("WaterDemandComponent", carried, null),
             }, [], [])));
 
         components.Should().ContainSingle().Which.QuantityProperty.Should().Be("population");
