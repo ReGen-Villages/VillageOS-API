@@ -113,9 +113,12 @@ public static class CoveringSourceResolver
         Names = [.. PredicatesRead],
         // Model-wide rather than reached from the site: the study is not related to its connections yet,
         // because relating it is what this read is for.
-        // The coverage archetype is asked for model-wide for a different reason than the connections: a
-        // run mints against it, so it has to arrive before any coverage exists to traverse from.
-        MarkedTypes = [SiteAnalysisConnectionFlag, SourceCoverageArchetypeFlag],
+        MarkedTypes = [SiteAnalysisConnectionFlag],
+        // The coverage archetype is asked for model-wide for a different reason: a run mints against it,
+        // so it has to arrive before any coverage exists to traverse from. Alone, though — with its
+        // members, every coverage in the model arrived on every site's read (Bug #6818); the ones about
+        // this site come through the `appliesTo` traversal below.
+        MarkedArchetypes = [SourceCoverageArchetypeFlag],
         Traverse =
         [
             new TraverseRule { Predicate = IsInPredicate, Depth = PlaceNestingDepth },
