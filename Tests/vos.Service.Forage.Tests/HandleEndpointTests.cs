@@ -262,13 +262,17 @@ public class HandleEndpointTests
     public async Task Handle_ReleasesTheSubscriptionItOpened()
     {
         // A read that leaves its subscription live would leak one per discovery run for the life of
-        // the process.
+        // the process. A run reads more than once — what the subject is, then what it reaches — and
+        // every one of those has to be released.
         var ids = Names("WillowBend", "isIn", "covers", "resolvedBy");
+        var opened = 0;
         var released = 0;
         await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = req =>
         {
+            if (req.Method == HttpMethod.Post && req.RequestUri!.AbsolutePath == "/api/subscriptions")
+                opened++;
             if (req.Method == HttpMethod.Delete
                 && req.RequestUri!.AbsolutePath.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
                 released++;
@@ -279,7 +283,8 @@ public class HandleEndpointTests
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
         await factory.RunsStarted();
 
-        released.Should().Be(1);
+        opened.Should().BeGreaterThan(0);
+        released.Should().Be(opened);
     }
 
     [Fact]
