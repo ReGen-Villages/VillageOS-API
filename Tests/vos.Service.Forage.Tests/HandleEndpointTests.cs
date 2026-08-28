@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
+using vos.Service.Forage.Helpers;
 using vos.Service.Shared.DagNode;
 using Xunit;
 using static vos.Service.Forage.Tests.ModelSnapshotStub;
@@ -183,6 +184,42 @@ public class HandleEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         fetches.Should().Be(0, "a coverage read that failed selected no sources, and no source is not none");
         writes.Should().Be(0, "starting the analysis would claim a discovery that never happened");
+    }
+
+    // The same rule one read later: the subject was read as a site, and it is the read of what covers it
+    // that fails. Told by the mark the site's read asks for, so that the read failing is the one meant.
+    [Fact]
+    public async Task Handle_TheSitesCoverageReadFails_WritesNothingRatherThanReportingNoCoverage()
+    {
+        var ids = TwoSourceNames();
+        var coverageReads = 0;
+        var fetches = 0;
+        var writes = 0;
+        await using var factory = new ForageWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = request =>
+        {
+            if (request.Method == HttpMethod.Post
+                && request.RequestUri!.AbsolutePath == "/api/subscriptions"
+                && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()
+                    .Contains(CoveringSourceResolver.SiteAnalysisConnectionFlag, StringComparison.Ordinal))
+            {
+                coverageReads++;
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+            }
+            if (request.RequestUri!.AbsolutePath == FetchRoute) fetches++;
+            if (request.Method == HttpMethod.Post && request.RequestUri.AbsolutePath.EndsWith("/facts", StringComparison.Ordinal)) writes++;
+            return RouteSubscription(request, ids, TwoCoveringSources())
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
+        await factory.RunsStarted();
+
+        coverageReads.Should().Be(1);
+        fetches.Should().Be(0);
+        writes.Should().Be(0, "stamped, the site would read as worked out by a run that read nothing");
     }
 
     // The body Mycelium posts when a site enters the state the discovery connection watches. Every field

@@ -267,16 +267,23 @@ public class VocabularyEdgeTests
     {
         var ids = CatchmentWithOneSource();
         var recorder = new EdgeRecorder();
-        var subscriptions = 0;
+        var declarationReads = 0;
 
+        // The read that fails is the one asking for the declarations, told by the mark it asks for: a
+        // run reads the model more than once before it, and failing those would leave this path unrun
+        // while the assertion below still held.
         await using var factory = new ForageWebApplicationFactory();
         await factory.InitializeAsync();
         factory.HandlerCallback = request =>
         {
             if (request.Method == HttpMethod.Post
                 && request.RequestUri!.AbsolutePath == "/api/subscriptions"
-                && ++subscriptions > 1)
+                && request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()
+                    .Contains(DiscoveredVocabularyResolver.ArchetypeFlag, StringComparison.Ordinal))
+            {
+                declarationReads++;
                 return new HttpResponseMessage(HttpStatusCode.BadGateway);
+            }
             return recorder.Route(request)
                 ?? (request.RequestUri!.AbsolutePath == FetchRoute
                     ? Ok("""{"success":true,"written":{"flowRegime":"steady"}}""") : null)
@@ -287,6 +294,7 @@ public class VocabularyEdgeTests
         await client.PostAsJsonAsync("/handle", new { subjectId = ids["WillowBend"] });
         await factory.RunsStarted();
 
+        declarationReads.Should().Be(1, "the fetch wrote a word, so the run asked for the declarations");
         recorder.Written.Should().BeEmpty();
     }
 }

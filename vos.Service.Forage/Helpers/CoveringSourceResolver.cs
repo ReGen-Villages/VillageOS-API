@@ -223,7 +223,7 @@ public static class CoveringSourceResolver
 
         // Ordered by name so two runs offer a source the same way twice, which is what makes their logs
         // comparable.
-        var sites = MembersReachedFrom(snapshot, thingsById, namesById, ArchetypesCarrying(snapshot, SiteArchetypeFlag))
+        var sites = MembersOfArchetypesCarrying(snapshot, thingsById, namesById, SiteArchetypeFlag)
             .Where(within.Contains)
             .OrderBy(siteId => namesById.GetValueOrDefault(siteId, string.Empty), StringComparer.Ordinal)
             .ThenBy(siteId => siteId);
@@ -555,9 +555,7 @@ public static class CoveringSourceResolver
     private static List<Guid> MembersOfArchetypesCarrying(
         SnapshotDocument snapshot, IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
         IReadOnlyDictionary<Guid, string> namesById, string flag) =>
-        MembersReachedFrom(
-            snapshot, thingsById, namesById,
-            snapshot.Things.Where(thing => CarriesFlag(thing, flag)).Select(thing => thing.Id));
+        MembersReachedFrom(snapshot, thingsById, namesById, ArchetypesCarrying(snapshot, flag));
 
     // Every Thing that `is` — directly or through intermediate types — one of the given archetypes.
     // Walked outwards from them rather than upwards from each Thing, so the snapshot's relationships
