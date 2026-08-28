@@ -105,23 +105,25 @@ them is true.
 ## What starts a run
 
 **A site entering a state, not a call.** The model declares a range on the `Site` archetype,
-`SiteAwaitingDiscovery` — coordinates known, and nothing has written onto the site yet — and a
-connection bound to this service watches it. A site entering that state makes the platform write a
-durable record-edge from the site to the connection and dispatch it. Nothing in either repository
-calls Forage, and nothing has to: **what started a run is a fact in the model afterwards**, which a
-call over HTTP would have left only in a log.
+`SiteAwaitingDiscovery` — coordinates known, and either the site's coverage never worked out or some
+coverage of it still outstanding — and a connection bound to this service watches it. A site entering
+that state makes the platform write a durable record-edge from the site to the connection and dispatch
+it. Nothing in either repository calls Forage, and nothing has to: **what started a run is a fact in
+the model afterwards**, which a call over HTTP would have left only in a log.
 
 | | How it happens |
 |---|---|
-| A run starts | A site's coordinates are written and no source has yet observed it |
-| A run does not start again | The first source to ingest relates its registration to the site through `observed`, the count moves off nought, and the site leaves the state on its own |
-| A run that reached nothing retries | No source resolved means no `observed` edge, so the site stays in the state and the next load dispatches again — bounded by the platform's oscillation guard |
+| A run starts | A site's coordinates are written and its coverage has never been worked out |
+| A run does not start again | The run records each source's answer on that source's own coverage and stamps `coverageWorkedOutAt` on the site; once no coverage is outstanding the site leaves the state on its own |
+| A run in which a source failed | Leaves that source's coverage outstanding, so the site stays in the state; the dispatch record waits out its `done_within`, the run is driven again, and it asks only that source |
+| A run whose model read failed | Writes nothing and stamps nothing, so the site stays in the state and the next load dispatches again — bounded by the platform's oscillation guard |
+| A source added to the catalogue later | Reaches a site already discovered once a coverage is minted for it: one outstanding coverage puts the site back in the state, and the run asks only that source (the minting half is Task #6812) |
 | A surveyed site | Enters the same state and is discovered the same way; nothing here is particular to a submission |
 
 The range and the connection are declared in the platform repository — the range beside the `Site`
 archetype in `land-intake.template.json`, the connection beside the sources in
-`open-data-sources.template.json` (platform Task #6771). A deployment that never fetches reads
-neither file and runs no discovery service.
+`open-data-sources.template.json` (platform Tasks #6771 and #6790). A deployment that never fetches
+reads neither file and runs no discovery service.
 
 ## What a run records, and what it therefore skips
 
@@ -164,8 +166,9 @@ declares no request shape of its own.
 it found, and the platform gives a dispatch **15 seconds**; with tens of shared sources, fetched
 `--maxConcurrentSources` at a time and each allowed `--sourceTimeoutSeconds`, a run outlasts that call
 routinely. Judged by the call, finished work would be recorded Failed and driven again. So what closes
-the dispatch is the model: the connection names `SiteDiscovered` as its `done_when`, the record stays
-in flight until the site shows a source has written onto it, and `done_within` presumes dead a run
+the dispatch is the model: the connection relates to `SiteDiscovered` as what proves a dispatch done,
+the record stays in flight until the site's coverage has been worked out and no coverage of it is
+outstanding — the run's own last write is what closes it — and `done_within` presumes dead a run
 nobody will finish. Completion is *observed* rather than *announced* because nothing exposes a route
 for a service to announce one.
 
