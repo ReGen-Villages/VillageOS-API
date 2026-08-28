@@ -467,6 +467,13 @@ sequenceDiagram
 edge that dispatch writes is what a reader asks afterwards to find out what started a run — see
 [FORAGE.md](FORAGE.md#what-starts-a-run).
 
+**A source added to the catalogue reaches the sites already in the model the same way.** The source
+enters its own state, `SourceAwaitingSites`, and is dispatched from it; its run walks from the source
+down through the Places it covers to every site in them and mints the coverages those sites' runs
+will look for, fetching nothing. One outstanding coverage puts a site back in `SiteAwaitingDiscovery`,
+and that site's run asks only the new source — see
+[FORAGE.md](FORAGE.md#a-source-added-to-the-catalogue).
+
 The analysis starts whatever mixture resolved, including none — a site whose sources were all
 unavailable is the case a planner most needs an answer about. Forage never calls a compute
 service: it writes the edges and the platform dispatches, so there is one way to start an analysis
