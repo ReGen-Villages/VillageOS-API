@@ -10,13 +10,18 @@ namespace vos.Service.Forage.Services;
 // was about, and the values the call put onto it. They are what the run resolves discovered words
 // from (#6809) — the response rather than a read-back, because an observation is applied by the
 // drainer after the write returns.
+//
+// SubjectId and SourceId together identify which call an outcome came from, where Source and Subject
+// only name it: a run records the answer on the coverage of that subject by that source, and two
+// Things may share a name.
 public sealed record SourceOutcome(
     string Source,
     bool Resolved,
     string? Reason,
     string? Subject = null,
     Guid? SubjectId = null,
-    IReadOnlyDictionary<string, string>? Written = null);
+    IReadOnlyDictionary<string, string>? Written = null,
+    Guid? SourceId = null);
 
 // Everything one run did. Both halves are reported: what resolved is the answer, what did not is
 // the gap the analysis has to be able to report against. The site is not among them — a report is

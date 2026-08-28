@@ -28,14 +28,28 @@ internal static class ModelSnapshotStub
         IReadOnlyDictionary<string, string>? siteValues) =>
         RouteSubscription(request, ids, edges, siteValues, archetypes: null);
 
+    // A value on a Thing that is neither the site nor an archetype: what a run has already written onto
+    // a coverage. Raw JSON, because the properties a run writes are not all numbers.
+    internal sealed record Carrying(string Thing, string Property, string JsonValue);
+
     // siteValues land on the FIRST named Thing, which every scenario here declares as the site: the
     // values a source's address may name have to arrive on the site itself, not on any Thing.
+
     internal static HttpResponseMessage? RouteSubscription(
         HttpRequestMessage request,
         IReadOnlyDictionary<string, Guid> ids,
         Edge[] edges,
         IReadOnlyDictionary<string, string>? siteValues,
-        IReadOnlyCollection<Archetype>? archetypes)
+        IReadOnlyCollection<Archetype>? archetypes) =>
+        RouteSubscription(request, ids, edges, siteValues, archetypes, carrying: null);
+
+    internal static HttpResponseMessage? RouteSubscription(
+        HttpRequestMessage request,
+        IReadOnlyDictionary<string, Guid> ids,
+        Edge[] edges,
+        IReadOnlyDictionary<string, string>? siteValues,
+        IReadOnlyCollection<Archetype>? archetypes,
+        IReadOnlyCollection<Carrying>? carrying)
     {
         var path = request.RequestUri!.AbsolutePath;
         if (request.Method == HttpMethod.Delete && path.StartsWith("/api/subscriptions/", StringComparison.Ordinal))
@@ -45,10 +59,13 @@ internal static class ModelSnapshotStub
 
         var byName = (archetypes ?? []).ToDictionary(archetype => archetype.Name, StringComparer.Ordinal);
         var siteName = ids.Keys.First();
+        var carried = (carrying ?? []).GroupBy(value => value.Thing, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => (IReadOnlyCollection<Carrying>)[.. group], StringComparer.Ordinal);
         var things = ids.Select(entry => Thing(
             entry.Value, entry.Key,
             entry.Key == siteName ? siteValues : null,
-            byName.GetValueOrDefault(entry.Key)));
+            byName.GetValueOrDefault(entry.Key),
+            carried.GetValueOrDefault(entry.Key)));
         var relationships = edges.Select(edge =>
             "{\"id\":\"" + (edge.Id ?? Guid.NewGuid()) + "\",\"name\":null,\"subjectId\":\"" + ids[edge.Subject]
             + "\",\"predicateId\":\"" + ids[edge.Predicate] + "\",\"targetId\":\"" + ids[edge.Target]
@@ -65,7 +82,8 @@ internal static class ModelSnapshotStub
     }
 
     private static string Thing(
-        Guid id, string name, IReadOnlyDictionary<string, string>? values, Archetype? archetype)
+        Guid id, string name, IReadOnlyDictionary<string, string>? values, Archetype? archetype,
+        IReadOnlyCollection<Carrying>? carrying = null)
     {
         var declared = values?.Select(value =>
             "\"" + value.Key + "\":{\"value\":" + value.Value + ",\"typeInfo\":null,\"mode\":null}") ?? [];
@@ -75,6 +93,9 @@ internal static class ModelSnapshotStub
         if (archetype?.Values != null)
             declared = declared.Concat(archetype.Values.Select(value =>
                 "\"" + value.Key + "\":{\"value\":" + value.Value + ",\"typeInfo\":null,\"mode\":null}"));
+        foreach (var value in carrying ?? [])
+            declared = declared.Append(
+                "\"" + value.Property + "\":{\"value\":" + value.JsonValue + ",\"typeInfo\":null,\"mode\":null}");
 
         return "{\"id\":\"" + id + "\",\"name\":\"" + name + "\","
             + "\"isArchetype\":" + (archetype != null ? "true" : "false") + ","

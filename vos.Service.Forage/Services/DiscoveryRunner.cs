@@ -45,7 +45,8 @@ public sealed class DiscoveryRunner
             async (index, token) =>
             {
                 var (source, call) = calls[index];
-                var outcome = await FetchOneAsync(source, call, token);
+                var outcome = await FetchOneAsync(source, call, token)
+                    with { SubjectId = call.SubjectId, SourceId = source.SourceId };
                 outcomes[index] = call.SubjectId == siteId
                     ? outcome
                     : outcome with { Subject = call.SubjectName };

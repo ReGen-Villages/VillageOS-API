@@ -12,7 +12,22 @@ public sealed record SourceCall(
 // A source that covers the site, the endpoint registration a call to it goes through, and the calls
 // a run makes to it. A source with no calls declared what it resolves onto and the site holds
 // nothing of it — nothing to fetch, and not a failure.
-public sealed record CoveringSource(string Name, string EndpointName, IReadOnlyList<SourceCall> Calls);
+public sealed record CoveringSource(
+    Guid SourceId, string Name, string EndpointName, IReadOnlyList<SourceCall> Calls);
+
+// A `SourceCoverage` the model already holds: what one source came to for one subject. Named apart from
+// CoveringSource because the two sit side by side here and mean different things — one is a source that
+// covers the site, the other is the Thing recording what came of asking it.
+//
+// The subject, not the site: a source that resolves onto an archetype is called once per Thing the site
+// has of it, and a portal answering for five of a site's assessments and not the sixth has to leave five
+// resolved and one outstanding. Recording per source would lose that and re-call all six.
+public sealed record RecordedCoverage(
+    Guid CoverageId, Guid SubjectId, Guid SourceId, bool Resolved, long Attempts);
+
+// The Things minting one coverage relates through: the archetype it `is`, the subject it applies to and
+// the source it is sourced from.
+public sealed record CoverageVocabulary(Guid Archetype, Guid Is, Guid AppliesTo, Guid SourcedFrom);
 
 // One compute service to start on the site's study: the connection to relate through, and the service
 // prototype the edge points at. The connection is the predicate, which is what makes the edge dispatch.
@@ -34,6 +49,12 @@ public static class CoveringSourceResolver
     public const string ResolvedByPredicate = "resolvedBy";
     public const string ResolvesOntoPredicate = "resolvesOnto";
     public const string AssessesPredicate = "assesses";
+
+    // What a coverage hangs from. Declared in the platform's own template rather than minted here on
+    // first use, so a coverage cannot be related through one Thing of the name and judged against
+    // another — and so the two repositories agree by these literals and by nothing else.
+    public const string AppliesToPredicate = "appliesTo";
+    public const string SourcedFromPredicate = "sourcedFrom";
     public const string StudiesPredicate = "studies";
     public const string HasPredicate = "has";
     public const string IsPredicateName = "is";
@@ -57,7 +78,21 @@ public static class CoveringSourceResolver
     [
         IsInPredicate, CoversPredicate, ResolvedByPredicate, ResolvesOntoPredicate,
         AssessesPredicate, StudiesPredicate, HasPredicate, IsPredicateName,
+        AppliesToPredicate, SourcedFromPredicate,
     ];
+
+    // The archetype a minted coverage `is`. Found by the mark rather than the name: an archetype named
+    // here would be renamed in the platform and mint Things related to nothing, and the only sign of it
+    // would be every subject's coverage reading as empty.
+    public const string SourceCoverageArchetypeFlag = "__IsSourceCoverageArchetype";
+
+    // The instant a source's answer landed. Its presence is the whole of "already answered": a run asks
+    // only the coverages without one.
+    private const string ResolvedAtProperty = "resolvedAt";
+
+    // How many times this source has been called for this subject, carried so a run adds to it rather
+    // than overwriting what earlier runs recorded.
+    private const string AttemptsProperty = "attempts";
 
     // Everything in one read: the site's Places, every source whose coverage reaches one of them, the
     // study of the site, and every connection a site analysis dispatches with the service each one binds.
@@ -69,7 +104,9 @@ public static class CoveringSourceResolver
         Names = [.. PredicatesRead],
         // Model-wide rather than reached from the site: the study is not related to its connections yet,
         // because relating it is what this read is for.
-        MarkedTypes = [SiteAnalysisConnectionFlag],
+        // The coverage archetype is asked for model-wide for a different reason than the connections: a
+        // run mints against it, so it has to arrive before any coverage exists to traverse from.
+        MarkedTypes = [SiteAnalysisConnectionFlag, SourceCoverageArchetypeFlag],
         Traverse =
         [
             new TraverseRule { Predicate = IsInPredicate, Depth = PlaceNestingDepth },
@@ -85,9 +122,84 @@ public static class CoveringSourceResolver
             new TraverseRule { Predicate = HasPredicate },
             // After has: what each of the site's assessments is about carries a portal's code for it.
             new TraverseRule { Predicate = AssessesPredicate },
+            // Incoming, and last of the subject rules: a coverage applies to whichever Thing its call
+            // was about, which is the site for most sources and one of its assessments for a source
+            // that resolves onto one. Both have to be in the set before this, or the coverages hanging
+            // off an assessment are the ones a run never sees and calls again.
+            new TraverseRule { Predicate = AppliesToPredicate, Direction = "incoming" },
+            new TraverseRule { Predicate = SourcedFromPredicate },
         ],
         IncludeRelationships = true,
     };
+
+    // Every coverage the snapshot holds. Not filtered by site: the read is already scoped to one site's
+    // reachable set, and a coverage hangs off whichever Thing its call was about — the site itself, or
+    // one of its assessments. A run matches them to its calls by subject and source.
+    //
+    // A coverage reaching no source is left out for the reason a source reaching no registration is:
+    // nothing a run could act on, and counting it would hold a call outstanding that no fetch resolves.
+    public static IReadOnlyList<RecordedCoverage> RecordedCoverageIn(SnapshotDocument snapshot)
+    {
+        var namesById = snapshot.Things.ToDictionary(thing => thing.Id, thing => thing.Name ?? string.Empty);
+        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
+
+        var recorded = new List<RecordedCoverage>();
+        foreach (var edge in snapshot.Relationships)
+        {
+            if (!IsPredicate(namesById, edge.PredicateId, AppliesToPredicate)) continue;
+            if (SourceOf(snapshot, namesById, edge.SubjectId) is not { } sourceId) continue;
+
+            thingsById.TryGetValue(edge.SubjectId, out var coverage);
+            recorded.Add(new RecordedCoverage(
+                edge.SubjectId, edge.TargetId, sourceId,
+                coverage != null && HasResolvedAt(coverage),
+                coverage == null ? 0 : AttemptsOn(coverage)));
+        }
+
+        return recorded;
+    }
+
+    // Everything minting one coverage needs. Null unless the model holds all of it: a run that minted a
+    // Thing it could not then relate would leave a coverage reaching neither its subject nor its source,
+    // which no later run can tell from one that was never minted. A model without the vocabulary is one
+    // that never read the template declaring it, and refusing says so.
+    public static CoverageVocabulary? CoverageVocabularyIn(SnapshotDocument snapshot)
+    {
+        var archetype = snapshot.Things.FirstOrDefault(thing => CarriesFlag(thing, SourceCoverageArchetypeFlag));
+        if (archetype == null) return null;
+
+        Guid? Predicate(string name) => snapshot.Things
+            .FirstOrDefault(thing => string.Equals(thing.Name, name, StringComparison.OrdinalIgnoreCase))?.Id;
+
+        if (Predicate(IsPredicateName) is not { } isPredicate) return null;
+        if (Predicate(AppliesToPredicate) is not { } appliesTo) return null;
+        if (Predicate(SourcedFromPredicate) is not { } sourcedFrom) return null;
+
+        return new CoverageVocabulary(archetype.Id, isPredicate, appliesTo, sourcedFrom);
+    }
+
+    // Nought where the coverage carries no count, which is a coverage nothing has tried yet — the same
+    // answer as a count of nought, and the run's next write makes it one either way.
+    private static long AttemptsOn(SnapshotThing coverage)
+        => coverage.Properties.TryGetValue(AttemptsProperty, out var property)
+           && property.Value.ValueKind == JsonValueKind.Number
+           && property.Value.TryGetInt64(out var attempts)
+            ? attempts
+            : 0;
+
+    private static bool HasResolvedAt(SnapshotThing coverage)
+        => coverage.Properties.TryGetValue(ResolvedAtProperty, out var property)
+           && property.Value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined);
+
+    private static Guid? SourceOf(
+        SnapshotDocument snapshot, IReadOnlyDictionary<Guid, string> namesById, Guid coverageId)
+    {
+        foreach (var edge in snapshot.Relationships)
+            if (edge.SubjectId == coverageId && IsPredicate(namesById, edge.PredicateId, SourcedFromPredicate))
+                return edge.TargetId;
+
+        return null;
+    }
 
     public static IReadOnlyList<CoveringSource> Resolve(SnapshotDocument snapshot, Guid siteId)
     {
@@ -118,7 +230,7 @@ public static class CoveringSourceResolver
 
             var calls = CallsFor(snapshot, thingsById, namesById, edge.SubjectId, siteId, siteValues);
             covering.Add(new CoveringSource(
-                source.Name ?? string.Empty, endpoint.Name ?? string.Empty, calls));
+                edge.SubjectId, source.Name ?? string.Empty, endpoint.Name ?? string.Empty, calls));
         }
 
         return covering;

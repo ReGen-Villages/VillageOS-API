@@ -15,7 +15,7 @@ public class DiscoveryRunnerTests
         new(subject, name, values ?? NoParameters);
 
     private static CoveringSource Source(string name, params SourceCall[] calls) =>
-        new(name, name + "Endpoint", calls);
+        new(Guid.NewGuid(), name, name + "Endpoint", calls);
 
     private static IReadOnlyList<CoveringSource> SourcesAbout(Guid site, params string[] names) =>
         names.Select(name => Source(name, CallAbout(site))).ToList();
@@ -87,7 +87,11 @@ public class DiscoveryRunnerTests
 
         report.Resolved.Select(outcome => outcome.Source).Should().BeEquivalentTo("OpenMeteo", "Copernicus");
         report.Unresolved.Should().ContainSingle()
-            .Which.Should().BeEquivalentTo(new SourceOutcome("FloodPortal", false, "503 from the provider"));
+            .Which.Should().BeEquivalentTo(
+                new SourceOutcome("FloodPortal", false, "503 from the provider"),
+                // The identifiers a run records the answer against are asserted where they matter, on
+                // the ledger; here the outcome's own words are what is being held.
+                options => options.Excluding(outcome => outcome.SubjectId).Excluding(outcome => outcome.SourceId));
     }
 
     [Fact]
@@ -256,6 +260,28 @@ public class DiscoveryRunnerTests
         var report = await Runner(fetcher).RunAsync(site, SourcesAbout(site, "OpenMeteo"), default);
 
         report.Resolved.Should().ContainSingle().Which.Subject.Should().BeNull();
+    }
+
+    // Every outcome carries which call it came from, by identity. The run records the answer on the
+    // coverage of that subject by that source, and an outcome naming neither is matched to no coverage
+    // — so a run would fetch, report, and record nothing, with only the absence to show for it.
+    [Fact]
+    public async Task RunAsync_EveryOutcomeNamesTheCallItCameFrom()
+    {
+        var fetcher = new ScriptedFetcher(name => name == "FloodPortal"
+            ? Task.FromResult(new SourceOutcome(name, false, "503 from the provider"))
+            : Resolved(name));
+        var site = Guid.NewGuid();
+        var sources = SourcesAbout(site, "OpenMeteo", "FloodPortal");
+
+        var report = await Runner(fetcher).RunAsync(site, sources, default);
+
+        foreach (var outcome in report.Resolved.Concat(report.Unresolved))
+        {
+            outcome.SubjectId.Should().Be(site);
+            outcome.SourceId.Should().Be(
+                sources.Single(source => source.Name == outcome.Source).SourceId);
+        }
     }
 
     private sealed class CapturingFetcher : ISourceFetcher

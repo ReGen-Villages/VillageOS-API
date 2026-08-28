@@ -1,5 +1,6 @@
 using vos.Auth.Shared;
 using vos.Service.Forage.Configuration;
+using vos.Service.Forage.Helpers;
 using vos.Service.Forage.Services;
 using vos.Service.Shared;
 using vos.Service.Shared.DagNode;
@@ -75,6 +76,9 @@ try
             sp.GetRequiredService<ILogger<MyceliumRelationshipClient>>(),
             myceliumUrl,
             serviceToken, apiKey: apiKey));
+    builder.Services.AddSingleton<ICoverageWriter>(sp => sp.GetRequiredService<MyceliumRelationshipClient>());
+    builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddSingleton<CoverageLedger>();
     builder.Services.AddSingleton<AnalysisSpawner>();
     builder.Services.AddSingleton<VocabularyEdgeWriter>();
     builder.Services.AddSingleton<IDiscoveryRunStarter, DiscoveryRunStarter>();
@@ -94,6 +98,7 @@ try
     var handleEndpoint = app.MapPost("/handle", async (
         CoveringSourceService coveringSources,
         DiscoveryRunner runner,
+        CoverageLedger ledger,
         AnalysisSpawner analysis,
         VocabularyEdgeWriter vocabularyEdges,
         IDiscoveryRunStarter starter,
@@ -108,7 +113,8 @@ try
         // Named here so the run captures the site alone; capturing the request would hold the parsed
         // body for as long as the run takes.
         var siteId = request.SubjectId;
-        starter.Start(token => Discover(siteId, coveringSources, runner, analysis, vocabularyEdges, token));
+        starter.Start(token =>
+            Discover(siteId, coveringSources, runner, ledger, analysis, vocabularyEdges, token));
 
         // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's
         // own contract: a body declaring it false is a failed dispatch whatever the status said.
@@ -146,6 +152,7 @@ static async Task Discover(
     Guid siteId,
     CoveringSourceService coveringSources,
     DiscoveryRunner runner,
+    CoverageLedger ledger,
     AnalysisSpawner analysis,
     VocabularyEdgeWriter vocabularyEdges,
     CancellationToken cancellationToken)
@@ -166,7 +173,17 @@ static async Task Discover(
         Log.Information("Source {Source} resolves onto Things site {SiteId} holds none of; nothing to fetch",
             source.Name, siteId);
 
-    var report = await runner.RunAsync(siteId, coverage.Covering, cancellationToken);
+    if (coverage.Vocabulary == null)
+        Log.Error("The model declares no coverage archetype, so this run records nothing about what it " +
+                  "found and every call it makes will be made again");
+
+    // Only the calls whose answer is not already in. A source that answered for this subject is not
+    // called a second time, and one that failed is, which is the whole of what the coverage Things buy.
+    var outstanding = await ledger.OutstandingAsync(coverage, cancellationToken);
+    var report = await runner.RunAsync(
+        siteId, CoverageLedger.CallsStillToMake(coverage.Covering, outstanding), cancellationToken);
+    await ledger.RecordAllAsync(outstanding, report, cancellationToken);
+
     foreach (var outcome in report.Unresolved)
         Log.Warning("Source {Source} left {Subject} undiscovered: {Reason}",
             outcome.Source, outcome.Subject ?? $"site {siteId}", outcome.Reason);
@@ -174,6 +191,8 @@ static async Task Discover(
     // A fetched word becomes the edge the model declares before the analysis starts, so what the
     // analysis reads is already resolved (#6809).
     await vocabularyEdges.ResolveAsync(siteId, report, cancellationToken);
+
+    await ledger.StampWorkedOutAsync(siteId, cancellationToken);
 
     // Whatever mixture resolved, including none. The analysis reports against what discovery left it, and
     // a site whose sources were all unavailable is exactly the case a planner needs the analysis to say
