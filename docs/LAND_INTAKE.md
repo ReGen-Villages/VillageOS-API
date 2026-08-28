@@ -438,13 +438,14 @@ sequenceDiagram
   participant Forage
   participant Tributary
   participant Provider as Outside provider
-  Site->>Mycelium: coordinates written, nothing has observed it
+  Site->>Mycelium: coordinates written, coverage never worked out
   Note over Mycelium: the site enters SiteAwaitingDiscovery,<br/>which the discovery connection watches
   Mycelium->>Forage: dispatch, naming the site as the subject
   Forage-->>Mycelium: accepted — the fetching has not started
-  Forage->>Mycelium: which sources cover this site?
-  Mycelium-->>Forage: sources reached by walking<br/>isIn and covers edges
-  loop each covering source, bounded concurrency
+  Forage->>Mycelium: which sources cover this site,<br/>and what does each one's coverage already say?
+  Mycelium-->>Forage: sources reached by walking<br/>isIn and covers edges, and their coverages
+  Forage->>Mycelium: mint a SourceCoverage per call with none,<br/>appliesTo the Site and sourcedFrom the source
+  loop each call whose coverage is outstanding, bounded concurrency
     Forage->>Tributary: call <source> with the site's lat/lng<br/>and the site as the subject
     Tributary->>Provider: HTTP request
     Provider-->>Tributary: response
@@ -452,8 +453,11 @@ sequenceDiagram
     Tributary->>Mycelium: relate the registration to the Site<br/>through observed, once
     Tributary->>Mycelium: write observation onto the Site
   end
-  Note over Site: the first observation takes it out of<br/>the state, so nothing fetches again
+  Forage->>Mycelium: resolvedAt on each coverage that answered;<br/>attempts, lastAttemptAt and failureReason on each that did not
   Forage->>Mycelium: WillowBend classifiedAs Csa<br/>each fetched word becomes its declared edge
+  Forage->>Mycelium: coverageWorkedOutAt on the Site
+  Note over Site: coverage worked out and none outstanding:<br/>the site leaves SiteAwaitingDiscovery for SiteDiscovered
+  Note over Site: a coverage left outstanding keeps it in<br/>SiteAwaitingDiscovery, and the next run asks only that source
   Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection
   Note over Mycelium: a connection bound to a service is a<br/>handled predicate, so the edge starts it
   Note over Mycelium: the site reaching SiteDiscovered is what<br/>closes the dispatch, not the call
