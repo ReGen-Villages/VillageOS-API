@@ -9,7 +9,9 @@ namespace vos.Service.Forage.Services;
 // model once.
 public sealed record SiteCoverage(
     IReadOnlyList<CoveringSource> Covering,
-    SiteAnalysis? Analysis);
+    SiteAnalysis? Analysis,
+    IReadOnlyList<RecordedCoverage> Recorded,
+    CoverageVocabulary? Vocabulary);
 
 // Reads a site's coverage from the model in one scoped snapshot.
 //
@@ -45,7 +47,9 @@ public sealed class CoveringSourceService
         {
             return new SiteCoverage(
                 CoveringSourceResolver.Resolve(subscribed.Snapshot, siteId),
-                CoveringSourceResolver.AnalysisOf(subscribed.Snapshot, siteId));
+                CoveringSourceResolver.AnalysisOf(subscribed.Snapshot, siteId),
+                CoveringSourceResolver.RecordedCoverageIn(subscribed.Snapshot),
+                CoveringSourceResolver.CoverageVocabularyIn(subscribed.Snapshot));
         }
         finally
         {
