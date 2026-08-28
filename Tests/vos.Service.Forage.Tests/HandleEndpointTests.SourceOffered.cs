@@ -114,7 +114,8 @@ public class HandleEndpointSourceOfferedTests
 
     private static async Task<Writes> Dispatch(
         IReadOnlyDictionary<string, Guid> ids, string subject, Edge[] edges,
-        Func<HttpRequestMessage, HttpResponseMessage?>? before = null)
+        Func<HttpRequestMessage, HttpResponseMessage?>? before = null,
+        Archetype[]? archetypes = null)
     {
         var writes = new Writes();
         await using var factory = new ForageWebApplicationFactory();
@@ -122,7 +123,7 @@ public class HandleEndpointSourceOfferedTests
         factory.HandlerCallback = request =>
             before?.Invoke(request)
             ?? writes.Route(request)
-            ?? RouteSubscription(request, ids, edges, siteValues: null, Archetypes())
+            ?? RouteSubscription(request, ids, edges, siteValues: null, archetypes ?? Archetypes())
             ?? new HttpResponseMessage(HttpStatusCode.NotFound);
         using var client = factory.CreateClient();
 
@@ -193,6 +194,37 @@ public class HandleEndpointSourceOfferedTests
                 : null);
 
         reads.Should().Be(2, "the subject's kind is read, then the sites the source reaches");
+        writes.Minted.Should().BeEmpty();
+        writes.Facts.Should().BeEmpty();
+    }
+
+    // A source nothing can call is offered to no site, for the reason the site's run leaves it out — but
+    // it was looked at, and stamping it is what keeps it from being dispatched again on every load.
+    [Fact]
+    public async Task Handle_ASourceWithNoRegistration_MintsNothingAndIsStillStamped()
+    {
+        var ids = Ids();
+        var uncallable = Edges()
+            .Where(edge => !(edge.Subject == "NationalFloodPortal" && edge.Predicate == "resolvedBy"))
+            .ToArray();
+
+        var writes = await Dispatch(ids, "NationalFloodPortal", uncallable);
+
+        writes.Minted.Should().BeEmpty();
+        writes.Facts.Should().ContainSingle().Which.Should().Be(StampOn(ids, "NationalFloodPortal"));
+    }
+
+    // A site's run in such a model still fetches, because the sources are worth asking; a source's run
+    // has nothing to do but mint, so it writes nothing at all — stamped, the source would read as offered
+    // while no site holds anything to be judged by.
+    [Fact]
+    public async Task Handle_AModelWithNoCoverageVocabulary_OffersNothingAndStampsNothing()
+    {
+        var ids = Ids();
+
+        var writes = await Dispatch(ids, "NationalFloodPortal", Edges(), archetypes:
+            [new Archetype("Site", CoveringSourceResolver.SiteArchetypeFlag), new Archetype("DataSource")]);
+
         writes.Minted.Should().BeEmpty();
         writes.Facts.Should().BeEmpty();
     }
