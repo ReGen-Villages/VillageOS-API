@@ -11,9 +11,9 @@ namespace vos.Service.Intake.Tests;
 /// configured.</summary>
 public class MailerWiringTests
 {
-    private static IntakeWebApplicationFactory Started(string environment, string? delivery) => new()
+    private static IntakeWebApplicationFactory Started(string environmentName, string? delivery) => new()
     {
-        Environment = environment,
+        EnvironmentName = environmentName,
         MailDelivery = delivery,
         KeepsTheServicesOwnMailer = true,
     };

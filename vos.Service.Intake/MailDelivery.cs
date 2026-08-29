@@ -22,8 +22,9 @@ public sealed record MailDelivery(MailSettings? Server)
     public const string ToAServer = "server";
     public const string ToTheConsole = "console";
 
-    /// <summary>The one environment a code nobody received is allowed in.</summary>
-    private const string DevelopmentMachine = "Development";
+    /// <summary>The one environment a code nobody received is allowed in. The host's own name for it,
+    /// rather than a literal that could drift from what it actually matches.</summary>
+    private static readonly string DevelopmentMachine = Environments.Development;
 
     public bool IsToTheConsole => Server is null;
 
@@ -33,8 +34,8 @@ public sealed record MailDelivery(MailSettings? Server)
     {
         var asked = new LaunchSettingReader(arguments, configuration).Read("mailDelivery") ?? ToAServer;
 
-        // Named, because a record's copy constructor makes a bare null ambiguous with it.
         if (string.Equals(asked, ToTheConsole, StringComparison.OrdinalIgnoreCase))
+            // The argument is named because a record's copy constructor makes a bare null ambiguous with it.
             return new MailDelivery(Server: null);
 
         // A way of delivering this service does not have is a mistake, not a request for the default.
