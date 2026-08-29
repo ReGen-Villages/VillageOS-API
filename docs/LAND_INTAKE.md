@@ -705,6 +705,14 @@ level came from.
 that exists nowhere and nothing would notice; nothing could be asked of it either — what it means, which
 other sites carry it. A project whose hazards differ adds a Thing and deploys nothing.
 
+**Every hazard the model declares gets an assessment, whether or not the submission names it**
+(User Story #6849). A discovery run grades one hazard per assessment the site has, so a site with none is
+graded on nothing — which every submitted site was, because no form asks about hazards and a submission
+naming none minted none. A landowner is asking which hazards apply to their land, not asking for a list
+they supplied to be graded. Naming one is therefore telling us what they have seen, not choosing what is
+looked into: it adds the source they cite and the assessment is the same Thing the site would have had
+anyway. A model declaring a hazard of its own gets it assessed with no change here.
+
 **An assessment reaches its source, rather than naming it.** The source is the `SubmittedSource` Thing
 the assessment hangs off, not a name copied onto it — one per submission, under the archetype that says a
 submitter named it rather than the catalogue's, so clearing a rejected submission takes it too (platform

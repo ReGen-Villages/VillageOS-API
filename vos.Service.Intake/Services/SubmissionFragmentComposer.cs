@@ -215,6 +215,28 @@ public static class SubmissionFragmentComposer
         var sourcesAlreadyMinted = new Dictionary<string, NamedThing>();
         var coverageAlreadyGiven = new Dictionary<string, string?>();
         var hazardsAlreadyGiven = new Dictionary<Guid, string>();
+        var assessments = new Dictionary<Guid, NamedThing>();
+
+        // The assessment for one hazard of this site, made once however it is arrived at. A discovery run
+        // grades one hazard per assessment the site has, so an assessment is what asks the question — and
+        // every hazard the model knows of gets one below, whether or not the submitter raised it. A
+        // submitter who raises one is telling us what they have seen, not choosing what is looked into.
+        NamedThing AssessmentOf(DeclaredTerm hazardType)
+        {
+            if (assessments.TryGetValue(hazardType.Id, out var alreadyMade)) return alreadyMade;
+
+            var made = new NamedThing(
+                StableIdentity.Derive(submissionId, $"hazard:{Key(hazardType.Name)}"),
+                $"{siteName} {hazardType.Name}");
+            assessments[hazardType.Id] = made;
+            things.Add(new FragmentThing(made.Id, made.Name, HazardProperties()));
+            Relate(siteThing, predicates.Has, made);
+            BeArchetype(made, archetypes.HazardAssessment, HazardAssessmentArchetypeName);
+            RelateToTerm(made, vocabulary.HazardTypes, hazardType);
+            return made;
+        }
+
+        foreach (var hazardType in vocabulary.HazardTypes.Terms) AssessmentOf(hazardType);
         foreach (var hazard in submission.Hazards ?? [])
         {
             var submittedType = Required(hazard.HazardType, "hazard.hazardType",
@@ -229,13 +251,7 @@ public static class SubmissionFragmentComposer
                     + "hazard: they disagree about it and nothing here can say which was meant.");
             hazardsAlreadyGiven[hazardType.Id] = submittedType;
 
-            var hazardThing = new NamedThing(
-                StableIdentity.Derive(submissionId, $"hazard:{Key(hazardType.Name)}"),
-                $"{siteName} {hazardType.Name}");
-            things.Add(new FragmentThing(hazardThing.Id, hazardThing.Name, HazardProperties()));
-            Relate(siteThing, predicates.Has, hazardThing);
-            BeArchetype(hazardThing, archetypes.HazardAssessment, HazardAssessmentArchetypeName);
-            RelateToTerm(hazardThing, vocabulary.HazardTypes, hazardType);
+            var hazardThing = AssessmentOf(hazardType);
 
             if (hazard.Source is not { } source)
                 continue;
