@@ -101,7 +101,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         if (!response.IsSuccessStatusCode) return false;
 
         var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-        if (root.TryGetProperty("properties", out var props) && props.ValueKind == JsonValueKind.Object
+        if (TryGetPropertyCaseInsensitive(root, "Properties", out var props) && props.ValueKind == JsonValueKind.Object
             && props.TryGetProperty("cancelRequested", out var cr))
         {
             var v = Unwrap(cr);
@@ -197,15 +197,11 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return new Guid(System.Security.Cryptography.MD5.HashData(buffer));
     }
 
-    // A property value arrives wrapped as { value|Value, type }; return the bare value.
-    private static JsonElement Unwrap(JsonElement value)
-    {
-        if (value.ValueKind == JsonValueKind.Object)
-            foreach (var field in value.EnumerateObject())
-                if (field.NameEquals("value") || field.NameEquals("Value"))
-                    return field.Value;
-        return value;
-    }
+    // A property value comes wrapped as { value, typeInfo }.
+    private static JsonElement Unwrap(JsonElement value) =>
+        value.ValueKind == JsonValueKind.Object && TryGetPropertyCaseInsensitive(value, "value", out var bare)
+            ? bare
+            : value;
 
     private async Task RelateAsync(Guid subjectId, string predicateName, Guid targetId, CancellationToken cancellationToken)
     {
@@ -226,7 +222,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
 
         var thing = root.ValueKind == JsonValueKind.Array ? root.EnumerateArray().FirstOrDefault() : root;
-        if (thing.ValueKind == JsonValueKind.Object && thing.TryGetProperty("id", out var idEl)
+        if (thing.ValueKind == JsonValueKind.Object && TryGetPropertyCaseInsensitive(thing, "Id", out var idEl)
             && idEl.ValueKind == JsonValueKind.String && Guid.TryParse(idEl.GetString(), out var id))
         {
             _thingIdByName[name] = id;
