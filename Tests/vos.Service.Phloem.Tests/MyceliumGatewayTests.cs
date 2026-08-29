@@ -32,14 +32,16 @@ public class MyceliumGatewayTests
     }
 
     // A broker holding a model that marks its run archetypes and answers every predicate name, so the calls
-    // under test get past resolution; everything else succeeds.
+    // under test get past resolution; everything else succeeds. A Thing is answered PascalCase, which is the
+    // naming policy the broker shares with the seed files and not the camelCase of the bodies sent to it.
     private static HttpResponseMessage RespondLikeAModelThatMarksItsArchetypes(HttpRequestMessage request)
     {
         var uri = request.RequestUri!;
         if (uri.AbsolutePath == "/api/things" && uri.Query.Contains("name="))
         {
             var name = Uri.UnescapeDataString(uri.Query.Split("name=")[1]);
-            return Json(HttpStatusCode.OK, $$"""{"id":"{{PredicateId}}","name":"{{name}}"}""");
+            return Json(HttpStatusCode.OK,
+                $$$"""{"Id":"{{{PredicateId}}}","Name":"{{{name}}}","IsArchetype":false,"Properties":{}}""");
         }
 
         if (uri.AbsolutePath == "/api/subscriptions" && request.Method == HttpMethod.Post)
@@ -217,6 +219,38 @@ public class MyceliumGatewayTests
         RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().HaveCount(2);
     }
 
+    // Read in the wrong casing the predicate is not found at all, so the run is created and then left with
+    // no edges — reaching neither the archetype that makes it a run nor the pipeline it ran.
+    [Fact]
+    public async Task CreateRunAsync_WritesEachEdgeAgainstThePredicateIdentifierTheBrokerNamed()
+    {
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        foreach (var request in RequestsTo(handler, "/api/relationships", HttpMethod.Post))
+            (await ReadJson(request)).GetProperty("predicateId").GetString()
+                .Should().Be(PredicateId.ToString());
+    }
+
+    // The name route answers one Thing, so an answer that is not one is an answer the gateway cannot use.
+    // Resolving the first entry of a list would tie the run to whatever the model happened to return first.
+    [Theory]
+    [InlineData("""{"Name":"is"}""")]
+    [InlineData("""[{"Id":"33333333-3333-3333-3333-333333333333","Name":"is"}]""")]
+    public async Task CreateRunAsync_WhenTheAnswerNamesNoIdentifier_TheFailureNamesThePredicate(string answer)
+    {
+        var (gateway, _) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/things" && request.RequestUri.Query.Contains("name=")
+                ? Json(HttpStatusCode.OK, answer)
+                : RespondLikeAModelThatMarksItsArchetypes(request));
+
+        var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        (await creating.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage($"*{ModelNames.Is}*");
+    }
+
     [Fact]
     public async Task SetNodeRunStatusAsync_FirstTime_CreatesTheNodeRunAndAttachesItToTheRun()
     {
@@ -316,14 +350,16 @@ public class MyceliumGatewayTests
         body.GetProperty("value").GetString().Should().Contain("\"total\":3");
     }
 
+    // The property set is named the way the broker names it; only the flag inside keeps the casing the
+    // model gave it. Read as camelCase the set is never found, so a cancelled run runs on to the end.
     [Theory]
-    [InlineData("""{"properties":{"cancelRequested":{"value":true,"type":"vos.Boolean"}}}""", true)]
-    [InlineData("""{"properties":{"cancelRequested":{"value":"true","type":"vos.String"}}}""", true)]
-    [InlineData("""{"properties":{"cancelRequested":{"value":"TRUE","type":"vos.String"}}}""", true)]
-    [InlineData("""{"properties":{"cancelRequested":true}}""", true)]
-    [InlineData("""{"properties":{"cancelRequested":{"value":false,"type":"vos.Boolean"}}}""", false)]
-    [InlineData("""{"properties":{"cancelRequested":{"value":"no","type":"vos.String"}}}""", false)]
-    [InlineData("""{"properties":{}}""", false)]
+    [InlineData("""{"Properties":{"cancelRequested":{"value":true,"typeInfo":"vos.Boolean"}}}""", true)]
+    [InlineData("""{"Properties":{"cancelRequested":{"value":"true","typeInfo":"vos.String"}}}""", true)]
+    [InlineData("""{"Properties":{"cancelRequested":{"value":"TRUE","typeInfo":"vos.String"}}}""", true)]
+    [InlineData("""{"Properties":{"cancelRequested":true}}""", true)]
+    [InlineData("""{"Properties":{"cancelRequested":{"value":false,"typeInfo":"vos.Boolean"}}}""", false)]
+    [InlineData("""{"Properties":{"cancelRequested":{"value":"no","typeInfo":"vos.String"}}}""", false)]
+    [InlineData("""{"Properties":{}}""", false)]
     [InlineData("""{}""", false)]
     public async Task IsCancelRequestedAsync_ReadsTheFlagThroughItsPropertyEnvelope(string thingJson, bool expected)
     {
