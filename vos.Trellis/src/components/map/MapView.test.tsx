@@ -3,8 +3,6 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import type { BasemapSource } from '../../types/basemap';
 
 interface RecordedMap {
-  styleLoaded: boolean;
-  isStyleLoaded: () => boolean;
   finishLoadingTheStyle: () => void;
   options: Record<string, unknown>;
   handlers: Map<string, (event?: unknown) => void>;
