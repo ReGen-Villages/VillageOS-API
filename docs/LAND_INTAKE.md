@@ -455,7 +455,7 @@ sequenceDiagram
   end
   Forage->>Mycelium: resolvedAt on each coverage that answered;<br/>attempts, lastAttemptAt and failureReason on each that did not
   Forage->>Mycelium: WillowBend classifiedAs Csa<br/>each fetched word becomes its declared edge
-  Forage->>Mycelium: coverageWorkedOutAt on the Site
+  Forage->>Mycelium: coverageMatchedAt on the Site
   Note over Site: coverage worked out and none outstanding:<br/>the site leaves SiteAwaitingDiscovery for SiteDiscovered
   Note over Site: a coverage left outstanding keeps it in<br/>SiteAwaitingDiscovery, and the next run asks only that source
   Forage->>Mycelium: WillowBendStudy balancesEnergy EnergyBalance<br/>one edge per marked connection

@@ -117,7 +117,7 @@ of them.
 ## What starts a run
 
 **A site entering a state, not a call.** The model declares a range on the `Site` archetype,
-`SiteAwaitingDiscovery` — coordinates known, and either the site's coverage never worked out or some
+`SiteAwaitingDiscovery` — coordinates known, and either the site's coverage never matched or some
 coverage of it still outstanding — and a connection bound to this service watches it. A site entering
 that state makes the platform write a durable record-edge from the site to the connection and dispatch
 it. Nothing in either repository calls Forage, and nothing has to: **what started a run is a fact in
@@ -125,15 +125,15 @@ the model afterwards**, which a call over HTTP would have left only in a log.
 
 | | How it happens |
 |---|---|
-| A run starts | A site's coordinates are written and its coverage has never been worked out |
-| A run does not start again | The run records each source's answer on that source's own coverage and stamps `coverageWorkedOutAt` on the site; once no coverage is outstanding the site leaves the state on its own |
+| A run starts | A site's coordinates are written and its coverage has never been matched |
+| A run does not start again | The run records each source's answer on that source's own coverage and stamps `coverageMatchedAt` on the site; once no coverage is outstanding the site leaves the state on its own |
 | A run in which a source failed | Leaves that source's coverage outstanding, so the site stays in the state; the dispatch record waits out its `done_within`, the run is driven again, and it asks only that source |
 | A run whose model read failed | Writes nothing and stamps nothing, so the site stays in the state and the next load dispatches again — bounded by the platform's oscillation guard |
 | A source added to the catalogue later | Is dispatched itself, from its own state, and offered to every site under the Places it covers: a coverage minted per call those sites would make, nothing fetched. One outstanding coverage puts each site back in the state, and that site's run asks only this source — see [A source added to the catalogue](#a-source-added-to-the-catalogue) |
 | A surveyed site | Enters the same state and is discovered the same way; nothing here is particular to a submission |
 
 **A source has a state of its own.** `SourceAwaitingSites` on the `OpenDataSource` archetype — its
-`coverageWorkedOutAt` unknown — is what dispatches a source, and a source declared in a template is in
+`coverageMatchedAt` unknown — is what dispatches a source, and a source declared in a template is in
 it the moment the seed loads, so the sites already in the model are offered it without anything calling
 anything. The run stamps the source when it has reached every site, which is what takes it out.
 
@@ -164,7 +164,7 @@ outstanding; per source, the sixth would either be lost or re-call all six.
 explains. `attempts` is added to rather than overwritten, so a provider that has failed every run since
 the site was submitted reads differently from one that failed once.
 
-`coverageWorkedOutAt` is stamped on the site whatever the run found, including nothing: a site no source
+`coverageMatchedAt` is stamped on the site whatever the run found, including nothing: a site no source
 covers has been looked at, and saying so is what tells it apart from one still waiting to be.
 
 **A model that declares no coverage vocabulary still fetches.** It records nothing and asks again next
@@ -194,7 +194,7 @@ sources cover that Place.
 the fetches from the source's side would call every site's providers from one dispatch, unbounded by
 the concurrency a site's run holds to.
 
-**`coverageWorkedOutAt` is stamped on the source when the run has reached every site**, including a
+**`coverageMatchedAt` is stamped on the source when the run has reached every site**, including a
 source with no registration — offered to nothing, because nothing can call it — so it leaves
 `SourceAwaitingSites` rather than being dispatched again on every load. A run whose read failed stamps
 nothing and mints nothing: stamped, the source would read as offered to every site it covers while
@@ -202,7 +202,7 @@ having reached none, and nothing would offer it again. A model declaring no cove
 nothing to mint, so the run writes nothing and says so.
 
 **A subject that is neither a site nor a source is a dispatch the model got wrong**, and the run says so
-by writing nothing — the site's run would stamp a Place as worked out, and a source's run would offer it
+by writing nothing — the site's run would stamp a Place as matched, and a source's run would offer it
 to nothing and do the same. An archetype is never a site: a stamp on the site archetype itself would be
 inherited by every site and take all of them out of the state their runs are dispatched by.
 
@@ -219,7 +219,7 @@ it found, and the platform gives a dispatch **15 seconds**; with tens of shared 
 `--maxConcurrentSources` at a time and each allowed `--sourceTimeoutSeconds`, a run outlasts that call
 routinely. Judged by the call, finished work would be recorded Failed and driven again. So what closes
 the dispatch is the model: the connection relates to `SiteDiscovered` as what proves a dispatch done,
-the record stays in flight until the site's coverage has been worked out and no coverage of it is
+the record stays in flight until the site's coverage has been matched and no coverage of it is
 outstanding — the run's own last write is what closes it — and `done_within` presumes dead a run
 nobody will finish. Completion is *observed* rather than *announced* because nothing exposes a route
 for a service to announce one.
