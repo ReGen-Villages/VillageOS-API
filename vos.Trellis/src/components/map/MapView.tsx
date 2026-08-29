@@ -1,12 +1,27 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Map as MapLibreMap, Marker, type GeoJSONSource, type MapMouseEvent } from 'maplibre-gl';
+import {
+  Map as MapLibreMap,
+  Marker,
+  config as maplibre,
+  type GeoJSONSource,
+  type MapMouseEvent,
+} from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import type { Feature } from 'geojson';
 import { styleForSource } from '../../utils/basemapSources';
 import { useMapStore, resolveSelectedSource } from '../../stores/mapStore';
 import type { BasemapSource } from '../../types/basemap';
 import type { BoundaryPoint } from '../../utils/parcelGeometry';
+
+// maplibre parses every tile in a worker, and works out where to load it from at run time, from its
+// own module's address. A bundler cannot see an address computed that way: it emits no worker file and
+// moves the module, so maplibre asks for a sibling that is not there. Nothing reports it — the style
+// loads and the sources resolve on the main thread, and only the answer never comes, so the map draws
+// its controls and its background over an empty surface for ever. Importing the worker for its URL is
+// what makes the bundler emit it and tells maplibre where it landed.
+maplibre.WORKER_URL = maplibreWorkerUrl;
 
 const DEFAULT_ZOOM = 15;
 

@@ -2210,6 +2210,8 @@ There is deliberately no imagery source in that file. No global high-resolution 
 
 `maplibre-gl` is chunked on its own as `vendor-map` by `build/manualChunks.ts`, and `MapView` is lazily imported by the Model page and the intake wizard, so the map library is fetched when a map mounts rather than ahead of the page a reader actually opened.
 
+**`MapView` names maplibre's tile worker, and must go on doing so.** maplibre parses every tile in a worker whose address it works out at run time from its own module's. A bundler cannot see an address built that way: it emits no worker file and moves the module, leaving maplibre asking for a sibling that is not there. Nothing reports it — the style loads and the sources resolve on the main thread — so the map draws its controls and its background over an empty surface and stays that way. Importing the worker for its URL is what makes the bundler emit it and tells maplibre where it landed.
+
 ---
 
 ## 23. Common Components
