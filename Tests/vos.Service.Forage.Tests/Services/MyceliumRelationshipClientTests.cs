@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.Forage.Services;
 using vos.Tests.Shared;
@@ -14,16 +15,10 @@ public class MyceliumRelationshipClientTests
 {
     private const string CoverageName = "Willow Bend × NASA POWER climate averages";
 
-    private sealed class PerCallFactory : IHttpClientFactory
-    {
-        private readonly HttpMessageHandler _handler;
-        public PerCallFactory(HttpMessageHandler handler) => _handler = handler;
-        public HttpClient CreateClient(string name) => new(_handler, disposeHandler: false);
-    }
-
-    private static MyceliumRelationshipClient Client(HttpMessageHandler handler) =>
-        new(new PerCallFactory(handler),
-            NullLogger<MyceliumRelationshipClient>.Instance,
+    private static MyceliumRelationshipClient Client(
+        HttpMessageHandler handler, ILogger<MyceliumRelationshipClient>? logger = null) =>
+        new(new PerCallHttpClientFactory(handler),
+            logger ?? NullLogger<MyceliumRelationshipClient>.Instance,
             "http://localhost:7243",
             "test-token");
 
@@ -45,16 +40,30 @@ public class MyceliumRelationshipClientTests
     }
 
     [Fact]
-    public async Task MintAsync_AnswersNothingWhenTheCreatedThingNamesNoIdentifier()
+    public async Task MintAsync_SaysTheThingIsUnreachableWhenTheCreatedThingNamesNoIdentifier()
     {
+        var logger = new CapturingLogger<MyceliumRelationshipClient>();
         var handler = new MockHttpMessageHandler(_ => Json(HttpStatusCode.OK,
             $$"""
             {"Name":"{{CoverageName}}"}
             """));
 
-        var minted = await Client(handler).MintAsync(CoverageName, default);
+        var minted = await Client(handler, logger).MintAsync(CoverageName, default);
 
         minted.Should().BeNull();
+        logger.Lines.Should().ContainSingle().Which.Should().Contain("named no identifier");
+    }
+
+    [Fact]
+    public async Task MintAsync_SaysTheThingIsUnreachableWhenTheAnswerIsNotAThingAtAll()
+    {
+        var logger = new CapturingLogger<MyceliumRelationshipClient>();
+        var handler = new MockHttpMessageHandler(_ => Json(HttpStatusCode.OK, "[]"));
+
+        var minted = await Client(handler, logger).MintAsync(CoverageName, default);
+
+        minted.Should().BeNull();
+        logger.Lines.Should().ContainSingle().Which.Should().Contain("named no identifier");
     }
 
     [Fact]
