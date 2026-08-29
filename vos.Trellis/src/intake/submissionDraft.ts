@@ -9,7 +9,7 @@
  */
 
 import { onEarth } from '../utils/mapLink';
-import { draftSquareAround, type BoundaryPoint } from '../utils/parcelGeometry';
+import { draftSquareAround, enclosesLand, type BoundaryPoint } from '../utils/parcelGeometry';
 
 /** How the land area is being typed. What is stored and submitted is always hectares: a submission read
  *  in acres and recorded as hectares is a site two and a half times too small, and nothing downstream
@@ -272,11 +272,6 @@ export function readyToSubmit(draft: SubmissionDraft): boolean {
       (given) => given.trim().length > 0,
     ) && enclosesLand(draft.boundary)
   );
-}
-
-/** Fewer than three corners enclose nothing, so they describe no land to divide. */
-function enclosesLand(boundary: SubmissionDraft['boundary']): boolean {
-  return boundary.length >= 3;
 }
 
 export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
