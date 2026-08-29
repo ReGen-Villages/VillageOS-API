@@ -328,6 +328,26 @@ paging, a credentialed (`TokenExchangeAuth`) call, and a request with an outboun
 Graph composition is pinned by `EsriTileEndpointTemplateTests` (Delta); behavior by
 `BinaryResponseKindTests` and `AcceptHeaderTests` (Tributary).
 
+## What the caller gets when the provider does not answer with a reading
+
+**A refusal is carried out with the provider's own status and words.** A call answered
+anything outside 2xx — other than the one case below — comes back to the caller with that
+status and that body, text and binary paths alike, and nothing is reshaped or ingested.
+Answering 200 with a refusal inside it is what lets a run count a call resolved, stamp its
+coverage and move on, leaving a reading unassessed for a reason nobody was told (Bug
+#6831).
+
+**404 is the exception, because it is an answer.** A portal holding no entry for a
+division answers 404 (see the hazard grading below): the reshape is skipped, nothing is
+written, the subject stays honestly unassessed, and the call counts as done — asking again
+every quarter of an hour would never get a different answer.
+
+**Every call names the caller.** A request carrying no `User-Agent` is answered 403 by
+protection layers that never read the address, in a tenth of the time a real answer takes,
+so Tributary sends one on every outbound call. A registration that names its own
+`User-Agent` in the `headers` map wins over it — a provider that issues per-caller
+identifiers is served from the model, with no change here.
+
 ## Fetch-and-shape, not derive — the Metabolism boundary
 
 Tributary's contract is **fetch-and-shape**:

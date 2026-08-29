@@ -490,6 +490,9 @@ public sealed class EndpointCallService
                 if (cacheKey != null && binaryStatus is >= 200 and < 300)
                     _diskCache.Write(request.EndpointName!, cacheKey, bytes, servedContentType);
 
+                if (ProviderRefused(binaryStatus))
+                    return EndpointCallResult.Body(Encoding.UTF8.GetString(bytes), servedContentType, binaryStatus);
+
                 return EndpointCallResult.Body(BinaryEnvelope(bytes, servedContentType), "application/json");
             }
 
@@ -536,6 +539,9 @@ public sealed class EndpointCallService
                     _diskCache.Write(request.EndpointName!, cacheKey, Encoding.UTF8.GetBytes(body), contentType ?? "application/json");
             }
 
+            if (ProviderRefused(status))
+                return EndpointCallResult.Body(body, contentType ?? "application/json", status);
+
             if (reshape != null && status is >= 200 and < 300)
             {
                 var ingestResult = await _observationService.CreateObservationsAsync(
@@ -556,6 +562,14 @@ public sealed class EndpointCallService
             return Problem(502, "Endpoint call failed", ex.Message);
         }
     }
+
+    // A provider that answered something other than a reading, told apart from one that answered
+    // that it holds nothing about this subject. 404 is the second: a portal with no entry for a
+    // division answers it, the reshape is skipped and the subject stays honestly unassessed, so a
+    // run counts the call done rather than asking again every quarter of an hour for ever. Every
+    // other non-2xx left the question unanswered, and is carried out with the provider's own status
+    // and words so a run reports an outage instead of an empty success.
+    private static bool ProviderRefused(int status) => status is (< 200 or >= 300) and not 404;
 
     private static string BinaryEnvelope(byte[] bytes, string contentType) =>
         JsonSerializer.Serialize(new

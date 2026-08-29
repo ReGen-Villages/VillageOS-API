@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
+using vos.Service.Tributary.Helpers;
 using Xunit;
 using static vos.Service.Tributary.Tests.MyceliumStub;
 
@@ -565,6 +566,106 @@ public class HandleEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
         (await response.Content.ReadAsStringAsync()).Should().Contain("Endpoint call failed");
+    }
+
+    // ---------- What the provider answered reaches the caller (Bug #6831) ----------
+
+    [Fact]
+    public async Task Handle_ProviderRefusesTheCall_AnswersWithItsStatusAndWords()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":               {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod":        {"Value":"GET"},
+          "Endpoint.responseTransform": {"Value":"{\"properties\": {\"climateZone\": code}}"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test")
+                return new HttpResponseMessage(HttpStatusCode.Forbidden)
+                {
+                    Content = new StringContent("this caller may not read the catalogue", Encoding.UTF8, "text/plain")
+                };
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "a refusal answered as 200 reads to a run as a call that resolved and wrote nothing");
+        (await response.Content.ReadAsStringAsync())
+            .Should().Be("this caller may not read the catalogue");
+    }
+
+    [Fact]
+    public async Task Handle_ProviderHoldsNothing_StaysAnAnswerThatWritesNothing()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":               {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod":        {"Value":"GET"},
+          "Endpoint.responseTransform": {"Value":"{\"properties\": {\"hazardLevel\": level}}"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test")
+                return new HttpResponseMessage(HttpStatusCode.NotFound)
+                {
+                    Content = new StringContent("no entry for this division", Encoding.UTF8, "text/plain")
+                };
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "a portal holding nothing about a subject has answered, and asking again every quarter of an hour never gets a different answer");
+    }
+
+    [Fact]
+    public async Task Handle_NoUserAgentDeclared_StillNamesTheCallerToTheProvider()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":        {"Value":"https://api.test/x"},
+          "Endpoint.httpMethod": {"Value":"GET"}
+        }
+        """;
+        HttpRequestMessage? outbound = null;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "api.test") { outbound = req; return Json("{\"ok\":true}"); }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        outbound.Should().NotBeNull();
+        outbound!.Headers.GetValues("User-Agent").Should().ContainSingle()
+            .Which.Should().Be(OutboundRequest.DefaultUserAgent);
     }
 
     // ---------- Base request capabilities (Task #5469) ----------
