@@ -23,9 +23,17 @@ public class SubmissionEndpointTests
         "'project':{'name':'Willow Bend Regeneration'},"
         + "'contact':{'name':'Ana Ferreira','emailAddress':'ana.ferreira@example.pt'},";
 
+    /// <summary>The land itself, which every submission describes — an analysis divides its area, so a
+    /// submission without one is refused. Generated from the stated area rather than surveyed, which is
+    /// what the boundary source records.</summary>
+    private const string TheLand =
+        ",'parcel':{'boundarySource':'generated-from-stated-area','boundary':["
+        + "{'latitude':39.4988,'longitude':-8.4168},{'latitude':39.5036,'longitude':-8.4168},"
+        + "{'latitude':39.5036,'longitude':-8.4106},{'latitude':39.4988,'longitude':-8.4106}]}";
+
     /// <summary>A whole submission, varying only what is known about the land.</summary>
     private static string AboutTheSite(string sitePart) =>
-        Document(ProjectAndContact + "'site':{'name':'Willow Bend'" + sitePart + "}");
+        Document(ProjectAndContact + "'site':{'name':'Willow Bend'" + sitePart + "}" + TheLand);
 
     /// <summary>A submission written with apostrophes where JSON wants quotation marks, so a fragment reads
     /// as the object it is rather than as escaping.</summary>

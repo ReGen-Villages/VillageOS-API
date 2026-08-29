@@ -258,13 +258,25 @@ export function withStepVisited(draft: SubmissionDraft, step: StepId): Submissio
  * somebody who has to be able to say what was decided — so a draft is held back until it names who to
  * tell and where.
  *
+ * It is held back without a boundary for a different reason: the analysis divides the parcel's area, so
+ * a submission describing no land is assessed on nothing and reads to whoever sent it as a platform with
+ * nothing to say. Corners placed by hand are not what is asked for — the parcel step offers a square
+ * generated from the stated area, and records that it was generated rather than surveyed.
+ *
  * Whether the address is one is left to the service. A second rule here could only disagree with it, and
  * a refusal names the field to correct.
  */
 export function readyToSubmit(draft: SubmissionDraft): boolean {
-  return [draft.siteName, draft.projectName, draft.contactName, draft.emailAddress].every(
-    (given) => given.trim().length > 0,
+  return (
+    [draft.siteName, draft.projectName, draft.contactName, draft.emailAddress].every(
+      (given) => given.trim().length > 0,
+    ) && enclosesLand(draft.boundary)
   );
+}
+
+/** Fewer than three corners enclose nothing, so they describe no land to divide. */
+function enclosesLand(boundary: SubmissionDraft['boundary']): boolean {
+  return boundary.length >= 3;
 }
 
 export function documentFrom(draft: SubmissionDraft): SubmissionDocument {

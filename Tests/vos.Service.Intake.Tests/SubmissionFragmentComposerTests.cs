@@ -88,6 +88,18 @@ public class SubmissionFragmentComposerTests
             .Message.Should().Contain("contact");
     }
 
+    // Land allocation reads the parcel's measured area, and both balances above it read the footprints
+    // that allocation writes. A submission with no parcel is therefore accepted, given a reference, and
+    // never assessed on anything — which reads to the submitter as the platform having nothing to say
+    // about their land. Drawing one is not what is required: the form generates a square from the area
+    // already stated, and the boundary source records that it was generated rather than surveyed.
+    [Fact]
+    public void A_submission_describing_no_land_is_refused()
+    {
+        Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with { Parcel = null }))
+            .Message.Should().Contain("parcel");
+    }
+
     [Fact]
     public void A_contact_nobody_can_be_written_to_is_refused()
     {
@@ -638,17 +650,6 @@ public class SubmissionFragmentComposerTests
     }
 
     [Fact]
-    public void A_submission_with_no_parcel_drawn_yet_mints_none()
-    {
-        var composed = Compose(WillowBend.Submission() with { Parcel = null });
-
-        composed.ParcelId.Should().BeNull();
-        composed.Fragment.Things.Should().NotContain(thing => thing.Properties.ContainsKey("boundary"),
-            "a boundary is what a parcel is, so nothing carrying one may exist when none was drawn");
-        composed.Fragment.Relationships.Should().NotContain(edge => edge.Target == WillowBend.ParcelArchetypeId);
-    }
-
-    [Fact]
     public void A_submission_mints_a_record_of_its_own_arrival()
     {
         var composed = Compose(WillowBend.Submission());
@@ -742,7 +743,7 @@ public class SubmissionFragmentComposerTests
         var minted = new PredicateIdentity("studies", Guid.NewGuid(), Minted: true);
 
         var composed = SubmissionFragmentComposer.Compose(
-            WillowBend.Submission() with { Parcel = null },
+            WillowBend.Submission(),
             WillowBend.KnownPredicates with { Studies = minted },
             WillowBend.KnownArchetypes,
             WillowBend.KnownVocabulary,

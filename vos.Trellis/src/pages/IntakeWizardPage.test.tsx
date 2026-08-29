@@ -59,7 +59,13 @@ import { relationshipApi } from '../api/relationshipApi';
 import { thingApi } from '../api/thingApi';
 import { toast } from '../components/common/toastStore';
 import { IntakeWizardPage } from './IntakeWizardPage';
-import { loadDraft, saveDraft, emptyDraft, type SubmissionDraft } from '../intake/submissionDraft';
+import {
+  BOUNDARY_GENERATED_FROM_STATED_AREA,
+  loadDraft,
+  saveDraft,
+  emptyDraft,
+  type SubmissionDraft,
+} from '../intake/submissionDraft';
 
 // Spelled unlike the shipped land-intake template, so a page answering only to that spelling fails.
 const thing = (Id: string, Name: string, IsArchetype = false): VosThing => ({
@@ -460,6 +466,15 @@ describe('posting the submission', () => {
       projectName: 'Willow Bend Regeneration',
       contactName: 'Ana Ferreira',
       emailAddress: 'ana.ferreira@example.pt',
+      // The land the submission is about. A draft describing none cannot be submitted at all, so a
+      // fixture named for being submittable has to enclose some — and has to say how the boundary was
+      // come by, because a stored one without its source is not a parcel and is dropped when read back.
+      boundary: [
+        { latitude: 39.4988, longitude: -8.4168 },
+        { latitude: 39.5036, longitude: -8.4168 },
+        { latitude: 39.5036, longitude: -8.4106 },
+      ],
+      boundarySource: BOUNDARY_GENERATED_FROM_STATED_AREA,
       ...patch,
     };
   }
