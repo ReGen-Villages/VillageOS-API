@@ -269,10 +269,8 @@ public class EsriHandleTests
         observations!.Should().Contain("\"property\":\"featureCount\"").And.Contain("\"value\":3");
     }
 
-    // A page outside 2xx ends the walk and reaches the caller as the provider's own answer, the same
-    // rule a single call follows (Bug #6831). 404 is the one status the two paths read differently,
-    // so it is pinned beside a refusal: a single call takes it for "holds nothing about this
-    // subject", while a page answering it means the aggregate can never be completed.
+    // 404 is here beside a refusal because it is the one status the two paths read differently:
+    // a single call takes it for an answer, a page cannot.
     [Theory]
     [InlineData(HttpStatusCode.Forbidden, "this caller may not read past the first page")]
     [InlineData(HttpStatusCode.NotFound, "there is no page at that offset")]

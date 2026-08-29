@@ -8,9 +8,8 @@ public static class OutboundRequest
 {
     public const string DefaultContentType = "application/json";
 
-    // Providers refuse a caller that does not name itself: a request carrying no User-Agent is
-    // answered 403 by protection layers that never see the address, which reads to a run as the
-    // source being unreachable. A registration naming its own User-Agent still wins.
+    // Some providers answer 403 to a request carrying no User-Agent, in a fraction of the time a
+    // real answer takes, so the address looks unreachable when nothing is wrong with it.
     public const string DefaultUserAgent = "VillageOS-Tributary";
 
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);

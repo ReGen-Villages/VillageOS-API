@@ -623,8 +623,8 @@ public class HandleEndpointTests
             if (req.RequestUri!.Host == "api.test")
                 return new HttpResponseMessage(HttpStatusCode.NotFound)
                 {
-                    // A body the expression above would happily reshape, so the 404 is the only thing
-                    // keeping it away from the ingest.
+                    // A body the expression above would reshape, so the 404 is the only thing
+                    // keeping it from the ingest.
                     Content = new StringContent("""{"level":"high"}""", Encoding.UTF8, "application/json")
                 };
             return RouteFindThing(req, thingId, "EP")

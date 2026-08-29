@@ -561,8 +561,7 @@ public sealed class EndpointCallService
         }
         catch (PageNotAnsweredException unanswered)
         {
-            // Which page it was is about this walk, not about the provider, so it goes to the log and
-            // the caller gets the provider's own words undisturbed.
+            // The offset is about this walk, not the provider, so it goes to the log, not the answer.
             _logger.LogWarning(
                 "Endpoint {EndpointName} was answered {Status} at offset {Offset}; the pages before it are dropped",
                 request.EndpointName, unanswered.StatusCode, unanswered.Offset);
@@ -576,9 +575,8 @@ public sealed class EndpointCallService
         }
     }
 
-    // A page the provider did not answer with. The caller asked for the whole walk, so any page
-    // outside 2xx ends it — the 404 a single call takes for "holds nothing about this subject"
-    // included, because mid-walk it means the aggregate can never be completed.
+    // Any page outside 2xx ends the walk, 404 included — which a single call takes for "holds
+    // nothing about this subject" and a page cannot, because the aggregate can never be completed.
     private sealed class PageNotAnsweredException(int statusCode, string body, string? contentType, int offset)
         : Exception($"The provider answered {statusCode} at offset {offset}.")
     {
@@ -589,9 +587,7 @@ public sealed class EndpointCallService
     }
 
     // 404 is the provider answering that it holds nothing about this subject — a complete answer, so
-    // the call counts as done and asking again would never get a different one. Every other non-2xx
-    // left the question unanswered, and is carried out with the provider's own status and words
-    // rather than as an empty success.
+    // the call counts as done; asking again would never get a different one.
     private static bool ProviderRefused(int status) => status is (< 200 or >= 300) and not 404;
 
     private static string BinaryEnvelope(byte[] bytes, string contentType) =>

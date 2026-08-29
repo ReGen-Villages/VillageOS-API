@@ -348,11 +348,10 @@ a walk that cannot reach its last page has no aggregate to reshape. Which page i
 to the log — that is about the walk, not about the provider, and the caller gets the
 provider's words undisturbed.
 
-**Every call names the caller.** A request carrying no `User-Agent` is answered 403 by
-protection layers that never read the address, in a tenth of the time a real answer takes,
-so Tributary sends one on every outbound call. A registration that names its own
-`User-Agent` in the `headers` map wins over it — a provider that issues per-caller
-identifiers is served from the model, with no change here.
+**Every call names the caller.** Some providers answer 403 to a request carrying no
+`User-Agent`, in a tenth of the time a real answer takes, so Tributary sends one on every
+outbound call. A registration naming its own in the `headers` map wins over it, so a
+provider that issues per-caller identifiers is served from the model with no change here.
 
 ## Fetch-and-shape, not derive — the Metabolism boundary
 

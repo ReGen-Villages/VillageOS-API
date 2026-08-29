@@ -9,8 +9,7 @@ public sealed class EndpointCallResult
     public string? Content { get; private init; }
     public string? ContentType { get; private init; }
 
-    // The status the provider answered with, carried alongside its body so a caller reads a refusal
-    // as one. Only a body the provider itself produced sets this; every other outcome is an Error.
+    // The status the provider answered with, so a refusal does not reach the caller as a 200.
     public int StatusCode { get; private init; } = 200;
 
     public static EndpointCallResult Failure(EndpointCallError error) => new() { Error = error };
