@@ -52,13 +52,18 @@ public static class DeclaredVocabularyReader
     };
 
     public static DeclaredVocabulary Read(SnapshotDocument snapshot) => new(
-        TermsMarked(snapshot, AllocationCategoryArchetypeFlag, AllocationCategoryPredicateFlag,
-            "what a programme allocation is for"),
+        AllocationCategories(snapshot),
         TermsMarked(snapshot, BoundarySourceArchetypeFlag, BoundarySourcePredicateFlag,
             "how a parcel boundary was obtained"),
         TermsMarked(snapshot, HazardTypeArchetypeFlag, HazardTypePredicateFlag,
             "what a hazard assessment is about"),
         PlaceNesting(snapshot));
+
+    /// <summary>What a programme allocation is for, which is the one vocabulary a form has to offer
+    /// before anybody can fill it in.</summary>
+    internal static DeclaredTerms AllocationCategories(SnapshotDocument snapshot) =>
+        TermsMarked(snapshot, AllocationCategoryArchetypeFlag, AllocationCategoryPredicateFlag,
+            "what a programme allocation is for");
 
     // No terms to walk: a submission names no Place, so this reads the two Things an edge is written from
     // and to. The same one-carrier rule applies — two roots would put a site under a different one on
@@ -109,7 +114,7 @@ public static class DeclaredVocabularyReader
     // Every Thing that `is` the archetype, directly or through an intermediate type. Walked outwards from
     // the archetype rather than upwards from each Thing, so the snapshot's relationships are read once per
     // level instead of once per Thing. An archetype is not one of its own terms.
-    private static List<DeclaredTerm> TermsUnder(SnapshotDocument snapshot, Guid archetypeId)
+    internal static List<DeclaredTerm> TermsUnder(SnapshotDocument snapshot, Guid archetypeId)
     {
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
         var isEdge = snapshot.Things

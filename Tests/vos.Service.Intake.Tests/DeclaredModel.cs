@@ -33,6 +33,15 @@ public sealed class DeclaredModel
         foreach (var hazardType in WillowBend.HazardTypeNames)
             model.Relate(hazardType, "is", "HazardType");
 
+        // A deployment's model also says what a map may draw on, which a form reads beside the categories.
+        model
+            .WithArchetype(FormOptionsReader.BasemapSourceArchetypeName)
+            .Stating(
+                WillowBend.VectorBasemapName,
+                ("attribution", WillowBend.BasemapAttribution),
+                ("styleUrl", WillowBend.VectorBasemapStyleUrl))
+            .Relate(WillowBend.VectorBasemapName, "is", FormOptionsReader.BasemapSourceArchetypeName);
+
         return model;
     }
 
@@ -58,6 +67,17 @@ public sealed class DeclaredModel
         return this;
     }
 
+    /// <summary>A Thing carrying values of its own, for what a reader takes off properties rather than off
+    /// the edges under an archetype.</summary>
+    public DeclaredModel Stating(string name, params (string Property, object Value)[] values)
+    {
+        var id = Id(name);
+        _things.RemoveAll(thing => thing.Id == id);
+        _things.Add(Thing(id, name, isArchetype: false,
+            values.ToDictionary(stated => stated.Property, stated => Stated(stated.Value))));
+        return this;
+    }
+
     public DeclaredModel Without(string name)
     {
         _things.RemoveAll(thing => thing.Name == name);
@@ -80,4 +100,7 @@ public sealed class DeclaredModel
 
     private static SnapshotProperty True =>
         new(JsonDocument.Parse("true").RootElement, "vos.Boolean", null);
+
+    private static SnapshotProperty Stated(object value) =>
+        new(JsonSerializer.SerializeToElement(value), null, null);
 }
