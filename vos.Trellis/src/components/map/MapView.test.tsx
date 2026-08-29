@@ -167,6 +167,9 @@ describe('MapView', () => {
 
   it('opens the map on the given point with the style the model supplied', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
+    // Let the style land on a map given no boundary: it draws none, and takes none off.
+    act(() => maps[0].finishLoadingTheStyle());
+    expect(maps[0].sources.has('boundary')).toBe(false);
     expect(maps[0].options.center).toEqual([-70.64, 41.38]);
     expect(maps[0].setStyle).toHaveBeenCalledWith('https://tiles.example.org/streets');
     expect(markerPositions).toEqual([[-70.64, 41.38]]);
@@ -321,8 +324,11 @@ describe('the boundary on the map', () => {
     const { rerender } = render(
       <MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} onBoundaryChange={onBoundaryChange} />,
     );
+    act(() => maps[0].finishLoadingTheStyle());
     const corners = draggable();
     expect(corners).toHaveLength(CORNERS.length);
+    // Drawn first, or "it was taken off" passes on a boundary that was never put on.
+    expect(maps[0].sources.has('boundary')).toBe(true);
 
     rerender(<MapView {...POSITION} sources={[STREETS]} boundary={[]} onBoundaryChange={onBoundaryChange} />);
 
