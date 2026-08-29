@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Map as MapLibreMap,
   Marker,
-  config as maplibre,
+  config as maplibreConfiguration,
   type GeoJSONSource,
   type MapMouseEvent,
 } from 'maplibre-gl';
@@ -15,13 +15,10 @@ import { useMapStore, resolveSelectedSource } from '../../stores/mapStore';
 import type { BasemapSource } from '../../types/basemap';
 import type { BoundaryPoint } from '../../utils/parcelGeometry';
 
-// maplibre parses every tile in a worker, and works out where to load it from at run time, from its
-// own module's address. A bundler cannot see an address computed that way: it emits no worker file and
-// moves the module, so maplibre asks for a sibling that is not there. Nothing reports it — the style
-// loads and the sources resolve on the main thread, and only the answer never comes, so the map draws
-// its controls and its background over an empty surface for ever. Importing the worker for its URL is
-// what makes the bundler emit it and tells maplibre where it landed.
-maplibre.WORKER_URL = maplibreWorkerUrl;
+// Naming the worker is what makes the bundler emit it: maplibre's own address for it is computed at
+// run time, which a bundler cannot see. Unnamed, no tile is ever parsed and nothing says so — see
+// docs/TRELLIS.md §22.
+maplibreConfiguration.WORKER_URL = maplibreWorkerUrl;
 
 const DEFAULT_ZOOM = 15;
 
