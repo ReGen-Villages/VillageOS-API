@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
 import type { BasemapSource } from '../types/basemap';
-import { ALLOCATION_CATEGORY_ARCHETYPE_FLAG } from './modelVocabulary';
+import {
+  ALLOCATION_CATEGORY_ARCHETYPE_FLAG,
+  HAZARD_LEVEL_ARCHETYPE_FLAG,
+  HAZARD_TYPE_ARCHETYPE_FLAG,
+} from './modelVocabulary';
 
 vi.mock('../api/thingApi', () => ({
   thingApi: { getAll: vi.fn(), getAllProperties: vi.fn() },
@@ -86,6 +90,12 @@ const THINGS: VosThing[] = [
   thing('growing', 'growing'),
   thing('roads', 'roads'),
   thing('basemap-source', 'BasemapSource', true),
+  thing('peril', 'Peril', true),
+  thing('flooding', 'flooding'),
+  thing('slippage', 'slippage'),
+  thing('severity', 'Severity', true),
+  thing('bad', 'bad'),
+  thing('mild', 'mild'),
   {
     Id: 'aerial',
     Name: 'Aerial imagery',
@@ -98,9 +108,17 @@ const EDGES: VosRelationship[] = [
   edge('e2', 'growing', 'is', 'land-use'),
   edge('e3', 'roads', 'is', 'land-use'),
   edge('e4', 'aerial', 'is', 'basemap-source'),
+  edge('e5', 'flooding', 'is', 'peril'),
+  edge('e6', 'slippage', 'is', 'peril'),
+  edge('e7', 'bad', 'is', 'severity'),
+  edge('e8', 'mild', 'is', 'severity'),
 ];
 
-const PROPERTIES = { 'land-use': { [ALLOCATION_CATEGORY_ARCHETYPE_FLAG]: owned(true) } };
+const PROPERTIES = {
+  'land-use': { [ALLOCATION_CATEGORY_ARCHETYPE_FLAG]: owned(true) },
+  peril: { [HAZARD_TYPE_ARCHETYPE_FLAG]: owned(true) },
+  severity: { [HAZARD_LEVEL_ARCHETYPE_FLAG]: owned(true) },
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -634,5 +652,37 @@ describe('a model the vocabulary cannot be read from', () => {
     await waitFor(() =>
       expect(screen.getByText(/declares no programme categories/)).toBeInTheDocument(),
     );
+  });
+});
+
+describe('the hazards step', () => {
+  // Offered rather than asked for: every hazard the model names is listed, and every one starts
+  // unreported. Marking what you have seen is a different act from nominating hazards from memory.
+  it('lists every hazard the model names, each unreported', async () => {
+    render(<IntakeWizardPage />);
+    goToStep(5);
+
+    expect(await screen.findByLabelText('flooding')).toHaveValue('');
+    expect(screen.getByLabelText('slippage')).toHaveValue('');
+  });
+
+  it('reports the level marked against the hazard it is about', async () => {
+    render(<IntakeWizardPage />);
+    goToStep(5);
+
+    fireEvent.change(await screen.findByLabelText('flooding'), { target: { value: 'bad' } });
+
+    expect(loadDraft('model-1')?.reportedHazards).toEqual({ flooding: 'bad' });
+  });
+
+  // A mis-click has to be takeable back, so clearing a row says nothing again rather than something else.
+  it('takes a report back when the row is cleared', async () => {
+    render(<IntakeWizardPage />);
+    goToStep(5);
+    fireEvent.change(await screen.findByLabelText('flooding'), { target: { value: 'bad' } });
+
+    fireEvent.change(screen.getByLabelText('flooding'), { target: { value: '' } });
+
+    expect(loadDraft('model-1')?.reportedHazards).toEqual({});
   });
 });
