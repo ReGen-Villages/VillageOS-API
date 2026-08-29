@@ -1,4 +1,6 @@
-import type { SubmissionDocument } from '../pages/intakeWizard';
+import type { SubmissionDocument } from '../intake/submissionDraft';
+import type { BasemapSource, DeclaredBasemapSource } from '../types/basemap';
+import { basemapSourcesFrom } from './basemapApi';
 
 /** What the intake service answered a submission with: something the submitter can quote to whoever
  *  reviews it. What the model called the Things it composed the submission into stays inside the service —
@@ -23,10 +25,32 @@ const intakeUrl = () => (import.meta.env.VITE_INTAKE_URL as string | undefined) 
  *  carry a ticket for itself. */
 const TICKET_HEADER = 'X-Submission-Ticket';
 
+/** What the form draws itself with. A page holding no credential cannot read the model for itself, so
+ *  the service reads it and answers with the categories a submission may name and the imagery a map may
+ *  draw on. What makes a source usable is judged here, by the same rule the planner's page judges it by. */
+export interface FormOptions {
+  allocationCategories: string[];
+  basemapSources: BasemapSource[];
+}
+
 export const intakeApi = {
   /** Whether an intake address is configured, which is what decides whether the wizard is offered at
    *  all: a wizard that collects a submission it cannot post is worse than no wizard. */
   configured: () => intakeUrl().length > 0,
+
+  formOptions: async (): Promise<FormOptions> => {
+    const response = await fetch(`${serviceAddress()}/submissions/form`);
+    if (!response.ok) throw new Error(await refusalFrom(response));
+
+    const answered = (await response.json()) as {
+      allocationCategories?: string[];
+      basemapSources?: DeclaredBasemapSource[];
+    };
+    return {
+      allocationCategories: answered.allocationCategories ?? [],
+      basemapSources: basemapSourcesFrom(answered.basemapSources ?? []),
+    };
+  },
 
   /** Asks the service to send a code to the address, which is the step that establishes somebody reads
    *  what is sent there. Answers nothing: what happens next is the person reading their mail. */

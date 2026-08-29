@@ -18,6 +18,7 @@ import {
   BASEMAP_TILE_URL_PROPERTY,
   DEFAULT_RASTER_MAXIMUM_ZOOM,
   type BasemapSource,
+  type DeclaredBasemapSource,
 } from '../types/basemap';
 
 function text(value: unknown): string | null {
@@ -25,25 +26,49 @@ function text(value: unknown): string | null {
 }
 
 export function discoverBasemapSources(index: ModelIndex): BasemapSource[] {
+  return basemapSourcesFrom(
+    thingsOfArchetype(BASEMAP_SOURCE_ARCHETYPE, index).map((thing) => {
+      const properties = effectiveProperties(thing, index);
+      const maximumZoom = properties[BASEMAP_MAXIMUM_ZOOM_PROPERTY];
+      return {
+        id: thing.Id,
+        name: thing.Name,
+        attribution: text(properties[BASEMAP_ATTRIBUTION_PROPERTY]),
+        styleUrl: text(properties[BASEMAP_STYLE_URL_PROPERTY]),
+        tileUrl: text(properties[BASEMAP_TILE_URL_PROPERTY]),
+        maximumZoom: typeof maximumZoom === 'number' ? maximumZoom : null,
+      };
+    }),
+  );
+}
+
+/**
+ * What makes a stated source drawable, in the one place both the page that reads the model and the page
+ * that is told about it by the intake service ask.
+ *
+ * A source with no credit is dropped rather than drawn, because the credit is what its licence obliges
+ * the page to display. A source stating both a style and a tile address is dropped too: the two load
+ * differently and nothing here may decide which the model meant.
+ */
+export function basemapSourcesFrom(declared: readonly DeclaredBasemapSource[]): BasemapSource[] {
   const found: BasemapSource[] = [];
-  for (const thing of thingsOfArchetype(BASEMAP_SOURCE_ARCHETYPE, index)) {
-    const properties = effectiveProperties(thing, index);
-    const attribution = text(properties[BASEMAP_ATTRIBUTION_PROPERTY]);
-    const styleUrl = text(properties[BASEMAP_STYLE_URL_PROPERTY]);
-    const tileUrl = text(properties[BASEMAP_TILE_URL_PROPERTY]);
+  for (const source of declared) {
+    const attribution = text(source.attribution);
+    const styleUrl = text(source.styleUrl);
+    const tileUrl = text(source.tileUrl);
     if (!attribution) continue;
     if (styleUrl && tileUrl) continue;
     if (styleUrl) {
-      found.push({ id: thing.Id, name: thing.Name, attribution, kind: 'style', styleUrl });
+      found.push({ id: source.id, name: source.name, attribution, kind: 'style', styleUrl });
     } else if (tileUrl) {
-      const stated = properties[BASEMAP_MAXIMUM_ZOOM_PROPERTY];
       found.push({
-        id: thing.Id,
-        name: thing.Name,
+        id: source.id,
+        name: source.name,
         attribution,
         kind: 'raster',
         tileUrl,
-        maximumZoom: typeof stated === 'number' ? stated : DEFAULT_RASTER_MAXIMUM_ZOOM,
+        maximumZoom:
+          typeof source.maximumZoom === 'number' ? source.maximumZoom : DEFAULT_RASTER_MAXIMUM_ZOOM,
       });
     }
   }

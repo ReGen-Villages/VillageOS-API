@@ -19,6 +19,17 @@ export const BASEMAP_ATTRIBUTION_PROPERTY = 'attribution';
 /** Deepest zoom level a raster source has tiles for. */
 export const BASEMAP_MAXIMUM_ZOOM_PROPERTY = 'maximumZoom';
 
+/** A source as the model states it, before anything has judged whether it can be drawn. This is what the
+ *  intake service hands a public form, which cannot read the model for itself. */
+export interface DeclaredBasemapSource {
+  id: string;
+  name: string;
+  attribution?: string | null;
+  styleUrl?: string | null;
+  tileUrl?: string | null;
+  maximumZoom?: number | null;
+}
+
 /** A source the model holds, ready for the layer switch to offer by name. */
 export type BasemapSource =
   | {

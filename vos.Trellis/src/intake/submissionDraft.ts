@@ -337,20 +337,21 @@ function given<T extends Record<string, string>>(fields: T): Partial<T> {
 
 const DRAFT_KEY_PREFIX = 'vos-intake-draft:';
 
-function draftKey(modelId: string): string {
-  return DRAFT_KEY_PREFIX + modelId;
+function draftKey(draftOwner: string): string {
+  return DRAFT_KEY_PREFIX + draftOwner;
 }
 
 /**
- * Per model, because a draft describes land being proposed into one model and a planner may hold a
- * half-filled submission in each.
+ * Per owner: a planner's draft describes land being proposed into one model and they may hold a half-
+ * filled submission in each, so the model owns it; a public form has one submitter in one browser, so
+ * the form does.
  *
  * The two fields that are not plain text are checked rather than trusted. Browser storage is edited by
  * hand and survives a deployment, and a draft whose split is a word instead of a set of shares takes the
  * page down every time it is opened — with no way left to reach the button that would clear it.
  */
-export function loadDraft(modelId: string): SubmissionDraft | null {
-  const stored = localStorage.getItem(draftKey(modelId));
+export function loadDraft(draftOwner: string): SubmissionDraft | null {
+  const stored = localStorage.getItem(draftKey(draftOwner));
   if (!stored) return null;
   try {
     const parsed = JSON.parse(stored) as Partial<SubmissionDraft>;
@@ -406,10 +407,10 @@ function stepsIn(stored: unknown): StepId[] | null {
   return steps.length === 0 ? null : steps;
 }
 
-export function saveDraft(modelId: string, draft: SubmissionDraft): void {
-  localStorage.setItem(draftKey(modelId), JSON.stringify(draft));
+export function saveDraft(draftOwner: string, draft: SubmissionDraft): void {
+  localStorage.setItem(draftKey(draftOwner), JSON.stringify(draft));
 }
 
-export function clearDraft(modelId: string): void {
-  localStorage.removeItem(draftKey(modelId));
+export function clearDraft(draftOwner: string): void {
+  localStorage.removeItem(draftKey(draftOwner));
 }

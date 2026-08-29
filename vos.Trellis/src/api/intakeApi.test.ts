@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { intakeApi } from './intakeApi';
-import type { SubmissionDocument } from '../pages/intakeWizard';
+import type { SubmissionDocument } from '../intake/submissionDraft';
 
 const fetchMock = vi.fn();
 

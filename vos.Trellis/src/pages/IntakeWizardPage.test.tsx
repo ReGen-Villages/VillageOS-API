@@ -59,7 +59,7 @@ import { relationshipApi } from '../api/relationshipApi';
 import { thingApi } from '../api/thingApi';
 import { toast } from '../components/common/toastStore';
 import { IntakeWizardPage } from './IntakeWizardPage';
-import { loadDraft, saveDraft, emptyDraft, type SubmissionDraft } from './intakeWizard';
+import { loadDraft, saveDraft, emptyDraft, type SubmissionDraft } from '../intake/submissionDraft';
 
 // Spelled unlike the shipped land-intake template, so a page answering only to that spelling fails.
 const thing = (Id: string, Name: string, IsArchetype = false): VosThing => ({

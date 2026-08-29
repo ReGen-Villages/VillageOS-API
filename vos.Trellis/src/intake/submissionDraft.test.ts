@@ -23,7 +23,7 @@ import {
   withStepVisited,
   type ProgrammeShares,
   type SubmissionDraft,
-} from './intakeWizard';
+} from './submissionDraft';
 
 const MODEL = 'model-under-test';
 
