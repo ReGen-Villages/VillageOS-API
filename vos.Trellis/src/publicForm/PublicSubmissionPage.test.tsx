@@ -7,7 +7,13 @@ vi.mock('../api/intakeApi', () => ({
 vi.mock('../components/map/MapView', () => ({ MapView: () => <div data-testid="site-map" /> }));
 
 import { intakeApi } from '../api/intakeApi';
-import { loadDraft, saveDraft, emptyDraft, type SubmissionDraft } from '../intake/submissionDraft';
+import {
+  BOUNDARY_GENERATED_FROM_STATED_AREA,
+  loadDraft,
+  saveDraft,
+  emptyDraft,
+  type SubmissionDraft,
+} from '../intake/submissionDraft';
 import { PublicSubmissionPage } from './PublicSubmissionPage';
 
 const DRAFT_OWNER = 'public-form';
@@ -21,6 +27,15 @@ function submittable(patch: Partial<SubmissionDraft> = {}): SubmissionDraft {
     projectName: 'Willow Bend Regeneration',
     contactName: 'Ana Ferreira',
     emailAddress: 'ana.ferreira@example.pt',
+    // The land the submission is about, with how the boundary was come by: a draft describing none
+    // cannot be submitted, and a stored boundary without its source is not a parcel and is dropped
+    // when read back.
+    boundary: [
+      { latitude: 39.4988, longitude: -8.4168 },
+      { latitude: 39.5036, longitude: -8.4168 },
+      { latitude: 39.5036, longitude: -8.4106 },
+    ],
+    boundarySource: BOUNDARY_GENERATED_FROM_STATED_AREA,
     ...patch,
   };
 }

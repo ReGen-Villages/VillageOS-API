@@ -346,12 +346,27 @@ describe('the document that is posted', () => {
     expect(documentFrom(filled({ population: '320.5' })).site.population).toBeUndefined();
   });
 
+  const CORNERS = [
+    { latitude: 39.4988, longitude: -8.4168 },
+    { latitude: 39.5036, longitude: -8.4168 },
+    { latitude: 39.5036, longitude: -8.4106 },
+  ];
+
   it('cannot be submitted until it names the site, the project, and who to tell what was decided', () => {
-    expect(readyToSubmit(filled())).toBe(true);
-    expect(readyToSubmit(filled({ siteName: '  ' }))).toBe(false);
-    expect(readyToSubmit(filled({ projectName: '' }))).toBe(false);
-    expect(readyToSubmit(filled({ contactName: '' }))).toBe(false);
-    expect(readyToSubmit(filled({ emailAddress: '  ' }))).toBe(false);
+    expect(readyToSubmit(filled({ boundary: CORNERS }))).toBe(true);
+    expect(readyToSubmit(filled({ boundary: CORNERS, siteName: '  ' }))).toBe(false);
+    expect(readyToSubmit(filled({ boundary: CORNERS, projectName: '' }))).toBe(false);
+    expect(readyToSubmit(filled({ boundary: CORNERS, contactName: '' }))).toBe(false);
+    expect(readyToSubmit(filled({ boundary: CORNERS, emailAddress: '  ' }))).toBe(false);
+  });
+
+  // The analysis divides the parcel's area, so a submission with no boundary is refused by the service
+  // and would be assessed on nothing even if it were not. Drawing corners is not what is asked: the
+  // parcel step offers a square generated from the stated area, which satisfies this.
+  it('cannot be submitted until it says which land it is about', () => {
+    expect(readyToSubmit(filled({ boundary: [] }))).toBe(false);
+    expect(readyToSubmit(filled({ boundary: CORNERS.slice(0, 2) }))).toBe(false);
+    expect(readyToSubmit(filled({ boundary: CORNERS }))).toBe(true);
   });
 });
 

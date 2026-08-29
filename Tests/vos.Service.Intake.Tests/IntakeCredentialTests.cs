@@ -30,7 +30,10 @@ public class IntakeCredentialTests
         ("{'submissionId':'" + WillowBend.SubmissionId + "',"
          + "'project':{'name':'Willow Bend Regeneration'},"
          + "'contact':{'name':'Ana Ferreira','emailAddress':'" + AnasAddress + "'},"
-         + "'site':{'name':'Willow Bend','population':320}}")
+         + "'site':{'name':'Willow Bend','population':320},"
+         + "'parcel':{'boundarySource':'generated-from-stated-area','boundary':["
+         + "{'latitude':39.4988,'longitude':-8.4168},{'latitude':39.5036,'longitude':-8.4168},"
+         + "{'latitude':39.5036,'longitude':-8.4106},{'latitude':39.4988,'longitude':-8.4106}]}}")
         .Replace('\'', '"');
 
     private static bool IsTokenExchange(HttpRequestMessage request) =>

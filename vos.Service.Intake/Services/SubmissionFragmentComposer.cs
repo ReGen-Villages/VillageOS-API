@@ -169,20 +169,24 @@ public static class SubmissionFragmentComposer
                 new PredicateIdentity(declared.Predicate.Name, declared.Predicate.Id, Minted: false),
                 new NamedThing(term.Id, term.Name));
 
-        Guid? parcelId = null;
-        if (submission.Parcel is { } parcel)
-        {
-            var obtainedBy = Resolve(vocabulary.BoundarySources, "parcel.boundarySource",
-                Required(parcel.BoundarySource, "parcel.boundarySource",
-                    "a square generated from a stated area is not evidence and must not read as a surveyed boundary"));
+        // The land the submission is about. Without it the analysis has no area to divide, so nothing is
+        // ever worked out and the submitter is answered with a reference and silence. It does not have to
+        // be drawn — a square generated from the stated area satisfies this, and says so in its source.
+        var parcel = submission.Parcel
+            ?? throw new SubmissionError(
+                "'parcel' is missing: a submission is a piece of land, and an analysis divides its area. "
+                + "Draw the boundary, or generate one from the stated area.");
 
-            var parcelThing = new NamedThing(StableIdentity.Derive(submissionId, "parcel"), $"{siteName} Parcel-01");
-            parcelId = parcelThing.Id;
-            things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
-            Relate(siteThing, predicates.Has, parcelThing);
-            BeArchetype(parcelThing, archetypes.Parcel, ParcelArchetypeName);
-            RelateToTerm(parcelThing, vocabulary.BoundarySources, obtainedBy);
-        }
+        var obtainedBy = Resolve(vocabulary.BoundarySources, "parcel.boundarySource",
+            Required(parcel.BoundarySource, "parcel.boundarySource",
+                "a square generated from a stated area is not evidence and must not read as a surveyed boundary"));
+
+        var parcelThing = new NamedThing(StableIdentity.Derive(submissionId, "parcel"), $"{siteName} Parcel-01");
+        var parcelId = parcelThing.Id;
+        things.Add(new FragmentThing(parcelThing.Id, parcelThing.Name, ParcelProperties(parcel)));
+        Relate(siteThing, predicates.Has, parcelThing);
+        BeArchetype(parcelThing, archetypes.Parcel, ParcelArchetypeName);
+        RelateToTerm(parcelThing, vocabulary.BoundarySources, obtainedBy);
 
         var categoriesAlreadyGiven = new Dictionary<Guid, string>();
         foreach (var allocation in submission.Allocations ?? [])

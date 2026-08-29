@@ -20,8 +20,15 @@ const METRES_PER_DEGREE = (EARTH_RADIUS_METRES * Math.PI) / 180;
  *  hand-drawing, tight enough to catch a wrong unit. */
 export const AREA_MATCH_TOLERANCE = 0.08;
 
+/** Whether the corners enclose anything at all. Fewer than three enclose nothing, so they describe no
+ *  land — which is the same reason an area over them is nought and a submission carrying them is refused.
+ *  Stated once here, where the rest of what a boundary means already lives. */
+export function enclosesLand(boundary: readonly BoundaryPoint[]): boolean {
+  return boundary.length >= 3;
+}
+
 export function sphericalAreaHectares(boundary: readonly BoundaryPoint[]): number {
-  if (boundary.length < 3) return 0;
+  if (!enclosesLand(boundary)) return 0;
   let total = 0;
   for (let corner = 0; corner < boundary.length; corner += 1) {
     const here = boundary[corner];

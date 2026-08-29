@@ -9,7 +9,7 @@
  */
 
 import { onEarth } from '../utils/mapLink';
-import { draftSquareAround, type BoundaryPoint } from '../utils/parcelGeometry';
+import { draftSquareAround, enclosesLand, type BoundaryPoint } from '../utils/parcelGeometry';
 
 /** How the land area is being typed. What is stored and submitted is always hectares: a submission read
  *  in acres and recorded as hectares is a site two and a half times too small, and nothing downstream
@@ -258,12 +258,19 @@ export function withStepVisited(draft: SubmissionDraft, step: StepId): Submissio
  * somebody who has to be able to say what was decided — so a draft is held back until it names who to
  * tell and where.
  *
+ * It is held back without a boundary for a different reason: the analysis divides the parcel's area, so
+ * a submission describing no land is assessed on nothing and reads to whoever sent it as a platform with
+ * nothing to say. Corners placed by hand are not what is asked for — the parcel step offers a square
+ * generated from the stated area, and records that it was generated rather than surveyed.
+ *
  * Whether the address is one is left to the service. A second rule here could only disagree with it, and
  * a refusal names the field to correct.
  */
 export function readyToSubmit(draft: SubmissionDraft): boolean {
-  return [draft.siteName, draft.projectName, draft.contactName, draft.emailAddress].every(
-    (given) => given.trim().length > 0,
+  return (
+    [draft.siteName, draft.projectName, draft.contactName, draft.emailAddress].every(
+      (given) => given.trim().length > 0,
+    ) && enclosesLand(draft.boundary)
   );
 }
 
