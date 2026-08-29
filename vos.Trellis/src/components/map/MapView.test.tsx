@@ -132,6 +132,9 @@ const markerPositions = mocks.markerPositions;
 
 const draggable = () => markers.filter((marker) => marker.options.draggable === true);
 
+/** A map draws nothing until its style is in, so a test about what is drawn has to let it arrive. */
+const theStyleArrives = () => act(() => maps[0].finishLoadingTheStyle());
+
 function source(name: string, styleUrl: string): BasemapSource {
   return { id: `id-${name}`, name, attribution: `${name} credit`, kind: 'style', styleUrl };
 }
@@ -166,7 +169,7 @@ describe('MapView', () => {
   it('opens the map on the given point with the style the model supplied', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
     // Let the style land on a map given no boundary: it draws none, and takes none off.
-    act(() => maps[0].finishLoadingTheStyle());
+    theStyleArrives();
     expect(maps[0].sources.has('boundary')).toBe(false);
     expect(maps[0].options.center).toEqual([-70.64, 41.38]);
     expect(maps[0].setStyle).toHaveBeenCalledWith('https://tiles.example.org/streets');
@@ -247,14 +250,14 @@ describe('the boundary on the map', () => {
     ).not.toThrow();
     expect(maps[0].sources.has('boundary')).toBe(false);
 
-    act(() => maps[0].finishLoadingTheStyle());
+    theStyleArrives();
 
     expect(maps[0].sources.has('boundary')).toBe(true);
   });
 
   it('draws the boundary as a closed ring over the basemap', () => {
     render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
-    act(() => maps[0].finishLoadingTheStyle());
+    theStyleArrives();
 
     expect(ring()).toHaveLength(CORNERS.length + 1);
     expect(ring()[0]).toEqual([-70.64, 41.38]);
@@ -263,7 +266,7 @@ describe('the boundary on the map', () => {
 
   it('draws it again after a style swap wiped what the style held', () => {
     render(<MapView {...POSITION} sources={[AERIAL, STREETS]} boundary={CORNERS} />);
-    act(() => maps[0].finishLoadingTheStyle());
+    theStyleArrives();
     fireEvent.click(screen.getByRole('button', { name: 'Streets' }));
     maps[0].sources.clear();
     maps[0].layers.length = 0;
@@ -300,7 +303,7 @@ describe('the boundary on the map', () => {
 
   it('redraws a moved boundary in place rather than adding a second one', () => {
     const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
-    act(() => maps[0].finishLoadingTheStyle());
+    theStyleArrives();
     const moved = [CORNERS[0], { latitude: 41.383, longitude: -70.637 }, CORNERS[2]];
 
     rerender(<MapView {...POSITION} sources={[STREETS]} boundary={moved} />);
@@ -322,7 +325,7 @@ describe('the boundary on the map', () => {
     const { rerender } = render(
       <MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} onBoundaryChange={onBoundaryChange} />,
     );
-    act(() => maps[0].finishLoadingTheStyle());
+    theStyleArrives();
     const corners = draggable();
     expect(corners).toHaveLength(CORNERS.length);
     // Drawn first, or "it was taken off" passes on a boundary that was never put on.
