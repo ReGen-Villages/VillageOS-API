@@ -199,9 +199,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     // A property value comes wrapped as { value, typeInfo }.
     private static JsonElement Unwrap(JsonElement value) =>
-        value.ValueKind == JsonValueKind.Object && TryGetPropertyCaseInsensitive(value, "value", out var bare)
-            ? bare
-            : value;
+        TryGetPropertyCaseInsensitive(value, "value", out var bare) ? bare : value;
 
     private async Task RelateAsync(Guid subjectId, string predicateName, Guid targetId, CancellationToken cancellationToken)
     {
@@ -221,7 +219,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         response.EnsureSuccessStatusCode();
         var thing = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
 
-        if (thing.ValueKind == JsonValueKind.Object && TryGetPropertyCaseInsensitive(thing, "Id", out var idEl)
+        if (TryGetPropertyCaseInsensitive(thing, "Id", out var idEl)
             && idEl.ValueKind == JsonValueKind.String && Guid.TryParse(idEl.GetString(), out var id))
         {
             _thingIdByName[name] = id;
