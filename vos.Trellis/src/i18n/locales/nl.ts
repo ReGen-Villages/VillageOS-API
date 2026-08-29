@@ -706,6 +706,12 @@ export const nl: PartialResources = {
     reference: "Referentie",
     startAnother: "Nog een beginnen",
   },
+  publicForm: {
+    title: 'Stel uw grond voor',
+    intro: 'Beschrijf de grond en bevestig daarna het e-mailadres dat u opgeeft. Er wordt niets ingediend voordat dat adres is bevestigd.',
+    keptInThisBrowser: 'Uw antwoorden blijven in deze browser totdat u ze indient, zodat u later verder kunt gaan.',
+    unreachable: 'Dit formulier kan de indieningsdienst op dit moment niet bereiken. Er is niets verzonden van wat u hebt ingevuld.',
+  },
   submissionReview: {
     title: "Inzendingen",
     subtitle: "Wat er binnen is gekomen en wat ermee moet gebeuren",

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { VosThing, VosRelationship } from '../types/vos';
 import { buildModelIndex } from './dashboardApi';
-import { discoverBasemapSources, styleForSource } from './basemapApi';
+import { discoverBasemapSources } from './basemapApi';
 import { DEFAULT_RASTER_MAXIMUM_ZOOM } from '../types/basemap';
 
 function thing(Id: string, Name: string, Properties: Record<string, unknown> = {}): VosThing {
@@ -165,43 +165,5 @@ describe('discoverBasemapSources', () => {
     const relationships = [isEdge('arch-agency', 'arch-basemap'), isEdge('src-1', 'arch-agency')];
     const [source] = discoverBasemapSources(buildModelIndex(things, relationships));
     expect(source.attribution).toBe('Example national mapping agency');
-  });
-});
-
-describe('styleForSource', () => {
-  it('hands a vector style straight to the map', () => {
-    expect(
-      styleForSource({
-        id: 'src-1',
-        name: 'Streets',
-        attribution: 'Example',
-        kind: 'style',
-        styleUrl: 'https://tiles.example.org/styles/plain',
-      }),
-    ).toBe('https://tiles.example.org/styles/plain');
-  });
-
-  it('wraps a raster pyramid in a style that carries its attribution and its depth', () => {
-    const style = styleForSource({
-      id: 'src-1',
-      name: 'Aerial',
-      attribution: 'Example national mapping agency',
-      kind: 'raster',
-      tileUrl: 'https://tiles.example.org/{z}/{x}/{y}.png',
-      maximumZoom: 17,
-    });
-    expect(style).toEqual({
-      version: 8,
-      sources: {
-        basemap: {
-          type: 'raster',
-          tiles: ['https://tiles.example.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          maxzoom: 17,
-          attribution: 'Example national mapping agency',
-        },
-      },
-      layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }],
-    });
   });
 });

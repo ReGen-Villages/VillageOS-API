@@ -1,6 +1,6 @@
 import type { SubmissionDocument } from '../intake/submissionDraft';
 import type { BasemapSource, DeclaredBasemapSource } from '../types/basemap';
-import { basemapSourcesFrom } from './basemapApi';
+import { basemapSourcesFrom } from '../utils/basemapSources';
 
 /** What the intake service answered a submission with: something the submitter can quote to whoever
  *  reviews it. What the model called the Things it composed the submission into stays inside the service —

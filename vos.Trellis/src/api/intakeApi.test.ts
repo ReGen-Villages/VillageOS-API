@@ -144,3 +144,50 @@ describe('asking for a code', () => {
     await expect(intakeApi.askForCode('ana.ferreira@example.pt')).rejects.toThrow('as many codes');
   });
 });
+
+describe('what the form draws itself with', () => {
+  it('asks the service, because a page holding no credential cannot read the model', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ allocationCategories: ['residential'], basemapSources: [] }),
+    });
+
+    const options = await intakeApi.formOptions();
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://localhost:6200/submissions/form');
+    expect(init).toBeUndefined();
+    expect(options.allocationCategories).toEqual(['residential']);
+  });
+
+  it('judges the sources it is told about by the rule the signed-in page judges them by', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          allocationCategories: [],
+          basemapSources: [
+            { id: 'src-1', name: 'Streets', attribution: 'Example', styleUrl: 'https://example.test/s.json' },
+            { id: 'src-2', name: 'Unlicensed', attribution: null, styleUrl: 'https://example.test/u.json' },
+          ],
+        }),
+    });
+
+    const options = await intakeApi.formOptions();
+
+    expect(options.basemapSources.map((source) => source.name)).toEqual(['Streets']);
+  });
+
+  // A deployment whose model is not seeded answers this route with a problem document, and a form that
+  // read the absent fields as an empty model would offer a programme step with nothing in it and no
+  // explanation.
+  it('raises what the service said rather than reading a refusal as an empty model', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: () => Promise.resolve({ detail: 'This service cannot answer at the moment.' }),
+    });
+
+    await expect(intakeApi.formOptions()).rejects.toThrow('cannot answer');
+  });
+});
