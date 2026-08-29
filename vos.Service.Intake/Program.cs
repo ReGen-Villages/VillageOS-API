@@ -13,13 +13,20 @@ using vos.Service.Shared.Subscriptions;
 var builder = WebApplication.CreateBuilder(args);
 
 var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
-var mailSettings = MailSettings.Parse(args, builder.Configuration);
-if (launchSettings == null || mailSettings == null)
+var mailDelivery = MailDelivery.Parse(args, builder.Configuration);
+if (launchSettings == null || mailDelivery == null)
 {
     Console.WriteLine(ServiceLaunchSettings.BuildUsageMessage(
-        " [--publicFormOrigin=<origin>[,<origin>]] --mailHost=<host> --mailFrom=<address>",
+        " [--publicFormOrigin=<origin>[,<origin>]] [--mailDelivery=<where>] --mailHost=<host> --mailFrom=<address>",
         "\n  --publicFormOrigin  Origin(s) of the public form allowed to call this service across origins"
-        + MailSettings.UsageMessage));
+        + MailDelivery.UsageMessage));
+    Environment.Exit(1);
+    return;
+}
+
+if (mailDelivery.WhyRefusedIn(builder.Environment.EnvironmentName) is { } refusal)
+{
+    Console.WriteLine(refusal);
     Environment.Exit(1);
     return;
 }
@@ -113,8 +120,19 @@ try
             apiKey: apiKey));
 
     builder.Services.AddSingleton(TimeProvider.System);
-    builder.Services.AddSingleton(mailSettings);
-    builder.Services.AddSingleton<IVerificationMailer, SmtpVerificationMailer>();
+    if (mailDelivery.Server is { } mailServer)
+    {
+        builder.Services.AddSingleton(mailServer);
+        builder.Services.AddSingleton<IVerificationMailer, SmtpVerificationMailer>();
+    }
+    else
+    {
+        // Said once, loudly, at the one moment somebody is watching: every code this service issues from
+        // here on is readable in its log, and no submitter has to receive one to submit.
+        Log.Warning("Verification codes are being written to this log rather than sent. "
+                    + "No address is verified, and any submission may name any address.");
+        builder.Services.AddSingleton<IVerificationMailer, ConsoleVerificationMailer>();
+    }
     builder.Services.AddSingleton<AddressVerification>();
     builder.Services.AddSingleton<SubmissionTicket>();
     builder.Services.AddSingleton<SubmissionIntakeService>();

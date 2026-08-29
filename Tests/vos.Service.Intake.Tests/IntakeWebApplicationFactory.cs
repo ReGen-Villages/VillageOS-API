@@ -58,9 +58,23 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     /// a person would have read in their mail.</summary>
     public CapturingMailer Mailer { get; } = new();
 
+    /// <summary>Whether the service keeps whichever mailer it wired for itself. False substitutes
+    /// <see cref="Mailer"/>, which is what a test about the exchange wants; true is for a test about which
+    /// mailer the settings chose.</summary>
+    public bool KeepsTheServicesOwnMailer { get; set; }
+
+    /// <summary>How the service is running. Testing unless a test is about something the environment
+    /// decides — writing codes to the console is allowed on a development machine and nowhere else. Named
+    /// as the host names it, and never <c>Environment</c>, which would shadow <see cref="System.Environment"/>
+    /// for everything in this class.</summary>
+    public string EnvironmentName { get; set; } = "Testing";
+
+    /// <summary>Where codes go, or null to leave the service on its default of sending them.</summary>
+    public string? MailDelivery { get; set; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(EnvironmentName);
         builder.UseSetting("Port", "5000");
         builder.UseSetting("MyceliumUrl", "http://localhost");
         // A non-empty token short-circuits the /api/auth/token round trip in MyceliumClientBase, which is
@@ -69,10 +83,12 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             builder.UseSetting("Token", Token);
         if (ApiKey != null)
             builder.UseSetting("ApiKey", ApiKey);
-        // The service refuses to start without these, so every test supplies them; nothing here reaches a
-        // mail server, because the mailer below is what actually sends.
+        // The service refuses to start without these unless codes go to the console, so every test
+        // supplies them; nothing here reaches a mail server, because the mailer below is what sends.
         builder.UseSetting("MailHost", "smtp.example.test");
         builder.UseSetting("MailFrom", "intake@example.test");
+        if (MailDelivery != null)
+            builder.UseSetting("MailDelivery", MailDelivery);
         if (VerificationKey != null)
         {
             builder.UseSetting("VerificationKey", VerificationKey);
@@ -90,8 +106,11 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<TimeProvider>();
             services.AddSingleton<TimeProvider>(Clock);
             services.AddSingleton<ILogger<SubmissionIntakeService>>(Log);
-            services.RemoveAll<IVerificationMailer>();
-            services.AddSingleton<IVerificationMailer>(Mailer);
+            if (!KeepsTheServicesOwnMailer)
+            {
+                services.RemoveAll<IVerificationMailer>();
+                services.AddSingleton<IVerificationMailer>(Mailer);
+            }
             if (ArrivesThroughAProxy)
                 services.AddSingleton<IStartupFilter, ArrivingThroughTheProxy>();
         });

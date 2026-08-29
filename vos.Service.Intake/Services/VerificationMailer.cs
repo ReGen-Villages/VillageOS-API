@@ -60,3 +60,24 @@ public sealed class SmtpVerificationMailer(MailSettings settings) : IVerificatio
         await client.SendMailAsync(message, cancellation);
     }
 }
+
+/// <summary>
+/// Writes the code down instead of sending it, for a developer with no mail relay to hand.
+/// </summary>
+/// <remarks>
+/// This puts in a log the two things §12 of <c>docs/LAND_INTAKE.md</c> exists to keep out of one: an
+/// address somebody typed, and the code that would let anybody submit under it. That is not an oversight
+/// to be tidied up — it is the whole function, and it is why
+/// <see cref="MailDelivery.WhyRefusedIn"/> allows it on a development machine and nowhere else.
+/// </remarks>
+public sealed class ConsoleVerificationMailer(ILogger<ConsoleVerificationMailer> logger) : IVerificationMailer
+{
+    public Task SendAsync(string emailAddress, string code, CancellationToken cancellation)
+    {
+        // A warning rather than information: whoever reads this has to see that nothing was sent, or they
+        // wait for mail that is never coming and a service that verifies nobody reads as a working one.
+        logger.LogWarning(
+            "No mail was sent. The code for {EmailAddress} is {Code}.", emailAddress, code);
+        return Task.CompletedTask;
+    }
+}
