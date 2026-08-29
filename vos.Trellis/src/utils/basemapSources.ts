@@ -23,9 +23,9 @@ import {
 export function basemapSourcesFrom(declared: readonly DeclaredBasemapSource[]): BasemapSource[] {
   const found: BasemapSource[] = [];
   for (const source of declared) {
-    const attribution = text(source.attribution);
-    const styleUrl = text(source.styleUrl);
-    const tileUrl = text(source.tileUrl);
+    const attribution = statedText(source.attribution);
+    const styleUrl = statedText(source.styleUrl);
+    const tileUrl = statedText(source.tileUrl);
     if (!attribution) continue;
     if (styleUrl && tileUrl) continue;
     if (styleUrl) {
@@ -63,6 +63,9 @@ export function styleForSource(source: BasemapSource): StyleSpecification | stri
   };
 }
 
-export function text(value: unknown): string | null {
+/** A value the model actually states, or nothing. A blank address and an absent one mean the same thing
+ *  to a map, and the two arrive by different routes: one from a property left empty, one from a field the
+ *  service answered as null. */
+export function statedText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null;
 }

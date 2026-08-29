@@ -288,6 +288,14 @@ steps:
   workingDirectory: vos.Trellis
   condition: always()
 
+# The public submission form is a build of its own and a deliverable of its own — see deploy/README.md.
+# Built here because nothing else exercises its configuration, and a form that will not build is one
+# nobody discovers until they come to place it on the site.
+- script: npm run build:public-form
+  displayName: 'Build the public submission form'
+  workingDirectory: vos.Trellis
+  condition: always()
+
 - script: |
     echo "========================================"
     echo "Build Summary for $(Build.SourceBranchName)"

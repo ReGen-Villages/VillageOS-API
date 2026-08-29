@@ -16,16 +16,33 @@ import { useTranslation } from 'react-i18next';
 import { intakeApi, type FormOptions } from '../api/intakeApi';
 import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
 import { ToastContainer } from '../components/common/Toast';
+import { directionFor } from '../i18n/languages';
 import { IntakeWizard } from '../intake/IntakeWizard';
+import { attachThemeMediaListener, useThemeStore } from '../stores/themeStore';
 
 /** One submitter in one browser, so the draft belongs to the form rather than to a model — which is what
  *  it belongs to when a planner fills the same wizard in. */
 const DRAFT_OWNER = 'public-form';
 
 export function PublicSubmissionPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const theme = useThemeStore((state) => state.theme);
   const [options, setOptions] = useState<FormOptions>({ allocationCategories: [], basemapSources: [] });
   const [unreachable, setUnreachable] = useState(false);
+
+  // The signed-in application's shell sets these two on the document for its own pages. This form is
+  // served on its own, so it sets them itself and does nothing else that shell does.
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('lang', i18n.language);
+    root.setAttribute('dir', directionFor(i18n.language));
+  }, [i18n.language]);
+
+  useEffect(() => attachThemeMediaListener(), []);
 
   useEffect(() => {
     let abandoned = false;

@@ -9,7 +9,7 @@
 import type { ModelIndex } from './dashboardApi';
 import { thingsOfArchetype } from './dashboardApi';
 import { effectiveProperties } from '../utils/propertyMapper';
-import { basemapSourcesFrom, text } from '../utils/basemapSources';
+import { basemapSourcesFrom, statedText } from '../utils/basemapSources';
 import {
   BASEMAP_ATTRIBUTION_PROPERTY,
   BASEMAP_MAXIMUM_ZOOM_PROPERTY,
@@ -27,9 +27,9 @@ export function discoverBasemapSources(index: ModelIndex): BasemapSource[] {
       return {
         id: thing.Id,
         name: thing.Name,
-        attribution: text(properties[BASEMAP_ATTRIBUTION_PROPERTY]),
-        styleUrl: text(properties[BASEMAP_STYLE_URL_PROPERTY]),
-        tileUrl: text(properties[BASEMAP_TILE_URL_PROPERTY]),
+        attribution: statedText(properties[BASEMAP_ATTRIBUTION_PROPERTY]),
+        styleUrl: statedText(properties[BASEMAP_STYLE_URL_PROPERTY]),
+        tileUrl: statedText(properties[BASEMAP_TILE_URL_PROPERTY]),
         maximumZoom: typeof maximumZoom === 'number' ? maximumZoom : null,
       };
     }),
