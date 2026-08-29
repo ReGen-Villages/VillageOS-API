@@ -27,7 +27,7 @@ const DRAFT_OWNER = 'public-form';
 export function PublicSubmissionPage() {
   const { t, i18n } = useTranslation();
   const theme = useThemeStore((state) => state.theme);
-  const [options, setOptions] = useState<FormOptions>({ allocationCategories: [], basemapSources: [] });
+  const [options, setOptions] = useState<FormOptions>({ allocationCategories: [], basemapSources: [], hazardTypes: [], hazardLevels: [] });
   const [unreachable, setUnreachable] = useState(false);
 
   // The signed-in application's shell sets these two on the document for its own pages. This form is

@@ -29,15 +29,30 @@ public static class FormOptionsReader
     public static SubscriptionSelector Selector() => new()
     {
         Names = [SubmissionFragmentComposer.IsPredicateName],
-        MarkedTypes = [DeclaredVocabularyReader.AllocationCategoryArchetypeFlag],
-        MarkedArchetypes = [DeclaredVocabularyReader.AllocationCategoryPredicateFlag],
+        MarkedTypes =
+        [
+            DeclaredVocabularyReader.AllocationCategoryArchetypeFlag,
+            DeclaredVocabularyReader.HazardTypeArchetypeFlag,
+            DeclaredVocabularyReader.HazardLevelArchetypeFlag,
+        ],
+        MarkedArchetypes =
+        [
+            DeclaredVocabularyReader.AllocationCategoryPredicateFlag,
+            DeclaredVocabularyReader.HazardTypePredicateFlag,
+            DeclaredVocabularyReader.ReportedLevelPredicateFlag,
+        ],
         Types = [BasemapSourceArchetypeName],
         IncludeRelationships = true,
     };
 
     public static FormOptions Read(SnapshotDocument snapshot) => new(
         [.. DeclaredVocabularyReader.AllocationCategories(snapshot).Terms.Select(term => term.Name)],
-        BasemapSources(snapshot));
+        BasemapSources(snapshot),
+        // A form asking somebody what they have seen has to offer the words the model holds, for the same
+        // reason it offers the allocation categories: a term typed freehand is refused on submission, and
+        // the person who typed it is the last to find out.
+        DeclaredVocabularyReader.HazardTypeNamesOrNone(snapshot),
+        DeclaredVocabularyReader.HazardLevelNamesOrNone(snapshot));
 
     // A model declaring no imagery is a form with no map rather than a service that cannot answer: the
     // basemap is a deployment's own choice, and a submission carrying coordinates typed in by hand is a

@@ -38,6 +38,8 @@ beforeEach(() => {
   vi.mocked(intakeApi.formOptions).mockResolvedValue({
     allocationCategories: ['residential', 'food-and-agriculture'],
     basemapSources: [],
+    hazardTypes: [],
+    hazardLevels: [],
   });
 });
 
