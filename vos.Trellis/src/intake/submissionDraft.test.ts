@@ -14,6 +14,7 @@ import {
   fromHectares,
   loadDraft,
   readyToSubmit,
+  withHazardReported,
   saveDraft,
   statedAreaHectares,
   wholePercentages,
@@ -411,7 +412,7 @@ describe('a draft left and come back to', () => {
   it('falls back to the first step where what was stored names no step this wizard has', () => {
     localStorage.setItem(
       'vos-intake-draft:' + MODEL,
-      JSON.stringify({ submissionId: 'sub-0006', visited: ['hazards', 7] }),
+      JSON.stringify({ submissionId: 'sub-0006', visited: ['orchard', 7] }),
     );
 
     expect(loadDraft(MODEL)?.visited).toEqual(['project']);
@@ -420,7 +421,7 @@ describe('a draft left and come back to', () => {
   it('keeps the steps it recognises out of what was stored', () => {
     localStorage.setItem(
       'vos-intake-draft:' + MODEL,
-      JSON.stringify({ submissionId: 'sub-0007', visited: ['project', 'hazards', 'location'] }),
+      JSON.stringify({ submissionId: 'sub-0007', visited: ['project', 'orchard', 'location'] }),
     );
 
     expect(loadDraft(MODEL)?.visited).toEqual(['project', 'location']);
@@ -451,5 +452,38 @@ describe('moving between steps', () => {
     const draft = withStepVisited(emptyDraft('sub-0001'), 'contact');
 
     expect(withStepVisited(draft, 'contact')).toBe(draft);
+  });
+});
+
+describe('what a submitter reports of a hazard', () => {
+  // Every hazard is offered and every one starts unreported: marking what you have seen is a different
+  // act from nominating hazards from memory, and a blank row is an answer — not something they saw.
+  it('reports a level against the hazard it is about', () => {
+    const draft = withHazardReported(emptyDraft('sub-0009'), 'river-flood', 'high');
+
+    expect(draft.reportedHazards).toEqual({ 'river-flood': 'high' });
+    expect(documentFrom({ ...draft, siteName: 'Willow Bend', projectName: 'P', contactName: 'C', emailAddress: 'a@b.c' }).hazards)
+      .toEqual([{ hazardType: 'river-flood', reportedLevel: 'high' }]);
+  });
+
+  // A mis-click has to be takeable back, so clearing a row is saying nothing again rather than saying
+  // something else.
+  it('takes a report back when the level is cleared', () => {
+    const reported = withHazardReported(emptyDraft('sub-0010'), 'landslide', 'low');
+
+    const cleared = withHazardReported(reported, 'landslide', '');
+
+    expect(cleared.reportedHazards).toEqual({});
+  });
+
+  // A submission carrying an empty list would say the submitter was asked and reported nothing, which is
+  // not what a form nobody filled in means.
+  it('posts no hazards at all where none was reported', () => {
+    const draft = {
+      ...emptyDraft('sub-0011'),
+      siteName: 'Willow Bend', projectName: 'P', contactName: 'C', emailAddress: 'a@b.c',
+    };
+
+    expect(documentFrom(draft).hazards).toBeUndefined();
   });
 });

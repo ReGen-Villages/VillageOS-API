@@ -638,6 +638,7 @@ export const en = {
       location: 'Location',
       programme: 'Size and programme',
       parcel: 'Parcel',
+      hazards: 'Hazards',
     },
     stepHint: {
       project: 'The undertaking the land is for.',
@@ -645,7 +646,10 @@ export const en = {
       location: 'Where the land is, and what it is called.',
       programme: 'How big the land is, who it is for, and how it would be divided.',
       parcel: 'Draw the boundary of the land on the map, checked against the stated area.',
+      hazards: 'What you have seen of the land, beside what the hazard data says.',
     },
+    hazardsNone: 'This model names no hazards to report on.',
+    notReported: 'Not reported',
     projectName: 'Project name',
     country: 'Country',
     nearestCity: 'Closest city',

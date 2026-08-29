@@ -42,6 +42,7 @@ import {
   withStepVisited,
   type AreaUnit,
   type StepId,
+  withHazardReported,
   type SubmissionDraft,
 } from './submissionDraft';
 
@@ -50,10 +51,17 @@ const MapView = lazy(() => import('../components/map/MapView').then((m) => ({ de
 export function IntakeWizard({
   categories,
   basemapSources,
+  hazardTypes,
+  hazardLevels,
   draftOwner,
 }: {
   categories: readonly string[];
   basemapSources: BasemapSource[];
+  /** The hazards somebody may report on and the words they may use, both the model's. Empty where a
+   *  deployment declares none, which draws the step with nothing to mark rather than hiding it — a
+   *  person who reached it should be told why there is nothing there. */
+  hazardTypes: readonly string[];
+  hazardLevels: readonly string[];
   /** What the half-finished submission is kept under, or null while that is still being established. */
   draftOwner: string | null;
 }) {
@@ -168,6 +176,9 @@ export function IntakeWizard({
         {step === 'location' && <LocationStep draft={draft} sources={basemapSources} onChange={change} />}
         {step === 'programme' && <ProgrammeStep draft={draft} categories={categories} onChange={change} />}
         {step === 'parcel' && <ParcelStep draft={draft} sources={basemapSources} onChange={change} />}
+        {step === 'hazards' && (
+          <HazardsStep draft={draft} types={hazardTypes} levels={hazardLevels} onChange={change} />
+        )}
       </div>
       <Navigation
         step={step}
@@ -626,6 +637,55 @@ function Accepted({
         {t('intake.startAnother')}
       </button>
     </div>
+  );
+}
+
+/** What a person has seen of the land, against the hazards the model names. Every hazard is offered and
+ *  every one starts unreported: somebody marking what they know is doing something different from
+ *  nominating hazards from memory, and a blank row is an answer — this is not something they saw. */
+function HazardsStep({
+  draft,
+  types,
+  levels,
+  onChange,
+}: StepProps & { types: readonly string[]; levels: readonly string[] }) {
+  const { t } = useTranslation();
+
+  if (types.length === 0 || levels.length === 0) {
+    return (
+      <>
+        <StepHeading step="hazards" />
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('intake.hazardsNone')}</p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <StepHeading step="hazards" />
+      <div className="flex flex-col gap-2">
+        {types.map((hazardType) => (
+          <label key={hazardType} className="flex items-center justify-between gap-3">
+            <span className="text-sm text-zinc-700 dark:text-zinc-300">{hazardType}</span>
+            <select
+              aria-label={hazardType}
+              value={draft.reportedHazards[hazardType] ?? ''}
+              onChange={(event) =>
+                onChange(withHazardReported(draft, hazardType, event.target.value))
+              }
+              className="px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+            >
+              <option value="">{t('intake.notReported')}</option>
+              {levels.map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+    </>
   );
 }
 

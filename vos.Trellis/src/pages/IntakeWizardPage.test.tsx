@@ -477,7 +477,7 @@ describe('posting the submission', () => {
 
   it('will not ask for a code until it names the site, the project, and who to send it to', () => {
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
     expect(
@@ -490,7 +490,7 @@ describe('posting the submission', () => {
   it('will not submit a site nobody can be told the decision about', () => {
     saveDraft('model-1', submittable({ emailAddress: '' }));
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
   });
@@ -499,7 +499,7 @@ describe('posting the submission', () => {
     vi.mocked(intakeApi.configured).mockReturnValue(false);
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
     expect(screen.getByText('No intake service address is configured.')).toBeInTheDocument();
@@ -508,7 +508,7 @@ describe('posting the submission', () => {
   it('posts what was collected and answers with the reference to quote', async () => {
     saveDraft('model-1', submittable({ statedArea: '24' }));
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     await askForACodeAndSubmit();
 
@@ -529,7 +529,7 @@ describe('posting the submission', () => {
     ];
     saveDraft('model-1', submittable({ boundary: corners, boundarySource: 'drawn-by-hand' }));
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     await askForACodeAndSubmit();
 
@@ -544,7 +544,7 @@ describe('posting the submission', () => {
   it('clears the draft once it is in the model, so reopening starts a new submission', async () => {
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     await askForACodeAndSubmit();
 
@@ -554,7 +554,7 @@ describe('posting the submission', () => {
   it('starts a fresh submission after one has landed, under a new identifier', async () => {
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
     await askForACodeAndSubmit();
     await waitFor(() => expect(screen.getByText('Submitted')).toBeInTheDocument());
 
@@ -568,7 +568,7 @@ describe('posting the submission', () => {
     vi.mocked(intakeApi.submit).mockRejectedValue(new Error("'site.name' is missing"));
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     await askForACodeAndSubmit();
 
@@ -584,7 +584,7 @@ describe('posting the submission', () => {
     );
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
 
@@ -599,13 +599,13 @@ describe('posting the submission', () => {
   it('asks for a new code when the address is changed after one was sent', async () => {
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
     fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
     await waitFor(() => expect(screen.getByLabelText('Code')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: '2. Contact' }));
     typeInto('Email address', 'somebody.else@example.pt');
-    goToStep(3);
+    goToStep(4);
 
     expect(screen.queryByLabelText('Code')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send a code' })).toBeInTheDocument();
@@ -616,7 +616,7 @@ describe('posting the submission', () => {
   it('will not submit with the code box empty', async () => {
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
     await waitFor(() => expect(screen.getByLabelText('Code')).toBeInTheDocument());

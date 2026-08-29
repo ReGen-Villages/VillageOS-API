@@ -640,6 +640,7 @@ export const nl: PartialResources = {
       location: "Ligging",
       programme: "Omvang en programma",
       parcel: "Perceel",
+      hazards: "Gevaren",
     },
     stepHint: {
       project: "Het initiatief waarvoor de grond bedoeld is.",
@@ -647,7 +648,10 @@ export const nl: PartialResources = {
       location: "Waar de grond ligt en hoe die heet.",
       programme: "Hoe groot de grond is, voor hoeveel mensen, en hoe die verdeeld zou worden.",
       parcel: "Teken de grens van de grond op de kaart, getoetst aan de opgegeven oppervlakte.",
+      hazards: "Wat u op het land hebt gezien, naast wat de gevaardata zeggen.",
     },
+    hazardsNone: "Dit model noemt geen gevaren om te melden.",
+    notReported: "Niet gemeld",
     projectName: "Projectnaam",
     country: "Land",
     nearestCity: "Dichtstbijzijnde stad",

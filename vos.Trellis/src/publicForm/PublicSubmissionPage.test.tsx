@@ -26,7 +26,7 @@ function submittable(patch: Partial<SubmissionDraft> = {}): SubmissionDraft {
 }
 
 function goToLastStep(): void {
-  for (let step = 0; step < 4; step += 1) {
+  for (let step = 0; step < 5; step += 1) {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
   }
 }

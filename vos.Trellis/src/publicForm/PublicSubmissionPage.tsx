@@ -81,6 +81,8 @@ export function PublicSubmissionPage() {
         <IntakeWizard
           categories={options.allocationCategories}
           basemapSources={options.basemapSources}
+          hazardTypes={options.hazardTypes}
+          hazardLevels={options.hazardLevels}
           draftOwner={DRAFT_OWNER}
         />
         <p className="mt-6 text-[11px] text-zinc-400 dark:text-zinc-500">

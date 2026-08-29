@@ -18,7 +18,7 @@ export type AreaUnit = 'hectares' | 'acres';
 
 export const HECTARES_PER_ACRE = 0.40468564224;
 
-export const STEPS = ['project', 'contact', 'location', 'programme', 'parcel'] as const;
+export const STEPS = ['project', 'contact', 'location', 'programme', 'parcel', 'hazards'] as const;
 
 export type StepId = (typeof STEPS)[number];
 
@@ -274,6 +274,19 @@ export function readyToSubmit(draft: SubmissionDraft): boolean {
   return [draft.siteName, draft.projectName, draft.contactName, draft.emailAddress].every(
     (given) => given.trim().length > 0,
   );
+}
+
+/** What a person marks against one hazard. An empty word clears it: saying nothing about a hazard has
+ *  to stay possible after saying something, or a mis-click is a report they cannot take back. */
+export function withHazardReported(
+  draft: SubmissionDraft,
+  hazardType: string,
+  reportedLevel: string,
+): SubmissionDraft {
+  const reported = { ...draft.reportedHazards };
+  if (reportedLevel.length === 0) delete reported[hazardType];
+  else reported[hazardType] = reportedLevel;
+  return { ...draft, reportedHazards: reported };
 }
 
 export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
