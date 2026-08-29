@@ -385,6 +385,30 @@ public class SubmissionFragmentComposerTests
         Hazards(composed).Single(thing =>
             Relates(composed, thing.Id, WillowBend.AssessesPredicateId, WillowBend.TermId(hazardType)));
 
+    // The discovery run grades one hazard per assessment the site has, so a site with none is graded on
+    // nothing — which is what every submitted site was, because no form asks about hazards and a
+    // submission naming none minted none. A landowner is asking which hazards apply to their land, not
+    // asking the platform to grade a list they supplied.
+    [Fact]
+    public void Every_hazard_the_model_knows_of_is_assessed_even_where_the_submission_names_none()
+    {
+        var composed = Compose(WillowBend.Submission() with { Hazards = null });
+
+        Hazards(composed).Should().HaveCount(WillowBend.HazardTypeNames.Length);
+        foreach (var hazardType in WillowBend.HazardTypeNames)
+            HazardOf(composed, hazardType).Should().NotBeNull();
+    }
+
+    // A hazard the submitter raised and one nobody mentioned are the same assessment of the same land, so
+    // naming one must not produce a second Thing beside the one every site gets.
+    [Fact]
+    public void A_hazard_the_submission_names_is_the_same_assessment_the_site_would_have_anyway()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        Hazards(composed).Should().HaveCount(WillowBend.HazardTypeNames.Length);
+    }
+
     // What the assessment is about, as an edge to the Thing the model declares. A word could name a hazard
     // that exists nowhere and nothing would notice; nothing can be asked of it either — not what it means,
     // not which other sites carry it.
@@ -442,7 +466,7 @@ public class SubmissionFragmentComposerTests
             WillowBend.Submission() with { Hazards = [new SubmittedHazard { HazardType = "volcano" }] },
             WillowBend.KnownPredicates, WillowBend.KnownArchetypes, withVolcano, WillowBend.ArrivedAt);
 
-        Relates(composed, Hazards(composed).Single().Id, WillowBend.AssessesPredicateId,
+        Relates(composed, HazardOf(composed, "volcano").Id, WillowBend.AssessesPredicateId,
             WillowBend.TermId("volcano")).Should().BeTrue();
     }
 
@@ -471,8 +495,10 @@ public class SubmissionFragmentComposerTests
         var composed = Compose(WillowBend.Submission());
 
         composed.Fragment.Things.Where(thing => thing.Name == "National flood portal").Should().HaveCount(1);
-        Hazards(composed).Should().OnlyContain(hazard =>
-            Holds(composed, hazard.Id, Named(composed, "National flood portal").Id));
+        var named = WillowBend.Submission().Hazards!.Select(hazard => hazard.HazardType!);
+        foreach (var hazardType in named)
+            Holds(composed, HazardOf(composed, hazardType).Id, Named(composed, "National flood portal").Id)
+                .Should().BeTrue();
     }
 
     // A level a planner remembered is a recollection. It arrives as an observation when the source is
@@ -492,7 +518,7 @@ public class SubmissionFragmentComposerTests
         var composed = Compose(WillowBend.Submission());
 
         var hazards = Hazards(composed).ToList();
-        hazards.Should().HaveCount(WillowBend.Submission().Hazards!.Count);
+        hazards.Should().HaveCount(WillowBend.HazardTypeNames.Length);
         hazards.Should().OnlyContain(thing => Holds(composed, composed.SiteId, thing.Id));
         hazards.Should().OnlyContain(thing =>
             IsEdgeTo(composed, thing.Id, WillowBend.HazardAssessmentArchetypeId));
@@ -550,16 +576,6 @@ public class SubmissionFragmentComposerTests
     }
 
     [Fact]
-    public void A_submission_naming_no_hazards_mints_none()
-    {
-        var composed = Compose(WillowBend.Submission() with { Hazards = null });
-
-        Hazards(composed).Should().BeEmpty();
-        composed.Fragment.Relationships.Should()
-            .NotContain(edge => edge.Target == WillowBend.HazardAssessmentArchetypeId);
-    }
-
-    [Fact]
     public void A_hazard_named_without_a_source_still_mints()
     {
         var composed = Compose(WillowBend.Submission() with
@@ -567,7 +583,7 @@ public class SubmissionFragmentComposerTests
             Hazards = [new SubmittedHazard { HazardType = "landslide" }],
         });
 
-        Relates(composed, Hazards(composed).Single().Id, WillowBend.AssessesPredicateId,
+        Relates(composed, HazardOf(composed, "landslide").Id, WillowBend.AssessesPredicateId,
             WillowBend.TermId("landslide")).Should().BeTrue();
         composed.Fragment.Relationships.Should()
             .NotContain(edge => edge.Target == WillowBend.SubmittedSourceArchetypeId);
