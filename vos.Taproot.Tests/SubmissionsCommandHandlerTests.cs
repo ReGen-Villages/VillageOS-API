@@ -137,6 +137,69 @@ public class SubmissionsCommandHandlerTests
         Assert.DoesNotContain("waiting", output);
     }
 
+    // A template declares its proposed-site predicate by relating the two archetypes, so that edge is
+    // asserted through the same predicate every real submission is. Listed, it offers a reviewer a
+    // decision over the model's own declaration.
+    [Fact]
+    public async Task The_declaration_a_model_makes_of_what_a_submission_is_is_not_listed_as_one()
+    {
+        var submissionArchetype = new Guid("11111111-0000-0000-0000-00000000000a");
+        var siteArchetype = new Guid("11111111-0000-0000-0000-00000000000b");
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(new[]
+        {
+            Thing(ProposesId, "puts-forward"),
+            Thing(ResolvedAsId, "decided"),
+            Thing(IsId, "is"),
+            Thing(DispositionArchetypeId, "Verdict", isArchetype: true),
+            Thing(RejectedId, "binned"),
+            Thing(PromotedId, "taken-on"),
+            Thing(SubmissionId, "Willow Bend Submission"),
+            Thing(SiteId, "Willow Bend"),
+            Thing(submissionArchetype, "Arrival", isArchetype: true),
+            Thing(siteArchetype, "Place", isArchetype: true),
+        }));
+        _mycelium.Setup(client => client.GetAllRelationshipsAsync()).ReturnsAsync(Json(new[]
+        {
+            Edge(SubmissionId, ProposesId, SiteId),
+            Edge(RejectedId, IsId, DispositionArchetypeId),
+            Edge(PromotedId, IsId, DispositionArchetypeId),
+            Edge(submissionArchetype, ProposesId, siteArchetype),
+        }));
+
+        await Run("list");
+
+        var output = _writer.ToString();
+        Assert.Contains("willow-bend-2026-08", output);
+        Assert.DoesNotContain("Arrival", output);
+        Assert.DoesNotContain("Place", output);
+    }
+
+    // What a Thing holds for a name its archetype declares comes back keyed by that archetype, so a
+    // reader looking up the bare name finds nothing and every arrival reads as never recorded.
+    [Fact]
+    public async Task A_value_held_under_the_name_the_archetype_declares_it_by_is_read()
+    {
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [ProposesId.ToString()] = new Dictionary<string, object>
+                    { ["__IsProposedSitePredicate"] = Held(true) },
+                [SubmissionId.ToString()] = new Dictionary<string, object>
+                {
+                    ["Arrival.submissionId"] = Held("willow-bend-2026-08"),
+                    ["Arrival.submittedAt"] = Held("2026-08-22T09:30:00Z"),
+                },
+            }));
+
+        await Run("list");
+
+        var output = _writer.ToString();
+        Assert.Contains("willow-bend-2026-08", output);
+        Assert.Contains("2026-08-22T09:30:00Z", output);
+    }
+
     [Fact]
     public async Task A_model_holding_no_submissions_says_so()
     {

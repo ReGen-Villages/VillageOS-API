@@ -23,6 +23,9 @@ import type { ModelReading } from './modelVocabulary';
 // answering only to that spelling fails here rather than passing.
 const thing = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {} });
 
+/** A model's own declaration rather than anything submitted into it. */
+const archetype = (Id: string, Name: string): VosThing => ({ Id, Name, Properties: {}, IsArchetype: true });
+
 const edge = (Id: string, SubjectId: string, PredicateId: string, TargetId: string): VosRelationship => ({
   Id,
   SubjectId,
@@ -141,6 +144,37 @@ describe('what has arrived', () => {
     });
 
     expect(submissionsIn(declared).find((one) => one.id === 'arrival-1')?.submittedAt).toBeUndefined();
+  });
+
+  // A template declares its proposed-site predicate by relating the two archetypes, so that edge is
+  // asserted through the same predicate every real submission is. Listed, it offers a reviewer a
+  // Reject and a Promote over the model's own declaration.
+  it('leaves out the declaration the model makes of what a submission is', () => {
+    const declaring = reading({
+      things: [...THINGS, archetype('arrival', 'Arrival'), archetype('place', 'Place')],
+      relationships: [...EDGES, edge('e8', 'arrival', 'puts-forward', 'place')],
+    });
+
+    expect(submissionsIn(declaring).map((one) => one.id)).toEqual(['arrival-1', 'arrival-2']);
+  });
+
+  // What a Thing holds for a name its archetype declares comes back keyed by that archetype, so a
+  // reader looking up the bare name finds nothing and every arrival reads as never recorded.
+  it('reads a value held under the name the archetype declares it by', () => {
+    const qualified = reading({
+      properties: {
+        ...PROPERTIES,
+        'arrival-1': {
+          'Arrival.submissionId': held('sub-0001'),
+          'Arrival.submittedAt': held('2026-08-20T09:00:00Z'),
+        },
+      },
+    });
+
+    expect(submissionsIn(qualified).find((one) => one.id === 'arrival-1')).toMatchObject({
+      submissionId: 'sub-0001',
+      submittedAt: '2026-08-20T09:00:00Z',
+    });
   });
 
   it('shows a property written as a number, because everything here is displayed', () => {

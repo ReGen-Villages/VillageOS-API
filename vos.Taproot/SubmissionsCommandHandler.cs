@@ -292,10 +292,13 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             yield break;
 
         // One submission per edge: a submission is only a submission because it proposes a site, so the
-        // walk that finds it is also the walk that says which site travels when it is promoted.
+        // walk that finds it is also the walk that says which site travels when it is promoted. A model
+        // declares that predicate by relating its own archetypes, and that edge is asserted through the
+        // same predicate — listed, it offers a reviewer a decision over the declaration itself.
         foreach (var edge in EdgesThrough(model, proposes.Id))
         {
             var id = Subject(edge);
+            if (IsArchetype(model, id)) continue;
             yield return new Submission(
                 id,
                 NameOf(model, id) ?? id.ToString(),
@@ -369,11 +372,27 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             .Select(thing => thing.TryGetProperty("Name", out var name) ? name.GetString() : null)
             .FirstOrDefault();
 
-    /// <summary>A property as text, whatever it is written as, because everything here is displayed.</summary>
+    private static bool IsArchetype(ModelSnapshot model, Guid id) =>
+        model.Things.EnumerateArray()
+            .Where(thing => Identifier(thing, "Id") == id)
+            .Any(thing => thing.TryGetProperty("IsArchetype", out var archetype)
+                          && archetype.ValueKind == JsonValueKind.True);
+
+    /// <summary>A property as text, whatever it is written as, because everything here is displayed.
+    ///
+    /// A Thing's own value is keyed by the bare name, but a value it holds for a name its archetype
+    /// declares comes back keyed by that archetype — <c>Submission.submittedAt</c> rather than
+    /// <c>submittedAt</c>. Both are the same property to a reader, so the name is matched after its
+    /// declaring prefix.</summary>
     private static string? Value(ModelSnapshot model, Guid thing, string property)
     {
         if (!model.Properties.TryGetProperty(thing.ToString(), out var properties)) return null;
-        if (!properties.TryGetProperty(property, out var held)) return null;
+
+        var match = properties.EnumerateObject()
+            .Where(held => held.Name.Split('.')[^1] == property)
+            .Select(held => (JsonElement?)held.Value)
+            .FirstOrDefault();
+        if (match is not { } held) return null;
 
         var value = held.TryGetProperty("Value", out var inner) ? inner : held;
         return value.ValueKind switch

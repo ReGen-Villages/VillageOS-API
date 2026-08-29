@@ -1103,6 +1103,8 @@ The platform's property model — own vs. inherited vs. override, resolved on re
 
 **Gotcha:** never treat `thing.InheritedOverrides` (the client's override-only tree) as the full inherited view — it omits non-overridden archetype defaults. Bugs #5908 and #5909 were exactly that mistake. Read the resolved view from the endpoints above.
 
+**Gotcha:** in that resolved view a property is keyed by **qualified path**, not by its bare name. A Thing's own value arrives as `submittedAt`, but a value it holds for a name its archetype declares arrives as `Submission.submittedAt`. Looking a property up by the bare name therefore finds nothing on exactly the Things that inherit their shape from an archetype — which is most of them. Match the last segment, and write the fixture the way a seeded model answers: a test that keys the property bare passes against code that can never read a real model (Bug #6854).
+
 ### Property Inheritance Display
 
 When a node is selected, **NodeDetailPanel** fetches the full thing detail (including `InheritedOverrides`) and displays:
