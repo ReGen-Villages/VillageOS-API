@@ -1058,6 +1058,13 @@ they are probing on every attempt, which is the abuse the per-source rate limit 
 another. Keeping them would mean writing addresses to disk, which is the one thing this flow exists to
 avoid.
 
+**One way out of the verified address exists, and it is refused off a development machine.**
+`--mailDelivery=console` writes each code to the log rather than sending it, because the exchange cannot
+otherwise be run at all without a mail relay — and a relay is exactly what a developer, or a domain whose
+policy forbids application passwords, does not have. A code written down was received by nobody, so that
+service verifies nothing and would accept a submission naming any address. The service refuses to start
+that way unless it is running as Development, and the startup it does allow says so in the log.
+
 **A source is the address the reverse proxy forwards.** Every caller reaches this service through the
 proxy, so the connection itself is always from loopback; the caller's own address arrives in
 `X-Forwarded-For`, which the service reads and trusts only from loopback. Without that, one budget would

@@ -34,6 +34,11 @@ where `root` points, and run `caddy run --config deploy/Caddyfile`.
   a command-line argument, because the command line is visible to every process on the host. With
   none of this configured the service prints what is missing and stops, rather than starting and
   refusing every submission.
+- **`--mailDelivery=console` is not for a deployment.** It writes each code to the log instead of
+  sending it, so a developer with no relay to hand can run the whole exchange. Nobody has to receive
+  a code that way, so no address is verified and a submission may name any address at all — which is
+  why the service refuses to start with it anywhere but Development, and says so loudly in the log on
+  the startup it does allow. The default, `--mailDelivery=server`, is the behaviour above.
 - **The intake service holds an API key** (`ApiKey` in configuration or the environment) created
   against the intake model, so its credential does not expire and reaches no project model — see
   "Giving a service an API key" in [`../docs/SERVICES.md`](../docs/SERVICES.md).
