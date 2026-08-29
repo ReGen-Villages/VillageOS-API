@@ -623,7 +623,9 @@ public class HandleEndpointTests
             if (req.RequestUri!.Host == "api.test")
                 return new HttpResponseMessage(HttpStatusCode.NotFound)
                 {
-                    Content = new StringContent("no entry for this division", Encoding.UTF8, "text/plain")
+                    // A body the expression above would happily reshape, so the 404 is the only thing
+                    // keeping it away from the ingest.
+                    Content = new StringContent("""{"level":"high"}""", Encoding.UTF8, "application/json")
                 };
             return RouteFindThing(req, thingId, "EP")
                 ?? RouteEffectiveProperties(req, thingId, props)
@@ -636,6 +638,8 @@ public class HandleEndpointTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             "a portal holding nothing about a subject has answered, and asking again every quarter of an hour never gets a different answer");
+        (await response.Content.ReadAsStringAsync()).Should().Be("""{"level":"high"}""",
+            "the body comes back untouched, so nothing was reshaped and nothing was ingested");
     }
 
     [Fact]

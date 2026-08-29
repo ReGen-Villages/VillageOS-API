@@ -82,9 +82,9 @@ public class BinaryResponseKindTests
 
         var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        (await response.Content.ReadAsStringAsync()).Should().Be("this caller may not read the tiles",
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
             "an envelope built round a refusal reads to the caller as a tile that arrived");
+        (await response.Content.ReadAsStringAsync()).Should().Be("this caller may not read the tiles");
     }
 
     [Fact]
