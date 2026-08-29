@@ -270,9 +270,15 @@ public abstract class MyceliumClientBase
     /// seed files — <c>Id</c>, <c>Name</c> — while the payloads it accepts and most of the rest of the
     /// platform's JSON read camelCase. A client that asks for the wrong casing reads the field as absent
     /// and the whole call as failed, so every client reads an answer through this.</summary>
+    /// <remarks>An answer that is not an object at all is no field either, rather than the
+    /// <see cref="InvalidOperationException"/> asking a non-object for a property would throw.</remarks>
     protected static bool TryGetPropertyCaseInsensitive(
         JsonElement element, string propertyName, out JsonElement value)
     {
+        value = default;
+        if (element.ValueKind != JsonValueKind.Object)
+            return false;
+
         if (element.TryGetProperty(propertyName, out value))
             return true;
 

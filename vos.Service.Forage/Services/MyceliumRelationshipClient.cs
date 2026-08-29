@@ -34,8 +34,8 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
             if (TryGetPropertyCaseInsensitive(body, "Id", out var id) && id.TryGetGuid(out var minted))
                 return minted;
 
-            // Distinct from a refusal above: the Thing is in the model and nothing can reach it, so the
-            // caller's next attempt adds another rather than filling this one in.
+            // Worse than a refusal, and so said separately: the create worked, so the Thing is in the
+            // model with nothing able to reach it, and the next attempt adds another beside it.
             Logger.LogWarning("Minted {Name} and the model's answer named no identifier", name);
             return null;
         }
