@@ -112,7 +112,14 @@ export function MapView({
   useEffect(() => {
     const current = map.current;
     if (!current) return;
-    const redraw = () => drawBoundary(current, boundary ?? []);
+    // Changing a style maplibre has not finished loading throws, and a throw in an effect takes the
+    // whole page down with it. Leaving this step and coming back builds a second map with the
+    // boundary already in hand, which is how a draw arrives that early; the styledata below is what
+    // draws it once the style is in.
+    const redraw = () => {
+      if (!current.isStyleLoaded()) return;
+      drawBoundary(current, boundary ?? []);
+    };
     redraw();
     current.on('styledata', redraw);
     return () => {

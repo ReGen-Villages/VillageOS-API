@@ -3,6 +3,9 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import type { BasemapSource } from '../../types/basemap';
 
 interface RecordedMap {
+  styleLoaded: boolean;
+  isStyleLoaded: () => boolean;
+  finishLoadingTheStyle: () => void;
   options: Record<string, unknown>;
   handlers: Map<string, (event?: unknown) => void>;
   sources: Map<string, { setData: ReturnType<typeof vi.fn>; data: unknown }>;
@@ -31,9 +34,20 @@ const mocks = vi.hoisted(() => {
     flyTo = vi.fn();
     remove = vi.fn();
     setStyle = vi.fn();
+    /** A map begins with a style still loading, the way a real one does. */
+    styleLoaded = false;
     constructor(options: Record<string, unknown>) {
       this.options = options;
       mapInstances.push(this);
+    }
+    isStyleLoaded() {
+      return this.styleLoaded;
+    }
+    // maplibre refuses to *change* a style that has not finished loading, and refuses by throwing.
+    // Reading one is allowed, which is why `getSource` below does not ask. A mock that answered the
+    // mutating calls regardless would let a caller that asks too early pass.
+    private insistStyleIsLoaded() {
+      if (!this.styleLoaded) throw new Error('Style is not done loading.');
     }
     on(event: string, handler: (event?: unknown) => void) {
       this.handlers.set(event, handler);
@@ -42,6 +56,7 @@ const mocks = vi.hoisted(() => {
       if (this.handlers.get(event) === handler) this.handlers.delete(event);
     }
     addSource(id: string, source: { data: unknown }) {
+      this.insistStyleIsLoaded();
       const held = {
         data: source.data,
         setData: vi.fn((data: unknown) => {
@@ -54,13 +69,21 @@ const mocks = vi.hoisted(() => {
       return this.sources.get(id);
     }
     removeSource(id: string) {
+      this.insistStyleIsLoaded();
       this.sources.delete(id);
     }
     addLayer(layer: { id: string }) {
+      this.insistStyleIsLoaded();
       this.layers.push(layer.id);
     }
     removeLayer(id: string) {
+      this.insistStyleIsLoaded();
       this.layers = this.layers.filter((held) => held !== id);
+    }
+    /** What maplibre does once the style is in: the map answers, and says so. */
+    finishLoadingTheStyle() {
+      this.styleLoaded = true;
+      this.handlers.get('styledata')?.();
     }
   }
   class MockMarker {
@@ -213,8 +236,24 @@ describe('the boundary on the map', () => {
     return feature.geometry.coordinates[0];
   }
 
+  // Leaving the Parcel step and coming back builds a second map with the boundary already in hand, so
+  // it is drawn the moment the map exists — against a style that has not finished loading. maplibre
+  // refuses that by throwing, and a throw in this effect unmounts the form, losing the page a
+  // submitter was filling in.
+  it('waits for the style rather than throwing when it opens with a boundary already drawn', () => {
+    expect(() =>
+      render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />),
+    ).not.toThrow();
+    expect(maps[0].sources.has('boundary')).toBe(false);
+
+    act(() => maps[0].finishLoadingTheStyle());
+
+    expect(maps[0].sources.has('boundary')).toBe(true);
+  });
+
   it('draws the boundary as a closed ring over the basemap', () => {
     render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    act(() => maps[0].finishLoadingTheStyle());
 
     expect(ring()).toHaveLength(CORNERS.length + 1);
     expect(ring()[0]).toEqual([-70.64, 41.38]);
@@ -223,6 +262,7 @@ describe('the boundary on the map', () => {
 
   it('draws it again after a style swap wiped what the style held', () => {
     render(<MapView {...POSITION} sources={[AERIAL, STREETS]} boundary={CORNERS} />);
+    act(() => maps[0].finishLoadingTheStyle());
     fireEvent.click(screen.getByRole('button', { name: 'Streets' }));
     maps[0].sources.clear();
     maps[0].layers.length = 0;
@@ -259,6 +299,7 @@ describe('the boundary on the map', () => {
 
   it('redraws a moved boundary in place rather than adding a second one', () => {
     const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    act(() => maps[0].finishLoadingTheStyle());
     const moved = [CORNERS[0], { latitude: 41.383, longitude: -70.637 }, CORNERS[2]];
 
     rerender(<MapView {...POSITION} sources={[STREETS]} boundary={moved} />);
