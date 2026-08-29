@@ -219,9 +219,8 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         var response = await client.GetAsync($"{MyceliumUrl}/api/things?name={Uri.EscapeDataString(name)}", cancellationToken);
         response.EnsureSuccessStatusCode();
-        var root = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        var thing = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
 
-        var thing = root.ValueKind == JsonValueKind.Array ? root.EnumerateArray().FirstOrDefault() : root;
         if (thing.ValueKind == JsonValueKind.Object && TryGetPropertyCaseInsensitive(thing, "Id", out var idEl)
             && idEl.ValueKind == JsonValueKind.String && Guid.TryParse(idEl.GetString(), out var id))
         {

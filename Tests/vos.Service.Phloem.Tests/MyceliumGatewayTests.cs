@@ -233,6 +233,24 @@ public class MyceliumGatewayTests
                 .Should().Be(PredicateId.ToString());
     }
 
+    // The name route answers one Thing, so an answer that is not one is an answer the gateway cannot use.
+    // Resolving the first entry of a list would tie the run to whatever the model happened to return first.
+    [Theory]
+    [InlineData("""{"Name":"is"}""")]
+    [InlineData("""[{"Id":"33333333-3333-3333-3333-333333333333","Name":"is"}]""")]
+    public async Task CreateRunAsync_WhenTheAnswerNamesNoIdentifier_TheFailureNamesThePredicate(string answer)
+    {
+        var (gateway, _) = NewGateway(request =>
+            request.RequestUri!.AbsolutePath == "/api/things" && request.RequestUri.Query.Contains("name=")
+                ? Json(HttpStatusCode.OK, answer)
+                : RespondLikeAModelThatMarksItsArchetypes(request));
+
+        var creating = () => gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        (await creating.Should().ThrowAsync<InvalidOperationException>())
+            .WithMessage($"*{ModelNames.Is}*");
+    }
+
     [Fact]
     public async Task SetNodeRunStatusAsync_FirstTime_CreatesTheNodeRunAndAttachesItToTheRun()
     {
