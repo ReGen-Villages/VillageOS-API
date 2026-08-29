@@ -181,6 +181,10 @@ service-agnostic plumbing:
   Bearer auth
 - `RegisterAsync(port, serviceName, startCommand)` — POSTs the registration
   envelope
+- `TryGetPropertyCaseInsensitive(element, name, out value)` — reads a field out
+  of an answer. The broker serializes a Thing PascalCase (`Id`, `Name`) even
+  though the body you send it is camelCase, so a client that asks for one casing
+  reads the field as absent and the call as failed
 
 ### 5.1 Snapshot subscriptions — startup data + live stream (SSE)
 

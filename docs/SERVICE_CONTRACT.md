@@ -266,8 +266,10 @@ A separate stream for non-object events: `ActivityEvent`, `ModelChanged`, `Model
 `ServiceHealthChanged`, `DaemonStatusChanged`, `EndpointServiceRequestCompleted`,
 `ServiceRequestCompleted`, `StatesChanged`. Fire-and-forget (no resume); refetch on reconnect.
 
-> Field casing: snapshot JSON is camelCase; SSE `data` payloads are PascalCase. Parse
-> case-insensitively (all reference clients do).
+> Field casing: snapshot JSON is camelCase; SSE `data` payloads are PascalCase; and a Thing the
+> `/api/things` routes answer with is PascalCase (`Id`, `Name`, `Properties`) whatever the casing of
+> the body you sent. Parse case-insensitively (all reference clients do) — a client that asks for one
+> casing reads the field as absent, and a create that worked reads as a create that failed.
 
 ## Reference: subscribe + follow, per language
 
