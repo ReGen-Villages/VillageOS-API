@@ -206,7 +206,8 @@ advancing `offsetParam` (by `pageSize` via `pageSizeParam`, else by the returned
 count) while the page's `hasMorePath` boolean is true, and concatenates every page's
 array at `itemsPath` into the first page's body. Aggregation happens **before** the
 JSONata `responseTransform` runs, so the transform sees the complete result, not page
-one. Paths are simple dotted keys (e.g. `data.features`).
+one. Paths are simple dotted keys (e.g. `data.features`). A page answered outside 2xx ends
+the walk and is what the caller gets, status and body — see below.
 
 **The `EsriEndpoint` template.** Seeds are deployment-supplied runtime data (not
 committed; `seed.json` stores every template as a thing plus the `is` relationships
@@ -327,6 +328,30 @@ paging, a credentialed (`TokenExchangeAuth`) call, and a request with an outboun
 
 Graph composition is pinned by `EsriTileEndpointTemplateTests` (Delta); behavior by
 `BinaryResponseKindTests` and `AcceptHeaderTests` (Tributary).
+
+## What the caller gets when the provider does not answer with a reading
+
+**A refusal is carried out with the provider's own status and words.** A call answered
+anything outside 2xx — other than the one case below — comes back to the caller with that
+status and that body, and nothing is reshaped or ingested. One rule for all three paths:
+a plain call, a binary one, and a paged walk, where any page outside 2xx ends the walk and
+is the answer the caller gets. Answering 200 with a refusal inside it is what lets a run
+count a call resolved, stamp its coverage and move on, leaving a reading unassessed for a
+reason nobody was told (Bug #6831).
+
+**404 is the exception, because it is an answer.** A portal holding no entry for a
+division answers 404 (see the hazard grading below): the reshape is skipped, nothing is
+written, the subject stays honestly unassessed, and the call counts as done — asking again
+every quarter of an hour would never get a different answer. **A page answering 404 is not
+that**, and is carried out like any other refusal: the caller asked for the whole walk, and
+a walk that cannot reach its last page has no aggregate to reshape. Which page it was goes
+to the log — that is about the walk, not about the provider, and the caller gets the
+provider's words undisturbed.
+
+**Every call names the caller.** Some providers answer 403 to a request carrying no
+`User-Agent`, in a tenth of the time a real answer takes, so Tributary sends one on every
+outbound call. A registration naming its own in the `headers` map wins over it, so a
+provider that issues per-caller identifiers is served from the model with no change here.
 
 ## Fetch-and-shape, not derive — the Metabolism boundary
 

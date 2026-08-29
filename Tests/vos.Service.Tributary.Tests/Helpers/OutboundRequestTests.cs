@@ -209,6 +209,27 @@ public class OutboundRequestTests
     }
 
     [Fact]
+    public void Build_NoUserAgentDeclared_NamesTheCallerAnyway()
+    {
+        var req = OutboundRequest.Build("GET", new Uri("https://api.test/x"), default, null, null,
+            OutboundRequest.DefaultContentType);
+
+        req.Headers.GetValues("User-Agent").Should().ContainSingle()
+            .Which.Should().Be(OutboundRequest.DefaultUserAgent,
+                "a provider that sees no caller answers 403 without reading the address");
+    }
+
+    [Fact]
+    public void Build_UserAgentInHeaders_WinsOverTheDefault()
+    {
+        var headers = new Dictionary<string, string> { ["User-Agent"] = "SiteAnalysis/2" };
+        var req = OutboundRequest.Build("GET", new Uri("https://api.test/x"), default, headers, null,
+            OutboundRequest.DefaultContentType);
+
+        req.Headers.GetValues("User-Agent").Should().ContainSingle().Which.Should().Be("SiteAnalysis/2");
+    }
+
+    [Fact]
     public void Build_MergesQueryParametersIntoUri()
     {
         var query = new Dictionary<string, string> { ["f"] = "json" };

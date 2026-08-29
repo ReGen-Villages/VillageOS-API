@@ -490,6 +490,12 @@ public sealed class EndpointCallService
                 if (cacheKey != null && binaryStatus is >= 200 and < 300)
                     _diskCache.Write(request.EndpointName!, cacheKey, bytes, servedContentType);
 
+                if (ProviderRefused(binaryStatus))
+                {
+                    var refusalWords = Encoding.UTF8.GetString(bytes);
+                    return EndpointCallResult.Body(refusalWords, servedContentType, binaryStatus);
+                }
+
                 return EndpointCallResult.Body(BinaryEnvelope(bytes, servedContentType), "application/json");
             }
 
@@ -517,10 +523,10 @@ public sealed class EndpointCallService
                         if (paging.PageSizeParam != null && paging.PageSize is > 0)
                             pageParams[paging.PageSizeParam] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
 
-                        var (pageStatus, pageBody, _) = await CallEndpointAsync(
+                        var (pageStatus, pageBody, pageContentType) = await CallEndpointAsync(
                             _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, pageParams, requestContentType, acceptHeader, timeout, ct);
                         if (pageStatus is < 200 or >= 300)
-                            throw new HttpRequestException($"Paged request failed with status {pageStatus} at {paging.OffsetParam}={offset}.");
+                            throw new PageNotAnsweredException(pageStatus, pageBody, pageContentType, offset);
                         return pageBody;
                     },
                     paging);
@@ -536,6 +542,9 @@ public sealed class EndpointCallService
                     _diskCache.Write(request.EndpointName!, cacheKey, Encoding.UTF8.GetBytes(body), contentType ?? "application/json");
             }
 
+            if (ProviderRefused(status))
+                return EndpointCallResult.Body(body, contentType ?? "application/json", status);
+
             if (reshape != null && status is >= 200 and < 300)
             {
                 var ingestResult = await _observationService.CreateObservationsAsync(
@@ -550,12 +559,36 @@ public sealed class EndpointCallService
 
             return EndpointCallResult.Body(body, contentType ?? "application/json");
         }
+        catch (PageNotAnsweredException unanswered)
+        {
+            // The offset is about this walk, not the provider, so it goes to the log, not the answer.
+            _logger.LogWarning(
+                "Endpoint {EndpointName} was answered {Status} at offset {Offset}; the pages before it are dropped",
+                request.EndpointName, unanswered.StatusCode, unanswered.Offset);
+            return EndpointCallResult.Body(
+                unanswered.Body, unanswered.ContentType ?? "application/json", unanswered.StatusCode);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Endpoint call failed for {EndpointName}", request.EndpointName);
             return Problem(502, "Endpoint call failed", ex.Message);
         }
     }
+
+    // Any page outside 2xx ends the walk, 404 included — which a single call takes for "holds
+    // nothing about this subject" and a page cannot, because the aggregate can never be completed.
+    private sealed class PageNotAnsweredException(int statusCode, string body, string? contentType, int offset)
+        : Exception($"The provider answered {statusCode} at offset {offset}.")
+    {
+        public int StatusCode { get; } = statusCode;
+        public string Body { get; } = body;
+        public string? ContentType { get; } = contentType;
+        public int Offset { get; } = offset;
+    }
+
+    // 404 is the provider answering that it holds nothing about this subject — a complete answer, so
+    // the call counts as done; asking again would never get a different one.
+    private static bool ProviderRefused(int status) => status is (< 200 or >= 300) and not 404;
 
     private static string BinaryEnvelope(byte[] bytes, string contentType) =>
         JsonSerializer.Serialize(new

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using FluentAssertions;
 using Xunit;
 using static vos.Service.Tributary.Tests.MyceliumStub;
@@ -266,6 +267,65 @@ public class EsriHandleTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         observations.Should().NotBeNull();
         observations!.Should().Contain("\"property\":\"featureCount\"").And.Contain("\"value\":3");
+    }
+
+    // 404 is here beside a refusal because it is the one status the two paths read differently:
+    // a single call takes it for an answer, a page cannot.
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, "this caller may not read past the first page")]
+    [InlineData(HttpStatusCode.NotFound, "there is no page at that offset")]
+    public async Task Handle_OffsetPaging_PageOutside2xx_AnswersWithItsStatusAndWords(
+        HttpStatusCode refused, string providerWords)
+    {
+        var thingId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":               {"Value":"https://features.test/query"},
+          "Endpoint.httpMethod":        {"Value":"GET"},
+          "Endpoint.responseTransform": {"Value":"{\"name\": \"ExampleSite\", \"properties\": {\"featureCount\": $count(features)}}"},
+          "Esri.pagingKind":            {"Value":"offset"},
+          "Esri.offsetParam":           {"Value":"resultOffset"},
+          "Esri.pageSizeParam":         {"Value":"resultRecordCount"},
+          "Esri.pageSize":              {"Value":"2"},
+          "Esri.hasMorePath":           {"Value":"exceededTransferLimit"},
+          "Esri.itemsPath":             {"Value":"features"}
+        }
+        """;
+        var ingested = 0;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "features.test")
+            {
+                return req.RequestUri.Query.Contains("resultOffset=2")
+                    ? new HttpResponseMessage(refused)
+                    {
+                        Content = new StringContent(providerWords, Encoding.UTF8, "text/plain")
+                    }
+                    : Json("{\"features\":[{\"attributes\":{\"OBJECTID\":1}},{\"attributes\":{\"OBJECTID\":2}}],\"exceededTransferLimit\":true}");
+            }
+            if (req.Method == HttpMethod.Post && req.RequestUri.AbsolutePath == $"/api/things/{siteId}/observations")
+            {
+                ingested++;
+                return Json("""{"accepted":1}""");
+            }
+            return RouteFindThing(req, thingId, "EP")
+                ?? RouteFindThing(req, siteId, "ExampleSite")
+                ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? RouteRelationshipWrite(req)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(refused,
+            "a walk answered 502 tells a run the fetcher failed, when the provider is the one that said no");
+        (await response.Content.ReadAsStringAsync()).Should().Be(providerWords);
+        ingested.Should().Be(0, "the pages that did arrive are not a complete answer to reshape");
     }
 
 }

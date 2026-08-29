@@ -8,6 +8,10 @@ public static class OutboundRequest
 {
     public const string DefaultContentType = "application/json";
 
+    // Some providers answer 403 to a request carrying no User-Agent, in a fraction of the time a
+    // real answer takes, so the address looks unreachable when nothing is wrong with it.
+    public const string DefaultUserAgent = "VillageOS-Tributary";
+
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
 
     public static bool MethodSupportsBody(string method) =>
@@ -92,6 +96,9 @@ public static class OutboundRequest
                 request.Headers.TryAddWithoutValidation(name, value);
             }
         }
+
+        if (!request.Headers.Contains("User-Agent"))
+            request.Headers.TryAddWithoutValidation("User-Agent", DefaultUserAgent);
 
         // The dedicated key wins over any Accept the generic headers map set — one value on the wire.
         // TryAddWithoutValidation keeps q-value lists ("image/tiff, image/png;q=0.8") verbatim.

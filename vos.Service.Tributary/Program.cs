@@ -142,7 +142,8 @@ static IResult ToHttpResult(EndpointCallResult result)
             written = ingest.Written,
             message = "Readings ingested as observations on entity series."
         });
-    return Results.Content(result.Content!, result.ContentType ?? "application/json");
+    return Results.Content(result.Content!, result.ContentType ?? "application/json",
+        statusCode: result.StatusCode);
 }
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.

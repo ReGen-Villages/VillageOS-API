@@ -9,12 +9,13 @@ public sealed class EndpointCallResult
     public string? Content { get; private init; }
     public string? ContentType { get; private init; }
 
-    public bool IsSuccess => Error is null;
+    // The status the provider answered with, so a refusal does not reach the caller as a 200.
+    public int StatusCode { get; private init; } = 200;
 
     public static EndpointCallResult Failure(EndpointCallError error) => new() { Error = error };
     public static EndpointCallResult Ingested(IngestSummary ingest) => new() { Ingest = ingest };
-    public static EndpointCallResult Body(string content, string? contentType) =>
-        new() { Content = content, ContentType = contentType };
+    public static EndpointCallResult Body(string content, string? contentType, int statusCode = 200) =>
+        new() { Content = content, ContentType = contentType, StatusCode = statusCode };
 }
 
 // A failure carrying the exact HTTP status the legacy endpoint returned, plus a human message

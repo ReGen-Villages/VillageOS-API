@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Xunit;
@@ -51,6 +52,39 @@ public class BinaryResponseKindTests
         envelope.RootElement.GetProperty("byteLength").GetInt32().Should().Be(PngBytes.Length);
         Convert.FromBase64String(envelope.RootElement.GetProperty("dataBase64").GetString()!)
             .Should().Equal(PngBytes);
+    }
+
+    [Fact]
+    public async Task Handle_ResponseKindBinary_ProviderRefusesTheCall_AnswersWithItsStatusAndWords()
+    {
+        var thingId = Guid.NewGuid();
+        var props = """
+        {
+          "Endpoint.url":          {"Value":"https://tiles.test/tile/0/0/0"},
+          "Endpoint.httpMethod":   {"Value":"GET"},
+          "Endpoint.responseKind": {"Value":"binary"}
+        }
+        """;
+        await using var factory = new TributaryWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.HandlerCallback = req =>
+        {
+            if (req.RequestUri!.Host == "tiles.test")
+                return new HttpResponseMessage(HttpStatusCode.Forbidden)
+                {
+                    Content = new StringContent("this caller may not read the tiles", Encoding.UTF8, "text/plain")
+                };
+            return RouteFindThing(req, thingId, "EP") ?? RouteEffectiveProperties(req, thingId, props)
+                ?? RouteKindsFromProperties(req, thingId, props)
+                ?? new HttpResponseMessage(HttpStatusCode.NotFound);
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/handle", new { endpointName = "EP" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "an envelope built round a refusal reads to the caller as a tile that arrived");
+        (await response.Content.ReadAsStringAsync()).Should().Be("this caller may not read the tiles");
     }
 
     [Fact]
