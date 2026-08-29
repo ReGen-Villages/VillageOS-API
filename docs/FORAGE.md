@@ -309,6 +309,13 @@ word arrives under; an archetype-level edge — `Site classifiedAs ClimateZone`,
 the resolved edge is written through. Nothing here names a vocabulary, an archetype, a predicate or a
 property of any model, so a project adding a vocabulary edits its model and deploys nothing.
 
+**That edge has to stay the only one from a subject to its vocabulary.** It is how a run learns which
+predicate its own resolution writes through, so a second would leave it unable to tell which was its —
+and it could write somebody else's. A vocabulary the submission producer resolves is therefore found by
+a mark and declares no edge, which is why `reportedAs` sits beside `gradedAs` carrying
+`__IsReportedLevelPredicate` and nothing else. What a submitter reports and what a portal grades are two
+predicates to the same Things, and only one of them is a discovery run's.
+
 **The words come from the fetch responses, not from reading the model back.** An observation is
 accepted into a queue and applied by the drainer after the write returns, so a read straight after
 the call races it; the fetching service reports what each subject call wrote (`written`, see
