@@ -31,7 +31,13 @@ public sealed class MyceliumRelationshipClient : MyceliumClientBase, ICoverageWr
             }
 
             var body = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-            return body.TryGetProperty("id", out var id) && id.TryGetGuid(out var minted) ? minted : null;
+            if (TryGetPropertyCaseInsensitive(body, "Id", out var id) && id.TryGetGuid(out var minted))
+                return minted;
+
+            // Distinct from a refusal above: the Thing is in the model and nothing can reach it, so the
+            // caller's next attempt adds another rather than filling this one in.
+            Logger.LogWarning("Minted {Name} and the model's answer named no identifier", name);
+            return null;
         }
         catch (Exception exception)
         {

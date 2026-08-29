@@ -198,24 +198,6 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         return true;
     }
 
-    private static bool TryGetPropertyCaseInsensitive(JsonElement element, string propertyName, out JsonElement value)
-    {
-        if (element.TryGetProperty(propertyName, out value))
-            return true;
-
-        foreach (var property in element.EnumerateObject())
-        {
-            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
-            {
-                value = property.Value;
-                return true;
-            }
-        }
-
-        value = default;
-        return false;
-    }
-
     // A reshaped reading carries whatever the source's JSON held. Unwrap the element to the scalar
     // the observation route stores; a shape it has no scalar for keeps its own JSON text.
     private static object? ResolveObservationValue(object? value)

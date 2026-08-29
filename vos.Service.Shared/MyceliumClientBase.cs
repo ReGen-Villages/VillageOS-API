@@ -265,4 +265,25 @@ public abstract class MyceliumClientBase
         return new HttpRequestException(
             $"{op} failed ({(int)response.StatusCode} {response.StatusCode}): {error}", null, response.StatusCode);
     }
+
+    /// <summary>A Thing the broker answers with is serialized under the naming policy it shares with the
+    /// seed files — <c>Id</c>, <c>Name</c> — while the payloads it accepts and most of the rest of the
+    /// platform's JSON read camelCase. A client that asks for the wrong casing reads the field as absent
+    /// and the whole call as failed, so every client reads an answer through this.</summary>
+    protected static bool TryGetPropertyCaseInsensitive(
+        JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.TryGetProperty(propertyName, out value))
+            return true;
+
+        foreach (var property in element.EnumerateObject())
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+
+        value = default;
+        return false;
+    }
 }
