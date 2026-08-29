@@ -22,7 +22,7 @@ public sealed record ResolvedPredicates(
 /// relates its Things and inherits the rest.</summary>
 public sealed record ResolvedArchetypes(
     Guid Site, Guid SiteStudy, Guid Parcel, Guid Project, Guid Contact, Guid ProgrammeAllocation,
-    Guid HazardAssessment, Guid DataSource, Guid Submission);
+    Guid HazardAssessment, Guid SubmittedSource, Guid Submission);
 
 /// <summary>One term a model declares, under the name it declared it with.</summary>
 public sealed record DeclaredTerm(string Name, Guid Id);

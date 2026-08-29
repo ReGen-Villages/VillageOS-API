@@ -25,9 +25,10 @@ public sealed class CoverageLedger
     private const string AttemptsProperty = "attempts";
     private const string FailureReasonProperty = "failureReason";
 
-    // On the Site and on the DataSource alike: when the coverage between it and its counterparts was
-    // last worked out. One name from both sides, because one run works out either.
-    public const string CoverageWorkedOutAtProperty = "coverageWorkedOutAt";
+    // On the Site and on the catalogue source alike: when the coverage between it and its counterparts
+    // was last matched. One name from both sides, because one run matches either — a site's coverage is
+    // the sources that cover it, a source's is the sites it covers.
+    public const string CoverageMatchedAtProperty = "coverageMatchedAt";
 
     private readonly ICoverageWriter _writer;
     private readonly TimeProvider _clock;
@@ -128,7 +129,7 @@ public sealed class CoverageLedger
     // saying so is what tells it apart from one still waiting to be.
     public Task StampWorkedOutAsync(Guid thingId, CancellationToken cancellationToken)
         => _writer.WriteFactAsync(
-            thingId, CoverageWorkedOutAtProperty, _clock.GetUtcNow().UtcDateTime, cancellationToken);
+            thingId, CoverageMatchedAtProperty, _clock.GetUtcNow().UtcDateTime, cancellationToken);
 
     // Minted and related in one step, because a Thing left unrelated reaches neither its subject nor its
     // source and no later run can tell it from one that was never minted.

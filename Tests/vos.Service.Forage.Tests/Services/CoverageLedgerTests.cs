@@ -247,7 +247,7 @@ public class CoverageLedgerTests
         await Ledger().StampWorkedOutAsync(SiteId, default);
 
         _writer.Facts.Should().ContainSingle()
-            .Which.Should().Be((SiteId, CoverageLedger.CoverageWorkedOutAtProperty, (object?)Now.UtcDateTime));
+            .Which.Should().Be((SiteId, CoverageLedger.CoverageMatchedAtProperty, (object?)Now.UtcDateTime));
     }
 
     // A source every one of whose calls has been answered drops out of the run entirely. Left in with an

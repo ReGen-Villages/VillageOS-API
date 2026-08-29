@@ -159,9 +159,9 @@ it, which is the confusion the intake design exists to remove: an estimate and a
 look the same once they are in the model.
 
 - **The edge names the registration, not the provider.** Tributary knows the endpoint it called and
-  nothing about who publishes it. The provider is one hop further along the `DataSource resolvedBy
+  nothing about who publishes it. The provider is one hop further along the `OpenDataSource resolvedBy
   Endpoint` edge the model already holds, so a value still leads to the source, and none of the
-  discovery service's terms — `DataSource`, `covers` — has to be read here.
+  discovery service's terms — `OpenDataSource`, `covers` — has to be read here.
 - **Written on every ingest, not only the one that created the Thing.** A Thing that already exists is
   the ordinary case: every run after the first, and every second registration writing onto a Site some
   other registration created. An edge written only by whichever fetch happened to be first leaves every

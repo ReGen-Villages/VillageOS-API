@@ -62,7 +62,12 @@ public static class SubmissionFragmentComposer
     public const string ContactArchetypeName = "Contact";
     public const string ProgrammeAllocationArchetypeName = "ProgrammeAllocation";
     public const string HazardAssessmentArchetypeName = "HazardAssessment";
-    public const string DataSourceArchetypeName = "DataSource";
+    /// <summary>A source a submitter named is that submission's own, minted under an identifier derived
+    /// from it, so it belongs to the group and goes when the submission is cleared. The catalogue's
+    /// archetype is the one that carries the mark ending a prune's walk, and it is not this one — held in
+    /// common they could not be told apart, and a submitter's source outlived the submission that named it
+    /// (platform Bug #6840).</summary>
+    public const string SubmittedSourceArchetypeName = "SubmittedSource";
     public const string SubmissionArchetypeName = "Submission";
 
     /// <param name="arrivedAt">When this submission reached the service, or null when the model already
@@ -244,7 +249,7 @@ public static class SubmissionFragmentComposer
                 coverageAlreadyGiven[sourceKey] = source.CoverageDescription;
                 things.Add(new FragmentThing(sourceThing.Id, sourceThing.Name, DataSourceProperties(source)));
                 Relate(siteThing, predicates.Has, sourceThing);
-                BeArchetype(sourceThing, archetypes.DataSource, DataSourceArchetypeName);
+                BeArchetype(sourceThing, archetypes.SubmittedSource, SubmittedSourceArchetypeName);
             }
             else if (source.CoverageDescription is { } coverage
                      && coverageAlreadyGiven[sourceKey] is { } first && coverage != first)

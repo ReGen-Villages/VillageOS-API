@@ -37,12 +37,12 @@ public static class WillowBend
     public static readonly Guid ContactArchetypeId = new("88888888-8888-8888-8888-888888888888");
     public static readonly Guid ProgrammeAllocationArchetypeId = new("99999999-9999-9999-9999-999999999999");
     public static readonly Guid HazardAssessmentArchetypeId = new("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-    public static readonly Guid DataSourceArchetypeId = new("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    public static readonly Guid SubmittedSourceArchetypeId = new("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     public static readonly Guid SubmissionArchetypeId = new("ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     public static ResolvedArchetypes KnownArchetypes =>
         new(SiteArchetypeId, SiteStudyArchetypeId, ParcelArchetypeId, ProjectArchetypeId, ContactArchetypeId,
-            ProgrammeAllocationArchetypeId, HazardAssessmentArchetypeId, DataSourceArchetypeId,
+            ProgrammeAllocationArchetypeId, HazardAssessmentArchetypeId, SubmittedSourceArchetypeId,
             SubmissionArchetypeId);
 
     public static readonly Guid CategorizedAsPredicateId = new("cccccccc-cccc-cccc-cccc-cccccccccccc");
