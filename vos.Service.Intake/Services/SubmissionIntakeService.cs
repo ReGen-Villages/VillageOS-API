@@ -20,7 +20,7 @@ public sealed class SubmissionIntakeService(
         SubmissionFragmentComposer.ContactArchetypeName,
         SubmissionFragmentComposer.ProgrammeAllocationArchetypeName,
         SubmissionFragmentComposer.HazardAssessmentArchetypeName,
-        SubmissionFragmentComposer.DataSourceArchetypeName,
+        SubmissionFragmentComposer.SubmittedSourceArchetypeName,
         SubmissionFragmentComposer.SubmissionArchetypeName,
     ];
 
@@ -56,7 +56,7 @@ public sealed class SubmissionIntakeService(
             found[SubmissionFragmentComposer.ContactArchetypeName]!.Value,
             found[SubmissionFragmentComposer.ProgrammeAllocationArchetypeName]!.Value,
             found[SubmissionFragmentComposer.HazardAssessmentArchetypeName]!.Value,
-            found[SubmissionFragmentComposer.DataSourceArchetypeName]!.Value,
+            found[SubmissionFragmentComposer.SubmittedSourceArchetypeName]!.Value,
             found[SubmissionFragmentComposer.SubmissionArchetypeName]!.Value);
 
         // After the archetype gate rather than beside the lookups above. Both refuse an unseeded model, and

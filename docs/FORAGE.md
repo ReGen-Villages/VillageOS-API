@@ -23,8 +23,8 @@ flowchart LR
   PT["<b>Portugal</b> (Place)"]
   EU["<b>Europe</b> (Place)"]
   Earth["<b>Earth</b> (Place)"]
-  Flood["<b>NationalFloodPortal</b><br/>(DataSource)"]
-  Meteo["<b>OpenMeteo</b><br/>(DataSource)"]
+  Flood["<b>NationalFloodPortal</b><br/>(OpenDataSource)"]
+  Meteo["<b>OpenMeteo</b><br/>(OpenDataSource)"]
   FloodEp["<b>NationalFloodPortal endpoint</b><br/>(Tributary registration)"]
   MeteoEp["<b>OpenMeteo endpoint</b><br/>(Tributary registration)"]
 
@@ -71,9 +71,9 @@ unresolved list either, because nothing knew to look for it.
 | Predicate | Reads | Why |
 |---|---|---|
 | `isIn` | `Site isIn Place`, `Place isIn Place` | Where the site is, and what contains that. Walked to any depth, so nesting can be as deep as a model wants — upwards from a site, and downwards from the Places a source covers when the source is what was dispatched. |
-| `covers` | `DataSource covers Place` | Where a source applies. Several `covers` edges are fine; the source is still selected once. |
-| `resolvedBy` | `DataSource resolvedBy Endpoint` | Which Tributary registration a call goes through. A relation, not a copied name, so renaming the registration cannot strand the source. |
-| `resolvesOnto` | `DataSource resolvesOnto archetype` | What a source's readings are about, where that is not the site itself. A source naming an archetype is called once per Thing the site `has` of it, with that Thing as the call's subject — the hazard portal grades one assessment per call. |
+| `covers` | `OpenDataSource covers Place` | Where a source applies. Several `covers` edges are fine; the source is still selected once. |
+| `resolvedBy` | `OpenDataSource resolvedBy Endpoint` | Which Tributary registration a call goes through. A relation, not a copied name, so renaming the registration cannot strand the source. |
+| `resolvesOnto` | `OpenDataSource resolvesOnto archetype` | What a source's readings are about, where that is not the site itself. A source naming an archetype is called once per Thing the site `has` of it, with that Thing as the call's subject — the hazard portal grades one assessment per call. |
 | `studies` | `SiteStudy studies Site` | The study the analysis computes. Read incoming, because the edge runs from the study to the site. |
 | `has`, `is` | `Connection has Service`, `Service is prototype`, `Site has HazardAssessment`, `Site is Site` | Which service a connection dispatches, the prototype an analysis edge points at, the Things a per-subject source is called about — and whether a Thing is a site, by the `__IsSiteArchetype` mark on what it `is`. |
 | `assesses` | `HazardAssessment assesses HazardType` | What an assessment is about. The type Thing carries the portal's code for it, and a per-assessment call is addressed with what its subject reaches — a second per-subject source whose vocabulary hangs off a different predicate adds that predicate here. |
@@ -83,7 +83,7 @@ carrying `__IsSiteAnalysisConnectionArchetype`, and they are asked for by that m
 the study is not related to them yet, because relating it is what the read is for. Adding a fourth
 balance is a mark in the model, not a change here.
 
-A `DataSource` with no `resolvedBy` edge is **left out** rather than reported as a failure.
+An `OpenDataSource` with no `resolvedBy` edge is **left out** rather than reported as a failure.
 It is not a source that failed — it was never callable, and listing it as unresolved would
 blame a provider for a gap in the model. A `Site` with no study, and a model marking no analysis
 connection, are treated the same way: the run reports it in `analysis.reason` and logs nothing,
@@ -117,7 +117,7 @@ of them.
 ## What starts a run
 
 **A site entering a state, not a call.** The model declares a range on the `Site` archetype,
-`SiteAwaitingDiscovery` — coordinates known, and either the site's coverage never worked out or some
+`SiteAwaitingDiscovery` — coordinates known, and either the site's coverage never matched or some
 coverage of it still outstanding — and a connection bound to this service watches it. A site entering
 that state makes the platform write a durable record-edge from the site to the connection and dispatch
 it. Nothing in either repository calls Forage, and nothing has to: **what started a run is a fact in
@@ -125,20 +125,20 @@ the model afterwards**, which a call over HTTP would have left only in a log.
 
 | | How it happens |
 |---|---|
-| A run starts | A site's coordinates are written and its coverage has never been worked out |
-| A run does not start again | The run records each source's answer on that source's own coverage and stamps `coverageWorkedOutAt` on the site; once no coverage is outstanding the site leaves the state on its own |
+| A run starts | A site's coordinates are written and its coverage has never been matched |
+| A run does not start again | The run records each source's answer on that source's own coverage and stamps `coverageMatchedAt` on the site; once no coverage is outstanding the site leaves the state on its own |
 | A run in which a source failed | Leaves that source's coverage outstanding, so the site stays in the state; the dispatch record waits out its `done_within`, the run is driven again, and it asks only that source |
 | A run whose model read failed | Writes nothing and stamps nothing, so the site stays in the state and the next load dispatches again — bounded by the platform's oscillation guard |
 | A source added to the catalogue later | Is dispatched itself, from its own state, and offered to every site under the Places it covers: a coverage minted per call those sites would make, nothing fetched. One outstanding coverage puts each site back in the state, and that site's run asks only this source — see [A source added to the catalogue](#a-source-added-to-the-catalogue) |
 | A surveyed site | Enters the same state and is discovered the same way; nothing here is particular to a submission |
 
-**A source has a state of its own.** `SourceAwaitingSites` on the `DataSource` archetype — its
-`coverageWorkedOutAt` unknown — is what dispatches a source, and a source declared in a template is in
+**A source has a state of its own.** `SourceAwaitingSites` on the `OpenDataSource` archetype — its
+`coverageMatchedAt` unknown — is what dispatches a source, and a source declared in a template is in
 it the moment the seed loads, so the sites already in the model are offered it without anything calling
 anything. The run stamps the source when it has reached every site, which is what takes it out.
 
 The ranges and the connections are declared in the platform repository — the ranges beside the `Site`
-and `DataSource` archetypes in `land-intake.template.json`, the connections beside the sources in
+and `OpenDataSource` archetypes in `land-intake.template.json`, the connections beside the sources in
 `open-data-sources.template.json` (platform Tasks #6771 and #6790). A deployment that never fetches
 reads neither file and runs no discovery service.
 
@@ -164,7 +164,7 @@ outstanding; per source, the sixth would either be lost or re-call all six.
 explains. `attempts` is added to rather than overwritten, so a provider that has failed every run since
 the site was submitted reads differently from one that failed once.
 
-`coverageWorkedOutAt` is stamped on the site whatever the run found, including nothing: a site no source
+`coverageMatchedAt` is stamped on the site whatever the run found, including nothing: a site no source
 covers has been looked at, and saying so is what tells it apart from one still waiting to be.
 
 **A model that declares no coverage vocabulary still fetches.** It records nothing and asks again next
@@ -194,7 +194,7 @@ sources cover that Place.
 the fetches from the source's side would call every site's providers from one dispatch, unbounded by
 the concurrency a site's run holds to.
 
-**`coverageWorkedOutAt` is stamped on the source when the run has reached every site**, including a
+**`coverageMatchedAt` is stamped on the source when the run has reached every site**, including a
 source with no registration — offered to nothing, because nothing can call it — so it leaves
 `SourceAwaitingSites` rather than being dispatched again on every load. A run whose read failed stamps
 nothing and mints nothing: stamped, the source would read as offered to every site it covers while
@@ -202,7 +202,7 @@ having reached none, and nothing would offer it again. A model declaring no cove
 nothing to mint, so the run writes nothing and says so.
 
 **A subject that is neither a site nor a source is a dispatch the model got wrong**, and the run says so
-by writing nothing — the site's run would stamp a Place as worked out, and a source's run would offer it
+by writing nothing — the site's run would stamp a Place as matched, and a source's run would offer it
 to nothing and do the same. An archetype is never a site: a stamp on the site archetype itself would be
 inherited by every site and take all of them out of the state their runs are dispatched by.
 
@@ -219,7 +219,7 @@ it found, and the platform gives a dispatch **15 seconds**; with tens of shared 
 `--maxConcurrentSources` at a time and each allowed `--sourceTimeoutSeconds`, a run outlasts that call
 routinely. Judged by the call, finished work would be recorded Failed and driven again. So what closes
 the dispatch is the model: the connection relates to `SiteDiscovered` as what proves a dispatch done,
-the record stays in flight until the site's coverage has been worked out and no coverage of it is
+the record stays in flight until the site's coverage has been matched and no coverage of it is
 outstanding — the run's own last write is what closes it — and `done_within` presumes dead a run
 nobody will finish. Completion is *observed* rather than *announced* because nothing exposes a route
 for a service to announce one.
@@ -290,7 +290,7 @@ this service.
 
 **Every source that resolved stays reachable from the site.** The fetch relates the registration to
 the site through `observed`, so a value on the site leads back to the registration and from there to
-the `DataSource` along the `resolvedBy` edge this service already reads. Nothing here writes that edge;
+the `OpenDataSource` along the `resolvedBy` edge this service already reads. Nothing here writes that edge;
 it is the ingest's, and it is written once per registration per site however often discovery runs —
 see [`TRIBUTARY.md`](TRIBUTARY.md#which-registration-wrote-a-value). A source that did not resolve
 never reaches the ingest, so it leaves no edge suggesting it did.

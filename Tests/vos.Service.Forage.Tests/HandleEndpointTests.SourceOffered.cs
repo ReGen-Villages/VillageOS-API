@@ -110,7 +110,7 @@ public class HandleEndpointSourceOfferedTests
     }
 
     private static string StampOn(IReadOnlyDictionary<string, Guid> ids, string thing) =>
-        MyceliumRoutes.ThingPropertyFacts(ids[thing], CoverageLedger.CoverageWorkedOutAtProperty);
+        MyceliumRoutes.ThingPropertyFacts(ids[thing], CoverageLedger.CoverageMatchedAtProperty);
 
     private static async Task<Writes> Dispatch(
         IReadOnlyDictionary<string, Guid> ids, string subject, Edge[] edges,
