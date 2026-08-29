@@ -27,6 +27,8 @@ public static class DeclaredVocabularyReader
     public const string BoundarySourcePredicateFlag = "__IsBoundarySourcePredicate";
     public const string HazardTypeArchetypeFlag = "__IsHazardTypeArchetype";
     public const string HazardTypePredicateFlag = "__IsHazardTypePredicate";
+    public const string HazardLevelArchetypeFlag = "__IsHazardLevelArchetype";
+    public const string ReportedLevelPredicateFlag = "__IsReportedLevelPredicate";
 
     // Where a site sits, rather than what a submitted word means. Both are marks for the same reason the
     // vocabularies are: a producer naming `Earth` relates nothing, and says nothing, in a model that calls
@@ -40,13 +42,17 @@ public static class DeclaredVocabularyReader
     public static SubscriptionSelector Selector() => new()
     {
         Names = [SubmissionFragmentComposer.IsPredicateName],
-        MarkedTypes = [AllocationCategoryArchetypeFlag, BoundarySourceArchetypeFlag, HazardTypeArchetypeFlag],
+        MarkedTypes =
+        [
+            AllocationCategoryArchetypeFlag, BoundarySourceArchetypeFlag, HazardTypeArchetypeFlag,
+            HazardLevelArchetypeFlag,
+        ],
         // The root Place belongs here beside the predicates rather than with the marked types: it is a
         // Thing whose id an edge is written to, not an archetype whose members are wanted.
         MarkedArchetypes =
         [
             AllocationCategoryPredicateFlag, BoundarySourcePredicateFlag, HazardTypePredicateFlag,
-            RootPlaceFlag, PlaceNestingPredicateFlag,
+            ReportedLevelPredicateFlag, RootPlaceFlag, PlaceNestingPredicateFlag,
         ],
         IncludeRelationships = true,
     };
@@ -55,9 +61,42 @@ public static class DeclaredVocabularyReader
         AllocationCategories(snapshot),
         TermsMarked(snapshot, BoundarySourceArchetypeFlag, BoundarySourcePredicateFlag,
             "how a parcel boundary was obtained"),
-        TermsMarked(snapshot, HazardTypeArchetypeFlag, HazardTypePredicateFlag,
-            "what a hazard assessment is about"),
+        HazardTypes(snapshot),
+        HazardLevels(snapshot),
         PlaceNesting(snapshot));
+
+    /// <summary>What a hazard assessment is about, offered by a form so somebody marks what they have
+    /// seen rather than nominating hazards from memory.</summary>
+    internal static DeclaredTerms HazardTypes(SnapshotDocument snapshot) =>
+        TermsMarked(snapshot, HazardTypeArchetypeFlag, HazardTypePredicateFlag,
+            "what a hazard assessment is about");
+
+    /// <summary>How bad a hazard is, in the words the model holds — the set a submitter picks from and
+    /// the set the portal's own grading resolves against.</summary>
+    internal static DeclaredTerms HazardLevels(SnapshotDocument snapshot) =>
+        TermsMarked(snapshot, HazardLevelArchetypeFlag, ReportedLevelPredicateFlag, "how bad a hazard is");
+
+    /// <summary>The terms where the model declares that vocabulary, and none where it does not. What a form
+    /// asks for: a deployment declaring no hazards draws one step fewer, the way one declaring no imagery
+    /// draws no map — where a submission naming a term the model does not hold is still refused, because
+    /// there the word is already written and something has to say it means nothing.</summary>
+    internal static IReadOnlyList<string> HazardTypeNamesOrNone(SnapshotDocument snapshot) =>
+        NamesOrNone(() => HazardTypes(snapshot));
+
+    internal static IReadOnlyList<string> HazardLevelNamesOrNone(SnapshotDocument snapshot) =>
+        NamesOrNone(() => HazardLevels(snapshot));
+
+    private static IReadOnlyList<string> NamesOrNone(Func<DeclaredTerms> read)
+    {
+        try
+        {
+            return [.. read().Terms.Select(term => term.Name)];
+        }
+        catch (ModelNotSeededError)
+        {
+            return [];
+        }
+    }
 
     /// <summary>What a programme allocation is for, which is the one vocabulary a form has to offer
     /// before anybody can fill it in.</summary>

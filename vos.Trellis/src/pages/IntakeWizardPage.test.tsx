@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos';
 import type { BasemapSource } from '../types/basemap';
-import { ALLOCATION_CATEGORY_ARCHETYPE_FLAG } from './modelVocabulary';
+import {
+  ALLOCATION_CATEGORY_ARCHETYPE_FLAG,
+  HAZARD_LEVEL_ARCHETYPE_FLAG,
+  HAZARD_TYPE_ARCHETYPE_FLAG,
+} from './modelVocabulary';
 
 vi.mock('../api/thingApi', () => ({
   thingApi: { getAll: vi.fn(), getAllProperties: vi.fn() },
@@ -92,6 +96,12 @@ const THINGS: VosThing[] = [
   thing('growing', 'growing'),
   thing('roads', 'roads'),
   thing('basemap-source', 'BasemapSource', true),
+  thing('peril', 'Peril', true),
+  thing('flooding', 'flooding'),
+  thing('slippage', 'slippage'),
+  thing('severity', 'Severity', true),
+  thing('bad', 'bad'),
+  thing('mild', 'mild'),
   {
     Id: 'aerial',
     Name: 'Aerial imagery',
@@ -104,9 +114,17 @@ const EDGES: VosRelationship[] = [
   edge('e2', 'growing', 'is', 'land-use'),
   edge('e3', 'roads', 'is', 'land-use'),
   edge('e4', 'aerial', 'is', 'basemap-source'),
+  edge('e5', 'flooding', 'is', 'peril'),
+  edge('e6', 'slippage', 'is', 'peril'),
+  edge('e7', 'bad', 'is', 'severity'),
+  edge('e8', 'mild', 'is', 'severity'),
 ];
 
-const PROPERTIES = { 'land-use': { [ALLOCATION_CATEGORY_ARCHETYPE_FLAG]: owned(true) } };
+const PROPERTIES = {
+  'land-use': { [ALLOCATION_CATEGORY_ARCHETYPE_FLAG]: owned(true) },
+  peril: { [HAZARD_TYPE_ARCHETYPE_FLAG]: owned(true) },
+  severity: { [HAZARD_LEVEL_ARCHETYPE_FLAG]: owned(true) },
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -492,7 +510,7 @@ describe('posting the submission', () => {
 
   it('will not ask for a code until it names the site, the project, and who to send it to', () => {
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
     expect(
@@ -505,7 +523,7 @@ describe('posting the submission', () => {
   it('will not submit a site nobody can be told the decision about', () => {
     saveDraft('model-1', submittable({ emailAddress: '' }));
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
   });
@@ -514,7 +532,7 @@ describe('posting the submission', () => {
     vi.mocked(intakeApi.configured).mockReturnValue(false);
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     expect(screen.getByRole('button', { name: 'Send a code' })).toBeDisabled();
     expect(screen.getByText('No intake service address is configured.')).toBeInTheDocument();
@@ -523,7 +541,7 @@ describe('posting the submission', () => {
   it('posts what was collected and answers with the reference to quote', async () => {
     saveDraft('model-1', submittable({ statedArea: '24' }));
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     await askForACodeAndSubmit();
 
@@ -544,7 +562,7 @@ describe('posting the submission', () => {
     ];
     saveDraft('model-1', submittable({ boundary: corners, boundarySource: 'drawn-by-hand' }));
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     await askForACodeAndSubmit();
 
@@ -559,7 +577,7 @@ describe('posting the submission', () => {
   it('clears the draft once it is in the model, so reopening starts a new submission', async () => {
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     await askForACodeAndSubmit();
 
@@ -569,7 +587,7 @@ describe('posting the submission', () => {
   it('starts a fresh submission after one has landed, under a new identifier', async () => {
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
     await askForACodeAndSubmit();
     await waitFor(() => expect(screen.getByText('Submitted')).toBeInTheDocument());
 
@@ -583,7 +601,7 @@ describe('posting the submission', () => {
     vi.mocked(intakeApi.submit).mockRejectedValue(new Error("'site.name' is missing"));
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     await askForACodeAndSubmit();
 
@@ -599,7 +617,7 @@ describe('posting the submission', () => {
     );
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
 
@@ -614,13 +632,13 @@ describe('posting the submission', () => {
   it('asks for a new code when the address is changed after one was sent', async () => {
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
     fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
     await waitFor(() => expect(screen.getByLabelText('Code')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: '2. Contact' }));
     typeInto('Email address', 'somebody.else@example.pt');
-    goToStep(3);
+    goToStep(4);
 
     expect(screen.queryByLabelText('Code')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send a code' })).toBeInTheDocument();
@@ -631,7 +649,7 @@ describe('posting the submission', () => {
   it('will not submit with the code box empty', async () => {
     saveDraft('model-1', submittable());
     render(<IntakeWizardPage />);
-    goToStep(4);
+    goToStep(5);
 
     fireEvent.click(screen.getByRole('button', { name: 'Send a code' }));
     await waitFor(() => expect(screen.getByLabelText('Code')).toBeInTheDocument());
@@ -649,5 +667,37 @@ describe('a model the vocabulary cannot be read from', () => {
     await waitFor(() =>
       expect(screen.getByText(/declares no programme categories/)).toBeInTheDocument(),
     );
+  });
+});
+
+describe('the hazards step', () => {
+  // Offered rather than asked for: every hazard the model names is listed, and every one starts
+  // unreported. Marking what you have seen is a different act from nominating hazards from memory.
+  it('lists every hazard the model names, each unreported', async () => {
+    render(<IntakeWizardPage />);
+    goToStep(5);
+
+    expect(await screen.findByLabelText('flooding')).toHaveValue('');
+    expect(screen.getByLabelText('slippage')).toHaveValue('');
+  });
+
+  it('reports the level marked against the hazard it is about', async () => {
+    render(<IntakeWizardPage />);
+    goToStep(5);
+
+    fireEvent.change(await screen.findByLabelText('flooding'), { target: { value: 'bad' } });
+
+    expect(loadDraft('model-1')?.reportedHazards).toEqual({ flooding: 'bad' });
+  });
+
+  // A mis-click has to be takeable back, so clearing a row says nothing again rather than something else.
+  it('takes a report back when the row is cleared', async () => {
+    render(<IntakeWizardPage />);
+    goToStep(5);
+    fireEvent.change(await screen.findByLabelText('flooding'), { target: { value: 'bad' } });
+
+    fireEvent.change(screen.getByLabelText('flooding'), { target: { value: '' } });
+
+    expect(loadDraft('model-1')?.reportedHazards).toEqual({});
   });
 });

@@ -18,7 +18,7 @@ export type AreaUnit = 'hectares' | 'acres';
 
 export const HECTARES_PER_ACRE = 0.40468564224;
 
-export const STEPS = ['project', 'contact', 'location', 'programme', 'parcel'] as const;
+export const STEPS = ['project', 'contact', 'location', 'programme', 'parcel', 'hazards'] as const;
 
 export type StepId = (typeof STEPS)[number];
 
@@ -36,6 +36,10 @@ export type BoundaryObtainedBy =
 
 /** The share of the parcel each chosen category takes, by the category's own name in the model. */
 export type ProgrammeShares = Readonly<Record<string, number>>;
+
+/** A level the submitter reports, by the hazard the model names. Only what they marked is here.
+ *  Both words are the model's, so a submission carries no term the model would refuse. */
+export type ReportedHazards = Readonly<Record<string, string>>;
 
 export interface SubmissionDraft {
   /** Minted once, when the draft starts. Every Thing a submission creates derives its identity from
@@ -59,6 +63,9 @@ export interface SubmissionDraft {
   readonly shares: ProgrammeShares;
   readonly boundary: readonly BoundaryPoint[];
   readonly boundarySource: BoundaryObtainedBy | null;
+  /** What the submitter says they have seen, keyed by the hazard the model names. A hazard they say
+   *  nothing about is absent rather than held at a level nobody reported. */
+  readonly reportedHazards: ReportedHazards;
   readonly visited: readonly StepId[];
 }
 
@@ -80,6 +87,7 @@ export interface SubmissionDocument {
   };
   parcel?: { boundarySource: string; boundary: { latitude: number; longitude: number }[] };
   allocations?: { category: string; sharePct: number }[];
+  hazards?: { hazardType: string; reportedLevel: string }[];
 }
 
 export function emptyDraft(submissionId: string): SubmissionDraft {
@@ -103,6 +111,7 @@ export function emptyDraft(submissionId: string): SubmissionDraft {
     shares: {},
     boundary: [],
     boundarySource: null,
+    reportedHazards: {},
     visited: ['project'],
   };
 }
@@ -274,8 +283,24 @@ export function readyToSubmit(draft: SubmissionDraft): boolean {
   );
 }
 
+/** What a person marks against one hazard. An empty word clears it: saying nothing about a hazard has
+ *  to stay possible after saying something, or a mis-click is a report they cannot take back. */
+export function withHazardReported(
+  draft: SubmissionDraft,
+  hazardType: string,
+  reportedLevel: string,
+): SubmissionDraft {
+  const reported = { ...draft.reportedHazards };
+  if (reportedLevel.length === 0) delete reported[hazardType];
+  else reported[hazardType] = reportedLevel;
+  return { ...draft, reportedHazards: reported };
+}
+
 export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
   const allocations = Object.entries(draft.shares).map(([category, sharePct]) => ({ category, sharePct }));
+  const hazards = Object.entries(draft.reportedHazards)
+    .filter(([, reportedLevel]) => reportedLevel.length > 0)
+    .map(([hazardType, reportedLevel]) => ({ hazardType, reportedLevel }));
 
   return {
     submissionId: draft.submissionId,
@@ -316,6 +341,7 @@ export function documentFrom(draft: SubmissionDraft): SubmissionDocument {
         },
       }),
     ...(allocations.length > 0 && { allocations }),
+    ...(hazards.length > 0 && { hazards }),
   };
 }
 

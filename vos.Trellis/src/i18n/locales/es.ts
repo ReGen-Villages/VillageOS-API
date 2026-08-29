@@ -640,6 +640,7 @@ export const es: PartialResources = {
       location: "Ubicación",
       programme: "Tamaño y programa",
       parcel: "Parcela",
+      hazards: "Peligros",
     },
     stepHint: {
       project: "La iniciativa a la que se destina el terreno.",
@@ -647,7 +648,10 @@ export const es: PartialResources = {
       location: "Dónde está el terreno y cómo se llama.",
       programme: "Qué superficie tiene, para cuántas personas y cómo se repartiría.",
       parcel: "Dibuje el límite del terreno en el mapa, comprobado contra la superficie indicada.",
+      hazards: "Lo que ha visto en el terreno, junto a lo que dicen los datos de peligros.",
     },
+    hazardsNone: "Este modelo no nombra peligros sobre los que informar.",
+    notReported: "Sin informar",
     projectName: "Nombre del proyecto",
     country: "País",
     nearestCity: "Ciudad más cercana",

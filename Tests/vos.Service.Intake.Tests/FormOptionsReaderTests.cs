@@ -89,16 +89,43 @@ public class FormOptionsReaderTests
         options.BasemapSources.Should().BeEmpty();
     }
 
-    // The route is anonymous, so what it answers is what anybody may read. The other vocabularies the
-    // service resolves a submission against are none of a form's business, and neither is anything else
-    // the model happens to hold.
+    // The route is anonymous, so what it answers is what anybody may read: the vocabularies the form draws
+    // itself with, and nothing else the model happens to hold. How a boundary was obtained is not among
+    // them — the parcel step records that from what it did rather than asking.
     [Fact]
     public void Nothing_the_form_does_not_draw_itself_with_travels()
     {
         var answered = JsonSerializer.Serialize(FormOptionsReader.Read(DeclaredModel.Seeded().Build()));
 
-        foreach (var withheld in WillowBend.HazardTypeNames.Concat(WillowBend.BoundarySourceNames))
+        foreach (var withheld in WillowBend.BoundarySourceNames)
             answered.Should().NotContain(withheld);
+    }
+
+    // The hazards a form asks about are the model's to name, so they have to reach it. A form offering a
+    // word the model does not hold collects an answer the submission is then refused for.
+    [Fact]
+    public void The_hazards_a_form_asks_about_are_the_ones_the_model_declares()
+    {
+        var options = FormOptionsReader.Read(DeclaredModel.Seeded().Build());
+
+        options.HazardTypes.Should().BeEquivalentTo(WillowBend.HazardTypeNames);
+        options.HazardLevels.Should().BeEquivalentTo(WillowBend.HazardLevelNames);
+    }
+
+    // The same kindness the basemap gets: a deployment declaring no hazards draws one step fewer rather
+    // than being unable to answer a form at all.
+    [Fact]
+    public void A_model_declaring_no_hazards_answers_with_none_rather_than_refusing()
+    {
+        var model = new DeclaredModel()
+            .WithArchetype("AllocationCategory", DeclaredVocabularyReader.AllocationCategoryArchetypeFlag)
+            .With("categorizedAs", DeclaredVocabularyReader.AllocationCategoryPredicateFlag)
+            .Relate("Orchard", "is", "AllocationCategory");
+
+        var options = FormOptionsReader.Read(model.Build());
+
+        options.HazardTypes.Should().BeEmpty();
+        options.HazardLevels.Should().BeEmpty();
     }
 
     [Fact]

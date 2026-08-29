@@ -13,6 +13,8 @@ import type { EffectiveProperty, VosRelationship, VosThing } from '../types/vos'
 /** What a programme allocation is for. The intake service resolves a submitted word against the Things
  *  under whichever archetype carries this. */
 export const ALLOCATION_CATEGORY_ARCHETYPE_FLAG = '__IsAllocationCategoryArchetype';
+export const HAZARD_TYPE_ARCHETYPE_FLAG = '__IsHazardTypeArchetype';
+export const HAZARD_LEVEL_ARCHETYPE_FLAG = '__IsHazardLevelArchetype';
 
 /** The platform's one canonical predicate, and the only predicate name a reader may hold: it is the
  *  platform's own vocabulary rather than any model's, and nothing marks it. */

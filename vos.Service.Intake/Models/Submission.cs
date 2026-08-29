@@ -25,6 +25,11 @@ public sealed record SubmittedHazard
 {
     public string? HazardType { get; init; }
 
+    /// <summary>What the submitter says they have seen of this hazard, in the words the model declares.
+    /// Kept apart from the level the portal grades: the two disagreeing is the answer rather than a
+    /// conflict, and somebody who has watched their land flood knows what a regional model does not.</summary>
+    public string? ReportedLevel { get; init; }
+
     /// <summary>Which source says so. It becomes a Thing the assessment hangs off rather than a name copied
     /// onto it, so a reader can walk from a hazard to what produced it and the two cannot disagree.</summary>
     public SubmittedDataSource? Source { get; init; }

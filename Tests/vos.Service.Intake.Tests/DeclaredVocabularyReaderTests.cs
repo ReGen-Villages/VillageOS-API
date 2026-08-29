@@ -132,11 +132,13 @@ public class DeclaredVocabularyReaderTests
         selector.MarkedTypes.Should().BeEquivalentTo(
             DeclaredVocabularyReader.AllocationCategoryArchetypeFlag,
             DeclaredVocabularyReader.BoundarySourceArchetypeFlag,
-            DeclaredVocabularyReader.HazardTypeArchetypeFlag);
+            DeclaredVocabularyReader.HazardTypeArchetypeFlag,
+            DeclaredVocabularyReader.HazardLevelArchetypeFlag);
         selector.MarkedArchetypes.Should().BeEquivalentTo(
             DeclaredVocabularyReader.AllocationCategoryPredicateFlag,
             DeclaredVocabularyReader.BoundarySourcePredicateFlag,
             DeclaredVocabularyReader.HazardTypePredicateFlag,
+            DeclaredVocabularyReader.ReportedLevelPredicateFlag,
             DeclaredVocabularyReader.RootPlaceFlag,
             DeclaredVocabularyReader.PlaceNestingPredicateFlag);
         selector.Names.Should().Equal(SubmissionFragmentComposer.IsPredicateName);

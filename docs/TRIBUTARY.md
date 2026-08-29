@@ -475,6 +475,9 @@ one administrative division per call, so the discovery run calls it once per ass
 naming that assessment as the `subjectId` — the source declares this by a `resolvesOnto` edge to the
 assessment archetype, read in [`FORAGE.md`](FORAGE.md#the-predicates-it-reads). An assessment's
 `hazardLevel` and `assessedOn` take observations only, so a fetch is the only thing that can write them.
+Its `reportedLevel` takes facts only, and is what a submitter said they had seen: a fetch cannot reach it,
+so a grading never overwrites somebody's own account of their land, and the two disagreeing stays
+readable rather than being settled by whichever was written last.
 
 ```jsonc
 // registration: hazard-grading

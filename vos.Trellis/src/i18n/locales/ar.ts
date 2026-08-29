@@ -770,6 +770,7 @@ export const ar: PartialResources & ArabicPlurals = {
       location: "الموقع الجغرافي",
       programme: "المساحة والبرنامج",
       parcel: "القطعة",
+      hazards: "المخاطر",
     },
     stepHint: {
       project: "المبادرة التي خُصِّصت لها الأرض.",
@@ -777,7 +778,10 @@ export const ar: PartialResources & ArabicPlurals = {
       location: "أين تقع الأرض وما اسمها.",
       programme: "ما مساحتها، ولكم من الناس، وكيف تُقسَّم.",
       parcel: "ارسم حدود الأرض على الخريطة، وتُقارن بالمساحة المصرَّح بها.",
+      hazards: "ما شاهدته على الأرض، إلى جانب ما تقوله بيانات المخاطر.",
     },
+    hazardsNone: "لا يذكر هذا النموذج أي مخاطر للإبلاغ عنها.",
+    notReported: "لم يُبلَّغ عنه",
     projectName: "اسم المشروع",
     country: "البلد",
     nearestCity: "أقرب مدينة",

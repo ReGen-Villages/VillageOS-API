@@ -409,6 +409,53 @@ public class SubmissionFragmentComposerTests
         Hazards(composed).Should().HaveCount(WillowBend.HazardTypeNames.Length);
     }
 
+    // A level the submitter has seen, kept where the portal's grading cannot reach it: `reportedLevel`
+    // takes facts and `hazardLevel` takes observations. Written into the graded one it would join the
+    // portal's series, read as a grading, and be gone at the next discovery run.
+    [Fact]
+    public void A_level_the_submitter_reports_is_written_and_related_apart_from_the_graded_one()
+    {
+        var composed = Compose(WillowBend.Submission() with
+        {
+            Hazards = [new SubmittedHazard { HazardType = "river-flood", ReportedLevel = "high" }],
+        });
+
+        var flood = HazardOf(composed, "river-flood");
+        flood.Properties["reportedLevel"].Value.Should().Be("high");
+        flood.Properties.Should().NotContainKey("hazardLevel",
+            "what the portal grades is an observation this producer may not write");
+        Relates(composed, flood.Id, WillowBend.ReportedAsPredicateId, WillowBend.TermId("high"))
+            .Should().BeTrue();
+    }
+
+    // Saying nothing about a hazard is the ordinary case, and has to read as saying nothing — a level
+    // filled in on their behalf would be a report nobody made.
+    [Fact]
+    public void A_hazard_reported_without_a_level_carries_none()
+    {
+        var composed = Compose(WillowBend.Submission() with
+        {
+            Hazards = [new SubmittedHazard { HazardType = "river-flood" }],
+        });
+
+        HazardOf(composed, "river-flood").Properties.Should().NotContainKey("reportedLevel");
+        composed.Fragment.Relationships.Should()
+            .NotContain(edge => edge.Predicate == WillowBend.ReportedAsPredicateId);
+    }
+
+    // The words are the model's, so a level it does not declare is refused rather than written through as
+    // free text — the same rule every other submitted word obeys.
+    [Fact]
+    public void A_level_the_model_does_not_declare_is_refused()
+    {
+        var refusal = Assert.Throws<SubmissionError>(() => Compose(WillowBend.Submission() with
+        {
+            Hazards = [new SubmittedHazard { HazardType = "river-flood", ReportedLevel = "catastrophic" }],
+        }));
+
+        refusal.Message.Should().Contain("hazard.reportedLevel");
+    }
+
     // What the assessment is about, as an edge to the Thing the model declares. A word could name a hazard
     // that exists nowhere and nothing would notice; nothing can be asked of it either — not what it means,
     // not which other sites carry it.

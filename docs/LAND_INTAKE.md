@@ -706,6 +706,14 @@ level came from.
 that exists nowhere and nothing would notice; nothing could be asked of it either — what it means, which
 other sites carry it. A project whose hazards differ adds a Thing and deploys nothing.
 
+**A submitter may say what they have seen, and it is kept apart from what the portal graded** (platform
+User Story #6852). `reportedLevel` takes facts where `hazardLevel` takes observations, and `reportedAs`
+carries the edge to the level Thing beside `gradedAs`, so neither can overwrite the other even by
+mistake. Written into the graded one it would join the series a discovery run writes, read as a grading,
+and be gone at the next run — and local knowledge of a parcel is often the better of the two, since
+somebody who has watched their land flood every winter knows what a regional model does not. The two
+disagreeing is the answer rather than a conflict to settle.
+
 **Every hazard the model declares gets an assessment, whether or not the submission names it**
 (User Story #6849). A discovery run grades one hazard per assessment the site has, so a site with none is
 graded on nothing — which every submitted site was, because no form asks about hazards and a submission

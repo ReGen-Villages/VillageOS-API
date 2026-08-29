@@ -27,7 +27,7 @@ const DRAFT_OWNER = 'public-form';
 export function PublicSubmissionPage() {
   const { t, i18n } = useTranslation();
   const theme = useThemeStore((state) => state.theme);
-  const [options, setOptions] = useState<FormOptions>({ allocationCategories: [], basemapSources: [] });
+  const [options, setOptions] = useState<FormOptions>({ allocationCategories: [], basemapSources: [], hazardTypes: [], hazardLevels: [] });
   const [unreachable, setUnreachable] = useState(false);
 
   // The signed-in application's shell sets these two on the document for its own pages. This form is
@@ -81,6 +81,8 @@ export function PublicSubmissionPage() {
         <IntakeWizard
           categories={options.allocationCategories}
           basemapSources={options.basemapSources}
+          hazardTypes={options.hazardTypes}
+          hazardLevels={options.hazardLevels}
           draftOwner={DRAFT_OWNER}
         />
         <p className="mt-6 text-[11px] text-zinc-400 dark:text-zinc-500">

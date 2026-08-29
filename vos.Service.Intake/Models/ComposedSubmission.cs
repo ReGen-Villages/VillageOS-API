@@ -42,4 +42,4 @@ public sealed record DeclaredPlace(DeclaredTerm Predicate, DeclaredTerm Root);
 /// the Place its site is related to.</summary>
 public sealed record DeclaredVocabulary(
     DeclaredTerms AllocationCategories, DeclaredTerms BoundarySources, DeclaredTerms HazardTypes,
-    DeclaredPlace PlaceNesting);
+    DeclaredTerms HazardLevels, DeclaredPlace PlaceNesting);

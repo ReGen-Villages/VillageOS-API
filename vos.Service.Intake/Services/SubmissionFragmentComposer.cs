@@ -220,6 +220,7 @@ public static class SubmissionFragmentComposer
         var coverageAlreadyGiven = new Dictionary<string, string?>();
         var hazardsAlreadyGiven = new Dictionary<Guid, string>();
         var assessments = new Dictionary<Guid, NamedThing>();
+        var assessedProperties = new Dictionary<Guid, Dictionary<string, TypedValue>>();
 
         // The assessment for one hazard of this site, made once however it is arrived at. A discovery run
         // grades one hazard per assessment the site has, so an assessment is what asks the question — and
@@ -233,7 +234,8 @@ public static class SubmissionFragmentComposer
                 StableIdentity.Derive(submissionId, $"hazard:{Key(hazardType.Name)}"),
                 $"{siteName} {hazardType.Name}");
             assessments[hazardType.Id] = made;
-            things.Add(new FragmentThing(made.Id, made.Name, HazardProperties()));
+            assessedProperties[made.Id] = HazardProperties();
+            things.Add(new FragmentThing(made.Id, made.Name, assessedProperties[made.Id]));
             Relate(siteThing, predicates.Has, made);
             BeArchetype(made, archetypes.HazardAssessment, HazardAssessmentArchetypeName);
             RelateToTerm(made, vocabulary.HazardTypes, hazardType);
@@ -256,6 +258,17 @@ public static class SubmissionFragmentComposer
             hazardsAlreadyGiven[hazardType.Id] = submittedType;
 
             var hazardThing = AssessmentOf(hazardType);
+
+            // What the submitter says they have seen, written where the portal's grading cannot reach it:
+            // `reportedLevel` takes facts and `hazardLevel` takes observations, and the edge goes through a
+            // predicate of its own. The two disagreeing is what a reviewer wants to see, not a conflict to
+            // settle — somebody who has watched their land flood knows what a regional model does not.
+            if (hazard.ReportedLevel is { } reported && !string.IsNullOrWhiteSpace(reported))
+            {
+                var level = Resolve(vocabulary.HazardLevels, "hazard.reportedLevel", reported.Trim());
+                Write(assessedProperties[hazardThing.Id], "reportedLevel", VosTypeNames.String, level.Name);
+                RelateToTerm(hazardThing, vocabulary.HazardLevels, level);
+            }
 
             if (hazard.Source is not { } source)
                 continue;

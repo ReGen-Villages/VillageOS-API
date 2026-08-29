@@ -31,6 +31,11 @@ const TICKET_HEADER = 'X-Submission-Ticket';
 export interface FormOptions {
   allocationCategories: string[];
   basemapSources: BasemapSource[];
+  /** The hazards a submitter may report on, and the words they may report. Both the model's, so a form
+   *  cannot offer a term the submission would then be refused for naming. Empty where a deployment
+   *  declares no hazards, which draws one step fewer rather than refusing to answer. */
+  hazardTypes: string[];
+  hazardLevels: string[];
 }
 
 export const intakeApi = {
@@ -45,10 +50,14 @@ export const intakeApi = {
     const answered = (await response.json()) as {
       allocationCategories?: string[];
       basemapSources?: DeclaredBasemapSource[];
+      hazardTypes?: string[];
+      hazardLevels?: string[];
     };
     return {
       allocationCategories: answered.allocationCategories ?? [],
       basemapSources: basemapSourcesFrom(answered.basemapSources ?? []),
+      hazardTypes: answered.hazardTypes ?? [],
+      hazardLevels: answered.hazardLevels ?? [],
     };
   },
 

@@ -640,6 +640,7 @@ export const de: PartialResources = {
       location: 'Lage',
       programme: 'Größe und Programm',
       parcel: 'Parzelle',
+      hazards: 'Gefahren',
     },
     stepHint: {
       project: 'Das Vorhaben, für das das Land gedacht ist.',
@@ -647,7 +648,10 @@ export const de: PartialResources = {
       location: 'Wo das Land liegt und wie es heißt.',
       programme: 'Wie groß das Land ist, für wie viele Menschen und wie es aufgeteilt würde.',
       parcel: 'Die Grenze des Grundstücks auf der Karte zeichnen, geprüft gegen die angegebene Fläche.',
+      hazards: 'Was Sie auf dem Land erlebt haben, neben dem, was die Gefahrendaten sagen.',
     },
+    hazardsNone: 'Dieses Modell nennt keine Gefahren zum Melden.',
+    notReported: 'Nicht gemeldet',
     projectName: 'Projektname',
     country: 'Land',
     nearestCity: 'Nächstgelegene Stadt',

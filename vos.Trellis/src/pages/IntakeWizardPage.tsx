@@ -17,13 +17,20 @@ import { thingApi } from '../api/thingApi';
 import { useAuth } from '../hooks/useAuth';
 import { IntakeWizard } from '../intake/IntakeWizard';
 import type { BasemapSource } from '../types/basemap';
-import { ALLOCATION_CATEGORY_ARCHETYPE_FLAG, termsMarked } from './modelVocabulary';
+import {
+  ALLOCATION_CATEGORY_ARCHETYPE_FLAG,
+  HAZARD_LEVEL_ARCHETYPE_FLAG,
+  HAZARD_TYPE_ARCHETYPE_FLAG,
+  termsMarked,
+} from './modelVocabulary';
 
 export function IntakeWizardPage() {
   const { t } = useTranslation();
   const { modelId } = useAuth();
   const [categories, setCategories] = useState<readonly string[]>([]);
   const [basemapSources, setBasemapSources] = useState<BasemapSource[]>([]);
+  const [hazardTypes, setHazardTypes] = useState<readonly string[]>([]);
+  const [hazardLevels, setHazardLevels] = useState<readonly string[]>([]);
 
   useEffect(() => {
     let abandoned = false;
@@ -32,11 +39,16 @@ export function IntakeWizardPage() {
         if (abandoned) return;
         setCategories(termsMarked({ things, relationships, properties }, ALLOCATION_CATEGORY_ARCHETYPE_FLAG));
         setBasemapSources(discoverBasemapSources(modelIndexFor(things, relationships)));
+        const read = { things, relationships, properties };
+        setHazardTypes(termsMarked(read, HAZARD_TYPE_ARCHETYPE_FLAG));
+        setHazardLevels(termsMarked(read, HAZARD_LEVEL_ARCHETYPE_FLAG));
       })
       .catch(() => {
         if (abandoned) return;
         setCategories([]);
         setBasemapSources([]);
+        setHazardTypes([]);
+        setHazardLevels([]);
       });
     return () => {
       abandoned = true;
@@ -57,7 +69,13 @@ export function IntakeWizardPage() {
 
       <div className="flex-1 overflow-auto px-6 pb-10">
         <div className="max-w-2xl">
-          <IntakeWizard categories={categories} basemapSources={basemapSources} draftOwner={modelId} />
+          <IntakeWizard
+            categories={categories}
+            basemapSources={basemapSources}
+            hazardTypes={hazardTypes}
+            hazardLevels={hazardLevels}
+            draftOwner={modelId}
+          />
         </div>
       </div>
     </div>
