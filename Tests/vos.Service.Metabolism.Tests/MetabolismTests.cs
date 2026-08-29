@@ -10,9 +10,14 @@ using Xunit;
 
 namespace vos.Service.Metabolism.Tests;
 
-public class MetabolismTests
+public class MetabolismTests : IAsyncLifetime
 {
     private readonly Services.Metabolism _engine;
+
+    // A registered simulation keeps ticking for the rest of the test session unless it is stopped,
+    // so every engine a test builds is stopped when that test ends. Left running they compete with
+    // the tests that come after them for the same machine.
+    private readonly List<Services.Metabolism> _startedEngines = new();
 
     public MetabolismTests()
     {
@@ -24,6 +29,15 @@ public class MetabolismTests
 
         var engineLogger = new Mock<ILogger<Services.Metabolism>>();
         _engine = new Services.Metabolism(myceliumClient, engineLogger.Object, ResourceDirection.Consumes);
+        _startedEngines.Add(_engine);
+    }
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
+    {
+        foreach (var engine in _startedEngines)
+            await engine.StopAllAsync();
     }
 
     private SimulationConfig MakeConfig(string relId = "rel-1", decimal quantity = 5.0m, int freqSeconds = 60) =>
@@ -96,11 +110,9 @@ public class MetabolismTests
     public void UpdateProperty_UnknownProperty_DoesNotRestart()
     {
         _engine.Register(MakeConfig());
-        var originalTicks = _engine.GetAll().First().TickCount;
 
         _engine.UpdateProperty("rel-1", "total_consumed", 999.0m);
 
-        // Config unchanged
         var sim = _engine.GetAll().First();
         sim.Config.Quantity.Should().Be(5.0m);
     }
@@ -230,7 +242,7 @@ public class MetabolismTests
 
     // Create a Metabolism engine whose MyceliumClient is backed by a MockHttpMessageHandler
     // so that ApplyQuantityAsync and IncrementRelationshipPropertyAsync succeed.
-    private static Services.Metabolism CreateEngineWithMockedMycelium(
+    private Services.Metabolism CreateEngineWithMockedMycelium(
         Func<HttpRequestMessage, HttpResponseMessage>? apiResponder = null,
         ResourceDirection? direction = null)
     {
@@ -261,7 +273,9 @@ public class MetabolismTests
         var myceliumClient = new MyceliumClient(httpFactory.Object, myceliumLogger.Object, "http://test-mycelium", direction);
 
         var engineLogger = new Mock<ILogger<Services.Metabolism>>();
-        return new Services.Metabolism(myceliumClient, engineLogger.Object, direction);
+        var engine = new Services.Metabolism(myceliumClient, engineLogger.Object, direction);
+        _startedEngines.Add(engine);
+        return engine;
     }
 
     private static SimulationConfig MakePastConfig(
@@ -281,10 +295,8 @@ public class MetabolismTests
         var engine = CreateEngineWithMockedMycelium();
         var entry = engine.Register(MakePastConfig());
 
-        // Wait enough time for stagger delay + status change (stagger = order*200 + up to 500ms jitter)
-        await Task.Delay(1500);
-
-        entry.Status.Should().Be("active");
+        await Settle.UntilAsync(() => entry.Status == "active",
+            "a simulation whose start time has already passed activates once its stagger delay ends");
     }
 
     // Regression (#6512): the running total a tick writes was chosen by comparing the launch word
@@ -308,9 +320,12 @@ public class MetabolismTests
             ResourceDirection.Parse(launchArgument));
 
         engine.Register(MakePastConfig(freqSeconds: 1));
-        await Task.Delay(2500);
 
-        paths.Should().Contain($"/api/relationships/rel-1/properties/{expectedTrackingProperty}/increments");
+        // The running total is written last in a tick, so once it arrives the pool call already has.
+        var trackingPath = $"/api/relationships/rel-1/properties/{expectedTrackingProperty}/increments";
+        await Settle.UntilAsync(() => paths.Contains(trackingPath),
+            $"a tick writes the running total to {trackingPath}");
+
         paths.Should().Contain($"/api/things/target-1/properties/quantity/{expectedPoolAction}");
     }
 
@@ -320,10 +335,8 @@ public class MetabolismTests
         var engine = CreateEngineWithMockedMycelium();
         var entry = engine.Register(MakePastConfig(freqSeconds: 1));
 
-        // Wait for stagger + at least one tick cycle (stagger up to ~700ms, then 1s freq)
-        await Task.Delay(2500);
+        await Settle.UntilAsync(() => entry.TickCount > 0, "the loop runs its first tick");
 
-        entry.TickCount.Should().BeGreaterThan(0);
         entry.LastTickUtc.Should().NotBeNull();
     }
 
@@ -348,10 +361,8 @@ public class MetabolismTests
 
         var entry = engine.Register(MakePastConfig(freqSeconds: 1));
 
-        // Wait for stagger + at least one tick attempt
-        await Task.Delay(2500);
-
-        entry.LastError.Should().NotBeNullOrEmpty();
+        await Settle.UntilAsync(() => !string.IsNullOrEmpty(entry.LastError),
+            "a tick whose pool call is refused records why it failed");
     }
 
     [Fact]
@@ -359,31 +370,21 @@ public class MetabolismTests
     {
         var engine = CreateEngineWithMockedMycelium();
         var entry = engine.Register(MakePastConfig(freqSeconds: 60));
+        await Settle.UntilAsync(() => entry.Status == "active", "the simulation is running before it is cancelled");
 
-        // Wait for the simulation to become active
-        await Task.Delay(1500);
-        entry.Status.Should().Be("active");
-
-        // Now cancel it
         engine.Cancel("rel-1");
 
-        // Wait for the cancellation to take effect
-        await Task.Delay(500);
-
-        entry.Status.Should().Be("cancelled");
+        await Settle.UntilAsync(() => entry.Status == "cancelled", "cancelling a running simulation ends its loop");
     }
 
     [Fact]
     public async Task RunSimulationLoop_EndUtcReached_SetsCompleted()
     {
         var engine = CreateEngineWithMockedMycelium();
-        // Set endUtc very close to now so the loop exits quickly after activation
+        // An end time close to now, so the loop reaches it after a tick or two rather than in an hour.
         var entry = engine.Register(MakePastConfig(freqSeconds: 1, endUtc: DateTime.UtcNow.AddSeconds(2)));
 
-        // Wait for stagger + enough time for endUtc to pass
-        await Task.Delay(4000);
-
-        entry.Status.Should().Be("completed");
+        await Settle.UntilAsync(() => entry.Status == "completed", "the loop stops once its end time has passed");
     }
 
     [Fact]
@@ -392,9 +393,8 @@ public class MetabolismTests
         var engine = CreateEngineWithMockedMycelium();
         var entry1 = engine.Register(MakePastConfig(relId: "rel-1", freqSeconds: 60));
         var entry2 = engine.Register(MakePastConfig(relId: "rel-2", freqSeconds: 60));
-
-        // Wait for both to activate
-        await Task.Delay(1500);
+        await Settle.UntilAsync(() => entry1.Status == "active" && entry2.Status == "active",
+            "both simulations are running before they are stopped");
 
         await engine.StopAllAsync();
 
@@ -411,41 +411,34 @@ public class MetabolismTests
     public async Task RunSimulationLoop_WithStartDelay_SetsDelayedStatusFirst()
     {
         var engine = CreateEngineWithMockedMycelium();
-        // 2s delay + past start time — should show "delayed" before activating
-        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 2.0m));
+        // A delay long enough to outlast the test, so nothing here depends on when it expires.
+        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 10.0m));
 
-        // Immediately after registration, should be "delayed" (not "active")
-        await Task.Delay(200);
-        entry.Status.Should().Be("delayed");
-
-        // No ticks should have fired during the delay
-        entry.TickCount.Should().Be(0);
+        await Settle.UntilAsync(() => entry.Status == "delayed",
+            "a start delay holds the simulation in the delayed phase instead of activating it");
     }
 
     [Fact]
     public async Task RunSimulationLoop_WithStartDelay_ActivatesAfterDelay()
     {
         var engine = CreateEngineWithMockedMycelium();
-        // 1s delay + past start time — should activate after delay
         var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 1.0m));
 
-        // Wait for delay (1s) + stagger (~700ms max) + margin
-        await Task.Delay(2500);
-
-        entry.Status.Should().Be("active");
+        await Settle.UntilAsync(() => entry.Status == "active",
+            "the simulation activates once its start delay has run out");
     }
 
     [Fact]
     public async Task RunSimulationLoop_WithStartDelay_NoTicksDuringDelay()
     {
         var engine = CreateEngineWithMockedMycelium();
-        // 2s delay with short frequency — should NOT tick during the delay period
-        var entry = engine.Register(MakePastConfig(freqSeconds: 1, startDelaySeconds: 2.0m));
+        // A one-second frequency, so a loop that ticked during its delay would be caught, and a delay
+        // long enough that reading the tick count cannot race its expiry.
+        var entry = engine.Register(MakePastConfig(freqSeconds: 1, startDelaySeconds: 10.0m));
 
-        // Check at 500ms — still in delay phase
-        await Task.Delay(500);
+        await Settle.UntilAsync(() => entry.Status == "delayed", "the simulation enters its start delay");
+
         entry.TickCount.Should().Be(0);
-        entry.Status.Should().Be("delayed");
     }
 
     [Fact]
@@ -453,29 +446,13 @@ public class MetabolismTests
     {
         var engine = CreateEngineWithMockedMycelium();
         var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 10.0m));
-
-        await Task.Delay(200);
-        entry.Status.Should().Be("delayed");
+        await Settle.UntilAsync(() => entry.Status == "delayed", "the simulation is inside its start delay");
 
         engine.Cancel("rel-1");
-        await Task.Delay(200);
 
-        entry.Status.Should().Be("cancelled");
+        await Settle.UntilAsync(() => entry.Status == "cancelled",
+            "cancelling during the start delay ends the loop before it activates");
         entry.TickCount.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task RunSimulationLoop_ZeroStartDelay_SkipsDelayPhase()
-    {
-        var engine = CreateEngineWithMockedMycelium();
-        // 0 delay (default) — should go straight to stagger, then active
-        var entry = engine.Register(MakePastConfig(freqSeconds: 60, startDelaySeconds: 0m));
-
-        // Wait for stagger
-        await Task.Delay(1500);
-
-        // Should never have been "delayed" — went straight to active
-        entry.Status.Should().Be("active");
     }
 
     #endregion
