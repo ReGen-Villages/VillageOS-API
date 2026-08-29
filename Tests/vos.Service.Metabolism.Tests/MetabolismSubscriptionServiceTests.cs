@@ -9,6 +9,7 @@ using vos.Service.Metabolism.Models;
 using vos.Service.Metabolism.Configuration;
 using vos.Service.Metabolism.Services;
 using vos.Service.Shared.Subscriptions;
+using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.Service.Metabolism.Tests;
@@ -69,13 +70,6 @@ public class MetabolismSubscriptionServiceTests
         return new MetabolismSubscriptionService(client, engine, env.Object, NullLogger<MetabolismSubscriptionService>.Instance);
     }
 
-    private static async Task WaitUntil(Func<bool> condition, int timeoutMs = 3000)
-    {
-        var deadline = Environment.TickCount64 + timeoutMs;
-        while (!condition() && Environment.TickCount64 < deadline)
-            await Task.Delay(10);
-    }
-
     [Fact]
     public async Task Streams_property_changes_into_the_engine()
     {
@@ -90,7 +84,7 @@ public class MetabolismSubscriptionServiceTests
         var svc = Service(fake, engine);
 
         await svc.StartAsync(default);
-        await WaitUntil(() => !engine.Updates.IsEmpty);
+        await Settle.UntilAsync(() => !engine.Updates.IsEmpty, "the streamed change reaches the engine");
         await svc.StopAsync(default);
 
         engine.Updates.Should().ContainSingle();
@@ -111,12 +105,12 @@ public class MetabolismSubscriptionServiceTests
         engine.Register(new SimulationConfig(
             relId.ToString(), "subj", "tgt", "SubjName", 1m, "u", "quantity", 60,
             DateTime.UtcNow, DateTime.UtcNow.AddYears(1), StartDelaySeconds: 99999m));
-        await WaitUntil(() => fake.Added.Contains(relId));
-        fake.Added.Should().Contain(relId, "Register announces the relationship to the subscription");
+        await Settle.UntilAsync(() => fake.Added.Contains(relId),
+            "Register announces the relationship to the subscription");
 
         engine.Cancel(relId.ToString());
-        await WaitUntil(() => fake.Removed.Contains(relId));
-        fake.Removed.Should().Contain(relId, "Cancel drops the relationship from membership");
+        await Settle.UntilAsync(() => fake.Removed.Contains(relId),
+            "Cancel drops the relationship from membership");
 
         await engine.StopAllAsync();
         await svc.StopAsync(default);

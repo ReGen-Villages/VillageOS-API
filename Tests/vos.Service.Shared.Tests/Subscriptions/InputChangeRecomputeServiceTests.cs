@@ -119,7 +119,10 @@ public class InputChangeRecomputeServiceTests
 
         await harness.WatchAsync(Study, ModelOne, alsoOn: [SecondAllocation]);
 
-        await harness.EventuallyAsync(() => !harness.ClientFor(ModelOne).Members.Contains(Allocation));
+        // Membership changes are fire-and-forget, so the test waits for the state rather than for a
+        // call it cannot await.
+        await Settle.UntilAsync(() => !harness.ClientFor(ModelOne).Members.Contains(Allocation),
+            "the Thing no subject reads any more leaves the subscription");
         harness.ClientFor(ModelOne).Members.Should().Contain(new[] { Study, SecondAllocation });
     }
 
@@ -666,15 +669,6 @@ public class InputChangeRecomputeServiceTests
 
         public FakeSubscriptionClient ClientFor(Guid modelId) =>
             Clients.Single(client => client.ModelId == modelId);
-
-        /// <summary>Membership changes are fire-and-forget, so a test waits for the state rather than for
-        /// a call it cannot await.</summary>
-        public async Task EventuallyAsync(Func<bool> settled)
-        {
-            var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (DateTime.UtcNow < deadline && !settled()) await Task.Delay(10);
-            settled().Should().BeTrue("the follower should have settled within the deadline");
-        }
 
         public async Task<Recompute> NextRecomputeAsync() =>
             await _observed.Reader.ReadAsync(new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token);

@@ -180,16 +180,9 @@ public class MyceliumGatewayTests
         await gateway.LoadPipelineSubgraphAsync(Guid.NewGuid(), CancellationToken.None);
 
         // The release is deliberately not awaited — the caller gets its graph without waiting on cleanup.
-        var released = await EventuallyAsync(() =>
-            RequestsTo(handler, $"/api/subscriptions/{subscriptionId}", HttpMethod.Delete).Count == 1);
-        released.Should().BeTrue();
-    }
-
-    private static async Task<bool> EventuallyAsync(Func<bool> condition)
-    {
-        for (var attempt = 0; attempt < 100 && !condition(); attempt++)
-            await Task.Delay(20);
-        return condition();
+        await Settle.UntilAsync(
+            () => RequestsTo(handler, $"/api/subscriptions/{subscriptionId}", HttpMethod.Delete).Count == 1,
+            "the gateway releases the subscription it opened");
     }
 
     [Fact]
