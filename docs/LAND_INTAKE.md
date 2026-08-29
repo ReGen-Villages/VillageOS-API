@@ -622,7 +622,7 @@ flowchart LR
   PA["<b>Parcel</b><br/>boundary · measured area"]
   AL["<b>ProgrammeAllocation</b><br/>share · area"]
   HA["<b>HazardAssessment</b><br/>level · date"]
-  DS["<b>DataSource</b><br/>which source · coverage<br/>last resolved"]
+  DS["<b>SubmittedSource</b><br/>which source · coverage<br/>last resolved"]
 
   BS["<b>BoundarySource</b><br/>drawn-by-hand · imported-from-file<br/>generated-from-stated-area"]
   AC["<b>AllocationCategory</b><br/>residential · food-and-agriculture<br/>…one Thing per category"]
@@ -705,8 +705,10 @@ level came from.
 that exists nowhere and nothing would notice; nothing could be asked of it either — what it means, which
 other sites carry it. A project whose hazards differ adds a Thing and deploys nothing.
 
-**An assessment reaches its source, rather than naming it.** The source is the `DataSource` Thing the
-assessment hangs off, not a name copied onto it. Two hazards read off one portal share one source, so
+**An assessment reaches its source, rather than naming it.** The source is the `SubmittedSource` Thing
+the assessment hangs off, not a name copied onto it — one per submission, under the archetype that says a
+submitter named it rather than the catalogue's, so clearing a rejected submission takes it too (platform
+Bug #6840). Two hazards read off one portal share one source, so
 resolving that source updates both, and a reader can walk from a hazard to what produced it. A copied
 name could be walked to by nothing and could disagree with the source's own with nothing to notice —
 which is the difference between an assessment and a recollection.

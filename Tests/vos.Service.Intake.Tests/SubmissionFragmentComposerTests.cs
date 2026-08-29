@@ -446,7 +446,7 @@ public class SubmissionFragmentComposerTests
         var source = Named(composed, "National flood portal");
 
         Holds(composed, flood.Id, source.Id).Should().BeTrue();
-        IsEdgeTo(composed, source.Id, WillowBend.DataSourceArchetypeId).Should().BeTrue();
+        IsEdgeTo(composed, source.Id, WillowBend.SubmittedSourceArchetypeId).Should().BeTrue();
         flood.Properties.Should().NotContainKey("assessmentSource",
             "the source is a Thing this hangs off, not a name copied onto it");
     }
@@ -558,7 +558,7 @@ public class SubmissionFragmentComposerTests
         Relates(composed, Hazards(composed).Single().Id, WillowBend.AssessesPredicateId,
             WillowBend.TermId("landslide")).Should().BeTrue();
         composed.Fragment.Relationships.Should()
-            .NotContain(edge => edge.Target == WillowBend.DataSourceArchetypeId);
+            .NotContain(edge => edge.Target == WillowBend.SubmittedSourceArchetypeId);
     }
 
     [Fact]

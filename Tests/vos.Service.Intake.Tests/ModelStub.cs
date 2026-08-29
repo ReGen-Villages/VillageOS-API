@@ -51,7 +51,7 @@ public static class ModelStub
         SubmissionFragmentComposer.ContactArchetypeName,
         SubmissionFragmentComposer.ProgrammeAllocationArchetypeName,
         SubmissionFragmentComposer.HazardAssessmentArchetypeName,
-        SubmissionFragmentComposer.DataSourceArchetypeName,
+        SubmissionFragmentComposer.SubmittedSourceArchetypeName,
         SubmissionFragmentComposer.SubmissionArchetypeName,
     ];
 

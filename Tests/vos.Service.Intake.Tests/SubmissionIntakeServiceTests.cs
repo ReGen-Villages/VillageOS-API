@@ -109,6 +109,17 @@ public class SubmissionIntakeServiceTests
         refusal.Message.Should().Contain(DeclaredVocabularyReader.AllocationCategoryArchetypeFlag);
     }
 
+    // The name is the contract with the platform's land-intake template, which declares `SubmittedSource`
+    // beside the catalogue's `OpenDataSource` so a prune can tell them apart (platform Bug #6840). Asking
+    // for a name the template does not declare refuses every submission, and nothing here would say why —
+    // so the string is pinned rather than left to be read off a rename someone did in the other
+    // repository.
+    [Fact]
+    public void The_archetype_a_submitted_source_hangs_off_is_the_one_the_template_declares()
+    {
+        SubmissionFragmentComposer.SubmittedSourceArchetypeName.Should().Be("SubmittedSource");
+    }
+
     // Both gates refuse an unseeded model. Read after the archetypes rather than beside them, so which
     // refusal a planner sees is settled here rather than by which call answered first.
     [Fact]

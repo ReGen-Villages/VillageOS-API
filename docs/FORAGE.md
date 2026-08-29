@@ -23,8 +23,8 @@ flowchart LR
   PT["<b>Portugal</b> (Place)"]
   EU["<b>Europe</b> (Place)"]
   Earth["<b>Earth</b> (Place)"]
-  Flood["<b>NationalFloodPortal</b><br/>(DataSource)"]
-  Meteo["<b>OpenMeteo</b><br/>(DataSource)"]
+  Flood["<b>NationalFloodPortal</b><br/>(OpenDataSource)"]
+  Meteo["<b>OpenMeteo</b><br/>(OpenDataSource)"]
   FloodEp["<b>NationalFloodPortal endpoint</b><br/>(Tributary registration)"]
   MeteoEp["<b>OpenMeteo endpoint</b><br/>(Tributary registration)"]
 
@@ -71,9 +71,9 @@ unresolved list either, because nothing knew to look for it.
 | Predicate | Reads | Why |
 |---|---|---|
 | `isIn` | `Site isIn Place`, `Place isIn Place` | Where the site is, and what contains that. Walked to any depth, so nesting can be as deep as a model wants — upwards from a site, and downwards from the Places a source covers when the source is what was dispatched. |
-| `covers` | `DataSource covers Place` | Where a source applies. Several `covers` edges are fine; the source is still selected once. |
-| `resolvedBy` | `DataSource resolvedBy Endpoint` | Which Tributary registration a call goes through. A relation, not a copied name, so renaming the registration cannot strand the source. |
-| `resolvesOnto` | `DataSource resolvesOnto archetype` | What a source's readings are about, where that is not the site itself. A source naming an archetype is called once per Thing the site `has` of it, with that Thing as the call's subject — the hazard portal grades one assessment per call. |
+| `covers` | `OpenDataSource covers Place` | Where a source applies. Several `covers` edges are fine; the source is still selected once. |
+| `resolvedBy` | `OpenDataSource resolvedBy Endpoint` | Which Tributary registration a call goes through. A relation, not a copied name, so renaming the registration cannot strand the source. |
+| `resolvesOnto` | `OpenDataSource resolvesOnto archetype` | What a source's readings are about, where that is not the site itself. A source naming an archetype is called once per Thing the site `has` of it, with that Thing as the call's subject — the hazard portal grades one assessment per call. |
 | `studies` | `SiteStudy studies Site` | The study the analysis computes. Read incoming, because the edge runs from the study to the site. |
 | `has`, `is` | `Connection has Service`, `Service is prototype`, `Site has HazardAssessment`, `Site is Site` | Which service a connection dispatches, the prototype an analysis edge points at, the Things a per-subject source is called about — and whether a Thing is a site, by the `__IsSiteArchetype` mark on what it `is`. |
 | `assesses` | `HazardAssessment assesses HazardType` | What an assessment is about. The type Thing carries the portal's code for it, and a per-assessment call is addressed with what its subject reaches — a second per-subject source whose vocabulary hangs off a different predicate adds that predicate here. |
@@ -83,7 +83,7 @@ carrying `__IsSiteAnalysisConnectionArchetype`, and they are asked for by that m
 the study is not related to them yet, because relating it is what the read is for. Adding a fourth
 balance is a mark in the model, not a change here.
 
-A `DataSource` with no `resolvedBy` edge is **left out** rather than reported as a failure.
+An `OpenDataSource` with no `resolvedBy` edge is **left out** rather than reported as a failure.
 It is not a source that failed — it was never callable, and listing it as unresolved would
 blame a provider for a gap in the model. A `Site` with no study, and a model marking no analysis
 connection, are treated the same way: the run reports it in `analysis.reason` and logs nothing,
@@ -132,13 +132,13 @@ the model afterwards**, which a call over HTTP would have left only in a log.
 | A source added to the catalogue later | Is dispatched itself, from its own state, and offered to every site under the Places it covers: a coverage minted per call those sites would make, nothing fetched. One outstanding coverage puts each site back in the state, and that site's run asks only this source — see [A source added to the catalogue](#a-source-added-to-the-catalogue) |
 | A surveyed site | Enters the same state and is discovered the same way; nothing here is particular to a submission |
 
-**A source has a state of its own.** `SourceAwaitingSites` on the `DataSource` archetype — its
+**A source has a state of its own.** `SourceAwaitingSites` on the `OpenDataSource` archetype — its
 `coverageWorkedOutAt` unknown — is what dispatches a source, and a source declared in a template is in
 it the moment the seed loads, so the sites already in the model are offered it without anything calling
 anything. The run stamps the source when it has reached every site, which is what takes it out.
 
 The ranges and the connections are declared in the platform repository — the ranges beside the `Site`
-and `DataSource` archetypes in `land-intake.template.json`, the connections beside the sources in
+and `OpenDataSource` archetypes in `land-intake.template.json`, the connections beside the sources in
 `open-data-sources.template.json` (platform Tasks #6771 and #6790). A deployment that never fetches
 reads neither file and runs no discovery service.
 
@@ -290,7 +290,7 @@ this service.
 
 **Every source that resolved stays reachable from the site.** The fetch relates the registration to
 the site through `observed`, so a value on the site leads back to the registration and from there to
-the `DataSource` along the `resolvedBy` edge this service already reads. Nothing here writes that edge;
+the `OpenDataSource` along the `resolvedBy` edge this service already reads. Nothing here writes that edge;
 it is the ingest's, and it is written once per registration per site however often discovery runs —
 see [`TRIBUTARY.md`](TRIBUTARY.md#which-registration-wrote-a-value). A source that did not resolve
 never reaches the ingest, so it leaves no edge suggesting it did.
