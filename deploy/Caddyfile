@@ -21,9 +21,9 @@ app.example.org {
 	}
 }
 
-# The intake host: the public submission service and nothing else. The service is started with
-# --publicFormOrigin=https://app.example.org so the form on the main host may call it, and with the
-# mail settings it sends verification codes through — see README.md.
+# The intake host: the public submission service and nothing else. The form is served from a public site
+# rather than from either host here, so the service is started with --publicFormOrigin naming that site,
+# and with the mail settings it sends verification codes through — see README.md.
 intake.example.org {
 	reverse_proxy localhost:7300
 }

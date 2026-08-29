@@ -1072,6 +1072,39 @@ routing; it currently knows nothing about deployment topology, and that is a fea
 configuration that makes the split — both hostnames, TLS termination, and the form's cross-origin
 allowance — lives in [`deploy/`](../deploy/README.md).
 
+### Where the form lives
+
+**The form somebody with land fills in is a build of its own, served from a public site.** Not a route in
+the signed-in application, which renders nothing until somebody has signed in, and not a page the intake
+service serves — the site the form belongs on is the one that brought the person there.
+
+It is built from `vos.Trellis` all the same, and it renders the same wizard the planner's page renders.
+One definition of what a submission asks for, not two that can disagree. What differs is only where each
+page gets what the form is drawn with:
+
+| | The planner's page | The public form |
+|---|---|---|
+| Programme categories | Read from the model over the authenticated API | `GET /submissions/form` |
+| Basemap sources | Read from the model over the authenticated API | `GET /submissions/form` |
+| Where the draft is kept | Under the model it proposes into | Under the form |
+| What it may reach | The whole API | The intake service, and nothing else |
+
+**That last row is asserted rather than intended.** `src/publicForm/noSignedInCode.test.ts` follows the
+form's imports and fails if one leads to the broker client, to the signed-in state, or to any part of the
+application behind sign-in. The form shares the wizard, the map and the translations with that
+application, so sharing a file is the point and reaching the broker through one is what must not happen.
+
+**`GET /submissions/form` answers what a form draws itself with and nothing else.** It demands no
+credential for the same reason `POST /submissions` demands none, and it spends the same request budget.
+The categories are found by the mark their archetype carries; the basemap sources by the archetype name
+[TRELLIS.md §22](TRELLIS.md#22-the-map-and-its-basemap-sources) states for every client that draws a map.
+A model that was never seeded is answered `503` with nothing in the body, as a submission into one is.
+
+**Nothing but the email address reaches the service before the address is verified.** The page holds what
+was collected in the browser; asking for a code sends the address alone; the answers go with the ticket
+that answering the code bought. So a submission is written into the model only for an address somebody
+proved they read.
+
 ### From submission to project
 
 Submissions land in a staging model. Becoming a project is a deliberate act.
@@ -1120,6 +1153,7 @@ The main finding from designing this: most of it is already built.
 | A map, and drawing a parcel on it | **Exists** — the map module (#5346), the wizard showing the site on it (#6014), and parcel drawing with the drawn area checked against the stated area (#6015) |
 | The intake wizard | **Exists** — what a planner types (#6016), the site on the map (#6014), and the parcel step (#6015) |
 | Anonymous submission: rate limits, size caps, field bounds, a verified address | **Exists** (#6026, #6027, #6799, #6803) — the route takes a submission from someone holding no credential and having proved they read mail at the address on it, guarded as [§9](#what-guards-the-route) describes |
+| A page somebody without an account fills in | **Exists** (#6827, #6828) — a build of its own, served from a public site, rendering the same wizard and drawn from `GET /submissions/form` because it holds no credential to read the model with — see [§9](#where-the-form-lives) |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 
 ---

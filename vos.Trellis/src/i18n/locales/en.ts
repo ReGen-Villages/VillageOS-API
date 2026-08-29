@@ -704,6 +704,12 @@ export const en = {
     reference: 'Reference',
     startAnother: 'Start another',
   },
+  publicForm: {
+    title: 'Propose your land',
+    intro: 'Describe the land, then confirm the email address you give. Nothing is submitted until that address is confirmed.',
+    keptInThisBrowser: 'Your answers stay in this browser until you submit them, so you can come back and finish later.',
+    unreachable: 'This form cannot reach the submission service at the moment. Nothing you have typed has been sent.',
+  },
   submissionReview: {
     title: "Submissions",
     subtitle: "What has arrived, and what to do with it",

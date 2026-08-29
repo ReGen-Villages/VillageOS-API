@@ -706,6 +706,12 @@ export const it: PartialResources = {
     reference: "Riferimento",
     startAnother: "Iniziarne un altro",
   },
+  publicForm: {
+    title: 'Proponi il tuo terreno',
+    intro: "Descrivi il terreno, poi conferma l'indirizzo e-mail che indichi. Non viene inviato nulla finché quell'indirizzo non è confermato.",
+    keptInThisBrowser: 'Le tue risposte restano in questo browser finché non le invii, così puoi tornare a completarle più tardi.',
+    unreachable: 'Questo modulo al momento non riesce a raggiungere il servizio di invio. Nulla di quanto hai scritto è stato inviato.',
+  },
   submissionReview: {
     title: "Invii",
     subtitle: "Che cosa è arrivato e che cosa farne",

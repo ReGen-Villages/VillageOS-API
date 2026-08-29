@@ -706,6 +706,12 @@ export const es: PartialResources = {
     reference: "Referencia",
     startAnother: "Empezar otro",
   },
+  publicForm: {
+    title: 'Proponga su terreno',
+    intro: 'Describa el terreno y luego confirme la dirección de correo electrónico que indique. No se envía nada hasta que se confirme esa dirección.',
+    keptInThisBrowser: 'Sus respuestas permanecen en este navegador hasta que las envíe, así que puede volver y terminar más tarde.',
+    unreachable: 'Este formulario no puede comunicarse con el servicio de envío en este momento. No se ha enviado nada de lo que ha escrito.',
+  },
   submissionReview: {
     title: "Envíos",
     subtitle: "Qué ha llegado y qué hacer con ello",

@@ -138,6 +138,30 @@ try
     // nowhere would read as protection and be none. What stands in its place is in AddressVerification,
     // SubmissionTicket, SubmissionRate and SubmissionLimits.
 
+    // What a form draws itself with. The page asking holds no credential and so cannot read the model for
+    // itself, and publishing that read would hand a stranger every Thing in it — so the service reads it
+    // under its own credential and answers with the categories a submission may name and the imagery a map
+    // may draw on, and nothing else.
+    app.MapGet("/submissions/form", async (
+        HttpContext context, ISubscriptionClient subscriptions, ILogger<SubmissionIntakeService> logger) =>
+    {
+        try
+        {
+            return Results.Ok(await subscriptions.ReadAsync(
+                FormOptionsReader.Selector(), FormOptionsReader.Read, logger, context.RequestAborted));
+        }
+        // A model nobody seeded is a fault in the deployment rather than in the request, answered the way
+        // a submission into one is: the caller is a stranger's browser and is told neither what is wrong
+        // nor anything about the model it asked about.
+        catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                      || (error is TaskCanceledException
+                                          && !context.RequestAborted.IsCancellationRequested))
+        {
+            logger.LogError(error, "A form could not be answered: {Reason}", error.Message);
+            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+        }
+    }).RequireRateLimiting(SubmissionRate.PolicyName);
+
     // Sending a code is the one thing this service does to somebody who did not ask for it, because the
     // address is a stranger's word for whose mailbox it is. Two things bound that: the rate limit on the
     // caller, and the budget one address has for codes.

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Map as MapLibreMap, Marker, type GeoJSONSource, type MapMouseEvent } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Feature } from 'geojson';
-import { styleForSource } from '../../api/basemapApi';
+import { styleForSource } from '../../utils/basemapSources';
 import { useMapStore, resolveSelectedSource } from '../../stores/mapStore';
 import type { BasemapSource } from '../../types/basemap';
 import type { BoundaryPoint } from '../../utils/parcelGeometry';

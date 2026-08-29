@@ -67,6 +67,12 @@ public static class WillowBend
         "urban-flood",
     ];
 
+    /// <summary>What a deployment's model says a map may draw on. The address and the credit are the
+    /// model's answer, which is why the ones here are invented rather than any provider's.</summary>
+    public const string VectorBasemapName = "Streets";
+    public const string VectorBasemapStyleUrl = "https://basemaps.example.test/styles/streets.json";
+    public const string BasemapAttribution = "© the basemap provider";
+
     public static readonly Guid IsInPredicateId = StableIdentity.Derive("isIn", "predicate");
     public static readonly Guid RootPlaceId = StableIdentity.Derive("Earth", "place");
 

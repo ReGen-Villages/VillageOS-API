@@ -706,6 +706,12 @@ export const de: PartialResources = {
     reference: 'Referenz',
     startAnother: 'Weitere beginnen',
   },
+  publicForm: {
+    title: 'Ihr Land vorschlagen',
+    intro: 'Beschreiben Sie das Land und bestätigen Sie anschließend die angegebene E-Mail-Adresse. Vor dieser Bestätigung wird nichts übermittelt.',
+    keptInThisBrowser: 'Ihre Angaben bleiben in diesem Browser, bis Sie sie absenden, sodass Sie später weitermachen können.',
+    unreachable: 'Dieses Formular erreicht den Einreichungsdienst derzeit nicht. Von dem, was Sie eingegeben haben, wurde nichts gesendet.',
+  },
   submissionReview: {
     title: "Einreichungen",
     subtitle: "Was eingegangen ist und was damit geschehen soll",

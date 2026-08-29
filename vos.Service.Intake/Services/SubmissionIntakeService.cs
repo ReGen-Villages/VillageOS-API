@@ -89,24 +89,9 @@ public sealed class SubmissionIntakeService(
     // The vocabularies a submitted word is resolved against, read from the model on every submission: a
     // term added to the model has to reach the next submission, and a copy held here would be the list in
     // code this read exists to remove.
-    private async Task<DeclaredVocabulary> ReadDeclaredVocabularyAsync(CancellationToken cancellation)
-    {
-        var subscribed = await subscriptions.SubscribeAsync(DeclaredVocabularyReader.Selector(), cancellation);
-        try
-        {
-            return DeclaredVocabularyReader.Read(subscribed.Snapshot);
-        }
-        finally
-        {
-            // The read already succeeded; failing to release the subscription must not lose it.
-            try { await subscriptions.UnsubscribeAsync(subscribed.SubscriptionId, cancellation); }
-            catch (Exception exception)
-            {
-                logger.LogWarning(exception, "Intake could not release the subscription {SubscriptionId}",
-                    subscribed.SubscriptionId);
-            }
-        }
-    }
+    private Task<DeclaredVocabulary> ReadDeclaredVocabularyAsync(CancellationToken cancellation) =>
+        subscriptions.ReadAsync(
+            DeclaredVocabularyReader.Selector(), DeclaredVocabularyReader.Read, logger, cancellation);
 
     // An archetype is never minted here. A model missing one was not seeded from the analysis templates,
     // and a submission that quietly built untyped Things in it would leave nothing able to tell a parcel
