@@ -523,10 +523,10 @@ public sealed class EndpointCallService
                         if (paging.PageSizeParam != null && paging.PageSize is > 0)
                             pageParams[paging.PageSizeParam] = paging.PageSize.Value.ToString(CultureInfo.InvariantCulture);
 
-                        var (pageStatus, pageBody, _) = await CallEndpointAsync(
+                        var (pageStatus, pageBody, pageContentType) = await CallEndpointAsync(
                             _httpClientFactory, endpointUri, normalizedMethod, request.Body, effectiveHeaders, pageParams, requestContentType, acceptHeader, timeout, ct);
                         if (pageStatus is < 200 or >= 300)
-                            throw new HttpRequestException($"Paged request failed with status {pageStatus} at {paging.OffsetParam}={offset}.");
+                            throw new PageNotAnsweredException(pageStatus, pageBody, pageContentType, offset);
                         return pageBody;
                     },
                     paging);
@@ -559,11 +559,33 @@ public sealed class EndpointCallService
 
             return EndpointCallResult.Body(body, contentType ?? "application/json");
         }
+        catch (PageNotAnsweredException unanswered)
+        {
+            // Which page it was is about this walk, not about the provider, so it goes to the log and
+            // the caller gets the provider's own words undisturbed.
+            _logger.LogWarning(
+                "Endpoint {EndpointName} was answered {Status} at offset {Offset}; the pages before it are dropped",
+                request.EndpointName, unanswered.StatusCode, unanswered.Offset);
+            return EndpointCallResult.Body(
+                unanswered.Body, unanswered.ContentType ?? "application/json", unanswered.StatusCode);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Endpoint call failed for {EndpointName}", request.EndpointName);
             return Problem(502, "Endpoint call failed", ex.Message);
         }
+    }
+
+    // A page the provider did not answer with. The caller asked for the whole walk, so any page
+    // outside 2xx ends it — the 404 a single call takes for "holds nothing about this subject"
+    // included, because mid-walk it means the aggregate can never be completed.
+    private sealed class PageNotAnsweredException(int statusCode, string body, string? contentType, int offset)
+        : Exception($"The provider answered {statusCode} at offset {offset}.")
+    {
+        public int StatusCode { get; } = statusCode;
+        public string Body { get; } = body;
+        public string? ContentType { get; } = contentType;
+        public int Offset { get; } = offset;
     }
 
     // 404 is the provider answering that it holds nothing about this subject — a complete answer, so
