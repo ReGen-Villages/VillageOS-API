@@ -27,6 +27,8 @@ public static class DeclaredVocabularyReader
     public const string BoundarySourcePredicateFlag = "__IsBoundarySourcePredicate";
     public const string HazardTypeArchetypeFlag = "__IsHazardTypeArchetype";
     public const string HazardTypePredicateFlag = "__IsHazardTypePredicate";
+    public const string HazardLevelArchetypeFlag = "__IsHazardLevelArchetype";
+    public const string ReportedLevelPredicateFlag = "__IsReportedLevelPredicate";
 
     // Where a site sits, rather than what a submitted word means. Both are marks for the same reason the
     // vocabularies are: a producer naming `Earth` relates nothing, and says nothing, in a model that calls
@@ -40,13 +42,17 @@ public static class DeclaredVocabularyReader
     public static SubscriptionSelector Selector() => new()
     {
         Names = [SubmissionFragmentComposer.IsPredicateName],
-        MarkedTypes = [AllocationCategoryArchetypeFlag, BoundarySourceArchetypeFlag, HazardTypeArchetypeFlag],
+        MarkedTypes =
+        [
+            AllocationCategoryArchetypeFlag, BoundarySourceArchetypeFlag, HazardTypeArchetypeFlag,
+            HazardLevelArchetypeFlag,
+        ],
         // The root Place belongs here beside the predicates rather than with the marked types: it is a
         // Thing whose id an edge is written to, not an archetype whose members are wanted.
         MarkedArchetypes =
         [
             AllocationCategoryPredicateFlag, BoundarySourcePredicateFlag, HazardTypePredicateFlag,
-            RootPlaceFlag, PlaceNestingPredicateFlag,
+            ReportedLevelPredicateFlag, RootPlaceFlag, PlaceNestingPredicateFlag,
         ],
         IncludeRelationships = true,
     };
@@ -57,6 +63,8 @@ public static class DeclaredVocabularyReader
             "how a parcel boundary was obtained"),
         TermsMarked(snapshot, HazardTypeArchetypeFlag, HazardTypePredicateFlag,
             "what a hazard assessment is about"),
+        TermsMarked(snapshot, HazardLevelArchetypeFlag, ReportedLevelPredicateFlag,
+            "how bad a hazard is"),
         PlaceNesting(snapshot));
 
     /// <summary>What a programme allocation is for, which is the one vocabulary a form has to offer

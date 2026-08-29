@@ -23,6 +23,8 @@ public sealed class DeclaredModel
             .With("obtainedBy", DeclaredVocabularyReader.BoundarySourcePredicateFlag)
             .WithArchetype("HazardType", DeclaredVocabularyReader.HazardTypeArchetypeFlag)
             .With("assesses", DeclaredVocabularyReader.HazardTypePredicateFlag)
+            .WithArchetype("HazardLevel", DeclaredVocabularyReader.HazardLevelArchetypeFlag)
+            .With("reportedAs", DeclaredVocabularyReader.ReportedLevelPredicateFlag)
             .With("Earth", DeclaredVocabularyReader.RootPlaceFlag)
             .With("isIn", DeclaredVocabularyReader.PlaceNestingPredicateFlag);
 
@@ -32,6 +34,8 @@ public sealed class DeclaredModel
             model.Relate(source, "is", "BoundarySource");
         foreach (var hazardType in WillowBend.HazardTypeNames)
             model.Relate(hazardType, "is", "HazardType");
+        foreach (var level in WillowBend.HazardLevelNames)
+            model.Relate(level, "is", "HazardLevel");
 
         // A deployment's model also says what a map may draw on, which a form reads beside the categories.
         model

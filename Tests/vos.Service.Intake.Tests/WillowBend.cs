@@ -48,6 +48,7 @@ public static class WillowBend
     public static readonly Guid CategorizedAsPredicateId = new("cccccccc-cccc-cccc-cccc-cccccccccccc");
     public static readonly Guid ObtainedByPredicateId = new("dddddddd-dddd-dddd-dddd-dddddddddddd");
     public static readonly Guid AssessesPredicateId = new("0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a");
+    public static readonly Guid ReportedAsPredicateId = new("0b0b0b0b-0b0b-0b0b-0b0b-0b0b0b0b0b0b");
 
     /// <summary>The vocabularies the land-intake template declares, under the names it declares them
     /// with. A submission names a term as the model spells it; how the term is displayed is the wizard's
@@ -67,6 +68,11 @@ public static class WillowBend
         "urban-flood",
     ];
 
+    public static readonly string[] HazardLevelNames =
+    [
+        "high", "medium", "low", "very-low", "no-data",
+    ];
+
     /// <summary>What a deployment's model says a map may draw on. The address and the credit are the
     /// model's answer, which is why the ones here are invented rather than any provider's.</summary>
     public const string VectorBasemapName = "Streets";
@@ -80,6 +86,7 @@ public static class WillowBend
         Declared(CategorizedAsPredicateId, "categorizedAs", AllocationCategoryNames),
         Declared(ObtainedByPredicateId, "obtainedBy", BoundarySourceNames),
         Declared(AssessesPredicateId, "assesses", HazardTypeNames),
+        Declared(ReportedAsPredicateId, "reportedAs", HazardLevelNames),
         new DeclaredPlace(new DeclaredTerm("isIn", IsInPredicateId), new DeclaredTerm("Earth", RootPlaceId)));
 
     public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
