@@ -87,11 +87,19 @@ const mocks = vi.hoisted(() => {
       this.handlers.set(event, handler);
     }
   }
-  return { mapInstances, markerInstances, markerPositions, MockMap, MockMarker };
+  const config = { WORKER_URL: '' };
+  return { mapInstances, markerInstances, markerPositions, MockMap, MockMarker, config };
 });
 
-vi.mock('maplibre-gl', () => ({ Map: mocks.MockMap, Marker: mocks.MockMarker }));
+vi.mock('maplibre-gl', () => ({
+  Map: mocks.MockMap,
+  Marker: mocks.MockMarker,
+  config: mocks.config,
+}));
 vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}));
+vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?url', () => ({
+  default: 'https://example.test/assets/maplibre-worker.mjs',
+}));
 
 import { MapView } from './MapView';
 import { useMapStore } from '../../stores/mapStore';
@@ -120,6 +128,12 @@ beforeEach(() => {
 });
 
 describe('MapView', () => {
+
+  // Lose this and the map still mounts, still draws its controls and still reports no error — it
+  // simply never parses a tile. See the reason in MapView.
+  it('points maplibre at the worker the bundler emitted', () => {
+    expect(mocks.config.WORKER_URL).toBe('https://example.test/assets/maplibre-worker.mjs');
+  });
 
   it('says so and keeps the coordinates readable when the model declares no source', () => {
     render(<MapView {...POSITION} sources={[]} />);

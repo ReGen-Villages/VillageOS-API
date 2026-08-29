@@ -1,12 +1,24 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Map as MapLibreMap, Marker, type GeoJSONSource, type MapMouseEvent } from 'maplibre-gl';
+import {
+  Map as MapLibreMap,
+  Marker,
+  config as maplibreConfiguration,
+  type GeoJSONSource,
+  type MapMouseEvent,
+} from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import type { Feature } from 'geojson';
 import { styleForSource } from '../../utils/basemapSources';
 import { useMapStore, resolveSelectedSource } from '../../stores/mapStore';
 import type { BasemapSource } from '../../types/basemap';
 import type { BoundaryPoint } from '../../utils/parcelGeometry';
+
+// Naming the worker is what makes the bundler emit it: maplibre's own address for it is computed at
+// run time, which a bundler cannot see. Unnamed, no tile is ever parsed and nothing says so — see
+// docs/TRELLIS.md §22.
+maplibreConfiguration.WORKER_URL = maplibreWorkerUrl;
 
 const DEFAULT_ZOOM = 15;
 
