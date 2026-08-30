@@ -102,15 +102,34 @@ describe('discovery', () => {
     const { things, relationships } = model();
     const found = discoverDashboards(things, relationships);
     expect(found).toHaveLength(1);
-    expect(found[0].spec.title).toBe('Ops');
+    expect(found[0].spec?.title).toBe('Ops');
     expect(found[0].name).toBe('Operations Dashboard');
   });
 
   it('lists compare entities from the compare archetype', () => {
     const { things, relationships } = model();
     const idx = buildModelIndex(declared(things, relationships), relationships);
-    const ents = scopeEntities(discoverDashboards(things, relationships)[0].spec, idx);
+    const ents = scopeEntities(discoverDashboards(things, relationships)[0].spec!, idx);
     expect(ents.map((e) => e.name)).toEqual(['V-1', 'V-2']);
+  });
+
+  // A spec is model data and can be authored wrong. Dropped here, the dashboard is a page that
+  // never appears with nothing anywhere saying why; listed with no spec, it is addressable and the
+  // page it opens says what is wrong with it (Story #6477).
+  it('lists a Dashboard Thing whose spec could not be read, carrying no spec', () => {
+    const { things, relationships } = model();
+    things.push({ Id: 'dash2', Name: 'Half a spec', Properties: { spec: '{ "title": "Ops"' } });
+    relationships.push({
+      Id: 'dash2-is', Name: 'dash2 is arch-dash',
+      SubjectId: 'dash2', PredicateId: 'is', TargetId: 'arch-dash', Properties: {},
+    });
+
+    const found = discoverDashboards(declared(things, relationships), relationships);
+
+    expect(found.map((d) => [d.name, d.spec === null])).toEqual([
+      ['Half a spec', true],
+      ['Operations Dashboard', false],
+    ]);
   });
 
   it('resolves archetype membership via is-edges', () => {

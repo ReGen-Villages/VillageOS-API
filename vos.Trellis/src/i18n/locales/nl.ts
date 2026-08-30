@@ -285,6 +285,11 @@ export const nl: PartialResources = {
     sparkline: {
       trend: "trend",
     },
+    unknown: {
+      title: "Widget niet getekend",
+      body: "Deze weergave vraagt om een widget van soort \"{{kind}}\", die deze toepassing niet kan tekenen.",
+      noKind: "geen opgegeven",
+    },
   },
   errorBoundary: {
     title: "Er is iets misgegaan",
@@ -610,6 +615,9 @@ export const nl: PartialResources = {
   operationsPage: {
     noDashboard: "Geen dashboard geconfigureerd",
     noDashboardBody: "Dit model definieert geen <0>Dashboard</0>-configuratie. Voeg een Thing van archetype <1>Dashboard</1> met een <2>spec</2>-eigenschap toe om deze pagina aan te sturen.",
+    unreadableSpec: "{{name}} kon niet worden gelezen",
+    unreadableSpecBody: "De spec-eigenschap van deze Dashboard-Thing bevat geen specificatie die deze toepassing kan lezen. Corrigeer die in het model en laad opnieuw.",
+    emptyView: "De specificatie van dit dashboard noemt geen secties, dus er valt niets te tekenen.",
   },
   palette: {
     inputTitle: "Pijplijn-invoer — vanaf het begin",

@@ -66,8 +66,12 @@ export function Sidebar() {
               <NavItem
                 key={dashboard.routeKey}
                 to={`${OPERATIONS_PATH}/${dashboard.routeKey}`}
-                label={makeSpecTranslator(dashboard.spec, i18n.language)(dashboard.spec.title)}
-                icon={<SpecIcon name={dashboard.spec.icon} />}
+                label={
+                  dashboard.spec
+                    ? makeSpecTranslator(dashboard.spec, i18n.language)(dashboard.spec.title)
+                    : dashboard.name
+                }
+                icon={<SpecIcon name={dashboard.spec?.icon} />}
                 isCollapsed={isCollapsed}
               />
             ))

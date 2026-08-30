@@ -285,6 +285,11 @@ export const es: PartialResources = {
     sparkline: {
       trend: "tendencia",
     },
+    unknown: {
+      title: "Widget no dibujado",
+      body: "Esta vista pide un widget de tipo \"{{kind}}\", que esta aplicación no sabe dibujar.",
+      noKind: "ninguno indicado",
+    },
   },
   errorBoundary: {
     title: "Algo salió mal",
@@ -610,6 +615,9 @@ export const es: PartialResources = {
   operationsPage: {
     noDashboard: "No hay panel configurado",
     noDashboardBody: "Este modelo no define ninguna configuración de <0>Dashboard</0>. Añade una Thing del arquetipo <1>Dashboard</1> con una propiedad <2>spec</2> para gestionar esta página.",
+    unreadableSpec: "No se pudo leer {{name}}",
+    unreadableSpecBody: "La propiedad spec de esta Thing Dashboard no contiene una especificación que esta aplicación pueda leer. Corrígela en el modelo y recarga.",
+    emptyView: "La especificación de este panel no indica ninguna sección, así que no hay nada que dibujar.",
   },
   palette: {
     inputTitle: "Entrada de la canalización — desde el inicio",

@@ -57,7 +57,7 @@ export function OperationsPage() {
   const dashboard = dashboards.find((d) => d.routeKey === dashboardKey);
   const { t, i18n } = useTranslation();
   const spec = useMemo(
-    () => (dashboard ? localizeSpec(dashboard.spec, i18n.language) : undefined),
+    () => (dashboard?.spec ? localizeSpec(dashboard.spec, i18n.language) : undefined),
     [dashboard, i18n.language],
   );
 
@@ -106,6 +106,21 @@ export function OperationsPage() {
   // dashboard since renamed — settles on the first one, and says so in the address bar.
   if (!dashboard && dashboards.length > 0) {
     return <Navigate to={`/operations/${dashboards[0].routeKey}`} replace />;
+  }
+  // A Thing that declares itself a dashboard and carries a spec nothing can read. Named, so the
+  // author knows which one to open, and told apart from a model that publishes no dashboard at all.
+  if (dashboard && !spec) {
+    return (
+      <Centered>
+        <div className="max-w-md text-center">
+          <LayoutDashboard className="mx-auto mb-3 text-zinc-300 dark:text-zinc-600" size={40} />
+          <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1">
+            {t('operationsPage.unreadableSpec', { name: dashboard.name })}
+          </h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('operationsPage.unreadableSpecBody')}</p>
+        </div>
+      </Centered>
+    );
   }
   if (!spec) {
     return (
@@ -162,9 +177,13 @@ export function OperationsPage() {
       </header>
 
       <div className="flex-1 overflow-auto px-6 pb-10">
-        {spec.sections.map((section, i) => (
-          <Section key={i} section={section} ctx={ctx} isWide={isWide} openDetail={openDetail} />
-        ))}
+        {spec.sections.length === 0 ? (
+          <Centered>{t('operationsPage.emptyView')}</Centered>
+        ) : (
+          spec.sections.map((section, i) => (
+            <Section key={i} section={section} ctx={ctx} isWide={isWide} openDetail={openDetail} />
+          ))
+        )}
       </div>
       {windows}
     </div>

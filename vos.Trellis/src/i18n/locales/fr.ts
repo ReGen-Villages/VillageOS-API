@@ -285,6 +285,11 @@ export const fr: PartialResources = {
     sparkline: {
       trend: "tendance",
     },
+    unknown: {
+      title: "Widget non dessiné",
+      body: "Cette vue demande un widget de type \"{{kind}}\", que cette application ne sait pas dessiner.",
+      noKind: "aucun indiqué",
+    },
   },
   errorBoundary: {
     title: "Une erreur est survenue",
@@ -610,6 +615,9 @@ export const fr: PartialResources = {
   operationsPage: {
     noDashboard: "Aucun tableau de bord configuré",
     noDashboardBody: "Ce modèle ne définit aucune configuration <0>Dashboard</0>. Ajoutez une Thing de l'archétype <1>Dashboard</1> avec une propriété <2>spec</2> pour piloter cette page.",
+    unreadableSpec: "Impossible de lire {{name}}",
+    unreadableSpecBody: "La propriété spec de cette Thing Dashboard ne contient pas de spécification lisible par cette application. Corrigez-la dans le modèle puis rechargez.",
+    emptyView: "La spécification de ce tableau de bord ne cite aucune section, il n'y a donc rien à dessiner.",
   },
   palette: {
     inputTitle: "Entrée du pipeline — dès le début",
