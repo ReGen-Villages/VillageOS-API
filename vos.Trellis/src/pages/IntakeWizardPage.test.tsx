@@ -128,7 +128,8 @@ const PROPERTIES = {
 
 /** Long enough that whatever the answer feeds is on screen before it arrives, which is the order a
  *  loaded build agent produces. A mock answering at once puts the two in the same instant, so a test
- *  that reads the answer the moment its element appears passes here and fails there. */
+ *  reading the answer the moment its element appears passes on a quiet machine and fails on the
+ *  agent. */
 const ANSWER_DELAY_MILLISECONDS = 50;
 
 function answeredLate<T>(value: T): () => Promise<T> {
@@ -142,7 +143,7 @@ beforeEach(() => {
   vi.mocked(relationshipApi.getAll).mockImplementation(answeredLate(EDGES));
   vi.mocked(thingApi.getAllProperties).mockImplementation(answeredLate(PROPERTIES));
   vi.mocked(intakeApi.configured).mockReturnValue(true);
-  vi.mocked(intakeApi.submit).mockResolvedValue({ reference: 'sub-0001' });
+  vi.mocked(intakeApi.submit).mockImplementation(answeredLate({ reference: 'sub-0001' }));
   vi.mocked(intakeApi.askForCode).mockImplementation(answeredLate(undefined));
 });
 
