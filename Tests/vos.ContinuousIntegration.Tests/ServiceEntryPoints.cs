@@ -10,8 +10,7 @@ namespace vos.ContinuousIntegration.Tests;
 internal static class ServiceEntryPoints
 {
     public static IEnumerable<string> Under(string root) =>
-        new DirectoryInfo(root)
-            .EnumerateDirectories("vos.Service.*")
+        ServiceProjects.Under(root)
             .Select(service => Path.Combine(service.FullName, "Program.cs"))
             .Where(File.Exists);
 }

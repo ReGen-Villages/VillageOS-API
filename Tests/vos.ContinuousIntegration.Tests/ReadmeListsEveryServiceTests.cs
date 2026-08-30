@@ -32,7 +32,7 @@ public class ReadmeListsEveryServiceTests
         var root = RepositoryRoot.Find();
         var readme = File.ReadAllText(Path.Combine(root, ReadmeFileName));
 
-        var unlisted = ServiceProjectNames(root)
+        var unlisted = ServiceProjects.NamesUnder(root)
             .Where(service => !ListedElsewhere.ContainsKey(service))
             .Where(service => !readme.Contains($"| {service} |", StringComparison.Ordinal))
             .ToList();
@@ -42,11 +42,4 @@ public class ReadmeListsEveryServiceTests
             + $"front page cannot see they exist: {string.Join(", ", unlisted)}. Add a row, or name the "
             + $"project in {nameof(ListedElsewhere)} with why it does not belong in the table.");
     }
-
-    /// <summary>Every service directory, whatever language it is written in — the echo services in Go,
-    /// Node, Python and Rust are rows in the same table.</summary>
-    private static IEnumerable<string> ServiceProjectNames(string root) =>
-        new DirectoryInfo(root)
-            .EnumerateDirectories("vos.Service.*")
-            .Select(service => service.Name);
 }

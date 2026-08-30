@@ -75,8 +75,7 @@ public class ServiceEntryPointsAreDecidedTests
     }
 
     private static IEnumerable<string> ServiceDirectories(string root) =>
-        new DirectoryInfo(root)
-            .EnumerateDirectories("vos.Service.*")
+        ServiceProjects.Under(root)
             .Where(service => File.Exists(Path.Combine(service.FullName, "Program.cs")))
             .Select(service => service.Name);
 }
