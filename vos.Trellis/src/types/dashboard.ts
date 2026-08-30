@@ -180,6 +180,16 @@ export type Binding =
    *  shows, so a tile and the trace above it are one question asked at two granularities and cannot
    *  disagree.
    *
+   *  `buckets` is how many points the line holds and `bucketsPerPoint` how many buckets each point
+   *  covers. Points step one bucket on, so they overlap by the rest — which is how a line plots a
+   *  figure covering an hour at every quarter hour, a shape the platform's own grid cannot take. A
+   *  point is its buckets folded together, and adding needs no division, so a summed or counted
+   *  point keeps the unit the tile shows.
+   *
+   *  An average is refused when a point covers several buckets: the average of the buckets is not
+   *  the average of what went into them unless every bucket holds the same number of members, and
+   *  nothing here knows that.
+   *
    *  An outgoing `scope` narrows to the selected compare entity. The endpoint walks outward from a
    *  container only, so an inbound scope is refused rather than answered as though it had been
    *  applied. */
@@ -191,8 +201,14 @@ export type Binding =
       op: 'count' | 'sum' | 'avg' | 'min' | 'max';
       bucketSeconds: number;
       buckets: number;
+      /** Omitted means one, which is the platform's own grid. */
+      bucketsPerPoint?: number;
       scope?: ScopeRef;
     }
+  /** The newest point of a series, as the number a tile shows. The tile and the line beneath it then
+   *  ask the platform one question — each answer costs a walk over every instance of the archetype —
+   *  and the figure is a point of that line rather than a second reading that can drift from it. */
+  | { kind: 'latest'; series: Extract<Binding, { kind: 'timeseries' }> }
   /** Delegate to a model-side service via POST /api/endpoints/{subdomain}. The escape
    *  hatch for model-specific aggregation. `select` is a dot-path into the JSON reply, and a
    *  `$scope` anywhere in `body` is replaced with the selected compare-entity id (null for "All"),

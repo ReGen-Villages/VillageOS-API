@@ -22,10 +22,16 @@ const SOURCE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const WIDGETS = join(SOURCE, 'components/dashboard/widgets');
 const ALSO = [
   'pages/OperationsPage.tsx',
+  'components/dashboard/DashboardSections.tsx',
+  'publicFindings/PublicFindingsPage.tsx',
+  'publicFindings/answeredFindings.ts',
   'types/dashboard.ts',
   'api/dashboardApi.ts',
   'api/dashboardSubscription.ts',
+  'api/bindingVocabulary.ts',
   'api/dashboardLocalization.ts',
+  'api/modelReads.ts',
+  'api/brokerModelReads.ts',
   'hooks/useDashboard.ts',
 ];
 

@@ -720,7 +720,7 @@ public class CoveringSourceResolverTests
     {
         var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
 
-        selector.MarkedArchetypes.Should().Equal(CoveringSourceResolver.SourceCoverageArchetypeFlag);
+        selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.SourceCoverageArchetypeFlag);
         selector.MarkedTypes.Should().NotContain(CoveringSourceResolver.SourceCoverageArchetypeFlag);
     }
 

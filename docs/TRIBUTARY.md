@@ -489,9 +489,11 @@ readable rather than being settled by whichever was written last.
   } }
 ```
 
-- **Neither placeholder is a value the subject itself carries.** `{hazardPortalDivision}` sits on a
-  Place the site is in, `{hazardPortalCode}` on the `HazardType` Thing the assessment `assesses` —
-  the run layers a call's address from its subject outward, so both arrive with no per-source code.
+- **Neither placeholder is a value the subject itself carries.** `{hazardPortalDivision}` sits on the
+  site or on a Place it is in, `{hazardPortalCode}` on the `HazardType` Thing the assessment `assesses` —
+  the run layers a call's address from its subject outward, so both arrive with no per-source code. A
+  site whose model carries no division code has one worked out from its position before the fetches, and
+  written onto it — see [`FORAGE.md`](FORAGE.md#resolving-the-hazard-division).
 - **The grade is written as the vocabulary term.** `High` becomes `high`, `Very low` becomes
   `very-low` — the names of the `HazardLevel` Things the model declares, so the word resolves against
   the vocabulary when a later step relates it instead.

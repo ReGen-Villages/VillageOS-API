@@ -48,23 +48,25 @@ where `root` points, and run `caddy run --config deploy/Caddyfile`.
   to. Without it every submitter on the internet shares one budget. The service reads the header only
   from loopback, which is the only place it can be reached from.
 
-## The public submission form
+## The public pages
 
-**The form is a build of its own, served from a public site, and its only correspondent is the intake
-service.** It carries no sign-in, no broker client and no part of the signed-in application;
-`vos.Trellis/src/publicForm/noSignedInCode.test.ts` fails if an import ever leads back to one.
+**Two pages are a build of their own, served from a public site, and their only correspondent is the
+intake service:** the submission form, and the findings page a submitter opens to read what the platform
+worked out about the land they submitted. Neither carries sign-in, a broker client or any part of the
+signed-in application; `vos.Trellis/src/publicForm/noSignedInCode.test.ts` walks both entries and fails
+if an import ever leads back to one.
 
 ```
 cd vos.Trellis
-VITE_INTAKE_URL=https://intake.example.org npm run build:public-form
+VITE_INTAKE_URL=https://intake.example.org npm run build:public
 ```
 
-`dist-public-form/` is the whole deliverable: an `index.html` and its assets, addressed relatively, so
-the directory can be placed at any path on the site. `VITE_INTAKE_URL` is read at build time, not at run
-time — a form built without it collects answers it cannot post, and says so instead of offering the
-button.
+`dist-public/` is the whole deliverable, addressed relatively so the directory can be placed at any path
+on the site: `index.html` is the form, `findings.html` is the page a submitter reads their own findings
+on, and the two share their assets. `VITE_INTAKE_URL` is read at build time, not at run time — a form
+built without it collects answers it cannot post, and says so instead of offering the button.
 
-Two things have to agree for the form to work:
+Two things have to agree for the pages to work:
 
 | What | Where it is set |
 |---|---|
