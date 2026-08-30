@@ -2125,20 +2125,21 @@ describe('origin binding', () => {
   });
 });
 
+const QUARTER_HOUR = 900;
+
+/** A reduction narrows by type alone here, so the model needs no more than the archetype it names. */
+function seriesCtx(): ResolveContext {
+  const things: VosThing[] = [
+    { Id: 'is', Name: 'is', Properties: {} },
+    { Id: 'arch-building', Name: 'Building', Properties: {} },
+  ];
+  return { idx: buildModelIndex(declared(things, []), []), scopeId: null, reads: brokerModelReads() };
+}
+
 // A point covering several buckets, and the tile that reads the newest one (Bug #6866). The platform
 // reduces onto a fixed grid; a spec that wants an hourly figure plotted every quarter hour asks for
 // quarter-hour buckets and says how many of them each point covers.
 describe('a series whose points cover several buckets', () => {
-  const QUARTER_HOUR = 900;
-
-  function seriesCtx(): ResolveContext {
-    const things: VosThing[] = [
-      { Id: 'is', Name: 'is', Properties: {} },
-      { Id: 'arch-building', Name: 'Building', Properties: {} },
-    ];
-    return { idx: buildModelIndex(declared(things, []), []), scopeId: null, reads: brokerModelReads() };
-  }
-
   const trace: Binding = {
     kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
     op: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 3, bucketsPerPoint: 2,
@@ -2205,16 +2206,6 @@ describe('a series whose points cover several buckets', () => {
 // The tile above a line reads the line's newest point, so the two ask the platform one question and
 // the figure cannot drift from the shape beneath it (Bug #6866).
 describe('the newest point of a series', () => {
-  const QUARTER_HOUR = 900;
-
-  function seriesCtx(): ResolveContext {
-    const things: VosThing[] = [
-      { Id: 'is', Name: 'is', Properties: {} },
-      { Id: 'arch-building', Name: 'Building', Properties: {} },
-    ];
-    return { idx: buildModelIndex(declared(things, []), []), scopeId: null, reads: brokerModelReads() };
-  }
-
   const series = {
     kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
     op: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 3, bucketsPerPoint: 2,

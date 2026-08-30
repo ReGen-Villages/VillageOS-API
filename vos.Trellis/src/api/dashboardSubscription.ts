@@ -73,13 +73,16 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
  *  point from, and the columns a row-producing binding derives per row. A nested binding reads the
  *  model as much as the one holding it. */
 function withNested(binding: Binding): Binding[] {
-  const inner: Binding[] = [];
+  const inner: (Binding | undefined)[] = [];
   if (binding.kind === 'ratio') inner.push(binding.numerator, binding.denominator);
   if (binding.kind === 'latest') inner.push(binding.series);
   if ('computed' in binding) {
-    for (const column of (binding.computed ?? []) as ComputedColumn[]) inner.push(column.value);
+    for (const column of (binding.computed ?? []) as ComputedColumn[]) inner.push(column?.value);
   }
-  return [binding, ...inner.flatMap(withNested)];
+  // A spec can name a nested binding and then not write it. Reading what a widget asks for happens
+  // on the way to drawing it, so a slot left empty here would take the whole view down rather than
+  // the one widget that is wrong.
+  return [binding, ...inner.filter((nested): nested is Binding => !!nested).flatMap(withNested)];
 }
 
 /** Every binding one widget holds: the slots it declares, and everything nested inside them. A

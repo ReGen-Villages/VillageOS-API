@@ -77,6 +77,23 @@ describe('what a widget asks for that this build cannot answer', () => {
     }))).toEqual(['runningTotal']);
   });
 
+  // Reading what a widget asks for happens on the way to drawing it, so a spec that names a nested
+  // binding and does not write it would take the whole view down rather than the one widget that is
+  // wrong — a worse fault than the silent one this module exists to remove.
+  it('survives a binding whose nested series was never written', () => {
+    expect(() => unimplementedWordsIn(tileShowing({ kind: 'latest' }))).not.toThrow();
+  });
+
+  it('survives a ratio whose halves were never written', () => {
+    expect(() => unimplementedWordsIn(tileShowing({ kind: 'ratio' }))).not.toThrow();
+  });
+
+  it('survives a computed column that holds no binding', () => {
+    expect(() => unimplementedWordsIn(tileShowing({
+      kind: 'thingList', archetype: 'Reading', computed: [{ key: 'reach' }],
+    }))).not.toThrow();
+  });
+
   it('judges every binding slot a widget declares, not only its first', () => {
     const tile = {
       type: 'kpi', title: 'a figure',
