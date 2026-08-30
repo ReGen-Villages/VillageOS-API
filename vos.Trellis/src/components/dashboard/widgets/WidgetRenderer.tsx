@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Search, X } from 'lucide-react';
 import type { TableWidget, Widget } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
+import { unimplementedWordsIn } from '../../../api/bindingVocabulary';
 import { KpiCard } from './KpiCard';
 import { Funnel } from './Funnel';
 import { BulletChart } from './BulletChart';
@@ -25,6 +26,11 @@ export function WidgetRenderer({
   ctx: ResolveContext;
   openDetail?: (thingId: string) => void;
 }) {
+  // Asked before anything resolves, because a widget drawn from a question this build only half
+  // understands shows a figure rather than a gap — and a figure is read as an answer.
+  const unanswered = unimplementedWordsIn(widget);
+  if (unanswered.length > 0) return <UnknownWidget reason={{ unanswered }} />;
+
   switch (widget.type) {
     case 'kpi':
       return <KpiCard widget={widget} ctx={ctx} />;
@@ -45,21 +51,26 @@ export function WidgetRenderer({
     case 'table':
       return <TableWidgetView widget={widget} ctx={ctx} openDetail={openDetail} />;
     default:
-      return <UnknownWidget kind={(widget as { type?: unknown }).type} />;
+      return <UnknownWidget reason={{ unknownType: (widget as { type?: unknown }).type }} />;
   }
 }
 
-/** A widget kind this build has no drawing for. The spec is model data, so it can name a kind that
- *  was misspelled or added after this client shipped; the view draws everything else and says which
- *  one it left out, rather than leaving a silent hole an author cannot account for. */
-function UnknownWidget({ kind }: { kind: unknown }) {
+/** A widget this build did not draw, and which of the two reasons it was. The spec is model data, so
+ *  it can name a kind that was misspelled or added after this client shipped, and it can ask a
+ *  question in vocabulary this client has no answer for; the view draws everything else and says
+ *  what it left out, rather than leaving a silent hole an author cannot account for. */
+function UnknownWidget({ reason }: { reason: { unknownType: unknown } | { unanswered: string[] } }) {
   const { t } = useTranslation();
-  const named = typeof kind === 'string' && kind !== '' ? kind : t('widgets.unknown.noKind');
+  const body = 'unanswered' in reason
+    ? t('widgets.unknown.unanswerable', { words: reason.unanswered.join(', ') })
+    : t('widgets.unknown.body', {
+        kind: typeof reason.unknownType === 'string' && reason.unknownType !== ''
+          ? reason.unknownType
+          : t('widgets.unknown.noKind'),
+      });
   return (
     <WidgetCard title={t('widgets.unknown.title')}>
-      <p className="mt-2 text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-        {t('widgets.unknown.body', { kind: named })}
-      </p>
+      <p className="mt-2 text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400">{body}</p>
     </WidgetCard>
   );
 }

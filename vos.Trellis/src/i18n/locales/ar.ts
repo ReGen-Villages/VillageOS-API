@@ -375,6 +375,7 @@ export const ar: PartialResources & ArabicPlurals = {
       title: "لم تُرسم الأداة",
       body: "تطلب هذه الواجهة أداة من نوع \"{{kind}}\"، وهو نوع لا يعرف هذا التطبيق رسمه.",
       noKind: "غير محدد",
+      unanswerable: "تطلب هذه الواجهة \"{{words}}\"، وهو ما لا يعرف هذا التطبيق الإجابة عنه.",
     },
   },
   errorBoundary: {

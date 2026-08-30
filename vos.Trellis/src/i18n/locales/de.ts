@@ -289,6 +289,7 @@ export const de: PartialResources = {
       title: "Widget nicht gezeichnet",
       body: "Diese Ansicht verlangt ein Widget der Art \"{{kind}}\", die diese Anwendung nicht zeichnen kann.",
       noKind: "keine angegeben",
+      unanswerable: "Diese Ansicht verlangt \"{{words}}\", was diese Anwendung nicht beantworten kann.",
     },
   },
   errorBoundary: {

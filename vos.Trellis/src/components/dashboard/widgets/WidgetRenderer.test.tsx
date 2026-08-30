@@ -28,7 +28,50 @@ describe('a widget kind this build has no drawing for', () => {
   });
 
   it('draws a kind it does know without the notice', () => {
-    draw({ type: 'kpi', title: 'Throughput', value: { kind: 'constant', value: 1 } });
+    draw({ type: 'kpi', title: 'Throughput', value: { kind: 'const', value: 1 } });
+
+    expect(screen.queryByText('Widget not drawn')).toBeNull();
+    expect(screen.getByText('Throughput')).toBeInTheDocument();
+  });
+});
+
+// A widget whose binding this build cannot answer is refused rather than drawn, because drawing it
+// puts a figure on screen that reads as an answer (Bug #6866).
+describe('a widget asking for binding vocabulary this build cannot answer', () => {
+  it('names the binding kind it could not answer', () => {
+    draw({ type: 'kpi', title: 'Throughput', value: { kind: 'runningTotal', property: 'volume' } });
+
+    expect(screen.getByText(/runningTotal/)).toBeInTheDocument();
+  });
+
+  it('names a field the binding kind does not read', () => {
+    draw({
+      type: 'kpi', title: 'Throughput',
+      value: {
+        kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',
+        property: 'volume', bucketSeconds: 900, buckets: 32, smoothing: 'exponential',
+      },
+    });
+
+    expect(screen.getByText(/smoothing/)).toBeInTheDocument();
+  });
+
+  // The figure is the defect: a widget drawn from a question only half understood shows a number in
+  // the right units and the wrong size, which reads as an answer rather than as a gap.
+  it('does not draw the widget it refused', () => {
+    draw({ type: 'kpi', title: 'Throughput', value: { kind: 'runningTotal', property: 'volume' } });
+
+    expect(screen.queryByText('Throughput')).toBeNull();
+  });
+
+  it('draws a widget whose every binding it can answer', () => {
+    draw({
+      type: 'kpi', title: 'Throughput',
+      value: {
+        kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',
+        property: 'volume', bucketSeconds: 900, buckets: 32, bucketsPerPoint: 4,
+      },
+    });
 
     expect(screen.queryByText('Widget not drawn')).toBeNull();
     expect(screen.getByText('Throughput')).toBeInTheDocument();

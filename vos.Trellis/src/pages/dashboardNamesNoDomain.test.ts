@@ -28,6 +28,7 @@ const ALSO = [
   'types/dashboard.ts',
   'api/dashboardApi.ts',
   'api/dashboardSubscription.ts',
+  'api/bindingVocabulary.ts',
   'api/dashboardLocalization.ts',
   'api/modelReads.ts',
   'api/brokerModelReads.ts',

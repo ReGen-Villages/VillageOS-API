@@ -289,6 +289,7 @@ export const nl: PartialResources = {
       title: "Widget niet getekend",
       body: "Deze weergave vraagt om een widget van soort \"{{kind}}\", die deze toepassing niet kan tekenen.",
       noKind: "geen opgegeven",
+      unanswerable: "Deze weergave vraagt om \"{{words}}\", wat deze toepassing niet kan beantwoorden.",
     },
   },
   errorBoundary: {
