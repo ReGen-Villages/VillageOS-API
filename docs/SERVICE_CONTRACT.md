@@ -111,7 +111,8 @@ Body is a selector:
   "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],
   "includeIsAncestors": true,         // default true (keeps inherited values correct)
   "includeRelationships": true,
-  "includeSnapshot": true             // false = the watermark alone, no closure sent back
+  "includeSnapshot": true,            // false = the watermark alone, no closure sent back
+  "includeLaterMatches": false        // true = types/markedTypes go on matching after this moment
 }
 ```
 
@@ -124,6 +125,20 @@ you already hold the objects — a page that loaded its part of the model throug
 reads, for instance — and only want the changes from here. Nothing else about the subscription
 differs: it covers what it would have covered, and the watermark is the one you would have been given,
 so `Last-Event-ID` resume works unchanged.
+
+**`"includeLaterMatches": true` keeps the subscription matching.** Without it a narrowed membership is
+fixed the moment the subscription opens, so the only way to see a Thing made later is `{"all": true}` —
+the whole model, on every connect. With it, a Thing of a type named in `types` or `markedTypes` reaches
+you whenever it appears. Three things to know before you rely on it:
+
+- **Only the type-shaped parts follow.** `ids`, `names` and `traverse` still fix their part of the
+  membership when you open. A traversal is a walk of the model, and the match is asked inside every
+  commit for every subscriber.
+- **An edge is covered when either of its ends is.** `"includeRelationships": false` turns that off.
+- **One gap: a Thing typed after it was created.** Created and typed in one request is covered. Created
+  in one request and typed in a later one is not — its creation is judged when it has no type, so you
+  get the `is` edge and never got the Thing. Read a Thing whenever an edge names one you do not hold. A
+  resume does not have the gap; the replay re-asks coverage per record, and by then the Thing matches.
 
 **Read both, and read them through `StatedValue`.** A value written for a property name the Thing's
 archetype declares is not an own property: the platform clones the declaration into an override under
@@ -179,6 +194,7 @@ the slice **by shape** and get exactly that closure. Recipes:
 | Drop inherited type-default values | add `"includeIsAncestors": false` |
 | Things only, no relationships | add `"includeRelationships": false` |
 | Only the changes — you already read the objects | add `"includeSnapshot": false` |
+| Every Thing of a type, **including ones made later** | add `"includeLaterMatches": true` |
 
 **Selecting by mark rather than by name.** An archetype's role is a boolean flag it carries, so a handler
 can ask for the role instead of the name the model happens to have given it — and keep working when that
