@@ -10,9 +10,9 @@ namespace vos.Service.Shared.Dispatch;
 // wraps its side-effect in RunOnceAsync so the repeat does nothing. An effect that throws gives its
 // claim back, because a delivery that failed has to run again rather than be swallowed.
 //
-// Claims are held only for Retention. This is a guard against a burst of repeats, not a durable
-// record of what completed — that belongs on the relation, and outlives any one process. Bounding
-// it is what stops a handler that runs for weeks from holding every relationship it ever saw.
+// Claims are held only for Retention. This guards against a burst of repeats; it is not a durable
+// record of what completed, which belongs on the relation and outlives any one process. Bounding it
+// is what stops a handler running for weeks from holding every relationship it ever saw.
 public sealed class IdempotentExecution
 {
     public static readonly TimeSpan DefaultRetention = TimeSpan.FromHours(1);
@@ -25,10 +25,16 @@ public sealed class IdempotentExecution
     private readonly ConcurrentDictionary<string, Claim> _claims = new(StringComparer.Ordinal);
     private readonly Func<DateTimeOffset> _now;
 
+    // A relationship never delivered again is freed by a sweep rather than by its own next delivery,
+    // so one falls due every Retention. Judging each claim as it arrives means an ordinary delivery
+    // costs the same however many claims are being held.
+    private long _sweepDueAtTicks;
+
     public IdempotentExecution(TimeSpan? retention = null, Func<DateTimeOffset>? now = null)
     {
         Retention = retention ?? DefaultRetention;
         _now = now ?? (() => DateTimeOffset.UtcNow);
+        _sweepDueAtTicks = (_now() + Retention).UtcTicks;
     }
 
     public TimeSpan Retention { get; }
@@ -39,11 +45,13 @@ public sealed class IdempotentExecution
     public bool TryClaim(string relationshipId)
     {
         var mine = new Claim(_now());
-        DropLapsedClaims(mine.TakenAt);
 
         var held = _claims.GetOrAdd(relationshipId, mine);
         if (ReferenceEquals(held, mine))
+        {
+            DropLapsedClaimsIfDue(mine.TakenAt);
             return true;
+        }
 
         return HasLapsed(held, mine.TakenAt) && _claims.TryUpdate(relationshipId, mine, held);
     }
@@ -73,8 +81,13 @@ public sealed class IdempotentExecution
 
     private bool HasLapsed(Claim claim, DateTimeOffset now) => now - claim.TakenAt >= Retention;
 
-    private void DropLapsedClaims(DateTimeOffset now)
+    private void DropLapsedClaimsIfDue(DateTimeOffset now)
     {
+        if (now.UtcTicks < Interlocked.Read(ref _sweepDueAtTicks))
+            return;
+
+        Interlocked.Exchange(ref _sweepDueAtTicks, (now + Retention).UtcTicks);
+
         foreach (var (relationshipId, held) in _claims)
         {
             if (HasLapsed(held, now))
