@@ -768,6 +768,10 @@ When adding a service, add its `Program.cs` to the comma-separated
 6. Add the new `Program.cs` to `<ExcludeByFile>` in `coverage.runsettings` only
    once it holds nothing but wiring. If it still handles requests itself, leave
    it counted and extract the handling instead.
+7. Add a row for the service to the microservice table in `README.md`. That table
+   is the first list of what this repository runs that anyone reads, and
+   `Tests/vos.ContinuousIntegration.Tests/` fails when a service has no row. A project that is not a service anyone runs is named in
+   `ReadmeListsEveryServiceTests.ListedElsewhere` with the reason instead.
 
 Only add a `Configuration/` folder if the service has settings beyond the
 standard ones, and only add a broker client if it makes broker calls of its own.

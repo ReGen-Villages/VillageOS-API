@@ -14,7 +14,9 @@ namespace vos.ContinuousIntegration.Tests;
 /// Nothing kept it in step with the projects on disk, so services were added over several releases
 /// without a row and the table quietly became a partial list that still read as a complete one.
 ///
-/// A service that belongs somewhere other than the table is named below with why.
+/// Every service has a row whatever language it is written in — the echo services in Go, Node,
+/// Python and Rust are rows in the same table. A service that belongs somewhere other than the
+/// table is named below with why.
 /// </summary>
 public class ReadmeListsEveryServiceTests
 {
@@ -32,7 +34,7 @@ public class ReadmeListsEveryServiceTests
         var root = RepositoryRoot.Find();
         var readme = File.ReadAllText(Path.Combine(root, ReadmeFileName));
 
-        var unlisted = ServiceProjectNames(root)
+        var unlisted = ServiceProjects.NamesUnder(root)
             .Where(service => !ListedElsewhere.ContainsKey(service))
             .Where(service => !readme.Contains($"| {service} |", StringComparison.Ordinal))
             .ToList();
@@ -42,11 +44,4 @@ public class ReadmeListsEveryServiceTests
             + $"front page cannot see they exist: {string.Join(", ", unlisted)}. Add a row, or name the "
             + $"project in {nameof(ListedElsewhere)} with why it does not belong in the table.");
     }
-
-    /// <summary>Every service directory, whatever language it is written in — the echo services in Go,
-    /// Node, Python and Rust are rows in the same table.</summary>
-    private static IEnumerable<string> ServiceProjectNames(string root) =>
-        new DirectoryInfo(root)
-            .EnumerateDirectories("vos.Service.*")
-            .Select(service => service.Name);
 }

@@ -67,8 +67,7 @@ public class ServicesBindLoopbackTests
 
     private static IEnumerable<string> EntryPoints(string root) =>
         ServiceEntryPoints.Under(root).Concat(
-            new DirectoryInfo(root)
-                .EnumerateDirectories("vos.Service.*")
+            ServiceProjects.Under(root)
                 .SelectMany(service => EntryPointFiles.Select(file => Path.Combine(service.FullName, file)))
                 .Where(File.Exists));
 }
