@@ -171,9 +171,8 @@ describe('what has arrived', () => {
       },
     });
 
-    expect(() => submissionsIn(ambiguous)).toThrow(
-      /Arrival\.submittedAt[\s\S]*Intake\.submittedAt/,
-    );
+    expect(() => submissionsIn(ambiguous)).toThrow(/Arrival\.submittedAt/);
+    expect(() => submissionsIn(ambiguous)).toThrow(/Intake\.submittedAt/);
   });
 
   // What a Thing holds for a name its archetype declares comes back keyed by that archetype, so a

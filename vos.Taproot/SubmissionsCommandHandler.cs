@@ -403,12 +403,16 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     /// the name is inherited from more than one archetype. The model answers a bare read of that with an
     /// ambiguity and asks for the full path; a list has no path to give, so it says which paths it found
     /// rather than showing a reviewer a value the model itself declines to choose.</summary>
+    /// <summary>A key's name without the archetype that declared it, which is how the same property reads
+    /// whether a Thing holds it or inherits it.</summary>
+    private static string DeclaredName(string key) => key[(key.LastIndexOf('.') + 1)..];
+
     private static string? Value(ModelSnapshot model, Guid thing, string property)
     {
         if (!model.Properties.TryGetProperty(thing.ToString(), out var properties)) return null;
 
         var matching = properties.EnumerateObject()
-            .Where(held => held.Name.Split('.')[^1] == property)
+            .Where(held => DeclaredName(held.Name) == property)
             .ToList();
 
         if (matching.Count > 1)

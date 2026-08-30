@@ -152,9 +152,15 @@ function decisions(reading: ModelReading, names: Map<string, string>): Map<strin
  *  name is inherited from more than one archetype. The model answers a bare read of that with an
  *  ambiguity and asks for the full path; this page has no path to give, so it says which paths it
  *  found rather than showing a reviewer a value the model itself declines to choose. */
+/** A key's name without the archetype that declared it, which is how the same property reads whether a
+ *  Thing holds it or inherits it. */
+function declaredName(key: string): string {
+  return key.slice(key.lastIndexOf('.') + 1);
+}
+
 function valueOf(reading: ModelReading, thingId: string, property: string): string | undefined {
   const held = reading.properties[thingId] ?? {};
-  const keys = Object.keys(held).filter((name) => name.split('.').pop() === property);
+  const keys = Object.keys(held).filter((name) => declaredName(name) === property);
   if (keys.length > 1) {
     throw new Error(
       `'${property}' is inherited from more than one archetype on ${thingId}, so reading it by that ` +
