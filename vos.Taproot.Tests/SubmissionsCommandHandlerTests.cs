@@ -712,4 +712,64 @@ public class SubmissionsCommandHandlerTests
 
         Assert.Contains("No submissions in this model.", _writer.ToString());
     }
+
+    /// <summary>Every question the listing asks about a Thing — its name, and whether it is an archetype —
+    /// is asked while walking the submissions. The Things are held by identifier so each is one step;
+    /// searching the list instead would read the whole model once per submission, and the cost of listing
+    /// a queue would then grow with the number of Things standing beside it.</summary>
+    [Fact]
+    public void The_things_are_held_by_identifier_rather_than_searched_for()
+    {
+        var byIdentifier = SubmissionsCommandHandler.ByIdentifier(Json(new[]
+        {
+            Thing(SubmissionId, "Willow Bend Submission"),
+            Thing(SiteId, "Willow Bend"),
+            Thing(DispositionArchetypeId, "Verdict", isArchetype: true),
+        }));
+
+        Assert.Equal(3, byIdentifier.Count);
+        Assert.Equal("Willow Bend", byIdentifier[SiteId].GetProperty("Name").GetString());
+    }
+
+    /// <summary>Searching the list answered with the first Thing under an identifier, so indexing does too.</summary>
+    [Fact]
+    public void A_repeated_identifier_answers_with_the_first_thing_under_it()
+    {
+        var byIdentifier = SubmissionsCommandHandler.ByIdentifier(Json(new[]
+        {
+            Thing(SiteId, "the one the search found"),
+            Thing(SiteId, "the one behind it"),
+        }));
+
+        Assert.Equal("the one the search found", byIdentifier[SiteId].GetProperty("Name").GetString());
+    }
+
+    /// <summary>A model is mostly Things a reviewer never sees. The listing has to name its submissions and
+    /// leave out the declaration whatever else the model holds around them.</summary>
+    [Fact]
+    public async Task A_model_full_of_unrelated_things_still_lists_what_a_reviewer_waits_on()
+    {
+        AModelWithOneSubmission();
+        var things = new List<object>
+        {
+            Thing(ProposesId, "puts-forward"),
+            Thing(ResolvedAsId, "decided"),
+            Thing(IsId, "is"),
+            Thing(DispositionArchetypeId, "Verdict", isArchetype: true),
+            Thing(RejectedId, "binned"),
+            Thing(PromotedId, "taken-on"),
+            Thing(SubmissionId, "Willow Bend Submission"),
+            Thing(SiteId, "Willow Bend"),
+        };
+        for (var other = 0; other < 500; other++)
+            things.Add(Thing(Guid.NewGuid(), $"a building nobody is reviewing {other}"));
+
+        _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(things));
+
+        await Run("list");
+
+        var output = _writer.ToString();
+        Assert.Contains("willow-bend-2026-08", output);
+        Assert.DoesNotContain("a building nobody is reviewing", output);
+    }
 }
