@@ -9,7 +9,7 @@ namespace vos.Service.Forage.Services;
 // Mycelium proxies the body through to that service's /handle, so the reshape and the write onto the
 // Site both happen there — Forage decides which sources and with what values, never how a fetch
 // is made.
-public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFetcher
+public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFetcher, IEndpointBodyReader
 {
     private readonly string _fetcherSubdomain;
     private readonly TimeSpan _sourceTimeout;
@@ -43,11 +43,7 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
 
         try
         {
-            var client = await CreateAuthenticatedClientAsync(_sourceTimeout);
-            var response = await client.PostAsJsonAsync(
-                $"{MyceliumUrl}/api/endpoints/{Uri.EscapeDataString(_fetcherSubdomain)}",
-                new { endpointName, addressParameters, subjectId },
-                bounded.Token);
+            var response = await CallAsync(new { endpointName, addressParameters, subjectId }, bounded.Token);
 
             if (response.IsSuccessStatusCode)
                 return new SourceOutcome(sourceName, true, null,
@@ -72,6 +68,51 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
             Logger.LogWarning(exception, "Fetching {Source} through {Subdomain} failed", sourceName, _fetcherSubdomain);
             return new SourceOutcome(sourceName, false, exception.Message, SubjectId: subjectId);
         }
+    }
+
+    // The provider's own body, for a call a run makes to work something out. No subject is named because
+    // nothing is written: the registration carries no reshape expression, so the fetching service returns
+    // what the provider said and ingests none of it.
+    public async Task<string?> ReadAsync(
+        string endpointName,
+        IReadOnlyDictionary<string, string> addressParameters,
+        CancellationToken cancellationToken)
+    {
+        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        bounded.CancelAfter(_sourceTimeout);
+
+        try
+        {
+            var response = await CallAsync(new { endpointName, addressParameters }, bounded.Token);
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync(bounded.Token);
+
+            // The provider's own words, because a caller deciding whether to ask a coarser question needs
+            // to know it was refused rather than answered nothing.
+            Logger.LogWarning("Reading {Endpoint} through {Subdomain} was answered {Status}: {Body}",
+                endpointName, _fetcherSubdomain, (int)response.StatusCode,
+                Summarize(await response.Content.ReadAsStringAsync(bounded.Token)));
+            return null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            Logger.LogWarning("Reading {Endpoint} through {Subdomain} was not answered within {Seconds} seconds",
+                endpointName, _fetcherSubdomain, _sourceTimeout.TotalSeconds);
+            return null;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(exception, "Reading {Endpoint} through {Subdomain} failed",
+                endpointName, _fetcherSubdomain);
+            return null;
+        }
+    }
+
+    private async Task<HttpResponseMessage> CallAsync(object request, CancellationToken cancellationToken)
+    {
+        var client = await CreateAuthenticatedClientAsync(_sourceTimeout);
+        return await client.PostAsJsonAsync(
+            $"{MyceliumUrl}/api/endpoints/{Uri.EscapeDataString(_fetcherSubdomain)}", request, cancellationToken);
     }
 
     // The values the call wrote, from the fetching service's own report of them. Only text can name a

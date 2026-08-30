@@ -666,7 +666,8 @@ named, and wrong twice over: `country` is optional, and the vocabulary pattern a
 model does not hold, which would turn an undeclared country into a rejected submission. Countries are an
 open set nobody can enumerate, so they stay text. A source covering the root covers every site, which is
 all the registered sources need today; the first source with narrower coverage is what should force a
-narrower Place, and the hazard portal needs one carrying its administrative division code.
+narrower Place. The hazard portal needs an administrative division code rather than narrower coverage,
+and a discovery run works one out from the site's position where no Place carries it.
 
 The design decisions worth stating:
 
@@ -928,10 +929,13 @@ discovery run resolves the written word against them by the declaration that tem
 division code, and its per-hazard route takes a two-letter code for the hazard type — `FL`, `LS`, `WF`.
 Neither is a value a site carries, so the registration leans on the model holding both as Things:
 
-- **The Place a site is in carries the portal's division code**, as `hazardPortalDivision`. That is a
-  natural home rather than a workaround — the portal's divisions are exactly what a Place is, and
-  coverage already walks `Site isIn Place`, so the coverage read already returns the Thing the value
-  sits on. A project declares its division Place, relates its sites into it, and deploys nothing.
+- **The division code is `hazardPortalDivision`**, which either the site itself or a Place it is in
+  carries. A Place is a natural home rather than a workaround — the portal's divisions are exactly what
+  a Place is, and coverage already walks `Site isIn Place`, so the coverage read already returns the
+  Thing the value sits on. A project declares its division Place, relates its sites into it, and deploys
+  nothing. Where neither the site nor any of its Places carries a code, a discovery run works one out
+  from the site's position and writes it onto the site with the division's name beside it (6851) — see
+  [`FORAGE.md`](FORAGE.md#resolving-the-hazard-division).
 - **The hazard type carries the portal's own code for it**, as `hazardPortalCode` on the Thing under
   the `HazardType` archetype reached by `assesses` (Bug #6737) — a code belonging to one portal hangs
   off the type Thing, where a word on an assessment could carry nothing.
@@ -944,9 +948,9 @@ platform model carries (platform User Story 6773); a word the vocabulary does no
 edge and is reported, and either way the word stays on the series as the record of what the portal
 answered. A division the
 portal holds no data about for a hazard is answered 404, so nothing is written and that hazard stays
-honestly unassessed. A site whose Places carry no division code has every hazard call refused before
-the provider is contacted and reported with the unfilled placeholder named — the model gap said out
-loud, not an outage invented for the portal.
+honestly unassessed. A site that carries no division code and whose position resolved to none has every
+hazard call refused before the provider is contacted and reported with the unfilled placeholder named —
+the model gap said out loud, not an outage invented for the portal.
 
 ---
 
