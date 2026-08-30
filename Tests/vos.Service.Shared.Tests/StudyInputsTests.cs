@@ -108,6 +108,16 @@ public class StudyInputsTests
         inputs.WaitingFor(["population", "perCapitaConsumptionM3"]).Should().BeEmpty();
     }
 
+    // The route wraps every value in an envelope, and a value answered bare is read as itself rather than
+    // refused: the envelope is the route's shape, not the reader's requirement.
+    [Fact]
+    public void A_value_answered_without_an_envelope_is_read_as_itself()
+    {
+        var inputs = Reading("""{ "population": 300 }""");
+
+        inputs.Number("population").Should().Be(300);
+    }
+
     // Two archetypes declaring one leaf name is a model to fix, whichever question is asked of it.
     [Fact]
     public void A_name_two_archetypes_declare_is_refused_rather_than_waited_for()

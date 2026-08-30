@@ -50,9 +50,6 @@ public readonly struct StudyInputs(JsonElement properties, string serviceName)
 
     private JsonElement? Carried(string name)
     {
-        if (properties.ValueKind != JsonValueKind.Object)
-            return null;
-
         var qualified = new List<JsonProperty>();
         foreach (var property in properties.EnumerateObject())
         {
