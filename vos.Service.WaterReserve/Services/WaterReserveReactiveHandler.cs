@@ -36,7 +36,7 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
         if (inputs.WaitingFor(Inputs) is { Count: > 0 } waitingFor)
         {
             Logger.LogInformation(
-                "WaterReserve: the study {StudyId} carries no {Inputs}, so no reserve is worked out",
+                "WaterReserve: the study {StudyId} has no number for {Inputs} yet, so no reserve is worked out",
                 studyId, string.Join(", ", waitingFor));
             return new(null, waitingFor);
         }

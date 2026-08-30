@@ -73,7 +73,7 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
         if (inputs.WaitingFor(watched) is { Count: > 0 } waitingFor)
         {
             Logger.LogInformation(
-                "RainwaterHarvest: the study {StudyId} carries no {Inputs}, so no water is apportioned",
+                "RainwaterHarvest: the study {StudyId} has no number for {Inputs} yet, so no water is apportioned",
                 studyId, string.Join(", ", waitingFor));
             return new(null, waitingFor);
         }

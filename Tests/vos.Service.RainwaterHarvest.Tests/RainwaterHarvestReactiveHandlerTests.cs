@@ -291,6 +291,25 @@ public class RainwaterHarvestReactiveHandlerTests
         });
     }
 
+    // What the demands are sized by is learned from the model, so a study waiting on one of those figures
+    // is woken when it lands only if that name is already watched. The set is therefore recorded before the
+    // study is read rather than after it is computed.
+    [Fact]
+    public async Task A_study_it_is_still_waiting_on_widens_what_wakes_it_all_the_same()
+    {
+        var http = Serving("""
+            { "builtFootprintHectares": { "Value": 8.88 }, "rainfallMillimetresPerYear": { "Value": 700 },
+              "runoffCoefficient": { "Value": 0.8 } }
+            """);
+        var handler = NewHandler(http);
+
+        var answer = await handler.RecomputeAsync(Study);
+
+        answer.Outputs.Should().BeNull();
+        handler.WatchedProperties.Should().Contain("population")
+            .And.Contain("irrigationDemandM3PerHectarePerYear");
+    }
+
     // A demand whose answer lands on something this service wakes on would recompute the study for as long
     // as the model held that spelling. Refused before the first write, because the loop leaves nothing
     // behind saying which demand caused it — and refused against the whole watched set, so one demand's

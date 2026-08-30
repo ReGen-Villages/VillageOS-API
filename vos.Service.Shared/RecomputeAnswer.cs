@@ -1,7 +1,7 @@
 namespace vos.Service.Shared;
 
-/// <summary>What a recompute answers: the figures it worked out, or the inputs the study holds no number
-/// under yet. Exactly one of the two is filled in.
+/// <summary>What a recompute answers: the figures it worked out with nothing outstanding, or no figures and
+/// the inputs the study holds no number under yet.
 ///
 /// <para>A dispatch that finds an input missing has not failed. A study a submission built carries land, a
 /// boundary and programme shares, so a reservoir capacity or a panel area is absent until a building model

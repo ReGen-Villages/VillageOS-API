@@ -44,7 +44,7 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
         if (inputs.WaitingFor(Inputs) is { Count: > 0 } waitingFor)
         {
             Logger.LogInformation(
-                "EnergyBalance: the study {StudyId} carries no {Inputs}, so no verdict is written",
+                "EnergyBalance: the study {StudyId} has no number for {Inputs} yet, so no verdict is written",
                 studyId, string.Join(", ", waitingFor));
             return new(null, waitingFor);
         }
