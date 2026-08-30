@@ -153,10 +153,10 @@ Return any 2xx; Mycelium logs non-2xx and continues. A reasonable body:
 
 **The same relationship can be delivered more than once.** Dispatch is at-least-once: when Mycelium
 cannot confirm that a handler finished, it sends the relation again, and a handler that reconnects
-after a break is sent what it missed while it was away. Each of those arrivals is a separate call to
-your `/handle`, and nothing in the payload says which arrival it is. `relationshipId` is the same on
-every one of them, so it is the key to recognise a repeat by. Do the work once per `relationshipId`,
-and answer 2xx to the repeat without doing it a second time.
+after a break is sent what it missed while it was away. Each delivery is a separate call to your
+`/handle`, and nothing in the payload says whether it is the first. `relationshipId` is the same on
+every delivery of one relation, so it is the key to recognise a repeat by. Do the work once per
+`relationshipId`, and answer 2xx to the repeat without doing it a second time.
 
 C# handlers have a shared helper for this, `IdempotentExecution`:
 
@@ -169,14 +169,14 @@ var ran = await deliveries.RunOnceAsync(request.RelationshipId, async () =>
 });
 ```
 
-The helper keeps a note against each `relationshipId` it has started work for — a **claim**, in the
-method names below. The first arrival takes the claim and runs your effect; a later arrival finds the
-claim already taken and does nothing, which is what makes `ran` false. An effect that throws gives its
-claim back, so an arrival that failed is run again next time rather than being swallowed. (Not to be
-confused with the claims inside a JWT, further down this page — different word, different thing.)
+The helper keeps a note against each `relationshipId` it has started work for — a **claim**, which is
+the word its method names use. The first delivery takes the claim and runs your effect; a later one
+finds it taken and does nothing, which is what makes `ran` false. An effect that throws gives its
+claim back, so a delivery that failed is run again next time rather than being swallowed. (Not the
+claims inside a JWT, further down this page — same word, different thing.)
 
-The notes are kept in memory for one hour by default; pass a different window to the constructor. So
-this guards against a burst of repeats, not against every repeat there will ever be: one arriving
+Claims are kept in memory for one hour by default; pass a different window to the constructor. So
+this guards against a burst of repeats, not against every repeat there will ever be: one delivered
 after that window, or after the handler restarts, runs the work a second time. A record of what
 completed that survives either belongs on the relation itself.
 

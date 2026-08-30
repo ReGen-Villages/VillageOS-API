@@ -6,16 +6,14 @@ using System.Runtime.CompilerServices;
 namespace vos.Service.Shared.Dispatch;
 
 // Handled-predicate dispatch is at-least-once: the broker sends a relation again when it cannot
-// confirm the handler finished, and a handler that reconnects is sent what it missed. Each arrival
-// is one call to the handler, and nothing in the call says which arrival it is.
+// confirm the handler finished, and a handler that reconnects is sent what it missed. Nothing in a
+// delivery says whether it is the first.
 //
-// A claim is the note kept here against a relationshipId work has started for. The first arrival
-// takes it and runs the effect; a later one finds it taken and does nothing. An effect that throws
-// gives its claim back, because an arrival that failed has to run again rather than be swallowed.
+// A claim is the note kept here against a relationshipId work has started for. A failing effect
+// gives its claim back: keeping it would lose the work, because the re-drive would find it taken.
 //
-// Claims are kept only for Retention. This guards against a burst of repeats; it is not a durable
-// record of what completed, which belongs on the relation and outlives any one process. Bounding it
-// is what stops a handler running for weeks from holding every relationship it ever saw.
+// None of this is a durable record of what completed. That belongs on the relation, which outlives
+// any one process; these claims guard against a burst of repeats and nothing more.
 public sealed class IdempotentExecution
 {
     public static readonly TimeSpan DefaultRetention = TimeSpan.FromHours(1);
@@ -28,9 +26,9 @@ public sealed class IdempotentExecution
     private readonly ConcurrentDictionary<string, Claim> _claims = new(StringComparer.Ordinal);
     private readonly Func<DateTimeOffset> _now;
 
-    // A relationship that never arrives again would keep its claim forever, so a sweep falls due
-    // once every Retention to drop the lapsed ones. Judging a claim as it is asked for, rather than
-    // sweeping on every call, is what keeps one arrival costing the same however many are held.
+    // A relationship never delivered again would keep its claim forever, so a sweep falls due once
+    // every Retention. Judging a claim as it is asked for, rather than sweeping on every call, keeps
+    // one delivery costing the same however many claims are held.
     private long _sweepDueAtTicks;
 
     public IdempotentExecution(TimeSpan? retention = null, Func<DateTimeOffset>? now = null)
@@ -63,7 +61,6 @@ public sealed class IdempotentExecution
 
     internal int HeldClaims => _claims.Count;
 
-    // True when this delivery ran the effect, false when an earlier one already did.
     public async Task<bool> RunOnceAsync(string relationshipId, Func<Task> effect)
     {
         if (!TryClaim(relationshipId))
