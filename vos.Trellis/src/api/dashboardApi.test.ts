@@ -1881,6 +1881,24 @@ describe('levers under a shortfall', () => {
     expect(rows[0].levers).toEqual([{ term: 'consumed', direction: 'lower' }]);
   });
 
+  // The formula belongs to the compute service, and the offers follow it. An input that service
+  // stops reading stops being offered, with nothing changed in the client.
+  it('stops offering an input the derivation no longer reads', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({
+      ...DEFINITIONS,
+      pctOfConsumption: {
+        Expression: 'totalGeneration * 100',
+        Reads: ['totalGeneration'],
+        RisesWith: ['totalGeneration'],
+      },
+    })) as Row[];
+
+    expect((rows[0].levers as Row[]).map((lever) => lever.term))
+      .toEqual(['panelAreaM2', 'otherGeneration']);
+  });
+
   // A boundary the range admits with equality still says which side the value sits on.
   it('reads an at-most comparison the same way as a below one', async () => {
     holding('EnergyShortOfTarget');
