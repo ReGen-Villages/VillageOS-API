@@ -9,7 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
-dist-public-form
+dist-public
 dist-ssr
 .vite
 coverage

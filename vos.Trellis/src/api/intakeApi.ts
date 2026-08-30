@@ -23,7 +23,7 @@ const intakeUrl = () => (import.meta.env.VITE_INTAKE_URL as string | undefined) 
 /** The service issues one of these in exchange for a code it sent, and reads it back when the form is
  *  posted. It is signed against the address it was issued for, so a submission naming another does not
  *  carry a ticket for itself. */
-const TICKET_HEADER = 'X-Submission-Ticket';
+export const TICKET_HEADER = 'X-Submission-Ticket';
 
 /** What the form draws itself with. A page holding no credential cannot read the model for itself, so
  *  the service reads it and answers with the categories a submission may name and the imagery a map may
@@ -44,7 +44,7 @@ export const intakeApi = {
   configured: () => intakeUrl().length > 0,
 
   formOptions: async (): Promise<FormOptions> => {
-    const response = await fetch(`${serviceAddress()}/submissions/form`);
+    const response = await fetch(`${intakeServiceAddress()}/submissions/form`);
     if (!response.ok) throw new Error(await refusalFrom(response));
 
     const answered = (await response.json()) as {
@@ -64,7 +64,7 @@ export const intakeApi = {
   /** Asks the service to send a code to the address, which is the step that establishes somebody reads
    *  what is sent there. Answers nothing: what happens next is the person reading their mail. */
   askForCode: async (emailAddress: string): Promise<void> => {
-    const response = await fetch(`${serviceAddress()}/submissions/verification`, {
+    const response = await fetch(`${intakeServiceAddress()}/submissions/verification`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ emailAddress }),
@@ -76,7 +76,7 @@ export const intakeApi = {
   /** The code is spent on a ticket and the ticket on the submission, in one act: a ticket lasts minutes
    *  and is no use to the page beyond the post it was got for. */
   submit: async (submission: SubmissionDocument, code: string): Promise<SubmissionAccepted> => {
-    const base = serviceAddress();
+    const base = intakeServiceAddress();
 
     const exchanged = await fetch(`${base}/submissions/ticket`, {
       method: 'POST',
@@ -96,7 +96,7 @@ export const intakeApi = {
   },
 };
 
-function serviceAddress(): string {
+export function intakeServiceAddress(): string {
   const base = intakeUrl().replace(/\/$/, '');
   if (!base) throw new Error('The intake service address is not configured (set VITE_INTAKE_URL).');
   return base;
@@ -104,7 +104,7 @@ function serviceAddress(): string {
 
 /** What the service said, rather than the status code it said it under. A refused submission names the
  *  field to correct, and that is the whole value of the answer to whoever filled the form in. */
-async function refusalFrom(response: Response): Promise<string> {
+export async function refusalFrom(response: Response): Promise<string> {
   try {
     const body = await response.json();
     return body?.error ?? body?.detail ?? body?.title ?? `The submission was refused (${response.status}).`;

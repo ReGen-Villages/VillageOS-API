@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using vos.Service.Intake.Models;
 using vos.Service.Shared;
+using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
@@ -15,6 +16,80 @@ public sealed class IntakeMyceliumClient(
     string? apiKey = null)
     : MyceliumClientBase(httpClientFactory, logger, myceliumUrl, serviceToken, apiKey: apiKey)
 {
+    private static readonly JsonSerializerOptions AsTheBrokerReadsIt = new(JsonSerializerDefaults.Web);
+
+    /// <summary>A read of the model kept exactly as the broker wrote it, for one call.</summary>
+    /// <remarks>
+    /// Beside <see cref="ScopedRead"/> rather than through it, because that path reads a snapshot into
+    /// <see cref="SnapshotDocument"/> — the fields a service was written to need. What a submitter is
+    /// answered with is the broker's own envelope, so that it carries what draws each figure now and
+    /// whatever the model starts declaring later; a typed read would silently drop the difference.
+    /// <para>
+    /// A release that fails must not lose a read that succeeded, and the broker reaps what a caller
+    /// leaves behind — so the failure is logged where whoever runs the deployment reads it and the answer
+    /// still goes back.
+    /// </para>
+    /// </remarks>
+    public async Task<JsonDocument> ReadAsync(SubscriptionSelector selector, CancellationToken cancellation)
+    {
+        var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
+        var response = await client.PostAsJsonAsync(
+            $"{MyceliumUrl}/api/subscriptions", selector, AsTheBrokerReadsIt, cancellation);
+
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException(
+                $"Reading the model failed ({(int)response.StatusCode} {response.StatusCode}).",
+                null, response.StatusCode);
+
+        var opened = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellation));
+        try
+        {
+            if (opened.RootElement.TryGetProperty("subscriptionId", out var subscription)
+                && subscription.TryGetGuid(out var identifier))
+            {
+                await ReleaseAsync(client, identifier, cancellation);
+            }
+
+            return JsonDocument.Parse(opened.RootElement.GetProperty("snapshot").GetRawText());
+        }
+        finally
+        {
+            opened.Dispose();
+        }
+    }
+
+    /// <summary>One Thing's ranges, own and inherited, as the broker answers them. A verdict reads its
+    /// target off the comparison a range makes, and a study's ranges sit on its archetype, so a reading
+    /// of the Things alone cannot answer one.</summary>
+    public async Task<JsonDocument?> ReadRangesAsync(Guid thingId, CancellationToken cancellation)
+    {
+        var client = await CreateAuthenticatedClientAsync();
+        var response = await client.GetAsync($"{MyceliumUrl}/api/things/{thingId}/ranges", cancellation);
+
+        // A verdict the model holds still reads without the target it names, so a Thing the broker will
+        // not answer about leaves that row without its figure rather than refusing the whole page.
+        if (!response.IsSuccessStatusCode)
+        {
+            Logger.LogWarning(
+                "Intake could not read the ranges of {ThingId}: {Status}", thingId, (int)response.StatusCode);
+            return null;
+        }
+
+        return JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellation));
+    }
+
+    private async Task ReleaseAsync(HttpClient client, Guid subscriptionId, CancellationToken cancellation)
+    {
+        try
+        {
+            await client.DeleteAsync($"{MyceliumUrl}/api/subscriptions/{subscriptionId}", cancellation);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(exception, "Intake could not release the subscription {SubscriptionId}", subscriptionId);
+        }
+    }
+
     public async Task<Guid?> FindThingIdByNameAsync(string name, CancellationToken cancellation)
     {
         var client = await CreateAuthenticatedClientAsync();
