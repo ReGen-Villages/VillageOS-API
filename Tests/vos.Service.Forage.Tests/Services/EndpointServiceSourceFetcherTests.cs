@@ -151,4 +151,61 @@ public class EndpointServiceSourceFetcherTests
         outcome.Resolved.Should().BeFalse();
         outcome.Reason.Should().NotContain("No answer within");
     }
+
+    // A call a run makes to work something out, not to record a reading: the registration carries no
+    // reshape expression, so the provider's own body comes back and nothing is written from it.
+    [Fact]
+    public async Task ReadAsync_AnswersTheProvidersOwnBodyAndNamesNoSubject()
+    {
+        string? body = null;
+        var handler = new MockHttpMessageHandler(req =>
+        {
+            body = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Text(HttpStatusCode.OK, """{"data": []}""");
+        });
+
+        var answered = await Fetcher(handler)
+            .ReadAsync("hazard-division-search", Coordinates, default);
+
+        answered.Should().Be("""{"data": []}""");
+        body.Should().Contain("hazard-division-search").And.NotContain("subjectId");
+    }
+
+    // A provider that could not be reached must never read as one that answered nothing: the first is
+    // asked again on the next run, and the second would settle the question for good.
+    [Fact]
+    public async Task ReadAsync_ARefusedCallAnswersNothing()
+    {
+        var handler = new MockHttpMessageHandler(_ =>
+            Text(HttpStatusCode.ServiceUnavailable, "portal is down for maintenance"));
+
+        var answered = await Fetcher(handler).ReadAsync("hazard-division-search", Coordinates, default);
+
+        answered.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ReadAsync_AnUnreachableFetchingServiceAnswersNothing()
+    {
+        var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("connection refused"));
+
+        var answered = await Fetcher(handler).ReadAsync("area-name-at-position", Coordinates, default);
+
+        answered.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ReadAsync_AProviderThatGoesQuietAnswersNothing()
+    {
+        var handler = MockHttpMessageHandler.ObservingCancellation(async (_, token) =>
+        {
+            await Task.Delay(Timeout.Infinite, token);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+
+        var answered = await Fetcher(handler, TimeSpan.FromMilliseconds(50))
+            .ReadAsync("area-name-at-position", Coordinates, default);
+
+        answered.Should().BeNull();
+    }
 }

@@ -366,19 +366,26 @@ public static class CoveringSourceResolver
             areaNameEndpoint, searchEndpoint, placeholders[0], codeProperty, nameProperty);
     }
 
-    // The address a call about the site itself is made with: the site's own values, then each Place's,
-    // nearest first. Read on its own by the step that resolves a division, which asks it both for the
-    // site's coordinates and for whether anything already supplies the division code.
+    // The address a call about the site itself is made with. Read on its own by the step that resolves a
+    // division, which asks it both for the site's coordinates and for whether anything already supplies
+    // the division code — the same answer the run's own calls are addressed from, so the two cannot
+    // disagree about whether a division is already there.
     public static IReadOnlyDictionary<string, string> AddressOf(SnapshotDocument snapshot, Guid siteId)
     {
         var namesById = snapshot.Things.ToDictionary(thing => thing.Id, thing => thing.Name ?? string.Empty);
 
-        return Layered(
+        return AddressOf(snapshot, siteId, PlacesByDepth(snapshot, siteId, namesById));
+    }
+
+    // The site's own values first, then each Place's, nearest first: a value the site carries is about the
+    // site, and a division's value is about somewhere smaller than its country's.
+    private static Dictionary<string, string> AddressOf(
+        SnapshotDocument snapshot, Guid siteId, List<List<Guid>> placesByDepth) =>
+        Layered(
         [
             StatedValues.Of(snapshot, siteId),
-            .. PlacesByDepth(snapshot, siteId, namesById).Select(level => AgreedValues(snapshot, level)),
+            .. placesByDepth.Select(level => AgreedValues(snapshot, level)),
         ]);
-    }
 
     // The same sources, with values a run worked out for itself under each call's own address. Under,
     // because a value the call's subject states is about that subject, and these are about the site.
@@ -427,10 +434,7 @@ public static class CoveringSourceResolver
         var placesByDepth = PlacesByDepth(snapshot, siteId, namesById);
         var places = placesByDepth.SelectMany(level => level).ToHashSet();
 
-        // The site's own values first, then each Place's, nearest first: a value the site carries is
-        // about the site, and a division's value is about somewhere smaller than its country's.
-        var siteValues = Layered(
-            [StatedValues.Of(snapshot, siteId), .. placesByDepth.Select(level => AgreedValues(snapshot, level))]);
+        var siteValues = AddressOf(snapshot, siteId, placesByDepth);
 
         var covering = new List<CoveringSource>();
         var alreadyTaken = new HashSet<Guid>();

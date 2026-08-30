@@ -203,6 +203,20 @@ public class DivisionResolverTests
         DivisionAddressing(addressed).Should().BeEmpty();
     }
 
+    // The provider was not reached, so nothing is known about where the site is — searching the portal for
+    // a name nobody gave would ask about nowhere.
+    [Fact]
+    public async Task ARefusedAreaNameLookupSearchesForNothing()
+    {
+        var reader = new ScriptedReader(null, DivisionsNamedSantarem);
+        var writer = new RecordingWriter();
+
+        await ResolverOver(reader, writer).AddressAsync(SiteId, AtWillowBend(), CancellationToken.None);
+
+        reader.Asked.Should().ContainSingle().Which.Endpoint.Should().Be(AreaNameEndpoint);
+        writer.Facts.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task AGeocoderThatNamedNoAreaLeavesTheDivisionUnresolved()
     {

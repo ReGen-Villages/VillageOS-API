@@ -96,8 +96,33 @@ public class HazardDivisionTests
     [Theory]
     [InlineData("""{"data": [{"admin0": "Portugal", "admin1": "Santarem"}]}""")]
     [InlineData("""{"data": [{"code": 2409}]}""")]
+    [InlineData("""{"data": [{"code": 2409, "admin0": null}]}""")]
+    [InlineData("""{"data": [{"code": 2409, "admin0": "   "}]}""")]
     public void ADivisionNamingNoCodeOrNoCountryIsLeftOut(string reply)
     {
+        HazardDivision.DivisionsIn(reply).Should().BeEmpty();
+    }
+
+    // A level the provider left empty is a level it did not answer, so the division ends there rather than
+    // closing up — a name read at the wrong level would order two divisions wrongly.
+    [Fact]
+    public void ADivisionWhoseDeeperLevelIsEmptyEndsAtTheLevelBeforeIt()
+    {
+        var division = HazardDivision
+            .DivisionsIn("""{"data": [{"code": 2409, "admin0": "Portugal", "admin1": "Santarem", "admin2": null}]}""")
+            .Single();
+
+        division.Levels.Should().Equal("Portugal", "Santarem");
+    }
+
+    // A provider answering an array, or a page of HTML, is not a reply either reader can take anything
+    // from — and taking nothing must not throw the run.
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("\"a message\"")]
+    public void AReplyThatIsNoObjectReadsAsNothing(string reply)
+    {
+        HazardDivision.PositionIn(reply).Should().BeNull();
         HazardDivision.DivisionsIn(reply).Should().BeEmpty();
     }
 
