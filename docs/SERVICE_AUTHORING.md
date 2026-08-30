@@ -151,6 +151,31 @@ Return any 2xx; Mycelium logs non-2xx and continues. A reasonable body:
 { "success": true, "service": "YourService", "relationshipId": "<uuid>", "status": "handled" }
 ```
 
+**The same delivery can arrive more than once.** Dispatch is at-least-once: when Mycelium cannot
+confirm that a handler finished, it sends the relation again, and a handler that reconnects after a
+break is sent what it missed while it was away. `relationshipId` is the same on every delivery of one
+relation, so it is the key to recognise a repeat by. Do the work once per `relationshipId`, and
+answer 2xx to the repeat without doing it a second time.
+
+C# handlers have a shared helper for this, `IdempotentExecution`:
+
+```csharp
+private readonly IdempotentExecution deliveries = new();
+
+var ran = await deliveries.RunOnceAsync(request.RelationshipId, async () =>
+{
+    await WriteTheResultAsync(request);
+});
+```
+
+`ran` is false when an earlier delivery already did the work. An effect that throws gives its claim
+back, so a delivery that failed is run again next time rather than being swallowed.
+
+The helper guards against a burst of repeats, not against every repeat there will ever be. Claims are
+held in memory for one hour by default — pass a different window to the constructor — so a repeat
+arriving after that window, or after the handler restarts, runs the work a second time. A record of
+what completed that survives either belongs on the relation itself.
+
 **`GET /health`** → `{ "status": "Healthy", "service": "YourService", "requestsProcessed": <n> }`
 
 **`GET /stats`** → `{ "service": "...", "version": "...", "requestsProcessed": <n>, "handlerId": "<uuid>", "myceliumUrl": "..." }`
@@ -197,4 +222,5 @@ Mycelium signs each `/handle` call with a short-lived (5-minute) service JWT car
 - [ ] Validate the inbound JWT when a `VerificationKey` is set (ES256 named explicitly, iss/aud/exp, 30s skew)
 - [ ] Refuse a token whose recipient is not your own `--audience`, and one claiming any algorithm other than ES256
 - [ ] Add `app.UseMyceliumModelToken()` so `/handle` callbacks use the request's model token
+- [ ] Recognise a repeat delivery by its `relationshipId` and do the work only once
 - [ ] Add tests for arg parsing + JWT validation (see any reference example)
