@@ -113,9 +113,8 @@ describe('discovery', () => {
     expect(ents.map((e) => e.name)).toEqual(['V-1', 'V-2']);
   });
 
-  // A spec is model data and can be authored wrong. Dropped here, the dashboard is a page that
-  // never appears with nothing anywhere saying why; listed with no spec, it is addressable and the
-  // page it opens says what is wrong with it (Story #6477).
+  // Story #6477: a spec authored wrong is still addressable, so its author can be told what is
+  // wrong with it. Ordered by name like any other, so a broken one does not sort to the end.
   it('lists a Dashboard Thing whose spec could not be read, carrying no spec', () => {
     const { things, relationships } = model();
     things.push({ Id: 'dash2', Name: 'Half a spec', Properties: { spec: '{ "title": "Ops"' } });

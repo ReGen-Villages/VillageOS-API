@@ -109,37 +109,25 @@ export function OperationsPage() {
   }
   // A Thing that declares itself a dashboard and carries a spec nothing can read. Named, so the
   // author knows which one to open, and told apart from a model that publishes no dashboard at all.
-  if (dashboard && !spec) {
+  if (dashboard && !dashboard.spec) {
     return (
-      <Centered>
-        <div className="max-w-md text-center">
-          <LayoutDashboard className="mx-auto mb-3 text-zinc-300 dark:text-zinc-600" size={40} />
-          <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1">
-            {t('operationsPage.unreadableSpec', { name: dashboard.name })}
-          </h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('operationsPage.unreadableSpecBody')}</p>
-        </div>
-      </Centered>
+      <Guidance title={t('operationsPage.unreadableSpec', { name: dashboard.name })}>
+        {t('operationsPage.unreadableSpecBody')}
+      </Guidance>
     );
   }
   if (!spec) {
     return (
-      <Centered>
-        <div className="max-w-md text-center">
-          <LayoutDashboard className="mx-auto mb-3 text-zinc-300 dark:text-zinc-600" size={40} />
-          <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1">{t('operationsPage.noDashboard')}</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            <Trans
-              i18nKey="operationsPage.noDashboardBody"
-              components={[
-                <code className="font-mono text-xs" />,
-                <code className="font-mono text-xs" />,
-                <code className="font-mono text-xs" />,
-              ]}
-            />
-          </p>
-        </div>
-      </Centered>
+      <Guidance title={t('operationsPage.noDashboard')}>
+        <Trans
+          i18nKey="operationsPage.noDashboardBody"
+          components={[
+            <code className="font-mono text-xs" />,
+            <code className="font-mono text-xs" />,
+            <code className="font-mono text-xs" />,
+          ]}
+        />
+      </Guidance>
     );
   }
 
@@ -249,4 +237,16 @@ function ScopeButton({ active, onClick, children }: { active: boolean; onClick: 
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="h-full flex items-center justify-center p-8 text-sm text-zinc-500 dark:text-zinc-400">{children}</div>;
+}
+
+function Guidance({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Centered>
+      <div className="max-w-md text-center">
+        <LayoutDashboard className="mx-auto mb-3 text-zinc-300 dark:text-zinc-600" size={40} />
+        <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1">{title}</h2>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{children}</p>
+      </div>
+    </Centered>
+  );
 }
