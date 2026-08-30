@@ -82,11 +82,11 @@ try
 
         // Watched before the compute, not after: this balance is dispatched with the analysis, and the
         // footprint it reads is written later by a service on the layer below. The first compute
-        // therefore fails on a study whose land has not been allocated yet, and the watch registered
-        // here is what brings the balance back when that footprint arrives.
+        // therefore finds nothing to work from on a study whose land has not been allocated yet, and the
+        // watch registered here is what brings the balance back when that footprint arrives.
         following.Watch(request.SubjectId);
-        var outputs = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
-        return Results.Ok(new { success = true, outputs });
+        var answer = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
+        return Results.Ok(new { success = true, answer.Outputs, answer.WaitingFor });
     });
     if (authEnabled) handle.RequireAuthorization();
 

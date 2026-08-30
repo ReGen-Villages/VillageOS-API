@@ -552,7 +552,7 @@ flowchart TB
   W["<b>Outputs on the study, judged by its ExpectedRanges</b>"]
 
   R --> LA
-  LA -->|"built + productive area"| EB
+  R -->|"solar resource · panel area · consumption"| EB
   LA -->|"productive area"| FB
   LA -->|"built + productive area"| RH
   EB --> W
@@ -561,8 +561,10 @@ flowchart TB
 ```
 
 The arrows are property reads and writes on one Thing, not wires. Land allocation writes the two
-footprints; the balances read them and re-fire. Nothing sequences them — each recomputes when an
-input it declared moves, and the cascade is bounded by the model's recompute round limit.
+footprints; the food balance and the harvest read them and re-fire. The energy balance reads none of
+them — its panel area is a roll-up over the site's own arrays — so it sits on the first layer beside
+land allocation rather than after it. Nothing sequences any of them: each recomputes when an input it
+declared moves, and the cascade is bounded by the model's recompute round limit.
 
 Two of the boxes need no service any more. Every water-reserve and food-balance figure is a formula on
 the study, so both services now assert nothing and their dispatch is waiting to be removed (#6747,
@@ -588,6 +590,14 @@ volume the formula reads it into stays unknown rather than falling to nought, an
 assessed" range holds. A balance computed against a silently substituted number is worse than no answer,
 because it looks like an answer.
 
+**An input the study does not carry yet is waited for, not failed (#6826).** A submission describes land,
+a boundary and programme shares, so a reservoir capacity and a panel area are absent until a building
+model exists — and the footprints the food balance and the harvest read are written later by land
+allocation. A service that finds one of its inputs missing writes nothing, names it in its own log, and
+answers what it is waiting for; the watch it registered on the study is what brings it back when the
+figure arrives. It used to throw, which had the broker record the dispatch failed and drive it again on
+every reconciliation for as long as the model lived.
+
 ### What a service call looks like
 
 A dispatched relationship names the study; the service answers with what it computed:
@@ -604,7 +614,9 @@ A dispatched relationship names the study; the service answers with what it comp
 ```
 
 The inputs are not in the body. The service reads them off the study by name, which is what lets an
-assumption declared on the shared archetype resolve without the caller knowing where it came from.
+assumption declared on the shared archetype resolve without the caller knowing where it came from. A
+service still waiting on one of those names answers the same shape with `"outputs": null` and a
+`"waitingFor"` naming what has not arrived.
 
 ---
 
