@@ -137,6 +137,69 @@ public class SubmissionsCommandHandlerTests
         Assert.DoesNotContain("waiting", output);
     }
 
+    // A template declares its proposed-site predicate by relating the two archetypes, so that edge is
+    // asserted through the same predicate every real submission is. Listed, it offers a reviewer a
+    // decision over the model's own declaration.
+    [Fact]
+    public async Task The_declaration_a_model_makes_of_what_a_submission_is_is_not_listed_as_one()
+    {
+        var submissionArchetype = new Guid("11111111-0000-0000-0000-00000000000a");
+        var siteArchetype = new Guid("11111111-0000-0000-0000-00000000000b");
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(new[]
+        {
+            Thing(ProposesId, "puts-forward"),
+            Thing(ResolvedAsId, "decided"),
+            Thing(IsId, "is"),
+            Thing(DispositionArchetypeId, "Verdict", isArchetype: true),
+            Thing(RejectedId, "binned"),
+            Thing(PromotedId, "taken-on"),
+            Thing(SubmissionId, "Willow Bend Submission"),
+            Thing(SiteId, "Willow Bend"),
+            Thing(submissionArchetype, "Arrival", isArchetype: true),
+            Thing(siteArchetype, "Place", isArchetype: true),
+        }));
+        _mycelium.Setup(client => client.GetAllRelationshipsAsync()).ReturnsAsync(Json(new[]
+        {
+            Edge(SubmissionId, ProposesId, SiteId),
+            Edge(RejectedId, IsId, DispositionArchetypeId),
+            Edge(PromotedId, IsId, DispositionArchetypeId),
+            Edge(submissionArchetype, ProposesId, siteArchetype),
+        }));
+
+        await Run("list");
+
+        var output = _writer.ToString();
+        Assert.Contains("willow-bend-2026-08", output);
+        Assert.DoesNotContain("Arrival", output);
+        Assert.DoesNotContain("Place", output);
+    }
+
+    // What a Thing holds for a name its archetype declares comes back keyed by that archetype, so a
+    // reader looking up the bare name finds nothing and every arrival reads as never recorded.
+    [Fact]
+    public async Task A_value_held_under_the_name_the_archetype_declares_it_by_is_read()
+    {
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [ProposesId.ToString()] = new Dictionary<string, object>
+                    { ["__IsProposedSitePredicate"] = Held(true) },
+                [SubmissionId.ToString()] = new Dictionary<string, object>
+                {
+                    ["Arrival.submissionId"] = Held("willow-bend-2026-08"),
+                    ["Arrival.submittedAt"] = Held("2026-08-22T09:30:00Z"),
+                },
+            }));
+
+        await Run("list");
+
+        var output = _writer.ToString();
+        Assert.Contains("willow-bend-2026-08", output);
+        Assert.Contains("2026-08-22T09:30:00Z", output);
+    }
+
     [Fact]
     public async Task A_model_holding_no_submissions_says_so()
     {
@@ -648,5 +711,65 @@ public class SubmissionsCommandHandlerTests
         await Run("list");
 
         Assert.Contains("No submissions in this model.", _writer.ToString());
+    }
+
+    /// <summary>Every question the listing asks about a Thing — its name, and whether it is an archetype —
+    /// is asked while walking the submissions. The Things are held by identifier so each is one step;
+    /// searching the list instead would read the whole model once per submission, and the cost of listing
+    /// a queue would then grow with the number of Things standing beside it.</summary>
+    [Fact]
+    public void The_things_are_held_by_identifier_rather_than_searched_for()
+    {
+        var byIdentifier = SubmissionsCommandHandler.ByIdentifier(Json(new[]
+        {
+            Thing(SubmissionId, "Willow Bend Submission"),
+            Thing(SiteId, "Willow Bend"),
+            Thing(DispositionArchetypeId, "Verdict", isArchetype: true),
+        }));
+
+        Assert.Equal(3, byIdentifier.Count);
+        Assert.Equal("Willow Bend", byIdentifier[SiteId].GetProperty("Name").GetString());
+    }
+
+    /// <summary>Searching the list answered with the first Thing under an identifier, so indexing does too.</summary>
+    [Fact]
+    public void A_repeated_identifier_answers_with_the_first_thing_under_it()
+    {
+        var byIdentifier = SubmissionsCommandHandler.ByIdentifier(Json(new[]
+        {
+            Thing(SiteId, "the one the search found"),
+            Thing(SiteId, "the one behind it"),
+        }));
+
+        Assert.Equal("the one the search found", byIdentifier[SiteId].GetProperty("Name").GetString());
+    }
+
+    /// <summary>A model is mostly Things a reviewer never sees. The listing has to name its submissions and
+    /// leave out the declaration whatever else the model holds around them.</summary>
+    [Fact]
+    public async Task A_model_full_of_unrelated_things_still_lists_what_a_reviewer_waits_on()
+    {
+        AModelWithOneSubmission();
+        var things = new List<object>
+        {
+            Thing(ProposesId, "puts-forward"),
+            Thing(ResolvedAsId, "decided"),
+            Thing(IsId, "is"),
+            Thing(DispositionArchetypeId, "Verdict", isArchetype: true),
+            Thing(RejectedId, "binned"),
+            Thing(PromotedId, "taken-on"),
+            Thing(SubmissionId, "Willow Bend Submission"),
+            Thing(SiteId, "Willow Bend"),
+        };
+        for (var other = 0; other < 500; other++)
+            things.Add(Thing(Guid.NewGuid(), $"a building nobody is reviewing {other}"));
+
+        _mycelium.Setup(client => client.GetAllThingsAsync()).ReturnsAsync(Json(things));
+
+        await Run("list");
+
+        var output = _writer.ToString();
+        Assert.Contains("willow-bend-2026-08", output);
+        Assert.DoesNotContain("a building nobody is reviewing", output);
     }
 }

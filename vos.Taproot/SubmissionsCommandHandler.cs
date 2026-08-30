@@ -278,13 +278,29 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
 
     /// <summary>Everything the commands read, taken once. Properties are read effective rather than own:
     /// seed normalization moves a Thing's own values into its overrides, and a reader looking only at own
-    /// properties finds a model full of Things and reads nothing off them.</summary>
-    private sealed record ModelSnapshot(JsonElement Things, JsonElement Relationships, JsonElement Properties);
+    /// properties finds a model full of Things and reads nothing off them.
+    ///
+    /// <para>Things arrive as a list and are held by identifier, because every question asked of one here
+    /// is asked while walking the submissions. Searching the list for each would read the whole model once
+    /// per submission, so the cost of listing a queue would grow with the size of the model around it.</para>
+    /// </summary>
+    private sealed record ModelSnapshot(
+        IReadOnlyDictionary<Guid, JsonElement> ThingsById, JsonElement Relationships, JsonElement Properties);
 
     private async Task<ModelSnapshot> ReadModelAsync() => new(
-        await client!.GetAllThingsAsync(),
+        ByIdentifier(await client!.GetAllThingsAsync()),
         await client.GetAllRelationshipsAsync(),
         await client.GetAllPropertiesAsync("effective"));
+
+    /// <summary>The first Thing under each identifier, which is what searching the list found before.</summary>
+    internal static IReadOnlyDictionary<Guid, JsonElement> ByIdentifier(JsonElement things)
+    {
+        var byIdentifier = new Dictionary<Guid, JsonElement>();
+        foreach (var thing in things.EnumerateArray())
+            byIdentifier.TryAdd(Identifier(thing, "Id"), thing);
+
+        return byIdentifier;
+    }
 
     private static IEnumerable<Submission> SubmissionsIn(ModelSnapshot model)
     {
@@ -292,10 +308,13 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
             yield break;
 
         // One submission per edge: a submission is only a submission because it proposes a site, so the
-        // walk that finds it is also the walk that says which site travels when it is promoted.
+        // walk that finds it is also the walk that says which site travels when it is promoted. A model
+        // declares that predicate by relating its own archetypes, and that edge is asserted through the
+        // same predicate — listed, it offers a reviewer a decision over the declaration itself.
         foreach (var edge in EdgesThrough(model, proposes.Id))
         {
             var id = Subject(edge);
+            if (IsArchetype(model, id)) continue;
             yield return new Submission(
                 id,
                 NameOf(model, id) ?? id.ToString(),
@@ -364,16 +383,30 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
         element.TryGetProperty(name, out var value) && value.TryGetGuid(out var id) ? id : Guid.Empty;
 
     private static string? NameOf(ModelSnapshot model, Guid id) =>
-        model.Things.EnumerateArray()
-            .Where(thing => Identifier(thing, "Id") == id)
-            .Select(thing => thing.TryGetProperty("Name", out var name) ? name.GetString() : null)
-            .FirstOrDefault();
+        model.ThingsById.TryGetValue(id, out var thing) && thing.TryGetProperty("Name", out var name)
+            ? name.GetString()
+            : null;
 
-    /// <summary>A property as text, whatever it is written as, because everything here is displayed.</summary>
+    private static bool IsArchetype(ModelSnapshot model, Guid id) =>
+        model.ThingsById.TryGetValue(id, out var thing)
+        && thing.TryGetProperty("IsArchetype", out var archetype)
+        && archetype.ValueKind == JsonValueKind.True;
+
+    /// <summary>A property as text, whatever it is written as, because everything here is displayed.
+    ///
+    /// A Thing's own value is keyed by the bare name, but a value it holds for a name its archetype
+    /// declares comes back keyed by that archetype — <c>Submission.submittedAt</c> rather than
+    /// <c>submittedAt</c>. Both are the same property to a reader, so the name is matched after its
+    /// declaring prefix.</summary>
     private static string? Value(ModelSnapshot model, Guid thing, string property)
     {
         if (!model.Properties.TryGetProperty(thing.ToString(), out var properties)) return null;
-        if (!properties.TryGetProperty(property, out var held)) return null;
+
+        var match = properties.EnumerateObject()
+            .Where(held => held.Name.Split('.')[^1] == property)
+            .Select(held => (JsonElement?)held.Value)
+            .FirstOrDefault();
+        if (match is not { } held) return null;
 
         var value = held.TryGetProperty("Value", out var inner) ? inner : held;
         return value.ValueKind switch
