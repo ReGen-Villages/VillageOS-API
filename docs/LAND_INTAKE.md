@@ -588,6 +588,14 @@ volume the formula reads it into stays unknown rather than falling to nought, an
 assessed" range holds. A balance computed against a silently substituted number is worse than no answer,
 because it looks like an answer.
 
+**An input the study does not carry yet is waited for, not failed (#6826).** A submission describes land,
+a boundary and programme shares, so a reservoir capacity and a panel area are absent until a building
+model exists — and the footprints the three balances read are written later by land allocation. A service
+that finds one of its inputs missing writes nothing, names it in its own log, and answers what it is
+waiting for; the watch it registered on the study is what brings it back when the figure arrives. It used
+to throw, which had the broker record the dispatch failed and drive it again on every reconciliation for
+as long as the model lived.
+
 ### What a service call looks like
 
 A dispatched relationship names the study; the service answers with what it computed:
@@ -604,7 +612,9 @@ A dispatched relationship names the study; the service answers with what it comp
 ```
 
 The inputs are not in the body. The service reads them off the study by name, which is what lets an
-assumption declared on the shared archetype resolve without the caller knowing where it came from.
+assumption declared on the shared archetype resolve without the caller knowing where it came from. A
+service still waiting on one of those names answers the same shape with `"outputs": null` and a
+`"waitingFor"` naming what has not arrived.
 
 ---
 

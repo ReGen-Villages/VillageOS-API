@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.RainwaterHarvest.Services;
 using vos.Service.Shared;
@@ -91,8 +92,10 @@ public class RainwaterHarvestReactiveHandlerTests
     }
 
     private static RainwaterHarvestReactiveHandler NewHandler(
-        RecordingHttpMessageHandler http, SnapshotDocument? vocabulary = null) =>
-        new(new TestHttpClientFactory(new HttpClient(http)), NullLogger<RainwaterHarvestReactiveHandler>.Instance,
+        RecordingHttpMessageHandler http, SnapshotDocument? vocabulary = null,
+        ILogger<RainwaterHarvestReactiveHandler>? logger = null) =>
+        new(new TestHttpClientFactory(new HttpClient(http)),
+            logger ?? NullLogger<RainwaterHarvestReactiveHandler>.Instance,
             "http://mycelium", serviceToken: "test-token",
             new StubSubscriptions(vocabulary ?? TheShippedVocabulary));
 
@@ -116,9 +119,9 @@ public class RainwaterHarvestReactiveHandlerTests
     {
         var http = Serving(WillowBend);
 
-        var outputs = await NewHandler(http).RecomputeAsync(Study);
+        var answer = await NewHandler(http).RecomputeAsync(Study);
 
-        outputs.HarvestM3PerYear.Should().BeApproximately(49728, 1e-6);
+        answer.Outputs!.HarvestM3PerYear.Should().BeApproximately(49728, 1e-6);
         foreach (var output in new[]
                  {
                      RainwaterHarvestReactiveHandler.TotalWaterDemandOutput,
@@ -192,15 +195,18 @@ public class RainwaterHarvestReactiveHandlerTests
               "irrigationDemandM3PerHectarePerYear": { "Value": "5000" } }
             """);
 
-        var outputs = await TestCulture.InAsync(
+        var answer = await TestCulture.InAsync(
             TestCulture.CommaDecimal, () => NewHandler(http).RecomputeAsync(Study));
 
-        outputs.HarvestM3PerYear.Should().BeApproximately(49728, 1e-6);
-        outputs.PctOfWaterDemand.Should().BeApproximately(85.150684931, 1e-9);
+        answer.Outputs!.HarvestM3PerYear.Should().BeApproximately(49728, 1e-6);
+        answer.Outputs.PctOfWaterDemand.Should().BeApproximately(85.150684931, 1e-9);
     }
 
+    // Bug 6826: rainfall arrives from open-data discovery after the analysis is dispatched, so a study
+    // carries none at first. Throwing on it had the broker record the dispatch failed and re-drive it on
+    // every reconciliation for as long as the model lived.
     [Fact]
-    public async Task An_input_the_study_does_not_carry_is_refused_by_name()
+    public async Task An_input_the_study_does_not_carry_is_waited_for_by_name()
     {
         var http = Serving("""
             { "builtFootprintHectares": { "Value": 8.88 }, "runoffCoefficient": { "Value": 0.8 },
@@ -208,17 +214,21 @@ public class RainwaterHarvestReactiveHandlerTests
               "productiveFootprintHectares": { "Value": 8.16 },
               "irrigationDemandM3PerHectarePerYear": { "Value": 5000 } }
             """);
+        var logger = new CapturingLogger<RainwaterHarvestReactiveHandler>();
 
-        var refusal = await Assert.ThrowsAsync<KeyNotFoundException>(() => NewHandler(http).RecomputeAsync(Study));
+        var answer = await NewHandler(http, logger: logger).RecomputeAsync(Study);
 
-        refusal.Message.Should().Contain("rainfallMillimetresPerYear").And.Contain("RainwaterHarvest");
+        answer.Outputs.Should().BeNull();
+        answer.WaitingFor.Should().Equal("rainfallMillimetresPerYear");
+        logger.Lines.Should().Contain(line =>
+            line.Contains("RainwaterHarvest") && line.Contains("rainfallMillimetresPerYear"));
         http.Requests.Should().NotContain(request => request.Method == HttpMethod.Post);
     }
 
-    // A demand the model sizes by a property no study carries is the same failure, and the name that
-    // reaches the message is the model's rather than one compiled here.
+    // A demand the model sizes by a property no study carries is waited for the same way, and the name
+    // that reaches the answer is the model's rather than one compiled here.
     [Fact]
-    public async Task A_demand_sized_by_a_property_the_study_does_not_carry_is_refused_by_that_name()
+    public async Task A_demand_sized_by_a_property_the_study_does_not_carry_is_waited_for_by_that_name()
     {
         var http = Serving(WillowBend);
         var vocabulary = new SnapshotDocument(0,
@@ -228,10 +238,11 @@ public class RainwaterHarvestReactiveHandlerTests
                     "domesticDemandM3PerYear", "pctOfDomesticDemand", "domesticShortfallM3PerYear"),
             ], []);
 
-        var refusal = await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => NewHandler(http, vocabulary).RecomputeAsync(Study));
+        var answer = await NewHandler(http, vocabulary).RecomputeAsync(Study);
 
-        refusal.Message.Should().Contain("residentsOnSite");
+        answer.Outputs.Should().BeNull();
+        answer.WaitingFor.Should().Equal("residentsOnSite");
+        http.Requests.Should().NotContain(request => request.Method == HttpMethod.Post);
     }
 
     [Fact]
@@ -342,9 +353,9 @@ public class RainwaterHarvestReactiveHandlerTests
         var http = Serving(WillowBend);
         var subscriptions = new StubSubscriptions(TheShippedVocabulary) { FailRelease = true };
 
-        var outputs = await NewHandler(http, subscriptions).RecomputeAsync(Study);
+        var answer = await NewHandler(http, subscriptions).RecomputeAsync(Study);
 
-        outputs.HarvestM3PerYear.Should().BeApproximately(49728, 1e-6);
+        answer.Outputs!.HarvestM3PerYear.Should().BeApproximately(49728, 1e-6);
         http.Requests.Should().Contain(request => request.Method == HttpMethod.Post);
     }
 

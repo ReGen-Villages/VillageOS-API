@@ -34,17 +34,26 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
     // rather than restated, so the filter cannot come to disagree with what Compute reads.
     public static readonly IReadOnlySet<string> InputProperties = new HashSet<string>(Inputs, StringComparer.Ordinal);
 
-    public async Task<EnergyBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
+    public async Task<RecomputeAnswer<EnergyBalanceOutputs>> RecomputeAsync(
+        Guid studyId, CancellationToken cancellationToken = default)
     {
         var properties = new StudyProperties(
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "EnergyBalance");
 
         var inputs = await properties.ReadAsync(studyId, cancellationToken);
+        if (inputs.WaitingFor(Inputs) is { Count: > 0 } waitingFor)
+        {
+            Logger.LogInformation(
+                "EnergyBalance: the study {StudyId} carries no {Inputs}, so no verdict is written",
+                studyId, string.Join(", ", waitingFor));
+            return new(null, waitingFor);
+        }
+
         var result = EnergyBalanceCalculator.Compute(new EnergyBalanceInputs(
             inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2]),
             inputs.Number(Inputs[3]), inputs.Number(Inputs[4]), inputs.Number(Inputs[5])));
 
         await properties.WriteAsync(studyId, "netPositive", result.NetPositive, cancellationToken);
-        return result;
+        return new(result, []);
     }
 }

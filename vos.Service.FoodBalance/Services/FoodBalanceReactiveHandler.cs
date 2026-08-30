@@ -30,13 +30,22 @@ public sealed class FoodBalanceReactiveHandler : MyceliumClientBase
     // rather than restated, so the filter cannot come to disagree with what Compute reads.
     public static readonly IReadOnlySet<string> InputProperties = new HashSet<string>(Inputs, StringComparer.Ordinal);
 
-    public async Task<FoodBalanceOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
+    public async Task<RecomputeAnswer<FoodBalanceOutputs>> RecomputeAsync(
+        Guid studyId, CancellationToken cancellationToken = default)
     {
         var properties = new StudyProperties(
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "FoodBalance");
 
         var inputs = await properties.ReadAsync(studyId, cancellationToken);
-        return FoodBalanceCalculator.Compute(new FoodBalanceInputs(
-            inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2])));
+        if (inputs.WaitingFor(Inputs) is { Count: > 0 } waitingFor)
+        {
+            Logger.LogInformation(
+                "FoodBalance: the study {StudyId} carries no {Inputs}, so no balance is worked out",
+                studyId, string.Join(", ", waitingFor));
+            return new(null, waitingFor);
+        }
+
+        return new(FoodBalanceCalculator.Compute(new FoodBalanceInputs(
+            inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2]))), []);
     }
 }

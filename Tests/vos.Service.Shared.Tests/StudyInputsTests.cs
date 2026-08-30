@@ -77,4 +77,48 @@ public class StudyInputsTests
 
         act.Should().Throw<InvalidOperationException>().WithMessage("*no value*");
     }
+
+    // Bug 6826: an input a study does not carry is a figure that has not arrived rather than a fault, so a
+    // handler asks what it is waiting for before it reads a single value.
+    [Fact]
+    public void A_name_the_study_does_not_carry_is_one_it_is_waiting_for()
+    {
+        var inputs = Reading("""{ "SiteStudy.population": { "Value": 300 } }""");
+
+        inputs.WaitingFor(["population", "storageCapacityM3"]).Should().Equal("storageCapacityM3");
+    }
+
+    // A roll-up whose member type names no Thing the model holds withholds its number, which says the same
+    // about the study as carrying no such property at all.
+    [Fact]
+    public void A_name_whose_number_is_withheld_is_waited_for_as_well()
+    {
+        var inputs = Reading("""{ "SiteStudy.solarPvAreaM2": { "Value": null } }""");
+
+        inputs.WaitingFor(["solarPvAreaM2"]).Should().Equal("solarPvAreaM2");
+    }
+
+    [Fact]
+    public void Nothing_is_waited_for_when_every_name_is_carried_own_or_inherited()
+    {
+        var inputs = Reading("""
+            { "population": { "Value": 300 }, "SiteStudy.perCapitaConsumptionM3": { "Value": 55 } }
+            """);
+
+        inputs.WaitingFor(["population", "perCapitaConsumptionM3"]).Should().BeEmpty();
+    }
+
+    // Two archetypes declaring one leaf name is a model to fix, whichever question is asked of it.
+    [Fact]
+    public void A_name_two_archetypes_declare_is_refused_rather_than_waited_for()
+    {
+        var inputs = Reading("""
+            { "SiteStudy.population": { "Value": 300 }, "Settlement.population": { "Value": 900 } }
+            """);
+
+        var act = () => inputs.WaitingFor(["population"]);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*SiteStudy.population*Settlement.population*");
+    }
 }

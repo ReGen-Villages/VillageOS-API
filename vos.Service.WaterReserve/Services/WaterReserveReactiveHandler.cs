@@ -26,13 +26,22 @@ public sealed class WaterReserveReactiveHandler : MyceliumClientBase
     // rather than restated, so the filter cannot come to disagree with what Compute reads.
     public static readonly IReadOnlySet<string> InputProperties = new HashSet<string>(Inputs, StringComparer.Ordinal);
 
-    public async Task<WaterReserveOutputs> RecomputeAsync(Guid studyId, CancellationToken cancellationToken = default)
+    public async Task<RecomputeAnswer<WaterReserveOutputs>> RecomputeAsync(
+        Guid studyId, CancellationToken cancellationToken = default)
     {
         var properties = new StudyProperties(
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "WaterReserve");
 
         var inputs = await properties.ReadAsync(studyId, cancellationToken);
-        return WaterReserveCalculator.Compute(new WaterReserveInputs(
-            inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2])));
+        if (inputs.WaitingFor(Inputs) is { Count: > 0 } waitingFor)
+        {
+            Logger.LogInformation(
+                "WaterReserve: the study {StudyId} carries no {Inputs}, so no reserve is worked out",
+                studyId, string.Join(", ", waitingFor));
+            return new(null, waitingFor);
+        }
+
+        return new(WaterReserveCalculator.Compute(new WaterReserveInputs(
+            inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2]))), []);
     }
 }
