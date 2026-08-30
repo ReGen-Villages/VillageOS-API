@@ -146,11 +146,23 @@ function decisions(reading: ModelReading, names: Map<string, string>): Map<strin
  *
  *  A Thing's own value is keyed by the bare name, but a value it holds for a name its archetype
  *  declares comes back keyed by that archetype — `Submission.submittedAt` rather than `submittedAt`.
- *  Both are the same property to a reader, so the name is matched after its declaring prefix. */
+ *  Both are the same property to a reader, so the name is matched after its declaring prefix.
+ *
+ *  A Thing cannot own a name and inherit the same one, so at most one key matches — except where the
+ *  name is inherited from more than one archetype. The model answers a bare read of that with an
+ *  ambiguity and asks for the full path; this page has no path to give, so it says which paths it
+ *  found rather than showing a reviewer a value the model itself declines to choose. */
 function valueOf(reading: ModelReading, thingId: string, property: string): string | undefined {
   const held = reading.properties[thingId] ?? {};
-  const key = Object.keys(held).find((name) => name.split('.').pop() === property);
-  const value = key === undefined ? undefined : held[key]?.Value;
+  const keys = Object.keys(held).filter((name) => name.split('.').pop() === property);
+  if (keys.length > 1) {
+    throw new Error(
+      `'${property}' is inherited from more than one archetype on ${thingId}, so reading it by that ` +
+        `name alone says nothing: ${keys.join(', ')}. Read it by its full path.`,
+    );
+  }
+
+  const value = keys.length === 0 ? undefined : held[keys[0]]?.Value;
   if (value === undefined || value === null) return undefined;
   return typeof value === 'string' ? value : String(value);
 }
