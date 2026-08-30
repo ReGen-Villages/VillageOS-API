@@ -1963,26 +1963,29 @@ the KPI showing the area it encloses is where a reader needs it.
 ```jsonc
 {
   "type": "kpi",
-  "title": "Rainfall",
-  "format": "integer",
-  "unit": "mm/year",
-  "value": { "kind": "property", "thing": "$scope", "property": "rainfallMillimetresPerYear" },
+  "title": "Drawn area",
+  "format": "decimal1",
+  "unit": "hectares",
+  "value": {
+    "kind": "related",
+    "via": [{ "predicate": "has", "archetype": "Parcel" }],
+    "property": "measuredAreaHectares"
+  },
   "origin": {
     "kind": "origin",
-    "property": "rainfallMillimetresPerYear",
+    "property": "measuredAreaHectares",
+    "via": [{ "predicate": "has", "archetype": "Parcel" }],
     "reads": {
-      "stated": "as submitted",
-      "measured": "resolved {resolvedAt} from {source}",
+      "stated": "from a boundary {source}",
       "assumed": "assumed by the platform, from {source}",
-      "unknown": "no origin recorded for this figure"
+      "unknown": "no origin recorded"
     },
-    "source": {
-      "via": [{ "predicate": "has", "archetype": "DataSource" }],
-      "resolvedAt": "lastResolvedAt"
-    }
+    "source": { "via": [{ "predicate": "obtainedBy" }] }
   }
 }
 ```
+
+This is the submitted-site page's own binding, and it is the shape to copy.
 
 Every word is the model's. Trellis substitutes `{source}` and `{resolvedAt}`,
 and draws each origin in its own tone so a stated figure and a fetched one are
@@ -1997,6 +2000,23 @@ names and one whose it does not. **Write the wording so it still reads without
 either** — `resolved {resolvedAt} from {source}` reads whichever of the two the
 model holds, while `from {source}, resolved {resolvedAt}` leaves a comma and a
 verb hanging.
+
+**Word only the origins the declaration can produce.** The example above words no
+`measured` reading, because `measuredAreaHectares` takes asserted writes only and
+its origin is therefore always `stated`. A wording for an origin the model cannot
+report is text the page never draws, and the next author reads it as a case that
+happens.
+
+**Where the model records provenance per source rather than per property, name no
+source at all.** A discovery run writes its readings onto the site and records what
+it fetched on a `SourceCoverage`, one Thing per site and source — so nothing joins
+one figure to the one source behind it, and a `source` walk from the site reaches
+every source that answered. A wording that names a source the walk cannot single
+out draws the sentence with the name cut out of it, "resolved from" and nothing
+after, which reads as a source nobody recorded. The submitted-site page therefore
+words its fetched figures without `{source}` and lists the coverages in a table
+beside them: the source, what it covers, when it answered, and the reason where it
+did not (platform Bug 6856).
 
 **Cost.** No request. Every answer is already in the loaded model: the
 declaration travels with the value, and the source is an edge the page has
