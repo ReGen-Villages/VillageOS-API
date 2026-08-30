@@ -78,6 +78,12 @@ batch, `/handle` is called only after the whole fragment is applied — every Th
 property value in the batch is readable, and roll-ups are recomputed. A handler never observes a
 half-applied fragment. Multiple handled edges in one fragment are dispatched in creation order.
 
+**Delivery is at-least-once.** Mycelium sends a relation again when it cannot confirm the handler
+finished, and a handler that reconnects after a break is sent what it missed. `relationshipId` is the
+same on every delivery of one relation, so a handler in any language recognises a repeat by that key,
+does the work once, and answers 2xx to the repeat. C# handlers have a shared helper for this — see
+[Authoring a service](SERVICE_AUTHORING.md).
+
 ## Registration
 
 - `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`
