@@ -770,8 +770,7 @@ When adding a service, add its `Program.cs` to the comma-separated
    it counted and extract the handling instead.
 7. Add a row for the service to the microservice table in `README.md`. That table
    is the first list of what this repository runs that anyone reads, and
-   `Tests/vos.ContinuousIntegration.Tests/` fails when a service on disk has no
-   row. A project that is not a service anyone runs is named in
+   `Tests/vos.ContinuousIntegration.Tests/` fails when a service has no row. A project that is not a service anyone runs is named in
    `ReadmeListsEveryServiceTests.ListedElsewhere` with the reason instead.
 
 Only add a `Configuration/` folder if the service has settings beyond the

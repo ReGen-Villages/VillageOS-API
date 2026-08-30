@@ -66,13 +66,6 @@ public class ServiceProjectsTests : IDisposable
         Assert.Empty(ServiceProjects.NamesUnder(_root));
     }
 
-    private void GivenFile(string relativePath, string contents)
-    {
-        var path = Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar));
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, contents);
-    }
-
     // Every guard over the services rests on this, so a rule that quietly matched nothing would let
     // all of them pass while examining an empty set.
     [Fact]
@@ -82,5 +75,12 @@ public class ServiceProjectsTests : IDisposable
 
         Assert.NotEmpty(services);
         Assert.Contains("vos.Service.Shared", services);
+    }
+
+    private void GivenFile(string relativePath, string contents)
+    {
+        var path = Path.Combine(_root, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, contents);
     }
 }
