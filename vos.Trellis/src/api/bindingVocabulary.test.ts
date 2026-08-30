@@ -30,6 +30,12 @@ describe('what a widget asks for that this build cannot answer', () => {
     expect(words).toEqual(['runningTotal']);
   });
 
+  // There is no word to name, and how to say so belongs to the sentence the reader is shown, which
+  // is translated. Naming it here would put an English literal inside every other language.
+  it('reports no word at all for a binding naming no kind', () => {
+    expect(unimplementedWordsIn(tileShowing({ property: 'volume' }))).toEqual(['']);
+  });
+
   it('names a field the kind it belongs to does not read', () => {
     expect(unimplementedWordsIn(tileShowing({
       kind: 'timeseries', archetype: 'Reading', happenedAt: 'recordedAt', op: 'sum',

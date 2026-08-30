@@ -61,13 +61,13 @@ export function WidgetRenderer({
  *  what it left out, rather than leaving a silent hole an author cannot account for. */
 function UnknownWidget({ reason }: { reason: { unknownType: unknown } | { unanswered: string[] } }) {
   const { t } = useTranslation();
+  // A spec can leave the word out as easily as misspell it, and either way the reader is owed a
+  // sentence in their own language rather than a gap where the word would be.
+  const named = (word: unknown) =>
+    typeof word === 'string' && word !== '' ? word : t('widgets.unknown.noKind');
   const body = 'unanswered' in reason
-    ? t('widgets.unknown.unanswerable', { words: reason.unanswered.join(', ') })
-    : t('widgets.unknown.body', {
-        kind: typeof reason.unknownType === 'string' && reason.unknownType !== ''
-          ? reason.unknownType
-          : t('widgets.unknown.noKind'),
-      });
+    ? t('widgets.unknown.unanswerable', { words: reason.unanswered.map(named).join(', ') })
+    : t('widgets.unknown.body', { kind: named(reason.unknownType) });
   return (
     <WidgetCard title={t('widgets.unknown.title')}>
       <p className="mt-2 text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400">{body}</p>

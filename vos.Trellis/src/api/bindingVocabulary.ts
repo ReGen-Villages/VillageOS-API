@@ -23,9 +23,9 @@ import { bindingsOf } from './dashboardSubscription';
  * And each entry may only name real fields of its own kind, so a misspelling, or a field copied
  * from the entry above, is refused rather than becoming a word that is never matched.
  *
- * `Exclude` keeps the discriminant out: it is on every binding, so naming it in every entry would
- * be the same word fifteen times. {@link unimplementedWordsIn} puts it back when it judges a real
- * binding, which carries it.
+ * `Exclude` keeps the discriminant out: it is on every binding, so naming it would be the same word
+ * repeated once per entry. {@link unimplementedWordsIn} puts it back when it judges a real binding,
+ * which carries it.
  *
  * Note this is enforced by `npm run build` and not by the tests, which transpile types away.
  */
@@ -61,12 +61,16 @@ const READS: ReadonlyMap<string, ReadonlySet<string>> = new Map(
 /** What one binding asks for that this build cannot answer: its kind, when the vocabulary has no
  *  such word, or each field the kind does not read. A binding of an unknown kind is reported by its
  *  kind alone — there is no entry to judge its fields against, and listing them all would bury the
- *  one word that explains the rest. */
+ *  one word that explains the rest.
+ *
+ *  A binding naming no kind at all reports the empty string: there is no word to name, and saying
+ *  so is the caller's to word, not this module's — every string here reaches a reader through a
+ *  translated sentence. */
 function unansweredBy(binding: Binding): string[] {
   const kind = (binding as { kind?: unknown }).kind;
-  const read = typeof kind === 'string' ? READS.get(kind) : undefined;
-  if (!read) return [typeof kind === 'string' && kind !== '' ? kind : '(no kind)'];
-  return Object.keys(binding).filter((field) => !read.has(field));
+  if (typeof kind !== 'string') return [''];
+  const read = READS.get(kind);
+  return read ? Object.keys(binding).filter((field) => !read.has(field)) : [kind];
 }
 
 /**

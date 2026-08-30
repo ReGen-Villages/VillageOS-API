@@ -64,6 +64,14 @@ describe('a widget asking for binding vocabulary this build cannot answer', () =
     expect(screen.queryByText('Throughput')).toBeNull();
   });
 
+  // A spec can leave the word out as easily as misspell it, and the notice is a translated sentence
+  // either way — so the gap where the word would be is filled in the reader's own language.
+  it('says the kind was not given where the spec names none', () => {
+    draw({ type: 'kpi', title: 'Throughput', value: { property: 'volume' } });
+
+    expect(screen.getByText(/none given/)).toBeInTheDocument();
+  });
+
   it('draws a widget whose every binding it can answer', () => {
     draw({
       type: 'kpi', title: 'Throughput',
