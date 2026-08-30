@@ -786,6 +786,11 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     case 'timeseries':
       return resolveTimeseries(binding, ctx);
 
+    case 'latest': {
+      const points = await seriesPoints(binding.series, ctx);
+      return points?.length ? points[points.length - 1] : null;
+    }
+
     case 'service': {
       try {
         const resp = await ctx.reads.fromService(binding.endpoint, withScope(binding.body ?? {}, ctx.scopeId));
@@ -803,21 +808,43 @@ const REDUCTIONS: Record<Extract<Binding, { kind: 'timeseries' }>['op'], Tempora
   count: 'Count', sum: 'Sum', avg: 'Average', min: 'Min', max: 'Max',
 };
 
-/** The platform's bucketed reduction, asked for at the granularity the widget wants. One bucket is
- *  the trailing-window figure a tile shows; more than one is the trace. A question the platform
- *  refuses resolves to nothing rather than to an empty series, which on a chart reads as "nothing
- *  happened". */
-async function resolveTimeseries(
+/** How the buckets of one point combine into it. A sum of sums is a sum, counts add, and the least
+ *  of the least is the least. An average is missing on purpose: it is not the average of its parts
+ *  unless every part holds the same number of members, which nothing here knows. */
+const FOLDS: Partial<
+  Record<Extract<Binding, { kind: 'timeseries' }>['op'], (buckets: number[]) => number>
+> = {
+  count: (buckets) => buckets.reduce((total, bucket) => total + bucket, 0),
+  sum: (buckets) => buckets.reduce((total, bucket) => total + bucket, 0),
+  min: (buckets) => Math.min(...buckets),
+  max: (buckets) => Math.max(...buckets),
+};
+
+/** The platform's bucketed reduction, folded into the points the widget draws. The platform reduces
+ *  into buckets that do not overlap; points here do, because each covers `bucketsPerPoint` buckets
+ *  and steps one bucket on. A question the platform refuses resolves to nothing rather than to an
+ *  empty series, which on a chart reads as "nothing happened". */
+async function seriesPoints(
   binding: Extract<Binding, { kind: 'timeseries' }>,
   ctx: ResolveContext,
-): Promise<number[] | number | null> {
-  // The one refusal worth saying out loud: every other binding resolving to nothing is a value the
-  // model has not got, while this is a question the spec cannot ask, and an author has no other sign
-  // of it.
+): Promise<number[] | null> {
+  // The refusals worth saying out loud: every other binding resolving to nothing is a value the
+  // model has not got, while these are questions the spec cannot ask, and an author has no other
+  // sign of them.
   if (binding.scope?.direction === 'in') {
     console.warn(
       `timeseries over ${binding.archetype}: the platform narrows to what a container reaches, so a ` +
         'scope reaching the other way cannot be asked for.',
+    );
+    return null;
+  }
+  const bucketsPerPoint = binding.bucketsPerPoint ?? 1;
+  // A point of one bucket is that bucket, whatever the reduction — an average included.
+  const fold = bucketsPerPoint === 1 ? (buckets: number[]) => buckets[0] : FOLDS[binding.op];
+  if (!fold) {
+    console.warn(
+      `timeseries over ${binding.archetype}: an ${binding.op} of several buckets is not the ` +
+        `${binding.op} of their values, so a point cannot be folded up from them.`,
     );
     return null;
   }
@@ -829,16 +856,32 @@ async function resolveTimeseries(
       // A count reduces the members themselves, so naming a measure would ask for a value the
       // question is not about.
       measureProperty: binding.op === 'count' ? undefined : binding.property,
-      windowSeconds: binding.bucketSeconds * binding.buckets,
+      // The oldest point covers buckets that start before it does, so the window runs back further
+      // than the points do.
+      windowSeconds: binding.bucketSeconds * (binding.buckets + bucketsPerPoint - 1),
       bucketSeconds: binding.bucketSeconds,
       ...containerFor(binding.scope, ctx),
     });
     const buckets = answer?.Buckets ?? [];
-    if (binding.buckets > 1) return buckets;
-    return buckets.length ? buckets[0] : null;
+    const points: number[] = [];
+    for (let oldest = 0; oldest + bucketsPerPoint <= buckets.length; oldest++)
+      points.push(fold(buckets.slice(oldest, oldest + bucketsPerPoint)));
+    return points;
   } catch {
     return null;
   }
+}
+
+/** One bucket is a scalar: a window as wide as its bucket is the trailing-window figure a tile
+ *  shows, so a tile and the trace above it are one question asked at two granularities. */
+async function resolveTimeseries(
+  binding: Extract<Binding, { kind: 'timeseries' }>,
+  ctx: ResolveContext,
+): Promise<number[] | number | null> {
+  const points = await seriesPoints(binding, ctx);
+  if (points === null) return null;
+  if (binding.buckets > 1) return points;
+  return points.length ? points[0] : null;
 }
 
 // ---- coercion helpers for widgets --------------------------------------

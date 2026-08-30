@@ -2124,3 +2124,128 @@ describe('origin binding', () => {
     expect(await resolveBinding(origin('latitude'), { ...siteContext(), scopeId: null })).toEqual([]);
   });
 });
+
+// A point covering several buckets, and the tile that reads the newest one (Bug #6866). The platform
+// reduces onto a fixed grid; a spec that wants an hourly figure plotted every quarter hour asks for
+// quarter-hour buckets and says how many of them each point covers.
+describe('a series whose points cover several buckets', () => {
+  const QUARTER_HOUR = 900;
+
+  function seriesCtx(): ResolveContext {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'arch-building', Name: 'Building', Properties: {} },
+    ];
+    return { idx: buildModelIndex(declared(things, []), []), scopeId: null, reads: brokerModelReads() };
+  }
+
+  const trace: Binding = {
+    kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
+    op: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 3, bucketsPerPoint: 2,
+  };
+
+  function answers(buckets: number[]) {
+    vi.mocked(temporalApi.aggregate).mockResolvedValue({
+      Buckets: buckets, FirstBucketStart: '2026-08-23T00:00:00Z',
+      BucketSeconds: QUARTER_HOUR, UnusableMembers: 0,
+    });
+  }
+
+  beforeEach(() => { vi.clearAllMocks(); answers([1, 2, 3, 4]); });
+
+  // The oldest point covers buckets that start before the first point does, so the window runs back
+  // further than the points do. Asking only for the points would draw the oldest one short.
+  it('asks for the buckets before the oldest point that the oldest point covers', async () => {
+    await resolveBinding(trace, seriesCtx());
+    expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({
+      windowSeconds: QUARTER_HOUR * 4, bucketSeconds: QUARTER_HOUR,
+    }));
+  });
+
+  // Points overlap: each covers `bucketsPerPoint` buckets and steps one bucket on.
+  it('adds each point up from the buckets it covers', async () => {
+    expect(await resolveBinding(trace, seriesCtx())).toEqual([3, 5, 7]);
+  });
+
+  it('takes the least of the buckets a point covers when the reduction is a minimum', async () => {
+    expect(await resolveBinding({ ...trace, op: 'min' } as Binding, seriesCtx())).toEqual([1, 2, 3]);
+  });
+
+  it('counts the same way it sums, because counts add', async () => {
+    expect(await resolveBinding({ ...trace, op: 'count' } as Binding, seriesCtx())).toEqual([3, 5, 7]);
+  });
+
+  // The average of the buckets is not the average of what went into them unless every bucket holds
+  // the same number of members, which nothing here knows.
+  it('refuses an average spread over several buckets rather than approximating it', async () => {
+    const value = await resolveBinding({ ...trace, op: 'avg' } as Binding, seriesCtx());
+    expect(value).toBeNull();
+    expect(temporalApi.aggregate).not.toHaveBeenCalled();
+  });
+
+  // A point of one bucket is that bucket, whatever the reduction — an average included.
+  it('averages a point covering one bucket, which is that bucket', async () => {
+    answers([5, 6, 7]);
+    const value = await resolveBinding(
+      { ...trace, op: 'avg', buckets: 3, bucketsPerPoint: 1 } as Binding, seriesCtx());
+    expect(value).toEqual([5, 6, 7]);
+  });
+
+  it('draws the same series as before when a point covers no more than one bucket', async () => {
+    answers([5, 6, 7]);
+    expect(await resolveBinding({ ...trace, bucketsPerPoint: undefined } as Binding, seriesCtx()))
+      .toEqual([5, 6, 7]);
+  });
+});
+
+// The tile above a line reads the line's newest point, so the two ask the platform one question and
+// the figure cannot drift from the shape beneath it (Bug #6866).
+describe('the newest point of a series', () => {
+  const QUARTER_HOUR = 900;
+
+  function seriesCtx(): ResolveContext {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'arch-building', Name: 'Building', Properties: {} },
+    ];
+    return { idx: buildModelIndex(declared(things, []), []), scopeId: null, reads: brokerModelReads() };
+  }
+
+  const series = {
+    kind: 'timeseries', archetype: 'Building', happenedAt: 'recorded_at', property: 'volume',
+    op: 'sum', bucketSeconds: QUARTER_HOUR, buckets: 3, bucketsPerPoint: 2,
+  } as const;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(temporalApi.aggregate).mockResolvedValue({
+      Buckets: [1, 2, 3, 4], FirstBucketStart: '2026-08-23T00:00:00Z',
+      BucketSeconds: QUARTER_HOUR, UnusableMembers: 0,
+    });
+  });
+
+  it('resolves to the last point its series draws', async () => {
+    expect(await resolveBinding({ kind: 'latest', series } as Binding, seriesCtx())).toBe(7);
+  });
+
+  it('asks the same question the series asks, once', async () => {
+    await resolveBinding({ kind: 'latest', series } as Binding, seriesCtx());
+    expect(temporalApi.aggregate).toHaveBeenCalledTimes(1);
+    expect(temporalApi.aggregate).toHaveBeenCalledWith(expect.objectContaining({
+      function: 'Sum', memberType: 'Building', windowSeconds: QUARTER_HOUR * 4,
+    }));
+  });
+
+  it('resolves to nothing when its series is refused', async () => {
+    const refused = { ...series, op: 'avg' } as const;
+    expect(await resolveBinding({ kind: 'latest', series: refused } as Binding, seriesCtx())).toBeNull();
+  });
+
+  it('resolves to nothing when the window holds no bucket at all', async () => {
+    vi.mocked(temporalApi.aggregate).mockResolvedValue({
+      Buckets: [], FirstBucketStart: '2026-08-23T00:00:00Z',
+      BucketSeconds: QUARTER_HOUR, UnusableMembers: 0,
+    });
+    expect(await resolveBinding({ kind: 'latest', series } as Binding, seriesCtx())).toBeNull();
+  });
+});
