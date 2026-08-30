@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:public-form": "vite build --config vite.public-form.config.ts",
+    "build:public": "vite build --config vite.public.config.ts",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

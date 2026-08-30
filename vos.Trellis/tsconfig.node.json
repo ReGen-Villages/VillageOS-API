@@ -24,7 +24,7 @@
   },
   "include": [
     "vite.config.ts",
-    "vite.public-form.config.ts",
+    "vite.public.config.ts",
     "vitest.integration.config.ts",
     "build/**/*.ts",
     "test/integration/**/*.ts"
