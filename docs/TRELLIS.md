@@ -1700,14 +1700,36 @@ Two things follow from it:
 `timeseries` is the platform's bucketed reduction: it reduces the instances of an
 archetype into fixed time buckets across the trailing window, through
 `POST /api/temporal/aggregate`. `happenedAt` names the property each member
-carries its event instant on, `property` the value reduced — absent for a count,
-which reduces the members themselves — and `bucketSeconds` times `buckets` is the
-window.
+carries its event instant on, and `property` the value reduced — absent for a
+count, which reduces the members themselves.
 
 **One bucket is a scalar.** A window as wide as its bucket resolves to a number a
 KPI tile shows, where more than one resolves to the series a chart draws. The
 tile and the trace above it are then one question asked at two granularities and
 cannot disagree.
+
+**A point may cover several buckets.** `buckets` is how many points the line
+holds and `bucketsPerPoint` how many buckets each point covers; points step one
+bucket on, so they overlap by the rest. That is how a line plots a figure
+covering an hour at every quarter hour — a shape the platform's own grid cannot
+take, because its buckets do not overlap. A point is its buckets folded
+together, and folding a sum or a count needs no division, so the point keeps the
+unit the tile shows. The window is therefore
+`bucketSeconds × (buckets + bucketsPerPoint - 1)`: the oldest point covers
+buckets that begin before it does, and asking only for the points would draw
+that one short.
+
+An **average across several buckets is refused**, not approximated. The average
+of the buckets is not the average of what went into them unless every bucket
+holds the same number of members, and nothing here knows that. A point covering
+one bucket is that bucket, an average included.
+
+**`latest` is the newest point of a series** — the figure a tile shows above the
+line beneath it. It holds the series as a nested binding and resolves to its last
+point, so the two ask the platform one question. That matters twice over: each
+answer costs a walk over every instance of the archetype, and a tile reading a
+point of the line it sits above cannot drift from it the way a second reading at
+a different granularity can.
 
 An outgoing `scope` narrows the members to the selected compare entity. An
 inbound one is refused rather than answered as though it had been applied, and a
@@ -1717,14 +1739,48 @@ question the platform refuses resolves to nothing rather than to an empty series
 ```json
 {
   "type": "kpi", "title": "Throughput", "format": "integer",
-  "value": { "kind": "timeseries", "archetype": "Reading", "happenedAt": "recorded_at",
-             "property": "volume", "op": "sum", "bucketSeconds": 3600, "buckets": 1,
-             "scope": { "viaPredicate": "contains", "direction": "out" } },
+  "value": { "kind": "latest", "series": {
+             "kind": "timeseries", "archetype": "Reading", "happenedAt": "recorded_at",
+             "property": "volume", "op": "sum", "bucketSeconds": 900, "buckets": 32,
+             "bucketsPerPoint": 4,
+             "scope": { "viaPredicate": "contains", "direction": "out" } } },
   "spark": { "kind": "timeseries", "archetype": "Reading", "happenedAt": "recorded_at",
              "property": "volume", "op": "sum", "bucketSeconds": 900, "buckets": 32,
+             "bucketsPerPoint": 4,
              "scope": { "viaPredicate": "contains", "direction": "out" } }
 }
 ```
+
+### A word this build cannot answer
+
+A spec is model data, so it can ask for binding vocabulary this build does not
+have — a model authored against a newer client, or a misspelling. **A widget
+whose binding names a kind this build does not implement, or carries a field the
+kind does not read, is not drawn.** It renders the same notice a widget of an
+unknown `type` renders, naming the word it could not answer.
+
+The vocabulary is judged before anything resolves, because the alternative is
+worse than a gap. An unrecognised kind used to resolve to nothing, which a widget
+draws exactly as it draws a value the model does not hold. An unread field is
+worse still: the widget draws a figure in the right units and the wrong size,
+which reads as an answer. `bucketsPerPoint` was the case in point — a spec
+setting it against a build without it plotted a line at a fraction of its true
+magnitude, labelled correctly, with nothing on screen to say so.
+
+**Strict on bindings, tolerant on presentation.** Every field on a binding
+changes what is being asked, so an unread one is refused. Presentation lives on
+the widget, not the binding, so a label or a footnote this build does not know
+is still ignored — that gives a plainer card, never a wrong number.
+
+The accepted cost is that a build one release behind a spec shows notices where
+it used to show a partly-drawn page. That is the trade: the partly-drawn page was
+the defect, and the notice names the word, so the gap is actionable.
+
+`src/api/bindingVocabulary.ts` holds the table of fields each kind reads. It is a
+mapping over the binding union, so a kind added to the vocabulary and left out of
+the table fails `npm run build` rather than becoming a word the client reports it
+cannot answer. Its completeness — that each entry names every field its kind
+declares — is what the accompanying test checks, by reading the union itself.
 
 ### Columns beyond a Thing's own properties
 

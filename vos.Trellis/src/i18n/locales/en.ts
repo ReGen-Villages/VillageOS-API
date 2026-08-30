@@ -287,6 +287,7 @@ export const en = {
       title: "Widget not drawn",
       body: "This view asks for a widget of kind \"{{kind}}\", which this application does not know how to draw.",
       noKind: "none given",
+      unanswerable: "This view asks for \"{{words}}\", which this application does not know how to answer.",
     },
   },
   errorBoundary: {

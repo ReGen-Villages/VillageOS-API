@@ -69,23 +69,32 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
   }
 }
 
-/** A binding and everything nested in it: a ratio's two halves, and the columns a row-producing
- *  binding derives per row. A nested binding reads the model as much as the one holding it. */
+/** A binding and everything nested in it: a ratio's two halves, the series a tile reads its newest
+ *  point from, and the columns a row-producing binding derives per row. A nested binding reads the
+ *  model as much as the one holding it. */
 function withNested(binding: Binding): Binding[] {
-  const inner: Binding[] = [];
+  const inner: (Binding | undefined)[] = [];
   if (binding.kind === 'ratio') inner.push(binding.numerator, binding.denominator);
+  if (binding.kind === 'latest') inner.push(binding.series);
   if ('computed' in binding) {
-    for (const column of (binding.computed ?? []) as ComputedColumn[]) inner.push(column.value);
+    for (const column of (binding.computed ?? []) as ComputedColumn[]) inner.push(column?.value);
   }
-  return [binding, ...inner.flatMap(withNested)];
+  // A spec can name a nested binding and then not write it. Reading what a widget asks for happens
+  // on the way to drawing it, so a slot left empty here would take the whole view down rather than
+  // the one widget that is wrong.
+  return [binding, ...inner.filter((nested): nested is Binding => !!nested).flatMap(withNested)];
+}
+
+/** Every binding one widget holds: the slots it declares, and everything nested inside them. A
+ *  widget of a kind this build has no arm for holds none that can be found this way. */
+export function bindingsOf(widget: Widget): Binding[] {
+  return (widgetBindings(widget) ?? [])
+    .filter((binding): binding is Binding => !!binding)
+    .flatMap(withNested);
 }
 
 function specBindings(spec: DashboardSpec): Binding[] {
-  return spec.sections
-    .flatMap((section) => section.widgets)
-    .flatMap(widgetBindings)
-    .filter((binding): binding is Binding => !!binding)
-    .flatMap(withNested);
+  return spec.sections.flatMap((section) => section.widgets).flatMap(bindingsOf);
 }
 
 /** Each root-to-leaf path through a detail card's nested relations. A card walks them one after the

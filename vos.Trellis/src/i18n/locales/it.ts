@@ -289,6 +289,7 @@ export const it: PartialResources = {
       title: "Widget non disegnato",
       body: "Questa vista chiede un widget di tipo \"{{kind}}\", che questa applicazione non sa disegnare.",
       noKind: "nessuno indicato",
+      unanswerable: "Questa vista chiede \"{{words}}\", che questa applicazione non sa risolvere.",
     },
   },
   errorBoundary: {
