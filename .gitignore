@@ -124,7 +124,9 @@ mermaid-filter.err
 vos.Trellis/dist/
 
 # Node.js
-node_modules/
+# No trailing slash on node_modules: a worktree links it rather than installing a second copy, and a
+# directory-only pattern does not match a link.
+node_modules
 .vite/
 dist/
 dist-ssr/

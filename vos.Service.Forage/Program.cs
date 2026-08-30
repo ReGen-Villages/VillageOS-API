@@ -56,7 +56,7 @@ try
             myceliumUrl,
             serviceToken, apiKey: apiKey));
     builder.Services.AddSingleton<CoveringSourceService>();
-    builder.Services.AddSingleton<ISourceFetcher>(sp =>
+    builder.Services.AddSingleton(sp =>
         new EndpointServiceSourceFetcher(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<EndpointServiceSourceFetcher>>(),
@@ -65,6 +65,8 @@ try
             launchSettings.FetcherSubdomain,
             launchSettings.SourceTimeout,
             apiKey));
+    builder.Services.AddSingleton<ISourceFetcher>(sp => sp.GetRequiredService<EndpointServiceSourceFetcher>());
+    builder.Services.AddSingleton<IEndpointBodyReader>(sp => sp.GetRequiredService<EndpointServiceSourceFetcher>());
     builder.Services.AddSingleton(sp =>
         new DiscoveryRunner(
             sp.GetRequiredService<ISourceFetcher>(),
@@ -79,6 +81,7 @@ try
     builder.Services.AddSingleton<ICoverageWriter>(sp => sp.GetRequiredService<MyceliumRelationshipClient>());
     builder.Services.AddSingleton(TimeProvider.System);
     builder.Services.AddSingleton<CoverageLedger>();
+    builder.Services.AddSingleton<DivisionResolver>();
     builder.Services.AddSingleton<AnalysisSpawner>();
     builder.Services.AddSingleton<VocabularyEdgeWriter>();
     builder.Services.AddSingleton<IDiscoveryRunStarter, DiscoveryRunStarter>();
@@ -99,6 +102,7 @@ try
         CoveringSourceService coveringSources,
         DiscoveryRunner runner,
         CoverageLedger ledger,
+        DivisionResolver divisions,
         AnalysisSpawner analysis,
         VocabularyEdgeWriter vocabularyEdges,
         IDiscoveryRunStarter starter,
@@ -114,7 +118,7 @@ try
         // body for as long as the run takes.
         var subjectId = request.SubjectId;
         starter.Start(token =>
-            Discover(subjectId, coveringSources, runner, ledger, analysis, vocabularyEdges, token));
+            Discover(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, token));
 
         // Accepted, not done — see IDiscoveryRunStarter for what closes it. `success` is the broker's
         // own contract: a body declaring it false is a failed dispatch whatever the status said.
@@ -154,6 +158,7 @@ static async Task Discover(
     CoveringSourceService coveringSources,
     DiscoveryRunner runner,
     CoverageLedger ledger,
+    DivisionResolver divisions,
     AnalysisSpawner analysis,
     VocabularyEdgeWriter vocabularyEdges,
     CancellationToken cancellationToken)
@@ -164,12 +169,12 @@ static async Task Discover(
             Log.Error("Could not read what {SubjectId} is; leaving the run outstanding", subjectId);
             return;
         case SubjectKind.Site:
-            await DiscoverSite(subjectId, coveringSources, runner, ledger, analysis, vocabularyEdges, cancellationToken);
+            await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, cancellationToken);
             return;
         case SubjectKind.ModelMarksNoSite:
             Log.Warning("The model marks no site archetype, so {SubjectId} is taken for a site; such a model " +
                         "cannot dispatch a source", subjectId);
-            await DiscoverSite(subjectId, coveringSources, runner, ledger, analysis, vocabularyEdges, cancellationToken);
+            await DiscoverSite(subjectId, coveringSources, runner, ledger, divisions, analysis, vocabularyEdges, cancellationToken);
             return;
         case SubjectKind.Source:
             await OfferSource(subjectId, coveringSources, ledger, cancellationToken);
@@ -223,6 +228,7 @@ static async Task DiscoverSite(
     CoveringSourceService coveringSources,
     DiscoveryRunner runner,
     CoverageLedger ledger,
+    DivisionResolver divisions,
     AnalysisSpawner analysis,
     VocabularyEdgeWriter vocabularyEdges,
     CancellationToken cancellationToken)
@@ -237,6 +243,11 @@ static async Task DiscoverSite(
                   "than reporting that none do", siteId);
         return;
     }
+
+    // Before the fetches, because the hazard portal's address is a division code and no route it serves
+    // takes coordinates: a site graded on the run after the one that resolved its division would wait out
+    // a whole dispatch first.
+    coverage = await divisions.AddressAsync(siteId, coverage, cancellationToken);
 
     // Not a failure: the source said what it resolves onto, and this site holds nothing of it.
     foreach (var source in coverage.Covering.Where(source => source.Calls.Count == 0))
