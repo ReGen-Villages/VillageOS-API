@@ -285,6 +285,12 @@ export const de: PartialResources = {
     sparkline: {
       trend: "Trend",
     },
+    unknown: {
+      title: "Widget nicht gezeichnet",
+      body: "Diese Ansicht verlangt ein Widget der Art \"{{kind}}\", die diese Anwendung nicht zeichnen kann.",
+      noKind: "keine angegeben",
+      unanswerable: "Diese Ansicht verlangt \"{{words}}\", was diese Anwendung nicht beantworten kann.",
+    },
   },
   errorBoundary: {
     title: "Etwas ist schiefgelaufen",
@@ -610,6 +616,9 @@ export const de: PartialResources = {
   operationsPage: {
     noDashboard: "Kein Dashboard konfiguriert",
     noDashboardBody: "Dieses Modell definiert keine <0>Dashboard</0>-Konfiguration. Fügen Sie ein Thing vom Archetyp <1>Dashboard</1> mit einer <2>spec</2>-Eigenschaft hinzu, um diese Seite zu steuern.",
+    unreadableSpec: "{{name}} konnte nicht gelesen werden",
+    unreadableSpecBody: "Die spec-Eigenschaft dieses Dashboard-Things enthält keine Spezifikation, die diese Anwendung lesen kann. Korrigieren Sie sie im Modell und laden Sie neu.",
+    emptyView: "Die Spezifikation dieses Dashboards nennt keine Abschnitte, es gibt also nichts zu zeichnen.",
   },
   palette: {
     inputTitle: "Pipeline-Eingang — von Anfang an",
@@ -715,6 +724,23 @@ export const de: PartialResources = {
     intro: 'Beschreiben Sie das Land und bestätigen Sie anschließend die angegebene E-Mail-Adresse. Vor dieser Bestätigung wird nichts übermittelt.',
     keptInThisBrowser: 'Ihre Angaben bleiben in diesem Browser, bis Sie sie absenden, sodass Sie später weitermachen können.',
     unreachable: 'Dieses Formular erreicht den Einreichungsdienst derzeit nicht. Von dem, was Sie eingegeben haben, wurde nichts gesendet.',
+  },
+  publicFindings: {
+    title: 'Ihre Einreichung',
+    intro: 'Was eingereicht wurde, was ermittelt wurde und was die Analyse daraus macht.',
+    reference: 'Referenz',
+    referenceHint: 'Die Referenz, die Sie beim Einreichen erhalten haben.',
+    emailAddress: 'E-Mail-Adresse',
+    emailAddressHint: 'Die Adresse, die die Einreichung nennt. Dorthin wird ein Code gesendet, damit nur Sie diese Ergebnisse lesen können.',
+    sendCode: 'Code senden',
+    codeSent: 'Ein Code wurde an {{address}} gesendet. Geben Sie ihn ein, um Ihre Ergebnisse zu lesen.',
+    code: 'Code',
+    codePlaceholder: '6 Ziffern',
+    read: 'Meine Ergebnisse anzeigen',
+    reading: 'Wird gelesen',
+    askAgain: 'Nach einer anderen Einreichung fragen',
+    emptyView: 'Die Seite, auf der die Ergebnisse zu diesem Grundstück gezeichnet werden, nennt keine Abschnitte, daher gibt es noch nichts zu zeigen.',
+    unreachable: 'Diese Seite erreicht den Einreichungsdienst derzeit nicht.',
   },
   submissionReview: {
     title: "Einreichungen",

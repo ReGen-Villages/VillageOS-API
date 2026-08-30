@@ -40,8 +40,8 @@ export type NumberFormat =
  * are model-specific and come from the spec.
  *
  * The special thing reference `$scope` resolves to the compare-entity currently
- * selected in the page's scope switcher (e.g. the selected site), or is
- * averaged across all compare entities when "All" is selected.
+ * selected in the page's scope switcher, or is averaged across all compare
+ * entities when "All" is selected.
  */
 export type Binding =
   | { kind: 'const'; value: number }
@@ -95,9 +95,9 @@ export type Binding =
    *  resolves to null. */
   | { kind: 'related'; via: RelationStep[]; thing?: string; property?: string }
   /** The derived state a Thing currently holds, as a word for a status cell. `states` lists the
-   *  candidates in priority order and the first one the Thing holds wins — derived states nest
-   *  (a harvested plot is also planted), so a single-valued cell needs the model to say which
-   *  state answers the question. Holding none of them resolves to null.
+   *  candidates in priority order and the first one the Thing holds wins — derived states nest, so
+   *  a Thing can hold several at once and a single-valued cell needs the model to say which state
+   *  answers the question. Holding none of them resolves to null.
    *  Asks each listed state who is in it rather than asking each Thing which states it holds:
    *  the rows of one table share those answers, so a status column over a roster costs one
    *  request per listed state per refresh, not one request per row. */
@@ -117,8 +117,8 @@ export type Binding =
    *
    *  `via` walks from `thing` to what is actually judged, the way `related` does. A page can be
    *  scoped to one Thing only, and the Thing a view is about is not always the Thing the ranges
-   *  hang off — a page about a site reads verdicts off the study that studies it. A walk reaching
-   *  several judged Things reports every one, in name order.
+   *  hang off — a page about one Thing reads its verdicts off whatever Thing was judged about it.
+   *  A walk reaching several judged Things reports every one, in name order.
    *
    *  Costs one range read per judged Thing per refresh, shared across every verdict binding on the
    *  page. The state reads are shared too, so a walk reaching several costs no extra ones. */
@@ -180,6 +180,16 @@ export type Binding =
    *  shows, so a tile and the trace above it are one question asked at two granularities and cannot
    *  disagree.
    *
+   *  `buckets` is how many points the line holds and `bucketsPerPoint` how many buckets each point
+   *  covers. Points step one bucket on, so they overlap by the rest — which is how a line plots a
+   *  figure covering an hour at every quarter hour, a shape the platform's own grid cannot take. A
+   *  point is its buckets folded together, and adding needs no division, so a summed or counted
+   *  point keeps the unit the tile shows.
+   *
+   *  An average is refused when a point covers several buckets: the average of the buckets is not
+   *  the average of what went into them unless every bucket holds the same number of members, and
+   *  nothing here knows that.
+   *
    *  An outgoing `scope` narrows to the selected compare entity. The endpoint walks outward from a
    *  container only, so an inbound scope is refused rather than answered as though it had been
    *  applied. */
@@ -191,8 +201,14 @@ export type Binding =
       op: 'count' | 'sum' | 'avg' | 'min' | 'max';
       bucketSeconds: number;
       buckets: number;
+      /** Omitted means one, which is the platform's own grid. */
+      bucketsPerPoint?: number;
       scope?: ScopeRef;
     }
+  /** The newest point of a series, as the number a tile shows. The tile and the line beneath it then
+   *  ask the platform one question — each answer costs a walk over every instance of the archetype —
+   *  and the figure is a point of that line rather than a second reading that can drift from it. */
+  | { kind: 'latest'; series: Extract<Binding, { kind: 'timeseries' }> }
   /** Delegate to a model-side service via POST /api/endpoints/{subdomain}. The escape
    *  hatch for model-specific aggregation. `select` is a dot-path into the JSON reply, and a
    *  `$scope` anywhere in `body` is replaced with the selected compare-entity id (null for "All"),
@@ -515,7 +531,7 @@ export interface DashboardSection {
 
 /** Declares the entity type compared in the scope switcher + leaderboard. */
 export interface CompareConfig {
-  /** Human label for one entity, e.g. "site". */
+  /** Human label for one entity, as the spec words it. */
   label: string;
   /** Archetype of the entities being compared. */
   archetype: string;
@@ -606,7 +622,7 @@ export interface DashboardSpec {
   translations?: SpecTranslations;
 }
 
-/** A discovered, parsed dashboard: the source Thing + its validated spec. */
+/** A discovered dashboard: the source Thing + its spec. */
 export interface DashboardDescriptor {
   id: string;
   name: string;
@@ -614,10 +630,12 @@ export interface DashboardDescriptor {
    *  so a link survives a reseeded model, and language-independent so an address does not change
    *  when the reader's language does. */
   routeKey: string;
-  spec: DashboardSpec;
+  /** Null where the Thing carries a spec that could not be read. Such a dashboard is still listed
+   *  and still addressable, so the author sees the fault rather than a page that is simply missing. */
+  spec: DashboardSpec | null;
 }
 
-/** A compare entity (e.g. a site or region) offered in the scope switcher. */
+/** A compare entity offered in the scope switcher. */
 export interface ScopeEntity {
   id: string;
   name: string;

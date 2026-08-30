@@ -136,6 +136,7 @@ try
     builder.Services.AddSingleton<AddressVerification>();
     builder.Services.AddSingleton<SubmissionTicket>();
     builder.Services.AddSingleton<SubmissionIntakeService>();
+    builder.Services.AddSingleton<SubmissionFindingsService>();
 
     var app = builder.Build();
 
@@ -299,6 +300,61 @@ try
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName);
 
+    // The one thing the platform gives back. A submission ends at a reference today, and everything the
+    // analysis made of the land is visible only to somebody signed in — so this answers the person who
+    // submitted it, and nobody else.
+    //
+    // What stands in place of an account is the pair: the reference names one submission, and the ticket
+    // says somebody answered a code sent to one mailbox. Neither alone establishes anything — a reference
+    // is guessable and a ticket says nothing about which submission — so the service reads the address
+    // that submission names and refuses unless the two agree.
+    app.MapPost("/submissions/findings", async (
+        HttpContext context,
+        SubmissionFindingsService findings,
+        SubmissionTicket tickets,
+        ILogger<SubmissionFindingsService> logger) =>
+    {
+        var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
+        if (tickets.WhyRefused(presented) is { } notFromAForm)
+            return Refused(context, "the ticket was not accepted",
+                Results.Json(new { error = notFromAForm }, statusCode: StatusCodes.Status403Forbidden));
+
+        var asked = await ReadAsync<FindingsAsked>(context);
+        if (asked?.EmailAddress is not { } emailAddress || asked.SubmissionId is not { } submissionId)
+            return Refused(context, "the reference or the address was missing",
+                Results.BadRequest(new
+                {
+                    error = "'submissionId' and 'emailAddress' are both needed: one names the submission, "
+                            + "the other is what the ticket was issued against.",
+                }));
+
+        if (!tickets.WasIssuedFor(presented, emailAddress))
+            return Refused(context, "the ticket was issued against a different address",
+                Results.Json(
+                    new { error = "This request names an address that was not the one verified." },
+                    statusCode: StatusCodes.Status403Forbidden));
+
+        try
+        {
+            var read = await findings.ReadAsync(submissionId, emailAddress, context.RequestAborted);
+            return read is null
+                ? Refused(context, "the reference and the address name no submission",
+                    Results.Json(
+                        new { error = SubmissionFindingsService.NotYourSubmission },
+                        statusCode: StatusCodes.Status404NotFound))
+                : Results.Ok(read);
+        }
+        // As a submission into an unseeded model is answered: the caller is a stranger's browser and is
+        // told neither what is wrong nor anything about the model it asked about.
+        catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                      || (error is TaskCanceledException
+                                          && !context.RequestAborted.IsCancellationRequested))
+        {
+            logger.LogError(error, "Findings could not be answered: {Reason}", error.Message);
+            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+        }
+    }).RequireRateLimiting(SubmissionRate.PolicyName);
+
     app.MapHealth("Intake");
 
     app.Run();
@@ -342,6 +398,9 @@ public sealed record VerificationAsked(string? EmailAddress);
 
 /// <summary>The address and the code that was sent to it, exchanged for a ticket.</summary>
 public sealed record VerificationAnswered(string? EmailAddress, string? Code);
+
+/// <summary>The reference a submitter was answered with, and the address their submission names.</summary>
+public sealed record FindingsAsked(string? SubmissionId, string? EmailAddress);
 
 // Exposed to WebApplicationFactory<Program> in the test project per docs/SERVICES.md.
 public partial class Program { }

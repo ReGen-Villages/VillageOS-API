@@ -5,13 +5,19 @@ using System.Linq;
 namespace vos.ContinuousIntegration.Tests;
 
 /// <summary>
-/// Every service's entry point in the checkout — the files the guards in this project read.
+/// The services in the checkout written in C#, and the entry-point files the guards in this project
+/// read. A service in another language has no Program.cs and so appears in neither.
 /// </summary>
 internal static class ServiceEntryPoints
 {
+    private const string EntryPointFileName = "Program.cs";
+
+    public static IEnumerable<DirectoryInfo> Services(string root) =>
+        ServiceProjects.Under(root).Where(service => File.Exists(EntryPointIn(service)));
+
     public static IEnumerable<string> Under(string root) =>
-        new DirectoryInfo(root)
-            .EnumerateDirectories("vos.Service.*")
-            .Select(service => Path.Combine(service.FullName, "Program.cs"))
-            .Where(File.Exists);
+        Services(root).Select(EntryPointIn);
+
+    private static string EntryPointIn(DirectoryInfo service) =>
+        Path.Combine(service.FullName, EntryPointFileName);
 }

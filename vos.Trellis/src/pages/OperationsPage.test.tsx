@@ -286,3 +286,67 @@ describe('OperationsPage section widths (Bug 6671)', () => {
     }
   });
 });
+
+// Story #6477: a spec is model data and can be authored wrong. Every one of these draws something a
+// reader can act on, rather than an empty page that looks like a model with nothing in it.
+describe('OperationsPage on a spec authored wrong', () => {
+  function publish(name: string, spec: string) {
+    useModelStore.setState((s) => ({
+      things: [...s.things, { Id: name, Name: name, Properties: { spec } }],
+      relationships: [
+        ...s.relationships,
+        { Id: `${name}-is`, Name: `${name} is arch-dash`, SubjectId: name, PredicateId: 'is', TargetId: 'arch-dash', Properties: {} },
+      ],
+    }));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    seedStore();
+  });
+
+  it('names the dashboard whose spec it could not read', () => {
+    publish('Unreadable', '{ "title": "Half a spec"');
+
+    renderAt('/operations/unreadable');
+
+    expect(screen.getByText('Unreadable could not be read')).toBeInTheDocument();
+  });
+
+  it('tells a spec it could not read apart from a model publishing no dashboard', () => {
+    publish('Unreadable', 'not a specification at all');
+
+    renderAt('/operations/unreadable');
+
+    expect(screen.queryByText('No dashboard configured')).toBeNull();
+  });
+
+  it('says an authored view holding no sections is empty', () => {
+    publish('Empty', JSON.stringify({ title: 'Nothing yet', sections: [] }));
+
+    renderAt('/operations/empty');
+
+    expect(screen.getByText('Nothing yet')).toBeInTheDocument();
+    expect(screen.getByText(/lists no sections/)).toBeInTheDocument();
+  });
+
+  it('draws the widgets it knows and names the one kind it does not', async () => {
+    publish('Mixed', JSON.stringify({
+      title: 'Mixed',
+      sections: [{
+        title: 'Both',
+        layout: 'single',
+        widgets: [
+          { type: 'kpi', title: 'A figure the client draws', value: { kind: 'const', value: 7 } },
+          { type: 'sankey', title: 'A kind it does not' },
+        ],
+      }],
+    }));
+
+    renderAt('/operations/mixed');
+
+    expect(await screen.findByText('7')).toBeInTheDocument();
+    expect(screen.getByText('A figure the client draws')).toBeInTheDocument();
+    expect(screen.getByText(/sankey/)).toBeInTheDocument();
+  });
+});

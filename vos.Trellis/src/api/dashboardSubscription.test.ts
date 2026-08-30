@@ -297,3 +297,39 @@ describe('subscriptionForSpec', () => {
     expect(selector.names).not.toContain('$scope');
   });
 });
+
+// A tile reading the newest point of a series holds that series as a nested binding, so what the
+// series narrows by is only reachable through it (Bug #6866).
+describe('a tile reading the newest point of a series', () => {
+  const series = {
+    kind: 'timeseries',
+    archetype: 'Reading',
+    happenedAt: 'happenedAt',
+    op: 'sum',
+    property: 'volume',
+    bucketSeconds: 900,
+    buckets: 32,
+    bucketsPerPoint: 4,
+    scope: { viaPredicate: 'contains', direction: 'out' as const },
+  } as const;
+
+  it('follows the edge its nested series narrows by', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({ type: 'kpi', title: 'flow', value: { kind: 'latest', series } }),
+      SCOPE_ID,
+    );
+
+    expect(selector.traverse!.map((rule) => rule.predicate)).toContain('contains');
+  });
+
+  // The platform answers the reduction, so the members would arrive only to be reduced again and
+  // thrown away — the same reason the series itself is left out.
+  it('leaves out the type its nested series reduces', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({ type: 'kpi', title: 'flow', value: { kind: 'latest', series } }),
+      null,
+    );
+
+    expect(selector.types).not.toContain('Reading');
+  });
+});

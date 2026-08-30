@@ -552,7 +552,7 @@ flowchart TB
   W["<b>Outputs on the study, judged by its ExpectedRanges</b>"]
 
   R --> LA
-  LA -->|"built + productive area"| EB
+  R -->|"solar resource · panel area · consumption"| EB
   LA -->|"productive area"| FB
   LA -->|"built + productive area"| RH
   EB --> W
@@ -561,8 +561,10 @@ flowchart TB
 ```
 
 The arrows are property reads and writes on one Thing, not wires. Land allocation writes the two
-footprints; the balances read them and re-fire. Nothing sequences them — each recomputes when an
-input it declared moves, and the cascade is bounded by the model's recompute round limit.
+footprints; the food balance and the harvest read them and re-fire. The energy balance reads none of
+them — its panel area is a roll-up over the site's own arrays — so it sits on the first layer beside
+land allocation rather than after it. Nothing sequences any of them: each recomputes when an input it
+declared moves, and the cascade is bounded by the model's recompute round limit.
 
 Two of the boxes need no service any more. Every water-reserve and food-balance figure is a formula on
 the study, so both services now assert nothing and their dispatch is waiting to be removed (#6747,
@@ -588,6 +590,14 @@ volume the formula reads it into stays unknown rather than falling to nought, an
 assessed" range holds. A balance computed against a silently substituted number is worse than no answer,
 because it looks like an answer.
 
+**An input the study does not carry yet is waited for, not failed (#6826).** A submission describes land,
+a boundary and programme shares, so a reservoir capacity and a panel area are absent until a building
+model exists — and the footprints the food balance and the harvest read are written later by land
+allocation. A service that finds one of its inputs missing writes nothing, names it in its own log, and
+answers what it is waiting for; the watch it registered on the study is what brings it back when the
+figure arrives. It used to throw, which had the broker record the dispatch failed and drive it again on
+every reconciliation for as long as the model lived.
+
 ### What a service call looks like
 
 A dispatched relationship names the study; the service answers with what it computed:
@@ -604,7 +614,9 @@ A dispatched relationship names the study; the service answers with what it comp
 ```
 
 The inputs are not in the body. The service reads them off the study by name, which is what lets an
-assumption declared on the shared archetype resolve without the caller knowing where it came from.
+assumption declared on the shared archetype resolve without the caller knowing where it came from. A
+service still waiting on one of those names answers the same shape with `"outputs": null` and a
+`"waitingFor"` naming what has not arrived.
 
 ---
 
@@ -666,7 +678,8 @@ named, and wrong twice over: `country` is optional, and the vocabulary pattern a
 model does not hold, which would turn an undeclared country into a rejected submission. Countries are an
 open set nobody can enumerate, so they stay text. A source covering the root covers every site, which is
 all the registered sources need today; the first source with narrower coverage is what should force a
-narrower Place, and the hazard portal needs one carrying its administrative division code.
+narrower Place. The hazard portal needs an administrative division code rather than narrower coverage,
+and a discovery run works one out from the site's position where no Place carries it.
 
 The design decisions worth stating:
 
@@ -928,10 +941,13 @@ discovery run resolves the written word against them by the declaration that tem
 division code, and its per-hazard route takes a two-letter code for the hazard type — `FL`, `LS`, `WF`.
 Neither is a value a site carries, so the registration leans on the model holding both as Things:
 
-- **The Place a site is in carries the portal's division code**, as `hazardPortalDivision`. That is a
-  natural home rather than a workaround — the portal's divisions are exactly what a Place is, and
-  coverage already walks `Site isIn Place`, so the coverage read already returns the Thing the value
-  sits on. A project declares its division Place, relates its sites into it, and deploys nothing.
+- **The division code is `hazardPortalDivision`**, which either the site itself or a Place it is in
+  carries. A Place is a natural home rather than a workaround — the portal's divisions are exactly what
+  a Place is, and coverage already walks `Site isIn Place`, so the coverage read already returns the
+  Thing the value sits on. A project declares its division Place, relates its sites into it, and deploys
+  nothing. Where neither the site nor any of its Places carries a code, a discovery run works one out
+  from the site's position and writes it onto the site with the division's name beside it (6851) — see
+  [`FORAGE.md`](FORAGE.md#resolving-the-hazard-division).
 - **The hazard type carries the portal's own code for it**, as `hazardPortalCode` on the Thing under
   the `HazardType` archetype reached by `assesses` (Bug #6737) — a code belonging to one portal hangs
   off the type Thing, where a word on an assessment could carry nothing.
@@ -944,9 +960,9 @@ platform model carries (platform User Story 6773); a word the vocabulary does no
 edge and is reported, and either way the word stays on the series as the record of what the portal
 answered. A division the
 portal holds no data about for a hazard is answered 404, so nothing is written and that hazard stays
-honestly unassessed. A site whose Places carry no division code has every hazard call refused before
-the provider is contacted and reported with the unfilled placeholder named — the model gap said out
-loud, not an outage invented for the portal.
+honestly unassessed. A site that carries no division code and whose position resolved to none has every
+hazard call refused before the provider is contacted and reported with the unfilled placeholder named —
+the model gap said out loud, not an outage invented for the portal.
 
 ---
 
@@ -1131,6 +1147,59 @@ was collected in the browser; asking for a code sends the address alone; the ans
 that answering the code bought. So a submission is written into the model only for an address somebody
 proved they read.
 
+### What a submitter gets back
+
+**A submission used to end at a reference number.** Within a minute of it arriving the platform has
+discovered the site's climate, rainfall and sunlight, worked out its hard surface and growing land from
+the boundary drawn, and judged what it can — and every bit of that was visible only to somebody signed
+in. `POST /submissions/findings` answers the person who submitted it.
+
+**What names the page is the reference and the mailbox together, because neither is enough alone.** The
+reference is known to whoever submitted and to anybody who guessed one, so it names a submission without
+establishing whose it is. The ticket says somebody answered a code sent to one mailbox, and says nothing
+about which submission. So the service reads the address that submission names and refuses unless the
+two agree:
+
+```mermaid
+sequenceDiagram
+  participant S as Submitter
+  participant LI as Land intake service
+  participant M as Mycelium
+  S->>LI: POST /submissions/verification { emailAddress }
+  LI-->>S: a code, by mail
+  S->>LI: POST /submissions/ticket { emailAddress, code }
+  LI-->>S: a ticket, signed against that address
+  S->>LI: POST /submissions/findings { submissionId, emailAddress }<br/>X-Submission-Ticket: …
+  LI->>M: the address this reference names
+  LI->>M: the site this reference names, and what the page's own spec walks
+  LI-->>S: the page to draw, and the reading to draw it from
+```
+
+**A reference nothing was submitted under, a reference naming a different address, and a submission
+already cleared are answered in one wording.** Told apart, answering would say whether a reference exists
+to whoever tried one.
+
+**Three things decide what may travel, and all three are the model's.** Which page a submitter may read
+is the Thing marked `__IsSubmitterFindingsDashboard`; what never leaves the model is whatever `is` the
+archetype marked `__IsPersonalDetailArchetype`, dropped whatever walk reached it rather than by trusting
+that no walk does; and the edges the reading follows are the ones that page's own spec walks. A model
+missing either mark is a deployment that was never seeded for this, answered `503` as an unseeded model
+is — not `200` with a page drawn from a reading nothing was filtered out of.
+
+**The walk is rooted at one site.** A selector naming the archetypes instead would answer with every
+Thing of that kind, which in a staging model is every other submitter's land.
+
+**The page is the model's own dashboard, not a second telling of it.** It renders the same spec, through
+the same resolver and the same widgets the signed-in page uses, so a figure added to that dashboard
+appears for the submitter with no code change, and a balance nobody assessed reads as *not assessed* in
+the same words on both. What made that possible was taking the broker out of the resolver: see
+[TRELLIS.md](TRELLIS.md#the-public-pages-are-not-among-these-routes).
+
+**The page lives as long as the submission does.** Nothing expires it and nothing stores a link. Once a
+rejected submission's retention period has run and `submissions dispose` has taken it out of the live
+model, the reference and the address name nothing, and the page says so in the same words as a reference
+nobody ever submitted under.
+
 ### From submission to project
 
 Submissions land in a staging model. Becoming a project is a deliberate act.
@@ -1180,6 +1249,7 @@ The main finding from designing this: most of it is already built.
 | The intake wizard | **Exists** — what a planner types (#6016), the site on the map (#6014), and the parcel step (#6015) |
 | Anonymous submission: rate limits, size caps, field bounds, a verified address | **Exists** (#6026, #6027, #6799, #6803) — the route takes a submission from someone holding no credential and having proved they read mail at the address on it, guarded as [§9](#what-guards-the-route) describes |
 | A page somebody without an account fills in | **Exists** (#6827, #6828) — a build of its own, served from a public site, rendering the same wizard and drawn from `GET /submissions/form` because it holds no credential to read the model with — see [§9](#where-the-form-lives) |
+| A submitter reading the findings for their own land, holding no account | **Exists** (#6850) — the second page in that build, drawn from `POST /submissions/findings`. It renders the model's own dashboard, so the words are the same ones a planner reads — see [§9](#what-a-submitter-gets-back) |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 
 ---

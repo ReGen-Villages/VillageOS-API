@@ -285,6 +285,12 @@ export const fr: PartialResources = {
     sparkline: {
       trend: "tendance",
     },
+    unknown: {
+      title: "Widget non dessiné",
+      body: "Cette vue demande un widget de type \"{{kind}}\", que cette application ne sait pas dessiner.",
+      noKind: "aucun indiqué",
+      unanswerable: "Cette vue demande \"{{words}}\", que cette application ne sait pas traiter.",
+    },
   },
   errorBoundary: {
     title: "Une erreur est survenue",
@@ -610,6 +616,9 @@ export const fr: PartialResources = {
   operationsPage: {
     noDashboard: "Aucun tableau de bord configuré",
     noDashboardBody: "Ce modèle ne définit aucune configuration <0>Dashboard</0>. Ajoutez une Thing de l'archétype <1>Dashboard</1> avec une propriété <2>spec</2> pour piloter cette page.",
+    unreadableSpec: "Impossible de lire {{name}}",
+    unreadableSpecBody: "La propriété spec de cette Thing Dashboard ne contient pas de spécification lisible par cette application. Corrigez-la dans le modèle puis rechargez.",
+    emptyView: "La spécification de ce tableau de bord ne cite aucune section, il n'y a donc rien à dessiner.",
   },
   palette: {
     inputTitle: "Entrée du pipeline — dès le début",
@@ -715,6 +724,23 @@ export const fr: PartialResources = {
     intro: "Décrivez le terrain, puis confirmez l'adresse e-mail que vous indiquez. Rien n'est envoyé tant que cette adresse n'est pas confirmée.",
     keptInThisBrowser: 'Vos réponses restent dans ce navigateur jusqu’à leur envoi, vous pouvez donc revenir les terminer plus tard.',
     unreachable: "Ce formulaire ne parvient pas à joindre le service de dépôt pour le moment. Rien de ce que vous avez saisi n'a été envoyé.",
+  },
+  publicFindings: {
+    title: 'Votre dépôt',
+    intro: "Ce qui a été déposé, ce qui a été trouvé, et ce que l'analyse en conclut.",
+    reference: 'Référence',
+    referenceHint: 'La référence qui vous a été remise lors du dépôt.',
+    emailAddress: 'Adresse e-mail',
+    emailAddressHint: "L'adresse que le dépôt indique. Un code y est envoyé, afin que vous seul puissiez lire ces résultats.",
+    sendCode: 'Envoyer un code',
+    codeSent: 'Un code a été envoyé à {{address}}. Saisissez-le pour lire vos résultats.',
+    code: 'Code',
+    codePlaceholder: '6 chiffres',
+    read: 'Afficher mes résultats',
+    reading: 'Lecture en cours',
+    askAgain: 'Poser la question pour un autre dépôt',
+    emptyView: "La page sur laquelle les résultats de ce terrain sont présentés n'indique aucune section, il n'y a donc encore rien à montrer.",
+    unreachable: 'Cette page ne parvient pas à joindre le service de dépôt pour le moment.',
   },
   submissionReview: {
     title: "Soumissions",

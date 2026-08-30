@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.FoodBalance.Services;
 using vos.Service.Shared;
@@ -21,8 +22,10 @@ public class FoodBalanceReactiveHandlerTests
           "population": { "Value": 320 } }
         """;
 
-    private static FoodBalanceReactiveHandler NewHandler(RecordingHttpMessageHandler http) =>
-        new(new TestHttpClientFactory(new HttpClient(http)), NullLogger<FoodBalanceReactiveHandler>.Instance,
+    private static FoodBalanceReactiveHandler NewHandler(
+        RecordingHttpMessageHandler http, ILogger<FoodBalanceReactiveHandler>? logger = null) =>
+        new(new TestHttpClientFactory(new HttpClient(http)),
+            logger ?? NullLogger<FoodBalanceReactiveHandler>.Instance,
             "http://mycelium", serviceToken: "test-token");
 
     private static RecordingHttpMessageHandler Serving(string properties) =>
@@ -38,10 +41,11 @@ public class FoodBalanceReactiveHandlerTests
     {
         var http = Serving(WillowBend);
 
-        var outputs = await NewHandler(http).RecomputeAsync(Study);
+        var answer = await NewHandler(http).RecomputeAsync(Study);
 
-        outputs.PeopleFed.Should().BeApproximately(20.4, 1e-9);
-        outputs.PctOfPopulationFed.Should().BeApproximately(6.375, 1e-9);
+        answer.Outputs!.PeopleFed.Should().BeApproximately(20.4, 1e-9);
+        answer.Outputs.PctOfPopulationFed.Should().BeApproximately(6.375, 1e-9);
+        answer.WaitingFor.Should().BeEmpty();
     }
 
     // Both figures are declared as expressions on the shared study archetype, so the model works them out
@@ -83,21 +87,28 @@ public class FoodBalanceReactiveHandlerTests
               "population": { "Value": "320" } }
             """);
 
-        var outputs = await TestCulture.InAsync(
+        var answer = await TestCulture.InAsync(
             TestCulture.CommaDecimal, () => NewHandler(http).RecomputeAsync(Study));
 
-        outputs.PeopleFed.Should().BeApproximately(20.4, 1e-9);
-        outputs.PctOfPopulationFed.Should().BeApproximately(6.375, 1e-9);
+        answer.Outputs!.PeopleFed.Should().BeApproximately(20.4, 1e-9);
+        answer.Outputs.PctOfPopulationFed.Should().BeApproximately(6.375, 1e-9);
     }
 
+    // Bug 6826: the footprint is written by the service on the layer below, so a study dispatched with the
+    // analysis carries none yet. Throwing on it had the broker record the dispatch failed and re-drive it
+    // on every reconciliation for as long as the model lived.
     [Fact]
-    public async Task An_input_the_study_does_not_carry_is_refused_by_name()
+    public async Task An_input_the_study_does_not_carry_is_waited_for_by_name()
     {
         var http = Serving("""{ "peopleFedPerHectarePerYear": { "Value": 2.5 }, "population": { "Value": 320 } }""");
+        var logger = new CapturingLogger<FoodBalanceReactiveHandler>();
 
-        var refusal = await Assert.ThrowsAsync<KeyNotFoundException>(() => NewHandler(http).RecomputeAsync(Study));
+        var answer = await NewHandler(http, logger).RecomputeAsync(Study);
 
-        refusal.Message.Should().Contain("productiveFootprintHectares").And.Contain("FoodBalance");
+        answer.Outputs.Should().BeNull();
+        answer.WaitingFor.Should().Equal("productiveFootprintHectares");
+        logger.Lines.Should().Contain(line =>
+            line.Contains("FoodBalance") && line.Contains("productiveFootprintHectares"));
         http.Requests.Should().NotContain(request => request.Method == HttpMethod.Post);
     }
 
@@ -105,6 +116,18 @@ public class FoodBalanceReactiveHandlerTests
     public async Task A_study_the_broker_will_not_hand_over_is_raised_naming_the_study()
     {
         var http = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var failure = await Assert.ThrowsAsync<HttpRequestException>(() => NewHandler(http).RecomputeAsync(Study));
+
+        failure.Message.Should().Contain(Study.ToString()).And.Contain("FoodBalance");
+    }
+
+    // Since 6826 an input that is not there is waited for, so an answer holding no properties at all has to
+    // be told apart from a study whose figures have yet to arrive — otherwise a broken read waits for ever.
+    [Fact]
+    public async Task An_answer_that_is_not_the_study_s_properties_is_raised_rather_than_waited_on()
+    {
+        var http = Serving("[]");
 
         var failure = await Assert.ThrowsAsync<HttpRequestException>(() => NewHandler(http).RecomputeAsync(Study));
 
@@ -120,21 +143,22 @@ public class FoodBalanceReactiveHandlerTests
     {
         var http = Serving(EffectiveProperties.Carrying(FoodBalanceReactiveHandler.InputProperties));
 
-        var outputs = await NewHandler(http).RecomputeAsync(Study);
+        var answer = await NewHandler(http).RecomputeAsync(Study);
 
-        outputs.PctOfPopulationFed.Should().BePositive();
+        answer.Outputs!.PctOfPopulationFed.Should().BePositive();
     }
 
     [Theory]
     [MemberData(nameof(DeclaredInputs))]
-    public async Task Leaving_out_any_declared_input_refuses_the_recompute_by_name(string omitted)
+    public async Task Leaving_out_any_declared_input_waits_for_it_by_name(string omitted)
     {
         var http = Serving(EffectiveProperties.Carrying(
             FoodBalanceReactiveHandler.InputProperties.Where(name => name != omitted)));
 
-        var refusal = await Assert.ThrowsAsync<KeyNotFoundException>(() => NewHandler(http).RecomputeAsync(Study));
+        var answer = await NewHandler(http).RecomputeAsync(Study);
 
-        refusal.Message.Should().Contain(omitted);
+        answer.Outputs.Should().BeNull();
+        answer.WaitingFor.Should().Equal(omitted);
     }
 
     public static TheoryData<string> DeclaredInputs =>

@@ -283,6 +283,12 @@ export const en = {
     sparkline: {
       trend: "trend",
     },
+    unknown: {
+      title: "Widget not drawn",
+      body: "This view asks for a widget of kind \"{{kind}}\", which this application does not know how to draw.",
+      noKind: "none given",
+      unanswerable: "This view asks for \"{{words}}\", which this application does not know how to answer.",
+    },
   },
   errorBoundary: {
     title: "Something went wrong",
@@ -608,6 +614,9 @@ export const en = {
   operationsPage: {
     noDashboard: "No dashboard configured",
     noDashboardBody: "This model defines no <0>Dashboard</0> config. Add a Thing of archetype <1>Dashboard</1> with a <2>spec</2> property to drive this page.",
+    unreadableSpec: "{{name}} could not be read",
+    unreadableSpecBody: "The spec property on this Dashboard Thing does not hold a specification this application can read. Correct it in the model and reload.",
+    emptyView: "This dashboard's specification lists no sections, so there is nothing to draw.",
   },
   palette: {
     inputTitle: "Pipeline input — from the start",
@@ -713,6 +722,23 @@ export const en = {
     intro: 'Describe the land, then confirm the email address you give. Nothing is submitted until that address is confirmed.',
     keptInThisBrowser: 'Your answers stay in this browser until you submit them, so you can come back and finish later.',
     unreachable: 'This form cannot reach the submission service at the moment. Nothing you have typed has been sent.',
+  },
+  publicFindings: {
+    title: 'Your submission',
+    intro: 'What was submitted, what was discovered, and what the analysis makes of it.',
+    reference: 'Reference',
+    referenceHint: 'The reference you were given when you submitted.',
+    emailAddress: 'Email address',
+    emailAddressHint: 'The address the submission names. A code is sent there, so that only you can read these findings.',
+    sendCode: 'Send a code',
+    codeSent: 'A code was sent to {{address}}. Enter it to read your findings.',
+    code: 'Code',
+    codePlaceholder: '6 digits',
+    read: 'Show my findings',
+    reading: 'Reading',
+    askAgain: 'Ask about another submission',
+    emptyView: 'The page these findings are drawn on lists no sections, so there is nothing to show yet.',
+    unreachable: 'This page cannot reach the submission service at the moment.',
   },
   submissionReview: {
     title: "Submissions",

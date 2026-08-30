@@ -907,9 +907,15 @@ vos.Trellis/
     │   ├── IntakeWizard.tsx     # Describing a piece of land and proposing it as a site — rendered by the planner's page and by the public form
     │   └── submissionDraft.ts   # The draft, the area units, the programme split, the parcel boundary and the posted document
     │
-    ├── publicForm/              # Built on its own (npm run build:public-form), served from a public site
+    ├── publicForm/              # Built on its own (npm run build:public), served from a public site
     │   ├── main.tsx             # Its entry: theme, language, and the page — no sign-in and no broker
-    │   └── PublicSubmissionPage.tsx # The same wizard, drawn from what the intake service answers
+    │   ├── PublicSubmissionPage.tsx # The same wizard, drawn from what the intake service answers
+    │   └── noSignedInCode.test.ts   # Walks every public entry and fails on an import reaching the broker
+    │
+    ├── publicFindings/          # The other page in that build: a submitter reads their own findings
+    │   ├── main.tsx             # Its entry, as the form's
+    │   ├── PublicFindingsPage.tsx   # The model's own dashboard, drawn from what the intake service answers
+    │   └── answeredFindings.ts  # That answer as a spec, a model index and the reads a binding makes
     │
     └── components/
         ├── layout/
@@ -1185,22 +1191,37 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 visitor with the sign-in form, whatever address they opened, and that is deliberate: this application is
 for people who hold an account.
 
-### The public submission form is not one of these routes
+### The public pages are not among these routes
 
-The form somebody with land fills in is built from this repository and shares this application's wizard,
-its map and its translations — but it is **a build of its own**, served from a public site, with its own
-entry at `src/publicForm/main.tsx` and its own configuration in `vite.public-form.config.ts`:
+Two pages are built from this repository and share this application's wizard, its map, its dashboard
+widgets and its translations — but they are **a build of their own**, served from a public site, with
+their own entries and their own configuration in `vite.public.config.ts`:
+
+| Page | Entry | Emitted as | What it is |
+|---|---|---|---|
+| Submission form | `src/publicForm/main.tsx` | `index.html` | The wizard somebody with land fills in |
+| Findings | `src/publicFindings/main.tsx` | `findings.html` | What the analysis made of a submission already sent |
 
 ```
-VITE_INTAKE_URL=https://intake.example.org npm run build:public-form
+VITE_INTAKE_URL=https://intake.example.org npm run build:public
 ```
 
-It has no router and one page. It reaches the intake service and nothing else — what it draws itself with
-comes from `GET /submissions/form`, because it holds no credential to read the model with.
-`src/publicForm/noSignedInCode.test.ts` follows its imports and fails if one leads to the broker client,
-to the signed-in state, or to any part of this application behind sign-in. See
-[`deploy/README.md`](../deploy/README.md) for where the built directory goes and which origins the
-service must be started with.
+Neither has a router. Both reach the intake service and nothing else, because neither holds a credential
+to read the model with: the form draws itself from `GET /submissions/form`, and the findings page from
+`POST /submissions/findings`. `src/publicForm/noSignedInCode.test.ts` walks the imports of **every** entry
+in that build and fails if one leads to the broker client, to the signed-in state, or to any part of this
+application behind sign-in. See [`deploy/README.md`](../deploy/README.md) for where the built directory
+goes and which origins the service must be started with.
+
+**The findings page draws the model's own dashboard.** It resolves the spec the intake service answers
+with, through the same `resolveBinding` and the same widgets the operations page uses, so a figure added
+to that dashboard appears on it with no change here — and a balance nobody assessed reads in the words
+the model wrote, on both pages, because it is one spec. What makes that possible is that nothing in
+`dashboardApi.ts` opens a connection: the four reads a loaded model cannot answer — state membership, a
+Thing's ranges, a reduction over history, and a model-side service — are asked of the `ModelReads` its
+resolve context carries. The application supplies `brokerModelReads`, which asks the broker and shares
+each question across one refresh; the findings page supplies one backed by the document it was handed,
+and refuses the two a submitter's page never asks rather than answering them with nothing.
 
 ---
 
@@ -1557,6 +1578,37 @@ and the dashboards it found are parsed once and remembered on it. Discovery walk
 the whole model, so two readers holding their own index would walk it twice on every
 model change.
 
+### When a spec is authored wrong
+
+A spec is model data, so it can be authored wrong. Every way it can be wrong draws
+something the author can act on rather than a blank page.
+
+| What is wrong | What the reader gets |
+| --- | --- |
+| The `spec` property holds text that is not a readable specification | The dashboard is still listed and still addressable, under the `Dashboard` Thing's own name; opening it says the spec could not be read |
+| The spec lists no sections | The page draws its title and says the view is empty |
+| A section names a widget kind this client does not know | Every other widget draws; the unknown one draws a card naming the kind it could not draw |
+| A binding resolves to nothing | The value reads as absent, never as a zero — a figure nobody computed and a figure of nought are different answers |
+
+Nothing before the client checks a widget or binding **kind**. `vos.SeedValidate`
+resolves the model names a spec holds, but the set of kinds lives in Trellis's own
+TypeScript, and restating it in a validator would be a second copy that goes stale.
+The card naming the kind is what closes that gap.
+
+The client also holds no domain word for this view — every noun a reader sees comes
+from the spec. That is what makes a second model cost nothing to draw, and it is
+asserted over the source in `dashboardNamesNoDomain.test.ts`: a widget named for
+what one model measures, or a comment offering a worked example in one model's
+words, fails there. That guard covers the findings page and the shared section
+renderer as well as the operations page, so moving a component out of `pages/` does
+not move it out of the guard's reach.
+
+**The findings page a submitter opens holds to the same table**, because both pages
+draw through one component and one resolver. It differs on the first row alone: it
+lists no dashboards and is not addressable per dashboard, so a `spec` that cannot be
+read surfaces where its other refusals do — on the form the reader just submitted —
+rather than on a page they opened.
+
 ### The rows a table renders
 
 A `table` widget given `visibleRows` scrolls its body under a pinned header — and
@@ -1650,14 +1702,36 @@ Two things follow from it:
 `timeseries` is the platform's bucketed reduction: it reduces the instances of an
 archetype into fixed time buckets across the trailing window, through
 `POST /api/temporal/aggregate`. `happenedAt` names the property each member
-carries its event instant on, `property` the value reduced — absent for a count,
-which reduces the members themselves — and `bucketSeconds` times `buckets` is the
-window.
+carries its event instant on, and `property` the value reduced — absent for a
+count, which reduces the members themselves.
 
 **One bucket is a scalar.** A window as wide as its bucket resolves to a number a
 KPI tile shows, where more than one resolves to the series a chart draws. The
 tile and the trace above it are then one question asked at two granularities and
 cannot disagree.
+
+**A point may cover several buckets.** `buckets` is how many points the line
+holds and `bucketsPerPoint` how many buckets each point covers; points step one
+bucket on, so they overlap by the rest. That is how a line plots a figure
+covering an hour at every quarter hour — a shape the platform's own grid cannot
+take, because its buckets do not overlap. A point is its buckets folded
+together, and folding a sum or a count needs no division, so the point keeps the
+unit the tile shows. The window is therefore
+`bucketSeconds × (buckets + bucketsPerPoint - 1)`: the oldest point covers
+buckets that begin before it does, and asking only for the points would draw
+that one short.
+
+An **average across several buckets is refused**, not approximated. The average
+of the buckets is not the average of what went into them unless every bucket
+holds the same number of members, and nothing here knows that. A point covering
+one bucket is that bucket, an average included.
+
+**`latest` is the newest point of a series** — the figure a tile shows above the
+line beneath it. It holds the series as a nested binding and resolves to its last
+point, so the two ask the platform one question. That matters twice over: each
+answer costs a walk over every instance of the archetype, and a tile reading a
+point of the line it sits above cannot drift from it the way a second reading at
+a different granularity can.
 
 An outgoing `scope` narrows the members to the selected compare entity. An
 inbound one is refused rather than answered as though it had been applied, and a
@@ -1667,14 +1741,48 @@ question the platform refuses resolves to nothing rather than to an empty series
 ```json
 {
   "type": "kpi", "title": "Throughput", "format": "integer",
-  "value": { "kind": "timeseries", "archetype": "Reading", "happenedAt": "recorded_at",
-             "property": "volume", "op": "sum", "bucketSeconds": 3600, "buckets": 1,
-             "scope": { "viaPredicate": "contains", "direction": "out" } },
+  "value": { "kind": "latest", "series": {
+             "kind": "timeseries", "archetype": "Reading", "happenedAt": "recorded_at",
+             "property": "volume", "op": "sum", "bucketSeconds": 900, "buckets": 32,
+             "bucketsPerPoint": 4,
+             "scope": { "viaPredicate": "contains", "direction": "out" } } },
   "spark": { "kind": "timeseries", "archetype": "Reading", "happenedAt": "recorded_at",
              "property": "volume", "op": "sum", "bucketSeconds": 900, "buckets": 32,
+             "bucketsPerPoint": 4,
              "scope": { "viaPredicate": "contains", "direction": "out" } }
 }
 ```
+
+### A word this build cannot answer
+
+A spec is model data, so it can ask for binding vocabulary this build does not
+have — a model authored against a newer client, or a misspelling. **A widget
+whose binding names a kind this build does not implement, or carries a field the
+kind does not read, is not drawn.** It renders the same notice a widget of an
+unknown `type` renders, naming the word it could not answer.
+
+The vocabulary is judged before anything resolves, because the alternative is
+worse than a gap. An unrecognised kind used to resolve to nothing, which a widget
+draws exactly as it draws a value the model does not hold. An unread field is
+worse still: the widget draws a figure in the right units and the wrong size,
+which reads as an answer. `bucketsPerPoint` was the case in point — a spec
+setting it against a build without it plotted a line at a fraction of its true
+magnitude, labelled correctly, with nothing on screen to say so.
+
+**Strict on bindings, tolerant on presentation.** Every field on a binding
+changes what is being asked, so an unread one is refused. Presentation lives on
+the widget, not the binding, so a label or a footnote this build does not know
+is still ignored — that gives a plainer card, never a wrong number.
+
+The accepted cost is that a build one release behind a spec shows notices where
+it used to show a partly-drawn page. That is the trade: the partly-drawn page was
+the defect, and the notice names the word, so the gap is actionable.
+
+`src/api/bindingVocabulary.ts` holds the table of fields each kind reads. It is a
+mapping over the binding union, so a kind added to the vocabulary and left out of
+the table fails `npm run build` rather than becoming a word the client reports it
+cannot answer. Its completeness — that each entry names every field its kind
+declares — is what the accompanying test checks, by reading the union itself.
 
 ### Columns beyond a Thing's own properties
 
@@ -1942,26 +2050,29 @@ the KPI showing the area it encloses is where a reader needs it.
 ```jsonc
 {
   "type": "kpi",
-  "title": "Rainfall",
-  "format": "integer",
-  "unit": "mm/year",
-  "value": { "kind": "property", "thing": "$scope", "property": "rainfallMillimetresPerYear" },
+  "title": "Drawn area",
+  "format": "decimal1",
+  "unit": "hectares",
+  "value": {
+    "kind": "related",
+    "via": [{ "predicate": "has", "archetype": "Parcel" }],
+    "property": "measuredAreaHectares"
+  },
   "origin": {
     "kind": "origin",
-    "property": "rainfallMillimetresPerYear",
+    "property": "measuredAreaHectares",
+    "via": [{ "predicate": "has", "archetype": "Parcel" }],
     "reads": {
-      "stated": "as submitted",
-      "measured": "resolved {resolvedAt} from {source}",
+      "stated": "from a boundary {source}",
       "assumed": "assumed by the platform, from {source}",
-      "unknown": "no origin recorded for this figure"
+      "unknown": "no origin recorded"
     },
-    "source": {
-      "via": [{ "predicate": "has", "archetype": "DataSource" }],
-      "resolvedAt": "lastResolvedAt"
-    }
+    "source": { "via": [{ "predicate": "obtainedBy" }] }
   }
 }
 ```
+
+This is the submitted-site page's own binding, and it is the shape to copy.
 
 Every word is the model's. Trellis substitutes `{source}` and `{resolvedAt}`,
 and draws each origin in its own tone so a stated figure and a fetched one are
@@ -1976,6 +2087,23 @@ names and one whose it does not. **Write the wording so it still reads without
 either** — `resolved {resolvedAt} from {source}` reads whichever of the two the
 model holds, while `from {source}, resolved {resolvedAt}` leaves a comma and a
 verb hanging.
+
+**Word only the origins the declaration can produce.** The example above words no
+`measured` reading, because `measuredAreaHectares` takes asserted writes only and
+its origin is therefore always `stated`. A wording for an origin the model cannot
+report is text the page never draws, and the next author reads it as a case that
+happens.
+
+**Where the model records provenance per source rather than per property, name no
+source at all.** A discovery run writes its readings onto the site and records what
+it fetched on a `SourceCoverage`, one Thing per site and source — so nothing joins
+one figure to the one source behind it, and a `source` walk from the site reaches
+every source that answered. A wording that names a source the walk cannot single
+out draws the sentence with the name cut out of it, "resolved from" and nothing
+after, which reads as a source nobody recorded. The submitted-site page therefore
+words its fetched figures without `{source}` and lists the coverages in a table
+beside them: the source, what it covers, when it answered, and the reason where it
+did not (platform Bug 6856).
 
 **Cost.** No request. Every answer is already in the loaded model: the
 declaration travels with the value, and the source is an edge the page has

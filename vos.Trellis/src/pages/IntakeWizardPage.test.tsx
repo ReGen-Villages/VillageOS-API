@@ -126,18 +126,25 @@ const PROPERTIES = {
   severity: { [HAZARD_LEVEL_ARCHETYPE_FLAG]: owned(true) },
 };
 
+/** Long enough that whatever the answer feeds is on screen before it arrives, which is the order a
+ *  loaded build agent produces. A mock answering at once puts the two in the same instant, so a test
+ *  reading the answer the moment its element appears passes on a quiet machine and fails on the
+ *  agent. */
+const ANSWER_DELAY_MILLISECONDS = 50;
+
+function answeredLate<T>(value: T): () => Promise<T> {
+  return () => new Promise((resolve) => setTimeout(() => resolve(value), ANSWER_DELAY_MILLISECONDS));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  vi.mocked(thingApi.getAll).mockResolvedValue(THINGS);
-  vi.mocked(relationshipApi.getAll).mockResolvedValue(EDGES);
-  vi.mocked(thingApi.getAllProperties).mockResolvedValue(PROPERTIES);
+  vi.mocked(thingApi.getAll).mockImplementation(answeredLate(THINGS));
+  vi.mocked(relationshipApi.getAll).mockImplementation(answeredLate(EDGES));
+  vi.mocked(thingApi.getAllProperties).mockImplementation(answeredLate(PROPERTIES));
   vi.mocked(intakeApi.configured).mockReturnValue(true);
-  vi.mocked(intakeApi.submit).mockResolvedValue({ reference: 'sub-0001' });
-  // Resolved a tick late, the way a real request does, so the code field appears after the click
-  // rather than with it. A mock resolving at once hid that a test read the field before it existed,
-  // which only a loaded build agent showed.
-  vi.mocked(intakeApi.askForCode).mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  vi.mocked(intakeApi.submit).mockImplementation(answeredLate({ reference: 'sub-0001' }));
+  vi.mocked(intakeApi.askForCode).mockImplementation(answeredLate(undefined));
 });
 
 /** Walk to a step by pressing Next, which is also what makes each one reachable again. */
@@ -290,7 +297,10 @@ describe('the site on the map', () => {
     const map = await screen.findByTestId('site-map');
     expect(map.dataset.latitude).toBe('39.5012');
     expect(map.dataset.longitude).toBe('-8.4137');
-    expect(map.dataset.sources).toBe('Aerial imagery');
+
+    // Waited for the sources themselves, not for the map that carries them: the map appears on the
+    // coordinates alone, and what the model declares reaches it whenever the read answers.
+    await waitFor(() => expect(map.dataset.sources).toBe('Aerial imagery'));
     expect(screen.queryByText('The map appears once both coordinates are given.')).not.toBeInTheDocument();
   });
 

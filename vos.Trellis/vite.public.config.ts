@@ -3,12 +3,16 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'node:path'
 
-// The public submission form, built on its own. It is served from a public site rather than from the
-// broker, so it is a build of its own rather than a route in the application: what a stranger downloads
-// is the form and the wizard, and none of the signed-in application. `src/publicForm/noSignedInCode.test.ts`
-// is what holds that true as the shared files change.
+// The two pages a person with land opens, built on their own: the submission form, and the findings for
+// a submission already made. They are served from a public site rather than from the broker, so they are
+// a build of their own rather than routes in the application: what a stranger downloads is the form, the
+// wizard and the dashboard widgets, and none of the signed-in application.
+// `src/publicForm/noSignedInCode.test.ts` is what holds that true as the shared files change.
 //
-// Addresses are relative so the built directory can be dropped at any path on the site, and the entry is
+// One build rather than two, so the pages share their chunks — the wizard, the widgets and the
+// translations are most of both.
+//
+// Addresses are relative so the built directory can be dropped at any path on the site, and the form is
 // emitted as index.html so that path serves it with no rename on the way.
 export default defineConfig({
   plugins: [
@@ -28,13 +32,16 @@ export default defineConfig({
   ],
   base: './',
   build: {
-    outDir: 'dist-public-form',
+    outDir: 'dist-public',
     emptyOutDir: true,
     // The map library is a chunk of its own and sits above the default warning size. It loads only once
     // a position has been entered, so a person who types their coordinates and stops never downloads it.
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
-      input: resolve(__dirname, 'public-form.html'),
+      input: [
+        resolve(__dirname, 'public-form.html'),
+        resolve(__dirname, 'findings.html'),
+      ],
     },
   },
 })
