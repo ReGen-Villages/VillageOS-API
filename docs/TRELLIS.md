@@ -1555,6 +1555,29 @@ and the dashboards it found are parsed once and remembered on it. Discovery walk
 the whole model, so two readers holding their own index would walk it twice on every
 model change.
 
+### When a spec is authored wrong
+
+A spec is model data, so it can be authored wrong. Every way it can be wrong draws
+something the author can act on rather than a blank page.
+
+| What is wrong | What the reader gets |
+| --- | --- |
+| The `spec` property holds text that is not a readable specification | The dashboard is still listed and still addressable, under the `Dashboard` Thing's own name; opening it says the spec could not be read |
+| The spec lists no sections | The page draws its title and says the view is empty |
+| A section names a widget kind this client does not know | Every other widget draws; the unknown one draws a card naming the kind it could not draw |
+| A binding resolves to nothing | The value reads as absent, never as a zero — a figure nobody computed and a figure of nought are different answers |
+
+Nothing before the client checks a widget or binding **kind**. `vos.SeedValidate`
+resolves the model names a spec holds, but the set of kinds lives in Trellis's own
+TypeScript, and restating it in a validator would be a second copy that goes stale.
+The card naming the kind is what closes that gap.
+
+The client also holds no domain word for this view — every noun a reader sees comes
+from the spec. That is what makes a second model cost nothing to draw, and it is
+asserted over the source in `dashboardNamesNoDomain.test.ts`: a widget named for
+what one model measures, or a comment offering a worked example in one model's
+words, fails there.
+
 ### The rows a table renders
 
 A `table` widget given `visibleRows` scrolls its body under a pinned header — and

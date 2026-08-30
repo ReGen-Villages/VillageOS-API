@@ -218,11 +218,13 @@ export function thingsOfArchetype(archetype: string, idx: ModelIndex): VosThing[
  *  dashboard's position in the navigation would move whenever the model changed. */
 export function discoverDashboardsFromIndex(idx: ModelIndex): DashboardDescriptor[] {
   if (idx.dashboards) return idx.dashboards;
-  const found: { thing: VosThing; spec: DashboardSpec }[] = [];
-  for (const thing of thingsOfArchetype(DASHBOARD_ARCHETYPE, idx)) {
-    const spec = parseSpec(effectiveProperties(thing, idx)[DASHBOARD_SPEC_PROPERTY]);
-    if (spec) found.push({ thing, spec });
-  }
+  // Every Dashboard Thing is listed, including one whose spec did not read. A spec is model data
+  // and can be authored wrong; dropping such a Thing here leaves its author a page that never
+  // appears and nothing anywhere saying why.
+  const found = thingsOfArchetype(DASHBOARD_ARCHETYPE, idx).map((thing) => ({
+    thing,
+    spec: parseSpec(effectiveProperties(thing, idx)[DASHBOARD_SPEC_PROPERTY]),
+  }));
   found.sort((a, b) => a.thing.Name.localeCompare(b.thing.Name));
   const slugs = found.map((d) => slugOf(d.thing.Name));
   const bearers = new Map<string, number>();
@@ -271,7 +273,7 @@ function parseSpec(raw: unknown): DashboardSpec | null {
   return null;
 }
 
-/** Compare entities (e.g. sites) offered in the scope switcher. */
+/** Compare entities offered in the scope switcher. */
 export function scopeEntities(spec: DashboardSpec, idx: ModelIndex): ScopeEntity[] {
   if (!spec.compare) return [];
   return thingsOfArchetype(spec.compare.archetype, idx)
@@ -334,8 +336,8 @@ async function stateMemberIds(state: string, ctx: ResolveContext): Promise<Set<s
 }
 
 /** A Thing's ranges, own and inherited, shared across the widgets of one refresh the way state
- *  reads are. A study's judge-ranges sit on its archetype, so several verdict rows on one page ask
- *  about one Thing and would otherwise each fetch the same answer. A failed read resolves to null
+ *  reads are. The ranges that judge a Thing sit on its archetype, so several verdict rows on one page
+ *  ask about one Thing and would otherwise each fetch the same answer. A failed read resolves to null
  *  rather than rejecting: a verdict the model holds still reads, without the target it names. */
 function thingRanges(thingId: string, ctx: ResolveContext): Promise<ThingRangesResponse | null> {
   const inFlight = ctx.thingRanges?.get(thingId);
@@ -785,10 +787,10 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       const members = container ? null : scopeMemberIds(binding.scope, ctx);
       const resp = await thingsInState(binding.state, ctx, {
         type: binding.archetype,
-        // The derived statuses nest (a harvested plot is also growing/planted/…), so a plain
-        // stateList for an early stage includes every later one. A funnel stage names the next
-        // stage's state as one that disqualifies, leaving the Things that reached this stage and
-        // no further.
+        // The derived statuses nest — a Thing that reached a later stage still holds the earlier
+        // ones — so a plain stateList for an early stage includes every later one. A funnel stage
+        // names the next stage's state as one that disqualifies, leaving the Things that reached
+        // this stage and no further.
         notIn: binding.excludeState ? [binding.excludeState] : undefined,
         // A cap the server applies takes the first rows of its answer, which is the wrong subset
         // when the scope is still narrowed here afterwards. That answer then carries the columns

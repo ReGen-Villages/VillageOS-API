@@ -57,7 +57,7 @@ export function OperationsPage() {
   const dashboard = dashboards.find((d) => d.routeKey === dashboardKey);
   const { t, i18n } = useTranslation();
   const spec = useMemo(
-    () => (dashboard ? localizeSpec(dashboard.spec, i18n.language) : undefined),
+    () => (dashboard?.spec ? localizeSpec(dashboard.spec, i18n.language) : undefined),
     [dashboard, i18n.language],
   );
 
@@ -107,24 +107,27 @@ export function OperationsPage() {
   if (!dashboard && dashboards.length > 0) {
     return <Navigate to={`/operations/${dashboards[0].routeKey}`} replace />;
   }
+  // A Thing that declares itself a dashboard and carries a spec nothing can read. Named, so the
+  // author knows which one to open, and told apart from a model that publishes no dashboard at all.
+  if (dashboard && !dashboard.spec) {
+    return (
+      <Guidance title={t('operationsPage.unreadableSpec', { name: dashboard.name })}>
+        {t('operationsPage.unreadableSpecBody')}
+      </Guidance>
+    );
+  }
   if (!spec) {
     return (
-      <Centered>
-        <div className="max-w-md text-center">
-          <LayoutDashboard className="mx-auto mb-3 text-zinc-300 dark:text-zinc-600" size={40} />
-          <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1">{t('operationsPage.noDashboard')}</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            <Trans
-              i18nKey="operationsPage.noDashboardBody"
-              components={[
-                <code className="font-mono text-xs" />,
-                <code className="font-mono text-xs" />,
-                <code className="font-mono text-xs" />,
-              ]}
-            />
-          </p>
-        </div>
-      </Centered>
+      <Guidance title={t('operationsPage.noDashboard')}>
+        <Trans
+          i18nKey="operationsPage.noDashboardBody"
+          components={[
+            <code className="font-mono text-xs" />,
+            <code className="font-mono text-xs" />,
+            <code className="font-mono text-xs" />,
+          ]}
+        />
+      </Guidance>
     );
   }
 
@@ -162,9 +165,13 @@ export function OperationsPage() {
       </header>
 
       <div className="flex-1 overflow-auto px-6 pb-10">
-        {spec.sections.map((section, i) => (
-          <Section key={i} section={section} ctx={ctx} isWide={isWide} openDetail={openDetail} />
-        ))}
+        {spec.sections.length === 0 ? (
+          <Centered>{t('operationsPage.emptyView')}</Centered>
+        ) : (
+          spec.sections.map((section, i) => (
+            <Section key={i} section={section} ctx={ctx} isWide={isWide} openDetail={openDetail} />
+          ))
+        )}
       </div>
       {windows}
     </div>
@@ -230,4 +237,16 @@ function ScopeButton({ active, onClick, children }: { active: boolean; onClick: 
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="h-full flex items-center justify-center p-8 text-sm text-zinc-500 dark:text-zinc-400">{children}</div>;
+}
+
+function Guidance({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Centered>
+      <div className="max-w-md text-center">
+        <LayoutDashboard className="mx-auto mb-3 text-zinc-300 dark:text-zinc-600" size={40} />
+        <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1">{title}</h2>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{children}</p>
+      </div>
+    </Centered>
+  );
 }

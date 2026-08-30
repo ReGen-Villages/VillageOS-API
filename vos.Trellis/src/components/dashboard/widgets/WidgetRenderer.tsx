@@ -45,8 +45,23 @@ export function WidgetRenderer({
     case 'table':
       return <TableWidgetView widget={widget} ctx={ctx} openDetail={openDetail} />;
     default:
-      return null;
+      return <UnknownWidget kind={(widget as { type?: unknown }).type} />;
   }
+}
+
+/** A widget kind this build has no drawing for. The spec is model data, so it can name a kind that
+ *  was misspelled or added after this client shipped; the view draws everything else and says which
+ *  one it left out, rather than leaving a silent hole an author cannot account for. */
+function UnknownWidget({ kind }: { kind: unknown }) {
+  const { t } = useTranslation();
+  const named = typeof kind === 'string' && kind !== '' ? kind : t('widgets.unknown.noKind');
+  return (
+    <WidgetCard title={t('widgets.unknown.title')}>
+      <p className="mt-2 text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+        {t('widgets.unknown.body', { kind: named })}
+      </p>
+    </WidgetCard>
+  );
 }
 
 function TableWidgetView({

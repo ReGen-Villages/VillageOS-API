@@ -283,6 +283,11 @@ export const en = {
     sparkline: {
       trend: "trend",
     },
+    unknown: {
+      title: "Widget not drawn",
+      body: "This view asks for a widget of kind \"{{kind}}\", which this application does not know how to draw.",
+      noKind: "none given",
+    },
   },
   errorBoundary: {
     title: "Something went wrong",
@@ -608,6 +613,9 @@ export const en = {
   operationsPage: {
     noDashboard: "No dashboard configured",
     noDashboardBody: "This model defines no <0>Dashboard</0> config. Add a Thing of archetype <1>Dashboard</1> with a <2>spec</2> property to drive this page.",
+    unreadableSpec: "{{name}} could not be read",
+    unreadableSpecBody: "The spec property on this Dashboard Thing does not hold a specification this application can read. Correct it in the model and reload.",
+    emptyView: "This dashboard's specification lists no sections, so there is nothing to draw.",
   },
   palette: {
     inputTitle: "Pipeline input — from the start",

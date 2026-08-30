@@ -285,6 +285,11 @@ export const de: PartialResources = {
     sparkline: {
       trend: "Trend",
     },
+    unknown: {
+      title: "Widget nicht gezeichnet",
+      body: "Diese Ansicht verlangt ein Widget der Art \"{{kind}}\", die diese Anwendung nicht zeichnen kann.",
+      noKind: "keine angegeben",
+    },
   },
   errorBoundary: {
     title: "Etwas ist schiefgelaufen",
@@ -610,6 +615,9 @@ export const de: PartialResources = {
   operationsPage: {
     noDashboard: "Kein Dashboard konfiguriert",
     noDashboardBody: "Dieses Modell definiert keine <0>Dashboard</0>-Konfiguration. Fügen Sie ein Thing vom Archetyp <1>Dashboard</1> mit einer <2>spec</2>-Eigenschaft hinzu, um diese Seite zu steuern.",
+    unreadableSpec: "{{name}} konnte nicht gelesen werden",
+    unreadableSpecBody: "Die spec-Eigenschaft dieses Dashboard-Things enthält keine Spezifikation, die diese Anwendung lesen kann. Korrigieren Sie sie im Modell und laden Sie neu.",
+    emptyView: "Die Spezifikation dieses Dashboards nennt keine Abschnitte, es gibt also nichts zu zeichnen.",
   },
   palette: {
     inputTitle: "Pipeline-Eingang — von Anfang an",

@@ -285,6 +285,11 @@ export const it: PartialResources = {
     sparkline: {
       trend: "tendenza",
     },
+    unknown: {
+      title: "Widget non disegnato",
+      body: "Questa vista chiede un widget di tipo \"{{kind}}\", che questa applicazione non sa disegnare.",
+      noKind: "nessuno indicato",
+    },
   },
   errorBoundary: {
     title: "Qualcosa è andato storto",
@@ -610,6 +615,9 @@ export const it: PartialResources = {
   operationsPage: {
     noDashboard: "Nessuna dashboard configurata",
     noDashboardBody: "Questo modello non definisce alcuna configurazione <0>Dashboard</0>. Aggiungi una Thing dell'archetipo <1>Dashboard</1> con una proprietà <2>spec</2> per gestire questa pagina.",
+    unreadableSpec: "Impossibile leggere {{name}}",
+    unreadableSpecBody: "La proprietà spec di questa Thing Dashboard non contiene una specifica leggibile da questa applicazione. Correggila nel modello e ricarica.",
+    emptyView: "La specifica di questa dashboard non elenca alcuna sezione, quindi non c'è nulla da disegnare.",
   },
   palette: {
     inputTitle: "Ingresso della pipeline — dall'inizio",

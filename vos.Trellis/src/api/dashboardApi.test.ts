@@ -102,15 +102,33 @@ describe('discovery', () => {
     const { things, relationships } = model();
     const found = discoverDashboards(things, relationships);
     expect(found).toHaveLength(1);
-    expect(found[0].spec.title).toBe('Ops');
+    expect(found[0].spec?.title).toBe('Ops');
     expect(found[0].name).toBe('Operations Dashboard');
   });
 
   it('lists compare entities from the compare archetype', () => {
     const { things, relationships } = model();
     const idx = buildModelIndex(declared(things, relationships), relationships);
-    const ents = scopeEntities(discoverDashboards(things, relationships)[0].spec, idx);
+    const ents = scopeEntities(discoverDashboards(things, relationships)[0].spec!, idx);
     expect(ents.map((e) => e.name)).toEqual(['V-1', 'V-2']);
+  });
+
+  // Story #6477: a spec authored wrong is still addressable, so its author can be told what is
+  // wrong with it. Ordered by name like any other, so a broken one does not sort to the end.
+  it('lists a Dashboard Thing whose spec could not be read, carrying no spec', () => {
+    const { things, relationships } = model();
+    things.push({ Id: 'dash2', Name: 'Half a spec', Properties: { spec: '{ "title": "Ops"' } });
+    relationships.push({
+      Id: 'dash2-is', Name: 'dash2 is arch-dash',
+      SubjectId: 'dash2', PredicateId: 'is', TargetId: 'arch-dash', Properties: {},
+    });
+
+    const found = discoverDashboards(declared(things, relationships), relationships);
+
+    expect(found.map((d) => [d.name, d.spec === null])).toEqual([
+      ['Half a spec', true],
+      ['Operations Dashboard', false],
+    ]);
   });
 
   it('resolves archetype membership via is-edges', () => {
@@ -1860,6 +1878,24 @@ describe('levers under a shortfall', () => {
     })) as Row[];
 
     expect(rows[0].levers).toEqual([{ term: 'consumed', direction: 'lower' }]);
+  });
+
+  // The formula belongs to the compute service, and the offers follow it. An input that service
+  // stops reading stops being offered, with nothing changed in the client.
+  it('stops offering an input the derivation no longer reads', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({
+      ...DEFINITIONS,
+      pctOfConsumption: {
+        Expression: 'totalGeneration * 100',
+        Reads: ['totalGeneration'],
+        RisesWith: ['totalGeneration'],
+      },
+    })) as Row[];
+
+    expect((rows[0].levers as Row[]).map((lever) => lever.term))
+      .toEqual(['panelAreaM2', 'otherGeneration']);
   });
 
   // A boundary the range admits with equality still says which side the value sits on.
