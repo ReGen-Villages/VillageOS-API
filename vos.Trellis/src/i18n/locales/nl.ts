@@ -285,6 +285,11 @@ export const nl: PartialResources = {
     sparkline: {
       trend: "trend",
     },
+    unknown: {
+      title: "Widget niet getekend",
+      body: "Deze weergave vraagt om een widget van soort \"{{kind}}\", die deze toepassing niet kan tekenen.",
+      noKind: "geen opgegeven",
+    },
   },
   errorBoundary: {
     title: "Er is iets misgegaan",
@@ -610,6 +615,9 @@ export const nl: PartialResources = {
   operationsPage: {
     noDashboard: "Geen dashboard geconfigureerd",
     noDashboardBody: "Dit model definieert geen <0>Dashboard</0>-configuratie. Voeg een Thing van archetype <1>Dashboard</1> met een <2>spec</2>-eigenschap toe om deze pagina aan te sturen.",
+    unreadableSpec: "{{name}} kon niet worden gelezen",
+    unreadableSpecBody: "De spec-eigenschap van deze Dashboard-Thing bevat geen specificatie die deze toepassing kan lezen. Corrigeer die in het model en laad opnieuw.",
+    emptyView: "De specificatie van dit dashboard noemt geen secties, dus er valt niets te tekenen.",
   },
   palette: {
     inputTitle: "Pijplijn-invoer — vanaf het begin",
@@ -715,6 +723,23 @@ export const nl: PartialResources = {
     intro: 'Beschrijf de grond en bevestig daarna het e-mailadres dat u opgeeft. Er wordt niets ingediend voordat dat adres is bevestigd.',
     keptInThisBrowser: 'Uw antwoorden blijven in deze browser totdat u ze indient, zodat u later verder kunt gaan.',
     unreachable: 'Dit formulier kan de indieningsdienst op dit moment niet bereiken. Er is niets verzonden van wat u hebt ingevuld.',
+  },
+  publicFindings: {
+    title: 'Uw inzending',
+    intro: 'Wat is ingediend, wat is gevonden en wat de analyse ervan maakt.',
+    reference: 'Referentie',
+    referenceHint: 'De referentie die u bij het indienen hebt gekregen.',
+    emailAddress: 'E-mailadres',
+    emailAddressHint: 'Het adres dat de inzending noemt. Daar wordt een code naartoe gestuurd, zodat alleen u deze bevindingen kunt lezen.',
+    sendCode: 'Stuur een code',
+    codeSent: 'Er is een code naar {{address}} gestuurd. Voer deze in om uw bevindingen te lezen.',
+    code: 'Code',
+    codePlaceholder: '6 cijfers',
+    read: 'Toon mijn bevindingen',
+    reading: 'Bezig met lezen',
+    askAgain: 'Vraag naar een andere inzending',
+    emptyView: 'De pagina waarop de bevindingen van dit terrein worden getekend noemt geen secties, dus er is nog niets te tonen.',
+    unreachable: 'Deze pagina kan de indieningsdienst op dit moment niet bereiken.',
   },
   submissionReview: {
     title: "Inzendingen",

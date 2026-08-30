@@ -27,7 +27,14 @@ public sealed class StudyProperties(HttpClient client, string myceliumUrl, strin
             throw new HttpRequestException(
                 $"{serviceName} could not read the study {studyId} ({(int)response.StatusCode} {response.StatusCode})");
 
-        return new StudyInputs(await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken), serviceName);
+        var properties = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        // An answer that holds no properties at all is a broken read, not a study whose inputs have yet to
+        // arrive: waiting on it would hold the study back for ever with nothing saying why.
+        if (properties.ValueKind != JsonValueKind.Object)
+            throw new HttpRequestException(
+                $"{serviceName} read the study {studyId} and was answered {properties.ValueKind} where its properties belong");
+
+        return new StudyInputs(properties, serviceName);
     }
 
     public async Task WriteAsync(Guid thingId, string property, object value, CancellationToken cancellationToken = default)

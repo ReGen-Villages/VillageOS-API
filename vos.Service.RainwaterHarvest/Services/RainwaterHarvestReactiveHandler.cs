@@ -56,17 +56,28 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
     /// demand named a property it had never heard of.</summary>
     public IReadOnlySet<string> WatchedProperties => _watched;
 
-    public async Task<RainwaterHarvestOutputs> RecomputeAsync(
+    public async Task<RecomputeAnswer<RainwaterHarvestOutputs>> RecomputeAsync(
         Guid studyId, CancellationToken cancellationToken = default)
     {
         var components = await ReadDemandComponentsAsync(cancellationToken);
         var watched = Watched(components);
         RefuseComponentsWritingOntoAnythingItWakesOn(components, watched);
+        // Recorded before the study is read rather than after it is computed: a study still waiting on a
+        // demand's quantity is woken by that quantity only while the name is watched.
+        _watched = watched;
 
         var properties = new StudyProperties(
             await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10)), MyceliumUrl, "RainwaterHarvest");
 
         var inputs = await properties.ReadAsync(studyId, cancellationToken);
+        if (inputs.WaitingFor(watched) is { Count: > 0 } waitingFor)
+        {
+            Logger.LogInformation(
+                "RainwaterHarvest: the study {StudyId} has no number for {Inputs} yet, so no water is apportioned",
+                studyId, string.Join(", ", waitingFor));
+            return new(null, waitingFor);
+        }
+
         var result = RainwaterHarvestCalculator.Compute(new RainwaterHarvestInputs(
             BuiltFootprintHectares: inputs.Number(BuiltFootprintInput),
             RainfallMillimetresPerYear: inputs.Number(RainfallInput),
@@ -75,8 +86,6 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
                 component.Name,
                 inputs.Number(component.QuantityProperty),
                 inputs.Number(component.RateProperty)))]));
-
-        _watched = watched;
 
         await properties.WriteAsync(studyId, TotalWaterDemandOutput, result.TotalWaterDemandM3PerYear, cancellationToken);
 
@@ -89,7 +98,7 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
             await properties.WriteAsync(studyId, component.ShortfallProperty, demand.ShortfallM3PerYear, cancellationToken);
         }
 
-        return result;
+        return new(result, []);
     }
 
     private async Task<IReadOnlyList<WaterDemandComponent>> ReadDemandComponentsAsync(

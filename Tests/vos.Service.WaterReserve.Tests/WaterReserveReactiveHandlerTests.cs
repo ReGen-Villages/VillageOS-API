@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using vos.Service.WaterReserve.Services;
 using vos.Tests.Shared;
@@ -18,13 +19,17 @@ public class WaterReserveReactiveHandlerTests
           "storageCapacityM3": { "Value": 900 } }
         """;
 
-    private static WaterReserveReactiveHandler NewHandler(RecordingHttpMessageHandler handler) =>
-        new(new TestHttpClientFactory(new HttpClient(handler)), NullLogger<WaterReserveReactiveHandler>.Instance,
+    private static WaterReserveReactiveHandler NewHandler(
+        RecordingHttpMessageHandler handler, ILogger<WaterReserveReactiveHandler>? logger = null) =>
+        new(new TestHttpClientFactory(new HttpClient(handler)),
+            logger ?? NullLogger<WaterReserveReactiveHandler>.Instance,
             "http://mycelium", serviceToken: "test-token");
 
-    // #6549: the same reader serves both services now, so the refusal names its input here too.
+    // #6549 made the refusal name its input; 6826 waits instead of refusing. A withheld number and an
+    // absent one say the same thing about a study — the figure has not arrived — so the name reaches the
+    // log either way rather than one of the two failing the dispatch.
     [Fact]
-    public async Task Refusing_a_null_input_names_which_input_it_was()
+    public async Task A_number_the_study_withholds_is_waited_for_by_name()
     {
         var withNull = AnchorInputs.Replace(
             "\"storageCapacityM3\": { \"Value\": 900 }",
@@ -33,12 +38,14 @@ public class WaterReserveReactiveHandlerTests
         {
             Content = new StringContent(withNull, Encoding.UTF8, "application/json"),
         });
+        var logger = new CapturingLogger<WaterReserveReactiveHandler>();
 
-        var thrown = await Assert.ThrowsAnyAsync<Exception>(() => NewHandler(handler).RecomputeAsync(Anchor));
+        var answer = await NewHandler(handler, logger).RecomputeAsync(Anchor);
 
-        Assert.Contains("storageCapacityM3", thrown.Message);
-        Assert.Contains("WaterReserve", thrown.Message);
-        Assert.Contains("no value", thrown.Message);
+        Assert.Null(answer.Outputs);
+        Assert.Equal(new[] { "storageCapacityM3" }, answer.WaitingFor);
+        Assert.Contains(logger.Lines, line =>
+            line.Contains("storageCapacityM3") && line.Contains(Anchor.ToString()));
     }
 
     [Fact]
@@ -48,9 +55,10 @@ public class WaterReserveReactiveHandlerTests
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(AnchorInputs, Encoding.UTF8, "application/json") }
             : new HttpResponseMessage(HttpStatusCode.OK));
 
-        var outputs = await NewHandler(handler).RecomputeAsync(Anchor);
+        var answer = await NewHandler(handler).RecomputeAsync(Anchor);
 
-        Assert.Equal(21.9, outputs.DaysOfSupply, 1);
+        Assert.Equal(21.9, answer.Outputs!.DaysOfSupply, 1);
+        Assert.Empty(answer.WaitingFor);
         Assert.Contains(handler.Requests, r => r.Method == HttpMethod.Get && r.Uri.Contains($"/api/things/{Anchor}/properties"));
     }
 
@@ -88,19 +96,29 @@ public class WaterReserveReactiveHandlerTests
             ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(stringInputs, Encoding.UTF8, "application/json") }
             : new HttpResponseMessage(HttpStatusCode.OK));
 
-        var outputs = await TestCulture.InAsync(TestCulture.CommaDecimal, () => NewHandler(handler).RecomputeAsync(Anchor));
+        var answer = await TestCulture.InAsync(TestCulture.CommaDecimal, () => NewHandler(handler).RecomputeAsync(Anchor));
 
-        Assert.Equal(21.9, outputs.DaysOfSupply, 1);
+        Assert.Equal(21.9, answer.Outputs!.DaysOfSupply, 1);
     }
 
+    // Bug 6826: a study a submission built carries land and a programme and no reservoir, so the capacity
+    // is absent until a building model exists. Throwing on it had the broker record the dispatch failed
+    // and re-drive it on every reconciliation for as long as the model lived.
     [Fact]
-    public async Task Fails_when_a_required_input_is_missing_from_the_anchor()
+    public async Task An_input_the_study_does_not_carry_is_waited_for_rather_than_failing_the_dispatch()
     {
         var handler = new RecordingHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("""{ "population": { "Value": 300 } }""", Encoding.UTF8, "application/json"),
         });
+        var logger = new CapturingLogger<WaterReserveReactiveHandler>();
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => NewHandler(handler).RecomputeAsync(Anchor));
+        var answer = await NewHandler(handler, logger).RecomputeAsync(Anchor);
+
+        Assert.Null(answer.Outputs);
+        Assert.Equal(new[] { "perCapitaConsumptionM3", "storageCapacityM3" }, answer.WaitingFor);
+        Assert.Contains(logger.Lines, line =>
+            line.Contains("perCapitaConsumptionM3") && line.Contains("storageCapacityM3"));
+        Assert.DoesNotContain(handler.Requests, r => r.Method == HttpMethod.Post);
     }
 }

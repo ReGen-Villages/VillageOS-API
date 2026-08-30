@@ -3,16 +3,23 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 
 /**
- * The public form is served on a site anybody can open, and it holds no credential. Nothing it loads may
- * reach the broker: not to read the model, not to sign in, not to find out whether somebody is signed in.
- * What it needs from the model, the intake service answers.
+ * The public pages are served on a site anybody can open, and they hold no credential. Nothing either
+ * loads may reach the broker: not to read the model, not to sign in, not to find out whether somebody is
+ * signed in. What they need from the model, the intake service answers.
  *
- * Asserted over the import graph rather than over a directory, because the form shares the wizard, the
- * map and the translations with the signed-in application — sharing a file is the point, and reaching
- * the broker through one is the thing that must not happen.
+ * Asserted over the import graph rather than over a directory, because they share the wizard, the map,
+ * the dashboard widgets and the translations with the signed-in application — sharing a file is the
+ * point, and reaching the broker through one is the thing that must not happen.
+ *
+ * Every entry `vite.public.config.ts` builds is walked. A page added to that build and left out here
+ * would be the one page the rule does not hold for.
  */
 const SOURCE = resolve(__dirname, '..');
-const ENTRY = resolve(__dirname, 'main.tsx');
+
+const ENTRIES = {
+  'the submission form': resolve(__dirname, 'main.tsx'),
+  'the findings page': resolve(SOURCE, 'publicFindings/main.tsx'),
+};
 
 const BROKER_CLIENT = resolve(SOURCE, 'api/client.ts');
 const SIGNED_IN_STATE = resolve(SOURCE, 'hooks/useAuth.ts');
@@ -45,12 +52,18 @@ function fileFor(path: string): string | null {
   return null;
 }
 
-describe('what the public form loads', () => {
-  const reached = reachedFrom(ENTRY);
+/** What each page must have reached. An empty walk would pass every other rule in this file. */
+const RENDERS: Record<string, string> = {
+  'the submission form': 'intake/IntakeWizard.tsx',
+  'the findings page': 'components/dashboard/DashboardSections.tsx',
+};
+
+describe.each(Object.entries(ENTRIES))('what %s loads', (page, entry) => {
+  const reached = reachedFrom(entry);
   const named = [...reached].map((file) => relative(SOURCE, file));
 
-  it('reaches the wizard it renders, so an empty walk cannot pass this file', () => {
-    expect(named).toContain('intake/IntakeWizard.tsx');
+  it('reaches what it renders, so an empty walk cannot pass this file', () => {
+    expect(named).toContain(RENDERS[page]);
   });
 
   it('reaches neither the broker client nor the signed-in state', () => {

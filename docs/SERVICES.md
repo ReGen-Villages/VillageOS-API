@@ -376,7 +376,8 @@ switch (request.Kind)
     case HandleRequestKind.NodeEnvelope:
         return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
     case HandleRequestKind.RelationshipSubject:
-        return Results.Ok(new { success = true, outputs = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted) });
+        var answer = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
+        return Results.Ok(new { success = true, answer.Outputs, answer.WaitingFor });
     default:
         return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes(serviceName) });
 }
@@ -421,6 +422,15 @@ What makes it work:
 - **Only inputs trigger it.** A compute service writes its outputs onto the same subject it watches, so
   reacting to every change there would recompute forever. Each handler exposes `InputProperties`, and the
   wiring passes that same set, so the filter cannot drift from what the handler reads.
+- **An input that has not arrived is waited for, not failed (#6826).** A study built from a submission
+  carries land and a programme and nothing about buildings, so a reservoir capacity or a panel area is
+  absent until a building model exists. `StudyInputs.WaitingFor` says which of a handler's inputs the study
+  holds no number under — one it does not carry, and one carried with its number withheld — and a handler
+  that finds any writes nothing, logs the names, and answers a `RecomputeAnswer` carrying them. The dispatch
+  is recorded done and the watch above is what recomputes the study when the figure lands. Throwing instead
+  had the dispatch recorded `__DispatchState=Failed` and driven again on every reconciliation for the life
+  of the model, which reads in the log exactly like a service that is broken. Text where a number belongs
+  is still refused: that is a model to fix rather than a figure to wait for.
 - **A reconnect recomputes.** A derived value is published live-only and never enters the journal, so a
   resumed stream does not replay one. `ISubscriptionClient.Reconnected` fires after the stream re-establishes
   a dropped connection, and every watched subject is recomputed rather than trusted — **each subject once**,

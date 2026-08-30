@@ -6,15 +6,16 @@
  * already-loaded model store and parse their specs.
  *
  * Resolution: every widget slot is a {@link Binding}. `resolveBinding` maps the
- * generic binding *kind* to a concrete data source (stateApi / model store /
- * temporalApi / a model-side service). The binding *values* — state names,
- * archetypes, properties — come from the model, never from this file.
+ * generic binding *kind* to a concrete data source — the loaded model for most of
+ * them, and for the four it cannot answer, the {@link ModelReads} its context
+ * carries. Nothing here opens a connection, which is what lets the page a
+ * submitter opens with no credential resolve the same specs the application does.
+ * The binding *values* — state names, archetypes, properties — come from the
+ * model, never from this file.
  */
 import type {
   VosThing,
   VosRelationship,
-  ThingsInStateResponse,
-  ThingRangesResponse,
   TemporalAggregateQuery,
   DerivedDefinition,
 } from '../types/vos';
@@ -33,10 +34,7 @@ import {
   type ScopeRef,
   type PropertyFilter,
 } from '../types/dashboard';
-import { stateApi, thingsInStatePath, type StateNarrowing } from './stateApi';
-import { temporalApi } from './temporalApi';
-import { rangeApi } from './rangeApi';
-import { apiClient } from './client';
+import type { ModelReads } from './modelReads';
 import { effectiveProperties, effectiveDerivedDefinitions } from '../utils/propertyMapper';
 import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
@@ -218,11 +216,13 @@ export function thingsOfArchetype(archetype: string, idx: ModelIndex): VosThing[
  *  dashboard's position in the navigation would move whenever the model changed. */
 export function discoverDashboardsFromIndex(idx: ModelIndex): DashboardDescriptor[] {
   if (idx.dashboards) return idx.dashboards;
-  const found: { thing: VosThing; spec: DashboardSpec }[] = [];
-  for (const thing of thingsOfArchetype(DASHBOARD_ARCHETYPE, idx)) {
-    const spec = parseSpec(effectiveProperties(thing, idx)[DASHBOARD_SPEC_PROPERTY]);
-    if (spec) found.push({ thing, spec });
-  }
+  // Every Dashboard Thing is listed, including one whose spec did not read. A spec is model data
+  // and can be authored wrong; dropping such a Thing here leaves its author a page that never
+  // appears and nothing anywhere saying why.
+  const found = thingsOfArchetype(DASHBOARD_ARCHETYPE, idx).map((thing) => ({
+    thing,
+    spec: parseSpec(effectiveProperties(thing, idx)[DASHBOARD_SPEC_PROPERTY]),
+  }));
   found.sort((a, b) => a.thing.Name.localeCompare(b.thing.Name));
   const slugs = found.map((d) => slugOf(d.thing.Name));
   const bearers = new Map<string, number>();
@@ -271,7 +271,7 @@ function parseSpec(raw: unknown): DashboardSpec | null {
   return null;
 }
 
-/** Compare entities (e.g. sites) offered in the scope switcher. */
+/** Compare entities offered in the scope switcher. */
 export function scopeEntities(spec: DashboardSpec, idx: ModelIndex): ScopeEntity[] {
   if (!spec.compare) return [];
   return thingsOfArchetype(spec.compare.archetype, idx)
@@ -289,33 +289,10 @@ export interface ResolveContext {
   compareArchetype?: string;
   /** Bumped on live events to force re-resolution of server-side bindings. Part of identity only. */
   nonce?: number;
-  /** The state reads of one refresh generation: everything resolved with this context asks the
-   *  broker once per state name, however many rows and widgets want that state. Held in flight
-   *  rather than as a value, so readers running in parallel share one request. Its lifetime is
-   *  the context's own — a map outliving the generation would serve a membership the model has
-   *  since moved past. */
-  stateMembers?: Map<string, Promise<ThingsInStateResponse>>;
-  /** The range reads of one refresh generation, shared and scoped exactly as `stateMembers` is. */
-  thingRanges?: Map<string, Promise<ThingRangesResponse | null>>;
-}
-
-/** One state read, shared with everything in this generation asking the same question. The question
- *  is the request, not the state name: two widgets narrowing one state differently must not be
- *  handed each other's answer, which would put a wrong number on screen with nothing to say so. */
-function thingsInState(
-  state: string,
-  ctx: ResolveContext,
-  narrowing?: StateNarrowing,
-): Promise<ThingsInStateResponse> {
-  const question = thingsInStatePath(state, narrowing);
-  const inFlight = ctx.stateMembers?.get(question);
-  if (inFlight) return inFlight;
-  const request = stateApi.getThingsInState(state, narrowing);
-  ctx.stateMembers?.set(question, request);
-  // A failed read is dropped rather than shared: one broker hiccup would otherwise stick to
-  // every later reader of this generation, with nothing to retry it until the next refresh.
-  request.catch(() => ctx.stateMembers?.delete(question));
-  return request;
+  /** What answers the four questions a loaded model cannot — state membership, a Thing's ranges, a
+   *  reduction over history, a model-side service. Supplied by whoever built the context, so this
+   *  file resolves the same specs whether the broker is reachable or not. */
+  reads: ModelReads;
 }
 
 /** The scope as the state and temporal endpoints express it: the selected compare entity as a
@@ -330,19 +307,7 @@ function containerFor(
 }
 
 async function stateMemberIds(state: string, ctx: ResolveContext): Promise<Set<string>> {
-  return new Set((await thingsInState(state, ctx)).Things?.map((t) => t.Id) ?? []);
-}
-
-/** A Thing's ranges, own and inherited, shared across the widgets of one refresh the way state
- *  reads are. A study's judge-ranges sit on its archetype, so several verdict rows on one page ask
- *  about one Thing and would otherwise each fetch the same answer. A failed read resolves to null
- *  rather than rejecting: a verdict the model holds still reads, without the target it names. */
-function thingRanges(thingId: string, ctx: ResolveContext): Promise<ThingRangesResponse | null> {
-  const inFlight = ctx.thingRanges?.get(thingId);
-  if (inFlight) return inFlight;
-  const request = rangeApi.getAll(thingId).catch(() => null);
-  ctx.thingRanges?.set(thingId, request);
-  return request;
+  return new Set((await ctx.reads.thingsInState(state)).Things?.map((t) => t.Id) ?? []);
 }
 
 /** A cell value as a number, or null where it has none — `num`'s rule about what counts as a number,
@@ -566,19 +531,18 @@ async function recordedSourceOf(
 }
 
 /** Resolve each computed column once per row, with that row's Thing as the scope — so the binding
- *  a `$scope`-driven widget uses yields this row's own value here. The rows share their state
- *  reads, which is what keeps a state-reading column at one request per state rather than per row
- *  even when the caller gave no context to share through. */
+ *  a `$scope`-driven widget uses yields this row's own value here. Every row reads through the one
+ *  {@link ModelReads} the context carries, which is what keeps a state-reading column at one request
+ *  per state rather than one per row. */
 async function withComputedColumns(
   rows: Row[],
   computed: ComputedColumn[] | undefined,
   ctx: ResolveContext,
 ): Promise<Row[]> {
   if (!computed?.length) return rows;
-  const stateMembers = ctx.stateMembers ?? new Map<string, Promise<ThingsInStateResponse>>();
   return Promise.all(
     rows.map(async (row) => {
-      const rowCtx: ResolveContext = { ...ctx, scopeId: (row.id as string) ?? null, stateMembers };
+      const rowCtx: ResolveContext = { ...ctx, scopeId: (row.id as string) ?? null };
       const values = await Promise.all(computed.map((column) => resolveBinding(column.value, rowCtx)));
       computed.forEach((column, i) => (row[column.key] = asCell(values[i])));
       return row;
@@ -697,7 +661,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         const held = binding.states.filter((_, i) => membership[i].has(thing.Id));
         if (!held.length) return [];
 
-        const ranges = await thingRanges(thing.Id, ctx);
+        const ranges = await ctx.reads.thingRanges(thing.Id);
         const properties = effectiveProperties(thing, ctx.idx);
         return held.map((candidate) => {
           // The first comparison, because a judge-range tests one value; a range that tests none —
@@ -773,7 +737,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
 
     case 'stateCount': {
       const container = containerFor(binding.scope, ctx);
-      const resp = await thingsInState(binding.state, ctx, { type: binding.archetype, ...container });
+      const resp = await ctx.reads.thingsInState(binding.state, { type: binding.archetype, ...container });
       // Only what the request could not carry is narrowed here.
       const members = container ? null : scopeMemberIds(binding.scope, ctx);
       const list = resp.Things ?? [];
@@ -783,12 +747,12 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
     case 'stateList': {
       const container = containerFor(binding.scope, ctx);
       const members = container ? null : scopeMemberIds(binding.scope, ctx);
-      const resp = await thingsInState(binding.state, ctx, {
+      const resp = await ctx.reads.thingsInState(binding.state, {
         type: binding.archetype,
-        // The derived statuses nest (a harvested plot is also growing/planted/…), so a plain
-        // stateList for an early stage includes every later one. A funnel stage names the next
-        // stage's state as one that disqualifies, leaving the Things that reached this stage and
-        // no further.
+        // The derived statuses nest — a Thing that reached a later stage still holds the earlier
+        // ones — so a plain stateList for an early stage includes every later one. A funnel stage
+        // names the next stage's state as one that disqualifies, leaving the Things that reached
+        // this stage and no further.
         notIn: binding.excludeState ? [binding.excludeState] : undefined,
         // A cap the server applies takes the first rows of its answer, which is the wrong subset
         // when the scope is still narrowed here afterwards. That answer then carries the columns
@@ -824,7 +788,7 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
 
     case 'service': {
       try {
-        const resp = await apiClient.post<unknown>(binding.endpoint, withScope(binding.body ?? {}, ctx.scopeId));
+        const resp = await ctx.reads.fromService(binding.endpoint, withScope(binding.body ?? {}, ctx.scopeId));
         const picked = selectPath(resp, binding.select);
         return (picked ?? null) as BindingResult;
       } catch {
@@ -858,7 +822,7 @@ async function resolveTimeseries(
     return null;
   }
   try {
-    const answer = await temporalApi.aggregate({
+    const answer = await ctx.reads.aggregate({
       function: REDUCTIONS[binding.op],
       memberType: binding.archetype,
       timestampProperty: binding.happenedAt,

@@ -8,12 +8,7 @@ import type {
 } from '../types/vos';
 import type { Binding } from '../types/dashboard';
 
-// The request builder stays real: the shared-request key is the path a narrowed read asks for, so a
-// stubbed one would prove sharing that the running client does not do.
-vi.mock('./stateApi', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./stateApi')>()),
-  stateApi: { getThingsInState: vi.fn() },
-}));
+vi.mock('./stateApi', () => ({ stateApi: { getThingsInState: vi.fn() } }));
 
 vi.mock('./client', () => ({
   apiClient: { post: vi.fn() },
@@ -31,6 +26,10 @@ import { stateApi } from './stateApi';
 import { apiClient } from './client';
 import { rangeApi } from './rangeApi';
 import { temporalApi } from './temporalApi';
+// The real one, over the mocked modules above: the resolver reaches these four through the port, so a
+// stub port here would prove nothing about what the running application asks the broker — and the
+// sharing a refresh generation does now belongs to this object rather than to the context.
+import { brokerModelReads } from './brokerModelReads';
 import {
   discoverDashboards,
   scopeEntities,
@@ -90,7 +89,7 @@ function model(): { things: VosThing[]; relationships: VosRelationship[] } {
 
 function ctxFor(scopeId: string | null): ResolveContext {
   const { things, relationships } = model();
-  return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village' };
+  return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village', reads: brokerModelReads() };
 }
 
 async function rowsOf(binding: Binding, ctx: ResolveContext): Promise<Record<string, unknown>[]> {
@@ -102,15 +101,33 @@ describe('discovery', () => {
     const { things, relationships } = model();
     const found = discoverDashboards(things, relationships);
     expect(found).toHaveLength(1);
-    expect(found[0].spec.title).toBe('Ops');
+    expect(found[0].spec?.title).toBe('Ops');
     expect(found[0].name).toBe('Operations Dashboard');
   });
 
   it('lists compare entities from the compare archetype', () => {
     const { things, relationships } = model();
     const idx = buildModelIndex(declared(things, relationships), relationships);
-    const ents = scopeEntities(discoverDashboards(things, relationships)[0].spec, idx);
+    const ents = scopeEntities(discoverDashboards(things, relationships)[0].spec!, idx);
     expect(ents.map((e) => e.name)).toEqual(['V-1', 'V-2']);
+  });
+
+  // Story #6477: a spec authored wrong is still addressable, so its author can be told what is
+  // wrong with it. Ordered by name like any other, so a broken one does not sort to the end.
+  it('lists a Dashboard Thing whose spec could not be read, carrying no spec', () => {
+    const { things, relationships } = model();
+    things.push({ Id: 'dash2', Name: 'Half a spec', Properties: { spec: '{ "title": "Ops"' } });
+    relationships.push({
+      Id: 'dash2-is', Name: 'dash2 is arch-dash',
+      SubjectId: 'dash2', PredicateId: 'is', TargetId: 'arch-dash', Properties: {},
+    });
+
+    const found = discoverDashboards(declared(things, relationships), relationships);
+
+    expect(found.map((d) => [d.name, d.spec === null])).toEqual([
+      ['Half a spec', true],
+      ['Operations Dashboard', false],
+    ]);
   });
 
   it('resolves archetype membership via is-edges', () => {
@@ -268,7 +285,9 @@ describe('resolveBinding', () => {
         },
       },
     };
-    const ctx: ResolveContext = { idx: buildModelIndex([child], []), scopeId: 'vil3', compareArchetype: 'Village' };
+    const ctx: ResolveContext = {
+      idx: buildModelIndex([child], []), scopeId: 'vil3', compareArchetype: 'Village', reads: brokerModelReads(),
+    };
     const v = await resolveBinding({ kind: 'property', thing: '$scope', property: 'self_sufficiency_rate' }, ctx);
     expect(v).toBeCloseTo(88.5);
   });
@@ -332,7 +351,10 @@ describe('resolveBinding', () => {
         SubjectId, PredicateId: 'is', TargetId, Properties: {},
       });
       const relationships = [rel('o1', 'arch-order'), rel('o2', 'arch-order'), rel('l1', 'arch-line')];
-      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId: null, compareArchetype: 'Order' };
+      return {
+        idx: buildModelIndex(declared(things, relationships), relationships),
+        scopeId: null, compareArchetype: 'Order', reads: brokerModelReads(),
+      };
     }
 
     // Answers the way the endpoint does, so these read as the narrowing arriving rather than as the
@@ -392,7 +414,10 @@ describe('resolveBinding', () => {
         ...['root1', 'root2', 'mid1', 'mid2', 'leaf1', 'leaf2', 'leaf3', 'direct1', 'direct2']
           .map((id) => rel(id, 'is', 'arch-node')),
       ];
-      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Root' };
+      return {
+        idx: buildModelIndex(declared(things, relationships), relationships),
+        scopeId, compareArchetype: 'Root', reads: brokerModelReads(),
+      };
     }
 
     it('reaches Things nested more than one hop below the scope entity', async () => {
@@ -469,7 +494,10 @@ describe('resolveBinding', () => {
         rel('rbt1', 'is', 'arch-robot'), rel('rbt2', 'is', 'arch-robot'), rel('cnv1', 'is', 'arch-machine'),
         rel('site1', 'contains', 'rbt1'), rel('site1', 'contains', 'cnv1'), rel('site2', 'contains', 'rbt2'),
       ];
-      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Site' };
+      return {
+        idx: buildModelIndex(declared(things, relationships), relationships),
+        scopeId, compareArchetype: 'Site', reads: brokerModelReads(),
+      };
     }
 
     it('lists every Thing of the archetype, in no state and with no scope selected', async () => {
@@ -546,7 +574,10 @@ describe('resolveBinding', () => {
         rel('cmd1', 'targets', 'rbt1'), rel('cmd1', 'references', 'locC'), rel('cmd1', 'references', 'zn1'),
         rel('cmd0', 'targets', 'rbt1'), rel('cmd0', 'references', 'locD'),
       ];
-      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Machine' };
+      return {
+        idx: buildModelIndex(declared(things, relationships), relationships),
+        scopeId, compareArchetype: 'Machine', reads: brokerModelReads(),
+      };
     }
 
     const MEMBERS: Record<string, string[]> = {
@@ -684,7 +715,7 @@ describe('resolveBinding', () => {
     // and a table used to be three requests per refresh.
     describe('state reads shared across a refresh generation', () => {
       it('asks once for a state that several bindings of one generation want', async () => {
-        const ctx: ResolveContext = { ...fleet(null), stateMembers: new Map() };
+        const ctx: ResolveContext = { ...fleet(null), reads: brokerModelReads() };
         await Promise.all([
           resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx),
           resolveBinding({ kind: 'stateList', state: 'reachable' }, ctx),
@@ -697,7 +728,7 @@ describe('resolveBinding', () => {
       // A shared read must not share a failure: one hiccup would otherwise stick to every later
       // reader of the generation, with nothing to retry it.
       it('retries a state read that failed instead of sharing the failure', async () => {
-        const ctx: ResolveContext = { ...fleet(null), stateMembers: new Map() };
+        const ctx: ResolveContext = { ...fleet(null), reads: brokerModelReads() };
         vi.mocked(stateApi.getThingsInState)
           .mockRejectedValueOnce(new Error('broker unreachable'))
           .mockResolvedValueOnce({ StateName: 'reachable', Things: [{ Id: 'rbt1', Name: 'RBT-1' }] });
@@ -805,7 +836,7 @@ describe('resolveBinding', () => {
         rel('vilA', 'contains', 'znA'), rel('znA', 'contains', 'locA1'), rel('znA', 'contains', 'locA2'),
         rel('vilB', 'contains', 'znB'), rel('znB', 'contains', 'locB1'),
       ];
-      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village' };
+      return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, compareArchetype: 'Village', reads: brokerModelReads() };
     }
 
     const LOCATION_SCOPE = { viaPredicate: 'contains', direction: 'out' as const };
@@ -923,6 +954,7 @@ describe('a text property is not a number', () => {
       idx: buildModelIndex(things, [rel('gate3', 'arch-gate'), rel('gate7', 'arch-gate')]),
       scopeId: null,
       compareArchetype: 'Gate',
+      reads: brokerModelReads(),
     };
   }
 
@@ -1053,7 +1085,7 @@ describe('verdict binding', () => {
     const relationships: VosRelationship[] = [
       { Id: 'r1', Name: 'study1 is arch-study', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
     ];
-    return { idx: buildModelIndex(things, relationships), scopeId: 'study1' };
+    return { idx: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
   }
 
   function holding(...states: string[]) {
@@ -1204,8 +1236,7 @@ describe('verdict binding', () => {
     holding('EnergyShortOfTarget');
     const shared: ResolveContext = {
       ...studyContext({ pctOfConsumption: 73 }),
-      stateMembers: new Map(),
-      thingRanges: new Map(),
+      reads: brokerModelReads(),
     };
 
     await resolveBinding(binding, shared);
@@ -1242,7 +1273,7 @@ describe('verdict binding', () => {
           { Id: `${s.name}-studies`, Name: `${s.name} studies site1`, SubjectId: s.name, PredicateId: 'studies', TargetId: 'site1', Properties: {} },
         ]),
       ];
-      return { idx: buildModelIndex(things, relationships), scopeId: 'site1' };
+      return { idx: buildModelIndex(things, relationships), scopeId: 'site1', reads: brokerModelReads() };
     }
 
     /** The outer `holding` speaks for the study alone; a walk asks about the site and about more
@@ -1314,7 +1345,7 @@ describe('a Thing reference resolves the same way whichever binding reads it', (
       { Id: AMBIGUOUS, Name: 'Identified plot', Properties: { area: 10 } },
       { Id: 'named-plot', Name: AMBIGUOUS, Properties: { area: 20 } },
     ];
-    return { idx: buildModelIndex(things, []), scopeId: null };
+    return { idx: buildModelIndex(things, []), scopeId: null, reads: brokerModelReads() };
   }
 
   beforeEach(() => {
@@ -1370,7 +1401,7 @@ describe('state bindings ask the server to narrow', () => {
       idx: buildModelIndex(declared(things, relationships), relationships),
       scopeId,
       compareArchetype: 'Site',
-      stateMembers: new Map(),
+      reads: brokerModelReads(),
     };
   }
 
@@ -1563,7 +1594,7 @@ describe('timeseries reads the platform bucketed aggregate', () => {
       Id: 'site1-contains-o1', Name: 'site1 contains o1',
       SubjectId: 'site1', PredicateId: 'contains', TargetId: 'b1', Properties: {},
     }];
-    return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId };
+    return { idx: buildModelIndex(declared(things, relationships), relationships), scopeId, reads: brokerModelReads() };
   }
 
   const QUARTER_HOUR = 900;
@@ -1662,7 +1693,7 @@ describe('the working behind a figure', () => {
       { Id: 'r1', Name: 'r1', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
       { Id: 'r2', Name: 'r2', SubjectId: 'study1', PredicateId: 'studies', TargetId: 'site1', Properties: {} },
     ] as unknown as VosRelationship[];
-    return { idx: buildModelIndex(things, relationships), scopeId: 'study1' };
+    return { idx: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
   };
 
   const working = (property: string, extra: Record<string, unknown> = {}) =>
@@ -1787,7 +1818,7 @@ describe('levers under a shortfall', () => {
     const relationships: VosRelationship[] = [
       { Id: 'r1', Name: 'study1 is arch-study', SubjectId: 'study1', PredicateId: 'is', TargetId: 'arch-study', Properties: {} },
     ];
-    return { idx: buildModelIndex(things, relationships), scopeId: 'study1' };
+    return { idx: buildModelIndex(things, relationships), scopeId: 'study1', reads: brokerModelReads() };
   }
 
   function holding(...states: string[]) {
@@ -1860,6 +1891,24 @@ describe('levers under a shortfall', () => {
     })) as Row[];
 
     expect(rows[0].levers).toEqual([{ term: 'consumed', direction: 'lower' }]);
+  });
+
+  // The formula belongs to the compute service, and the offers follow it. An input that service
+  // stops reading stops being offered, with nothing changed in the client.
+  it('stops offering an input the derivation no longer reads', async () => {
+    holding('EnergyShortOfTarget');
+
+    const rows = await resolveBinding(binding, studyContext({
+      ...DEFINITIONS,
+      pctOfConsumption: {
+        Expression: 'totalGeneration * 100',
+        Reads: ['totalGeneration'],
+        RisesWith: ['totalGeneration'],
+      },
+    })) as Row[];
+
+    expect((rows[0].levers as Row[]).map((lever) => lever.term))
+      .toEqual(['panelAreaM2', 'otherGeneration']);
   });
 
   // A boundary the range admits with equality still says which side the value sits on.
@@ -1996,7 +2045,7 @@ describe('origin binding', () => {
       edge('parcel-obtained', 'parcel1', 'obtainedBy', 'generated'),
       ...alsoReaching.map((id) => edge(`site-has-${id}`, 'site1', 'has', id)),
     ];
-    return { idx: buildModelIndex(things, relationships), scopeId: 'site1' };
+    return { idx: buildModelIndex(things, relationships), scopeId: 'site1', reads: brokerModelReads() };
   }
 
   const origin = (property: string, extra: Record<string, unknown> = {}) =>

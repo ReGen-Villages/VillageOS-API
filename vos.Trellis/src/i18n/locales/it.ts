@@ -285,6 +285,11 @@ export const it: PartialResources = {
     sparkline: {
       trend: "tendenza",
     },
+    unknown: {
+      title: "Widget non disegnato",
+      body: "Questa vista chiede un widget di tipo \"{{kind}}\", che questa applicazione non sa disegnare.",
+      noKind: "nessuno indicato",
+    },
   },
   errorBoundary: {
     title: "Qualcosa è andato storto",
@@ -610,6 +615,9 @@ export const it: PartialResources = {
   operationsPage: {
     noDashboard: "Nessuna dashboard configurata",
     noDashboardBody: "Questo modello non definisce alcuna configurazione <0>Dashboard</0>. Aggiungi una Thing dell'archetipo <1>Dashboard</1> con una proprietà <2>spec</2> per gestire questa pagina.",
+    unreadableSpec: "Impossibile leggere {{name}}",
+    unreadableSpecBody: "La proprietà spec di questa Thing Dashboard non contiene una specifica leggibile da questa applicazione. Correggila nel modello e ricarica.",
+    emptyView: "La specifica di questa dashboard non elenca alcuna sezione, quindi non c'è nulla da disegnare.",
   },
   palette: {
     inputTitle: "Ingresso della pipeline — dall'inizio",
@@ -715,6 +723,23 @@ export const it: PartialResources = {
     intro: "Descrivi il terreno, poi conferma l'indirizzo e-mail che indichi. Non viene inviato nulla finché quell'indirizzo non è confermato.",
     keptInThisBrowser: 'Le tue risposte restano in questo browser finché non le invii, così puoi tornare a completarle più tardi.',
     unreachable: 'Questo modulo al momento non riesce a raggiungere il servizio di invio. Nulla di quanto hai scritto è stato inviato.',
+  },
+  publicFindings: {
+    title: 'Il tuo invio',
+    intro: "Che cosa è stato inviato, che cosa è stato rilevato e che cosa ne ricava l'analisi.",
+    reference: 'Riferimento',
+    referenceHint: "Il riferimento che hai ricevuto al momento dell'invio.",
+    emailAddress: 'Indirizzo e-mail',
+    emailAddressHint: "L'indirizzo indicato nell'invio. Lì viene inviato un codice, così solo tu puoi leggere questi risultati.",
+    sendCode: 'Invia un codice',
+    codeSent: 'Un codice è stato inviato a {{address}}. Inseriscilo per leggere i tuoi risultati.',
+    code: 'Codice',
+    codePlaceholder: '6 cifre',
+    read: 'Mostra i miei risultati',
+    reading: 'Lettura in corso',
+    askAgain: 'Chiedi di un altro invio',
+    emptyView: "La pagina su cui sono presentati questi risultati non indica alcuna sezione, quindi non ci sono ancora dati da mostrare.",
+    unreachable: 'Questa pagina al momento non riesce a raggiungere il servizio di invio.',
   },
   submissionReview: {
     title: "Invii",

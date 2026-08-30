@@ -85,8 +85,8 @@ try
 
             case HandleRequestKind.RelationshipSubject:
                 following.Watch(request.SubjectId);
-                var outputs = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
-                return Results.Ok(new { success = true, outputs });
+                var answer = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
+                return Results.Ok(new { success = true, answer.Outputs, answer.WaitingFor });
 
             default:
                 return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("EnergyBalance") });

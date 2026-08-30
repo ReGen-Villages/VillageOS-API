@@ -12,6 +12,7 @@ import {
   type ModelIndex,
   type ResolveContext,
 } from '../api/dashboardApi';
+import type { ModelReads } from '../api/modelReads';
 import { useModelStore } from '../stores/modelStore';
 import type { Binding, DashboardDescriptor } from '../types/dashboard';
 
@@ -32,18 +33,22 @@ export function useDashboards(): DashboardDescriptor[] {
  *  part of the context identity only: bumping it forces server-side bindings to
  *  re-resolve on live events without rebuilding the (unchanged) index.
  *
- *  The context carries the state reads of one refresh generation, so widgets asking about the
- *  same state ask the broker once between them rather than once each. It is discarded whenever
- *  the identity changes — which is every live event and every timed refresh, the same moments
- *  that make a widget re-resolve at all. */
+ *  `makeReads` is called once per generation rather than passed as a value, because what it
+ *  builds shares the reads of that generation: widgets asking about the same state ask once
+ *  between them rather than once each. It is discarded whenever the identity changes — which is
+ *  every live event and every timed refresh, the same moments that make a widget re-resolve at
+ *  all. A factory rather than the reads themselves is also what keeps this file off the broker,
+ *  so the page a submitter opens with no credential can use these hooks. */
 export function useResolveContext(
   idx: ModelIndex,
   scopeId: string | null,
   compareArchetype: string | undefined,
+  makeReads: () => ModelReads,
   nonce = 0,
 ): ResolveContext {
   return useMemo(
-    () => ({ idx, scopeId, compareArchetype, nonce, stateMembers: new Map(), thingRanges: new Map() }),
+    () => ({ idx, scopeId, compareArchetype, nonce, reads: makeReads() }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [idx, scopeId, compareArchetype, nonce],
   );
 }

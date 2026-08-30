@@ -14,10 +14,10 @@ import { useModelStore } from '../stores/modelStore';
 import { useSse, useSubscription } from '../hooks/useSse';
 import { useDashboards, useModelIndex, useResolveContext } from '../hooks/useDashboard';
 import { scopeEntities as computeScopeEntities } from '../api/dashboardApi';
+import { brokerModelReads } from '../api/brokerModelReads';
 import { NAVIGATION_AND_SETTINGS, subscriptionForSpec } from '../api/dashboardSubscription';
 import { localizeSpec } from '../api/dashboardLocalization';
-import type { DashboardSection } from '../types/dashboard';
-import { WidgetRenderer } from '../components/dashboard/widgets/WidgetRenderer';
+import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { useDetailWindows } from '../components/dashboard/detail/DetailWindowManager';
 
 const REFRESH_EVENTS = [
@@ -57,7 +57,7 @@ export function OperationsPage() {
   const dashboard = dashboards.find((d) => d.routeKey === dashboardKey);
   const { t, i18n } = useTranslation();
   const spec = useMemo(
-    () => (dashboard ? localizeSpec(dashboard.spec, i18n.language) : undefined),
+    () => (dashboard?.spec ? localizeSpec(dashboard.spec, i18n.language) : undefined),
     [dashboard, i18n.language],
   );
 
@@ -65,7 +65,7 @@ export function OperationsPage() {
 
   const [scopeId, setScopeId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
-  const ctx = useResolveContext(idx, scopeId, spec?.compare?.archetype, nonce);
+  const ctx = useResolveContext(idx, scopeId, spec?.compare?.archetype, brokerModelReads, nonce);
 
   // What this page is about, said to the platform: it is sent the Things its widgets read and the
   // later changes to those, instead of every change in a model whose size it does not depend on.
@@ -107,24 +107,27 @@ export function OperationsPage() {
   if (!dashboard && dashboards.length > 0) {
     return <Navigate to={`/operations/${dashboards[0].routeKey}`} replace />;
   }
+  // A Thing that declares itself a dashboard and carries a spec nothing can read. Named, so the
+  // author knows which one to open, and told apart from a model that publishes no dashboard at all.
+  if (dashboard && !dashboard.spec) {
+    return (
+      <Guidance title={t('operationsPage.unreadableSpec', { name: dashboard.name })}>
+        {t('operationsPage.unreadableSpecBody')}
+      </Guidance>
+    );
+  }
   if (!spec) {
     return (
-      <Centered>
-        <div className="max-w-md text-center">
-          <LayoutDashboard className="mx-auto mb-3 text-zinc-300 dark:text-zinc-600" size={40} />
-          <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1">{t('operationsPage.noDashboard')}</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            <Trans
-              i18nKey="operationsPage.noDashboardBody"
-              components={[
-                <code className="font-mono text-xs" />,
-                <code className="font-mono text-xs" />,
-                <code className="font-mono text-xs" />,
-              ]}
-            />
-          </p>
-        </div>
-      </Centered>
+      <Guidance title={t('operationsPage.noDashboard')}>
+        <Trans
+          i18nKey="operationsPage.noDashboardBody"
+          components={[
+            <code className="font-mono text-xs" />,
+            <code className="font-mono text-xs" />,
+            <code className="font-mono text-xs" />,
+          ]}
+        />
+      </Guidance>
     );
   }
 
@@ -162,56 +165,16 @@ export function OperationsPage() {
       </header>
 
       <div className="flex-1 overflow-auto px-6 pb-10">
-        {spec.sections.map((section, i) => (
-          <Section key={i} section={section} ctx={ctx} isWide={isWide} openDetail={openDetail} />
-        ))}
+        <DashboardSections
+          sections={spec.sections}
+          ctx={ctx}
+          isWide={isWide}
+          openDetail={openDetail}
+          whenEmpty={<Centered>{t('operationsPage.emptyView')}</Centered>}
+        />
       </div>
       {windows}
     </div>
-  );
-}
-
-function Section({
-  section,
-  ctx,
-  isWide,
-  openDetail,
-}: {
-  section: DashboardSection;
-  ctx: ReturnType<typeof useResolveContext>;
-  isWide: boolean;
-  openDetail?: (thingId: string) => void;
-}) {
-  const layout = section.layout ?? (section.widgets.every((w) => w.type === 'kpi') ? 'kpi-strip' : 'single');
-  /* Every track states a zero minimum. A bare `1fr` track is `minmax(auto, 1fr)`, which grows to
-     whatever its widest content needs — one long unbreakable cell in a table then widens the page
-     rather than scrolling inside the card it was put in. The card states a zero minimum of its own
-     as well, for the same defect from the other side. */
-  let gridTemplateColumns = 'minmax(0, 1fr)';
-  if (isWide) {
-    if (layout === 'kpi-strip') {
-      gridTemplateColumns = `repeat(${Math.min(section.widgets.length, 4)}, minmax(0, 1fr))`;
-    } else if (layout === 'split') {
-      const widths = section.widths ?? section.widgets.map(() => 1);
-      gridTemplateColumns = widths.map((w) => `minmax(0, ${w}fr)`).join(' ');
-    }
-  }
-
-  return (
-    <section className="mb-2">
-      {section.title && (
-        <div className="flex items-center gap-3 mt-6 mb-3">
-          <h3 className="text-[12px] uppercase tracking-wider font-bold text-zinc-400 dark:text-zinc-500">{section.title}</h3>
-          {section.hint && <span className="text-[11px] text-zinc-400 dark:text-zinc-500">{section.hint}</span>}
-          <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
-        </div>
-      )}
-      <div className="grid gap-3.5" style={{ gridTemplateColumns }}>
-        {section.widgets.map((widget, i) => (
-          <WidgetRenderer key={i} widget={widget} ctx={ctx} openDetail={openDetail} />
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -230,4 +193,16 @@ function ScopeButton({ active, onClick, children }: { active: boolean; onClick: 
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="h-full flex items-center justify-center p-8 text-sm text-zinc-500 dark:text-zinc-400">{children}</div>;
+}
+
+function Guidance({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <Centered>
+      <div className="max-w-md text-center">
+        <LayoutDashboard className="mx-auto mb-3 text-zinc-300 dark:text-zinc-600" size={40} />
+        <h2 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1">{title}</h2>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{children}</p>
+      </div>
+    </Centered>
+  );
 }
