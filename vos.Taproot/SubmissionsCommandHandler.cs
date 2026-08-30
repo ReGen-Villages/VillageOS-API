@@ -397,16 +397,32 @@ public class SubmissionsCommandHandler(string arg, TextWriter writer, MyceliumCl
     /// A Thing's own value is keyed by the bare name, but a value it holds for a name its archetype
     /// declares comes back keyed by that archetype — <c>Submission.submittedAt</c> rather than
     /// <c>submittedAt</c>. Both are the same property to a reader, so the name is matched after its
-    /// declaring prefix.</summary>
+    /// declaring prefix.
+    ///
+    /// A Thing cannot own a name and inherit the same one, so at most one key can match — except where
+    /// the name is inherited from more than one archetype. The model answers a bare read of that with an
+    /// ambiguity and asks for the full path; a list has no path to give, so it says which paths it found
+    /// rather than showing a reviewer a value the model itself declines to choose.</summary>
+    /// <summary>A key's name without the archetype that declared it, which is how the same property reads
+    /// whether a Thing holds it or inherits it.</summary>
+    private static string DeclaredName(string key) => key[(key.LastIndexOf('.') + 1)..];
+
     private static string? Value(ModelSnapshot model, Guid thing, string property)
     {
         if (!model.Properties.TryGetProperty(thing.ToString(), out var properties)) return null;
 
-        var match = properties.EnumerateObject()
-            .Where(held => held.Name.Split('.')[^1] == property)
-            .Select(held => (JsonElement?)held.Value)
-            .FirstOrDefault();
-        if (match is not { } held) return null;
+        var matching = properties.EnumerateObject()
+            .Where(held => DeclaredName(held.Name) == property)
+            .ToList();
+
+        if (matching.Count > 1)
+            throw new InvalidOperationException(
+                $"'{property}' is inherited from more than one archetype on {thing}, so reading it by that "
+                + $"name alone says nothing: {string.Join(", ", matching.Select(held => held.Name))}. "
+                + "Read it by its full path.");
+
+        if (matching.Count == 0) return null;
+        var held = matching[0].Value;
 
         var value = held.TryGetProperty("Value", out var inner) ? inner : held;
         return value.ValueKind switch

@@ -772,4 +772,31 @@ public class SubmissionsCommandHandlerTests
         Assert.Contains("willow-bend-2026-08", output);
         Assert.DoesNotContain("a building nobody is reviewing", output);
     }
+
+    /// <summary>Two archetypes declaring one name is the case the model itself refuses to answer, so the
+    /// reader has to refuse too rather than show whichever the broker serialised first.</summary>
+    [Fact]
+    public async Task A_name_inherited_from_two_archetypes_is_refused_rather_than_guessed_at()
+    {
+        AModelWithOneSubmission();
+        _mycelium.Setup(client => client.GetAllPropertiesAsync(It.IsAny<string>())).ReturnsAsync(Json(
+            new Dictionary<string, object>
+            {
+                [ProposesId.ToString()] = new Dictionary<string, object>
+                    { ["__IsProposedSitePredicate"] = Held(true) },
+                [SubmissionId.ToString()] = new Dictionary<string, object>
+                {
+                    ["submissionId"] = Held("willow-bend-2026-08"),
+                    ["Arrival.submittedAt"] = Inherited("2026-08-22T09:30:00Z"),
+                    ["Intake.submittedAt"] = Inherited("2026-08-23T11:00:00Z"),
+                },
+            }));
+
+        await Run("list");
+
+        var output = _writer.ToString();
+        Assert.Contains("Arrival.submittedAt", output);
+        Assert.Contains("Intake.submittedAt", output);
+        Assert.DoesNotContain("2026-08-22T09:30:00Z", output);
+    }
 }

@@ -1111,6 +1111,8 @@ The platform's property model — own vs. inherited vs. override, resolved on re
 
 **Gotcha:** in that resolved view a property is keyed by **qualified path**, not by its bare name. A Thing's own value arrives as `submittedAt`, but a value it holds for a name its archetype declares arrives as `Submission.submittedAt`. Looking a property up by the bare name therefore finds nothing on exactly the Things that inherit their shape from an archetype — which is most of them. Match the last segment, and write the fixture the way a seeded model answers: a test that keys the property bare passes against code that can never read a real model (Bug #6854).
 
+**Gotcha:** matching the last segment can find **two** keys, and then there is no right one to pick. A Thing cannot hold an own property and inherit one of the same name, so that pair never collides — but a Thing can inherit one name from more than one archetype, and both arrive qualified by the archetype that declared them. The model itself refuses a bare read of such a name and asks for the full path; `vos.Core` raises `AmbiguousPropertyException`. A reader has to do the same: refuse, naming the paths it found, rather than take whichever the broker serialised first. Choosing silently is worse than failing, because the same lookup decides whether a property is present at all — so a guess changes behaviour, not just what is displayed (Bug #6869).
+
 ### Property Inheritance Display
 
 When a node is selected, **NodeDetailPanel** fetches the full thing detail (including `InheritedOverrides`) and displays:

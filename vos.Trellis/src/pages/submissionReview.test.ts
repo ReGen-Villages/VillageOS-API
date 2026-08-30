@@ -158,6 +158,23 @@ describe('what has arrived', () => {
     expect(submissionsIn(declaring).map((one) => one.id)).toEqual(['arrival-1', 'arrival-2']);
   });
 
+  // Two archetypes declaring one name is the case the model itself refuses to answer, so the page has
+  // to refuse too rather than show whichever the broker serialised first.
+  it('refuses a name inherited from two archetypes rather than choosing between them', () => {
+    const ambiguous = reading({
+      properties: {
+        ...PROPERTIES,
+        'arrival-1': {
+          'Arrival.submittedAt': held('2026-08-20T09:00:00Z'),
+          'Intake.submittedAt': held('2026-08-21T11:00:00Z'),
+        },
+      },
+    });
+
+    expect(() => submissionsIn(ambiguous)).toThrow(/Arrival\.submittedAt/);
+    expect(() => submissionsIn(ambiguous)).toThrow(/Intake\.submittedAt/);
+  });
+
   // What a Thing holds for a name its archetype declares comes back keyed by that archetype, so a
   // reader looking up the bare name finds nothing and every arrival reads as never recorded.
   it('reads a value held under the name the archetype declares it by', () => {
