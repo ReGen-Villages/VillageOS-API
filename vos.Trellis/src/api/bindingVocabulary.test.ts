@@ -94,6 +94,37 @@ describe('what a widget asks for that this build cannot answer', () => {
     }))).not.toThrow();
   });
 
+  /**
+   * Every word reported reaches a reader inside a translated sentence, so a word this module made
+   * up rather than read off the spec arrives untranslated — English in the middle of Arabic, and
+   * only for the readers least able to report it.
+   *
+   * Stated as a property over malformed specs rather than as one example, because the hazard is not
+   * one literal: it is any branch that answers with a word of its own. The empty string is the one
+   * legitimate answer that names nothing, and it is contained in every text, so it passes here and
+   * is judged by the tests above instead.
+   */
+  it('never reports a word the spec did not contain', () => {
+    const malformed: unknown[] = [
+      { kind: 'runningTotal', property: 'volume' },
+      { kind: '', property: 'volume' },
+      { property: 'volume' },
+      { kind: 'latest' },
+      { kind: 'ratio' },
+      { kind: 'timeseries', archetype: 'Reading', smoothing: 'exponential' },
+      { kind: 'latest', series: { kind: 'sankey' } },
+      {},
+    ];
+
+    for (const value of malformed) {
+      const widget = tileShowing(value);
+      const spec = JSON.stringify(widget);
+      for (const word of unimplementedWordsIn(widget)) {
+        expect(spec, `"${word}" is not in the spec it was reported for`).toContain(word);
+      }
+    }
+  });
+
   it('judges every binding slot a widget declares, not only its first', () => {
     const tile = {
       type: 'kpi', title: 'a figure',
