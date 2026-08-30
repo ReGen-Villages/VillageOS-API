@@ -6,11 +6,14 @@ using System.Runtime.CompilerServices;
 namespace vos.Service.Shared.Dispatch;
 
 // Handled-predicate dispatch is at-least-once: the broker sends a relation again when it cannot
-// confirm the handler finished, and a handler that reconnects is sent what it missed. A handler
-// wraps its side-effect in RunOnceAsync so the repeat does nothing. An effect that throws gives its
-// claim back, because a delivery that failed has to run again rather than be swallowed.
+// confirm the handler finished, and a handler that reconnects is sent what it missed. Each arrival
+// is one call to the handler, and nothing in the call says which arrival it is.
 //
-// Claims are held only for Retention. This guards against a burst of repeats; it is not a durable
+// A claim is the note kept here against a relationshipId work has started for. The first arrival
+// takes it and runs the effect; a later one finds it taken and does nothing. An effect that throws
+// gives its claim back, because an arrival that failed has to run again rather than be swallowed.
+//
+// Claims are kept only for Retention. This guards against a burst of repeats; it is not a durable
 // record of what completed, which belongs on the relation and outlives any one process. Bounding it
 // is what stops a handler running for weeks from holding every relationship it ever saw.
 public sealed class IdempotentExecution
@@ -25,9 +28,9 @@ public sealed class IdempotentExecution
     private readonly ConcurrentDictionary<string, Claim> _claims = new(StringComparer.Ordinal);
     private readonly Func<DateTimeOffset> _now;
 
-    // A relationship never delivered again is freed by a sweep rather than by its own next delivery,
-    // so one falls due every Retention. Judging each claim as it arrives means an ordinary delivery
-    // costs the same however many claims are being held.
+    // A relationship that never arrives again would keep its claim forever, so a sweep falls due
+    // once every Retention to drop the lapsed ones. Judging a claim as it is asked for, rather than
+    // sweeping on every call, is what keeps one arrival costing the same however many are held.
     private long _sweepDueAtTicks;
 
     public IdempotentExecution(TimeSpan? retention = null, Func<DateTimeOffset>? now = null)

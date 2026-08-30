@@ -151,11 +151,12 @@ Return any 2xx; Mycelium logs non-2xx and continues. A reasonable body:
 { "success": true, "service": "YourService", "relationshipId": "<uuid>", "status": "handled" }
 ```
 
-**The same delivery can arrive more than once.** Dispatch is at-least-once: when Mycelium cannot
-confirm that a handler finished, it sends the relation again, and a handler that reconnects after a
-break is sent what it missed while it was away. `relationshipId` is the same on every delivery of one
-relation, so it is the key to recognise a repeat by. Do the work once per `relationshipId`, and
-answer 2xx to the repeat without doing it a second time.
+**The same relationship can be delivered more than once.** Dispatch is at-least-once: when Mycelium
+cannot confirm that a handler finished, it sends the relation again, and a handler that reconnects
+after a break is sent what it missed while it was away. Each of those arrivals is a separate call to
+your `/handle`, and nothing in the payload says which arrival it is. `relationshipId` is the same on
+every one of them, so it is the key to recognise a repeat by. Do the work once per `relationshipId`,
+and answer 2xx to the repeat without doing it a second time.
 
 C# handlers have a shared helper for this, `IdempotentExecution`:
 
@@ -168,13 +169,16 @@ var ran = await deliveries.RunOnceAsync(request.RelationshipId, async () =>
 });
 ```
 
-`ran` is false when an earlier delivery already did the work. An effect that throws gives its claim
-back, so a delivery that failed is run again next time rather than being swallowed.
+The helper keeps a note against each `relationshipId` it has started work for — a **claim**, in the
+method names below. The first arrival takes the claim and runs your effect; a later arrival finds the
+claim already taken and does nothing, which is what makes `ran` false. An effect that throws gives its
+claim back, so an arrival that failed is run again next time rather than being swallowed. (Not to be
+confused with the claims inside a JWT, further down this page — different word, different thing.)
 
-The helper guards against a burst of repeats, not against every repeat there will ever be. Claims are
-held in memory for one hour by default — pass a different window to the constructor — so a repeat
-arriving after that window, or after the handler restarts, runs the work a second time. A record of
-what completed that survives either belongs on the relation itself.
+The notes are kept in memory for one hour by default; pass a different window to the constructor. So
+this guards against a burst of repeats, not against every repeat there will ever be: one arriving
+after that window, or after the handler restarts, runs the work a second time. A record of what
+completed that survives either belongs on the relation itself.
 
 **`GET /health`** → `{ "status": "Healthy", "service": "YourService", "requestsProcessed": <n> }`
 
@@ -188,7 +192,7 @@ When a `VerificationKey` is supplied, validate the Bearer JWT on `/handle` and `
 
 1. **Key** = `base64decode(VerificationKey)` → an elliptic-curve **public** key on the P-256 curve, in its SubjectPublicKeyInfo encoding. Most libraries read that directly; some want it wrapped in the `-----BEGIN PUBLIC KEY-----` envelope first.
 2. **Algorithm** = ES256, and **name it**. Tell your library that ES256 is the only algorithm you accept rather than letting it honour whatever the token's header claims. See the warning below.
-3. **Claims** — check `iss` against the `--issuer` flag and `aud` against the `--audience` flag, and check `exp`/`nbf`, allowing **30 seconds** clock skew.
+3. **Token claims** — check `iss` against the `--issuer` flag and `aud` against the `--audience` flag, and check `exp`/`nbf`, allowing **30 seconds** clock skew.
 
 The header also carries `kid`, the name of the key that signed the token. A handler holds one key and can ignore it; it is there so Mycelium can accept a token signed by a previous key while a new one takes over.
 
