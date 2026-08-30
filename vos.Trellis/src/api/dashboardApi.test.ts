@@ -2171,6 +2171,10 @@ describe('a series whose points cover several buckets', () => {
     expect(await resolveBinding({ ...trace, op: 'min' } as Binding, seriesCtx())).toEqual([1, 2, 3]);
   });
 
+  it('takes the greatest of the buckets a point covers when the reduction is a maximum', async () => {
+    expect(await resolveBinding({ ...trace, op: 'max' } as Binding, seriesCtx())).toEqual([2, 3, 4]);
+  });
+
   it('counts the same way it sums, because counts add', async () => {
     expect(await resolveBinding({ ...trace, op: 'count' } as Binding, seriesCtx())).toEqual([3, 5, 7]);
   });
