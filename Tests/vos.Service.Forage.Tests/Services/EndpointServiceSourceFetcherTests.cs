@@ -152,8 +152,6 @@ public class EndpointServiceSourceFetcherTests
         outcome.Reason.Should().NotContain("No answer within");
     }
 
-    // A call a run makes to work something out, not to record a reading: the registration carries no
-    // reshape expression, so the provider's own body comes back and nothing is written from it.
     [Fact]
     public async Task ReadAsync_AnswersTheProvidersOwnBodyAndNamesNoSubject()
     {

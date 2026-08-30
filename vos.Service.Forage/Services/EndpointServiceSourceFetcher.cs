@@ -10,10 +10,8 @@ namespace vos.Service.Forage.Services;
 // Site both happen there — Forage decides which sources and with what values, never how a fetch
 // is made.
 //
-// The same route serves the calls a run makes to work something out rather than to record a reading: a
-// registration carrying no reshape expression is answered with the provider's own body and writes
-// nothing, which is what the division lookups need. One class, because the two differ only in what they
-// do with the answer — reaching the fetching service, the timeout and the credential are the same.
+// It reads a body as well as fetching a source (see IEndpointBodyReader). One class, because the two
+// differ only in what they do with the answer — the route, the timeout and the credential are the same.
 public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFetcher, IEndpointBodyReader
 {
     private readonly string _fetcherSubdomain;
@@ -75,9 +73,8 @@ public sealed class EndpointServiceSourceFetcher : MyceliumClientBase, ISourceFe
         }
     }
 
-    // The provider's own body, for a call a run makes to work something out. No subject is named because
-    // nothing is written: the registration carries no reshape expression, so the fetching service returns
-    // what the provider said and ingests none of it.
+    // No subject is named because nothing is written: the registration carries no reshape expression, so
+    // the fetching service has no reading to put anywhere.
     public async Task<string?> ReadAsync(
         string endpointName,
         IReadOnlyDictionary<string, string> addressParameters,

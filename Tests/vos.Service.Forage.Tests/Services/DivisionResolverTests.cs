@@ -73,7 +73,6 @@ public class DivisionResolverTests
     private static string DivisionAddressing(SiteCoverage coverage) =>
         coverage.Covering.Single().Calls.Single().Values.GetValueOrDefault(CodeProperty, string.Empty);
 
-    // Answers whatever the test scripted for an endpoint, and remembers what it was asked.
     private sealed class ScriptedReader : IEndpointBodyReader
     {
         private readonly Queue<string?> _searchAnswers;

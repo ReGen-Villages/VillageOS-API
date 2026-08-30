@@ -110,6 +110,9 @@ public sealed class DivisionResolver
             return null;
         }
 
+        // Not retried: the code is written, so every later run skips the lookup and the label stays
+        // missing. Calling two providers again on every run for a label, while the gradings are already
+        // right and traceable by the code, would cost more than the gap.
         if (!await _writer.WriteFactAsync(siteId, lookup.NameProperty, division.FullName, cancellationToken))
             _logger.LogWarning(
                 "Site {SiteId} is graded at division {Code} and its name could not be written, so nothing "

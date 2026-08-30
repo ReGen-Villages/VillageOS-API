@@ -30,13 +30,12 @@ public sealed record RecordedCoverage(
 // the source it is sourced from.
 public sealed record CoverageVocabulary(Guid Archetype, Guid Is, Guid AppliesTo, Guid SourcedFrom);
 
-// The two calls a run makes to work out which administrative division a site stands in, as the model
-// declares them: which registration each goes through, what the search's address calls the area name it
-// takes, and the properties a run writes what it settled on into.
+// The two calls a run makes to work out which administrative division a site stands in.
 //
-// Every one of them is read from the model. A registration named here would be renamed in the platform
-// and the run would call nothing; a property named here would be renamed there and the run would write
-// onto nothing, with a resolved division dropped and every grading still refused.
+// Every field is read from the model rather than named here. A registration named in this repository
+// would be renamed in the platform and the run would call nothing; a property named here would be
+// renamed there and the run would write onto nothing, with a resolved division dropped and every
+// grading still refused.
 public sealed record DivisionLookup(
     string AreaNameEndpoint,
     string SearchEndpoint,

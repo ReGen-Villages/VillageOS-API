@@ -90,8 +90,6 @@ public static class HazardDivision
         return divisions;
     }
 
-    // The finest division of the site's own country, or none.
-    //
     // A search for one name answers every division of that name in every country — `Santarem` answers one
     // in Portugal and two in Brazil — so the country is what tells the site's land from somewhere else's.
     // Two divisions standing equally deep are a tie nothing here can settle, and a guessed division reads
