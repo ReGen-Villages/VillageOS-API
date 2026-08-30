@@ -57,6 +57,35 @@ internal sealed class ModelBuilder
         return this;
     }
 
+    // A value a Thing holds in its own right, the way a registration in a template holds its address and
+    // its mark. Apart from Carrying below, which builds the override shape a value written for a name the
+    // archetype declares is stored in.
+    public ModelBuilder Stating(string name, string property, object value)
+    {
+        var id = Id(name);
+        var existing = _things.Single(thing => thing.Id == id);
+        var properties = new Dictionary<string, SnapshotProperty>(existing.Properties)
+        {
+            [property] = new(JsonDocument.Parse(JsonSerializer.Serialize(value)).RootElement, null, null),
+        };
+
+        Replace(id, name, existing.IsArchetype, properties, existing.InheritedOverrides);
+        return this;
+    }
+
+    // Takes a value back off, so a test over half a declaration builds the whole one and names the half it
+    // is without — which reads as the case under test rather than as a list of what was left out.
+    public ModelBuilder Without(string name, string property)
+    {
+        var id = Id(name);
+        var existing = _things.Single(thing => thing.Id == id);
+        var properties = new Dictionary<string, SnapshotProperty>(existing.Properties);
+        properties.Remove(property);
+
+        Replace(id, name, existing.IsArchetype, properties, existing.InheritedOverrides);
+        return this;
+    }
+
     // What a run writes onto a coverage as it goes. Every such name is one the coverage's archetype
     // declares, so the model stores the value as an override under that archetype rather than among the
     // coverage's own properties, and this builds the shape a reader actually meets (#6805).

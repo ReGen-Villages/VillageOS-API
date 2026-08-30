@@ -51,11 +51,13 @@ called its root something else (Bug #6752).
 is not related to a country or a region: `country` on a submission is optional and stays text, it
 names an open set nobody can enumerate, and the vocabulary pattern used elsewhere here *refuses* a
 term the model does not hold — which would turn "we have not declared your country" into "your land
-cannot be submitted". The hazard portal covers the root too — it is global — but its address needs a
-Place carrying its administrative division code (`hazardPortalDivision`), which a project declares in
-its own model and relates its sites into. A site reaching no such Place has the portal's calls
-refused before the provider is contacted and reported with the unfilled placeholder named: the model
-gap said out loud, where hiding the source would leave a quietly short report.
+cannot be submitted". The hazard portal covers the root too — it is global — but its address needs an
+administrative division code (`hazardPortalDivision`), which a project can put on a Place its sites are
+related into and which a run otherwise works out for itself from the site's position — see
+[Resolving the hazard division](#resolving-the-hazard-division). A site that reaches no such Place and
+whose division could not be resolved has the portal's calls refused before the provider is contacted
+and reported with the unfilled placeholder named: the model gap said out loud, where hiding the source
+would leave a quietly short report.
 
 **Why not a `coverage` string.** The failure this path exists to prevent is a source that
 does cover the site being silently skipped because a country was written two ways —
@@ -102,7 +104,8 @@ archetype cannot tell the two apart, and every subject in it is taken for a site
 have declared the connection that dispatches a source either.
 
 **A site's read** then answers everything about it: the site's Places, then every source whose coverage
-reaches one of them, then those sources' registrations. Traverse rules compose over the set built so
+reaches one of them, then those sources' registrations — and, model-wide, the two division lookups, which
+no edge reaches because neither covers a Place. Traverse rules compose over the set built so
 far, so the walk must ask for `isIn` **first** — asking for the incoming `covers` edges before the
 Places are in the set finds nothing. That is the same ordering trap the Tributary endpoint kinds hit;
 see [`TRIBUTARY.md`](TRIBUTARY.md). **A source's read** is the same walk from the other end: the Places
@@ -294,6 +297,55 @@ the `OpenDataSource` along the `resolvedBy` edge this service already reads. Not
 it is the ingest's, and it is written once per registration per site however often discovery runs —
 see [`TRIBUTARY.md`](TRIBUTARY.md#which-registration-wrote-a-value). A source that did not resolve
 never reaches the ingest, so it leaves no edge suggesting it did.
+
+## Resolving the hazard division
+
+**Before the fetches, a run works out which administrative division the site stands in (#6851).** Every
+route the hazard portal serves takes a division code and none takes coordinates, so a site whose model
+supplies no code has every grading refused before the provider is contacted — which reaches a planner as
+an empty hazards table and reads as "no hazards here".
+
+**It is a step in the run because nothing else can see the site's country.** The portal's own search
+takes a *name*, and answers every division of that name in every country: `Santarem` answers one in
+Portugal and two in Brazil. A reshape expression sees only the provider's reply, and the provider takes
+no country to filter by, so the choosing has to happen where the site's values are known.
+
+Four rules, each of which a wrong answer would break:
+
+- **A model that supplies a code decides.** The site's own value and its Places' are already layered
+  into the call's address, so a run resolves only where neither supplies one. A project that coded its
+  own Place keeps it, and a site that needs no lookup costs two providers nothing on every run.
+- **English is asked for.** Left to a geocoder's default a Dutch site answers `Nederland`, which the
+  portal matches to nothing. The address the model holds asks for English.
+- **Only the site's own country counts**, and the two providers do not agree on a country's full name —
+  the geocoder says `United States` where the portal holds `United States of America` — so they are
+  matched by one name starting with the other rather than by equality.
+- **The finest division of those left is taken.** The same name exists as a region and as the district
+  inside it, graded differently: Portugal / Santarem reads high river flood as the region and medium as
+  the district. The district is the land the site is actually in. Two divisions standing equally deep
+  are a tie nothing here can settle, so neither is taken — a guessed division reads exactly like a
+  resolved one, and telling a landowner their land does not flood is the failure this whole path exists
+  to prevent.
+
+**The county is searched before the state that holds it, and the state is searched when the county finds
+nothing.** A geocoder answering `Dukes County` where the portal holds `Dukes` finds no division at all,
+and the state it also gave is one the portal does hold — so the site is graded at the coarser division
+rather than not at all. A search that was *refused* is not a name the portal holds nothing for: the run
+stops there rather than asking a coarser question, or one provider's outage would become a coarser
+grading nobody chose.
+
+**What it settled on is written onto the site and addresses this run's own calls.** The code first,
+because that is what addresses a grading; a name written beside a code that would not go would read on
+the page as a division the gradings never came from. Addressing this run rather than the next is what
+grades a site on the run that resolved its division instead of after a whole dispatch has been waited
+out.
+
+**Both calls go through the fetching service like any other**, at addresses the model holds — the
+registrations carry a mark each and no reshape expression, so the provider's own body comes back and
+nothing is written from it (see [`TRIBUTARY.md`](TRIBUTARY.md#fetch-and-shape-not-derive--the-metabolism-boundary)).
+Neither is an `OpenDataSource`, neither covers a Place, and neither has a coverage: nothing they answer
+is a reading about the site. A run that resolves nothing writes nothing, so the gradings stay
+outstanding, the site stays in the state that dispatched the run, and the next run tries again.
 
 ## Resolving the fetched words
 

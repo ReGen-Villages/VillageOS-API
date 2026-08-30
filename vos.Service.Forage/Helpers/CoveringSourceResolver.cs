@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Forage.Helpers;
@@ -28,6 +29,19 @@ public sealed record RecordedCoverage(
 // The Things minting one coverage relates through: the archetype it `is`, the subject it applies to and
 // the source it is sourced from.
 public sealed record CoverageVocabulary(Guid Archetype, Guid Is, Guid AppliesTo, Guid SourcedFrom);
+
+// The two calls a run makes to work out which administrative division a site stands in.
+//
+// Every field is read from the model rather than named here. A registration named in this repository
+// would be renamed in the platform and the run would call nothing; a property named here would be
+// renamed there and the run would write onto nothing, with a resolved division dropped and every
+// grading still refused.
+public sealed record DivisionLookup(
+    string AreaNameEndpoint,
+    string SearchEndpoint,
+    string SearchAreaNameParameter,
+    string CodeProperty,
+    string NameProperty);
 
 // One compute service to start on the site's study: the connection to relate through, and the service
 // prototype the edge points at. The connection is the predicate, which is what makes the edge dispatch.
@@ -95,6 +109,20 @@ public static class CoveringSourceResolver
     // would be every subject's coverage reading as empty.
     public const string SourceCoverageArchetypeFlag = "__IsSourceCoverageArchetype";
 
+    // The two registrations a run works a site's division out through. Neither is a source: nothing they
+    // answer is a reading about the site, and a run makes them only to address the hazard grading that
+    // follows — so no coverage walk reaches either, and a mark is what finds them.
+    public const string AreaNameLookupFlag = "__IsAreaNameLookup";
+    public const string HazardDivisionLookupFlag = "__IsHazardDivisionLookup";
+
+    // What the search names as the properties a run writes what it settled on into.
+    private const string DivisionCodeProperty = "divisionCodeProperty";
+    private const string DivisionNameProperty = "divisionNameProperty";
+
+    // The address the search is called at. Its one placeholder is the area name a run fills, read from the
+    // address itself rather than declared beside it, so the two cannot disagree.
+    private const string AddressProperty = "url";
+
     // The instant a source's answer landed. Its presence is the whole of "already answered": a run asks
     // only the coverages without one.
     private const string ResolvedAtProperty = "resolvedAt";
@@ -117,8 +145,9 @@ public static class CoveringSourceResolver
         // The coverage archetype is asked for model-wide for a different reason: a run mints against it,
         // so it has to arrive before any coverage exists to traverse from. Alone, though — with its
         // members, every coverage in the model arrived on every site's read (Bug #6818); the ones about
-        // this site come through the `appliesTo` traversal below.
-        MarkedArchetypes = [SourceCoverageArchetypeFlag],
+        // this site come through the `appliesTo` traversal below. The two division lookups are asked for
+        // the same way and for the same reason: no edge reaches either, because neither covers a Place.
+        MarkedArchetypes = [SourceCoverageArchetypeFlag, AreaNameLookupFlag, HazardDivisionLookupFlag],
         Traverse =
         [
             new TraverseRule { Predicate = IsInPredicate, Depth = PlaceNestingDepth },
@@ -308,6 +337,71 @@ public static class CoveringSourceResolver
         return new CoverageVocabulary(archetype.Id, isPredicate, appliesTo, sourcedFrom);
     }
 
+    // Everything the two division calls need, or null unless the model holds all of it. A run that made
+    // the first call and could not make the second would have asked a provider for nothing, and one that
+    // resolved a division it could not write would ask again on every run for ever — so a model that
+    // declares half of this declares none of it.
+    public static DivisionLookup? DivisionLookupIn(SnapshotDocument snapshot)
+    {
+        var areaName = snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(AreaNameLookupFlag));
+        var search = snapshot.Things.FirstOrDefault(thing => thing.CarriesFlag(HazardDivisionLookupFlag));
+        if (areaName?.Name is not { Length: > 0 } areaNameEndpoint) return null;
+        if (search?.Name is not { Length: > 0 } searchEndpoint) return null;
+
+        if (StatedText(search, DivisionCodeProperty) is not { } codeProperty) return null;
+        if (StatedText(search, DivisionNameProperty) is not { } nameProperty) return null;
+        if (StatedText(search, AddressProperty) is not { } address) return null;
+
+        // Exactly one, because the run has one name to fill and no way to tell which of two a second
+        // placeholder wanted — and a call left with an unfilled one is refused before the provider is
+        // contacted.
+        var placeholders = Regex.Matches(address, @"\{(\w+)\}")
+            .Select(match => match.Groups[1].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (placeholders.Count != 1) return null;
+
+        return new DivisionLookup(
+            areaNameEndpoint, searchEndpoint, placeholders[0], codeProperty, nameProperty);
+    }
+
+    // The address a call about the site itself is made with. Read on its own by the step that resolves a
+    // division, which asks it both for the site's coordinates and for whether anything already supplies
+    // the division code — the same answer the run's own calls are addressed from, so the two cannot
+    // disagree about whether a division is already there.
+    public static IReadOnlyDictionary<string, string> AddressOf(SnapshotDocument snapshot, Guid siteId)
+    {
+        var namesById = snapshot.Things.ToDictionary(thing => thing.Id, thing => thing.Name ?? string.Empty);
+
+        return AddressOf(snapshot, siteId, PlacesByDepth(snapshot, siteId, namesById));
+    }
+
+    // The site's own values first, then each Place's, nearest first: a value the site carries is about the
+    // site, and a division's value is about somewhere smaller than its country's.
+    private static Dictionary<string, string> AddressOf(
+        SnapshotDocument snapshot, Guid siteId, List<List<Guid>> placesByDepth) =>
+        Layered(
+        [
+            StatedValues.Of(snapshot, siteId),
+            .. placesByDepth.Select(level => AgreedValues(snapshot, level)),
+        ]);
+
+    // The same sources, with values a run worked out for itself under each call's own address. Under,
+    // because a value the call's subject states is about that subject, and these are about the site.
+    public static IReadOnlyList<CoveringSource> AlsoAddressedWith(
+        IReadOnlyList<CoveringSource> covering, IReadOnlyDictionary<string, string> values) =>
+    [
+        .. covering.Select(source => source with
+        {
+            Calls = [.. source.Calls.Select(call => call with { Values = Layered([call.Values, values]) })],
+        })
+    ];
+
+    private static string? StatedText(SnapshotThing thing, string property) =>
+        thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.String
+            ? stated.Value.GetString() is { Length: > 0 } text ? text : null
+            : null;
+
     // Nought where the coverage carries no count, which is a coverage nothing has tried yet — the same
     // answer as a count of nought, and the run's next write makes it one either way.
     private static long AttemptsOn(SnapshotThing coverage)
@@ -339,10 +433,7 @@ public static class CoveringSourceResolver
         var placesByDepth = PlacesByDepth(snapshot, siteId, namesById);
         var places = placesByDepth.SelectMany(level => level).ToHashSet();
 
-        // The site's own values first, then each Place's, nearest first: a value the site carries is
-        // about the site, and a division's value is about somewhere smaller than its country's.
-        var siteValues = Layered(
-            [StatedValues.Of(snapshot, siteId), .. placesByDepth.Select(level => AgreedValues(snapshot, level))]);
+        var siteValues = AddressOf(snapshot, siteId, placesByDepth);
 
         var covering = new List<CoveringSource>();
         var alreadyTaken = new HashSet<Guid>();

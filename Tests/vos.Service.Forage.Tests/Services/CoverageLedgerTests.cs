@@ -45,12 +45,12 @@ public class CoverageLedgerTests
     private static SiteCoverage Coverage(
         IReadOnlyList<CoveringSource> covering,
         IReadOnlyList<RecordedCoverage>? recorded = null) =>
-        new(covering, null, recorded ?? [], Vocabulary);
+        new(covering, null, recorded ?? [], Vocabulary, null, new Dictionary<string, string>());
 
     // Spelled out rather than defaulted through the helper above: "no vocabulary" is the case under
     // test, and a helper that filled one in would pass it for the wrong reason.
     private static SiteCoverage CoverageWithoutVocabulary(IReadOnlyList<CoveringSource> covering) =>
-        new(covering, null, [], null);
+        new(covering, null, [], null, null, new Dictionary<string, string>());
 
     // A writer that answers and remembers, so a test reads as what the ledger decided rather than as
     // what a gateway happened to do.
