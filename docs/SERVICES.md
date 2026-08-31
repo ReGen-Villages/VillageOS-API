@@ -21,7 +21,7 @@ reference; for the **language-agnostic contract** plus runnable reference
 handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
-Today's .NET services: `Echo`, `Tributary`, `Forage`, `Delta`, `FoodBalance`, `LandAllocation`, `Metabolism`, `Phloem`,
+Today's .NET services: `Echo`, `Tributary`, `Forage`, `Delta`, `FoodBalance`, `Metabolism`, `Phloem`,
 `RainwaterHarvest`, `WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
 provisions the endpoint-template catalog into a model on that model's first registration, and
 validates every endpoint
@@ -35,13 +35,13 @@ consumption (feeding the 14-day resilience range); `EnergyBalance` computes sola
 generation vs consumption → % of consumption and net-positive. Besides the DAG-node path (wired ports),
 both also run **reactively** (#5839) — a graph `/handle` whose subject is the SiteStudy makes the service
 read its inputs off the study's effective properties, compute, and write its outputs back as Facts, so the
-study's judge ranges re-evaluate (no pipeline). `LandAllocation` (#6023), `FoodBalance` (#6022) and
-`RainwaterHarvest` (#6021) are
-the same shape with the reactive half only: land allocation turns the programme split into a per-category
-area and the built and productive footprints, and the food balance reads that productive footprint and
-the yield the shared study archetype declares to work out people fed and the share of the population
-that is. The rainwater harvest reads the built footprint, the site's rainfall and the runoff coefficient
-to work out the volume captured in a year, then serves each demand the **model** declares in the order it
+study's judge ranges re-evaluate (no pipeline). `FoodBalance` (#6022) and `RainwaterHarvest` (#6021) are
+the same shape with the reactive half only. Each allocation's area and both of a site's footprints are
+figures the model works out for itself, so no service produces them: the food balance reads the
+productive footprint and the yield the shared study archetype declares to work out people fed and the
+share of the population that is. The rainwater harvest reads the built footprint, the site's rainfall
+and the runoff coefficient to work out the volume captured in a year, then serves each demand the
+**model** declares in the order it
 declares: drinking water first, irrigation from what is left. Each demand reports what it asked for, the
 share of it covered and the volume still short. The harvest is one body of water, so measuring it against
 each demand on its own would count the same cubic metre twice — and a combined percentage cannot tell a

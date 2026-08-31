@@ -10,8 +10,8 @@ namespace vos.Service.FoodBalance.Services;
 // throws, a service that still wrote the first would abandon every write after it. Nothing is left for
 // this to assert, so the answer now only reaches a caller of /handle.
 //
-// Its productive area is written by LandAllocation onto the same study, which puts this on the second
-// layer of the analysis: one dispatch, and every later move of that footprint recomputes on its own.
+// Its productive area is a reduction the study works out over the land allocations beside it, so it is
+// already there when this is dispatched, and every later move of it recomputes on its own.
 public sealed class FoodBalanceReactiveHandler : MyceliumClientBase
 {
     public FoodBalanceReactiveHandler(

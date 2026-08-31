@@ -8,7 +8,7 @@ namespace vos.Service.Shared;
 /// own result it is. Bound to the service making them, so every refusal names itself.
 ///
 /// <para>Shared rather than copied into each handler: both calls sat in EnergyBalance and WaterReserve
-/// and the write in LandAllocation, identical but for the name in the message, which is the shape where
+/// and the write in a service since retired, identical but for the name in the message, the shape where
 /// one gets fixed and the others are left as they were. <see cref="StudyInputs"/> was shared out of the
 /// same handlers for the same reason.</para>
 ///

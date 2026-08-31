@@ -21,7 +21,6 @@
     <PackageReference Include="FluentAssertions" Version="6.12.0"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\vos.Service.LandAllocation\vos.Service.LandAllocation.csproj"/>
     <ProjectReference Include="..\..\vos.Service.RainwaterHarvest\vos.Service.RainwaterHarvest.csproj"/>
     <ProjectReference Include="..\..\vos.Service.FoodBalance\vos.Service.FoodBalance.csproj"/>
     <ProjectReference Include="..\vos.Tests.Shared\vos.Tests.Shared.csproj"/>
