@@ -53,8 +53,6 @@ public class WaterDemandComponentReaderTests
         {
             ["__IsWaterDemandComponentArchetype"] = Value(true),
             ["servingOrder"] = Value(0L),
-            ["demandQuantityProperty"] = Value(string.Empty),
-            ["demandRateProperty"] = Value(string.Empty),
             ["demandProperty"] = Value(string.Empty),
             ["coverageProperty"] = Value(string.Empty),
             ["shortfallProperty"] = Value(string.Empty),
