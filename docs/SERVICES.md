@@ -47,8 +47,9 @@ share of it covered and the volume still short. The harvest is one body of water
 each demand on its own would count the same cubic metre twice — and a combined percentage cannot tell a
 site with abundant drinking water and a marginal irrigation position from one that is uniformly short.
 Which demands there are, their order, and the properties each is read from and written to are Things in
-the shared analysis template, not a list in this service: a demand is a quantity times a rate, so a third
-one is a template edit. `ModelBridge` (#5866) is a generic
+the shared analysis template, not a list in this service. A demand's size is a figure the model works out
+for itself, so this service reads one number per demand rather than the two it used to multiply, and a
+third demand is a template edit. `ModelBridge` (#5866) is a generic
 **model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET the
 Thing's properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
 It lets a compute node read a roll-up / SiteStudy param and write its result back over ordinary node→node

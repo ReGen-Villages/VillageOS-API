@@ -83,9 +83,7 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
             RainfallMillimetresPerYear: inputs.Number(RainfallInput),
             RunoffCoefficient: inputs.Number(RunoffCoefficientInput),
             Demands: [.. components.Select(component => new DemandToServe(
-                component.Name,
-                inputs.Number(component.QuantityProperty),
-                inputs.Number(component.RateProperty)))]));
+                component.Name, inputs.Number(component.DemandProperty)))]));
 
         await properties.WriteAsync(studyId, TotalWaterDemandOutput, result.TotalWaterDemandM3PerYear, cancellationToken);
 
@@ -93,7 +91,6 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
         foreach (var demand in result.Served)
         {
             var component = byName[demand.Name];
-            await properties.WriteAsync(studyId, component.DemandProperty, demand.DemandM3PerYear, cancellationToken);
             await properties.WriteAsync(studyId, component.CoverageProperty, demand.PctCovered, cancellationToken);
             await properties.WriteAsync(studyId, component.ShortfallProperty, demand.ShortfallM3PerYear, cancellationToken);
         }
@@ -124,15 +121,18 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
 
     // A component writing onto something this service wakes on would make it wake itself, recompute, and
     // wake itself again for as long as the model held that spelling. Checked against the whole watched
-    // set rather than against this service's own three, because one component's answer landing on another
-    // component's quantity loops just as tightly. Refused by name before anything is written, because the
+    // set rather than against this service's own two, because one component's answer landing on another
+    // component's size loops just as tightly. Refused by name before anything is written, because the
     // loop itself leaves nothing behind saying which component caused it.
+    //
+    // DemandProperty is not among the names checked: the model derives each demand's size, so this reads
+    // that name rather than writing it, and it is watched by design.
     private static void RefuseComponentsWritingOntoAnythingItWakesOn(
         IReadOnlyList<WaterDemandComponent> components, IReadOnlySet<string> watched)
     {
         var offending = components
             .SelectMany(component => new[]
-                { component.DemandProperty, component.CoverageProperty, component.ShortfallProperty }
+                { component.CoverageProperty, component.ShortfallProperty }
                 .Where(watched.Contains)
                 .Select(written => $"'{component.Name}' writes onto '{written}'"))
             .ToList();
@@ -146,7 +146,6 @@ public sealed class RainwaterHarvestReactiveHandler : MyceliumClientBase
 
     private static IReadOnlySet<string> Watched(IReadOnlyList<WaterDemandComponent> components) =>
         new HashSet<string>(
-            InputProperties.Concat(components.SelectMany(component =>
-                new[] { component.QuantityProperty, component.RateProperty })),
+            InputProperties.Concat(components.Select(component => component.DemandProperty)),
             StringComparer.Ordinal);
 }

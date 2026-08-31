@@ -68,7 +68,7 @@ public class WaterReserveReactiveHandlerTests
     [Theory]
     [InlineData("daysOfSupply")]
     [InlineData("emergencyReserveM3")]
-    [InlineData("annualConsumptionM3")]
+    [InlineData("domesticConsumptionM3PerYear")]
     [InlineData("pctAnnualConsumption")]
     public async Task It_asserts_no_figure_the_model_derives_for_itself(string derived)
     {

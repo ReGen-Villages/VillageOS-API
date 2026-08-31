@@ -8,8 +8,6 @@ namespace vos.Service.RainwaterHarvest.Services;
 public sealed record WaterDemandComponent(
     string Name,
     long ServingOrder,
-    string QuantityProperty,
-    string RateProperty,
     string DemandProperty,
     string CoverageProperty,
     string ShortfallProperty);
@@ -18,8 +16,9 @@ public sealed record WaterDemandComponent(
 // here. One harvest serves all of them, so which is served first is part of the answer — and a site that
 // waters a crop before it drinks is then a template edit rather than a change to this service.
 //
-// Every demand is a quantity times a rate, so a component carries no formula of its own and a third one
-// needs nothing added here.
+// A component names the property holding its size and the two it answers into. It does not name what the
+// size is worked out from: that is a formula the study declares, so the arithmetic is stated once, in the
+// model, and a third demand needs nothing added here.
 //
 // Selected by the mark, never by the archetype's name: a model that renamed the archetype would answer
 // with an empty vocabulary, and the harvest would apportion nothing with nothing saying so.
@@ -28,8 +27,6 @@ public static class WaterDemandComponentReader
     public const string ComponentArchetypeFlag = "__IsWaterDemandComponentArchetype";
 
     private const string ServingOrderField = "servingOrder";
-    private const string QuantityPropertyField = "demandQuantityProperty";
-    private const string RatePropertyField = "demandRateProperty";
     private const string DemandPropertyField = "demandProperty";
     private const string CoveragePropertyField = "coverageProperty";
     private const string ShortfallPropertyField = "shortfallProperty";
@@ -60,7 +57,6 @@ public static class WaterDemandComponentReader
     private static WaterDemandComponent Component(SnapshotThing thing) => new(
         thing.Name ?? thing.Id.ToString(),
         Order(thing),
-        Names(thing, QuantityPropertyField), Names(thing, RatePropertyField),
         Names(thing, DemandPropertyField), Names(thing, CoveragePropertyField), Names(thing, ShortfallPropertyField));
 
     private static long Order(SnapshotThing thing)
