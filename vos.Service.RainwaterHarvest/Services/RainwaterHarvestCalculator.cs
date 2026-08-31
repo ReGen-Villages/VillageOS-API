@@ -1,9 +1,9 @@
 namespace vos.Service.RainwaterHarvest.Services;
 
-/// <summary>One demand the harvest has to serve, sized as a quantity times a rate: residents times cubic
-/// metres a person a year, growing hectares times cubic metres a hectare a year. Which demands there are
-/// and the order they arrive in is the model's answer, read before this is called.</summary>
-public sealed record DemandToServe(string Name, double Quantity, double Rate);
+/// <summary>One demand the harvest has to serve, and how much water it wants in a year. The size is the
+/// model's own arithmetic — a formula on the study, read off it before this is called — as is which
+/// demands there are and the order they arrive in.</summary>
+public sealed record DemandToServe(string Name, double SizeM3PerYear);
 
 /// <summary>What one demand asked for, how much of it the harvest reached, and what is left uncovered.
 /// A shortfall is zero when the demand is met and never negative — a surplus is read off the harvest
@@ -49,7 +49,7 @@ public static class RainwaterHarvestCalculator
 
         foreach (var demand in input.Demands)
         {
-            var size = demand.Quantity * demand.Rate;
+            var size = demand.SizeM3PerYear;
             var taken = Math.Min(unclaimed, size);
             unclaimed -= taken;
             totalWaterDemand += size;

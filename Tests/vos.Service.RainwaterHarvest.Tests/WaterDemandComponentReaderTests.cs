@@ -19,24 +19,20 @@ public class WaterDemandComponentReaderTests
         new(JsonDocument.Parse(JsonSerializer.Serialize(value)).RootElement, null, null);
 
     private static Dictionary<string, SnapshotProperty> Component(
-        long servingOrder, string quantity, string rate, string demand, string coverage, string shortfall) =>
+        long servingOrder, string demand, string coverage, string shortfall) =>
         new()
         {
             ["servingOrder"] = Value(servingOrder),
-            ["demandQuantityProperty"] = Value(quantity),
-            ["demandRateProperty"] = Value(rate),
             ["demandProperty"] = Value(demand),
             ["coverageProperty"] = Value(coverage),
             ["shortfallProperty"] = Value(shortfall),
         };
 
     private static Dictionary<string, SnapshotProperty> Domestic1 => Component(
-        1, "population", "perCapitaConsumptionM3",
-        "domesticDemandM3PerYear", "pctOfDomesticDemand", "domesticShortfallM3PerYear");
+        1, "domesticConsumptionM3PerYear", "pctOfDomesticDemand", "domesticShortfallM3PerYear");
 
     private static Dictionary<string, SnapshotProperty> Irrigation2 => Component(
-        2, "productiveFootprintHectares", "irrigationDemandM3PerHectarePerYear",
-        "irrigationDemandM3PerYear", "pctOfIrrigationDemand", "irrigationShortfallM3PerYear");
+        2, "irrigationConsumptionM3PerYear", "pctOfIrrigationDemand", "irrigationShortfallM3PerYear");
 
     /// <summary>A member whose values are its own, as a template writes them before normalization.</summary>
     private static SnapshotThing Stating(Guid id, string name, Dictionary<string, SnapshotProperty> stated) =>
@@ -89,7 +85,7 @@ public class WaterDemandComponentReaderTests
             Overriding(Irrigation, "irrigation-demand", Irrigation2)));
 
         components.Should().HaveCount(2);
-        components[0].QuantityProperty.Should().Be("population");
+        components[0].DemandProperty.Should().Be("domesticConsumptionM3PerYear");
         components[0].CoverageProperty.Should().Be("pctOfDomesticDemand");
         components[1].ShortfallProperty.Should().Be("irrigationShortfallM3PerYear");
     }
@@ -142,8 +138,6 @@ public class WaterDemandComponentReaderTests
     }
 
     [Theory]
-    [InlineData("demandQuantityProperty")]
-    [InlineData("demandRateProperty")]
     [InlineData("demandProperty")]
     [InlineData("coverageProperty")]
     [InlineData("shortfallProperty")]
@@ -162,7 +156,7 @@ public class WaterDemandComponentReaderTests
     // declares each of them empty, so a member that says nothing inherits an empty name — and a snapshot
     // carrying neither has to refuse for the same reason rather than read past it.
     [Theory]
-    [InlineData("demandQuantityProperty")]
+    [InlineData("demandProperty")]
     [InlineData("shortfallProperty")]
     public void A_component_that_never_states_a_property_at_all_is_refused_the_same_way(string field)
     {
@@ -181,12 +175,12 @@ public class WaterDemandComponentReaderTests
     public void A_property_name_of_nothing_but_spaces_is_refused_like_an_empty_one()
     {
         var blank = Domestic1;
-        blank["demandRateProperty"] = Value("   ");
+        blank["demandProperty"] = Value("   ");
 
         var refusal = Assert.Throws<InvalidOperationException>(() => WaterDemandComponentReader.Read(
             Snapshot(TheArchetype, Overriding(Domestic, "domestic-demand", blank))));
 
-        refusal.Message.Should().Contain("demandRateProperty");
+        refusal.Message.Should().Contain("demandProperty");
     }
 
     // A Thing carries no name of its own in the platform, and a refusal that named nothing would leave a
@@ -248,7 +242,7 @@ public class WaterDemandComponentReaderTests
                 ["WaterDemandComponent"] = new("WaterDemandComponent", carried, null),
             }, [], [])));
 
-        components.Should().ContainSingle().Which.QuantityProperty.Should().Be("population");
+        components.Should().ContainSingle().Which.DemandProperty.Should().Be("domesticConsumptionM3PerYear");
     }
 
     [Fact]

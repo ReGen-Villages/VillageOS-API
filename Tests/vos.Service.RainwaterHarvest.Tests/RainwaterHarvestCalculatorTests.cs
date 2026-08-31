@@ -10,15 +10,16 @@ public class RainwaterHarvestCalculatorTests
 {
     // LAND_INTAKE.md's worked example: Willow Bend's 8.88 ha of hard surface under 700 mm of rain at a
     // runoff coefficient of 0.8, serving 320 residents at the 55 m³ a year the shared study archetype
-    // declares and 8.16 ha of growing land at 5,000 m³ per hectare a year.
+    // declares — 17,600 m³ — and 8.16 ha of growing land at 5,000 m³ per hectare a year — 40,800 m³.
+    // Those two products are formulas the study declares now, so they arrive here already worked out.
     private static RainwaterHarvestInputs WillowBend => new(
         BuiltFootprintHectares: 8.88,
         RainfallMillimetresPerYear: 700,
         RunoffCoefficient: 0.8,
         Demands:
         [
-            new DemandToServe("domestic-demand", Quantity: 320, Rate: 55),
-            new DemandToServe("irrigation-demand", Quantity: 8.16, Rate: 5000),
+            new DemandToServe("domestic-demand", SizeM3PerYear: 320 * 55),
+            new DemandToServe("irrigation-demand", SizeM3PerYear: 8.16 * 5000),
         ]);
 
     private static ServedDemand Served(RainwaterHarvestOutputs outputs, string name) =>
@@ -106,8 +107,8 @@ public class RainwaterHarvestCalculatorTests
         {
             Demands =
             [
-                new DemandToServe("domestic-demand", Quantity: 0, Rate: 55),
-                new DemandToServe("irrigation-demand", Quantity: 0, Rate: 5000),
+                new DemandToServe("domestic-demand", SizeM3PerYear: 0),
+                new DemandToServe("irrigation-demand", SizeM3PerYear: 0),
             ],
         });
 

@@ -23,12 +23,14 @@ public class RainwaterHarvestReactiveHandlerTests
     private static readonly Guid Irrigation = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
 
     // 8.88 ha of hard surface under 700 mm at 0.8 runoff captures 49,728 m³. Drinking water takes the
-    // 17,600 m³ it needs and irrigation takes the 32,128 m³ left, against the 40,800 m³ it wanted.
+    // 17,600 m³ it needs and irrigation takes the 32,128 m³ left, against the 40,800 m³ it wanted. Both
+    // sizes arrive already worked out: they are formulas the study declares rather than products this
+    // service works out from a quantity and a rate.
     private const string WillowBend = """
         { "builtFootprintHectares": { "Value": 8.88 }, "rainfallMillimetresPerYear": { "Value": 700 },
-          "runoffCoefficient": { "Value": 0.8 }, "population": { "Value": 320 },
-          "perCapitaConsumptionM3": { "Value": 55 }, "productiveFootprintHectares": { "Value": 8.16 },
-          "irrigationDemandM3PerHectarePerYear": { "Value": 5000 } }
+          "runoffCoefficient": { "Value": 0.8 },
+          "domesticConsumptionM3PerYear": { "Value": 17600 },
+          "irrigationConsumptionM3PerYear": { "Value": 40800 } }
         """;
 
     private static SnapshotProperty Value(object value) =>
@@ -36,13 +38,11 @@ public class RainwaterHarvestReactiveHandlerTests
 
     private static SnapshotThing DemandComponent(
         Guid id, string name, long servingOrder,
-        string quantity, string rate, string demand, string coverage, string shortfall) =>
+        string demand, string coverage, string shortfall) =>
         new(id, name, false,
             new Dictionary<string, SnapshotProperty>
             {
                 ["servingOrder"] = Value(servingOrder),
-                ["demandQuantityProperty"] = Value(quantity),
-                ["demandRateProperty"] = Value(rate),
                 ["demandProperty"] = Value(demand),
                 ["coverageProperty"] = Value(coverage),
                 ["shortfallProperty"] = Value(shortfall),
@@ -60,11 +60,10 @@ public class RainwaterHarvestReactiveHandlerTests
     private static SnapshotDocument TheShippedVocabulary => new(0,
         [
             TheArchetype,
-            DemandComponent(Domestic, "domestic-demand", 1, "population", "perCapitaConsumptionM3",
-                "domesticDemandM3PerYear", "pctOfDomesticDemand", "domesticShortfallM3PerYear"),
+            DemandComponent(Domestic, "domestic-demand", 1,
+                "domesticConsumptionM3PerYear", "pctOfDomesticDemand", "domesticShortfallM3PerYear"),
             DemandComponent(Irrigation, "irrigation-demand", 2,
-                "productiveFootprintHectares", "irrigationDemandM3PerHectarePerYear",
-                "irrigationDemandM3PerYear", "pctOfIrrigationDemand", "irrigationShortfallM3PerYear"),
+                "irrigationConsumptionM3PerYear", "pctOfIrrigationDemand", "irrigationShortfallM3PerYear"),
         ], []);
 
     private sealed class StubSubscriptions(SnapshotDocument snapshot) : ISubscriptionClient
@@ -125,21 +124,23 @@ public class RainwaterHarvestReactiveHandlerTests
         foreach (var output in new[]
                  {
                      RainwaterHarvestReactiveHandler.TotalWaterDemandOutput,
-                     "domesticDemandM3PerYear", "pctOfDomesticDemand", "domesticShortfallM3PerYear",
-                     "irrigationDemandM3PerYear", "pctOfIrrigationDemand", "irrigationShortfallM3PerYear",
+                     "pctOfDomesticDemand", "domesticShortfallM3PerYear",
+                     "pctOfIrrigationDemand", "irrigationShortfallM3PerYear",
                  })
             http.Requests.Should().ContainSingle(request => request.Method == HttpMethod.Post
                 && request.Uri == $"http://mycelium/api/things/{Study}/properties/{output}/facts");
     }
 
-    // The harvest volume and the coverage of the whole demand are declared as expressions on the shared
-    // study archetype, so the model works them out and a derived property refuses every value write. What
-    // stays here is what is worked out across the set of demands the model declares — each demand's size,
-    // the total, and the apportionment in serving order — which is a reduction's shape, not an
-    // expression's.
+    // The harvest volume, the coverage of the whole demand and each demand's own size are declared as
+    // expressions on the shared study archetype, so the model works them out and a derived property
+    // refuses every value write. What stays here is what is worked out across the set of demands the model
+    // declares — the total and the apportionment in serving order — which no formula on one study can
+    // express: the second demand's answer depends on what the first took.
     [Theory]
     [InlineData("harvestM3PerYear")]
     [InlineData("pctOfWaterDemand")]
+    [InlineData("domesticConsumptionM3PerYear")]
+    [InlineData("irrigationConsumptionM3PerYear")]
     public async Task It_asserts_no_figure_the_model_derives_for_itself(string derived)
     {
         var http = Serving(WillowBend);
@@ -160,11 +161,9 @@ public class RainwaterHarvestReactiveHandlerTests
 
         await NewHandler(http).RecomputeAsync(Study);
 
-        WrittenTo(http, "domesticDemandM3PerYear").Should().BeApproximately(17600, 1e-9);
         WrittenTo(http, "pctOfDomesticDemand").Should().BeApproximately(100, 1e-9);
         WrittenTo(http, "domesticShortfallM3PerYear").Should().Be(0);
 
-        WrittenTo(http, "irrigationDemandM3PerYear").Should().BeApproximately(40800, 1e-9);
         WrittenTo(http, "pctOfIrrigationDemand").Should().BeApproximately(78.7450980392, 1e-9);
         WrittenTo(http, "irrigationShortfallM3PerYear").Should().BeApproximately(8672, 1e-9);
     }
@@ -190,9 +189,9 @@ public class RainwaterHarvestReactiveHandlerTests
     {
         var http = Serving("""
             { "builtFootprintHectares": { "Value": "8.88" }, "rainfallMillimetresPerYear": { "Value": "700" },
-              "runoffCoefficient": { "Value": "0.8" }, "population": { "Value": "320" },
-              "perCapitaConsumptionM3": { "Value": "55" }, "productiveFootprintHectares": { "Value": "8.16" },
-              "irrigationDemandM3PerHectarePerYear": { "Value": "5000" } }
+              "runoffCoefficient": { "Value": "0.8" },
+              "domesticConsumptionM3PerYear": { "Value": "17600" },
+              "irrigationConsumptionM3PerYear": { "Value": "40800" } }
             """);
 
         var answer = await TestCulture.InAsync(
@@ -210,9 +209,8 @@ public class RainwaterHarvestReactiveHandlerTests
     {
         var http = Serving("""
             { "builtFootprintHectares": { "Value": 8.88 }, "runoffCoefficient": { "Value": 0.8 },
-              "population": { "Value": 320 }, "perCapitaConsumptionM3": { "Value": 55 },
-              "productiveFootprintHectares": { "Value": 8.16 },
-              "irrigationDemandM3PerHectarePerYear": { "Value": 5000 } }
+              "domesticConsumptionM3PerYear": { "Value": 17600 },
+              "irrigationConsumptionM3PerYear": { "Value": 40800 } }
             """);
         var logger = new CapturingLogger<RainwaterHarvestReactiveHandler>();
 
@@ -234,14 +232,14 @@ public class RainwaterHarvestReactiveHandlerTests
         var vocabulary = new SnapshotDocument(0,
             [
                 TheArchetype,
-                DemandComponent(Domestic, "domestic-demand", 1, "residentsOnSite", "perCapitaConsumptionM3",
-                    "domesticDemandM3PerYear", "pctOfDomesticDemand", "domesticShortfallM3PerYear"),
+                DemandComponent(Domestic, "domestic-demand", 1,
+                    "drinkingWaterM3PerYear", "pctOfDomesticDemand", "domesticShortfallM3PerYear"),
             ], []);
 
         var answer = await NewHandler(http, vocabulary).RecomputeAsync(Study);
 
         answer.Outputs.Should().BeNull();
-        answer.WaitingFor.Should().Equal("residentsOnSite");
+        answer.WaitingFor.Should().Equal("drinkingWaterM3PerYear");
         http.Requests.Should().NotContain(request => request.Method == HttpMethod.Post);
     }
 
@@ -286,8 +284,7 @@ public class RainwaterHarvestReactiveHandlerTests
         handler.WatchedProperties.Should().BeEquivalentTo(new[]
         {
             "builtFootprintHectares", "rainfallMillimetresPerYear", "runoffCoefficient",
-            "population", "perCapitaConsumptionM3",
-            "productiveFootprintHectares", "irrigationDemandM3PerHectarePerYear",
+            "domesticConsumptionM3PerYear", "irrigationConsumptionM3PerYear",
         });
     }
 
@@ -306,17 +303,17 @@ public class RainwaterHarvestReactiveHandlerTests
         var answer = await handler.RecomputeAsync(Study);
 
         answer.Outputs.Should().BeNull();
-        handler.WatchedProperties.Should().Contain("population")
-            .And.Contain("irrigationDemandM3PerHectarePerYear");
+        handler.WatchedProperties.Should().Contain("domesticConsumptionM3PerYear")
+            .And.Contain("irrigationConsumptionM3PerYear");
     }
 
     // A demand whose answer lands on something this service wakes on would recompute the study for as long
     // as the model held that spelling. Refused before the first write, because the loop leaves nothing
     // behind saying which demand caused it — and refused against the whole watched set, so one demand's
-    // answer landing on another's quantity is caught too.
+    // answer landing on another's size is caught too.
     [Theory]
     [InlineData("runoffCoefficient")]
-    [InlineData("productiveFootprintHectares")]
+    [InlineData("irrigationConsumptionM3PerYear")]
     public async Task A_demand_writing_onto_something_it_wakes_on_is_refused_before_anything_is_written(
         string written)
     {
@@ -324,11 +321,10 @@ public class RainwaterHarvestReactiveHandlerTests
         var vocabulary = new SnapshotDocument(0,
             [
                 TheArchetype,
-                DemandComponent(Domestic, "domestic-demand", 1, "population", "perCapitaConsumptionM3",
-                    "domesticDemandM3PerYear", written, "domesticShortfallM3PerYear"),
+                DemandComponent(Domestic, "domestic-demand", 1,
+                    "domesticConsumptionM3PerYear", written, "domesticShortfallM3PerYear"),
                 DemandComponent(Irrigation, "irrigation-demand", 2,
-                    "productiveFootprintHectares", "irrigationDemandM3PerHectarePerYear",
-                    "irrigationDemandM3PerYear", "pctOfIrrigationDemand", "irrigationShortfallM3PerYear"),
+                    "irrigationConsumptionM3PerYear", "pctOfIrrigationDemand", "irrigationShortfallM3PerYear"),
             ], []);
 
         var refusal = await Assert.ThrowsAsync<InvalidOperationException>(

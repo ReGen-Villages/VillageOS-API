@@ -20,7 +20,7 @@ public sealed class WaterReserveNode : DagNodeService
         PortDescriptor.Input("perCapitaConsumptionM3", "number", required: true),
         PortDescriptor.Input("storageCapacityM3", "number", required: true),
         PortDescriptor.Output("emergencyReserveM3", "number"),
-        PortDescriptor.Output("annualConsumptionM3", "number"),
+        PortDescriptor.Output("domesticConsumptionM3PerYear", "number"),
         PortDescriptor.Output("pctAnnualConsumption", "number"),
         PortDescriptor.Output("daysOfSupply", "number"),
     };
@@ -34,7 +34,7 @@ public sealed class WaterReserveNode : DagNodeService
 
         return Task.FromResult(NodeResult.Ok(
             ("emergencyReserveM3", (object?)result.EmergencyReserveM3),
-            ("annualConsumptionM3", result.AnnualConsumptionM3),
+            ("domesticConsumptionM3PerYear", result.AnnualConsumptionM3),
             ("pctAnnualConsumption", result.PctAnnualConsumption),
             ("daysOfSupply", result.DaysOfSupply)));
     }
