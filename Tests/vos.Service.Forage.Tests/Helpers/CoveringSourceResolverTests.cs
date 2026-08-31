@@ -580,12 +580,12 @@ public class CoveringSourceResolverTests
     {
         // A run writes its edges the same way twice, which is what makes the log of two runs comparable.
         var model = StudyOf("WillowBend");
-        MarkedConnection(model, "reservesWater", "WaterReserve prototype");
+        MarkedConnection(model, "harvestsRainwater", "RainwaterHarvest prototype");
         MarkedConnection(model, "balancesEnergy", "EnergyBalance prototype");
 
         CoveringSourceResolver.AnalysisOf(model.Build(), model.Id("WillowBend"))!
             .Triggers.Select(trigger => trigger.ConnectionName)
-            .Should().Equal("balancesEnergy", "reservesWater");
+            .Should().Equal("balancesEnergy", "harvestsRainwater");
     }
 
     [Fact]

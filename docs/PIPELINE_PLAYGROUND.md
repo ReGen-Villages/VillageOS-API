@@ -115,6 +115,11 @@ produces real output. The other services (Generate Text, Uppercase, Merge, Score
 dispatch-only stand-ins: they exercise the whole editor — drop, wire, validate, save, load, inspect — but a
 live Run needs the service listening at that subdomain.
 
+> **water-reserve has to be started by hand.** The site analysis works every figure that service computes
+> out for itself, so it declares no Thing for it any more and nothing auto-starts it with the model
+> (#6748). The service is still there and still answers over its ports — run it yourself before a live
+> Run of Water Self-Sufficiency or Site Analysis (Combined).
+
 So everything on the **canvas** (building, wiring, validation, save/load, field mapping, transforms, boundary
 ports) works from seed data alone. A live **Run** with real results needs the target service up; the seeded
 run history (Hello Echo, Fan-out Scoring) shows the run/animation UI without one.

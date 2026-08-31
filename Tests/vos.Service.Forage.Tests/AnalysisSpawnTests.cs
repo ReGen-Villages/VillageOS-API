@@ -35,7 +35,7 @@ public class AnalysisSpawnTests
     [
         new("SiteAnalysisConnection", CoveringSourceResolver.SiteAnalysisConnectionFlag),
         new("EnergyBalance prototype"),
-        new("WaterReserve prototype"),
+        new("RainwaterHarvest prototype"),
     ];
 
     private static Dictionary<string, Guid> SiteWithOneSource() => Names(
@@ -119,15 +119,15 @@ public class AnalysisSpawnTests
     {
         // The point of finding connections by mark: a balance is added to the model, not to this code.
         var ids = SiteWithOneSource();
-        foreach (var name in new[] { "reservesWater", "reservesWater service", "WaterReserve prototype" })
+        foreach (var name in new[] { "harvestsRainwater", "harvestsRainwater service", "RainwaterHarvest prototype" })
             ids[name] = Guid.NewGuid();
         var spawns = new SpawnRecorder();
         Edge[] edges =
         [
             .. OneSourceAndOneBalance(),
-            new Edge("reservesWater", "is", "SiteAnalysisConnection"),
-            new Edge("reservesWater", "has", "reservesWater service"),
-            new Edge("reservesWater service", "is", "WaterReserve prototype"),
+            new Edge("harvestsRainwater", "is", "SiteAnalysisConnection"),
+            new Edge("harvestsRainwater", "has", "harvestsRainwater service"),
+            new Edge("harvestsRainwater service", "is", "RainwaterHarvest prototype"),
         ];
 
         var response = await RunDiscovery(ids, edges, spawns);
@@ -135,7 +135,7 @@ public class AnalysisSpawnTests
         spawns.Written.Should().BeEquivalentTo(new[]
         {
             (ids["WillowBendStudy"], ids["balancesEnergy"], ids["EnergyBalance prototype"]),
-            (ids["WillowBendStudy"], ids["reservesWater"], ids["WaterReserve prototype"]),
+            (ids["WillowBendStudy"], ids["harvestsRainwater"], ids["RainwaterHarvest prototype"]),
         });
     }
 

@@ -34,6 +34,8 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
     // rather than restated, so the filter cannot come to disagree with what Compute reads.
     public static readonly IReadOnlySet<string> InputProperties = new HashSet<string>(Inputs, StringComparer.Ordinal);
 
+    public const string NetPositiveOutput = "netPositive";
+
     public async Task<RecomputeAnswer<EnergyBalanceOutputs>> RecomputeAsync(
         Guid studyId, CancellationToken cancellationToken = default)
     {
@@ -53,7 +55,7 @@ public sealed class EnergyBalanceReactiveHandler : MyceliumClientBase
             inputs.Number(Inputs[0]), inputs.Number(Inputs[1]), inputs.Number(Inputs[2]),
             inputs.Number(Inputs[3]), inputs.Number(Inputs[4]), inputs.Number(Inputs[5])));
 
-        await properties.WriteAsync(studyId, "netPositive", result.NetPositive, cancellationToken);
+        await properties.WriteAsync(studyId, NetPositiveOutput, result.NetPositive, cancellationToken);
         return new(result, []);
     }
 }

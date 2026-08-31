@@ -533,9 +533,10 @@ declares, a page can show a figure's working, and a term with no answer leaves t
 than failing the service that would have written it. That last part is what lets a site nobody surveyed
 read as not assessed instead of as a site that failed.
 
-What is left to a service is what a formula over one Thing cannot express: a verdict, which is a boolean
-where an expression yields a number, and anything worked out **across a set** — the land shares
-apportioned over the allocations, and the harvest apportioned over the demands in serving order.
+What is left to a service is what no declaration on the study can hold: a verdict, which is a boolean
+where an expression yields a number, and the harvest apportioned over the demands in serving order,
+which is an ordered fold rather than arithmetic. A figure summed across a set is a reduction the study
+declares, so that is not a service's work either.
 
 Each of those is a **reactive service**, not a node in a graph. A relationship whose subject is the
 study and whose predicate is the connection bound to the service is what dispatches it: the service
@@ -545,38 +546,37 @@ watching the study. Every later change to an input recomputes on its own.
 ```mermaid
 flowchart TB
   R["<b>On the study</b><br/>area · programme split · population · household size<br/>solar resource · rainfall <i>(discovered)</i>"]
-  LA["<b>Land allocation</b><br/>shares → areas, plus the built and productive footprints"]
+  M["<b>Worked out by the model</b><br/>each allocation's area · both footprints<br/>every stored-water and food figure · each demand's size"]
   EB["<b>Energy<br/>balance</b>"]
-  FB["<b>Food<br/>balance</b>"]
   RH["<b>Rainwater<br/>harvest</b>"]
   W["<b>Outputs on the study, judged by its ExpectedRanges</b>"]
 
-  R --> LA
+  R --> M
   R -->|"solar resource · panel area · consumption"| EB
-  LA -->|"productive area"| FB
-  LA -->|"built + productive area"| RH
+  M -->|"built footprint · each demand's size"| RH
+  M --> W
   EB --> W
-  FB --> W
   RH --> W
 ```
 
-The arrows are property reads and writes on one Thing, not wires. Land allocation writes the two
-footprints; the food balance and the harvest read them and re-fire. The energy balance reads none of
-them — its panel area is a roll-up over the site's own arrays — so it sits on the first layer beside
-land allocation rather than after it. Nothing sequences any of them: each recomputes when an input it
-declared moves, and the cascade is bounded by the model's recompute round limit.
+The arrows are property reads and writes on one Thing, not wires. The model answers the middle box as
+the model loads and again whenever a term moves; the harvest reads what it produced and re-fires. The
+energy balance reads none of it — its panel area is a roll-up over the site's own arrays — so it sits
+beside the model's own work rather than after it. Nothing sequences any of them: each recomputes when an
+input it declared moves, and the cascade is bounded by the model's recompute round limit.
 
-Two of the boxes need no service any more. Every water-reserve and food-balance figure is a formula on
-the study, so both services now assert nothing and their dispatch is waiting to be removed (#6747,
-#6748). The energy balance keeps only its verdict, and the rainwater harvest keeps the apportionment
-across the demands.
+Three services that once sat here are retired. Land allocation went once a reduction could narrow to the
+members a test admits and each footprint became a sum of the allocations whose category carries a mark
+(#6756). The water reserve and the food balance followed once the last figure each computed became a
+formula on the study: both were reading the study, computing and throwing the answer away (#6710,
+#6748). What is left is the energy balance's verdict and the harvest's apportionment across the demands.
 
 **Each allocation's own area is a formula, not a write.** An allocation works out its normalised share of
 the stated programme and its share of the parcel from definitions the shared analysis declares on the
-`ProgrammeAllocation` archetype, so a page can show the working and no service asserts either figure. The
-two footprints stay with the service because each sums the allocations whose *category* carries a mark,
-and a relationship path narrows by archetype rather than by a property a Thing carries — so no path
-reaches only the marked ones.
+`ProgrammeAllocation` archetype, so a page can show the working and no service asserts either figure.
+Both footprints are reductions on the study carrying a condition, because each sums the allocations whose
+*category* carries a mark and a relationship path narrows by archetype rather than by a property a Thing
+carries — so the condition does what no path reaches.
 
 **Assumptions are inherited, not supplied per run.** Yield per hectare, runoff coefficient, energy per
 person, water per person — these are judgement calls a planner will want to vary, and they live on the
@@ -592,8 +592,7 @@ because it looks like an answer.
 
 **An input the study does not carry yet is waited for, not failed (#6826).** A submission describes land,
 a boundary and programme shares, so a reservoir capacity and a panel area are absent until a building
-model exists — and the footprints the food balance and the harvest read are written later by land
-allocation. A service that finds one of its inputs missing writes nothing, names it in its own log, and
+model exists. A service that finds one of its inputs missing writes nothing, names it in its own log, and
 answers what it is waiting for; the watch it registered on the study is what brings it back when the
 figure arrives. It used to throw, which had the broker record the dispatch failed and drive it again on
 every reconciliation for as long as the model lived.
@@ -661,8 +660,8 @@ three vocabularies are declared in the model, so a project whose programme divid
 hazards differ, adds a Thing rather than changing a service. The composer resolves the submitted word against what the model declares and refuses one that
 matches nothing, naming the terms the model holds. It finds each vocabulary by a mark its archetype
 carries and writes the edge through the predicate the model marks, never by either name — so a model that
-renames one keeps working, and land allocation reads the category's footprint flags off the Thing at the
-end of the edge. **The edge is the only record**: neither term is also written as a word on the Thing it
+renames one keeps working, and each footprint's reduction narrows by the marks on the Thing at the end of
+the edge. **The edge is the only record**: neither term is also written as a word on the Thing it
 came from, because a copy beside the edge can be read but not walked from, and two readings of one value
 can come to disagree with nothing to notice.
 
@@ -787,7 +786,7 @@ about an analysis that never ran.
 
 All figures below are for Willow Bend. Every number is derived from the ones above it.
 
-### Land allocation
+### The programme shares
 
 Shares are normalised across the selected categories, so they always describe the whole parcel even
 if the planner's numbers do not add to 100.
@@ -802,7 +801,7 @@ if the planner's numbers do not add to 100.
 | Mobility and infrastructure | 7% | 1.68 ha |
 | **Total** | **100%** | **24.00 ha** |
 
-Two derived footprints come out of this node, because both balances need them and they must be
+Two footprints are reduced from those shares, because several figures need them and they must be
 defined in exactly one place:
 
 - **Built footprint** = residential + commercial + mobility = **8.88 ha** — the hard surface that
@@ -810,9 +809,9 @@ defined in exactly one place:
 - **Productive footprint** = food and agriculture = **8.16 ha** — the land that grows food.
 
 Which categories roll into which footprint is **a flag each category carries in the model**, not a list
-of names in the service. A category marked `__IsBuiltFootprintCategory` sheds rainwater into the built
+of names in code. A category marked `__IsBuiltFootprintCategory` sheds rainwater into the built
 footprint and one marked `__IsProductiveFootprintCategory` grows food into the productive one, so a
-project whose programme divides differently moves a flag rather than changing a service.
+project whose programme divides differently moves a flag rather than changing anything that runs.
 
 A category may carry both — a roofed growing area is hard surface the rain runs off *and* land that
 grows food — so the two footprints can overlap and together exceed the parcel. What must sum to the
@@ -865,7 +864,7 @@ are displayed together.
 
 ### Water
 
-Two different questions, and a service each.
+Two different questions. One is a service's, the other the study's own.
 
 **Catchment — how much rain can we capture?** *(`RainwaterHarvest`)*
 
@@ -900,18 +899,19 @@ times a rate — residents times cubic metres a person, growing hectares times c
 third demand is a template edit rather than a service change and a redeploy.
 
 The domestic figure is `perCapitaConsumptionM3` on the shared study archetype — the same water-per-person
-assumption the storage question reads. Two services asking two questions of one figure is what keeps a
-correction to it from having to be made twice.
+assumption the storage question reads. Two questions asked of one figure is what keeps a correction to it
+from having to be made twice.
 
-**Storage — how long does the tank last?** *(`WaterReserve`)*
+**Storage — how long does the tank last?** *(formulas on the study)*
 
 ```text
   Annual consumption = 320 × 55 m³/person/yr                      = 17,600 m³/yr
   Days of supply     = 3,000 m³ storage ÷ (17,600 ÷ 365)          = 62 days
 ```
 
-Different inputs, different outputs, different question. Hence a sibling service rather than more inputs
-on the existing one.
+Different inputs, different outputs, different question — and every term is a value the study already
+holds, so the shared archetype declares each of these as a formula and no service is dispatched to work
+them out (#6710, #6748).
 
 ### Hazards
 
@@ -1233,8 +1233,8 @@ The main finding from designing this: most of it is already built.
 | Capability | Status |
 |---|---|
 | Energy balance calculation | **Exists** as a reactive service |
-| Water storage calculation | **Exists** as a reactive service |
-| Land allocation, and the food balance and rainwater harvest above it | **Exists** as reactive services |
+| Water storage, food balance and land allocation calculations | **Exist** as formulas and reductions the study declares |
+| Rainwater harvest | **Exists** as a reactive service |
 | Dispatching a service by relating a Thing to it | **Exists** (handled predicates) |
 | Recomputing a service's outputs when its inputs move | **Exists** (input-change subscription) |
 | Bounding a chain where one computed value feeds another | **Exists** (recompute round limit) |
