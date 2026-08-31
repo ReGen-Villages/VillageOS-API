@@ -6,14 +6,17 @@ using Xunit;
 
 namespace vos.SiteAnalysis.Tests;
 
-// What each of the services that compute a site analysis assumes about the others, which none of them can
-// check on its own.
+// The site analysis read across the services that compute it, rather than from inside any one of them.
 //
-// A third one used to sit under these two and write the footprints they read, so this file could hold the
-// two sides against one constant. The model works both footprints out for itself now, so the name they
-// have to agree on belongs to the analysis template rather than to anything here, and whether a study
-// declares it is checked where that template lives. What is still only checkable here is what one service
-// assumes about another.
+// A third service used to sit under these two and write the footprints they read, so this file could hold
+// the two sides against one constant: the reader's name was the writer's name, or the build broke. The
+// model works both footprints out for itself now, so the name they have to agree on belongs to the
+// analysis template, and whether a study declares it is checked where that template lives.
+//
+// What is left here is weaker and worth naming as such. Each figure is pinned to a literal, which catches
+// a rename on one side of a service and catches the two balances swapping which footprint they read — but
+// no longer proves either name is one the model declares. Only the last test below is a claim no single
+// service could make.
 public class SiteAnalysisChainTests
 {
     // The figure a handler read and the figure its arithmetic takes are one name, so no step between them
