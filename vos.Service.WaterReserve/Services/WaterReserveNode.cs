@@ -34,7 +34,7 @@ public sealed class WaterReserveNode : DagNodeService
 
         return Task.FromResult(NodeResult.Ok(
             ("emergencyReserveM3", (object?)result.EmergencyReserveM3),
-            ("domesticConsumptionM3PerYear", result.AnnualConsumptionM3),
+            ("domesticConsumptionM3PerYear", result.DomesticConsumptionM3PerYear),
             ("pctAnnualConsumption", result.PctAnnualConsumption),
             ("daysOfSupply", result.DaysOfSupply)));
     }
