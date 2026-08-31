@@ -13,8 +13,8 @@ namespace vos.Service.RainwaterHarvest.Services;
 // reduction's shape rather than an expression's — the total sums that set, and the coverages apportion one
 // body of water across it in serving order.
 //
-// Both footprints are written by LandAllocation onto the same study, which puts this on the second layer
-// of the analysis: one dispatch, and every later move of either footprint recomputes on its own.
+// Both footprints are reductions the study works out over the land allocations beside it, so both are
+// already there when this is dispatched, and every later move of either recomputes on its own.
 //
 // Only three inputs are named here — the ones the harvest volume is worked out from, which is this
 // service's own arithmetic and nothing the model can express. Everything about the demands comes from

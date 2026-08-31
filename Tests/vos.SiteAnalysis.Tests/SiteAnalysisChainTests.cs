@@ -1,46 +1,41 @@
 using FluentAssertions;
 using vos.Service.FoodBalance.Services;
-using vos.Service.LandAllocation.Services;
 using vos.Service.RainwaterHarvest.Services;
 using vos.Tests.Shared;
 using Xunit;
 
 namespace vos.SiteAnalysis.Tests;
 
-// What each of the three services that compute a site analysis assumes about the other two, which none of
-// them can check on its own. Land allocation works out the footprints; the rainwater harvest and the food
-// balance read them off the same study.
+// What each of the services that compute a site analysis assumes about the others, which none of them can
+// check on its own.
 //
-// The three were specified together and built separately, which is why those assumptions are checked here
-// against what was actually built.
+// A third one used to sit under these two and write the footprints they read, so this file could hold the
+// two sides against one constant. The model works both footprints out for itself now, so the name they
+// have to agree on belongs to the analysis template rather than to anything here, and whether a study
+// declares it is checked where that template lives. What is still only checkable here is what one service
+// assumes about another.
 public class SiteAnalysisChainTests
 {
-    // The footprint is one property name rather than a pair on either side that happen to agree, so the
-    // value a balance reads is the value land allocation wrote and there is no step between them that could
-    // convert it. The unit is in the name, which is what makes a move from hectares to square metres a
-    // rename both sides have to follow rather than a silent factor of ten thousand.
-    //
-    // The harvest reaches the productive footprint through the model instead: it is the quantity its
-    // irrigation demand is sized by, so the name is the template's and the platform repository is where a
-    // demand naming a property no study declares is caught.
-    [Fact]
-    public void Each_balance_reads_the_footprints_under_the_names_land_allocation_writes_them()
+    // The figure a handler read and the figure its arithmetic takes are one name, so no step between them
+    // can reinterpret it. The unit is in the name, which is what makes a move from hectares to square
+    // metres a rename both sides have to follow rather than a silent factor of ten thousand.
+    [Theory]
+    [InlineData("builtFootprintHectares")]
+    [InlineData("rainfallMillimetresPerYear")]
+    [InlineData("runoffCoefficient")]
+    public void The_harvest_takes_each_figure_it_reads_under_the_name_it_read_it_by(string figure)
     {
-        RainwaterHarvestReactiveHandler.InputProperties.Should()
-            .Contain(LandAllocationReactiveHandler.BuiltFootprintOutput);
-
-        FoodBalanceReactiveHandler.InputProperties.Should()
-            .Contain(LandAllocationReactiveHandler.ProductiveFootprintOutput);
+        RainwaterHarvestReactiveHandler.InputProperties.Should().Contain(figure);
+        TakenBy<RainwaterHarvestInputs>().Should().Contain(figure);
     }
 
-    // And the arithmetic behind each balance takes the figure under that same name, so the unit cannot be
-    // reinterpreted between the property the handler read and the calculation it fed.
-    [Fact]
-    public void The_arithmetic_behind_each_balance_takes_the_footprint_under_that_same_name()
+    [Theory]
+    [InlineData("productiveFootprintHectares")]
+    [InlineData("peopleFedPerHectarePerYear")]
+    public void The_food_balance_takes_each_figure_it_reads_under_the_name_it_read_it_by(string figure)
     {
-        TakenBy<RainwaterHarvestInputs>().Should().Contain(LandAllocationReactiveHandler.BuiltFootprintOutput);
-
-        TakenBy<FoodBalanceInputs>().Should().Contain(LandAllocationReactiveHandler.ProductiveFootprintOutput);
+        FoodBalanceReactiveHandler.InputProperties.Should().Contain(figure);
+        TakenBy<FoodBalanceInputs>().Should().Contain(figure);
     }
 
     // A footprint moving wakes both balances, the harvest writes its results onto the study it was woken
@@ -59,7 +54,6 @@ public class SiteAnalysisChainTests
 
         foreach (var woken in new[]
                  {
-                     LandAllocationReactiveHandler.InputProperties,
                      RainwaterHarvestReactiveHandler.InputProperties,
                      FoodBalanceReactiveHandler.InputProperties,
                  })
