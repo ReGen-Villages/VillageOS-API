@@ -170,6 +170,19 @@ public class DeclaredVocabularyReaderTests
         DeclaredVocabularyReader.Read(model.Build()).WaterDemands.Should().BeEmpty();
     }
 
+    // An analysis stating no order at all still composes: every demand reads nought and is served in the
+    // order the model declared it, which the producer then writes as the ordering edges.
+    [Fact]
+    public void A_demand_with_no_stated_order_reads_as_served_first()
+    {
+        var model = DeclaredModel.Seeded();
+        foreach (var (demand, _) in WillowBend.WaterDemandNames)
+            model.ArchetypeStating(demand).Relate(demand, "is", "WaterDemandComponent");
+
+        DeclaredVocabularyReader.Read(model.Build()).WaterDemands
+            .Select(demand => demand.ServingOrder).Should().AllBeEquivalentTo(0L);
+    }
+
     // The root Place a site is related to, and the predicate that edge is written with. Both are found by
     // a mark rather than by name for the same reason every other vocabulary is: a producer naming `Earth`
     // relates nothing, and says nothing, in a model that calls its root something else — and a site

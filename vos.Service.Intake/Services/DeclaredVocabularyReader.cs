@@ -99,8 +99,8 @@ public static class DeclaredVocabularyReader
             .ThenBy(demand => demand.Name, StringComparer.Ordinal)];
     }
 
-    // A demand stating no order of its own inherits the archetype's, which is what an analysis declaring
-    // one demand means by leaving it out.
+    // An analysis stating no order anywhere leaves every demand at nought, which serves them in the order
+    // it declared them — a poor answer, and better than refusing every submission into that model.
     private static long ServingOrderOf(SnapshotThing demand) =>
         demand.StatedValue(ServingOrderProperty) is { } stated
         && stated.Value.TryGetInt64(out var order) ? order : 0;
