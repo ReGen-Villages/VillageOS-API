@@ -370,7 +370,7 @@ Registrations inherit from a small hierarchy of templates, so shared behaviour i
 
 ```mermaid
 flowchart BT
-  R1["<b>a registration</b><br/>solar-resource<br/>supplies: url"]
+  R1["<b>a registration</b><br/>elevation<br/>supplies: url, responseTransform"]
   R2["<b>a registration</b><br/>county-parcels<br/>supplies: url, tokenUrl, tokenRequest"]
   E1["<b>Endpoint</b> (root)<br/>httpMethod=GET · no auth · no paging"]
   E2["<b>EsriEndpoint</b><br/>token exchange · offset paging<br/>provider's field names fixed"]
@@ -391,26 +391,37 @@ forces it.
 
 ### A registration, in full
 
+This is the elevation source as the seed declares it, shortened to the parts that carry meaning:
+
 ```jsonc
 {
-  "name": "solar-resource",
+  "name": "elevation",
   "properties": {
-    "url": "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lng}&hourly=shortwave_radiation",
+    "url": "https://api.open-meteo.com/v1/elevation?latitude={latitude}&longitude={longitude}",
     "httpMethod": "GET",
-    "coverage": "global",
-    "responseTransform": "{ \"name\": $siteName, \"properties\": { \"solarResourceKwhPerM2PerYear\": $round($sum(hourly.shortwave_radiation) / 1000) }, \"observedAt\": hourly.time[0] }"
+    "responseTransform": "($metresAboveSeaLevel := elevation[0]; {\"properties\": $exists($metresAboveSeaLevel) ? {\"elevationMetres\": $metresAboveSeaLevel} : {}})"
   },
-  "relationships": [ { "subject": "solar-resource", "predicate": "is", "target": "Endpoint" } ]
+  "relationships": [
+    { "subject": "elevation", "predicate": "is", "target": "Endpoint" },
+    { "subject": "Open-Meteo elevation", "predicate": "resolvedBy", "target": "elevation" },
+    { "subject": "Open-Meteo elevation", "predicate": "covers", "target": "Earth" }
+  ]
 }
 ```
 
-Three parts do the work:
+Four parts do the work:
 
-- **`url`** with `{lat}` / `{lng}` placeholders, filled in per call from the `addressParameters` the
-  caller supplies. One registration serves every site.
-- **`coverage`** — where this source applies. `global`, or a set of countries.
+- **`url`**, whose placeholders are the subject's own property names — `{latitude}` and `{longitude}`
+  are the Site's — filled in per call from the `addressParameters` the run supplies. One registration
+  serves every site.
 - **`responseTransform`** — a **JSONata** expression, which is a small language for reshaping JSON.
-  It turns whatever the provider returns into a **reading**.
+  It turns whatever the provider returns into a **reading**. This one writes nothing where the
+  provider answered nothing, so a site it holds no figure for stays honestly unknown.
+- **`resolvedBy`**, from the source to the registration. The source is the Thing a run selects and
+  reports on; the registration is how it is called. Renaming either cannot strand the other.
+- **`covers`**, from the source to a Place. Where a source applies is an edge to a Thing, not a word
+  on it, and `Earth` is the Place every other Place nests under — so covering it covers every site.
+  *The discovery run* below says why that is a walk rather than a name match.
 
 ### What a reading is
 
@@ -427,8 +438,13 @@ A reading is the standard shape Tributary ingests. Three fields:
 Tributary finds the Thing named `Willow Bend` and writes the value onto it as an **observation** at
 that time. The site now carries a solar figure that came from somewhere, with a date attached.
 
-> This pattern already works and is proven — the precipitation and solar-resource slices in
-> [TRIBUTARY.md](TRIBUTARY.md#example-precipitation-onto-a-site-5805) do exactly this today.
+**A registered source leaves `name` out.** The discovery run says which Thing each call is about, so a
+name here would fit one site and be wrong for every other — see
+[TRIBUTARY.md](TRIBUTARY.md#naming-the-subject-a-call-is-about).
+
+> This is not a proposal. Every source in the table below is registered in the seed today, and
+> [TRIBUTARY.md](TRIBUTARY.md#example-a-climate-zone-onto-a-site-6734) walks through the climate-zone
+> and hazard registrations reshaping a real provider's answer.
 
 ### The discovery run
 
@@ -492,15 +508,30 @@ reports exactly what did and did not resolve, with a reason — a quietly short 
 mode of the tool being replaced, where an unrecognised country spelling silently hid sources that
 did in fact cover the site.
 
-### What to fetch first
+### What the catalogue fetches
 
 | Value | Replaces | State |
 |---|---|---|
 | Climate zone | A zone nobody could enter, because the property takes observations only | Registered as seed data (#6734) |
-| Solar resource | A curve applied to latitude, feeding straight into the energy balance | Reshape proven, not yet seeded |
-| Rainfall | A number the planner is asked to type, feeding the water balance | Reshape proven, not yet seeded |
+| Solar resource | A curve applied to latitude, feeding straight into the energy balance | Registered as seed data (platform Bug 6825, #6830) |
+| Rainfall | A number the planner is asked to type, feeding the water balance | Registered as seed data (platform Bug 6825, #6830) |
 | Hazard levels | Hand transcription of eight levels from a separate portal | Registered as seed data, called once per assessment (#6735) |
-| Elevation and terrain | A manually entered value | Nothing registered |
+| Elevation | A figure the submitted-site page drew and nothing could fill | Registered as seed data (platform User Story 6848) |
+
+**Rainfall and the solar resource arrive from one call.** The same provider averages both over the
+same twenty years, so a second registration would be a second outage for one answer. An average over
+that span is also what a balance about a place asks for: a single wet year read as the site's
+rainfall would size a harvest nobody gets twice.
+
+**Terrain is not among them.** The elevation source answers one height for the site's own position,
+and `Site` holds no surface for a terrain model to land on — so the first thing that needs one is
+what should declare it.
+
+**Two registrations in the catalogue fetch no value at all.** A run makes them to work out which
+administrative division a site stands in, so the hazard call can be addressed: one turns the site's
+position into an area name, the other searches the portal's own divisions for that name. Neither
+covers a Place and neither carries a reshape expression, because nothing they answer is a reading
+about the site — see [§8](#hazards) (#6851).
 
 **The registered sources ship in the seed, not in a call.** A registration lives in the project's own
 model, so a source every project uses belongs in the seed every project is created from — which is a
@@ -517,8 +548,9 @@ registration selects Köppen-Geiger by the marker the provider gives it; see
 [`TRIBUTARY.md`](TRIBUTARY.md#example-a-climate-zone-onto-a-site-6734).
 
 Not every provider can be registered. Some are map portals with no data interface; some are
-commercial products behind a licence. Those stay as links — but recorded **as Things in the model**,
-flagged as needing a manual read, so the gap is visible rather than implied by absence.
+commercial products behind a licence. The catalogue holds none of those yet, and when it does they
+belong in it as **Things in the model** flagged as needing a manual read, rather than as links
+somewhere else — so the gap is visible rather than implied by absence.
 
 ---
 
