@@ -18,8 +18,8 @@
 
                ServiceEntryPointsAreDecidedTests holds the other half of this: a service whose entry
                point is neither excluded here nor named there fails the build, so a new one cannot
-               land counted-and-unexplained the way FoodBalance once did. -->
-          <ExcludeByFile>**/vos.Service.CSharp.Echo/Program.cs,**/vos.Service.Delta/Program.cs,**/vos.Service.Tributary/Program.cs,**/vos.Service.Metabolism/Program.cs,**/vos.Service.EnergyBalance/Program.cs,**/vos.Service.WaterReserve/Program.cs,**/vos.Service.ModelBridge/Program.cs,**/vos.Service.FoodBalance/Program.cs,**/vos.Service.RainwaterHarvest/Program.cs,**/Tests/vos.Tests.Shared/**/*.cs</ExcludeByFile>
+               land counted-and-unexplained the way several did before that guard existed. -->
+          <ExcludeByFile>**/vos.Service.CSharp.Echo/Program.cs,**/vos.Service.Delta/Program.cs,**/vos.Service.Tributary/Program.cs,**/vos.Service.Metabolism/Program.cs,**/vos.Service.EnergyBalance/Program.cs,**/vos.Service.WaterReserve/Program.cs,**/vos.Service.ModelBridge/Program.cs,**/vos.Service.RainwaterHarvest/Program.cs,**/Tests/vos.Tests.Shared/**/*.cs</ExcludeByFile>
           <ExcludeByAttribute>
             <!-- Auto-generated / compiler synthesised code. -->
             <Attribute>System.CodeDom.Compiler.GeneratedCodeAttribute</Attribute>

@@ -125,9 +125,9 @@ public class HandleRequestRouterTests
     [Fact]
     public void DescribeExpectedShapes_NamesTheServiceAndBothShapes()
     {
-        var message = HandleRequestRouter.DescribeExpectedShapes("WaterReserve");
+        var message = HandleRequestRouter.DescribeExpectedShapes("EnergyBalance");
 
-        message.Should().Contain("WaterReserve").And.Contain("runId").And.Contain("subjectId");
+        message.Should().Contain("EnergyBalance").And.Contain("runId").And.Contain("subjectId");
     }
 
     [Fact]

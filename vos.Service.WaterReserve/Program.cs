@@ -1,6 +1,5 @@
 using vos.Auth.Shared;
 using vos.Service.Shared;
-using vos.Service.Shared.Subscriptions;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Configuration;
 using vos.Service.WaterReserve.Services;
@@ -52,15 +51,6 @@ try
         new WaterReserveNode(sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ILogger<WaterReserveNode>>(), myceliumUrl, serviceToken, apiKey: apiKey));
 
-    builder.Services.AddSingleton(sp =>
-        new WaterReserveReactiveHandler(sp.GetRequiredService<IHttpClientFactory>(),
-            sp.GetRequiredService<ILogger<WaterReserveReactiveHandler>>(), myceliumUrl, serviceToken, apiKey: apiKey));
-
-    // Recompute when an input moves, so a study's result never presents a stale number as current.
-    builder.Services.AddInputChangeRecompute<WaterReserveReactiveHandler>(
-        "WaterReserve", myceliumUrl, serviceToken, _ => WaterReserveReactiveHandler.InputProperties,
-        (handler, studyId, ct) => handler.RecomputeAsync(studyId, ct));
-
     builder.Services.AddMyceliumRegistration("WaterReserve", servicePort);
 
     var app = builder.Build();
@@ -72,25 +62,13 @@ try
         app.UseMyceliumModelToken();
     }
 
-    var handle = app.MapPost("/handle", async (HttpContext ctx, WaterReserveNode node, WaterReserveReactiveHandler reactive,
-        InputChangeRecomputeService following) =>
+    var handle = app.MapPost("/handle", async (HttpContext ctx, WaterReserveNode node) =>
     {
         using var reader = new StreamReader(ctx.Request.Body);
         var request = HandleRequestRouter.Classify(await reader.ReadToEndAsync());
-
-        switch (request.Kind)
-        {
-            case HandleRequestKind.NodeEnvelope:
-                return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
-
-            case HandleRequestKind.RelationshipSubject:
-                following.Watch(request.SubjectId);
-                var answer = await reactive.RecomputeAsync(request.SubjectId, ctx.RequestAborted);
-                return Results.Ok(new { success = true, answer.Outputs, answer.WaitingFor });
-
-            default:
-                return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedShapes("WaterReserve") });
-        }
+        if (request.Kind == HandleRequestKind.NodeEnvelope)
+            return Results.Ok(await node.HandleNodeAsync(request.Json, ctx.RequestAborted));
+        return Results.BadRequest(new { error = HandleRequestRouter.DescribeExpectedNodeEnvelope("WaterReserve") });
     });
     if (authEnabled) handle.RequireAuthorization();
 

@@ -15,7 +15,12 @@ public sealed record WaterReserveOutputs(
 // drink. That is domestic consumption alone and not everything the site uses — a site that irrigates
 // wants far more — which is right for a reserve, because a reserve is drinking water.
 // Scale-independent — population and rate are inputs — so the programme-scale decision only feeds data,
-// never the code. DaysOfSupply feeds the 14-day "WaterResilient" range.
+// never the code.
+//
+// A site study answers all four of these for itself: the shared analysis template declares each as a
+// formula, and the range judging days of supply reads the study's figure, not this one. What is left
+// here answers a pipeline run, whose inputs arrive on wired ports and reach no study. The two therefore
+// have to be kept in step by hand — a change to the formulas does not reach this arithmetic.
 public static class WaterReserveCalculator
 {
     public static WaterReserveOutputs Compute(WaterReserveInputs input)
