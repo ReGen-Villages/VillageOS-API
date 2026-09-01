@@ -33,12 +33,15 @@ public sealed class SubmissionIntakeService(
         var has = ResolvePredicateAsync(SubmissionFragmentComposer.HasPredicateName, cancellation);
         var isEdge = ResolvePredicateAsync(SubmissionFragmentComposer.IsPredicateName, cancellation);
         var proposes = ResolvePredicateAsync(SubmissionFragmentComposer.ProposesPredicateName, cancellation);
+        var servedAfter = ResolvePredicateAsync(
+            SubmissionFragmentComposer.ServedAfterPredicateName, cancellation);
         var arrival = ArrivalTimeAsync(submission.SubmissionId, cancellation);
         var archetypeLookups = ArchetypeNames
             .Select(name => mycelium.FindThingIdByNameAsync(name, cancellation))
             .ToArray();
 
-        await Task.WhenAll([studies, has, isEdge, proposes, arrival, .. archetypeLookups.Cast<Task>()]);
+        await Task.WhenAll(
+            [studies, has, isEdge, proposes, servedAfter, arrival, .. archetypeLookups.Cast<Task>()]);
 
         // Kept against the name rather than the position it was asked in, so the two orderings cannot drift
         // apart and hand a submission the Parcel archetype where it asked for the Site.
@@ -47,7 +50,8 @@ public sealed class SubmissionIntakeService(
             .ToDictionary(pair => pair.name, pair => pair.identifier);
         RefuseAModelMissingAnyArchetype(found);
 
-        var predicates = new ResolvedPredicates(await studies, await has, await isEdge, await proposes);
+        var predicates = new ResolvedPredicates(
+            await studies, await has, await isEdge, await proposes, await servedAfter);
         var archetypes = new ResolvedArchetypes(
             found[SubmissionFragmentComposer.SiteArchetypeName]!.Value,
             found[SubmissionFragmentComposer.SiteStudyArchetypeName]!.Value,

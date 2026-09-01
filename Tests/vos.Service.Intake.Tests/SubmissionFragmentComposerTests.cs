@@ -656,6 +656,55 @@ public class SubmissionFragmentComposerTests
             .Value.Should().Be(true);
     }
 
+    // A coverage and a shortfall are properties of one study's demand, so the study holds a demand of its
+    // own under each archetype the analysis declares rather than sharing the analysis's. Found by the mark
+    // the analysis carries, so a third demand is minted here with nothing in the producer changing.
+    [Fact]
+    public void The_study_holds_a_demand_of_its_own_under_each_the_analysis_declares()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        foreach (var (demand, _) in WillowBend.WaterDemandNames)
+        {
+            var held = Named(composed, $"Willow Bend Site Study {demand}");
+            Holds(composed, composed.StudyId, held.Id).Should().BeTrue();
+            IsEdgeTo(composed, held.Id, WillowBend.TermId(demand)).Should().BeTrue();
+            held.Properties.Should().BeEmpty("everything a demand holds is declared on its archetype");
+        }
+    }
+
+    // Which demands came before is written as edges rather than left to be worked out from serving orders
+    // at every recompute, so the reduction that adds up what they took ranges over what these edges reach.
+    [Fact]
+    public void Each_demand_relates_to_every_demand_served_before_it()
+    {
+        var composed = Compose(WillowBend.Submission());
+
+        ServedBefore(composed, "domestic-demand").Should().BeEmpty();
+        ServedBefore(composed, "irrigation-demand").Should()
+            .Equal(Named(composed, "Willow Bend Site Study domestic-demand").Id);
+    }
+
+    private static IEnumerable<Guid> ServedBefore(ComposedSubmission composed, string demand) =>
+        composed.Fragment.Relationships
+            .Where(edge => edge.Subject == Named(composed, $"Willow Bend Site Study {demand}").Id
+                           && edge.Predicate == WillowBend.ServedAfterPredicateId)
+            .Select(edge => edge.Target);
+
+    // A model doing no water analysis declares no demands, and the study holds none rather than the
+    // producer refusing the submission over an analysis it was not asked for.
+    [Fact]
+    public void A_model_declaring_no_water_demands_mints_none()
+    {
+        var composed = Compose(
+            WillowBend.Submission(), WillowBend.KnownVocabulary with { WaterDemands = [] });
+
+        composed.Fragment.Relationships.Should()
+            .NotContain(edge => edge.Predicate == WillowBend.ServedAfterPredicateId);
+        composed.Fragment.Things.Should()
+            .NotContain(thing => thing.Name!.EndsWith("-demand", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Stated_area_stays_on_the_site_and_measured_area_on_the_parcel()
     {

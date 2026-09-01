@@ -411,8 +411,8 @@ no Tributary code changes, just config:
 ```
 
 Tributary fetches it and ingests `precipitation` (mm) as an observation on `ExampleSite` at the
-observed time (see `PrecipitationEndpointTests`). That rainfall series feeds the catchment the
-`RainwaterHarvest` service works out — real discovered data instead of a run param.
+observed time (see `PrecipitationEndpointTests`). That rainfall series feeds the catchment the study
+works out for itself — real discovered data instead of a run param.
 
 The **Energy** slice (#5806) discovers the same way — a solar-resource endpoint reshaping
 `hourly.shortwave_radiation` onto the Site (see `SolarResourceEndpointTests`). Its two solar inputs

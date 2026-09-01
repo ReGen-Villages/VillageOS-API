@@ -12,7 +12,7 @@ namespace vos.Service.Shared.Tests;
 // does not produce.
 public class StudyInputsTests
 {
-    private const string Service = "RainwaterHarvest";
+    private const string Service = "EnergyBalance";
 
     private static StudyInputs Reading(string json) =>
         new(JsonSerializer.Deserialize<JsonElement>(json), Service);

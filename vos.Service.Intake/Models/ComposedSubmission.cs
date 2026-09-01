@@ -15,7 +15,8 @@ public sealed record PredicateIdentity(string Name, Guid Id, bool Minted);
 /// <c>…PredicateName</c> constants on <see cref="vos.Service.Intake.Services.SubmissionFragmentComposer"/> by a
 /// tool that reads both files as text; read the remarks there before renaming one.</summary>
 public sealed record ResolvedPredicates(
-    PredicateIdentity Studies, PredicateIdentity Has, PredicateIdentity Is, PredicateIdentity Proposes);
+    PredicateIdentity Studies, PredicateIdentity Has, PredicateIdentity Is, PredicateIdentity Proposes,
+    PredicateIdentity ServedAfter);
 
 /// <summary>The archetypes a submission's Things point at, as the model that will hold them names them. A
 /// submission carries no property declarations of its own for anything an archetype already declares: it
@@ -26,6 +27,11 @@ public sealed record ResolvedArchetypes(
 
 /// <summary>One term a model declares, under the name it declared it with.</summary>
 public sealed record DeclaredTerm(string Name, Guid Id);
+
+/// <summary>One demand on the water a site harvests, and where in the queue it stands. An archetype rather
+/// than a term: a study holds a demand of its own under each of these, and nothing in a submission names
+/// one — they are minted for every study whatever was submitted.</summary>
+public sealed record DeclaredDemand(string Name, Guid Id, long ServingOrder);
 
 /// <summary>A vocabulary the model holds as Things: the terms, and the predicate an edge to one of them is
 /// written with. Both are read from the model rather than held here, so a project that adds a term or
@@ -42,4 +48,4 @@ public sealed record DeclaredPlace(DeclaredTerm Predicate, DeclaredTerm Root);
 /// the Place its site is related to.</summary>
 public sealed record DeclaredVocabulary(
     DeclaredTerms AllocationCategories, DeclaredTerms BoundarySources, DeclaredTerms HazardTypes,
-    DeclaredTerms HazardLevels, DeclaredPlace PlaceNesting);
+    DeclaredTerms HazardLevels, DeclaredPlace PlaceNesting, IReadOnlyList<DeclaredDemand> WaterDemands);

@@ -22,7 +22,7 @@ handlers in Go, Node/TypeScript, Python, and Rust, see
 [`SERVICE_AUTHORING.md`](SERVICE_AUTHORING.md).
 
 Today's .NET services: `Echo`, `Tributary`, `Forage`, `Delta`, `Metabolism`, `Phloem`,
-`RainwaterHarvest`, `WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
+`WaterReserve`, `EnergyBalance`, `ModelBridge`, `Xylem`, `Intake`. `Delta` is the endpoint-registration service: it
 provisions the endpoint-template catalog into a model on that model's first registration, and
 validates every endpoint
 registration against that template graph (see [`DELTA.md`](DELTA.md)); `Tributary` is the runtime
@@ -35,23 +35,22 @@ consumption; `EnergyBalance` computes solar + other
 generation vs consumption → % of consumption and net-positive. `EnergyBalance` also runs
 **reactively** (#5839) — a graph `/handle` whose subject is the SiteStudy makes the service
 read its inputs off the study's effective properties, compute, and write its verdict back as a Fact, so the
-study's judge ranges re-evaluate (no pipeline). `RainwaterHarvest` (#6021) is that reactive shape alone.
+study's judge ranges re-evaluate (no pipeline). It is the only service the site analysis still
+dispatches: a service earns a dispatch by producing what no declaration on the study can hold, and the
+energy verdict is the last of those — a boolean where every formula the analysis declares yields a number.
 `WaterReserve` has only the node path left: every figure it computes is a formula the shared study
 archetype declares, so a study answers all four for itself and nothing dispatches the service against
 one (#6748). A pipeline run still routes to it, supplying the three inputs on wired ports. `FoodBalance`
 is retired for the same reason and no longer exists. Each allocation's area and both of a site's
 footprints are figures the model works out for itself as well, so no service produces them.
-The rainwater harvest reads the built footprint, the site's rainfall
-and the runoff coefficient to work out the volume captured in a year, then serves each demand the
-**model** declares in the order it
-declares: drinking water first, irrigation from what is left. Each demand reports what it asked for, the
-share of it covered and the volume still short. The harvest is one body of water, so measuring it against
-each demand on its own would count the same cubic metre twice — and a combined percentage cannot tell a
-site with abundant drinking water and a marginal irrigation position from one that is uniformly short.
-Which demands there are, their order, and the properties each is read from and written to are Things in
-the shared analysis template, not a list in this service. A demand's size is a figure the model works out
-for itself, so this service reads one number per demand rather than the two it used to multiply, and a
-third demand is a template edit. `ModelBridge` (#5866) is a generic
+`RainwaterHarvest` (#6021) ran reactively too, apportioning the rain a site captures over the demands on
+it in turn, and is retired (#6892). The volume captured in a year is now a formula the shared study
+archetype declares, and each demand is a Thing of the study's own that works out what it takes, how much of
+what it wanted that is, and what is left short. The harvest is one body of water, so measuring it against
+each demand on its own would count the same cubic metre twice — a demand takes the smaller of what it
+wants and what the demands before it left, which is why the model's expression language grew `min` over two
+figures. Which demands there are and the order they are served in are Things in the shared analysis
+template, so a third demand is a template edit and no service changes. `ModelBridge` (#5866) is a generic
 **model⇄DAG bridge** node: with node param `mode:"read"` it outputs a Thing's property value (GET the
 Thing's properties); with `mode:"write"` it writes its `value` input onto a Thing's property (a Fact).
 It lets a compute node read a roll-up / SiteStudy param and write its result back over ordinary node→node
