@@ -462,7 +462,7 @@ Three things about it are worth reading off:
   put a value that is no class at all onto the Site (Bug #6772, see `ClimateZoneEndpointTests`).
 
 **Köppen-Geiger is the scheme, and it is recorded where a reader of the intake design finds it too** —
-[`LAND_INTAKE.md`](LAND_INTAKE.md#what-to-fetch-first), beside the registration's own comment in the
+[`LAND_INTAKE.md`](LAND_INTAKE.md#what-the-catalogue-fetches), beside the registration's own comment in the
 template. Its classes are Things of their own in the platform's intake template (platform Task 6684).
 The discovery run resolves the fetched code against them by the declaration that template carries
 (platform User Story 6773; the resolution is #6809), and the code stays on the Site's series as the
