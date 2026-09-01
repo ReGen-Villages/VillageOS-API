@@ -116,6 +116,10 @@ public static class SubmissionFragmentComposer
         // hold either. Which demands came before is written here as edges rather than compared at every
         // recompute, so the reduction that adds up what they took ranges over what those edges reach. The
         // set comes from the mark the analysis carries, so a third demand costs no change here.
+        //
+        // Held by `has` rather than by a predicate of their own so that a prune rooted at the site reaches
+        // them: the walk follows the predicates it is given, and a demand hanging off anything else would
+        // stay behind when the submission it belongs to is cleared.
         var servedBefore = new List<NamedThing>();
         foreach (var demand in vocabulary.WaterDemands)
         {
