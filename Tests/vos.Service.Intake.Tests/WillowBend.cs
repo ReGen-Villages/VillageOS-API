@@ -16,12 +16,14 @@ public static class WillowBend
     public static readonly Guid HasPredicateId = new("22222222-2222-2222-2222-222222222222");
     public static readonly Guid IsPredicateId = new("33333333-3333-3333-3333-333333333333");
     public static readonly Guid ProposesPredicateId = new("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
+    public static readonly Guid ServedAfterPredicateId = new("0c0c0c0c-0c0c-0c0c-0c0c-0c0c0c0c0c0c");
 
     public static ResolvedPredicates KnownPredicates => new(
         new PredicateIdentity("studies", StudiesPredicateId, Minted: false),
         new PredicateIdentity("has", HasPredicateId, Minted: false),
         new PredicateIdentity("is", IsPredicateId, Minted: false),
-        new PredicateIdentity("proposes", ProposesPredicateId, Minted: false));
+        new PredicateIdentity("proposes", ProposesPredicateId, Minted: false),
+        new PredicateIdentity("servedAfter", ServedAfterPredicateId, Minted: false));
 
     /// <summary>A moment to stamp an arrival with. Fixed, because a test that read the real clock could
     /// only assert that the value was close to it.</summary>
@@ -73,6 +75,13 @@ public static class WillowBend
         "high", "medium", "low", "very-low", "no-data",
     ];
 
+    /// <summary>The demands the shared analysis declares one harvest is served over, in the order it
+    /// serves them. A study holds one of its own under each.</summary>
+    public static readonly (string Name, long ServingOrder)[] WaterDemandNames =
+    [
+        ("domestic-demand", 1), ("irrigation-demand", 2),
+    ];
+
     /// <summary>What a deployment's model says a map may draw on. The address and the credit are the
     /// model's answer, which is why the ones here are invented rather than any provider's.</summary>
     public const string VectorBasemapName = "Streets";
@@ -87,7 +96,9 @@ public static class WillowBend
         Declared(ObtainedByPredicateId, "obtainedBy", BoundarySourceNames),
         Declared(AssessesPredicateId, "assesses", HazardTypeNames),
         Declared(ReportedAsPredicateId, "reportedAs", HazardLevelNames),
-        new DeclaredPlace(new DeclaredTerm("isIn", IsInPredicateId), new DeclaredTerm("Earth", RootPlaceId)));
+        new DeclaredPlace(new DeclaredTerm("isIn", IsInPredicateId), new DeclaredTerm("Earth", RootPlaceId)),
+        [.. WaterDemandNames.Select(demand =>
+            new DeclaredDemand(demand.Name, TermId(demand.Name), demand.ServingOrder))]);
 
     public static Guid TermId(string name) => StableIdentity.Derive(name, "term");
 

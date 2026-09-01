@@ -133,7 +133,8 @@ public class DeclaredVocabularyReaderTests
             DeclaredVocabularyReader.AllocationCategoryArchetypeFlag,
             DeclaredVocabularyReader.BoundarySourceArchetypeFlag,
             DeclaredVocabularyReader.HazardTypeArchetypeFlag,
-            DeclaredVocabularyReader.HazardLevelArchetypeFlag);
+            DeclaredVocabularyReader.HazardLevelArchetypeFlag,
+            DeclaredVocabularyReader.WaterDemandComponentArchetypeFlag);
         selector.MarkedArchetypes.Should().BeEquivalentTo(
             DeclaredVocabularyReader.AllocationCategoryPredicateFlag,
             DeclaredVocabularyReader.BoundarySourcePredicateFlag,
@@ -143,6 +144,43 @@ public class DeclaredVocabularyReaderTests
             DeclaredVocabularyReader.PlaceNestingPredicateFlag);
         selector.Names.Should().Equal(SubmissionFragmentComposer.IsPredicateName);
         selector.IncludeRelationships.Should().BeTrue();
+    }
+
+    // The demands one harvest is served over, which are archetypes rather than terms: a study holds a
+    // demand of its own under each, and nothing in a submission names one. Read in serving order, because
+    // the producer writes the ordering as edges and would otherwise write whatever order the snapshot
+    // happened to carry.
+    [Fact]
+    public void The_water_demands_come_back_in_the_order_the_analysis_serves_them()
+    {
+        var demands = DeclaredVocabularyReader.Read(DeclaredModel.Seeded().Build()).WaterDemands;
+
+        demands.Select(demand => demand.Name).Should().Equal("domestic-demand", "irrigation-demand");
+        demands.Select(demand => demand.ServingOrder).Should().Equal(1, 2);
+    }
+
+    // A model doing no water analysis declares no demand vocabulary, and a study then holds no demand and
+    // reads unassessed on every coverage. Unlike a submitted word naming a term nothing holds — there the
+    // word is already written and something has to say it means nothing.
+    [Fact]
+    public void A_model_declaring_no_water_demands_reads_none_rather_than_refusing()
+    {
+        var model = DeclaredModel.Seeded().Without("WaterDemandComponent");
+
+        DeclaredVocabularyReader.Read(model.Build()).WaterDemands.Should().BeEmpty();
+    }
+
+    // An analysis stating no order at all still composes: every demand reads nought and is served in the
+    // order the model declared it, which the producer then writes as the ordering edges.
+    [Fact]
+    public void A_demand_with_no_stated_order_reads_as_served_first()
+    {
+        var model = DeclaredModel.Seeded();
+        foreach (var (demand, _) in WillowBend.WaterDemandNames)
+            model.ArchetypeStating(demand).Relate(demand, "is", "WaterDemandComponent");
+
+        DeclaredVocabularyReader.Read(model.Build()).WaterDemands
+            .Select(demand => demand.ServingOrder).Should().AllBeEquivalentTo(0L);
     }
 
     // The root Place a site is related to, and the predicate that edge is written with. Both are found by

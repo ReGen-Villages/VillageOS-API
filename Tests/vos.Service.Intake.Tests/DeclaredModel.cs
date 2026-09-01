@@ -37,6 +37,12 @@ public sealed class DeclaredModel
         foreach (var level in WillowBend.HazardLevelNames)
             model.Relate(level, "is", "HazardLevel");
 
+        model.WithArchetype(
+            "WaterDemandComponent", DeclaredVocabularyReader.WaterDemandComponentArchetypeFlag);
+        foreach (var (demand, servingOrder) in WillowBend.WaterDemandNames)
+            model.ArchetypeStating(demand, (DeclaredVocabularyReader.ServingOrderProperty, servingOrder))
+                .Relate(demand, "is", "WaterDemandComponent");
+
         // A deployment's model also says what a map may draw on, which a form reads beside the categories.
         model
             .WithArchetype(FormOptionsReader.BasemapSourceArchetypeName)
@@ -73,11 +79,20 @@ public sealed class DeclaredModel
 
     /// <summary>A Thing carrying values of its own, for what a reader takes off properties rather than off
     /// the edges under an archetype.</summary>
-    public DeclaredModel Stating(string name, params (string Property, object Value)[] values)
+    public DeclaredModel Stating(string name, params (string Property, object Value)[] values) =>
+        Stating(name, isArchetype: false, values);
+
+    /// <summary>An archetype carrying values of its own — a water demand states where in the queue it
+    /// stands, and members of it are minted per study rather than declared here.</summary>
+    public DeclaredModel ArchetypeStating(string name, params (string Property, object Value)[] values) =>
+        Stating(name, isArchetype: true, values);
+
+    private DeclaredModel Stating(
+        string name, bool isArchetype, (string Property, object Value)[] values)
     {
         var id = Id(name);
         _things.RemoveAll(thing => thing.Id == id);
-        _things.Add(Thing(id, name, isArchetype: false,
+        _things.Add(Thing(id, name, isArchetype,
             values.ToDictionary(stated => stated.Property, stated => Stated(stated.Value))));
         return this;
     }

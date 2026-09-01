@@ -50,6 +50,7 @@ public static class SubmissionFragmentComposer
     public const string HasPredicateName = "has";
     public const string IsPredicateName = "is";
     public const string ProposesPredicateName = "proposes";
+    public const string ServedAfterPredicateName = "servedAfter";
 
     /// <summary>What the submission record's identifier is derived under. Public because the service derives
     /// the same identifier to ask whether the record is already there.</summary>
@@ -109,6 +110,30 @@ public static class SubmissionFragmentComposer
         Relate(studyThing, predicates.Studies, siteThing);
         BeArchetype(siteThing, archetypes.Site, SiteArchetypeName);
         BeArchetype(studyThing, archetypes.SiteStudy, SiteStudyArchetypeName);
+
+        // One demand of the study's own per demand the analysis declares. A coverage and a shortfall are
+        // properties of one study's demand, so a study sharing the analysis's demands would have nowhere to
+        // hold either. Which demands came before is written here as edges rather than compared at every
+        // recompute, so the reduction that adds up what they took ranges over what those edges reach. The
+        // set comes from the mark the analysis carries, so a third demand costs no change here.
+        //
+        // Held by `has` rather than by a predicate of their own so that a prune rooted at the site reaches
+        // them: the walk follows the predicates it is given, and a demand hanging off anything else would
+        // stay behind when the submission it belongs to is cleared.
+        var servedBefore = new List<NamedThing>();
+        foreach (var demand in vocabulary.WaterDemands)
+        {
+            var demandThing = new NamedThing(
+                StableIdentity.Derive(submissionId, $"demand:{demand.Name}"),
+                $"{studyThing.Name} {demand.Name}");
+            things.Add(new FragmentThing(
+                demandThing.Id, demandThing.Name, new Dictionary<string, TypedValue>()));
+            Relate(studyThing, predicates.Has, demandThing);
+            BeArchetype(demandThing, demand.Id, demand.Name);
+            foreach (var earlier in servedBefore)
+                Relate(demandThing, predicates.ServedAfter, earlier);
+            servedBefore.Add(demandThing);
+        }
 
         // Discovery walks outwards from the site through this edge to find which sources cover it, so a
         // site related to no Place reaches none and every source reads as covering nowhere — which is

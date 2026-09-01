@@ -30,6 +30,12 @@ public static class DeclaredVocabularyReader
     public const string HazardLevelArchetypeFlag = "__IsHazardLevelArchetype";
     public const string ReportedLevelPredicateFlag = "__IsReportedLevelPredicate";
 
+    // The demands on the water a site harvests. Not a vocabulary a submitted word is resolved against —
+    // nothing in a submission names a demand — but read the same way and for the same reason: a project
+    // adding a third demand declares it in the analysis and this service is not redeployed.
+    public const string WaterDemandComponentArchetypeFlag = "__IsWaterDemandComponentArchetype";
+    public const string ServingOrderProperty = "servingOrder";
+
     // Where a site sits, rather than what a submitted word means. Both are marks for the same reason the
     // vocabularies are: a producer naming `Earth` relates nothing, and says nothing, in a model that calls
     // its root something else — and a site related to no Place is one no source is ever selected for.
@@ -45,7 +51,7 @@ public static class DeclaredVocabularyReader
         MarkedTypes =
         [
             AllocationCategoryArchetypeFlag, BoundarySourceArchetypeFlag, HazardTypeArchetypeFlag,
-            HazardLevelArchetypeFlag,
+            HazardLevelArchetypeFlag, WaterDemandComponentArchetypeFlag,
         ],
         // The root Place belongs here beside the predicates rather than with the marked types: it is a
         // Thing whose id an edge is written to, not an archetype whose members are wanted.
@@ -63,7 +69,41 @@ public static class DeclaredVocabularyReader
             "how a parcel boundary was obtained"),
         HazardTypes(snapshot),
         HazardLevels(snapshot),
-        PlaceNesting(snapshot));
+        PlaceNesting(snapshot),
+        WaterDemands(snapshot));
+
+    /// <summary>The demands one harvest is served over, in the order it serves them. Empty where the model
+    /// declares none: a study then holds no demand and every coverage reads unassessed, which is the honest
+    /// answer for a model that does no water analysis — unlike a submitted word naming a term nothing
+    /// holds, where something has to say the word means nothing.</summary>
+    internal static IReadOnlyList<DeclaredDemand> WaterDemands(SnapshotDocument snapshot)
+    {
+        var vocabulary = snapshot.Things
+            .SingleOrDefault(thing => thing.CarriesFlag(WaterDemandComponentArchetypeFlag));
+        if (vocabulary is null) return [];
+
+        var isEdge = snapshot.Things
+            .Where(thing => string.Equals(
+                thing.Name, SubmissionFragmentComposer.IsPredicateName, StringComparison.OrdinalIgnoreCase))
+            .Select(thing => thing.Id)
+            .ToHashSet();
+        var under = snapshot.Relationships
+            .Where(edge => edge.TargetId == vocabulary.Id && isEdge.Contains(edge.PredicateId))
+            .Select(edge => edge.SubjectId)
+            .ToHashSet();
+
+        return [.. snapshot.Things
+            .Where(thing => thing.IsArchetype && under.Contains(thing.Id))
+            .Select(thing => new DeclaredDemand(thing.Name ?? string.Empty, thing.Id, ServingOrderOf(thing)))
+            .OrderBy(demand => demand.ServingOrder)
+            .ThenBy(demand => demand.Name, StringComparer.Ordinal)];
+    }
+
+    // An analysis stating no order anywhere leaves every demand at nought, which serves them in the order
+    // it declared them — a poor answer, and better than refusing every submission into that model.
+    private static long ServingOrderOf(SnapshotThing demand) =>
+        demand.StatedValue(ServingOrderProperty) is { } stated
+        && stated.Value.TryGetInt64(out var order) ? order : 0;
 
     /// <summary>What a hazard assessment is about, offered by a form so somebody marks what they have
     /// seen rather than nominating hazards from memory.</summary>

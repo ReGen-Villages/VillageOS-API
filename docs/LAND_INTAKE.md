@@ -896,9 +896,9 @@ are displayed together.
 
 ### Water
 
-Two different questions. One is a service's, the other the study's own.
+Two different questions, both the study's own.
 
-**Catchment — how much rain can we capture?** *(`RainwaterHarvest`)*
+**Catchment — how much rain can we capture?** *(formulas on the study and on its demands)*
 
 ```text
   Harvest          = 8.88 ha built × 0.7 m rain × 0.8 runoff      = 49,728 m³/yr
@@ -925,10 +925,12 @@ Willow Bend has abundant drinking water and a marginal irrigation position, and 
 with a figure a planner can act on: 8,672 m³ a year has to come from somewhere else. A site with the same
 overall 85% could be the exact opposite.
 
-**Which demands there are, the order they are served in, and the properties each is read from and written
-to are Things in the shared analysis template**, not a list inside the service. Every demand is a quantity
-times a rate — residents times cubic metres a person, growing hectares times cubic metres a hectare — so a
-third demand is a template edit rather than a service change and a redeploy.
+**Which demands there are and the order they are served in are Things in the shared analysis template**,
+never a list inside a service. A submission mints the study one demand of its own under each, related to
+every demand served before it, and each works out what it takes, how much of what it wanted that is and
+what is left short. Every demand is a quantity times a rate — residents times cubic metres a person,
+growing hectares times cubic metres a hectare — so a third demand is a template edit and nothing else
+(#6892).
 
 The domestic figure is `perCapitaConsumptionM3` on the shared study archetype — the same water-per-person
 assumption the storage question reads. Two questions asked of one figure is what keeps a correction to it
@@ -943,7 +945,7 @@ from having to be made twice.
 
 Different inputs, different outputs, different question — and every term is a value the study already
 holds, so the shared archetype declares each of these as a formula and no service is dispatched to work
-them out (#6710, #6748).
+them out (#6710, #6748, #6892).
 
 ### Hazards
 
