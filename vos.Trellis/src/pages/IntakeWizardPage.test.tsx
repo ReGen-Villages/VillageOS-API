@@ -7,6 +7,9 @@ import {
   HAZARD_LEVEL_ARCHETYPE_FLAG,
   HAZARD_TYPE_ARCHETYPE_FLAG,
 } from './modelVocabulary';
+import { MULTI_STEP_FORM_TEST_TIMEOUT_MILLISECONDS } from '../testTimeouts';
+
+vi.setConfig({ testTimeout: MULTI_STEP_FORM_TEST_TIMEOUT_MILLISECONDS });
 
 vi.mock('../api/thingApi', () => ({
   thingApi: { getAll: vi.fn(), getAllProperties: vi.fn() },
