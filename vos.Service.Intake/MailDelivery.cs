@@ -55,6 +55,8 @@ public sealed record MailDelivery(MailSettings? Server)
               + $"a developer with no relay to hand, and this service is running as '{environmentName}'."
             : null;
 
+    public const string UsageSummary = " [--mailDelivery=<where>]" + MailSettings.UsageSummary;
+
     public static string UsageMessage =>
         $"\n  --mailDelivery  Where a code goes: '{ToAServer}' (the default) or '{ToTheConsole}', which writes"
         + "\n                  it to the log instead of sending it and is refused outside Development"

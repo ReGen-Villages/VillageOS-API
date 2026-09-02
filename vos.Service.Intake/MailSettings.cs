@@ -41,6 +41,8 @@ public sealed record MailSettings(string Host, int Port, string From, string? Us
     public override string ToString() =>
         $"{Host}:{Port} from {From} as {Username ?? "no account"}";
 
+    public const string UsageSummary = " --mailHost=<host> --mailFrom=<address>";
+
     public static string UsageMessage =>
         "\n  --mailHost      Mail server that relays verification codes"
         + "\n  --mailPort      Its submission port (default " + SubmissionPort + ")"

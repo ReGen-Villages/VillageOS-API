@@ -5,21 +5,18 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
 using vos.Service.Intake;
+using vos.Service.Intake.Configuration;
 using vos.Service.Intake.Services;
-using vos.Service.Shared.Configuration;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Subscriptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var launchSettings = ServiceLaunchSettings.Parse(args, builder.Configuration);
+var launchSettings = IntakeLaunchSettings.Parse(args, builder.Configuration);
 var mailDelivery = MailDelivery.Parse(args, builder.Configuration);
 if (launchSettings == null || mailDelivery == null)
 {
-    Console.WriteLine(ServiceLaunchSettings.BuildUsageMessage(
-        " [--publicFormOrigin=<origin>[,<origin>]] [--mailDelivery=<where>] --mailHost=<host> --mailFrom=<address>",
-        "\n  --publicFormOrigin  Origin(s) of the public form allowed to call this service across origins"
-        + MailDelivery.UsageMessage));
+    Console.WriteLine(IntakeLaunchSettings.UsageMessage);
     Environment.Exit(1);
     return;
 }
@@ -31,15 +28,14 @@ if (mailDelivery.WhyRefusedIn(builder.Environment.EnvironmentName) is { } refusa
     return;
 }
 
-var publicFormOrigins = new LaunchSettingReader(args, builder.Configuration).Read("publicFormOrigin")
-    ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
+var publicFormOrigins = launchSettings.PublicFormOrigins;
 
-var servicePort = launchSettings.Port;
-var myceliumUrl = launchSettings.MyceliumUrl;
-var serviceToken = launchSettings.Token;
+var servicePort = launchSettings.Service.Port;
+var myceliumUrl = launchSettings.Service.MyceliumUrl;
+var serviceToken = launchSettings.Service.Token;
 // Nothing launches this service, so no token is ever minted for it and none is refreshed when one
 // expires. The key is the credential it runs on, and every client it reaches the broker with holds it.
-var apiKey = launchSettings.ApiKey;
+var apiKey = launchSettings.Service.ApiKey;
 
 var isTestingEnv = builder.Environment.IsEnvironment("Testing");
 ServiceHost.ConfigureLogging("Intake", "intake-.log", writeToFile: !isTestingEnv);
