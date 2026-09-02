@@ -161,8 +161,8 @@ A service with settings of its own wraps the shared record rather than
 reimplementing it, and builds its usage message with
 `ServiceLaunchSettings.BuildUsageMessage`. Metabolism's
 `--mode=consumes|produces` works this way in
-`vos.Service.Metabolism/Configuration/MetabolismLaunchSettings.cs`; Xylem and
-Phloem do the same for their own settings.
+`vos.Service.Metabolism/Configuration/MetabolismLaunchSettings.cs`; Forage,
+Xylem and Intake do the same for their own settings.
 
 ## 5. Talking to the broker
 
