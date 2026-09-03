@@ -328,6 +328,8 @@ export const es: PartialResources = {
     coordinates: "{{latitude}}, {{longitude}}",
     noSource: "Este modelo no define ninguna fuente de mapa base.",
     tilesUnreachable: "No se pudieron cargar las teselas del mapa.",
+    tilt: "Inclinar la vista",
+    lookDown: "Mirar en vertical",
   },
   temporal: {
     title: "Consultas temporales",

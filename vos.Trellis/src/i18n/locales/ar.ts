@@ -414,6 +414,8 @@ export const ar: PartialResources & ArabicPlurals = {
     coordinates: "{{latitude}}, {{longitude}}",
     noSource: "لا يحدّد هذا النموذج أي مصدر لخريطة الأساس.",
     tilesUnreachable: "تعذّر تحميل مربّعات الخريطة.",
+    tilt: "أمِل المشهد",
+    lookDown: "انظر من الأعلى مباشرة",
   },
   temporal: {
     title: "الاستعلامات الزمنية",

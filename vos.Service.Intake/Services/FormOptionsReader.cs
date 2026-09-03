@@ -25,6 +25,10 @@ public static class FormOptionsReader
     public const string StyleUrlProperty = "styleUrl";
     public const string TileUrlProperty = "tileUrl";
     public const string MaximumZoomProperty = "maximumZoom";
+    public const string TerrainTileUrlProperty = "terrainTileUrl";
+    public const string TerrainEncodingProperty = "terrainEncoding";
+    public const string TerrainExaggerationProperty = "terrainExaggeration";
+    public const string BuildingSourceLayerProperty = "buildingSourceLayer";
 
     public static SubscriptionSelector Selector() => new()
     {
@@ -102,7 +106,11 @@ public static class FormOptionsReader
         Text(thing, AttributionProperty),
         Text(thing, StyleUrlProperty),
         Text(thing, TileUrlProperty),
-        Number(thing, MaximumZoomProperty));
+        Number(thing, MaximumZoomProperty),
+        Text(thing, TerrainTileUrlProperty),
+        Text(thing, TerrainEncodingProperty),
+        Number(thing, TerrainExaggerationProperty),
+        Text(thing, BuildingSourceLayerProperty));
 
     private static string? Text(SnapshotThing thing, string property) =>
         thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.String

@@ -9,8 +9,11 @@ interface RecordedMap {
   sources: Map<string, { setData: ReturnType<typeof vi.fn>; data: unknown }>;
   layers: string[];
   flyTo: ReturnType<typeof vi.fn>;
+  easeTo: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
   setStyle: ReturnType<typeof vi.fn>;
+  terrain: unknown;
+  addedLayers: { id: string; [key: string]: unknown }[];
 }
 
 interface RecordedMarker {
@@ -30,8 +33,14 @@ const mocks = vi.hoisted(() => {
     sources = new Map<string, { setData: (data: unknown) => void; data: unknown }>();
     layers: string[] = [];
     flyTo = vi.fn();
+    easeTo = vi.fn();
     remove = vi.fn();
     setStyle = vi.fn();
+    /** What the map is draped over, which is nothing until something raises it. */
+    terrain: unknown = null;
+    /** Every layer as it was added, for a test asking how one was built rather than whether it is
+     *  there. */
+    addedLayers: { id: string; [key: string]: unknown }[] = [];
     /** A map begins with a style still loading, the way a real one does. */
     styleLoaded = false;
     constructor(options: Record<string, unknown>) {
@@ -53,15 +62,28 @@ const mocks = vi.hoisted(() => {
     off(event: string, handler: (event?: unknown) => void) {
       if (this.handlers.get(event) === handler) this.handlers.delete(event);
     }
-    addSource(id: string, source: { data: unknown }) {
+    addSource(id: string, source: { data?: unknown; [key: string]: unknown }) {
       this.insistStyleIsLoaded();
       const held = {
+        ...source,
         data: source.data,
         setData: vi.fn((data: unknown) => {
           held.data = data;
         }),
       };
       this.sources.set(id, held);
+    }
+    setTerrain(terrain: unknown) {
+      this.insistStyleIsLoaded();
+      this.terrain = terrain;
+    }
+    getLayer(id: string) {
+      return this.layers.includes(id) ? { id } : undefined;
+    }
+    /** A vector style names its own sources, which is how a caller finds the one holding the
+     *  footprints without knowing anything about the provider. */
+    getStyle() {
+      return { sources: { openmaptiles: { type: 'vector' } }, layers: [] };
     }
     getSource(id: string) {
       return this.sources.get(id);
@@ -70,9 +92,10 @@ const mocks = vi.hoisted(() => {
       this.insistStyleIsLoaded();
       this.sources.delete(id);
     }
-    addLayer(layer: { id: string }) {
+    addLayer(layer: { id: string; [key: string]: unknown }) {
       this.insistStyleIsLoaded();
       this.layers.push(layer.id);
+      this.addedLayers.push(layer);
     }
     removeLayer(id: string) {
       this.insistStyleIsLoaded();
@@ -118,7 +141,7 @@ vi.mock('maplibre-gl', () => ({
   config: mocks.config,
 }));
 vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}));
-vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?url', () => ({
+vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url', () => ({
   default: 'https://example.test/assets/maplibre-worker.mjs',
 }));
 
@@ -364,5 +387,82 @@ describe('the boundary on the map', () => {
 
     expect(maps).toHaveLength(1);
     expect(maps[0].setStyle).toHaveBeenCalledWith('https://tiles.example.org/streets');
+  });
+});
+
+// Feature #6912 — land rather than a diagram, from what the model declares and nothing else. A source
+// saying nothing about the ground draws exactly as every source does today, which is what keeps this
+// from being a change every deployment has to opt out of.
+describe('drawing the land in three dimensions', () => {
+  const RAISED: BasemapSource = {
+    ...source('Streets', 'https://tiles.example.org/streets'),
+    terrain: {
+      tileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png',
+      encoding: 'terrarium',
+      exaggeration: 1.4,
+    },
+    buildingSourceLayer: 'building',
+  };
+
+  it('raises the ground from the pyramid the model declares, once the style is in', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    expect(maps[0].terrain).toBeNull();
+
+    theStyleArrives();
+
+    expect(maps[0].sources.get('terrain')).toMatchObject({
+      type: 'raster-dem',
+      tiles: ['https://elevation.example.org/{z}/{x}/{y}.png'],
+      encoding: 'terrarium',
+    });
+    expect(maps[0].terrain).toEqual({ source: 'terrain', exaggeration: 1.4 });
+  });
+
+  it('raises the buildings out of the layer the model names', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+
+    expect(maps[0].layers).toContain('buildings-raised');
+    expect(maps[0].addedLayers.find((layer) => layer.id === 'buildings-raised')).toMatchObject({
+      type: 'fill-extrusion',
+      'source-layer': 'building',
+    });
+  });
+
+  // The map opens looking down, because that is the view somebody picking a plot works in. Tilting is
+  // theirs to do, and the control below is what says so.
+  it('opens looking down and lets the reader tilt', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+
+    expect(maps[0].options.pitch ?? 0).toBe(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tilt the view' }));
+
+    const tiltedTo = maps[0].easeTo.mock.calls.at(-1)![0] as { pitch: number };
+    expect(tiltedTo.pitch).toBeGreaterThan(0);
+  });
+
+  it('takes the ground back down when the reader asks, leaving the map drawn', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+    fireEvent.click(screen.getByRole('button', { name: 'Tilt the view' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Look straight down' }));
+
+    expect(maps[0].easeTo).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 0 }));
+    expect(maps[0].sources.has('terrain')).toBe(true);
+  });
+
+  // Nothing declared, nothing raised: no elevation source, no extrusion, and no control offering a
+  // view the model cannot draw.
+  it('draws flat where the model declares no ground', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} />);
+    theStyleArrives();
+
+    expect(maps[0].sources.has('terrain')).toBe(false);
+    expect(maps[0].layers).not.toContain('buildings-raised');
+    expect(maps[0].terrain).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Tilt the view' })).toBeNull();
   });
 });

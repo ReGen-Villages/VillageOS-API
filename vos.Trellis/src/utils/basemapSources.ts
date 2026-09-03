@@ -9,8 +9,10 @@
 import type { StyleSpecification } from 'maplibre-gl';
 import {
   DEFAULT_RASTER_MAXIMUM_ZOOM,
+  DEFAULT_TERRAIN_EXAGGERATION,
   type BasemapSource,
   type DeclaredBasemapSource,
+  type RaisedGround,
 } from '../types/basemap';
 
 /**
@@ -28,10 +30,12 @@ export function basemapSourcesFrom(declared: readonly DeclaredBasemapSource[]): 
     const tileUrl = statedText(source.tileUrl);
     if (!attribution) continue;
     if (styleUrl && tileUrl) continue;
+    const ground = raisedGroundFrom(source);
     if (styleUrl) {
-      found.push({ id: source.id, name: source.name, attribution, kind: 'style', styleUrl });
+      found.push({ ...ground, id: source.id, name: source.name, attribution, kind: 'style', styleUrl });
     } else if (tileUrl) {
       found.push({
+        ...ground,
         id: source.id,
         name: source.name,
         attribution,
@@ -44,6 +48,36 @@ export function basemapSourcesFrom(declared: readonly DeclaredBasemapSource[]): 
   }
   found.sort((a, b) => a.name.localeCompare(b.name));
   return found;
+}
+
+/**
+ * What the source says about drawing land rather than a diagram.
+ *
+ * A pyramid stated without its encoding raises nothing: the schemes in common use pack a height into
+ * the same three channels differently, so a map guessing between them would raise hills out of flat
+ * ground and say nothing. The exaggeration falls back because it is a presentation choice with a
+ * sensible default, where the other two are facts about the provider that only the model can know.
+ */
+function raisedGroundFrom(source: DeclaredBasemapSource): RaisedGround {
+  const tileUrl = statedText(source.terrainTileUrl);
+  const encoding = statedText(source.terrainEncoding);
+  const buildingSourceLayer = statedText(source.buildingSourceLayer);
+
+  return {
+    ...(tileUrl && encoding
+      ? {
+          terrain: {
+            tileUrl,
+            encoding,
+            exaggeration:
+              typeof source.terrainExaggeration === 'number' && source.terrainExaggeration > 0
+                ? source.terrainExaggeration
+                : DEFAULT_TERRAIN_EXAGGERATION,
+          },
+        }
+      : {}),
+    ...(buildingSourceLayer ? { buildingSourceLayer } : {}),
+  };
 }
 
 export function styleForSource(source: BasemapSource): StyleSpecification | string {

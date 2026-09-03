@@ -328,6 +328,8 @@ export const nl: PartialResources = {
     coordinates: "{{latitude}}, {{longitude}}",
     noSource: "Dit model definieert geen ondergrondbron.",
     tilesUnreachable: "Kaarttegels konden niet worden geladen.",
+    tilt: "Kantel het beeld",
+    lookDown: "Kijk recht naar beneden",
   },
   temporal: {
     title: "Temporele query's",

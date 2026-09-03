@@ -84,6 +84,43 @@ public class FormOptionsEndpointTests
         answered.GetProperty("placeSearch").GetBoolean().Should().BeFalse();
     }
 
+    // Feature #6912. A page that cannot read the model cannot know what the ground is shaped from, so
+    // whatever the model says about it travels with the source or the page draws flat for everybody.
+    [Fact]
+    public async Task It_answers_what_a_source_says_about_raising_the_ground()
+    {
+        await using var factory = AnsweringWith(DeclaredModel.Seeded().Build());
+        using var client = factory.CreateClient();
+
+        var answered = await client.GetFromJsonAsync<JsonElement>("/submissions/form");
+
+        var source = answered.GetProperty("basemapSources").EnumerateArray()
+            .Single(candidate => candidate.GetProperty("name").GetString() == WillowBend.VectorBasemapName);
+        source.GetProperty("terrainTileUrl").GetString().Should().Be(WillowBend.TerrainTileUrl);
+        source.GetProperty("terrainEncoding").GetString().Should().Be(WillowBend.TerrainEncoding);
+        source.GetProperty("terrainExaggeration").GetDouble().Should().Be(WillowBend.TerrainExaggeration);
+        source.GetProperty("buildingSourceLayer").GetString().Should().Be(WillowBend.BuildingSourceLayer);
+    }
+
+    [Fact]
+    public async Task A_source_saying_nothing_about_the_ground_answers_nothing_about_it()
+    {
+        var model = DeclaredModel.Seeded()
+            .Stating(
+                WillowBend.VectorBasemapName,
+                ("attribution", WillowBend.BasemapAttribution),
+                ("styleUrl", WillowBend.VectorBasemapStyleUrl));
+        await using var factory = AnsweringWith(model.Build());
+        using var client = factory.CreateClient();
+
+        var answered = await client.GetFromJsonAsync<JsonElement>("/submissions/form");
+
+        var source = answered.GetProperty("basemapSources").EnumerateArray()
+            .Single(candidate => candidate.GetProperty("name").GetString() == WillowBend.VectorBasemapName);
+        source.GetProperty("terrainTileUrl").ValueKind.Should().Be(JsonValueKind.Null);
+        source.GetProperty("buildingSourceLayer").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
     [Fact]
     public async Task It_counts_against_the_callers_budget()
     {

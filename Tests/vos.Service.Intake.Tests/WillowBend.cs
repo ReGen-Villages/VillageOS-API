@@ -88,6 +88,14 @@ public static class WillowBend
     public const string VectorBasemapStyleUrl = "https://basemaps.example.test/styles/streets.json";
     public const string BasemapAttribution = "© the basemap provider";
 
+    /// <summary>What a source says about drawing land rather than a diagram. Invented, like the
+    /// address above: which elevation set a deployment shapes its ground from is the model's answer.
+    /// </summary>
+    public const string TerrainTileUrl = "https://elevation.example.test/{z}/{x}/{y}.png";
+    public const string TerrainEncoding = "terrarium";
+    public const double TerrainExaggeration = 1.4;
+    public const string BuildingSourceLayer = "building";
+
     /// <summary>The starting split each category Thing states for itself, as the shipped analysis
     /// template states it: the worked example's programme, describing the whole parcel between them.
     /// </summary>

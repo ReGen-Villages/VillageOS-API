@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { basemapSourcesFrom, styleForSource } from './basemapSources';
-import { DEFAULT_RASTER_MAXIMUM_ZOOM } from '../types/basemap';
+import { DEFAULT_RASTER_MAXIMUM_ZOOM, DEFAULT_TERRAIN_EXAGGERATION } from '../types/basemap';
 
 // What the intake service hands a public form: sources as the model states them, judged here rather than
 // there, so the form and the signed-in page cannot come to different answers about the same model.
@@ -128,5 +128,63 @@ describe('styleForSource', () => {
       },
       layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }],
     });
+  });
+});
+
+// Feature #6912 — what the model says about drawing land rather than a diagram. Every part is
+// optional, and a part stated without what it needs is dropped rather than half-applied: a height
+// cannot be read off a tile pyramid without knowing how the pyramid packs one.
+describe('what a source says about raising the ground', () => {
+  const declared = {
+    id: 'src-1',
+    name: 'Streets',
+    attribution: 'Example credit',
+    styleUrl: 'https://tiles.example.org/styles/plain',
+  };
+
+  it('carries the elevation pyramid, its encoding and its exaggeration through', () => {
+    const [source] = basemapSourcesFrom([
+      {
+        ...declared,
+        terrainTileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png',
+        terrainEncoding: 'terrarium',
+        terrainExaggeration: 2,
+        buildingSourceLayer: 'building',
+      },
+    ]);
+
+    expect(source.terrain).toEqual({
+      tileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png',
+      encoding: 'terrarium',
+      exaggeration: 2,
+    });
+    expect(source.buildingSourceLayer).toBe('building');
+  });
+
+  it('raises what the model states at the shipped exaggeration when it states none', () => {
+    const [source] = basemapSourcesFrom([
+      {
+        ...declared,
+        terrainTileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png',
+        terrainEncoding: 'terrarium',
+      },
+    ]);
+
+    expect(source.terrain?.exaggeration).toBe(DEFAULT_TERRAIN_EXAGGERATION);
+  });
+
+  it('raises nothing from a pyramid whose encoding the model never says', () => {
+    const [source] = basemapSourcesFrom([
+      { ...declared, terrainTileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png' },
+    ]);
+
+    expect(source.terrain).toBeUndefined();
+  });
+
+  it('leaves a source that says nothing about the ground flat, as every source is today', () => {
+    const [source] = basemapSourcesFrom([declared]);
+
+    expect(source.terrain).toBeUndefined();
+    expect(source.buildingSourceLayer).toBeUndefined();
   });
 });

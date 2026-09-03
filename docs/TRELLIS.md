@@ -2327,8 +2327,24 @@ A model declares Things of archetype `BasemapSource`. The archetype name and the
 | `tileUrl` | one of the two | Address template of a raster tile pyramid, carrying `{z}`, `{x}` and `{y}` |
 | `attribution` | yes | The credit the source's licence requires the map to display |
 | `maximumZoom` | no | Deepest zoom a raster pyramid has tiles for; defaults in the client |
+| `terrainTileUrl` | no | Address template of an elevation tile pyramid, which is what shapes the ground |
+| `terrainEncoding` | with the above | How those tiles pack a height into a pixel |
+| `terrainExaggeration` | no | How far to raise what they describe; defaults in the client |
+| `buildingSourceLayer` | no | The layer inside the source's own tiles holding building footprints |
 
 The Thing's **name** is what the layer switch shows, so a model naming its sources `Streets` and `Satellite` produces exactly those two buttons. Sources are offered in name order, so the same model always opens on the same layer.
+
+### Drawing land rather than a diagram
+
+A source that declares the last four draws in three dimensions (#6912, with platform Feature #6911 declaring them): the ground is raised from the elevation tiles, the buildings the basemap already carries are raised out of it, and a control tilts the camera. A source declaring none of them draws exactly as every source does today, and no control is offered for a view the model cannot draw.
+
+- **The encoding is stated, never guessed.** The schemes in common use pack a height into the same three channels differently, so a pyramid read under the wrong one raises hills out of flat land and says nothing. A pyramid declared without its encoding raises nothing.
+- **The exaggeration is a presentation choice.** Real slopes read as flat from the distance a map looks at them, and a landholding is looked at close enough that a little exaggeration is what makes the fall of the land legible.
+- **The map opens looking down**, because that is the view somebody picking a plot works in; tilting is theirs to ask for, and drawing a boundary keeps working in either view.
+- **Which source inside the style holds the footprints is the style's business.** The model names the layer; the client takes the style's first vector source, so no provider is named here either.
+- **Imagery is deliberately not part of this.** What it adds is shape, not photography: no global aerial imagery is free, keyless and licensed for production, and per-country imagery stays a model edit as §22 has always said.
+
+Everything it draws with is free of an account: the elevation set needs no key, as the shipped imagery does not, and a test over the template refuses any declared address that asks for one.
 
 ### What is refused, and why
 

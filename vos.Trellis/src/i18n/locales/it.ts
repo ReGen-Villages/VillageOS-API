@@ -328,6 +328,8 @@ export const it: PartialResources = {
     coordinates: "{{latitude}}, {{longitude}}",
     noSource: "Questo modello non definisce alcuna sorgente di mappa base.",
     tilesUnreachable: "Non è stato possibile caricare le tessere della mappa.",
+    tilt: "Inclina la vista",
+    lookDown: "Guarda dall’alto",
   },
   temporal: {
     title: "Query temporali",
