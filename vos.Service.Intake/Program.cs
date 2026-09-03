@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
 using vos.Service.Intake;
 using vos.Service.Intake.Configuration;
+using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using vos.Service.Shared.Hosting;
 using vos.Service.Shared.Subscriptions;
@@ -95,7 +96,10 @@ try
         builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
             .WithOrigins(publicFormOrigins)
             .WithMethods("GET", "POST")
-            .WithHeaders("Content-Type", SubmissionTicket.HeaderName)));
+            .WithHeaders("Content-Type", SubmissionTicket.HeaderName)
+            // The renewed ticket travels back in a response header, which a cross-origin page cannot
+            // read unless it is named here — unnamed, renewal would work everywhere but from the form.
+            .WithExposedHeaders(SubmissionTicket.HeaderName)));
         Log.Information("Cross-origin submissions allowed from {Origins}", string.Join(", ", publicFormOrigins));
     }
 
@@ -133,6 +137,11 @@ try
     builder.Services.AddSingleton<SubmissionTicket>();
     builder.Services.AddSingleton<SubmissionIntakeService>();
     builder.Services.AddSingleton<SubmissionFindingsService>();
+    builder.Services.AddSingleton(provider => new PositionLookupService(
+        provider.GetRequiredService<IntakeMyceliumClient>(),
+        provider.GetRequiredService<ISubscriptionClient>(),
+        launchSettings.FetcherSubdomain,
+        provider.GetRequiredService<ILogger<PositionLookupService>>()));
 
     var app = builder.Build();
 
@@ -173,6 +182,80 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "A form could not be answered: {Reason}", error.Message);
+            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+        }
+    }).RequireRateLimiting(SubmissionRate.PolicyName);
+
+    // The legal parcel at a position somebody clicked, before any site exists — which is why the route,
+    // like the form, demands no credential: the click is the first act. What bounds it is the same rate
+    // limit as everything here, plus the register's own declared bounds, refused before any outbound call.
+    app.MapPost("/submissions/parcel-at-position", async (
+        HttpContext context, PositionLookupService lookups, ILogger<SubmissionIntakeService> logger) =>
+    {
+        var asked = await ReadAsync<ParcelAsked>(context);
+        if (asked?.Latitude is not { } latitude || asked.Longitude is not { } longitude
+            || latitude is < -90 or > 90 || longitude is < -180 or > 180)
+            return Refused(context, "the position was missing or not one",
+                Results.BadRequest(new
+                    { error = "'latitude' and 'longitude' are both needed, in degrees." }));
+
+        try
+        {
+            var answered = await lookups.ParcelAtAsync(latitude, longitude, context.RequestAborted);
+            return answered.Outcome switch
+            {
+                LookupOutcome.Found => Results.Ok(new
+                {
+                    boundary = answered.Parcel!.Boundary,
+                    attribution = answered.Parcel.Attribution,
+                }),
+                LookupOutcome.NothingAvailable => Results.Json(
+                    new { error = PositionLookupService.NoParcelAvailable },
+                    statusCode: StatusCodes.Status404NotFound),
+                _ => Results.Problem("This service cannot answer at the moment.", statusCode: 503),
+            };
+        }
+        catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                      || (error is TaskCanceledException
+                                          && !context.RequestAborted.IsCancellationRequested))
+        {
+            logger.LogError(error, "A parcel lookup could not be answered: {Reason}", error.Message);
+            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+        }
+    }).RequireRateLimiting(SubmissionRate.PolicyName);
+
+    // Place names for what somebody typed while looking for their land, so a page can put the pin where
+    // they mean without asking for coordinates.
+    app.MapPost("/submissions/place-search", async (
+        HttpContext context, PositionLookupService lookups, ILogger<SubmissionIntakeService> logger) =>
+    {
+        var asked = await ReadAsync<PlacesAsked>(context);
+        var query = asked?.Query?.Trim();
+        if (string.IsNullOrEmpty(query) || query.Length > SubmissionLimits.LongestText)
+            return Refused(context, "the search had no query a place could be found for",
+                Results.BadRequest(new { error = "'query' is missing: there is nothing to search for." }));
+
+        try
+        {
+            var answered = await lookups.PlacesAsync(query, context.RequestAborted);
+            return answered.Outcome switch
+            {
+                LookupOutcome.Found => Results.Ok(new
+                {
+                    places = answered.Places!.Places,
+                    attribution = answered.Places.Attribution,
+                }),
+                LookupOutcome.NothingAvailable => Results.Json(
+                    new { error = PositionLookupService.NoSearchAvailable },
+                    statusCode: StatusCodes.Status404NotFound),
+                _ => Results.Problem("This service cannot answer at the moment.", statusCode: 503),
+            };
+        }
+        catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                      || (error is TaskCanceledException
+                                          && !context.RequestAborted.IsCancellationRequested))
+        {
+            logger.LogError(error, "A place search could not be answered: {Reason}", error.Message);
             return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName);
@@ -276,6 +359,13 @@ try
 
             var accepted = await intake.SubmitAsync(submission, context.RequestAborted);
             logger.LogInformation("Submission {Reference} was written into the model", accepted.Reference);
+
+            // A fresh ticket rides back on every act performed with a live one, so a person adjusting
+            // their submission stays in the exchange they already completed while an abandoned ticket
+            // still dies at the age it always did. The address is the one the presented ticket was
+            // checked against above.
+            context.Response.Headers[SubmissionTicket.HeaderName] =
+                tickets.Issue(submission.Contact!.EmailAddress!.Trim());
             return Results.Ok(new { reference = accepted.Reference });
         }
         // Something whoever filled the form in can correct, and the message names the field rather than
@@ -333,12 +423,16 @@ try
         try
         {
             var read = await findings.ReadAsync(submissionId, emailAddress, context.RequestAborted);
-            return read is null
-                ? Refused(context, "the reference and the address name no submission",
+            if (read is null)
+                return Refused(context, "the reference and the address name no submission",
                     Results.Json(
                         new { error = SubmissionFindingsService.NotYourSubmission },
-                        statusCode: StatusCodes.Status404NotFound))
-                : Results.Ok(read);
+                        statusCode: StatusCodes.Status404NotFound));
+
+            // As on a submission: a fresh ticket on every act performed with a live one, so a page a
+            // person keeps adjusting and re-reading does not send them back to their mailbox mid-way.
+            context.Response.Headers[SubmissionTicket.HeaderName] = tickets.Issue(emailAddress);
+            return Results.Ok(read);
         }
         // As a submission into an unseeded model is answered: the caller is a stranger's browser and is
         // told neither what is wrong nor anything about the model it asked about.

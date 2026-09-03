@@ -88,6 +88,32 @@ public static class WillowBend
     public const string VectorBasemapStyleUrl = "https://basemaps.example.test/styles/streets.json";
     public const string BasemapAttribution = "© the basemap provider";
 
+    /// <summary>The starting split each category Thing states for itself, as the shipped analysis
+    /// template states it: the worked example's programme, describing the whole parcel between them.
+    /// </summary>
+    public static readonly (string Category, double SharePct)[] DefaultProgramme =
+    [
+        ("residential", 22), ("food-and-agriculture", 34), ("green-water-and-restoration", 20),
+        ("commercial-and-retail", 8), ("community-education-and-health", 9),
+        ("mobility-and-infrastructure", 7),
+    ];
+
+    /// <summary>A parcel register and a place search as a model declares them. The reshapes are invented
+    /// alongside invented provider bodies, because what this service owns is applying whatever expression
+    /// the model declares — the shipped expressions are proven against provider-shaped bodies where they
+    /// ship, in the platform repository's template tests.</summary>
+    public const string ParcelRegisterName = "parcel-at-position";
+    public const string ParcelRegisterAttribution = "© the land register";
+    public const string ParcelRegisterTransform = "{\"boundary\": ring}";
+    public const string PlaceSearchName = "place-search";
+    public const string PlaceSearchAttribution = "© the gazetteer";
+    public const string PlaceSearchTransform = "{\"places\": found}";
+
+    /// <summary>Inside the fixture register's bounds — a field outside Paris — where the Willow Bend
+    /// site itself is not, which is what the outside-the-bounds test reads on.</summary>
+    public const double CoveredLatitude = 48.80;
+    public const double CoveredLongitude = 2.30;
+
     public static readonly Guid IsInPredicateId = StableIdentity.Derive("isIn", "predicate");
     public static readonly Guid RootPlaceId = StableIdentity.Derive("Earth", "place");
 

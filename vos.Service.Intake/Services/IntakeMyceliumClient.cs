@@ -78,6 +78,42 @@ public sealed class IntakeMyceliumClient(
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellation));
     }
 
+    /// <summary>One call through the broker's endpoint-forward route, answered with the body the
+    /// forwarded service returned. Null is a call that was not answered — refused, failed, or out of
+    /// time — logged by its status and never by its body, and the caller decides what standing that
+    /// leaves the lookup in.</summary>
+    public async Task<string?> CallEndpointAsync(
+        string subdomain, object request, CancellationToken cancellation)
+    {
+        // The bound is this service's own: a provider that accepts the connection and then goes quiet
+        // would otherwise hold a stranger's request open for as long as the forwarded service waits.
+        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        bounded.CancelAfter(TimeSpan.FromSeconds(20));
+
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
+            var response = await client.PostAsJsonAsync(
+                $"{MyceliumUrl}/api/endpoints/{Uri.EscapeDataString(subdomain)}", request, bounded.Token);
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadAsStringAsync(bounded.Token);
+
+            Logger.LogWarning("Intake's call through endpoint '{Subdomain}' was answered {Status}",
+                subdomain, (int)response.StatusCode);
+            return null;
+        }
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+        {
+            Logger.LogWarning("Intake's call through endpoint '{Subdomain}' ran out of time", subdomain);
+            return null;
+        }
+        catch (HttpRequestException error)
+        {
+            Logger.LogWarning(error, "Intake's call through endpoint '{Subdomain}' failed", subdomain);
+            return null;
+        }
+    }
+
     private async Task ReleaseAsync(HttpClient client, Guid subscriptionId, CancellationToken cancellation)
     {
         try

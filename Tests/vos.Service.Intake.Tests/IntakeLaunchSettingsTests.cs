@@ -109,11 +109,30 @@ public class IntakeLaunchSettingsTests
         result!.PublicFormOrigins.Should().Equal(FormOrigin, SecondFormOrigin);
     }
 
+    // The same default the discovery service uses, because both forward through the routing label the
+    // shipped analysis template declares for the fetching service.
+    [Fact]
+    public void Parse_WithoutAFetcherSubdomain_ForwardsThroughTheShippedLabel()
+    {
+        var result = IntakeLaunchSettings.Parse(RequiredFlags);
+
+        result!.FetcherSubdomain.Should().Be("tributary");
+    }
+
+    [Fact]
+    public void Parse_ReadsTheFetcherSubdomain()
+    {
+        var result = IntakeLaunchSettings.Parse(FlagsWith("--fetcherSubdomain=fetch-relay"));
+
+        result!.FetcherSubdomain.Should().Be("fetch-relay");
+    }
+
     [Fact]
     public void UsageMessage_NamesEverySettingOfItsOwn()
     {
         var usage = IntakeLaunchSettings.UsageMessage;
 
+        usage.Should().Contain("--fetcherSubdomain");
         usage.Should().Contain("--publicFormOrigin")
             .And.Contain("--mailDelivery")
             .And.Contain("--mailHost")

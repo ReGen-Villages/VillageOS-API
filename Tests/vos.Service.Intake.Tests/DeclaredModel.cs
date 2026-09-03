@@ -28,8 +28,9 @@ public sealed class DeclaredModel
             .With("Earth", DeclaredVocabularyReader.RootPlaceFlag)
             .With("isIn", DeclaredVocabularyReader.PlaceNestingPredicateFlag);
 
-        foreach (var category in WillowBend.AllocationCategoryNames)
-            model.Relate(category, "is", "AllocationCategory");
+        foreach (var (category, share) in WillowBend.DefaultProgramme)
+            model.Stating(category, (FormOptionsReader.DefaultShareProperty, share))
+                .Relate(category, "is", "AllocationCategory");
         foreach (var source in WillowBend.BoundarySourceNames)
             model.Relate(source, "is", "BoundarySource");
         foreach (var hazardType in WillowBend.HazardTypeNames)
@@ -42,6 +43,22 @@ public sealed class DeclaredModel
         foreach (var (demand, servingOrder) in WillowBend.WaterDemandNames)
             model.ArchetypeStating(demand, (DeclaredVocabularyReader.ServingOrderProperty, servingOrder))
                 .Relate(demand, "is", "WaterDemandComponent");
+
+        // The two position lookups the open-data catalogue registers: standalone marked Things, the way
+        // the catalogue declares them, with a reshape of their own for the caller to apply.
+        model
+            .Stating(WillowBend.ParcelRegisterName,
+                (PositionLookupReader.ParcelLookupFlag, true),
+                (PositionLookupReader.TransformProperty, WillowBend.ParcelRegisterTransform),
+                (PositionLookupReader.AttributionProperty, WillowBend.ParcelRegisterAttribution),
+                (PositionLookupReader.SouthLatitudeProperty, 41.0),
+                (PositionLookupReader.NorthLatitudeProperty, 51.5),
+                (PositionLookupReader.WestLongitudeProperty, -5.5),
+                (PositionLookupReader.EastLongitudeProperty, 10.0))
+            .Stating(WillowBend.PlaceSearchName,
+                (PositionLookupReader.PlaceSearchFlag, true),
+                (PositionLookupReader.TransformProperty, WillowBend.PlaceSearchTransform),
+                (PositionLookupReader.AttributionProperty, WillowBend.PlaceSearchAttribution));
 
         // A deployment's model also says what a map may draw on, which a form reads beside the categories.
         model
