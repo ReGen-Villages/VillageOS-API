@@ -395,7 +395,9 @@ services live for the duration of the REPL).
   `VOS_API_KEY` continue to work without `ConsoleOptions` parsing them by hand.
   Tests inject overrides via `host.Services.GetRequiredService<IConfiguration>`
   substitution, no process-environment mutation.
-- `CliEnvVarCollection` can be deleted. CLI tests parallelize.
+- `CliEnvVarCollection` can be deleted. `WorkingDirectoryCollection` cannot: `pwd` and `cd` move the
+  real process working directory, which is one value per process and reachable through no
+  configuration a test could substitute, so the classes exercising them stay serialized.
 - `ILogger<T>` replaces `Console.WriteLine` everywhere output is structured
   (errors, diagnostics). Direct `Console.WriteLine` stays only where the REPL
   is writing user-visible prompts.

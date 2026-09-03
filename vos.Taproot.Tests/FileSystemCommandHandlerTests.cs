@@ -3,6 +3,7 @@ using Xunit;
 
 namespace vos.Taproot.Tests;
 
+[Collection(nameof(WorkingDirectoryCollection))]
 public class FileSystemCommandHandlerTests
 {
     private readonly Mock<MyceliumClient> _myceliumMock;
@@ -23,11 +24,13 @@ public class FileSystemCommandHandlerTests
     [Fact]
     public async Task Pwd_DisplaysCurrentDirectory()
     {
+        var directoryTheHandlerRunsIn = Directory.GetCurrentDirectory();
+
         await ExecuteHandler("pwd", "");
 
         var output = _writer.ToString();
         Assert.Contains("Current directory:", output);
-        Assert.Contains(Directory.GetCurrentDirectory(), output);
+        Assert.Contains(directoryTheHandlerRunsIn, output);
     }
 
     [Fact]
