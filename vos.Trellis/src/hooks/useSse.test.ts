@@ -291,17 +291,19 @@ describe('useSse', () => {
   });
 
   // A refused request leaves no subscription behind, so there is nothing to hand back — and the
-  // page still has no data, so the open has to be retried.
+  // page still has no data, so the open has to be retried. The refusal is what schedules the retry,
+  // so the clock is faked before the render that provokes it.
   it('retries a refused subscription request and hands nothing back', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 }) as unknown as typeof fetch;
-    const { unmount } = renderHook(() => useSse());
-    await waitFor(() => expect(subscriptionsOpened().length).toBe(1));
-
     vi.useFakeTimers();
+    const { unmount } = renderHook(() => useSse());
+    await vi.advanceTimersByTimeAsync(0);    // the refusal lands and schedules the retry
+    expect(subscriptionsOpened().length).toBe(1);
+
     await vi.advanceTimersByTimeAsync(1000); // first backoff delay
     vi.useRealTimers();
 
-    await waitFor(() => expect(subscriptionsOpened().length).toBe(2));
+    expect(subscriptionsOpened().length).toBe(2);
     expect(vi.mocked(globalThis.fetch).mock.calls
       .some(([, init]) => (init as RequestInit | undefined)?.method === 'DELETE')).toBe(false);
     unmount();
