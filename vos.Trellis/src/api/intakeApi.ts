@@ -36,6 +36,26 @@ export interface FormOptions {
    *  declares no hazards, which draws one step fewer rather than refusing to answer. */
   hazardTypes: string[];
   hazardLevels: string[];
+  /** The split a page offers before anybody has stated a programme, as each category Thing states it.
+   *  Empty where the model states no defaults, which starts a page with nothing chosen. */
+  defaultProgramme: { category: string; sharePct: number }[];
+  /** Whether the model registers each position lookup, so a page draws only what the service can
+   *  honour: no search box over a model with no gazetteer, no fetch attempt against no register. */
+  parcelLookup: boolean;
+  placeSearch: boolean;
+}
+
+/** The legal parcel a register holds at a position, as named pairs, with the register's own credit
+ *  line — displayed wherever the boundary is drawn, as a basemap's credit is. */
+export interface FetchedParcel {
+  boundary: { latitude: number; longitude: number }[];
+  attribution: string | null;
+}
+
+export interface FoundPlace {
+  name: string;
+  latitude: number;
+  longitude: number;
 }
 
 export const intakeApi = {
@@ -52,13 +72,50 @@ export const intakeApi = {
       basemapSources?: DeclaredBasemapSource[];
       hazardTypes?: string[];
       hazardLevels?: string[];
+      defaultProgramme?: { category: string; sharePct: number }[];
+      parcelLookup?: boolean;
+      placeSearch?: boolean;
     };
     return {
       allocationCategories: answered.allocationCategories ?? [],
       basemapSources: basemapSourcesFrom(answered.basemapSources ?? []),
       hazardTypes: answered.hazardTypes ?? [],
       hazardLevels: answered.hazardLevels ?? [],
+      defaultProgramme: answered.defaultProgramme ?? [],
+      parcelLookup: answered.parcelLookup ?? false,
+      placeSearch: answered.placeSearch ?? false,
     };
+  },
+
+  /** The legal parcel at a position, or null where none is available — a deployment registering no
+   *  land register, a position outside every register's bounds, and a register holding no parcel there
+   *  are all answered the same way, and the page does the same thing in all three: it lets the person
+   *  draw. */
+  parcelAt: async (latitude: number, longitude: number): Promise<FetchedParcel | null> => {
+    const response = await fetch(`${intakeServiceAddress()}/submissions/parcel-at-position`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ latitude, longitude }),
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(await refusalFrom(response));
+
+    const answered = (await response.json()) as FetchedParcel;
+    return { boundary: answered.boundary ?? [], attribution: answered.attribution ?? null };
+  },
+
+  /** Place names for what somebody typed, or none where the model registers no gazetteer. */
+  searchPlaces: async (query: string): Promise<FoundPlace[]> => {
+    const response = await fetch(`${intakeServiceAddress()}/submissions/place-search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    if (response.status === 404) return [];
+    if (!response.ok) throw new Error(await refusalFrom(response));
+
+    const answered = (await response.json()) as { places?: FoundPlace[] };
+    return answered.places ?? [];
   },
 
   /** Asks the service to send a code to the address, which is the step that establishes somebody reads
@@ -76,23 +133,40 @@ export const intakeApi = {
   /** The code is spent on a ticket and the ticket on the submission, in one act: a ticket lasts minutes
    *  and is no use to the page beyond the post it was got for. */
   submit: async (submission: SubmissionDocument, code: string): Promise<SubmissionAccepted> => {
-    const base = intakeServiceAddress();
+    const ticket = await intakeApi.exchangeTicket(submission.contact.emailAddress, code);
+    return (await intakeApi.submitWithTicket(submission, ticket)).accepted;
+  },
 
-    const exchanged = await fetch(`${base}/submissions/ticket`, {
+  /** A code spent on the short-lived ticket the service signs against the address. Held apart from
+   *  submitting because a page that keeps re-posting spends one exchange and then rides the renewals. */
+  exchangeTicket: async (emailAddress: string, code: string): Promise<string> => {
+    const exchanged = await fetch(`${intakeServiceAddress()}/submissions/ticket`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailAddress: submission.contact.emailAddress, code }),
+      body: JSON.stringify({ emailAddress, code }),
     });
     if (!exchanged.ok) throw new Error(await refusalFrom(exchanged));
+    return (await exchanged.json()).ticket;
+  },
 
-    const response = await fetch(`${base}/submissions`, {
+  /** Posts under a ticket already held. The service hands a fresh ticket back on every accepted act, so
+   *  the caller carries on with whichever came back — a page adjusting sliders stays in the exchange it
+   *  completed while an abandoned ticket still dies at its own age. */
+  submitWithTicket: async (
+    submission: SubmissionDocument,
+    ticket: string,
+  ): Promise<{ accepted: SubmissionAccepted; ticket: string }> => {
+    const response = await fetch(`${intakeServiceAddress()}/submissions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', [TICKET_HEADER]: (await exchanged.json()).ticket },
+      headers: { 'Content-Type': 'application/json', [TICKET_HEADER]: ticket },
       body: JSON.stringify(submission),
     });
 
     if (!response.ok) throw new Error(await refusalFrom(response));
-    return response.json();
+    return {
+      accepted: await response.json(),
+      ticket: response.headers.get(TICKET_HEADER) ?? ticket,
+    };
   },
 };
 

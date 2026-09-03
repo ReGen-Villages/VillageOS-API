@@ -15,22 +15,28 @@ export const findingsApi = {
   askForCode: intakeApi.askForCode,
 
   read: async (submissionId: string, emailAddress: string, code: string): Promise<FindingsAnswer> => {
-    const base = intakeServiceAddress();
+    const ticket = await intakeApi.exchangeTicket(emailAddress, code);
+    return (await findingsApi.readWithTicket(submissionId, emailAddress, ticket)).findings;
+  },
 
-    const exchanged = await fetch(`${base}/submissions/ticket`, {
+  /** Reads under a ticket already held — the one the submission itself was posted with, so a page that
+   *  just submitted lands on its findings with nothing retyped. Every accepted read hands a fresh
+   *  ticket back, and the caller carries on with whichever came back. */
+  readWithTicket: async (
+    submissionId: string,
+    emailAddress: string,
+    ticket: string,
+  ): Promise<{ findings: FindingsAnswer; ticket: string }> => {
+    const response = await fetch(`${intakeServiceAddress()}/submissions/findings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emailAddress, code }),
-    });
-    if (!exchanged.ok) throw new Error(await refusalFrom(exchanged));
-
-    const response = await fetch(`${base}/submissions/findings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', [TICKET_HEADER]: (await exchanged.json()).ticket },
+      headers: { 'Content-Type': 'application/json', [TICKET_HEADER]: ticket },
       body: JSON.stringify({ submissionId, emailAddress }),
     });
 
     if (!response.ok) throw new Error(await refusalFrom(response));
-    return response.json();
+    return {
+      findings: await response.json(),
+      ticket: response.headers.get(TICKET_HEADER) ?? ticket,
+    };
   },
 };

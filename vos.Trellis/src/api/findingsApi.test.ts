@@ -9,13 +9,15 @@ const ADDRESS = 'ana.ferreira@example.pt';
 
 const ANSWER = { spec: '{}', scopeId: 'site-1', things: [], relationships: [], ranges: {} };
 
-/** The ticket exchange first, then whatever the test says the findings request is answered with. */
-function answering(findingsAnswer: unknown) {
+/** The ticket exchange first, then whatever the test says the findings request is answered with. Every
+ *  faked answer carries a header map because every real one does — an accepted read hands the renewed
+ *  ticket back on it. */
+function answering(findingsAnswer: object) {
   fetchMock.mockImplementation((url: string) =>
     Promise.resolve(
       url.endsWith('/submissions/ticket')
-        ? { ok: true, json: () => Promise.resolve({ ticket: 'ticket-1', validForSeconds: 600 }) }
-        : findingsAnswer,
+        ? { ok: true, headers: new Headers(), json: () => Promise.resolve({ ticket: 'ticket-1', validForSeconds: 600 }) }
+        : { headers: new Headers(), ...findingsAnswer },
     ),
   );
 }

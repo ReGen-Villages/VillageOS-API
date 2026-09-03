@@ -58,6 +58,9 @@ beforeEach(() => {
     basemapSources: [],
     hazardTypes: [],
     hazardLevels: [],
+    defaultProgramme: [],
+    parcelLookup: false,
+    placeSearch: false,
   });
 });
 

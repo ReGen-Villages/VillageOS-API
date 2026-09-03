@@ -35,12 +35,21 @@ interface MapViewProps {
   /** The basemap sources this model holds. An empty list is a model that declares none. */
   sources: BasemapSource[];
   initialZoom?: number;
+  /** Where a moved position flies to, for a map that opens on the whole world and closes in once a
+   *  position is picked. A map that opens where it works stays at its one zoom. */
+  focusZoom?: number;
   /** A polygon drawn over the basemap. Fewer than three corners enclose nothing and draw nothing,
    *  though each corner still gets its handle while the boundary is editable. */
   boundary?: readonly BoundaryPoint[];
   /** Handed the whole boundary after a click places a corner or a drag moves one. Giving it is what
    *  makes the boundary editable. */
   onBoundaryChange?: (boundary: BoundaryPoint[]) => void;
+  /** Handed where a click landed, for a page whose position comes from the map rather than the map
+   *  from the position. Boundary editing wins the click: a page offering both is placing corners. */
+  onPositionPick?: (position: BoundaryPoint) => void;
+  /** False while the position props are a stand-in rather than anywhere anybody chose — the pin, the
+   *  recentre control and the coordinate readout would all present the stand-in as an answer. */
+  showMarker?: boolean;
 }
 
 /**
@@ -55,8 +64,11 @@ export function MapView({
   longitude,
   sources,
   initialZoom = DEFAULT_ZOOM,
+  focusZoom,
   boundary,
   onBoundaryChange,
+  onPositionPick,
+  showMarker = true,
 }: MapViewProps) {
   const { t } = useTranslation();
   const container = useRef<HTMLDivElement | null>(null);
@@ -80,8 +92,8 @@ export function MapView({
     shownAt.current = [longitude, latitude];
     if (!map.current || !moved) return;
     marker.current?.setLngLat([longitude, latitude]);
-    map.current.flyTo({ center: [longitude, latitude], zoom: initialZoom });
-  }, [latitude, longitude, initialZoom]);
+    map.current.flyTo({ center: [longitude, latitude], zoom: focusZoom ?? initialZoom });
+  }, [latitude, longitude, initialZoom, focusZoom]);
 
   useEffect(() => {
     const centre = shownAt.current;
@@ -158,6 +170,26 @@ export function MapView({
     };
   }, [boundary, onBoundaryChange, hasSource]);
 
+  useEffect(() => {
+    const current = map.current;
+    if (!current || !onPositionPick || onBoundaryChange) return;
+    const pick = (event: MapMouseEvent) =>
+      onPositionPick({ latitude: event.lngLat.lat, longitude: event.lngLat.lng });
+    current.on('click', pick);
+    return () => {
+      current.off('click', pick);
+    };
+  }, [onPositionPick, onBoundaryChange, hasSource]);
+
+  // The pin is built with the map, so hiding it is taking it off rather than never making it.
+  useEffect(() => {
+    const pin = marker.current;
+    const current = map.current;
+    if (!pin || !current) return;
+    pin.remove();
+    if (showMarker) pin.addTo(current);
+  }, [showMarker, hasSource]);
+
   const coordinates = t('map.coordinates', {
     latitude: latitude.toFixed(5),
     longitude: longitude.toFixed(5),
@@ -190,14 +222,19 @@ export function MapView({
           ))}
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => map.current?.flyTo({ center: [longitude, latitude], zoom: initialZoom })}
-        className={`absolute bottom-2 right-2 ${CONTROL_CLASSES}`}
-      >
-        {t('map.recentre')}
-      </button>
-      <p className={`absolute bottom-2 left-2 font-mono ${CONTROL_CLASSES}`}>{coordinates}</p>
+      {showMarker && (
+        <button
+          type="button"
+          onClick={() =>
+            map.current?.flyTo({ center: [longitude, latitude], zoom: focusZoom ?? initialZoom })}
+          className={`absolute bottom-2 right-2 ${CONTROL_CLASSES}`}
+        >
+          {t('map.recentre')}
+        </button>
+      )}
+      {showMarker && (
+        <p className={`absolute bottom-2 left-2 font-mono ${CONTROL_CLASSES}`}>{coordinates}</p>
+      )}
       {tilesUnreachable && (
         <p role="status" className={`absolute top-2 left-2 ${CONTROL_CLASSES}`}>
           {t('map.tilesUnreachable')}
