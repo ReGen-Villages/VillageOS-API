@@ -130,6 +130,17 @@ describe('the plot-first page', () => {
     expect(screen.getByText('sub-ref-1')).toBeInTheDocument();
   });
 
+  // The report replaces the sections the person was working in, so a page left where they had scrolled
+  // to opens partway down it — past the figures it leads with, which reads as a report holding nothing.
+  it('opens the report at the top of it', async () => {
+    const scrolled = vi.fn();
+    vi.stubGlobal('scrollTo', scrolled);
+
+    await reachTheReport();
+
+    expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
+  });
+
   it('re-posts the same submission when a dial settles, riding the renewed ticket', async () => {
     await reachTheReport();
 
