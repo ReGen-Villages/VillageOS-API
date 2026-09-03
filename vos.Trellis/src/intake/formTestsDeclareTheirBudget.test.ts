@@ -4,9 +4,8 @@ import { join, relative, resolve } from 'node:path';
 import { importsOf } from '../sourceImports';
 
 /**
- * A test body that renders the whole multi-step submission form and then drives it needs more room than
- * vitest's default five seconds, which bounds how busy the build agent is rather than anything the form
- * does. `testTimeouts.ts` holds what that room is sized from.
+ * Every test that renders the whole submission form declares the budget `testTimeouts.ts` holds; that
+ * file carries what the budget is sized from.
  *
  * The pages are found by importing the form and their tests by importing a page, rather than listed here,
  * so a second page built on the form or a second test file written for one is held to this without anyone
@@ -18,11 +17,11 @@ const FORM = resolve(__dirname, 'IntakeWizard.tsx');
 const DECLARES_THE_BUDGET =
   /vi\.setConfig\(\s*\{\s*testTimeout:\s*MULTI_STEP_FORM_TEST_TIMEOUT_MILLISECONDS\s*,?\s*\}\s*\)/;
 
-const everySource = readdirSync(SOURCE, { recursive: true })
-  .map((entry) => join(SOURCE, entry as string))
-  .filter((file) => file.endsWith('.ts') || file.endsWith('.tsx'));
+const everySource = readdirSync(SOURCE, { recursive: true, encoding: 'utf8' })
+  .filter((entry) => /\.tsx?$/.test(entry))
+  .map((entry) => join(SOURCE, entry));
 
-const isTest = (file: string): boolean => file.endsWith('.test.ts') || file.endsWith('.test.tsx');
+const isTest = (file: string): boolean => /\.test\.tsx?$/.test(file);
 
 const formPages = everySource.filter((file) => !isTest(file) && importsOf(file).includes(FORM));
 const formTests = everySource.filter(
