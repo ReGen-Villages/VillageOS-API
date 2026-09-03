@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
+import { importsOf } from '../sourceImports';
 
 /**
  * The public pages are served on a site anybody can open, and they hold no credential. Nothing either
@@ -24,8 +24,6 @@ const ENTRIES = {
 const BROKER_CLIENT = resolve(SOURCE, 'api/client.ts');
 const SIGNED_IN_STATE = resolve(SOURCE, 'hooks/useAuth.ts');
 
-const SPECIFIER = /(?:from\s*|import\s*\(\s*)['"](\.[^'"]+)['"]/g;
-
 function reachedFrom(entry: string): Set<string> {
   const reached = new Set<string>();
   const frontier = [entry];
@@ -34,22 +32,11 @@ function reachedFrom(entry: string): Set<string> {
     if (reached.has(file)) continue;
     reached.add(file);
 
-    const source = readFileSync(file, 'utf8');
-    for (const [, specifier] of source.matchAll(SPECIFIER)) {
-      const resolved = fileFor(resolve(dirname(file), specifier));
-      if (resolved && !reached.has(resolved)) frontier.push(resolved);
+    for (const imported of importsOf(file)) {
+      if (!reached.has(imported)) frontier.push(imported);
     }
   }
   return reached;
-}
-
-/** What a specifier without an extension names on disk, in the order a bundler tries them. Anything that
- *  is not source — a stylesheet, an asset — reaches no further and is left out. */
-function fileFor(path: string): string | null {
-  for (const candidate of [`${path}.ts`, `${path}.tsx`, `${path}/index.ts`, `${path}/index.tsx`]) {
-    if (existsSync(candidate)) return candidate;
-  }
-  return null;
 }
 
 /** What each page must have reached. An empty walk would pass every other rule in this file. */

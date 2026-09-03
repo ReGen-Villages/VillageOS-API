@@ -851,6 +851,8 @@ vos.Trellis/
     ├── App.tsx                 # Router + theme toggle
     ├── index.css               # Tailwind import + body/root height
     ├── setupTests.ts           # Vitest + testing-library
+    ├── testTimeouts.ts         # How long a test that renders the whole submission form and drives it is given
+    ├── sourceImports.ts        # What one file imports, for the guards that judge the client by what it reaches
     │
     ├── types/
     │   ├── vos.ts              # VosThing, VosRelationship, PropertyValue, ranges, temporal types
@@ -905,7 +907,8 @@ vos.Trellis/
     │
     ├── intake/
     │   ├── IntakeWizard.tsx     # Describing a piece of land and proposing it as a site — rendered by the planner's page and by the public form
-    │   └── submissionDraft.ts   # The draft, the area units, the programme split, the parcel boundary and the posted document
+    │   ├── submissionDraft.ts   # The draft, the area units, the programme split, the parcel boundary and the posted document
+    │   └── formTestsDeclareTheirBudget.test.ts # Finds every test that renders this wizard and fails on one left on vitest's default budget
     │
     ├── publicForm/              # Built on its own (npm run build:public), served from a public site
     │   ├── main.tsx             # Its entry: theme, language, and the page — no sign-in and no broker
