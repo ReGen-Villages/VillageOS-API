@@ -181,6 +181,13 @@ export function ExplorePage() {
     setFindings(findingsFrom(read.findings));
   }, []);
 
+  // The report replaces the two sections above it, and a page left where the claim step had scrolled to
+  // opens partway down its own report — past the figures it leads with, which reads as a report with
+  // nothing in it.
+  useEffect(() => {
+    if (session !== null) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [session]);
+
   // Discovery answers within a minute of the submission landing; a few spaced re-reads let the report
   // fill in as it does, and the refresh button covers a discovery slower than the last poll.
   useEffect(() => {
