@@ -72,9 +72,13 @@ export function formatDelta(value: number | null | undefined, fmt?: NumberFormat
 /** 'up' when the delta is favourable given the metric's good-direction. */
 export function deltaTone(
   value: number | null | undefined,
-  direction: 'up-good' | 'down-good' = 'up-good',
+  direction: 'up-good' | 'down-good' | 'neither-good' = 'up-good',
 ): 'up' | 'down' | 'flat' {
   if (value === null || value === undefined || isNaN(value) || value === 0) return 'flat';
+  // Some deltas are a discrepancy rather than a trend: a measured area differing from the one
+  // somebody stated is worth noticing whichever way it went, and colouring one direction good would
+  // say the opposite of what the figure means.
+  if (direction === 'neither-good') return 'flat';
   const rising = value > 0;
   const good = direction === 'up-good' ? rising : !rising;
   return good ? 'up' : 'down';

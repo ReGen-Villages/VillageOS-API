@@ -319,9 +319,12 @@ export interface KpiWidget {
   unit?: string;
   target?: number;
   targetLabel?: string;
-  /** Which direction is "good" for the delta + status colouring. Default 'up-good'. */
-  direction?: 'up-good' | 'down-good';
-  /** Resolves to a signed change vs. the prior period. */
+  /** Which direction is "good" for the delta + status colouring. Default 'up-good'. `neither-good`
+   *  is for a delta that is a discrepancy rather than a trend — a measured area against the one
+   *  somebody stated is worth noticing whichever way it went. */
+  direction?: 'up-good' | 'down-good' | 'neither-good';
+  /** Resolves to a signed change vs. the prior period, or to the discrepancy `neither-good`
+   *  describes. */
   delta?: Binding;
   /** Resolves to number[] for the trend sparkline. */
   spark?: Binding;
