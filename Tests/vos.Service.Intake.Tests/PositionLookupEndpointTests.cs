@@ -207,6 +207,111 @@ public class PositionLookupEndpointTests
             .Should().Contain(PositionLookupService.NoSearchAvailable);
     }
 
+    // A reshape the model declares but the engine cannot run is a registration to fix, answered the way
+    // an unseeded model is: 503 with nothing about the model in the body, and the fault in the log.
+    [Theory]
+    [InlineData("/submissions/parcel-at-position", """{"latitude": 48.8, "longitude": 2.3}""")]
+    [InlineData("/submissions/place-search", """{"query": "Santarém"}""")]
+    public async Task A_reshape_that_cannot_be_applied_is_not_described_to_the_caller(
+        string route, string body)
+    {
+        var model = DeclaredModel.Seeded()
+            .Stating(WillowBend.ParcelRegisterName,
+                (PositionLookupReader.ParcelLookupFlag, true),
+                (PositionLookupReader.TransformProperty, "this is ((( not JSONata"),
+                (PositionLookupReader.SouthLatitudeProperty, 41.0),
+                (PositionLookupReader.NorthLatitudeProperty, 51.5),
+                (PositionLookupReader.WestLongitudeProperty, -5.5),
+                (PositionLookupReader.EastLongitudeProperty, 10.0))
+            .Stating(WillowBend.PlaceSearchName,
+                (PositionLookupReader.PlaceSearchFlag, true),
+                (PositionLookupReader.TransformProperty, "this is ((( not JSONata"));
+        await using var factory = Answering(model, providerBody: "{}");
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync(route,
+            new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await response.Content.ReadAsStringAsync()).Should().NotContain("JSONata");
+    }
+
+    [Fact]
+    public async Task A_gazetteer_that_cannot_be_asked_is_the_deployments_problem_not_the_querys()
+    {
+        await using var factory = Answering(endpointAnswer: HttpStatusCode.InternalServerError);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Santarém" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+    }
+
+    // The broker itself refusing the model read is not the stub above answering a provider failure:
+    // the read throws rather than answering null, and the route still owes the stranger a bare 503.
+    [Fact]
+    public async Task A_broker_that_cannot_be_read_is_answered_as_an_unseeded_model_is()
+    {
+        await using var factory = new IntakeWebApplicationFactory
+        {
+            HandlerCallback = request =>
+                request.RequestUri!.AbsolutePath == EndpointForwardPath
+                    ? ModelStub.Json(SomePlaces)
+                    : new HttpResponseMessage(HttpStatusCode.InternalServerError),
+        };
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Santarém" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+    }
+
+    // A connection that dies mid-call surfaces as an exception rather than a status; the lookup treats
+    // it as the provider being unaskable, never as the caller's fault.
+    [Fact]
+    public async Task A_connection_that_fails_mid_call_reads_as_the_provider_being_unaskable()
+    {
+        await using var factory = new IntakeWebApplicationFactory
+        {
+            HandlerCallback = request =>
+                request.RequestUri!.AbsolutePath == EndpointForwardPath
+                    ? throw new HttpRequestException("the connection was torn down")
+                    : ModelStub.Json(JsonSerializer.Serialize(
+                        new SubscribeResult(Guid.NewGuid(), 0, DeclaredModel.Seeded().Build()),
+                        new JsonSerializerOptions(JsonSerializerDefaults.Web))),
+        };
+        using var client = factory.CreateClient();
+
+        var response = await AskForParcelAsync(
+            client, WillowBend.CoveredLatitude, WillowBend.CoveredLongitude);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+    }
+
+    // A gazetteer's answer is read entry by entry: one it garbles is dropped rather than dragging the
+    // rest down, and an answer shaped as no list at all reads as no places found.
+    [Theory]
+    [InlineData(
+        """
+        {"found": [
+          {"name": "Santarém, Portugal", "latitude": 39.2362, "longitude": -8.6851},
+          {"latitude": 1.0, "longitude": 1.0},
+          {"name": "Nowhere", "latitude": 95.0, "longitude": 1.0}]}
+        """, 1)]
+    [InlineData("""{"answer": 42}""", 0)]
+    public async Task A_garbled_gazetteer_answer_keeps_only_the_places_a_pin_could_land_on(
+        string providerBody, int kept)
+    {
+        await using var factory = Answering(providerBody: providerBody);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/submissions/place-search", new { query = "Santarém" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var answered = await response.Content.ReadFromJsonAsync<JsonElement>();
+        answered.GetProperty("places").GetArrayLength().Should().Be(kept);
+    }
+
     [Theory]
     [InlineData("{}")]
     [InlineData("""{"query": "   "}""")]
