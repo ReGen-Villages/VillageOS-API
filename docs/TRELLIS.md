@@ -915,10 +915,15 @@ vos.Trellis/
     │   ├── PublicSubmissionPage.tsx # The same wizard, drawn from what the intake service answers
     │   └── noSignedInCode.test.ts   # Walks every public entry and fails on an import reaching the broker
     │
-    ├── publicFindings/          # The other page in that build: a submitter reads their own findings
+    ├── publicFindings/          # The second page in that build: a submitter reads their own findings
     │   ├── main.tsx             # Its entry, as the form's
     │   ├── PublicFindingsPage.tsx   # The model's own dashboard, drawn from what the intake service answers
     │   └── answeredFindings.ts  # That answer as a spec, a model index and the reads a binding makes
+    │
+    ├── explore/                 # The third page in that build: land first, report before questions
+    │   ├── main.tsx             # Its entry, as the form's
+    │   ├── ExplorePage.tsx      # Map-first intake beside the wizard, and the report with the dials
+    │   └── exploreState.ts      # The exploration, the register boundary, and the posted document
     │
     └── components/
         ├── layout/
@@ -1198,7 +1203,7 @@ for people who hold an account.
 
 ### The public pages are not among these routes
 
-Two pages are built from this repository and share this application's wizard, its map, its dashboard
+Three pages are built from this repository and share this application's wizard, its map, its dashboard
 widgets and its translations — but they are **a build of their own**, served from a public site, with
 their own entries and their own configuration in `vite.public.config.ts`:
 
@@ -1206,14 +1211,18 @@ their own entries and their own configuration in `vite.public.config.ts`:
 |---|---|---|---|
 | Submission form | `src/publicForm/main.tsx` | `index.html` | The wizard somebody with land fills in |
 | Findings | `src/publicFindings/main.tsx` | `findings.html` | What the analysis made of a submission already sent |
+| Explore | `src/explore/main.tsx` | `explore.html` | The plot-first way in, beside the wizard: map first, the report before the questions, and dials that re-post the same submission — see [LAND_INTAKE.md §4](LAND_INTAKE.md#the-plot-first-page) |
 
 ```
 VITE_INTAKE_URL=https://intake.example.org npm run build:public
 ```
 
-Neither has a router. Both reach the intake service and nothing else, because neither holds a credential
-to read the model with: the form draws itself from `GET /submissions/form`, and the findings page from
-`POST /submissions/findings`. `src/publicForm/noSignedInCode.test.ts` walks the imports of **every** entry
+None has a router; the form and the explore page link to each other so the two ways in run side by
+side. All three reach the intake service and nothing else, because none holds a credential to read
+the model with: the form and the explore page draw themselves from `GET /submissions/form`, the
+findings page from `POST /submissions/findings`, and the explore page additionally asks
+`POST /submissions/place-search` and `POST /submissions/parcel-at-position` while the land is being
+found. `src/publicForm/noSignedInCode.test.ts` walks the imports of **every** entry
 in that build and fails if one leads to the broker client, to the signed-in state, or to any part of this
 application behind sign-in. See [`deploy/README.md`](../deploy/README.md) for where the built directory
 goes and which origins the service must be started with.

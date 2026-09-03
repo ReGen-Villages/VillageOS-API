@@ -50,10 +50,12 @@ where `root` points, and run `caddy run --config deploy/Caddyfile`.
 
 ## The public pages
 
-**Two pages are a build of their own, served from a public site, and their only correspondent is the
-intake service:** the submission form, and the findings page a submitter opens to read what the platform
-worked out about the land they submitted. Neither carries sign-in, a broker client or any part of the
-signed-in application; `vos.Trellis/src/publicForm/noSignedInCode.test.ts` walks both entries and fails
+**Three pages are a build of their own, served from a public site, and their only correspondent is the
+intake service:** the submission form, the findings page a submitter opens to read what the platform
+worked out about the land they submitted, and the plot-first explore page that runs beside the form —
+see [`../docs/LAND_INTAKE.md`](../docs/LAND_INTAKE.md#the-plot-first-page). None carries sign-in, a
+broker client or any part of the signed-in application;
+`vos.Trellis/src/publicForm/noSignedInCode.test.ts` walks every entry and fails
 if an import ever leads back to one.
 
 ```
@@ -63,7 +65,11 @@ VITE_INTAKE_URL=https://intake.example.org npm run build:public
 
 `dist-public/` is the whole deliverable, addressed relatively so the directory can be placed at any path
 on the site: `index.html` is the form, `findings.html` is the page a submitter reads their own findings
-on, and the two share their assets. `VITE_INTAKE_URL` is read at build time, not at run time — a form
+on, `explore.html` is the plot-first page, and the three share their assets. The explore page leans on
+two lookups the model registers — the parcel boundary at a position and a place search — and draws
+neither where the model registers none; the calls go out through the broker's fetching service, on the
+routing label the intake service is told with `--fetcherSubdomain` (the shipped template's label by
+default). `VITE_INTAKE_URL` is read at build time, not at run time — a form
 built without it collects answers it cannot post, and says so instead of offering the button.
 
 Two things have to agree for the pages to work:
