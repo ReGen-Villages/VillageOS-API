@@ -118,7 +118,7 @@ vi.mock('maplibre-gl', () => ({
   config: mocks.config,
 }));
 vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}));
-vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?url', () => ({
+vi.mock('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url', () => ({
   default: 'https://example.test/assets/maplibre-worker.mjs',
 }));
 
