@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Map as MapLibreMap,
@@ -8,7 +8,7 @@ import {
   type MapMouseEvent,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { Feature } from 'geojson';
 import { styleForSource } from '../../utils/basemapSources';
 import { useMapStore, resolveSelectedSource } from '../../stores/mapStore';
@@ -18,6 +18,11 @@ import type { BoundaryPoint } from '../../utils/parcelGeometry';
 // Naming the worker is what makes the bundler emit it: maplibre's own address for it is computed at
 // run time, which a bundler cannot see. Unnamed, no tile is ever parsed and nothing says so — see
 // docs/TRELLIS.md §22.
+//
+// Asked for as a worker rather than as a file, because the library splits it in two and the worker
+// imports the other half by name. Asked for as a file, the bundler copies the one it was named and
+// nothing it imports, so every built map answered 404 for the half nobody emitted and parsed no tile
+// (Bug #6910). `ci/every-worker-carries-its-imports.mjs` fails a build that emits one that way again.
 maplibreConfiguration.WORKER_URL = maplibreWorkerUrl;
 
 const DEFAULT_ZOOM = 15;
@@ -95,29 +100,50 @@ export function MapView({
     map.current.flyTo({ center: [longitude, latitude], zoom: focusZoom ?? initialZoom });
   }, [latitude, longitude, initialZoom, focusZoom]);
 
+  // The zoom the map opens at, read here rather than watched: it is an opening value, and a caller
+  // that changes it — a page opening on the world and closing in on a picked position — means move the
+  // map, not replace it. Watched, the rebuilt map came up with the empty style it is built with and
+  // the swap below, which watches the source, had no reason to run (Bug #6909).
+  const openingZoom = useRef(initialZoom);
+  // Kept current ahead of the build below, which is declared after this and so sees the settled value.
+  useEffect(() => {
+    openingZoom.current = initialZoom;
+  }, [initialZoom]);
+
+  // Counted so everything that draws on the map runs again when there is a new one to draw on.
+  const [mapGeneration, setMapGeneration] = useState(0);
+
   useEffect(() => {
     const centre = shownAt.current;
     if (!container.current || !hasSource || !centre) return;
     const created = new MapLibreMap({
       container: container.current,
       center: centre,
-      zoom: initialZoom,
+      zoom: openingZoom.current,
     });
     created.on('error', reportTilesUnreachable);
     marker.current = new Marker().setLngLat(centre).addTo(created);
     map.current = created;
+    setMapGeneration((generation) => generation + 1);
     return () => {
       created.remove();
       map.current = null;
       marker.current = null;
     };
-  }, [initialZoom, hasSource, reportTilesUnreachable]);
+  }, [hasSource, reportTilesUnreachable]);
 
   // Swapping the style instead of rebuilding the map leaves the reader where they had panned to,
-  // which is why the map above is built without one.
+  // which is why the map above is built without one. What was drawn is remembered as the pair it is —
+  // this style, on this map — so a source the reader switches to is drawn, and so is a map built after
+  // the sources arrived, while a render that moved neither draws nothing.
+  const drawn = useRef<{ map: MapLibreMap; source: BasemapSource } | null>(null);
   useEffect(() => {
-    if (selected) map.current?.setStyle(styleForSource(selected));
-  }, [selected]);
+    const current = map.current;
+    if (!current || !selected) return;
+    if (drawn.current?.map === current && drawn.current.source === selected) return;
+    drawn.current = { map: current, source: selected };
+    current.setStyle(styleForSource(selected));
+  }, [selected, mapGeneration]);
 
   // A style swap wipes every source and layer the style did not bring, so the boundary is drawn
   // again on styledata, not only when it changes.

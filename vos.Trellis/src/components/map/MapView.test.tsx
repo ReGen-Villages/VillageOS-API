@@ -337,4 +337,32 @@ describe('the boundary on the map', () => {
     expect(maps[0].sources.has('boundary')).toBe(false);
     expect(maps[0].layers).toEqual([]);
   });
+
+  // Bug #6909. A page that opens on the whole world and closes in on a picked position changes the
+  // zoom it opens at. That is the zoom the map *opens* at, so it moves the map rather than replacing
+  // it — a replaced map is built with no style, and the style is applied when the source changes,
+  // which a zoom change is not.
+  it('moves rather than rebuilds when the zoom it opens at changes', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} initialZoom={2} />);
+    theStyleArrives();
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} initialZoom={16} />);
+
+    expect(maps).toHaveLength(1);
+    expect(maps[0].remove).not.toHaveBeenCalled();
+    expect(maps[0].setStyle).toHaveBeenCalledWith('https://tiles.example.org/streets');
+  });
+
+  // The other half of the same bug: whatever rebuilds the map, the new one must be drawn on. Sources
+  // arriving after the first render is the case every public page meets, because the page is drawn
+  // before the service has answered what it may draw with.
+  it('draws the basemap on a map built after the sources arrive', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[]} />);
+    expect(maps).toHaveLength(0);
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} />);
+
+    expect(maps).toHaveLength(1);
+    expect(maps[0].setStyle).toHaveBeenCalledWith('https://tiles.example.org/streets');
+  });
 });
