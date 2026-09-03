@@ -6,10 +6,10 @@ namespace vos.Taproot.Tests;
 
 /// <summary>
 /// The working directory is one value for the whole process, so two classes changing it in parallel
-/// read each other's. The failure that costs is not the mismatch: a class restores a directory it
-/// captured while another class held its own temporary one, that class deletes the temporary one, and
-/// every later read of the working directory anywhere in the process throws — including in classes
-/// that never touch it themselves.
+/// each read the value the other set. That mismatch is not the failure that costs. A class captures
+/// the directory it will restore while another class is holding its own temporary one; that class
+/// deletes the temporary one; the restore then points the process at a directory that is gone, and
+/// every later read of the working directory throws — including in classes that never touch it.
 /// </summary>
 public class WorkingDirectoryTestsShareOneCollectionTests
 {
@@ -24,13 +24,9 @@ public class WorkingDirectoryTestsShareOneCollectionTests
     [Fact]
     public void Every_class_that_touches_the_working_directory_shares_one_collection()
     {
-        var sources = Sources().ToList();
-
-        sources.Should().NotBeEmpty(
-            "the scan must reach this assembly's sources, or it passes without reading anything");
-
-        var touching = sources
-            .Where(source => TouchesTheWorkingDirectory.Any(File.ReadAllText(source).Contains))
+        var touching = Sources()
+            .Select(source => (Name: Path.GetFileName(source), Text: File.ReadAllText(source)))
+            .Where(source => TouchesTheWorkingDirectory.Any(source.Text.Contains))
             .ToList();
 
         touching.Should().NotBeEmpty(
@@ -38,8 +34,8 @@ public class WorkingDirectoryTestsShareOneCollectionTests
             + "or the guard passes because it recognises nothing");
 
         touching
-            .Where(source => !File.ReadAllText(source).Contains(SharesTheCollection))
-            .Select(Path.GetFileName)
+            .Where(source => !source.Text.Contains(SharesTheCollection))
+            .Select(source => source.Name)
             .Should().BeEmpty(
                 "a class that reads or writes the working directory outside {0} runs beside one that "
                 + "changes it", nameof(WorkingDirectoryCollection));
