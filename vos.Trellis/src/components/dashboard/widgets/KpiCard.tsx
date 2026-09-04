@@ -31,8 +31,10 @@ export function KpiCard({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContex
   const trough = series.length ? Math.min(...series) : null;
   const direction = widget.direction ?? 'up-good';
 
+  // A widget calling neither direction good has no verdict to reach against a target either: judging
+  // it as though rising were good is the answer that reads as the opposite of what the figure means.
   const onTarget =
-    widget.target === undefined || v === null
+    widget.target === undefined || v === null || direction === 'neither-good'
       ? null
       : direction === 'down-good'
         ? v <= widget.target

@@ -25,6 +25,10 @@ public static class FormOptionsReader
     public const string StyleUrlProperty = "styleUrl";
     public const string TileUrlProperty = "tileUrl";
     public const string MaximumZoomProperty = "maximumZoom";
+    public const string TerrainTileUrlProperty = "terrainTileUrl";
+    public const string TerrainEncodingProperty = "terrainEncoding";
+    public const string TerrainExaggerationProperty = "terrainExaggeration";
+    public const string BuildingSourceLayerProperty = "buildingSourceLayer";
 
     public static SubscriptionSelector Selector() => new()
     {
@@ -40,6 +44,8 @@ public static class FormOptionsReader
             DeclaredVocabularyReader.AllocationCategoryPredicateFlag,
             DeclaredVocabularyReader.HazardTypePredicateFlag,
             DeclaredVocabularyReader.ReportedLevelPredicateFlag,
+            PositionLookupReader.ParcelLookupFlag,
+            PositionLookupReader.PlaceSearchFlag,
         ],
         Types = [BasemapSourceArchetypeName],
         IncludeRelationships = true,
@@ -52,7 +58,28 @@ public static class FormOptionsReader
         // reason it offers the allocation categories: a term typed freehand is refused on submission, and
         // the person who typed it is the last to find out.
         DeclaredVocabularyReader.HazardTypeNamesOrNone(snapshot),
-        DeclaredVocabularyReader.HazardLevelNamesOrNone(snapshot));
+        DeclaredVocabularyReader.HazardLevelNamesOrNone(snapshot),
+        DefaultProgramme(snapshot),
+        PositionLookupReader.ParcelLookups(snapshot).Count > 0,
+        PositionLookupReader.PlaceSearch(snapshot) is not null);
+
+    /// <summary>The starting split, from the share each category Thing states for itself. Only the
+    /// categories stating one are in it, so a model declaring no defaults offers a page that starts
+    /// where the wizard starts — with nothing chosen.</summary>
+    public const string DefaultShareProperty = "defaultSharePct";
+
+    private static List<DeclaredShare> DefaultProgramme(SnapshotDocument snapshot)
+    {
+        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
+        return
+        [
+            .. DeclaredVocabularyReader.AllocationCategories(snapshot).Terms
+                .Where(term => thingsById.ContainsKey(term.Id))
+                .Select(term => (term.Name, Share: Number(thingsById[term.Id], DefaultShareProperty)))
+                .Where(category => category.Share is not null)
+                .Select(category => new DeclaredShare(category.Name, category.Share!.Value)),
+        ];
+    }
 
     // A model declaring no imagery is a form with no map rather than a service that cannot answer: the
     // basemap is a deployment's own choice, and a submission carrying coordinates typed in by hand is a
@@ -79,7 +106,11 @@ public static class FormOptionsReader
         Text(thing, AttributionProperty),
         Text(thing, StyleUrlProperty),
         Text(thing, TileUrlProperty),
-        Number(thing, MaximumZoomProperty));
+        Number(thing, MaximumZoomProperty),
+        Text(thing, TerrainTileUrlProperty),
+        Text(thing, TerrainEncodingProperty),
+        Number(thing, TerrainExaggerationProperty),
+        Text(thing, BuildingSourceLayerProperty));
 
     private static string? Text(SnapshotThing thing, string property) =>
         thing.StatedValue(property) is { } stated && stated.Value.ValueKind == JsonValueKind.String

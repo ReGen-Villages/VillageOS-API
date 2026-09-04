@@ -27,7 +27,10 @@ const DRAFT_OWNER = 'public-form';
 export function PublicSubmissionPage() {
   const { t, i18n } = useTranslation();
   const theme = useThemeStore((state) => state.theme);
-  const [options, setOptions] = useState<FormOptions>({ allocationCategories: [], basemapSources: [], hazardTypes: [], hazardLevels: [] });
+  const [options, setOptions] = useState<FormOptions>({
+    allocationCategories: [], basemapSources: [], hazardTypes: [], hazardLevels: [],
+    defaultProgramme: [], parcelLookup: false, placeSearch: false,
+  });
   const [unreachable, setUnreachable] = useState(false);
 
   // The signed-in application's shell sets these two on the document for its own pages. This form is
@@ -87,6 +90,9 @@ export function PublicSubmissionPage() {
         />
         <p className="mt-6 text-[11px] text-zinc-400 dark:text-zinc-500">
           {t('publicForm.keptInThisBrowser')}
+        </p>
+        <p className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">
+          <a className="hover:underline" href="./explore.html">{t('publicForm.tryExplore')}</a>
         </p>
       </main>
 

@@ -12,13 +12,15 @@ const SUBMISSION: SubmissionDocument = {
   site: { name: 'Willow Bend', latitude: 39.5012, longitude: -8.4137 },
 };
 
-/** The ticket exchange first, then whatever the test says the submission is answered with. */
-function answering(submissionAnswer: unknown) {
+/** The ticket exchange first, then whatever the test says the submission is answered with. Every faked
+ *  answer carries a header map because every real one does — the accepting route reads the renewed
+ *  ticket off it. */
+function answering(submissionAnswer: object) {
   fetchMock.mockImplementation((url: string) =>
     Promise.resolve(
       url.endsWith('/submissions/ticket')
-        ? { ok: true, json: () => Promise.resolve({ ticket: 'ticket-1', validForSeconds: 600 }) }
-        : submissionAnswer,
+        ? { ok: true, headers: new Headers(), json: () => Promise.resolve({ ticket: 'ticket-1', validForSeconds: 600 }) }
+        : { headers: new Headers(), ...submissionAnswer },
     ),
   );
 }

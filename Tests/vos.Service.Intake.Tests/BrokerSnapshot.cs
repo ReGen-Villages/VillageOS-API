@@ -22,7 +22,9 @@ public sealed class BrokerSnapshot
     private readonly List<Node> _things = [];
     private readonly List<Edge> _edges = [];
 
-    private sealed record Node(Guid Id, string Name, bool IsArchetype, Dictionary<string, object> Properties, string[] States);
+    private sealed record Node(
+        Guid Id, string Name, bool IsArchetype, Dictionary<string, object> Properties,
+        Dictionary<string, object> InheritedOverrides, string[] States);
 
     private sealed record Edge(Guid Id, Guid SubjectId, Guid PredicateId, Guid TargetId);
 
@@ -31,11 +33,31 @@ public sealed class BrokerSnapshot
         string name,
         bool isArchetype = false,
         Dictionary<string, object>? properties = null,
-        string[]? states = null)
+        string[]? states = null,
+        Dictionary<string, object>? overriding = null)
     {
-        _things.Add(new Node(id, name, isArchetype, properties ?? [], states ?? []));
+        _things.Add(new Node(
+            id, name, isArchetype, properties ?? [], OverridesUnder(overriding), states ?? []));
         return this;
     }
+
+    /// <summary>Values written for names an archetype declares, in the store the model actually puts
+    /// them in: the declaration is cloned under the archetype's id and the value written inside it, so a
+    /// submitted value is never an own property. Bug #6908 was a reader looking only at the own map.
+    /// </summary>
+    private static Dictionary<string, object> OverridesUnder(Dictionary<string, object>? overriding) =>
+        overriding is null or { Count: 0 }
+            ? []
+            : new Dictionary<string, object>
+            {
+                [ContactArchetype.ToString()] = new
+                {
+                    SourceId = ContactArchetype,
+                    SourceName = "Contact",
+                    InheritedAt = DateTime.UtcNow,
+                    Properties = overriding,
+                },
+            };
 
     public BrokerSnapshot Relate(Guid subject, Guid predicate, Guid target)
     {
@@ -122,7 +144,7 @@ public sealed class BrokerSnapshot
             thing.Name,
             thing.IsArchetype,
             thing.Properties,
-            InheritedOverrides = (object?)null,
+            thing.InheritedOverrides,
             thing.States,
         }),
         relationships = edges.Select(edge => new
@@ -222,7 +244,9 @@ public sealed class BrokerSnapshot
         return Thing(site, siteName, properties: Stating(("statedAreaHectares", 24.0, "FactOnly")))
             .Thing(study, $"{siteName} Site Study", states: ["EnergyNetPositive"])
             .Thing(parcel, $"{siteName} Parcel-01", properties: Stating(("measuredAreaHectares", 23.6, null)))
-            .Thing(contact, $"{siteName} Contact", properties: new Dictionary<string, object>
+            // The address goes where a submitted one goes: `Contact` declares `emailAddress`, so the
+            // written value lands in the override store rather than among the Thing's own properties.
+            .Thing(contact, $"{siteName} Contact", overriding: new Dictionary<string, object>
             {
                 [FindingsReader.EmailAddressProperty] = new
                 {

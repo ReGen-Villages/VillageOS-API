@@ -122,3 +122,29 @@ describe('KpiCard says where the figure came from', () => {
     expect(screen.queryByText(/as submitted/)).toBeNull();
   });
 });
+
+// A widget saying neither direction is good is saying there is no verdict to reach — the same for the
+// badge against a target as for the tone on the delta. Judging it as though rising were good is the
+// answer that reads as the opposite of what the figure means.
+describe('KpiCard where the widget calls neither direction good', () => {
+  const measuredAgainstStated = (direction: KpiWidget['direction']): KpiWidget => ({
+    type: 'kpi',
+    title: 'Measured area',
+    value: bind('measured_area', 84),
+    target: 100,
+    direction,
+  });
+
+  it('reaches no verdict against a target', () => {
+    render(<KpiCard widget={measuredAgainstStated('neither-good')} ctx={{} as ResolveContext} />);
+
+    expect(screen.queryByText('on target')).toBeNull();
+    expect(screen.queryByText('watch')).toBeNull();
+  });
+
+  it('still reaches one where the widget names a direction', () => {
+    render(<KpiCard widget={measuredAgainstStated('up-good')} ctx={{} as ResolveContext} />);
+
+    expect(screen.getByText('watch')).toBeInTheDocument();
+  });
+});

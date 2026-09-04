@@ -237,11 +237,31 @@ public static class FindingsReader
             ? value.GetString()
             : null;
 
-    private static JsonElement? Property(JsonElement thing, string name) =>
-        MyceliumClientBase.TryGetPropertyCaseInsensitive(thing, "Properties", out var properties)
-        && MyceliumClientBase.TryGetPropertyCaseInsensitive(properties, name, out var property)
-            ? property
-            : null;
+    /// <summary>What the Thing itself states for a name: its own properties first, then the override
+    /// sets. A value written for a name the Thing's archetype declares is never an own property — the
+    /// model clones the declaration under that archetype's id and writes the value inside it — so a
+    /// reader of the own map alone finds every submitted value absent (Bug #6908). The same rule the
+    /// shared snapshot reader states; this reader works on the broker's raw envelope rather than on a
+    /// typed snapshot, so it spells the rule out rather than calling it.</summary>
+    private static JsonElement? Property(JsonElement thing, string name)
+    {
+        if (MyceliumClientBase.TryGetPropertyCaseInsensitive(thing, "Properties", out var properties)
+            && MyceliumClientBase.TryGetPropertyCaseInsensitive(properties, name, out var own))
+            return own;
+
+        if (!MyceliumClientBase.TryGetPropertyCaseInsensitive(thing, "InheritedOverrides", out var overrides)
+            || overrides.ValueKind != JsonValueKind.Object)
+            return null;
+
+        foreach (var declaring in overrides.EnumerateObject())
+        {
+            if (declaring.Value.ValueKind == JsonValueKind.Object
+                && MyceliumClientBase.TryGetPropertyCaseInsensitive(declaring.Value, "Properties", out var overridden)
+                && MyceliumClientBase.TryGetPropertyCaseInsensitive(overridden, name, out var stated))
+                return stated;
+        }
+        return null;
+    }
 
     /// <summary>A property's value as text. Everything read this way the model wrote as a string.</summary>
     private static string? PropertyText(JsonElement thing, string name) =>

@@ -5,7 +5,8 @@
 > (#6016), shows the site on the map as the position is given (#6014), and draws the parcel boundary
 > checked against the stated area (#6015). Anybody may submit without a credential, having answered a
 > code sent to the address on the submission (#6026, #6027, #6799, #6803). Open-data discovery is still
-> design.
+> design. A second, plot-first way in runs beside the wizard so the two approaches can be compared
+> (#6905, #6906, #6907) — see [the plot-first page](#the-plot-first-page) below.
 > Tracked as Epic
 > [#6012](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6012) (client, services)
 > and Epic [#6033](https://dev.azure.com/ReGenVillages/VillageOS/_workitems/edit/6033) (model, broker).
@@ -258,6 +259,32 @@ downstream number is proportional to it.
 > **Accuracy note.** The drawn area is computed on the sphere, not by treating latitude and longitude
 > as flat coordinates. A flat calculation looks fine near the equator and is meaningfully wrong at
 > higher latitudes.
+
+### The plot-first page
+
+The public build carries a second way in beside the wizard, so the two approaches run side by side
+and can be compared (#6905 model, #6906 service, #6907 page). It inverts the wizard's order: the land
+comes first, and the report comes before the questions.
+
+- **The map is first.** A place search, the browser's own position, or a click puts the pin — nothing
+  geographic is typed. Where a land register covers the point, the legal parcel boundary is fetched
+  and recorded as `fetched-from-register`; anywhere else the boundary is drawn as in the wizard.
+- **The only questions are a name for the land, the person's name, and the mailbox** — the same
+  verification exchange as the wizard, and nothing else. The programme starts from the default share
+  each category declares in the model, and the population and household size start unset.
+- **The report leads with capacity.** The study declares three figures that read no population — the
+  people the land could feed, water and power — so a submission carrying only a boundary still gets a
+  first answer, with the estimated energy balance judged by its own ranges once a population is set.
+- **Everything else is a dial on the report.** The page forwards itself to the findings with the
+  reference and the ticket already in hand; the programme split, the population, the household size
+  and what the person has seen of each hazard re-post the same submission under the same identifier —
+  a fragment upserts — and every figure recomputes. A successful post or read hands a fresh ticket
+  back in the response header, so a long session is not sent back to the mailbox every ten minutes,
+  while an abandoned ticket still dies at its own age.
+
+What the two approaches share is deliberately everything that matters: one submission document, one
+composing path, one verification exchange, one dashboard. What differs is only the order the person
+meets it in.
 
 ### What gets written
 
@@ -533,6 +560,16 @@ position into an area name, the other searches the portal's own divisions for th
 covers a Place and neither carries a reshape expression, because nothing they answer is a reading
 about the site — see [§8](#hazards) (#6851).
 
+**Two more answer the plot-first page, before any site exists** (#6905, #6906). `parcel-at-position`
+asks a country's land register for the legal parcel enclosing a clicked point — the French national
+cadastre first — and `place-search` turns what somebody typed into positions. Both are called through
+the same fetching service, and neither carries a `responseTransform`: there is no Thing to ingest
+onto yet, so each carries its reshape under `lookupTransform` and the intake service applies it to
+the raw body. Where a register applies is a pair of latitude and longitude bounds on the
+registration rather than a `covers` edge, because a bare coordinate is in no Place a walk could
+start from; a click outside every register's bounds is refused before any provider is contacted. A
+further country's register is one more registration — data, not code.
+
 **The registered sources ship in the seed, not in a call.** A registration lives in the project's own
 model, so a source every project uses belongs in the seed every project is created from — which is a
 template in the platform repository, `open-data-sources.template.json`. That template also declares the
@@ -668,7 +705,7 @@ flowchart LR
   HA["<b>HazardAssessment</b><br/>level · date"]
   DS["<b>SubmittedSource</b><br/>which source · coverage<br/>last resolved"]
 
-  BS["<b>BoundarySource</b><br/>drawn-by-hand · imported-from-file<br/>generated-from-stated-area"]
+  BS["<b>BoundarySource</b><br/>drawn-by-hand · imported-from-file<br/>generated-from-stated-area · fetched-from-register"]
   AC["<b>AllocationCategory</b><br/>residential · food-and-agriculture<br/>…one Thing per category"]
   HT["<b>HazardType</b><br/>river-flood · landslide · wildfire<br/>…one Thing per hazard"]
 
@@ -716,9 +753,11 @@ The design decisions worth stating:
 
 **The parcel is its own Thing, not a property on the site.** A site can be re-surveyed. Keeping the
 boundary separate means a new survey is a new Thing with its own history, and the geometry can carry
-its own provenance — drawn by hand, imported from a file, or auto-generated from a stated area. That
-last one matters: a square generated from a number is not evidence of anything and should not look
-identical to a surveyed boundary.
+its own provenance — drawn by hand, imported from a file, auto-generated from a stated area, or
+fetched from a country's land register. The generated one matters most: a square generated from a
+number is not evidence of anything and should not look identical to a surveyed boundary. The
+register's is the other pole — the legal record of the parcel — and it is still its own term rather
+than a survey, because a register records ownership rather than a measurement on the ground.
 
 **Everything hangs off its holder by the generic `has` predicate.** Nothing binds a service to these
 edges, so a predicate per pair — `hasParcel`, `hasHazard` — would be vocabulary the platform carries for
@@ -870,6 +909,23 @@ efficiency of 0.20 would overstate output by about half, because module efficien
 losses, wiring, soiling, heat and downtime. The value the node wants is the **system yield factor** —
 module efficiency multiplied by performance ratio. The port name should say so; see
 [§13](#13-decisions-still-open).
+
+**The arithmetic above is now declared on the study as the intake-stage estimate** (#6905), beside —
+never in place of — the balance a building model feeds. A submitted site has no arrays and no metered
+consumption, so `pctOfConsumption` stays honestly unassessed; `estimatedPctOfConsumption` answers the
+intake-stage question from the land alone, sized on the categories marked `__IsArrayHostCategory`
+(residential, in the shipped programme) at the `arrayCoverageFraction` the shared study declares, and
+judged by ranges of its own so the two verdicts can never be mistaken for each other.
+
+### What the land could support
+
+Three capacity figures on the study read no population at all, which is what lets a submission
+carrying only a boundary get a first answer: **people fed** (the growing land times the yield),
+**people watered** (the harvest divided by what one person drinks in a year), and **people powered**
+(the estimated generation divided by what one person consumes). For Willow Bend they come to about
+20, 900 and 290 people — the growing land is the binding constraint, which is itself the finding.
+The submitter dashboard leads with them, and a population dialled in afterwards is what turns the
+percentages and the demand coverages from *not assessed* into verdicts.
 
 ### Food
 
@@ -1155,8 +1211,12 @@ the signed-in application, which renders nothing until somebody has signed in, a
 service serves — the site the form belongs on is the one that brought the person there.
 
 It is built from `vos.Trellis` all the same, and it renders the same wizard the planner's page renders.
-One definition of what a submission asks for, not two that can disagree. What differs is only where each
-page gets what the form is drawn with:
+One definition of what a submission asks for, not two that can disagree. The same build serves the
+findings page and the plot-first page ([§4](#the-plot-first-page)), which lean on two more anonymous
+routes — the parcel lookup and the place search — standing under the same rate limit as everything
+here, with a parcel click refused before any outbound call unless a register's declared bounds cover
+it. What differs between the planner's page and the public build is only where each gets what the form
+is drawn with:
 
 | | The planner's page | The public form |
 |---|---|---|
@@ -1284,6 +1344,9 @@ The main finding from designing this: most of it is already built.
 | Anonymous submission: rate limits, size caps, field bounds, a verified address | **Exists** (#6026, #6027, #6799, #6803) — the route takes a submission from someone holding no credential and having proved they read mail at the address on it, guarded as [§9](#what-guards-the-route) describes |
 | A page somebody without an account fills in | **Exists** (#6827, #6828) — a build of its own, served from a public site, rendering the same wizard and drawn from `GET /submissions/form` because it holds no credential to read the model with — see [§9](#where-the-form-lives) |
 | A submitter reading the findings for their own land, holding no account | **Exists** (#6850) — the second page in that build, drawn from `POST /submissions/findings`. It renders the model's own dashboard, so the words are the same ones a planner reads — see [§9](#what-a-submitter-gets-back) |
+| The plot-first page beside the wizard: map first, register boundary, defaults, report with dials | **Exists** (#6905, #6906, #6907) — the third page in that build, see [§4](#the-plot-first-page) |
+| The parcel boundary at a clicked position, and a place search, answered to a page with no credential | **Exists** (#6906) — `POST /submissions/parcel-at-position` and `POST /submissions/place-search`, from the registrations marked in the model |
+| Capacity figures needing no population, default programme shares, the intake-stage energy estimate | **Exists** (#6905) — declarations in the analysis templates |
 | Land-intake archetypes, registrations, compute connections, dashboard spec | **New** — but data, not code |
 | Telling a submitter what the reviewer decided | **Not built** (#6897) — the only message the service can send is the verification code. The state a decision puts a submission into is already declared, so what is left is a sender and the words each decision reads |
 | A landowner claiming the submission they made | **Not designed** (#6899) — see [§13](#13-decisions-still-open) |

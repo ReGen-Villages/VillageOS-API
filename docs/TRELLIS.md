@@ -915,10 +915,15 @@ vos.Trellis/
     │   ├── PublicSubmissionPage.tsx # The same wizard, drawn from what the intake service answers
     │   └── noSignedInCode.test.ts   # Walks every public entry and fails on an import reaching the broker
     │
-    ├── publicFindings/          # The other page in that build: a submitter reads their own findings
+    ├── publicFindings/          # The second page in that build: a submitter reads their own findings
     │   ├── main.tsx             # Its entry, as the form's
     │   ├── PublicFindingsPage.tsx   # The model's own dashboard, drawn from what the intake service answers
     │   └── answeredFindings.ts  # That answer as a spec, a model index and the reads a binding makes
+    │
+    ├── explore/                 # The third page in that build: land first, report before questions
+    │   ├── main.tsx             # Its entry, as the form's
+    │   ├── ExplorePage.tsx      # Map-first intake beside the wizard, and the report with the dials
+    │   └── exploreState.ts      # The exploration, the register boundary, and the posted document
     │
     └── components/
         ├── layout/
@@ -1198,7 +1203,7 @@ for people who hold an account.
 
 ### The public pages are not among these routes
 
-Two pages are built from this repository and share this application's wizard, its map, its dashboard
+Three pages are built from this repository and share this application's wizard, its map, its dashboard
 widgets and its translations — but they are **a build of their own**, served from a public site, with
 their own entries and their own configuration in `vite.public.config.ts`:
 
@@ -1206,14 +1211,18 @@ their own entries and their own configuration in `vite.public.config.ts`:
 |---|---|---|---|
 | Submission form | `src/publicForm/main.tsx` | `index.html` | The wizard somebody with land fills in |
 | Findings | `src/publicFindings/main.tsx` | `findings.html` | What the analysis made of a submission already sent |
+| Explore | `src/explore/main.tsx` | `explore.html` | The plot-first way in, beside the wizard: map first, the report before the questions, and dials that re-post the same submission — see [LAND_INTAKE.md §4](LAND_INTAKE.md#the-plot-first-page) |
 
 ```
 VITE_INTAKE_URL=https://intake.example.org npm run build:public
 ```
 
-Neither has a router. Both reach the intake service and nothing else, because neither holds a credential
-to read the model with: the form draws itself from `GET /submissions/form`, and the findings page from
-`POST /submissions/findings`. `src/publicForm/noSignedInCode.test.ts` walks the imports of **every** entry
+None has a router; the form and the explore page link to each other so the two ways in run side by
+side. All three reach the intake service and nothing else, because none holds a credential to read
+the model with: the form and the explore page draw themselves from `GET /submissions/form`, the
+findings page from `POST /submissions/findings`, and the explore page additionally asks
+`POST /submissions/place-search` and `POST /submissions/parcel-at-position` while the land is being
+found. `src/publicForm/noSignedInCode.test.ts` walks the imports of **every** entry
 in that build and fails if one leads to the broker client, to the signed-in state, or to any part of this
 application behind sign-in. See [`deploy/README.md`](../deploy/README.md) for where the built directory
 goes and which origins the service must be started with.
@@ -2318,8 +2327,25 @@ A model declares Things of archetype `BasemapSource`. The archetype name and the
 | `tileUrl` | one of the two | Address template of a raster tile pyramid, carrying `{z}`, `{x}` and `{y}` |
 | `attribution` | yes | The credit the source's licence requires the map to display |
 | `maximumZoom` | no | Deepest zoom a raster pyramid has tiles for; defaults in the client |
+| `terrainTileUrl` | no | Address template of an elevation tile pyramid, which is what shapes the ground |
+| `terrainEncoding` | with the above | How those tiles pack a height into a pixel: `terrarium` or `mapbox` |
+| `terrainExaggeration` | no | How far to raise what they describe; defaults in the client |
+| `buildingSourceLayer` | no | The layer inside the source's own tiles holding building footprints |
 
 The Thing's **name** is what the layer switch shows, so a model naming its sources `Streets` and `Satellite` produces exactly those two buttons. Sources are offered in name order, so the same model always opens on the same layer.
+
+### Drawing land rather than a diagram
+
+A source that declares the last four draws in three dimensions (#6912, with platform Feature #6911 declaring them): the ground is raised from the elevation tiles, the buildings the basemap already carries are raised out of it, and a control tilts the camera. A source declaring none of them draws exactly as every source does today, and no control is offered for a view the model cannot draw.
+
+- **The encoding is stated, never guessed.** The two schemes pack a height into the same three channels differently, so a pyramid read under the wrong one raises hills out of flat land and says nothing. A pyramid declared without an encoding raises nothing, and so does one declaring a word that is not `terrarium` or `mapbox` — a map handed a scheme it cannot read adds no elevation source at all, and then fails on being told to drape the ground over one.
+- **The exaggeration is a presentation choice.** Real slopes read as flat from the distance a map looks at them, and a landholding is looked at close enough that a little exaggeration is what makes the fall of the land legible.
+- **A map that raises land opens showing it**, or the reader has been handed a diagram again; looking straight down is theirs to ask for, and is the view somebody drawing a boundary corner by corner works in. Drawing and dragging keep working either way. Switching to a source that raises nothing takes the camera back down with the control, so the view never outlasts what offers it.
+- **Which source inside the style holds the footprints is the style's business.** The model names the layer; the client takes the style's first vector source, so no provider is named here either.
+- **Both readers carry it.** A signed-in page reads the source out of the model with `discoverBasemapSources`; a public form is handed it by the intake service, which cannot expect the page to read a model it has no account for. Either reader carrying the four and not the other would draw land on one page and a diagram on the next, from the same model.
+- **Imagery is deliberately not part of this.** What it adds is shape, not photography: no global aerial imagery is free, keyless and licensed for production, and per-country imagery stays a model edit as §22 has always said.
+
+Everything it draws with is free of an account: the elevation set needs no key, as the shipped imagery does not, and a test over the template refuses any declared address that asks for one.
 
 ### What is refused, and why
 

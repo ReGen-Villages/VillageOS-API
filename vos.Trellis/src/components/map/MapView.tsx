@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Map as MapLibreMap,
@@ -8,7 +8,7 @@ import {
   type MapMouseEvent,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { Feature } from 'geojson';
 import { styleForSource } from '../../utils/basemapSources';
 import { useMapStore, resolveSelectedSource } from '../../stores/mapStore';
@@ -18,6 +18,11 @@ import type { BoundaryPoint } from '../../utils/parcelGeometry';
 // Naming the worker is what makes the bundler emit it: maplibre's own address for it is computed at
 // run time, which a bundler cannot see. Unnamed, no tile is ever parsed and nothing says so — see
 // docs/TRELLIS.md §22.
+//
+// Asked for as a worker rather than as a file, because the library splits it in two and the worker
+// imports the other half by name. Asked for as a file, the bundler copies the one it was named and
+// nothing it imports, so every built map answered 404 for the half nobody emitted and parsed no tile
+// (Bug #6910). `ci/every-worker-carries-its-imports.mjs` fails a build that emits one that way again.
 maplibreConfiguration.WORKER_URL = maplibreWorkerUrl;
 
 const DEFAULT_ZOOM = 15;
@@ -29,18 +34,41 @@ const CONTROL_CLASSES = 'rounded bg-white/90 px-2 py-1 text-xs text-zinc-900 sha
 const BOUNDARY_SOURCE_ID = 'boundary';
 const BOUNDARY_COLOUR = '#059669';
 
+const TERRAIN_SOURCE_ID = 'terrain';
+const BUILDINGS_LAYER_ID = 'buildings-raised';
+
+/** Elevation pyramids stop well short of the zooms a parcel is looked at, and the map keeps shaping
+ *  the ground from the deepest tiles it has rather than asking for addresses that answer nothing. */
+const TERRAIN_DEEPEST_ZOOM = 14;
+
+/** Grey enough to read as massing rather than as a model of anybody's house. */
+const BUILDING_COLOUR = '#c8ccd4';
+
+/** Far enough over to see the fall of the land, short of the angle where the horizon takes the view. */
+const TILTED_PITCH = 55;
+const TILT_MILLISECONDS = 700;
+
 interface MapViewProps {
   latitude: number;
   longitude: number;
   /** The basemap sources this model holds. An empty list is a model that declares none. */
   sources: BasemapSource[];
   initialZoom?: number;
+  /** Where a moved position flies to, for a map that opens on the whole world and closes in once a
+   *  position is picked. A map that opens where it works stays at its one zoom. */
+  focusZoom?: number;
   /** A polygon drawn over the basemap. Fewer than three corners enclose nothing and draw nothing,
    *  though each corner still gets its handle while the boundary is editable. */
   boundary?: readonly BoundaryPoint[];
   /** Handed the whole boundary after a click places a corner or a drag moves one. Giving it is what
    *  makes the boundary editable. */
   onBoundaryChange?: (boundary: BoundaryPoint[]) => void;
+  /** Handed where a click landed, for a page whose position comes from the map rather than the map
+   *  from the position. Boundary editing wins the click: a page offering both is placing corners. */
+  onPositionPick?: (position: BoundaryPoint) => void;
+  /** False while the position props are a stand-in rather than anywhere anybody chose — the pin, the
+   *  recentre control and the coordinate readout would all present the stand-in as an answer. */
+  showMarker?: boolean;
 }
 
 /**
@@ -55,8 +83,11 @@ export function MapView({
   longitude,
   sources,
   initialZoom = DEFAULT_ZOOM,
+  focusZoom,
   boundary,
   onBoundaryChange,
+  onPositionPick,
+  showMarker = true,
 }: MapViewProps) {
   const { t } = useTranslation();
   const container = useRef<HTMLDivElement | null>(null);
@@ -80,8 +111,21 @@ export function MapView({
     shownAt.current = [longitude, latitude];
     if (!map.current || !moved) return;
     marker.current?.setLngLat([longitude, latitude]);
-    map.current.flyTo({ center: [longitude, latitude], zoom: initialZoom });
-  }, [latitude, longitude, initialZoom]);
+    map.current.flyTo({ center: [longitude, latitude], zoom: focusZoom ?? initialZoom });
+  }, [latitude, longitude, initialZoom, focusZoom]);
+
+  // The zoom the map opens at, read here rather than watched: it is an opening value, and a caller
+  // that changes it — a page opening on the world and closing in on a picked position — means move the
+  // map, not replace it. Watched, the rebuilt map came up with the empty style it is built with and
+  // the swap below, which watches the source, had no reason to run (Bug #6909).
+  const openingZoom = useRef(initialZoom);
+  // Kept current ahead of the build below, which is declared after this and so sees the settled value.
+  useEffect(() => {
+    openingZoom.current = initialZoom;
+  }, [initialZoom]);
+
+  // Counted so everything that draws on the map runs again when there is a new one to draw on.
+  const [mapGeneration, setMapGeneration] = useState(0);
 
   useEffect(() => {
     const centre = shownAt.current;
@@ -89,23 +133,31 @@ export function MapView({
     const created = new MapLibreMap({
       container: container.current,
       center: centre,
-      zoom: initialZoom,
+      zoom: openingZoom.current,
     });
     created.on('error', reportTilesUnreachable);
     marker.current = new Marker().setLngLat(centre).addTo(created);
     map.current = created;
+    setMapGeneration((generation) => generation + 1);
     return () => {
       created.remove();
       map.current = null;
       marker.current = null;
     };
-  }, [initialZoom, hasSource, reportTilesUnreachable]);
+  }, [hasSource, reportTilesUnreachable]);
 
   // Swapping the style instead of rebuilding the map leaves the reader where they had panned to,
-  // which is why the map above is built without one.
+  // which is why the map above is built without one. What was drawn is remembered as the pair it is —
+  // this style, on this map — so a source the reader switches to is drawn, and so is a map built after
+  // the sources arrived, while a render that moved neither draws nothing.
+  const drawn = useRef<{ map: MapLibreMap; source: BasemapSource } | null>(null);
   useEffect(() => {
-    if (selected) map.current?.setStyle(styleForSource(selected));
-  }, [selected]);
+    const current = map.current;
+    if (!current || !selected) return;
+    if (drawn.current?.map === current && drawn.current.source === selected) return;
+    drawn.current = { map: current, source: selected };
+    current.setStyle(styleForSource(selected));
+  }, [selected, mapGeneration]);
 
   // A style swap wipes every source and layer the style did not bring, so the boundary is drawn
   // again on styledata, not only when it changes.
@@ -126,6 +178,81 @@ export function MapView({
       current.off('styledata', redraw);
     };
   }, [boundary, hasSource]);
+
+  // The ground itself: raised from the elevation tiles the model declares, with the buildings the
+  // basemap already carries raised out of it. Drawn on styledata for the same reason the boundary is —
+  // a style swap wipes everything the style did not bring, this included.
+  const ground = selected?.terrain;
+  const buildingSourceLayer = selected?.buildingSourceLayer;
+  useEffect(() => {
+    const current = map.current;
+    if (!current || (!ground && !buildingSourceLayer)) return;
+
+    const raise = () => {
+      if (!current.isStyleLoaded()) return;
+      if (ground && !current.getSource(TERRAIN_SOURCE_ID)) {
+        current.addSource(TERRAIN_SOURCE_ID, {
+          type: 'raster-dem',
+          tiles: [ground.tileUrl],
+          tileSize: 256,
+          encoding: ground.encoding,
+          maxzoom: TERRAIN_DEEPEST_ZOOM,
+        });
+      }
+      // Draping the ground is not a call that can be repeated: maplibre rebuilds the terrain and its
+      // render-to-texture cache each time, and fires the event whose own handler repaints the map —
+      // which settles into the idle this runs on, and never stops.
+      if (ground && !current.getTerrain()) {
+        current.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: ground.exaggeration });
+      }
+      if (buildingSourceLayer && !current.getLayer(BUILDINGS_LAYER_ID)) {
+        // Which source inside the style holds them is the style's business, not the model's: the model
+        // names the layer, and the first vector source is the one a vector basemap keeps it in.
+        const vectorSource = Object.entries(current.getStyle()?.sources ?? {})
+          .find(([, source]) => (source as { type?: string }).type === 'vector')?.[0];
+        if (vectorSource) {
+          current.addLayer({
+            id: BUILDINGS_LAYER_ID,
+            type: 'fill-extrusion',
+            source: vectorSource,
+            'source-layer': buildingSourceLayer,
+            paint: {
+              'fill-extrusion-color': BUILDING_COLOUR,
+              // What the footprint says it is, or a storey's worth where it says nothing — massing to
+              // read the place by, never a claim about anybody's house.
+              'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 3],
+              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+              'fill-extrusion-opacity': 0.85,
+            },
+          });
+        }
+      }
+    };
+    raise();
+    // `styledata` fires while the style is still coming in, so a handler on it alone finds the style
+    // unloaded every time and raises nothing. `idle` is the map saying it has drawn everything it
+    // has, which is the first moment the ground can be added to.
+    current.on('styledata', raise);
+    current.on('idle', raise);
+    return () => {
+      current.off('styledata', raise);
+      current.off('idle', raise);
+    };
+  }, [ground, buildingSourceLayer, hasSource, mapGeneration]);
+
+  // A map that raises land opens showing it, because a reader who cannot see the fall of the land has
+  // been shown a diagram again; looking straight down is theirs to ask for, and is what somebody
+  // drawing a boundary corner by corner works in. Kept here rather than on the map so the control can
+  // say which view is on.
+  const canTilt = Boolean(ground || buildingSourceLayer);
+  const [tiltWanted, setTiltWanted] = useState(true);
+  // What the reader wants is remembered, being tilted is not: switching to a source that raises nothing
+  // takes the control away with it, and a camera left over is a tilted flat map with nothing to ask for
+  // the way back. Switching to one that raises something again returns the view they had.
+  const tilted = tiltWanted && canTilt;
+  useEffect(() => {
+    map.current?.easeTo({ pitch: tilted ? TILTED_PITCH : 0, duration: TILT_MILLISECONDS });
+  }, [tilted, mapGeneration]);
 
   useEffect(() => {
     const current = map.current;
@@ -157,6 +284,26 @@ export function MapView({
       current.off('click', place);
     };
   }, [boundary, onBoundaryChange, hasSource]);
+
+  useEffect(() => {
+    const current = map.current;
+    if (!current || !onPositionPick || onBoundaryChange) return;
+    const pick = (event: MapMouseEvent) =>
+      onPositionPick({ latitude: event.lngLat.lat, longitude: event.lngLat.lng });
+    current.on('click', pick);
+    return () => {
+      current.off('click', pick);
+    };
+  }, [onPositionPick, onBoundaryChange, hasSource]);
+
+  // The pin is built with the map, so hiding it is taking it off rather than never making it.
+  useEffect(() => {
+    const pin = marker.current;
+    const current = map.current;
+    if (!pin || !current) return;
+    pin.remove();
+    if (showMarker) pin.addTo(current);
+  }, [showMarker, hasSource]);
 
   const coordinates = t('map.coordinates', {
     latitude: latitude.toFixed(5),
@@ -190,14 +337,30 @@ export function MapView({
           ))}
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => map.current?.flyTo({ center: [longitude, latitude], zoom: initialZoom })}
-        className={`absolute bottom-2 right-2 ${CONTROL_CLASSES}`}
-      >
-        {t('map.recentre')}
-      </button>
-      <p className={`absolute bottom-2 left-2 font-mono ${CONTROL_CLASSES}`}>{coordinates}</p>
+      {showMarker && (
+        <button
+          type="button"
+          onClick={() =>
+            map.current?.flyTo({ center: [longitude, latitude], zoom: focusZoom ?? initialZoom })}
+          className={`absolute bottom-2 right-2 ${CONTROL_CLASSES}`}
+        >
+          {t('map.recentre')}
+        </button>
+      )}
+      {/* Offered only where the model declares something to raise, so the control never promises a
+          view this map cannot draw. */}
+      {canTilt && (
+        <button
+          type="button"
+          onClick={() => setTiltWanted(() => !tilted)}
+          className={`absolute top-2 left-2 ${CONTROL_CLASSES}`}
+        >
+          {tilted ? t('map.lookDown') : t('map.tilt')}
+        </button>
+      )}
+      {showMarker && (
+        <p className={`absolute bottom-2 left-2 font-mono ${CONTROL_CLASSES}`}>{coordinates}</p>
+      )}
       {tilesUnreachable && (
         <p role="status" className={`absolute top-2 left-2 ${CONTROL_CLASSES}`}>
           {t('map.tilesUnreachable')}

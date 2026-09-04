@@ -292,7 +292,16 @@ steps:
 # Built here because nothing else exercises their configuration, and a page that will not build is one
 # nobody discovers until they come to place it on the site.
 - script: npm run build:public
-  displayName: 'Build the public submission form and findings page'
+  displayName: 'Build the public submission form, findings page and explore page'
+  workingDirectory: vos.Trellis
+  condition: always()
+
+# A worker copied for its address alone is emitted without the half it imports, so no tile is ever
+# parsed and every built map draws blank with nothing reported (Bug #6910). It exists only in built
+# output — the development server resolves the import out of the installed package — so it is checked
+# here, after both builds, rather than by a test.
+- script: npm run check:built-imports
+  displayName: 'Check every built worker carries what it imports'
   workingDirectory: vos.Trellis
   condition: always()
 

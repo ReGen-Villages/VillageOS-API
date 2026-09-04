@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:public": "vite build --config vite.public.config.ts",
+    "check:built-imports": "node ci/every-worker-carries-its-imports.mjs dist dist-public",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

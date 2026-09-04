@@ -19,6 +19,7 @@ const SOURCE = resolve(__dirname, '..');
 const ENTRIES = {
   'the submission form': resolve(__dirname, 'main.tsx'),
   'the findings page': resolve(SOURCE, 'publicFindings/main.tsx'),
+  'the explore page': resolve(SOURCE, 'explore/main.tsx'),
 };
 
 const BROKER_CLIENT = resolve(SOURCE, 'api/client.ts');
@@ -43,6 +44,7 @@ function reachedFrom(entry: string): Set<string> {
 const RENDERS: Record<string, string> = {
   'the submission form': 'intake/IntakeWizard.tsx',
   'the findings page': 'components/dashboard/DashboardSections.tsx',
+  'the explore page': 'components/dashboard/DashboardSections.tsx',
 };
 
 describe.each(Object.entries(ENTRIES))('what %s loads', (page, entry) => {
