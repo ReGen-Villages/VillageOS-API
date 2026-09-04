@@ -181,6 +181,21 @@ describe('what a source says about raising the ground', () => {
     expect(source.terrain).toBeUndefined();
   });
 
+  // A word is not an encoding. The map refuses a scheme it cannot read by adding no source at all, and
+  // then throws on being told to drape the ground over one — out of an effect, which takes the page
+  // down. Refusing the word here is the same refusal as for a missing one, one step earlier.
+  it('raises nothing from a pyramid under a scheme no map can read', () => {
+    const [source] = basemapSourcesFrom([
+      {
+        ...declared,
+        terrainTileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png',
+        terrainEncoding: 'mapzen',
+      },
+    ]);
+
+    expect(source.terrain).toBeUndefined();
+  });
+
   it('leaves a source that says nothing about the ground flat, as every source is today', () => {
     const [source] = basemapSourcesFrom([declared]);
 

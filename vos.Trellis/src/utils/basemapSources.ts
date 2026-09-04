@@ -10,6 +10,7 @@ import type { StyleSpecification } from 'maplibre-gl';
 import {
   DEFAULT_RASTER_MAXIMUM_ZOOM,
   DEFAULT_TERRAIN_EXAGGERATION,
+  TERRAIN_ENCODINGS,
   type BasemapSource,
   type DeclaredBasemapSource,
   type RaisedGround,
@@ -53,14 +54,17 @@ export function basemapSourcesFrom(declared: readonly DeclaredBasemapSource[]): 
 /**
  * What the source says about drawing land rather than a diagram.
  *
- * A pyramid stated without its encoding raises nothing: the schemes in common use pack a height into
- * the same three channels differently, so a map guessing between them would raise hills out of flat
- * ground and say nothing. The exaggeration falls back because it is a presentation choice with a
- * sensible default, where the other two are facts about the provider that only the model can know.
+ * A pyramid stated without a scheme a map can read raises nothing, whether the model states none or
+ * states a word: the schemes pack a height into the same three channels differently, so a map guessing
+ * between them would raise hills out of flat ground and say nothing, and a map handed a scheme it does
+ * not know adds no source at all and then throws on being told to drape the ground over one. The
+ * exaggeration falls back because it is a presentation choice with a sensible default, where the other
+ * two are facts about the provider that only the model can know.
  */
 function raisedGroundFrom(source: DeclaredBasemapSource): RaisedGround {
   const tileUrl = statedText(source.terrainTileUrl);
-  const encoding = statedText(source.terrainEncoding);
+  const stated = statedText(source.terrainEncoding);
+  const encoding = TERRAIN_ENCODINGS.find((readable) => readable === stated);
   const buildingSourceLayer = statedText(source.buildingSourceLayer);
 
   return {

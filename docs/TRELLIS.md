@@ -2328,7 +2328,7 @@ A model declares Things of archetype `BasemapSource`. The archetype name and the
 | `attribution` | yes | The credit the source's licence requires the map to display |
 | `maximumZoom` | no | Deepest zoom a raster pyramid has tiles for; defaults in the client |
 | `terrainTileUrl` | no | Address template of an elevation tile pyramid, which is what shapes the ground |
-| `terrainEncoding` | with the above | How those tiles pack a height into a pixel |
+| `terrainEncoding` | with the above | How those tiles pack a height into a pixel: `terrarium` or `mapbox` |
 | `terrainExaggeration` | no | How far to raise what they describe; defaults in the client |
 | `buildingSourceLayer` | no | The layer inside the source's own tiles holding building footprints |
 
@@ -2338,10 +2338,11 @@ The Thing's **name** is what the layer switch shows, so a model naming its sourc
 
 A source that declares the last four draws in three dimensions (#6912, with platform Feature #6911 declaring them): the ground is raised from the elevation tiles, the buildings the basemap already carries are raised out of it, and a control tilts the camera. A source declaring none of them draws exactly as every source does today, and no control is offered for a view the model cannot draw.
 
-- **The encoding is stated, never guessed.** The schemes in common use pack a height into the same three channels differently, so a pyramid read under the wrong one raises hills out of flat land and says nothing. A pyramid declared without its encoding raises nothing.
+- **The encoding is stated, never guessed.** The two schemes pack a height into the same three channels differently, so a pyramid read under the wrong one raises hills out of flat land and says nothing. A pyramid declared without an encoding raises nothing, and so does one declaring a word that is not `terrarium` or `mapbox` — a map handed a scheme it cannot read adds no elevation source at all, and then fails on being told to drape the ground over one.
 - **The exaggeration is a presentation choice.** Real slopes read as flat from the distance a map looks at them, and a landholding is looked at close enough that a little exaggeration is what makes the fall of the land legible.
-- **The map opens looking down**, because that is the view somebody picking a plot works in; tilting is theirs to ask for, and drawing a boundary keeps working in either view.
+- **The map opens looking down**, because that is the view somebody picking a plot works in; tilting is theirs to ask for, and drawing a boundary keeps working in either view. Switching to a source that raises nothing takes the camera back down with the control, so the view never outlasts what offers it.
 - **Which source inside the style holds the footprints is the style's business.** The model names the layer; the client takes the style's first vector source, so no provider is named here either.
+- **Both readers carry it.** A signed-in page reads the source out of the model with `discoverBasemapSources`; a public form is handed it by the intake service, which cannot expect the page to read a model it has no account for. Either reader carrying the four and not the other would draw land on one page and a diagram on the next, from the same model.
 - **Imagery is deliberately not part of this.** What it adds is shape, not photography: no global aerial imagery is free, keyless and licensed for production, and per-country imagery stays a model edit as §22 has always said.
 
 Everything it draws with is free of an account: the elevation set needs no key, as the shipped imagery does not, and a test over the template refuses any declared address that asks for one.

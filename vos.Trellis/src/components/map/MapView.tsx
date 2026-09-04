@@ -195,14 +195,16 @@ export function MapView({
           type: 'raster-dem',
           tiles: [ground.tileUrl],
           tileSize: 256,
-          // The scheme the tiles pack a height under. Named by the model, because the two in common
-          // use pack the same three channels differently and one read as the other is hills where the
-          // land is flat.
-          encoding: ground.encoding as 'terrarium' | 'mapbox',
+          encoding: ground.encoding,
           maxzoom: TERRAIN_DEEPEST_ZOOM,
         });
       }
-      if (ground) current.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: ground.exaggeration });
+      // Draping the ground is not a call that can be repeated: maplibre rebuilds the terrain and its
+      // render-to-texture cache each time, and fires the event whose own handler repaints the map —
+      // which settles into the idle this runs on, and never stops.
+      if (ground && !current.getTerrain()) {
+        current.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: ground.exaggeration });
+      }
       if (buildingSourceLayer && !current.getLayer(BUILDINGS_LAYER_ID)) {
         // Which source inside the style holds them is the style's business, not the model's: the model
         // names the layer, and the first vector source is the one a vector basemap keeps it in.
@@ -240,7 +242,12 @@ export function MapView({
 
   // Looking down is where a person picking a plot works, so that is where the map opens; the tilt is
   // theirs to ask for. Kept here rather than on the map so the control can say which view is on.
-  const [tilted, setTilted] = useState(false);
+  const canTilt = Boolean(ground || buildingSourceLayer);
+  const [tiltAsked, setTiltAsked] = useState(false);
+  // Asking is remembered, being tilted is not: switching to a source that raises nothing takes the
+  // control away with it, and a camera left over is a tilted flat map with nothing to ask for the way
+  // back. Switching to one that raises something again returns the view they asked for.
+  const tilted = tiltAsked && canTilt;
   useEffect(() => {
     map.current?.easeTo({ pitch: tilted ? TILTED_PITCH : 0, duration: TILT_MILLISECONDS });
   }, [tilted, mapGeneration]);
@@ -340,10 +347,10 @@ export function MapView({
       )}
       {/* Offered only where the model declares something to raise, so the control never promises a
           view this map cannot draw. */}
-      {(ground || buildingSourceLayer) && (
+      {canTilt && (
         <button
           type="button"
-          onClick={() => setTilted((was) => !was)}
+          onClick={() => setTiltAsked(() => !tilted)}
           className={`absolute top-2 left-2 ${CONTROL_CLASSES}`}
         >
           {tilted ? t('map.lookDown') : t('map.tilt')}

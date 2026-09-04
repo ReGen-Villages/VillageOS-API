@@ -4,14 +4,18 @@ import type { BasemapSource } from '../../types/basemap';
 
 interface RecordedMap {
   finishLoadingTheStyle: () => void;
+  settle: () => void;
+  fire: (event: string, payload?: unknown) => void;
   options: Record<string, unknown>;
-  handlers: Map<string, (event?: unknown) => void>;
+  handlers: Map<string, Set<(event?: unknown) => void>>;
   sources: Map<string, { setData: ReturnType<typeof vi.fn>; data: unknown }>;
   layers: string[];
   flyTo: ReturnType<typeof vi.fn>;
   easeTo: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
   setStyle: ReturnType<typeof vi.fn>;
+  setTerrain: ReturnType<typeof vi.fn>;
+  styleLoaded: boolean;
   terrain: unknown;
   addedLayers: { id: string; [key: string]: unknown }[];
 }
@@ -27,9 +31,14 @@ const mocks = vi.hoisted(() => {
   const mapInstances: unknown[] = [];
   const markerInstances: unknown[] = [];
   const markerPositions: [number, number][] = [];
+  /** The encodings the style specification names for an elevation pyramid. Anything else fails its
+   *  validation, which is what makes a source declaring one silently absent. */
+  const READABLE_ENCODINGS = new Set(['terrarium', 'mapbox', 'custom']);
   class MockMap {
     options: Record<string, unknown>;
-    handlers = new Map<string, (event?: unknown) => void>();
+    /** Every handler on an event, not the last one: the map carries two on `styledata`, and a mock
+     *  keeping one of them would let a change that evicted the other pass. */
+    handlers = new Map<string, Set<(event?: unknown) => void>>();
     sources = new Map<string, { setData: (data: unknown) => void; data: unknown }>();
     layers: string[] = [];
     flyTo = vi.fn();
@@ -57,13 +66,20 @@ const mocks = vi.hoisted(() => {
       if (!this.styleLoaded) throw new Error('Style is not done loading.');
     }
     on(event: string, handler: (event?: unknown) => void) {
-      this.handlers.set(event, handler);
+      const held = this.handlers.get(event) ?? new Set<(event?: unknown) => void>();
+      held.add(handler);
+      this.handlers.set(event, held);
     }
     off(event: string, handler: (event?: unknown) => void) {
-      if (this.handlers.get(event) === handler) this.handlers.delete(event);
+      const held = this.handlers.get(event);
+      held?.delete(handler);
+      if (held?.size === 0) this.handlers.delete(event);
     }
+    // maplibre validates a source against the style specification and, where it fails, fires an error
+    // and adds nothing rather than throwing. A caller that then names it is the one that throws.
     addSource(id: string, source: { data?: unknown; [key: string]: unknown }) {
       this.insistStyleIsLoaded();
+      if (source.type === 'raster-dem' && !READABLE_ENCODINGS.has(source.encoding as string)) return;
       const held = {
         ...source,
         data: source.data,
@@ -73,9 +89,15 @@ const mocks = vi.hoisted(() => {
       };
       this.sources.set(id, held);
     }
-    setTerrain(terrain: unknown) {
+    setTerrain = vi.fn((terrain: { source: string } | null) => {
       this.insistStyleIsLoaded();
+      if (terrain && !this.sources.has(terrain.source)) {
+        throw new Error(`cannot load terrain, because there exists no source with ID: ${terrain.source}`);
+      }
       this.terrain = terrain;
+    });
+    getTerrain() {
+      return this.terrain;
     }
     getLayer(id: string) {
       return this.layers.includes(id) ? { id } : undefined;
@@ -104,7 +126,15 @@ const mocks = vi.hoisted(() => {
     /** What maplibre does once the style is in: the map answers, and says so. */
     finishLoadingTheStyle() {
       this.styleLoaded = true;
-      this.handlers.get('styledata')?.();
+      this.fire('styledata');
+    }
+    /** The map saying it has drawn everything it holds. It says so again after every repaint, which
+     *  is what makes work done here cost on every pan and zoom rather than once. */
+    settle() {
+      this.fire('idle');
+    }
+    fire(event: string, payload?: unknown) {
+      for (const handler of [...(this.handlers.get(event) ?? [])]) handler(payload);
     }
   }
   class MockMarker {
@@ -237,7 +267,7 @@ describe('MapView', () => {
 
   it('reports unreachable tiles without taking the coordinates away', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
-    act(() => maps[0].handlers.get('error')!());
+    act(() => maps[0].fire('error'));
     expect(screen.getByRole('status').textContent).toBe('Map tiles could not be loaded.');
     expect(screen.getByText('41.38000, -70.64000')).toBeTruthy();
   });
@@ -294,7 +324,7 @@ describe('the boundary on the map', () => {
     maps[0].sources.clear();
     maps[0].layers.length = 0;
 
-    act(() => maps[0].handlers.get('styledata')!());
+    act(() => maps[0].fire('styledata'));
 
     expect(maps[0].sources.has('boundary')).toBe(true);
     expect(maps[0].layers).toContain('boundary-fill');
@@ -304,7 +334,7 @@ describe('the boundary on the map', () => {
     const onBoundaryChange = vi.fn();
     render(<MapView {...POSITION} sources={[STREETS]} boundary={[]} onBoundaryChange={onBoundaryChange} />);
 
-    act(() => maps[0].handlers.get('click')!({ lngLat: { lat: 41.384, lng: -70.636 } }));
+    act(() => maps[0].fire('click', { lngLat: { lat: 41.384, lng: -70.636 } }));
 
     expect(onBoundaryChange).toHaveBeenCalledWith([{ latitude: 41.384, longitude: -70.636 }]);
   });
@@ -464,5 +494,52 @@ describe('drawing the land in three dimensions', () => {
     expect(maps[0].layers).not.toContain('buildings-raised');
     expect(maps[0].terrain).toBeNull();
     expect(screen.queryByRole('button', { name: 'Tilt the view' })).toBeNull();
+  });
+
+  // What the live run showed: `styledata` fires while the style is still coming in, so the map answers
+  // that it holds nothing and the handler raises nothing. `idle` is the map saying it has drawn what it
+  // has, and is where the ground actually goes in.
+  it('raises the ground on the first idle where the style arrived before one', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    act(() => {
+      maps[0].fire('styledata');
+    });
+    expect(maps[0].sources.has('terrain')).toBe(false);
+
+    act(() => {
+      maps[0].styleLoaded = true;
+      maps[0].settle();
+    });
+
+    expect(maps[0].sources.has('terrain')).toBe(true);
+    expect(maps[0].terrain).toEqual({ source: 'terrain', exaggeration: 1.4 });
+  });
+
+  // Raising the ground fires maplibre's `terrain` event, whose own handler repaints the map — which
+  // settles into another idle. Raising again on each of those never stops, and every pass destroys and
+  // rebuilds the terrain and its render-to-texture cache.
+  it('raises the ground once, however often the map settles', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+    const raisedOnce = maps[0].setTerrain.mock.calls.length;
+
+    act(() => {
+      maps[0].settle();
+      maps[0].settle();
+    });
+
+    expect(maps[0].setTerrain.mock.calls.length).toBe(raisedOnce);
+  });
+
+  // The control goes when the reader switches to a source with nothing to raise, so a camera left over
+  // is a tilted flat map with no way back to looking down.
+  it('takes the camera back down when the reader switches to a source that raises nothing', () => {
+    render(<MapView {...POSITION} sources={[RAISED, AERIAL]} />);
+    theStyleArrives();
+    fireEvent.click(screen.getByRole('button', { name: 'Tilt the view' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aerial' }));
+
+    expect(maps[0].easeTo).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 0 }));
   });
 });
