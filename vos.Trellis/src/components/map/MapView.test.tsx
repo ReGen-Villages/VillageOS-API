@@ -459,24 +459,20 @@ describe('drawing the land in three dimensions', () => {
     });
   });
 
-  // The map opens looking down, because that is the view somebody picking a plot works in. Tilting is
-  // theirs to do, and the control below is what says so.
-  it('opens looking down and lets the reader tilt', () => {
+  // A map that raises land opens showing it, or the reader has been handed a diagram again. Looking
+  // straight down is theirs to ask for, and the control below is what says so.
+  it('opens tilted where the model declares ground to raise', () => {
     render(<MapView {...POSITION} sources={[RAISED]} />);
     theStyleArrives();
 
-    expect(maps[0].options.pitch ?? 0).toBe(0);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Tilt the view' }));
-
-    const tiltedTo = maps[0].easeTo.mock.calls.at(-1)![0] as { pitch: number };
-    expect(tiltedTo.pitch).toBeGreaterThan(0);
+    const openedAt = maps[0].easeTo.mock.calls.at(-1)![0] as { pitch: number };
+    expect(openedAt.pitch).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Look straight down' })).toBeInTheDocument();
   });
 
   it('takes the ground back down when the reader asks, leaving the map drawn', () => {
     render(<MapView {...POSITION} sources={[RAISED]} />);
     theStyleArrives();
-    fireEvent.click(screen.getByRole('button', { name: 'Tilt the view' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Look straight down' }));
 
@@ -484,8 +480,19 @@ describe('drawing the land in three dimensions', () => {
     expect(maps[0].sources.has('terrain')).toBe(true);
   });
 
-  // Nothing declared, nothing raised: no elevation source, no extrusion, and no control offering a
-  // view the model cannot draw.
+  it('puts the tilt back when the reader asks for it again', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+    fireEvent.click(screen.getByRole('button', { name: 'Look straight down' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tilt the view' }));
+
+    const tiltedTo = maps[0].easeTo.mock.calls.at(-1)![0] as { pitch: number };
+    expect(tiltedTo.pitch).toBeGreaterThan(0);
+  });
+
+  // Nothing declared, nothing raised: no elevation source, no extrusion, a map left flat and no control
+  // offering a view the model cannot draw.
   it('draws flat where the model declares no ground', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
     theStyleArrives();
@@ -493,7 +500,9 @@ describe('drawing the land in three dimensions', () => {
     expect(maps[0].sources.has('terrain')).toBe(false);
     expect(maps[0].layers).not.toContain('buildings-raised');
     expect(maps[0].terrain).toBeNull();
+    expect(maps[0].easeTo).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 0 }));
     expect(screen.queryByRole('button', { name: 'Tilt the view' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Look straight down' })).toBeNull();
   });
 
   // What the live run showed: `styledata` fires while the style is still coming in, so the map answers
@@ -536,7 +545,6 @@ describe('drawing the land in three dimensions', () => {
   it('takes the camera back down when the reader switches to a source that raises nothing', () => {
     render(<MapView {...POSITION} sources={[RAISED, AERIAL]} />);
     theStyleArrives();
-    fireEvent.click(screen.getByRole('button', { name: 'Tilt the view' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Aerial' }));
 

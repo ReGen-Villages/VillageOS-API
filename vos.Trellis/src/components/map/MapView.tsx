@@ -240,14 +240,16 @@ export function MapView({
     };
   }, [ground, buildingSourceLayer, hasSource, mapGeneration]);
 
-  // Looking down is where a person picking a plot works, so that is where the map opens; the tilt is
-  // theirs to ask for. Kept here rather than on the map so the control can say which view is on.
+  // A map that raises land opens showing it, because a reader who cannot see the fall of the land has
+  // been shown a diagram again; looking straight down is theirs to ask for, and is what somebody
+  // drawing a boundary corner by corner works in. Kept here rather than on the map so the control can
+  // say which view is on.
   const canTilt = Boolean(ground || buildingSourceLayer);
-  const [tiltAsked, setTiltAsked] = useState(false);
-  // Asking is remembered, being tilted is not: switching to a source that raises nothing takes the
-  // control away with it, and a camera left over is a tilted flat map with nothing to ask for the way
-  // back. Switching to one that raises something again returns the view they asked for.
-  const tilted = tiltAsked && canTilt;
+  const [tiltWanted, setTiltWanted] = useState(true);
+  // What the reader wants is remembered, being tilted is not: switching to a source that raises nothing
+  // takes the control away with it, and a camera left over is a tilted flat map with nothing to ask for
+  // the way back. Switching to one that raises something again returns the view they had.
+  const tilted = tiltWanted && canTilt;
   useEffect(() => {
     map.current?.easeTo({ pitch: tilted ? TILTED_PITCH : 0, duration: TILT_MILLISECONDS });
   }, [tilted, mapGeneration]);
@@ -350,7 +352,7 @@ export function MapView({
       {canTilt && (
         <button
           type="button"
-          onClick={() => setTiltAsked(() => !tilted)}
+          onClick={() => setTiltWanted(() => !tilted)}
           className={`absolute top-2 left-2 ${CONTROL_CLASSES}`}
         >
           {tilted ? t('map.lookDown') : t('map.tilt')}
