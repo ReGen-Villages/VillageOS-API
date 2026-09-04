@@ -328,6 +328,8 @@ export const fr: PartialResources = {
     coordinates: "{{latitude}}, {{longitude}}",
     noSource: "Ce modèle ne définit aucune source de fond de carte.",
     tilesUnreachable: "Les tuiles de carte n'ont pas pu être chargées.",
+    tilt: "Incliner la vue",
+    lookDown: "Regarder à la verticale",
   },
   temporal: {
     title: "Requêtes temporelles",

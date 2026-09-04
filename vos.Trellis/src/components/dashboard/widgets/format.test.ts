@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { TableColumn } from '../../../types/dashboard';
 import type { Row } from '../../../api/dashboardApi';
-import { columnMaxima } from './format';
+import { columnMaxima, deltaTone } from './format';
 
 describe('columnMaxima', () => {
   const ageColumns: TableColumn[] = [
@@ -29,5 +29,24 @@ describe('columnMaxima', () => {
     const rows: Row[] = Array.from({ length: 200_000 }, (_, i) => ({ age: i }));
 
     expect(columnMaxima(rows, ageColumns)).toEqual({ age: 199_999 });
+  });
+});
+
+describe('deltaTone', () => {
+  it('colours a rising figure by which way its widget calls good', () => {
+    expect(deltaTone(4, 'up-good')).toBe('up');
+    expect(deltaTone(4, 'down-good')).toBe('down');
+  });
+
+  // A measured area against the one somebody stated is worth noticing whichever way it went, so a
+  // widget saying neither way is good gets the neutral tone rather than a verdict on the direction.
+  it('leaves a discrepancy uncoloured, whichever way it went', () => {
+    expect(deltaTone(60, 'neither-good')).toBe('flat');
+    expect(deltaTone(-60, 'neither-good')).toBe('flat');
+  });
+
+  it('reads no figure, and no change, as flat', () => {
+    expect(deltaTone(null)).toBe('flat');
+    expect(deltaTone(0, 'neither-good')).toBe('flat');
   });
 });

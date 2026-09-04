@@ -326,6 +326,8 @@ export const en = {
     coordinates: "{{latitude}}, {{longitude}}",
     noSource: "This model defines no basemap source.",
     tilesUnreachable: "Map tiles could not be loaded.",
+    tilt: "Tilt the view",
+    lookDown: "Look straight down",
   },
   temporal: {
     title: "Temporal Queries",

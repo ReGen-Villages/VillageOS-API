@@ -328,6 +328,8 @@ export const de: PartialResources = {
     coordinates: "{{latitude}}, {{longitude}}",
     noSource: "Dieses Modell definiert keine Basiskartenquelle.",
     tilesUnreachable: "Kartenkacheln konnten nicht geladen werden.",
+    tilt: "Ansicht neigen",
+    lookDown: "Senkrecht nach unten sehen",
   },
   temporal: {
     title: "Zeitliche Abfragen",

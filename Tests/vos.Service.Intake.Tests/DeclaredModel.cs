@@ -66,7 +66,11 @@ public sealed class DeclaredModel
             .Stating(
                 WillowBend.VectorBasemapName,
                 ("attribution", WillowBend.BasemapAttribution),
-                ("styleUrl", WillowBend.VectorBasemapStyleUrl))
+                ("styleUrl", WillowBend.VectorBasemapStyleUrl),
+                (FormOptionsReader.TerrainTileUrlProperty, WillowBend.TerrainTileUrl),
+                (FormOptionsReader.TerrainEncodingProperty, WillowBend.TerrainEncoding),
+                (FormOptionsReader.TerrainExaggerationProperty, WillowBend.TerrainExaggeration),
+                (FormOptionsReader.BuildingSourceLayerProperty, WillowBend.BuildingSourceLayer))
             .Relate(WillowBend.VectorBasemapName, "is", FormOptionsReader.BasemapSourceArchetypeName);
 
         return model;

@@ -34,6 +34,20 @@ const CONTROL_CLASSES = 'rounded bg-white/90 px-2 py-1 text-xs text-zinc-900 sha
 const BOUNDARY_SOURCE_ID = 'boundary';
 const BOUNDARY_COLOUR = '#059669';
 
+const TERRAIN_SOURCE_ID = 'terrain';
+const BUILDINGS_LAYER_ID = 'buildings-raised';
+
+/** Elevation pyramids stop well short of the zooms a parcel is looked at, and the map keeps shaping
+ *  the ground from the deepest tiles it has rather than asking for addresses that answer nothing. */
+const TERRAIN_DEEPEST_ZOOM = 14;
+
+/** Grey enough to read as massing rather than as a model of anybody's house. */
+const BUILDING_COLOUR = '#c8ccd4';
+
+/** Far enough over to see the fall of the land, short of the angle where the horizon takes the view. */
+const TILTED_PITCH = 55;
+const TILT_MILLISECONDS = 700;
+
 interface MapViewProps {
   latitude: number;
   longitude: number;
@@ -165,6 +179,81 @@ export function MapView({
     };
   }, [boundary, hasSource]);
 
+  // The ground itself: raised from the elevation tiles the model declares, with the buildings the
+  // basemap already carries raised out of it. Drawn on styledata for the same reason the boundary is —
+  // a style swap wipes everything the style did not bring, this included.
+  const ground = selected?.terrain;
+  const buildingSourceLayer = selected?.buildingSourceLayer;
+  useEffect(() => {
+    const current = map.current;
+    if (!current || (!ground && !buildingSourceLayer)) return;
+
+    const raise = () => {
+      if (!current.isStyleLoaded()) return;
+      if (ground && !current.getSource(TERRAIN_SOURCE_ID)) {
+        current.addSource(TERRAIN_SOURCE_ID, {
+          type: 'raster-dem',
+          tiles: [ground.tileUrl],
+          tileSize: 256,
+          encoding: ground.encoding,
+          maxzoom: TERRAIN_DEEPEST_ZOOM,
+        });
+      }
+      // Draping the ground is not a call that can be repeated: maplibre rebuilds the terrain and its
+      // render-to-texture cache each time, and fires the event whose own handler repaints the map —
+      // which settles into the idle this runs on, and never stops.
+      if (ground && !current.getTerrain()) {
+        current.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: ground.exaggeration });
+      }
+      if (buildingSourceLayer && !current.getLayer(BUILDINGS_LAYER_ID)) {
+        // Which source inside the style holds them is the style's business, not the model's: the model
+        // names the layer, and the first vector source is the one a vector basemap keeps it in.
+        const vectorSource = Object.entries(current.getStyle()?.sources ?? {})
+          .find(([, source]) => (source as { type?: string }).type === 'vector')?.[0];
+        if (vectorSource) {
+          current.addLayer({
+            id: BUILDINGS_LAYER_ID,
+            type: 'fill-extrusion',
+            source: vectorSource,
+            'source-layer': buildingSourceLayer,
+            paint: {
+              'fill-extrusion-color': BUILDING_COLOUR,
+              // What the footprint says it is, or a storey's worth where it says nothing — massing to
+              // read the place by, never a claim about anybody's house.
+              'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 3],
+              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+              'fill-extrusion-opacity': 0.85,
+            },
+          });
+        }
+      }
+    };
+    raise();
+    // `styledata` fires while the style is still coming in, so a handler on it alone finds the style
+    // unloaded every time and raises nothing. `idle` is the map saying it has drawn everything it
+    // has, which is the first moment the ground can be added to.
+    current.on('styledata', raise);
+    current.on('idle', raise);
+    return () => {
+      current.off('styledata', raise);
+      current.off('idle', raise);
+    };
+  }, [ground, buildingSourceLayer, hasSource, mapGeneration]);
+
+  // A map that raises land opens showing it, because a reader who cannot see the fall of the land has
+  // been shown a diagram again; looking straight down is theirs to ask for, and is what somebody
+  // drawing a boundary corner by corner works in. Kept here rather than on the map so the control can
+  // say which view is on.
+  const canTilt = Boolean(ground || buildingSourceLayer);
+  const [tiltWanted, setTiltWanted] = useState(true);
+  // What the reader wants is remembered, being tilted is not: switching to a source that raises nothing
+  // takes the control away with it, and a camera left over is a tilted flat map with nothing to ask for
+  // the way back. Switching to one that raises something again returns the view they had.
+  const tilted = tiltWanted && canTilt;
+  useEffect(() => {
+    map.current?.easeTo({ pitch: tilted ? TILTED_PITCH : 0, duration: TILT_MILLISECONDS });
+  }, [tilted, mapGeneration]);
+
   useEffect(() => {
     const current = map.current;
     if (!current || !onBoundaryChange || !boundary) return;
@@ -256,6 +345,17 @@ export function MapView({
           className={`absolute bottom-2 right-2 ${CONTROL_CLASSES}`}
         >
           {t('map.recentre')}
+        </button>
+      )}
+      {/* Offered only where the model declares something to raise, so the control never promises a
+          view this map cannot draw. */}
+      {canTilt && (
+        <button
+          type="button"
+          onClick={() => setTiltWanted(() => !tilted)}
+          className={`absolute top-2 left-2 ${CONTROL_CLASSES}`}
+        >
+          {tilted ? t('map.lookDown') : t('map.tilt')}
         </button>
       )}
       {showMarker && (

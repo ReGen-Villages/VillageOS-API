@@ -63,6 +63,31 @@ describe('discoverBasemapSources', () => {
     expect(source).toMatchObject({ kind: 'raster', maximumZoom: 17 });
   });
 
+  // A signed-in page reads the model itself rather than being handed sources by the intake service, so
+  // what the model says about raising the ground has to be read here too. Read in only one of the two
+  // places, the same model draws land on the public page and a diagram on the wizard beside it.
+  it('reads what a source says about raising the ground', () => {
+    const [source] = discoverBasemapSources(
+      indexOf([
+        thing('src-1', 'Streets', {
+          styleUrl: 'https://tiles.example.org/styles/plain',
+          attribution: 'Example credit',
+          terrainTileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png',
+          terrainEncoding: 'terrarium',
+          terrainExaggeration: 2,
+          buildingSourceLayer: 'building',
+        }),
+      ]),
+    );
+
+    expect(source.terrain).toEqual({
+      tileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png',
+      encoding: 'terrarium',
+      exaggeration: 2,
+    });
+    expect(source.buildingSourceLayer).toBe('building');
+  });
+
   it('falls back to a default depth when the model does not state one', () => {
     const [source] = discoverBasemapSources(
       indexOf([

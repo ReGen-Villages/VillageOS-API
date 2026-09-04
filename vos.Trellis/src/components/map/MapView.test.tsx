@@ -4,13 +4,20 @@ import type { BasemapSource } from '../../types/basemap';
 
 interface RecordedMap {
   finishLoadingTheStyle: () => void;
+  settle: () => void;
+  fire: (event: string, payload?: unknown) => void;
   options: Record<string, unknown>;
-  handlers: Map<string, (event?: unknown) => void>;
+  handlers: Map<string, Set<(event?: unknown) => void>>;
   sources: Map<string, { setData: ReturnType<typeof vi.fn>; data: unknown }>;
   layers: string[];
   flyTo: ReturnType<typeof vi.fn>;
+  easeTo: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
   setStyle: ReturnType<typeof vi.fn>;
+  setTerrain: ReturnType<typeof vi.fn>;
+  styleLoaded: boolean;
+  terrain: unknown;
+  addedLayers: { id: string; [key: string]: unknown }[];
 }
 
 interface RecordedMarker {
@@ -24,14 +31,25 @@ const mocks = vi.hoisted(() => {
   const mapInstances: unknown[] = [];
   const markerInstances: unknown[] = [];
   const markerPositions: [number, number][] = [];
+  /** The encodings the style specification names for an elevation pyramid. Anything else fails its
+   *  validation, which is what makes a source declaring one silently absent. */
+  const READABLE_ENCODINGS = new Set(['terrarium', 'mapbox', 'custom']);
   class MockMap {
     options: Record<string, unknown>;
-    handlers = new Map<string, (event?: unknown) => void>();
+    /** Every handler on an event, not the last one: the map carries two on `styledata`, and a mock
+     *  keeping one of them would let a change that evicted the other pass. */
+    handlers = new Map<string, Set<(event?: unknown) => void>>();
     sources = new Map<string, { setData: (data: unknown) => void; data: unknown }>();
     layers: string[] = [];
     flyTo = vi.fn();
+    easeTo = vi.fn();
     remove = vi.fn();
     setStyle = vi.fn();
+    /** What the map is draped over, which is nothing until something raises it. */
+    terrain: unknown = null;
+    /** Every layer as it was added, for a test asking how one was built rather than whether it is
+     *  there. */
+    addedLayers: { id: string; [key: string]: unknown }[] = [];
     /** A map begins with a style still loading, the way a real one does. */
     styleLoaded = false;
     constructor(options: Record<string, unknown>) {
@@ -48,20 +66,46 @@ const mocks = vi.hoisted(() => {
       if (!this.styleLoaded) throw new Error('Style is not done loading.');
     }
     on(event: string, handler: (event?: unknown) => void) {
-      this.handlers.set(event, handler);
+      const held = this.handlers.get(event) ?? new Set<(event?: unknown) => void>();
+      held.add(handler);
+      this.handlers.set(event, held);
     }
     off(event: string, handler: (event?: unknown) => void) {
-      if (this.handlers.get(event) === handler) this.handlers.delete(event);
+      const held = this.handlers.get(event);
+      held?.delete(handler);
+      if (held?.size === 0) this.handlers.delete(event);
     }
-    addSource(id: string, source: { data: unknown }) {
+    // maplibre validates a source against the style specification and, where it fails, fires an error
+    // and adds nothing rather than throwing. A caller that then names it is the one that throws.
+    addSource(id: string, source: { data?: unknown; [key: string]: unknown }) {
       this.insistStyleIsLoaded();
+      if (source.type === 'raster-dem' && !READABLE_ENCODINGS.has(source.encoding as string)) return;
       const held = {
+        ...source,
         data: source.data,
         setData: vi.fn((data: unknown) => {
           held.data = data;
         }),
       };
       this.sources.set(id, held);
+    }
+    setTerrain = vi.fn((terrain: { source: string } | null) => {
+      this.insistStyleIsLoaded();
+      if (terrain && !this.sources.has(terrain.source)) {
+        throw new Error(`cannot load terrain, because there exists no source with ID: ${terrain.source}`);
+      }
+      this.terrain = terrain;
+    });
+    getTerrain() {
+      return this.terrain;
+    }
+    getLayer(id: string) {
+      return this.layers.includes(id) ? { id } : undefined;
+    }
+    /** A vector style names its own sources, which is how a caller finds the one holding the
+     *  footprints without knowing anything about the provider. */
+    getStyle() {
+      return { sources: { openmaptiles: { type: 'vector' } }, layers: [] };
     }
     getSource(id: string) {
       return this.sources.get(id);
@@ -70,9 +114,10 @@ const mocks = vi.hoisted(() => {
       this.insistStyleIsLoaded();
       this.sources.delete(id);
     }
-    addLayer(layer: { id: string }) {
+    addLayer(layer: { id: string; [key: string]: unknown }) {
       this.insistStyleIsLoaded();
       this.layers.push(layer.id);
+      this.addedLayers.push(layer);
     }
     removeLayer(id: string) {
       this.insistStyleIsLoaded();
@@ -81,7 +126,15 @@ const mocks = vi.hoisted(() => {
     /** What maplibre does once the style is in: the map answers, and says so. */
     finishLoadingTheStyle() {
       this.styleLoaded = true;
-      this.handlers.get('styledata')?.();
+      this.fire('styledata');
+    }
+    /** The map saying it has drawn everything it holds. It says so again after every repaint, which
+     *  is what makes work done here cost on every pan and zoom rather than once. */
+    settle() {
+      this.fire('idle');
+    }
+    fire(event: string, payload?: unknown) {
+      for (const handler of [...(this.handlers.get(event) ?? [])]) handler(payload);
     }
   }
   class MockMarker {
@@ -214,7 +267,7 @@ describe('MapView', () => {
 
   it('reports unreachable tiles without taking the coordinates away', () => {
     render(<MapView {...POSITION} sources={[STREETS]} />);
-    act(() => maps[0].handlers.get('error')!());
+    act(() => maps[0].fire('error'));
     expect(screen.getByRole('status').textContent).toBe('Map tiles could not be loaded.');
     expect(screen.getByText('41.38000, -70.64000')).toBeTruthy();
   });
@@ -271,7 +324,7 @@ describe('the boundary on the map', () => {
     maps[0].sources.clear();
     maps[0].layers.length = 0;
 
-    act(() => maps[0].handlers.get('styledata')!());
+    act(() => maps[0].fire('styledata'));
 
     expect(maps[0].sources.has('boundary')).toBe(true);
     expect(maps[0].layers).toContain('boundary-fill');
@@ -281,7 +334,7 @@ describe('the boundary on the map', () => {
     const onBoundaryChange = vi.fn();
     render(<MapView {...POSITION} sources={[STREETS]} boundary={[]} onBoundaryChange={onBoundaryChange} />);
 
-    act(() => maps[0].handlers.get('click')!({ lngLat: { lat: 41.384, lng: -70.636 } }));
+    act(() => maps[0].fire('click', { lngLat: { lat: 41.384, lng: -70.636 } }));
 
     expect(onBoundaryChange).toHaveBeenCalledWith([{ latitude: 41.384, longitude: -70.636 }]);
   });
@@ -364,5 +417,137 @@ describe('the boundary on the map', () => {
 
     expect(maps).toHaveLength(1);
     expect(maps[0].setStyle).toHaveBeenCalledWith('https://tiles.example.org/streets');
+  });
+});
+
+// Feature #6912 — land rather than a diagram, from what the model declares and nothing else. A source
+// saying nothing about the ground draws exactly as every source does today, which is what keeps this
+// from being a change every deployment has to opt out of.
+describe('drawing the land in three dimensions', () => {
+  const RAISED: BasemapSource = {
+    ...source('Streets', 'https://tiles.example.org/streets'),
+    terrain: {
+      tileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png',
+      encoding: 'terrarium',
+      exaggeration: 1.4,
+    },
+    buildingSourceLayer: 'building',
+  };
+
+  it('raises the ground from the pyramid the model declares, once the style is in', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    expect(maps[0].terrain).toBeNull();
+
+    theStyleArrives();
+
+    expect(maps[0].sources.get('terrain')).toMatchObject({
+      type: 'raster-dem',
+      tiles: ['https://elevation.example.org/{z}/{x}/{y}.png'],
+      encoding: 'terrarium',
+    });
+    expect(maps[0].terrain).toEqual({ source: 'terrain', exaggeration: 1.4 });
+  });
+
+  it('raises the buildings out of the layer the model names', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+
+    expect(maps[0].layers).toContain('buildings-raised');
+    expect(maps[0].addedLayers.find((layer) => layer.id === 'buildings-raised')).toMatchObject({
+      type: 'fill-extrusion',
+      'source-layer': 'building',
+    });
+  });
+
+  // A map that raises land opens showing it, or the reader has been handed a diagram again. Looking
+  // straight down is theirs to ask for, and the control below is what says so.
+  it('opens tilted where the model declares ground to raise', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+
+    const openedAt = maps[0].easeTo.mock.calls.at(-1)![0] as { pitch: number };
+    expect(openedAt.pitch).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Look straight down' })).toBeInTheDocument();
+  });
+
+  it('takes the ground back down when the reader asks, leaving the map drawn', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Look straight down' }));
+
+    expect(maps[0].easeTo).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 0 }));
+    expect(maps[0].sources.has('terrain')).toBe(true);
+  });
+
+  it('puts the tilt back when the reader asks for it again', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+    fireEvent.click(screen.getByRole('button', { name: 'Look straight down' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tilt the view' }));
+
+    const tiltedTo = maps[0].easeTo.mock.calls.at(-1)![0] as { pitch: number };
+    expect(tiltedTo.pitch).toBeGreaterThan(0);
+  });
+
+  // Nothing declared, nothing raised: no elevation source, no extrusion, a map left flat and no control
+  // offering a view the model cannot draw.
+  it('draws flat where the model declares no ground', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} />);
+    theStyleArrives();
+
+    expect(maps[0].sources.has('terrain')).toBe(false);
+    expect(maps[0].layers).not.toContain('buildings-raised');
+    expect(maps[0].terrain).toBeNull();
+    expect(maps[0].easeTo).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 0 }));
+    expect(screen.queryByRole('button', { name: 'Tilt the view' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Look straight down' })).toBeNull();
+  });
+
+  // What the live run showed: `styledata` fires while the style is still coming in, so the map answers
+  // that it holds nothing and the handler raises nothing. `idle` is the map saying it has drawn what it
+  // has, and is where the ground actually goes in.
+  it('raises the ground on the first idle where the style arrived before one', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    act(() => {
+      maps[0].fire('styledata');
+    });
+    expect(maps[0].sources.has('terrain')).toBe(false);
+
+    act(() => {
+      maps[0].styleLoaded = true;
+      maps[0].settle();
+    });
+
+    expect(maps[0].sources.has('terrain')).toBe(true);
+    expect(maps[0].terrain).toEqual({ source: 'terrain', exaggeration: 1.4 });
+  });
+
+  // Raising the ground fires maplibre's `terrain` event, whose own handler repaints the map — which
+  // settles into another idle. Raising again on each of those never stops, and every pass destroys and
+  // rebuilds the terrain and its render-to-texture cache.
+  it('raises the ground once, however often the map settles', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+    const raisedOnce = maps[0].setTerrain.mock.calls.length;
+
+    act(() => {
+      maps[0].settle();
+      maps[0].settle();
+    });
+
+    expect(maps[0].setTerrain.mock.calls.length).toBe(raisedOnce);
+  });
+
+  // The control goes when the reader switches to a source with nothing to raise, so a camera left over
+  // is a tilted flat map with no way back to looking down.
+  it('takes the camera back down when the reader switches to a source that raises nothing', () => {
+    render(<MapView {...POSITION} sources={[RAISED, AERIAL]} />);
+    theStyleArrives();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aerial' }));
+
+    expect(maps[0].easeTo).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 0 }));
   });
 });

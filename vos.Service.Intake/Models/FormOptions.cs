@@ -17,6 +17,12 @@ public sealed record DeclaredShare(string Category, double SharePct);
 /// <summary>A basemap source as the model states it. Which of the two addresses is filled in is what
 /// decides how a map loads it, and the credit is what its licence obliges the page to display — all three
 /// are the model's answer, and none is judged here. The client that draws the map is the one place that
-/// says what makes a source usable, so a form and the planner's page cannot disagree about it.</summary>
+/// says what makes a source usable, so a form and the planner's page cannot disagree about it.
+/// <para>The last four are what a map needs to draw land rather than a diagram: the elevation tiles that
+/// shape the ground, how they encode a height, how far to exaggerate it, and the layer inside the
+/// source's own tiles that holds building footprints. Absent where the model declares none, which draws
+/// flat — and passed through unjudged, like the rest.</para></summary>
 public sealed record DeclaredBasemapSource(
-    Guid Id, string Name, string? Attribution, string? StyleUrl, string? TileUrl, double? MaximumZoom);
+    Guid Id, string Name, string? Attribution, string? StyleUrl, string? TileUrl, double? MaximumZoom,
+    string? TerrainTileUrl, string? TerrainEncoding, double? TerrainExaggeration,
+    string? BuildingSourceLayer);
