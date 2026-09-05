@@ -63,3 +63,24 @@ describe('modelApi.promote', () => {
     );
   });
 });
+
+describe('modelApi.getAtTime', () => {
+  it('keeps the overrides each Thing held at the instant beside its own properties', async () => {
+    const reservoir = {
+      SourceId: 'reservoir-id',
+      SourceName: 'Reservoir',
+      Properties: { capacity: 100 },
+      Inherited: {},
+    };
+    vi.mocked(apiClient.get).mockResolvedValue({
+      Timestamp: '2026-09-05T03:31:10Z',
+      Things: [{ Id: 'pond-id', Name: 'Reservoir-1', Properties: {}, InheritedOverrides: { 'reservoir-id': reservoir } }],
+      Relationships: [],
+    });
+
+    const snapshot = await modelApi.getAtTime('2026-09-05T03:31:10Z');
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/model?timestamp=2026-09-05T03%3A31%3A10Z');
+    expect(snapshot.Things[0].InheritedOverrides['reservoir-id']).toEqual(reservoir);
+  });
+});

@@ -9,6 +9,7 @@ import type { ModelMutations, ThingMutations, RelationshipMutations, PropertyVer
 import { stateApi } from '../api/stateApi';
 import { formatDateTime, formatPropertyValue } from '../utils/formatters';
 import { relationshipLabel } from '../utils/relationshipLabel';
+import { valuesAtAnInstant } from '../utils/valuesAtAnInstant';
 import { useModelStore } from '../stores/modelStore';
 import { useSubscription } from '../hooks/useSse';
 import { WHOLE_MODEL } from '../types/subscription';
@@ -402,24 +403,27 @@ function SnapshotPanel() {
             {t('temporal.thingsCount', { count: snapshot.Things.length })}, {t('temporal.relationshipsCount', { count: snapshot.Relationships.length })}
           </div>
           <div className="space-y-3">
-            {snapshot.Things.map((thing) => (
-              <div key={thing.Id} className="border-l-2 border-emerald-500 pl-3">
-                <h4 className="text-sm font-medium">{thing.Name}</h4>
-                {Object.keys(thing.Properties).length > 0 ? (
-                  <div className="mt-1 space-y-0.5">
-                    {Object.entries(thing.Properties).map(([k, v]) => (
-                      <div key={k} className="text-xs text-zinc-400">
-                        <span className="text-amber-400">{k}</span>
-                        {': '}
-                        <span className="text-zinc-300">{formatPropertyValue(v)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-zinc-600 mt-1">{t('temporal.noProperties')}</p>
-                )}
-              </div>
-            ))}
+            {snapshot.Things.map((thing) => {
+              const values = Object.entries(valuesAtAnInstant(thing));
+              return (
+                <div key={thing.Id} className="border-l-2 border-emerald-500 pl-3">
+                  <h4 className="text-sm font-medium">{thing.Name}</h4>
+                  {values.length > 0 ? (
+                    <div className="mt-1 space-y-0.5">
+                      {values.map(([k, v]) => (
+                        <div key={k} className="text-xs text-zinc-400">
+                          <span className="text-amber-400">{k}</span>
+                          {': '}
+                          <span className="text-zinc-300">{formatPropertyValue(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-zinc-600 mt-1">{t('temporal.noProperties')}</p>
+                  )}
+                </div>
+              );
+            })}
             {snapshot.Things.length === 0 && (
               <p className="text-sm text-zinc-500">{t('temporal.noThingsAtTimestamp')}</p>
             )}

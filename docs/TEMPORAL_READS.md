@@ -143,11 +143,32 @@ answers about the graph as it stood rather than the graph as it is now:
 | Instant asked for | Answer |
 |---|---|
 | Before the object joined the model | Left out. `GET /api/things/{id}?timestamp=` answers `404` |
-| While it stood | Included, with the property values that stood then |
+| While it stood | Included, with the values that stood then — see below for where they are |
 | At or after it was retracted | Left out — the same answer as before it arrived |
 
 The instant is taken when the object **joins the model**, not when a client composed it, so composing
 a relationship and inserting it later dates it from the insertion.
+
+## What a Thing at an instant carries
+
+A Thing or a relationship read at an instant carries values in the two places the live read carries
+them, each as of the instant:
+
+| Member | Holds |
+|---|---|
+| `Properties` | Its own properties, each at the value in force then |
+| `InheritedOverrides` | The values it holds for names its sources declare, keyed by source id and nested as the live read nests them, each at the value in force then |
+
+The second is where a value written onto an archetype-declared name lives, so it is where every seeded
+value and every value a service writes through the fragment upsert is answered from. A reader that
+resolves a live Thing by reading `Properties`, then its override sets, then up the `is` chain reads an
+instant the same way: the archetypes' defaults at the instant are the own properties of the archetype
+Things in the same snapshot, and the `is` edges live then are in the same answer.
+
+Values in both members are bare, not the `{ typeInfo, value }` envelope the live read uses. A value
+that cannot be answered for the instant is left out, under the retention rule above, and so is an
+override that did not yet exist then; an override set with nothing left to say is left out whole, and
+the source's own value in the same snapshot is what the object held.
 
 ## A restart does not move the history
 
