@@ -416,6 +416,7 @@ export const ar: PartialResources & ArabicPlurals = {
     tilesUnreachable: "تعذّر تحميل مربّعات الخريطة.",
     tilt: "أمِل المشهد",
     lookDown: "انظر من الأعلى مباشرة",
+    northUp: "الشمال للأعلى",
   },
   temporal: {
     title: "الاستعلامات الزمنية",

@@ -6,13 +6,16 @@ import {
   config as maplibreConfiguration,
   type GeoJSONSource,
   type MapMouseEvent,
+  type ProjectionSpecification,
+  type SkySpecification,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import { Navigation2 } from 'lucide-react';
 import type { Feature } from 'geojson';
 import { styleForSource } from '../../utils/basemapSources';
 import { useMapStore, resolveSelectedSource } from '../../stores/mapStore';
-import type { BasemapSource } from '../../types/basemap';
+import type { BasemapSource, RaisedGround } from '../../types/basemap';
 import type { BoundaryPoint } from '../../utils/parcelGeometry';
 
 // Naming the worker is what makes the bundler emit it: maplibre's own address for it is computed at
@@ -47,6 +50,25 @@ const BUILDING_COLOUR = '#c8ccd4';
 /** Far enough over to see the fall of the land, short of the angle where the horizon takes the view. */
 const TILTED_PITCH = 55;
 const TILT_MILLISECONDS = 700;
+
+/** How far over the camera may lean where there is land to look across: far enough to bring the
+ *  horizon, and the sky above it, into view. The library's own ceiling stops short of the horizon. */
+const HORIZON_PITCH = 80;
+
+/** A globe from far out and the flat plane every parcel is drawn on from close in — the library's own
+ *  blend between the two, by zoom. */
+const GLOBE: ProjectionSpecification = { type: 'globe' };
+
+/** Daylight over the land: a sky, a paler band at the horizon, haze on the far ground, and from far
+ *  enough out the atmosphere round the globe. */
+const SKY: SkySpecification = {
+  'sky-color': '#a7cbee',
+  'horizon-color': '#e7eff7',
+  'fog-color': '#e7eff7',
+  'sky-horizon-blend': 0.6,
+  'horizon-fog-blend': 0.6,
+  'fog-ground-blend': 0.9,
+};
 
 interface MapViewProps {
   latitude: number;
@@ -179,64 +201,31 @@ export function MapView({
     };
   }, [boundary, hasSource]);
 
-  // The ground itself: raised from the elevation tiles the model declares, with the buildings the
-  // basemap already carries raised out of it. Drawn on styledata for the same reason the boundary is —
-  // a style swap wipes everything the style did not bring, this included.
+  // The land itself: on a globe, under a sky, and where the model declares it, raised from the elevation
+  // tiles with the buildings the basemap already carries raised out of it. Drawn on styledata for the
+  // same reason the boundary is — a style swap wipes everything the style did not bring, all of this
+  // included.
   const ground = selected?.terrain;
   const buildingSourceLayer = selected?.buildingSourceLayer;
   useEffect(() => {
     const current = map.current;
-    if (!current || (!ground && !buildingSourceLayer)) return;
+    if (!current) return;
 
-    const raise = () => {
+    const dress = () => {
       if (!current.isStyleLoaded()) return;
-      if (ground && !current.getSource(TERRAIN_SOURCE_ID)) {
-        current.addSource(TERRAIN_SOURCE_ID, {
-          type: 'raster-dem',
-          tiles: [ground.tileUrl],
-          tileSize: 256,
-          encoding: ground.encoding,
-          maxzoom: TERRAIN_DEEPEST_ZOOM,
-        });
-      }
-      // Draping the ground is not a call that can be repeated: maplibre rebuilds the terrain and its
-      // render-to-texture cache each time, and fires the event whose own handler repaints the map —
-      // which settles into the idle this runs on, and never stops.
-      if (ground && !current.getTerrain()) {
-        current.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: ground.exaggeration });
-      }
-      if (buildingSourceLayer && !current.getLayer(BUILDINGS_LAYER_ID)) {
-        // Which source inside the style holds them is the style's business, not the model's: the model
-        // names the layer, and the first vector source is the one a vector basemap keeps it in.
-        const vectorSource = Object.entries(current.getStyle()?.sources ?? {})
-          .find(([, source]) => (source as { type?: string }).type === 'vector')?.[0];
-        if (vectorSource) {
-          current.addLayer({
-            id: BUILDINGS_LAYER_ID,
-            type: 'fill-extrusion',
-            source: vectorSource,
-            'source-layer': buildingSourceLayer,
-            paint: {
-              'fill-extrusion-color': BUILDING_COLOUR,
-              // What the footprint says it is, or a storey's worth where it says nothing — massing to
-              // read the place by, never a claim about anybody's house.
-              'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 3],
-              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
-              'fill-extrusion-opacity': 0.85,
-            },
-          });
-        }
-      }
+      drawOnAGlobeUnderASky(current);
+      if (ground) raiseTheGround(current, ground);
+      if (buildingSourceLayer) raiseTheBuildings(current, buildingSourceLayer);
     };
-    raise();
+    dress();
     // `styledata` fires while the style is still coming in, so a handler on it alone finds the style
-    // unloaded every time and raises nothing. `idle` is the map saying it has drawn everything it
-    // has, which is the first moment the ground can be added to.
-    current.on('styledata', raise);
-    current.on('idle', raise);
+    // unloaded every time and draws nothing. `idle` is the map saying it has drawn everything it
+    // has, which is the first moment the style can be added to.
+    current.on('styledata', dress);
+    current.on('idle', dress);
     return () => {
-      current.off('styledata', raise);
-      current.off('idle', raise);
+      current.off('styledata', dress);
+      current.off('idle', dress);
     };
   }, [ground, buildingSourceLayer, hasSource, mapGeneration]);
 
@@ -251,8 +240,27 @@ export function MapView({
   // the way back. Switching to one that raises something again returns the view they had.
   const tilted = tiltWanted && canTilt;
   useEffect(() => {
-    map.current?.easeTo({ pitch: tilted ? TILTED_PITCH : 0, duration: TILT_MILLISECONDS });
-  }, [tilted, mapGeneration]);
+    const current = map.current;
+    if (!current) return;
+    // Where there is land to look across the camera may lean to the horizon; a flat map keeps the
+    // library's own ceiling, and switching to one brings the camera back under it.
+    current.setMaxPitch(canTilt ? HORIZON_PITCH : null);
+    current.easeTo({ pitch: tilted ? TILTED_PITCH : 0, duration: TILT_MILLISECONDS });
+  }, [tilted, canTilt, mapGeneration]);
+
+  // Turning the map is the library's own gesture — a drag with the second mouse button, or two fingers.
+  // What the page adds is where north has gone, and the way back to it.
+  const [bearing, setBearing] = useState(0);
+  useEffect(() => {
+    const current = map.current;
+    if (!current) return;
+    const follow = () => setBearing(current.getBearing());
+    follow();
+    current.on('rotate', follow);
+    return () => {
+      current.off('rotate', follow);
+    };
+  }, [hasSource, mapGeneration]);
 
   useEffect(() => {
     const current = map.current;
@@ -347,27 +355,81 @@ export function MapView({
           {t('map.recentre')}
         </button>
       )}
-      {/* Offered only where the model declares something to raise, so the control never promises a
-          view this map cannot draw. */}
-      {canTilt && (
+      <div className="absolute top-2 left-2 flex flex-col items-start gap-1">
+        {/* Offered only where the model declares something to raise, so the control never promises a
+            view this map cannot draw. */}
+        {canTilt && (
+          <button type="button" onClick={() => setTiltWanted(() => !tilted)} className={CONTROL_CLASSES}>
+            {tilted ? t('map.lookDown') : t('map.tilt')}
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => setTiltWanted(() => !tilted)}
-          className={`absolute top-2 left-2 ${CONTROL_CLASSES}`}
+          onClick={() => map.current?.resetNorth()}
+          className={`flex items-center gap-1 ${CONTROL_CLASSES}`}
         >
-          {tilted ? t('map.lookDown') : t('map.tilt')}
+          <Navigation2 size={12} aria-hidden="true" style={{ transform: `rotate(${-bearing}deg)` }} />
+          {t('map.northUp')}
         </button>
-      )}
+        {tilesUnreachable && (
+          <p role="status" className={CONTROL_CLASSES}>
+            {t('map.tilesUnreachable')}
+          </p>
+        )}
+      </div>
       {showMarker && (
         <p className={`absolute bottom-2 left-2 font-mono ${CONTROL_CLASSES}`}>{coordinates}</p>
       )}
-      {tilesUnreachable && (
-        <p role="status" className={`absolute top-2 left-2 ${CONTROL_CLASSES}`}>
-          {t('map.tilesUnreachable')}
-        </p>
-      )}
     </div>
   );
+}
+
+// Setting the projection or the sky repaints the map, which settles into the idle this runs on; set
+// on every one of those, the map never stops drawing. Each is set once per style.
+function drawOnAGlobeUnderASky(map: MapLibreMap): void {
+  if (map.getProjection()?.type !== GLOBE.type) map.setProjection(GLOBE);
+  if (!map.getSky()) map.setSky(SKY);
+}
+
+function raiseTheGround(map: MapLibreMap, ground: NonNullable<RaisedGround['terrain']>): void {
+  if (!map.getSource(TERRAIN_SOURCE_ID)) {
+    map.addSource(TERRAIN_SOURCE_ID, {
+      type: 'raster-dem',
+      tiles: [ground.tileUrl],
+      tileSize: 256,
+      encoding: ground.encoding,
+      maxzoom: TERRAIN_DEEPEST_ZOOM,
+    });
+  }
+  // Draping the ground is not a call that can be repeated: maplibre rebuilds the terrain and its
+  // render-to-texture cache each time, and fires the event whose own handler repaints the map —
+  // which settles into the idle this runs on, and never stops.
+  if (!map.getTerrain()) {
+    map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: ground.exaggeration });
+  }
+}
+
+function raiseTheBuildings(map: MapLibreMap, sourceLayer: string): void {
+  if (map.getLayer(BUILDINGS_LAYER_ID)) return;
+  // Which source inside the style holds them is the style's business, not the model's: the model
+  // names the layer, and the first vector source is the one a vector basemap keeps it in.
+  const vectorSource = Object.entries(map.getStyle()?.sources ?? {})
+    .find(([, source]) => (source as { type?: string }).type === 'vector')?.[0];
+  if (!vectorSource) return;
+  map.addLayer({
+    id: BUILDINGS_LAYER_ID,
+    type: 'fill-extrusion',
+    source: vectorSource,
+    'source-layer': sourceLayer,
+    paint: {
+      'fill-extrusion-color': BUILDING_COLOUR,
+      // What the footprint says it is, or a storey's worth where it says nothing — massing to
+      // read the place by, never a claim about anybody's house.
+      'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 3],
+      'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+      'fill-extrusion-opacity': 0.85,
+    },
+  });
 }
 
 function drawBoundary(map: MapLibreMap, boundary: readonly BoundaryPoint[]): void {

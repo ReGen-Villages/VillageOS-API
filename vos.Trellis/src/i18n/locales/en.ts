@@ -328,6 +328,7 @@ export const en = {
     tilesUnreachable: "Map tiles could not be loaded.",
     tilt: "Tilt the view",
     lookDown: "Look straight down",
+    northUp: "North up",
   },
   temporal: {
     title: "Temporal Queries",
