@@ -330,6 +330,7 @@ export const de: PartialResources = {
     tilesUnreachable: "Kartenkacheln konnten nicht geladen werden.",
     tilt: "Ansicht neigen",
     lookDown: "Senkrecht nach unten sehen",
+    northUp: "Norden oben",
   },
   temporal: {
     title: "Zeitliche Abfragen",

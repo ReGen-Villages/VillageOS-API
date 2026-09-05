@@ -330,6 +330,7 @@ export const nl: PartialResources = {
     tilesUnreachable: "Kaarttegels konden niet worden geladen.",
     tilt: "Kantel het beeld",
     lookDown: "Kijk recht naar beneden",
+    northUp: "Noorden boven",
   },
   temporal: {
     title: "Temporele query's",

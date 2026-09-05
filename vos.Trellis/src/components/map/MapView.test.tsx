@@ -15,8 +15,15 @@ interface RecordedMap {
   remove: ReturnType<typeof vi.fn>;
   setStyle: ReturnType<typeof vi.fn>;
   setTerrain: ReturnType<typeof vi.fn>;
+  setSky: ReturnType<typeof vi.fn>;
+  setProjection: ReturnType<typeof vi.fn>;
+  resetNorth: ReturnType<typeof vi.fn>;
   styleLoaded: boolean;
   terrain: unknown;
+  sky: unknown;
+  projection: { type: string } | undefined;
+  maxPitch: number;
+  bearing: number;
   addedLayers: { id: string; [key: string]: unknown }[];
 }
 
@@ -34,6 +41,7 @@ const mocks = vi.hoisted(() => {
   /** The encodings the style specification names for an elevation pyramid. Anything else fails its
    *  validation, which is what makes a source declaring one silently absent. */
   const READABLE_ENCODINGS = new Set(['terrarium', 'mapbox', 'custom']);
+  const LIBRARY_PITCH_CEILING = 60;
   class MockMap {
     options: Record<string, unknown>;
     /** Every handler on an event, not the last one: the map carries two on `styledata`, and a mock
@@ -47,6 +55,13 @@ const mocks = vi.hoisted(() => {
     setStyle = vi.fn();
     /** What the map is draped over, which is nothing until something raises it. */
     terrain: unknown = null;
+    /** What stands over the land and what it is drawn on: nothing and a flat plane, which is what a
+     *  style declaring neither leaves. */
+    sky: unknown = undefined;
+    projection: { type: string } | undefined = undefined;
+    /** The library's own ceiling on how far over the camera may lean. */
+    maxPitch = LIBRARY_PITCH_CEILING;
+    bearing = 0;
     /** Every layer as it was added, for a test asking how one was built rather than whether it is
      *  there. */
     addedLayers: { id: string; [key: string]: unknown }[] = [];
@@ -99,6 +114,30 @@ const mocks = vi.hoisted(() => {
     getTerrain() {
       return this.terrain;
     }
+    setSky = vi.fn((sky: unknown) => {
+      this.insistStyleIsLoaded();
+      this.sky = sky;
+    });
+    getSky() {
+      return this.sky;
+    }
+    setProjection = vi.fn((projection: { type: string }) => {
+      this.insistStyleIsLoaded();
+      this.projection = projection;
+    });
+    getProjection() {
+      return this.projection;
+    }
+    setMaxPitch(maxPitch: number | null) {
+      this.maxPitch = maxPitch ?? LIBRARY_PITCH_CEILING;
+    }
+    getBearing() {
+      return this.bearing;
+    }
+    resetNorth = vi.fn(() => {
+      this.bearing = 0;
+      this.fire('rotate');
+    });
     getLayer(id: string) {
       return this.layers.includes(id) ? { id } : undefined;
     }
@@ -194,6 +233,16 @@ function source(name: string, styleUrl: string): BasemapSource {
 
 const STREETS = source('Streets', 'https://tiles.example.org/streets');
 const AERIAL = source('Aerial', 'https://tiles.example.org/aerial');
+/** A source declaring everything the model may say about the ground. */
+const RAISED: BasemapSource = {
+  ...source('Streets', 'https://tiles.example.org/streets'),
+  terrain: {
+    tileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png',
+    encoding: 'terrarium',
+    exaggeration: 1.4,
+  },
+  buildingSourceLayer: 'building',
+};
 
 const POSITION = { latitude: 41.38, longitude: -70.64 };
 
@@ -306,6 +355,70 @@ describe('the boundary on the map', () => {
     theStyleArrives();
 
     expect(maps[0].sources.has('boundary')).toBe(true);
+  });
+
+  // What a live run showed: every `styledata` a real map fires arrives while its sources are still
+  // loading, and nothing fires another once they are in. A boundary the map opened with waited for a
+  // moment that never came, and the corner handles stood around nothing. `idle` is the map saying it
+  // has drawn everything it has, and is when the boundary goes in — as the ground already does.
+  it('draws a boundary it opened with on the first idle, where every styledata came too early', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    act(() => maps[0].fire('styledata'));
+    expect(maps[0].sources.has('boundary')).toBe(false);
+
+    act(() => {
+      maps[0].styleLoaded = true;
+      maps[0].settle();
+    });
+
+    expect(maps[0].sources.has('boundary')).toBe(true);
+  });
+
+  // Rewriting the boundary's data repaints the map, which settles into another idle. Drawn on each of
+  // those, the map never stops.
+  it('leaves a drawn boundary alone, however often the map settles', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    theStyleArrives();
+    const drawn = maps[0].sources.get('boundary')!;
+
+    act(() => {
+      maps[0].settle();
+      maps[0].settle();
+    });
+
+    expect(drawn.setData).not.toHaveBeenCalled();
+    expect(maps[0].layers).toEqual(['boundary-fill', 'boundary-line']);
+  });
+
+  // A page that stops giving a boundary at all — not an empty one — must still get the drawn one taken
+  // off, or the polygon outlives the parcel it stood for.
+  it('takes a drawn boundary off when the caller stops giving one', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    theStyleArrives();
+    expect(maps[0].sources.has('boundary')).toBe(true);
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} />);
+
+    expect(maps[0].sources.has('boundary')).toBe(false);
+    expect(maps[0].layers).toEqual([]);
+  });
+
+  // A corner dragged while an elevation source is still loading arrives at a style that cannot be
+  // changed yet. The map settling is when the drawn boundary catches up with the one the reader made.
+  it('brings a boundary moved while the style was busy in line once the map settles', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    theStyleArrives();
+    maps[0].styleLoaded = false;
+    const moved = [CORNERS[0], { latitude: 41.383, longitude: -70.637 }, CORNERS[2]];
+    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={moved} />);
+    expect(maps[0].sources.get('boundary')!.setData).not.toHaveBeenCalled();
+
+    act(() => {
+      maps[0].styleLoaded = true;
+      maps[0].settle();
+    });
+
+    expect(ring()[1]).toEqual([-70.637, 41.383]);
   });
 
   it('draws the boundary as a closed ring over the basemap', () => {
@@ -424,16 +537,6 @@ describe('the boundary on the map', () => {
 // saying nothing about the ground draws exactly as every source does today, which is what keeps this
 // from being a change every deployment has to opt out of.
 describe('drawing the land in three dimensions', () => {
-  const RAISED: BasemapSource = {
-    ...source('Streets', 'https://tiles.example.org/streets'),
-    terrain: {
-      tileUrl: 'https://elevation.example.org/{z}/{x}/{y}.png',
-      encoding: 'terrarium',
-      exaggeration: 1.4,
-    },
-    buildingSourceLayer: 'building',
-  };
-
   it('raises the ground from the pyramid the model declares, once the style is in', () => {
     render(<MapView {...POSITION} sources={[RAISED]} />);
     expect(maps[0].terrain).toBeNull();
@@ -549,5 +652,100 @@ describe('drawing the land in three dimensions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aerial' }));
 
     expect(maps[0].easeTo).toHaveBeenLastCalledWith(expect.objectContaining({ pitch: 0 }));
+  });
+});
+
+// The rest of Feature #6912: the land is drawn on a globe under a sky wherever the library can draw
+// one, which is every map this client builds, and the camera's heading is shown and given back.
+describe('the globe, the sky and the heading', () => {
+  const LIBRARY_PITCH_CEILING = 60;
+
+  it('draws on a globe under a sky once the style is in', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} />);
+    expect(maps[0].projection).toBeUndefined();
+    expect(maps[0].sky).toBeUndefined();
+
+    theStyleArrives();
+
+    expect(maps[0].projection).toEqual({ type: 'globe' });
+    expect(maps[0].sky).toMatchObject({ 'sky-color': expect.any(String) });
+  });
+
+  // Setting either repaints the map, which settles into another idle. Set on each of those, the map
+  // never stops drawing — the trap raising the ground already guards against.
+  it('sets the globe and the sky once, however often the map settles', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} />);
+    theStyleArrives();
+    const globeSetOnce = maps[0].setProjection.mock.calls.length;
+    const skySetOnce = maps[0].setSky.mock.calls.length;
+    expect(globeSetOnce).toBe(1);
+    expect(skySetOnce).toBe(1);
+
+    act(() => {
+      maps[0].settle();
+      maps[0].settle();
+    });
+
+    expect(maps[0].setProjection.mock.calls.length).toBe(globeSetOnce);
+    expect(maps[0].setSky.mock.calls.length).toBe(skySetOnce);
+  });
+
+  it('puts both back on a swapped style, which brought neither', () => {
+    render(<MapView {...POSITION} sources={[AERIAL, STREETS]} />);
+    theStyleArrives();
+    fireEvent.click(screen.getByRole('button', { name: 'Streets' }));
+    maps[0].projection = undefined;
+    maps[0].sky = undefined;
+
+    act(() => maps[0].fire('styledata'));
+
+    expect(maps[0].projection).toEqual({ type: 'globe' });
+    expect(maps[0].sky).toBeDefined();
+  });
+
+  // The sky stands above the horizon, and the library's own ceiling on the camera stops short of
+  // bringing the horizon into view. Where there is land to look across, the camera may lean far enough.
+  it('lets the camera lean to the horizon where the model declares ground to raise', () => {
+    render(<MapView {...POSITION} sources={[RAISED]} />);
+    theStyleArrives();
+
+    expect(maps[0].maxPitch).toBeGreaterThan(LIBRARY_PITCH_CEILING);
+  });
+
+  it('keeps the library ceiling on a flat map, and returns to it on switching to one', () => {
+    render(<MapView {...POSITION} sources={[RAISED, AERIAL]} />);
+    theStyleArrives();
+    expect(maps[0].maxPitch).toBeGreaterThan(LIBRARY_PITCH_CEILING);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Aerial' }));
+
+    expect(maps[0].maxPitch).toBe(LIBRARY_PITCH_CEILING);
+  });
+
+  // Turning the map is the library's own gesture. What the page adds is where north has gone, and the
+  // way back to it.
+  it('shows which way north lies as the reader turns the map', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} />);
+    const needle = () => screen.getByRole('button', { name: 'North up' }).querySelector('svg')!;
+    expect(needle().style.transform).toBe('rotate(0deg)');
+
+    act(() => {
+      maps[0].bearing = 30;
+      maps[0].fire('rotate');
+    });
+
+    expect(needle().style.transform).toBe('rotate(-30deg)');
+  });
+
+  it('turns the map back to north when asked', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} />);
+    act(() => {
+      maps[0].bearing = 30;
+      maps[0].fire('rotate');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'North up' }));
+
+    expect(maps[0].resetNorth).toHaveBeenCalledTimes(1);
   });
 });

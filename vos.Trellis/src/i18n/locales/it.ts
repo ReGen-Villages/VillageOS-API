@@ -330,6 +330,7 @@ export const it: PartialResources = {
     tilesUnreachable: "Non è stato possibile caricare le tessere della mappa.",
     tilt: "Inclina la vista",
     lookDown: "Guarda dall’alto",
+    northUp: "Nord in alto",
   },
   temporal: {
     title: "Query temporali",
