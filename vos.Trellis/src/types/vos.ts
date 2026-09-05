@@ -391,9 +391,26 @@ export interface PropertyModeConfig {
   SampleRate?: number;
 }
 
+/** The values an object held at an instant for names one of its sources declares, nested as the
+ *  override store nests them. Values are bare, as every value on a point-in-time read is. A set with
+ *  nothing to say at the instant is not carried: the source's own value in the same snapshot is what
+ *  the object held then. */
+export interface InheritedPropertySetAtAnInstant {
+  SourceId: string;
+  SourceName: string;
+  Properties: Record<string, unknown>;
+  Inherited: Record<string, InheritedPropertySetAtAnInstant>;
+}
+
+/** An object as it stood at an instant: its own properties and its overrides, each as of then. */
+export interface ValuesAtAnInstant {
+  Properties: Record<string, unknown>;
+  InheritedOverrides: Record<string, InheritedPropertySetAtAnInstant>;
+}
+
 // Temporal snapshot
 export interface TemporalSnapshot {
   Timestamp: string;
-  Things: Array<{ Id: string; Name: string; Properties: Record<string, unknown> }>;
-  Relationships: Array<{ Id: string; SubjectId: string; PredicateId: string; TargetId: string; Properties: Record<string, unknown> }>;
+  Things: Array<{ Id: string; Name: string } & ValuesAtAnInstant>;
+  Relationships: Array<{ Id: string; SubjectId: string; PredicateId: string; TargetId: string } & ValuesAtAnInstant>;
 }
