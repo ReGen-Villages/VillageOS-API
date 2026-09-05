@@ -390,6 +390,19 @@ describe('the boundary on the map', () => {
     expect(maps[0].layers).toEqual(['boundary-fill', 'boundary-line']);
   });
 
+  // A page that stops giving a boundary at all — not an empty one — must still get the drawn one taken
+  // off, or the polygon outlives the parcel it stood for.
+  it('takes a drawn boundary off when the caller stops giving one', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    theStyleArrives();
+    expect(maps[0].sources.has('boundary')).toBe(true);
+
+    rerender(<MapView {...POSITION} sources={[STREETS]} />);
+
+    expect(maps[0].sources.has('boundary')).toBe(false);
+    expect(maps[0].layers).toEqual([]);
+  });
+
   // A corner dragged while an elevation source is still loading arrives at a style that cannot be
   // changed yet. The map settling is when the drawn boundary catches up with the one the reader made.
   it('brings a boundary moved while the style was busy in line once the map settles', () => {
