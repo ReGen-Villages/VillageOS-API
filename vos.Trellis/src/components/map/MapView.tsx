@@ -181,23 +181,34 @@ export function MapView({
     current.setStyle(styleForSource(selected));
   }, [selected, mapGeneration]);
 
-  // A style swap wipes every source and layer the style did not bring, so the boundary is drawn
-  // again on styledata, not only when it changes.
+  // A style swap wipes every source and layer the style did not bring, so the boundary is drawn again
+  // as the style comes in, not only when it changes. What the map shows is remembered, because
+  // rewriting the boundary's data repaints the map, which settles into another idle: a map rewriting it
+  // on each of those would never stop drawing.
+  const shownBoundary = useRef<readonly BoundaryPoint[] | undefined>(undefined);
   useEffect(() => {
     const current = map.current;
     if (!current) return;
     // Changing a style maplibre has not finished loading throws, and a throw in an effect takes the
     // whole page down with it. Leaving this step and coming back builds a second map with the
-    // boundary already in hand, which is how a draw arrives that early; the styledata below is what
-    // draws it once the style is in.
-    const redraw = () => {
+    // boundary already in hand, which is how a draw arrives that early. Every styledata a live map
+    // fires can come while its sources are still loading, and none need follow once they are in
+    // (Bug #6913), so the idle below is what draws it once the style is in.
+    const draw = () => {
       if (!current.isStyleLoaded()) return;
+      const drawn = current.getSource(BOUNDARY_SOURCE_ID) !== undefined;
+      const nothingToDraw = (boundary?.length ?? 0) < 3;
+      if (!drawn && nothingToDraw) return;
+      if (drawn && shownBoundary.current === boundary) return;
       drawBoundary(current, boundary ?? []);
+      shownBoundary.current = boundary;
     };
-    redraw();
-    current.on('styledata', redraw);
+    draw();
+    current.on('styledata', draw);
+    current.on('idle', draw);
     return () => {
-      current.off('styledata', redraw);
+      current.off('styledata', draw);
+      current.off('idle', draw);
     };
   }, [boundary, hasSource]);
 

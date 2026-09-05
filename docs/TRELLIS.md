@@ -2350,6 +2350,8 @@ A source that declares the last four draws in three dimensions (#6912, with plat
 
 Everything it draws with is free of an account: the elevation set needs no key, as the shipped imagery does not, and a test over the template refuses any declared address that asks for one.
 
+**Anything put onto the style waits for the map to settle.** The boundary, the ground, the globe and the sky all go on after the style comes in, and every `styledata` a live map fires can come while its sources are still loading, with none to follow once they are in — so each goes on at the map's first `idle` as well, and each once, because putting it on repaints the map, which settles into another idle. The ground learned this under #6912; the boundary, drawn on `styledata` alone, waited for a moment that never came (Bug #6913).
+
 ### What is refused, and why
 
 `discoverBasemapSources` drops a source rather than drawing it when:

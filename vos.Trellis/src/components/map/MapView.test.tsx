@@ -357,6 +357,57 @@ describe('the boundary on the map', () => {
     expect(maps[0].sources.has('boundary')).toBe(true);
   });
 
+  // What a live run showed: every `styledata` a real map fires arrives while its sources are still
+  // loading, and nothing fires another once they are in. A boundary the map opened with waited for a
+  // moment that never came, and the corner handles stood around nothing. `idle` is the map saying it
+  // has drawn everything it has, and is when the boundary goes in — as the ground already does.
+  it('draws a boundary it opened with on the first idle, where every styledata came too early', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    act(() => maps[0].fire('styledata'));
+    expect(maps[0].sources.has('boundary')).toBe(false);
+
+    act(() => {
+      maps[0].styleLoaded = true;
+      maps[0].settle();
+    });
+
+    expect(maps[0].sources.has('boundary')).toBe(true);
+  });
+
+  // Rewriting the boundary's data repaints the map, which settles into another idle. Drawn on each of
+  // those, the map never stops.
+  it('leaves a drawn boundary alone, however often the map settles', () => {
+    render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    theStyleArrives();
+    const drawn = maps[0].sources.get('boundary')!;
+
+    act(() => {
+      maps[0].settle();
+      maps[0].settle();
+    });
+
+    expect(drawn.setData).not.toHaveBeenCalled();
+    expect(maps[0].layers).toEqual(['boundary-fill', 'boundary-line']);
+  });
+
+  // A corner dragged while an elevation source is still loading arrives at a style that cannot be
+  // changed yet. The map settling is when the drawn boundary catches up with the one the reader made.
+  it('brings a boundary moved while the style was busy in line once the map settles', () => {
+    const { rerender } = render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
+    theStyleArrives();
+    maps[0].styleLoaded = false;
+    const moved = [CORNERS[0], { latitude: 41.383, longitude: -70.637 }, CORNERS[2]];
+    rerender(<MapView {...POSITION} sources={[STREETS]} boundary={moved} />);
+    expect(maps[0].sources.get('boundary')!.setData).not.toHaveBeenCalled();
+
+    act(() => {
+      maps[0].styleLoaded = true;
+      maps[0].settle();
+    });
+
+    expect(ring()[1]).toEqual([-70.637, 41.383]);
+  });
+
   it('draws the boundary as a closed ring over the basemap', () => {
     render(<MapView {...POSITION} sources={[STREETS]} boundary={CORNERS} />);
     theStyleArrives();
