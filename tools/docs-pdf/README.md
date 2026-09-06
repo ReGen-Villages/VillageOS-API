@@ -12,10 +12,10 @@ sizing heuristics from the path entirely.
 ```bash
 npm install                       # once — Markdown parser and diagram renderer
 cd ../../docs                     # the directory holding the Markdown file
-node ../tools/docs-pdf/build.mjs MYCELIUM_GUIDE.md ./_pdfbuild.html
+node ../tools/docs-pdf/build.mjs VILLAGEOS_FIELD_GUIDE.md ./_pdfbuild.html
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --headless --disable-gpu --no-pdf-header-footer --virtual-time-budget=60000 \
-  --print-to-pdf="$PWD/MYCELIUM_GUIDE.pdf" "file://$PWD/_pdfbuild.html"
+  --print-to-pdf="$PWD/VILLAGEOS_FIELD_GUIDE.pdf" "file://$PWD/_pdfbuild.html"
 rm _pdfbuild.html
 ```
 
