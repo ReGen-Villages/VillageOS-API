@@ -2,27 +2,11 @@ using System.Text.Json;
 
 namespace vos.Taproot
 {
-    public class QueryCommandHandler
+    public class QueryCommandHandler : CommandHandlerWithOutputOptions
     {
-        private readonly TextWriter _writer;
-        private readonly string _arg;
-        private readonly MyceliumClient _mycelium;
-        private readonly NameResolver _resolver;
-        private readonly OutputOptions _options;
-
-        public QueryCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
-            : this(arg, writer, mycelium, OutputOptions.Default)
+        public QueryCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
+            : base(arg, writer, mycelium, options)
         {
-        }
-
-        public QueryCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions options)
-        {
-            var (parsedOptions, remainingArgs) = OutputOptions.ParseFromArgs(arg);
-            _options = options.ShowGuids ? options : parsedOptions;
-            _arg = remainingArgs;
-            _writer = writer;
-            _mycelium = mycelium;
-            _resolver = new NameResolver(mycelium);
         }
 
         public async Task ExecuteAsync()

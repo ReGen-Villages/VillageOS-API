@@ -1,27 +1,12 @@
 namespace vos.Taproot
 {
-    public class StartCommandHandler
+    public class StartCommandHandler : CommandHandlerWithOutputOptions
     {
-        private readonly TextWriter _writer;
-        private readonly string _arg;
-        private readonly MyceliumClient _mycelium;
-        private readonly NameResolver _resolver;
-        private readonly OutputOptions _options;
         private readonly Dictionary<string, Func<string[], Task>> _commandHandlers;
 
-        public StartCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium)
-            : this(arg, writer, mycelium, OutputOptions.Default)
+        public StartCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions? options = null)
+            : base(arg, writer, mycelium, options)
         {
-        }
-
-        public StartCommandHandler(string arg, TextWriter writer, MyceliumClient mycelium, OutputOptions options)
-        {
-            var (parsedOptions, remainingArgs) = OutputOptions.ParseFromArgs(arg);
-            _options = options.ShowGuids ? options : parsedOptions;
-            _arg = remainingArgs;
-            _writer = writer;
-            _mycelium = mycelium;
-            _resolver = new NameResolver(mycelium);
             _commandHandlers = new Dictionary<string, Func<string[], Task>>(StringComparer.OrdinalIgnoreCase)
             {
                 ["service"] = StartServiceAsync
