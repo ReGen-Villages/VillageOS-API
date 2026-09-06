@@ -142,7 +142,7 @@ After loading, click **Graph** in the sidebar to see your model rendered as an i
 | Seed File | Best For |
 |-----------|----------|
 | `village.seed.json` | Full-featured demo: type hierarchies with multi-level inheritance, multi-domain relationships (energy, water, biodiversity, transport), IFC geometry for single-building 3D views |
-| IFC-imported seeds | Ingest IFC (BIM) files in-app — drop or pick an `.ifc` on the **Model** page (posts to the Xylem service, `VITE_INGEST_URL`) — or from the CLI with `vos.Taproot` (`ingest <file.ifc>`). See Part II of `docs/VILLAGEOS_PROJECT_GUIDE.md` in the VillageOS repository for the IFC import documentation. |
+| IFC-imported seeds | Ingest IFC (BIM) files in-app — drop or pick an `.ifc` on the **Model** page (posts to the Xylem service, `VITE_INGEST_URL`) — or from the CLI with `vos.Taproot` (`ingest <file.ifc>`). See the importer chapter of `docs/VILLAGEOS_FIELD_GUIDE.md` in the VillageOS repository for the IFC import documentation. |
 
 The **village seed** is recommended for this guide because it demonstrates all features including per-building 3D views.
 
