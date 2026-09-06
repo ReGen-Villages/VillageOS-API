@@ -215,6 +215,15 @@ steps:
   workingDirectory: tools/docs-to-wiki
   condition: always()
 
+# The PDF renderer reads a guide's own shape — its parts, its chapters, the contents list it writes
+# for itself — and turns a figure drawn on a dark ground light for print. Every one of those is a
+# decision about a document nobody renders in a build, so the units are tested rather than the PDF.
+# It installs first: unlike the tools above it has dependencies.
+- script: npm ci && node --test
+  displayName: 'Test docs-pdf renderer'
+  workingDirectory: tools/docs-pdf
+  condition: always()
+
 # The Python tools each ship a unittest suite that no step ran, so the simulator, the layout
 # importer and the playground generator could all break and merge green — and the first two share
 # one Mycelium client, so a change to it can break the pair at once. Discovery rather than a named
