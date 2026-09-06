@@ -22,7 +22,7 @@ public class MyceliumGatewayTests
     private static (MyceliumGateway Gateway, MockHttpMessageHandler Handler) NewGateway(
         Func<HttpRequestMessage, HttpResponseMessage>? respond = null)
     {
-        var handler = new MockHttpMessageHandler(respond ?? RespondLikeAModelThatMarksItsArchetypes);
+        var handler = new MockHttpMessageHandler(respond ?? new BrokerApplyingItsWriteRules().Respond);
         var gateway = new MyceliumGateway(
             new PerCallHttpClientFactory(handler),
             NullLogger<MyceliumGateway>.Instance,
@@ -77,6 +77,58 @@ public class MyceliumGatewayTests
                 relationships = Array.Empty<object>(),
             },
         }));
+
+    // The stand-in above answers a write with 200 whatever its body. Two rules the real broker applies are
+    // applied here as well, because a stand-in that accepts anything is what let the writer's shape drift
+    // from the route's and left every run unrecorded (#6929): a property is written as a typed envelope,
+    // and a property is set only on a Thing that already carries it.
+    private sealed class BrokerApplyingItsWriteRules
+    {
+        private readonly Dictionary<Guid, HashSet<string>> _propertiesByThing = new();
+
+        public HttpResponseMessage Respond(HttpRequestMessage request)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+
+            if (path == "/api/things" && request.Method == HttpMethod.Post)
+                return Create(request);
+
+            if (path.EndsWith("/properties", StringComparison.Ordinal) && request.Method == HttpMethod.Put)
+                return SetProperty(request, path);
+
+            return RespondLikeAModelThatMarksItsArchetypes(request);
+        }
+
+        private HttpResponseMessage Create(HttpRequestMessage request)
+        {
+            var body = ReadJson(request).Result;
+            var carried = new HashSet<string>(StringComparer.Ordinal);
+
+            if (body.TryGetProperty("properties", out var properties) && properties.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in properties.EnumerateObject())
+                {
+                    if (property.Value.ValueKind != JsonValueKind.Object
+                        || !property.Value.TryGetProperty("typeInfo", out _))
+                        return new HttpResponseMessage(HttpStatusCode.BadRequest);
+                    carried.Add(property.Name);
+                }
+            }
+
+            _propertiesByThing[body.GetProperty("id").GetGuid()] = carried;
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+
+        private HttpResponseMessage SetProperty(HttpRequestMessage request, string path)
+        {
+            var thingId = Guid.Parse(path.Split('/')[3]);
+            var name = ReadJson(request).Result.GetProperty("name").GetString()!;
+
+            return _propertiesByThing.TryGetValue(thingId, out var carried) && carried.Contains(name)
+                ? new HttpResponseMessage(HttpStatusCode.OK)
+                : new HttpResponseMessage(HttpStatusCode.NotFound);
+        }
+    }
 
     private static HttpResponseMessage Json(HttpStatusCode status, string json) =>
         new(status) { Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json") };
@@ -206,10 +258,43 @@ public class MyceliumGatewayTests
 
         var created = await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single());
         created.GetProperty("id").GetString().Should().Be(runId.ToString());
-        created.GetProperty("properties").GetProperty("status").GetString().Should().Be(RunStatus.Running);
-        created.GetProperty("properties").GetProperty("pipelineId").GetString().Should().Be(pipelineId.ToString());
+        created.GetProperty("properties").GetProperty("status").GetProperty("value").GetString()
+            .Should().Be(RunStatus.Running);
+        created.GetProperty("properties").GetProperty("pipelineId").GetProperty("value").GetString()
+            .Should().Be(pipelineId.ToString());
 
         RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().HaveCount(2);
+    }
+
+    // The broker reads each property as { typeInfo, value } and refuses a bare one with a 400 carrying no
+    // body, so a run answered its caller and left nothing behind (#6929).
+    [Fact]
+    public async Task CreateRunAsync_WritesEveryPropertyAsATypedEnvelope()
+    {
+        var (gateway, handler) = NewGateway();
+
+        await gateway.CreateRunAsync(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+
+        var written = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single()))
+            .GetProperty("properties").EnumerateObject().ToList();
+        written.Should().NotBeEmpty();
+        foreach (var property in written)
+            property.Value.GetProperty("typeInfo").GetString().Should().Be("vos.String");
+    }
+
+    // The result is known only once the run ends, and the property route sets a property the Thing already
+    // carries — so a run that does not declare it at creation can never be given one.
+    [Fact]
+    public async Task ARunIsCreatedCarryingTheResultItLaterPublishes()
+    {
+        var runId = Guid.NewGuid();
+        var (gateway, _) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
+
+        var publishing = () => gateway.SetRunResultAsync(
+            runId, JsonDocument.Parse("""{"total":3}""").RootElement, CancellationToken.None);
+
+        await publishing.Should().NotThrowAsync();
     }
 
     // Read in the wrong casing the predicate is not found at all, so the run is created and then left with
@@ -254,8 +339,28 @@ public class MyceliumGatewayTests
 
         var created = await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single());
         created.GetProperty("name").GetString().Should().Be("NodeRun Echo");
-        created.GetProperty("properties").GetProperty("status").GetString().Should().Be(RunStatus.Running);
+        created.GetProperty("properties").GetProperty("status").GetProperty("value").GetString()
+            .Should().Be(RunStatus.Running);
         RequestsTo(handler, "/api/relationships", HttpMethod.Post).Should().HaveCount(2);
+    }
+
+    // A NodeRun is created before its first status is known to be its last, and an error arrives only on a
+    // failure — so the Thing declares both, or the transition that fails has nowhere to write (#6929).
+    [Fact]
+    public async Task SetNodeRunStatusAsync_WritesEveryPropertyAsATypedEnvelope()
+    {
+        var (gateway, handler) = NewGateway();
+
+        await gateway.SetNodeRunStatusAsync(
+            Guid.NewGuid(), Guid.NewGuid(), "Echo", RunStatus.Running, error: null, CancellationToken.None,
+            index: 0, total: 2);
+
+        var written = (await ReadJson(RequestsTo(handler, "/api/things", HttpMethod.Post).Single()))
+            .GetProperty("properties").EnumerateObject().ToList();
+        written.Select(property => property.Name)
+            .Should().BeEquivalentTo(["status", "nodeId", "error", "index", "total"]);
+        foreach (var property in written)
+            property.Value.GetProperty("typeInfo").GetString().Should().Be("vos.String");
     }
 
     // The animation in the browser watches one Thing change status; a second create would show as a
@@ -320,6 +425,7 @@ public class MyceliumGatewayTests
     {
         var runId = Guid.NewGuid();
         var (gateway, handler) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
 
         await gateway.SetRunStatusAsync(runId, RunStatus.Succeeded, CancellationToken.None);
 
@@ -334,6 +440,7 @@ public class MyceliumGatewayTests
     {
         var runId = Guid.NewGuid();
         var (gateway, handler) = NewGateway();
+        await gateway.CreateRunAsync(runId, Guid.NewGuid(), CancellationToken.None);
         var result = JsonDocument.Parse("""{"total":3}""").RootElement;
 
         await gateway.SetRunResultAsync(runId, result, CancellationToken.None);
