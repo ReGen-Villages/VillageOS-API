@@ -8,9 +8,8 @@ namespace vos.Service.Phloem.Tests;
 // Parsing a Mycelium subscription snapshot into the queryable graph, unwrapping {value,typeInfo} property envelopes.
 public class SnapshotParserTests
 {
-    // The shape Mycelium's SnapshotBuilder emits: PascalCase members, because the broker serialises with no
-    // naming policy so every member keeps its C# name. Read a member in the wrong case and the Thing is
-    // skipped, the graph is empty, and every role reads as unmarked (#6923).
+    // Fixtured as SnapshotBuilder emits it, fields this parser ignores included: the broker serialises with
+    // no naming policy, so a member kept in the wrong case here is a snapshot that reads as an empty model.
     [Fact]
     public void Parse_ReadsTheSnapshotAsTheBrokerWritesIt()
     {
@@ -40,8 +39,7 @@ public class SnapshotParserTests
             "relationships": [
               { "Id": "{{relationship}}", "Name": null,
                 "SubjectId": "{{pipeline}}", "PredicateId": "{{isPredicate}}", "TargetId": "{{archetype}}",
-                "Properties": { "fromPort": { "typeInfo": "vos.String", "value": "echo" } },
-                "InheritedOverrides": {}, "States": [] }
+                "Properties": {}, "InheritedOverrides": {}, "States": [] }
             ]
           }
         }
@@ -87,8 +85,8 @@ public class SnapshotParserTests
         graph.IsOfArchetypeCarrying(graph.Thing(pipe)!, PipelineArchetypes.PipelineFlag).Should().BeTrue();
     }
 
-    // A wire's ports are read off the edge, so a relationship whose members are missed takes its whole
-    // pipeline with it: the DAG builder finds two nodes and no wire between them.
+    // A wire's ports live on the edge, so a relationship read wrongly leaves the DAG builder two nodes with
+    // nothing between them.
     [Fact]
     public void Parse_ReadsEdgePropertiesFromABrokerWrittenRelationship()
     {
@@ -126,5 +124,36 @@ public class SnapshotParserTests
         wire.TargetId.Should().Be(to);
         wire.PropertyString("fromPort").Should().Be("echo");
         wire.PropertyString("toPort").Should().Be("message");
+    }
+
+    // An edge short of one of its four identifiers is dropped rather than failing the load, and the Things
+    // around it still parse. Fixtured bare, without the subscription answer's wrapper, which the parser
+    // also accepts.
+    [Fact]
+    public void Parse_SkipsARelationshipMissingAnIdentifierAndKeepsTheRest()
+    {
+        var subject = Guid.NewGuid();
+        var predicate = Guid.NewGuid();
+        var target = Guid.NewGuid();
+        var kept = Guid.NewGuid();
+        var json = $$"""
+        {
+          "things": [
+            { "Id": "{{subject}}", "Properties": {} },
+            { "Id": "{{predicate}}", "Name": "is", "Properties": {} },
+            { "Id": "{{target}}", "Name": "Pipeline", "Properties": {} }
+          ],
+          "relationships": [
+            { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{subject}}", "PredicateId": "{{predicate}}" },
+            { "Id": "{{kept}}", "SubjectId": "{{subject}}", "PredicateId": "{{predicate}}", "TargetId": "{{target}}" }
+          ]
+        }
+        """;
+
+        var graph = SnapshotParser.Parse(JsonDocument.Parse(json).RootElement);
+
+        graph.Things.Should().HaveCount(3);
+        graph.Thing(subject)!.Name.Should().BeEmpty();
+        graph.OutgoingTargets(graph.Thing(subject)!, "is").Single().Id.Should().Be(target);
     }
 }

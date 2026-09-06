@@ -133,7 +133,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         var graph = SnapshotParser.Parse(root);
 
         // Tidy up the snapshot subscription — Phloem reads once and does not stream here.
-        if (root.TryGetProperty("subscriptionId", out var subId) && subId.ValueKind == JsonValueKind.String)
+        if (TryGetPropertyCaseInsensitive(root, "subscriptionId", out var subId) && subId.ValueKind == JsonValueKind.String)
             _ = TryUnsubscribeAsync(subId.GetString()!);
 
         return graph;
