@@ -177,7 +177,7 @@ public class OutboundRequestTests
     }
 
     [Fact]
-    public void Build_PostWithBody_SerializesJsonWithContentType()
+    public async Task Build_PostWithBody_SerializesJsonWithContentType()
     {
         var body = Json("""{"hello":"world"}""");
         var req = OutboundRequest.Build("POST", new Uri("https://api.test/x"), body, null, null, "application/xml");
@@ -185,7 +185,7 @@ public class OutboundRequestTests
         req.Method.Should().Be(HttpMethod.Post);
         req.Content.Should().NotBeNull();
         req.Content!.Headers.ContentType!.MediaType.Should().Be("application/xml");
-        req.Content.ReadAsStringAsync().GetAwaiter().GetResult().Should().Contain("\"hello\":\"world\"");
+        (await req.Content.ReadAsStringAsync()).Should().Contain("\"hello\":\"world\"");
     }
 
     [Fact]
