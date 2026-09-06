@@ -11,7 +11,7 @@
  * Nothing here reaches the broker. That is the point of the page rather than an accident of how it was
  * written, and `../publicForm/noSignedInCode.test.ts` fails if an import ever leads back to it.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Sprout } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { findingsApi } from '../api/findingsApi';
@@ -21,31 +21,16 @@ import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
 import { ToastContainer } from '../components/common/Toast';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useResolveContext } from '../hooks/useDashboard';
-import { directionFor } from '../i18n/languages';
-import { attachThemeMediaListener, useThemeStore } from '../stores/themeStore';
+import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
 import { findingsFrom, type Findings } from './answeredFindings';
 
 /** The width above which a section lays its widgets out in tracks, as the signed-in page uses. */
 const WIDE = 720;
 
 export function PublicFindingsPage() {
-  const { t, i18n } = useTranslation();
-  const theme = useThemeStore((state) => state.theme);
+  const { t } = useTranslation();
+  useStandalonePageDocument();
   const [findings, setFindings] = useState<Findings | null>(null);
-
-  // The signed-in application's shell sets these two on the document for its own pages. This page is
-  // served on its own, so it sets them itself and does nothing else that shell does.
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    root.setAttribute('lang', i18n.language);
-    root.setAttribute('dir', directionFor(i18n.language));
-  }, [i18n.language]);
-
-  useEffect(() => attachThemeMediaListener(), []);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">

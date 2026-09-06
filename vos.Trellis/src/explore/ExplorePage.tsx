@@ -20,10 +20,9 @@ import { toast } from '../components/common/toastStore';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useResolveContext } from '../hooks/useDashboard';
-import { directionFor } from '../i18n/languages';
+import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
 import { withShareSet, wholePercentages } from '../intake/submissionDraft';
 import { findingsFrom, type Findings } from '../publicFindings/answeredFindings';
-import { attachThemeMediaListener, useThemeStore } from '../stores/themeStore';
 import { sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
 import {
   documentFrom,
@@ -58,20 +57,8 @@ const DIAL_SETTLE_MILLISECONDS = 800;
 const WIDE = 720;
 
 export function ExplorePage() {
-  const { t, i18n } = useTranslation();
-  const theme = useThemeStore((state) => state.theme);
-
-  // The signed-in application's shell sets these on the document for its own pages. This page is
-  // served on its own, so it sets them itself and does nothing else that shell does.
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
-  useEffect(() => {
-    const root = document.documentElement;
-    root.setAttribute('lang', i18n.language);
-    root.setAttribute('dir', directionFor(i18n.language));
-  }, [i18n.language]);
-  useEffect(() => attachThemeMediaListener(), []);
+  const { t } = useTranslation();
+  useStandalonePageDocument();
 
   const [options, setOptions] = useState<FormOptions | null>(null);
   const [unreachable, setUnreachable] = useState(false);
