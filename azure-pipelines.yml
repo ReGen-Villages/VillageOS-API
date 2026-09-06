@@ -60,22 +60,12 @@ steps:
 # Fail fast if proprietary engine code ever reappears in the public repo (it must not — the
 # engine lives only in the private VillageOS repo). Runs before build AND before the GitHub
 # mirror step (which is gated on succeeded()), so a violation can never be published.
-- bash: |
-    set -uo pipefail
-    echo "Guard: verifying no proprietary engine code in the public repo..."
-    fail=0
-    for p in vos.Core vos.Application vos.Infrastructure vos.Mycelium vos.Persistence; do
-      if [ -d "$p" ]; then echo "##[error]Forbidden engine project directory present: $p"; fail=1; fi
-    done
-    if grep -rIlE "vos\.(Core|Application|Infrastructure|Mycelium|Persistence)\.csproj" --include="*.csproj" . ; then
-      echo "##[error]A .csproj references a proprietary engine project (paths above)"; fail=1; fi
-    if grep -rIlE "using[[:space:]]+vos\.(Core|Application|Infrastructure|Mycelium|Persistence)" --include="*.cs" . ; then
-      echo "##[error]Source imports a proprietary engine namespace (files above)"; fail=1; fi
-    if [ "$fail" -ne 0 ]; then
-      echo "##[error]Proprietary engine code must never exist in the public VillageOS-API repo. See the engine-exposure remediation."
-      exit 1
-    fi
-    echo "Guard passed: no proprietary engine footprint."
+#
+# A script rather than the greps this used to be, because those could not be proved and one of them
+# was wrong in a way nobody could see: it matched a prefix, so it refused the one piece of the engine
+# a consumer is meant to compile against (`vos.Mycelium.Testing`) while missing an aliased import of
+# the engine itself. ci/test_no_engine_in_the_public_repo.py makes each rule bite in front of you.
+- script: python3 ci/no_engine_in_the_public_repo.py
   displayName: 'Guard: no proprietary engine in public repo'
 
 # A widened trigger, a configuration that stops following the branch, and a publishing step gated
