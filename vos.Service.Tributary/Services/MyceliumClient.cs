@@ -40,10 +40,13 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
+            // Not the reading as it arrived: a source states its values bare, and the broker takes each
+            // one with its type on it — worked out from the value, because only the caller's JSON says
+            // what a reading is.
             var payload = new
             {
                 Name = name,
-                Properties = properties
+                Properties = TypedProperties.Typed(properties)
             };
 
             var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things", payload);

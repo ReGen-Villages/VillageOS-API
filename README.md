@@ -110,6 +110,27 @@ start one. Point it elsewhere with `VOS_INTEGRATION_URL`,
 
 Trellis connects to the Mycelium at `https://localhost:7243` by default.
 
+### Testing a service against the real platform
+
+`Tests/vos.BrokerContract.Tests` runs a service's own broker client against a **real Mycelium started
+inside the test process** — real routes, real inheritance, real write semantics, over no network.
+Every other service suite answers the platform with a stand-in it wrote itself, which encodes what
+its author believed the platform does; three services turned out to be writing a shape the platform
+refuses, and every one of their cases passed.
+
+It needs the platform's engine, which lives in the VillageOS repository, so it does not run from a
+plain `dotnet test` here. Stage one and run it:
+
+```bash
+./ci/stage-the-engine.sh                 # from a VillageOS checkout beside this one
+./ci/stage-the-engine.sh /path/to/VillageOS   # or name it
+dotnet test Tests/vos.BrokerContract.Tests
+```
+
+With nothing staged the project still builds, and its suite reports one skipped case saying so
+rather than a green run over nothing. The VillageOS pipeline runs it in every build it does, because
+that build has the engine to stage; point it at a staged engine elsewhere with `-p:VosRelease=`.
+
 #### Building directly into a Mycelium's wwwroot
 
 Set `VOS_MYCELIUM_WWWROOT` to an absolute path to have `npm run build` emit the

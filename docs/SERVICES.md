@@ -718,6 +718,54 @@ the code under test.
 
 `Tests/vos.Service.Phloem.Tests/MyceliumGatewayTests.cs` is the fullest example.
 
+**A stand-in answers what its author believed the broker answers.** That is the whole
+of its value and the whole of its limit: a test written against one agrees with
+whatever its author assumed, including an assumption that is wrong. Three services
+posted a property with no type on it — a shape the broker refuses with a 400
+carrying no body — and every one of their cases passed, because every stand-in
+answered 200 whatever the body was (Bug #6929, Bug #6930).
+
+So make the stand-in refuse what the broker refuses, in the cases you care about,
+and cover the shape of what you write in **10.2.1** as well.
+
+### 10.2.1 Testing a service's broker calls against the real broker
+
+`Tests/vos.BrokerContract.Tests` runs a service's own client against a **real
+Mycelium started inside the test process** — real routes, real inheritance, real
+write semantics, over no network. Nothing about a service has to change to be
+tested this way: it reaches the broker over an `IHttpClientFactory` and a URL, and
+the fixture supplies both.
+
+```csharp
+public class MyServiceWritesTests : IClassFixture<TheEngine>
+{
+    private readonly TheEngine _engine;
+    public MyServiceWritesTests(TheEngine engine) => _engine = engine;
+
+    private MyceliumClient Client() => new(
+        _engine.ClientFactory, NullLogger<MyceliumClient>.Instance,
+        TheEngine.Url, _engine.AdminToken);
+}
+```
+
+Arrange a model with `_engine.DeclareAsync(...)`, and read back what the service
+wrote with `_engine.ValueOfAsync(...)`.
+
+It needs the platform's engine, which lives in the VillageOS repository, so it does
+not run from a plain `dotnet test`. Stage one first:
+
+```bash
+./ci/stage-the-engine.sh            # from a VillageOS checkout beside this one
+dotnet test Tests/vos.BrokerContract.Tests
+```
+
+With nothing staged the project still builds and its suite reports one skipped case
+saying so. The VillageOS pipeline runs it in every build, because that build has the
+engine to stage.
+
+**Put a case here whenever a service writes to the model** — a Thing, a property, an
+edge. That is where every drift so far has been.
+
 ### 10.3 Service-specific endpoint tests
 
 Services with substantial logic of their own — Metabolism's simulation engine,

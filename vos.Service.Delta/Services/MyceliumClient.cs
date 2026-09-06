@@ -43,7 +43,11 @@ public class MyceliumClient : MyceliumClientBase
         try
         {
             var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(10));
-            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things", dto);
+            // Not the request as it arrived: a caller states a template's keys as bare values, and the
+            // broker takes each one with its type on it. The rest of the request is what the create
+            // route reads — it works relationships out from the edges Delta writes afterwards.
+            var response = await client.PostAsJsonAsync($"{MyceliumUrl}/api/things",
+                new { dto.Name, Properties = TypedProperties.Typed(dto.Properties) });
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();
