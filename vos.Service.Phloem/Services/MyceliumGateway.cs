@@ -14,6 +14,9 @@ namespace vos.Service.Phloem.Services;
 // nodes through the endpoint-forward route. Also registers Phloem as a managed microservice.
 public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 {
+    // Everything this gateway records about a run is text, so one type name serves every property it writes.
+    private const string PropertyType = "vos.String";
+
     private readonly ConcurrentDictionary<string, Guid> _thingIdByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, Guid> _archetypeIdByRoleFlag = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<Guid, byte> _createdNodeRuns = new();
@@ -47,11 +50,15 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
 
     public async Task CreateRunAsync(Guid runId, Guid pipelineId, CancellationToken cancellationToken)
     {
-        await CreateThingWithIdAsync(runId, $"PipelineRun {runId:N}", new Dictionary<string, object?>
+        // The result is declared here with no value. It is known only once the run ends, and the property
+        // route sets a property the Thing already carries — so a run given one only at the end is a run
+        // that can never be given one.
+        await CreateThingWithIdAsync(runId, $"PipelineRun {runId:N}", new Dictionary<string, string?>
         {
             ["status"] = RunStatus.Running,
             ["pipelineId"] = pipelineId.ToString(),
             ["startedUtc"] = DateTime.UtcNow.ToString("o"),
+            [ModelNames.Result] = null,
         }, cancellationToken);
 
         await RelateAsync(runId, ModelNames.Is,
@@ -65,7 +72,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         if (_createdNodeRuns.TryAdd(nodeRunId, 0))
         {
             // First status for this NodeRun — create the Thing and wire it into the run.
-            var properties = new Dictionary<string, object?>
+            var properties = new Dictionary<string, string?>
             {
                 ["status"] = status,
                 ["nodeId"] = nodeId.ToString(),
@@ -161,11 +168,18 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return archetype.Id;
     }
 
-    private async Task CreateThingWithIdAsync(Guid id, string name, IReadOnlyDictionary<string, object?> properties, CancellationToken cancellationToken)
+    // A property reaches the broker as a typed envelope, never as a bare value: the create route reads each
+    // one through the same converter the property routes use, and refuses a bare value with a 400 carrying
+    // no body to say why (#6929).
+    private async Task CreateThingWithIdAsync(Guid id, string name, IReadOnlyDictionary<string, string?> properties, CancellationToken cancellationToken)
     {
+        var envelopes = properties.ToDictionary(
+            property => property.Key,
+            property => new { typeInfo = PropertyType, value = property.Value });
+
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         var response = await client.PostAsync($"{MyceliumUrl}/api/things",
-            JsonContent.Create(new { id, name, properties }), cancellationToken);
+            JsonContent.Create(new { id, name, properties = envelopes }), cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 
@@ -173,7 +187,7 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
     {
         var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(15));
         var response = await client.PutAsync($"{MyceliumUrl}/api/things/{thingId}/properties",
-            JsonContent.Create(new { name, type = "vos.String", value }), cancellationToken);
+            JsonContent.Create(new { name, type = PropertyType, value }), cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 
