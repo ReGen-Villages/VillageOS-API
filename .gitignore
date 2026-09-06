@@ -176,3 +176,9 @@ tools/simulator/*.ckpt
 # Playwright MCP browser-automation output (console logs + page-snapshot .yml,
 # written when driving the app for verification/screenshots). Session artifacts.
 .playwright-mcp/
+
+# A rendered guide is built when somebody wants one, never committed: a PDF has no merge, so two
+# branches that each touched a guide conflict on the artifact even when the markdown does not.
+docs/*.pdf
+docs/*.html
+tools/docs-pdf/*.pdf

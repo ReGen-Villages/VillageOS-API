@@ -1,11 +1,20 @@
 {
   "name": "vos-docs-pdf",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Render a documentation Markdown file to a print-ready PDF",
+  "description": "Render a guide's Markdown to a ReGen-branded, print-ready PDF",
+  "scripts": {
+    "render": "node build.mjs",
+    "test": "node --test"
+  },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.2.6",
+    "@fontsource-variable/source-serif-4": "^5.2.6",
     "marked": "^18.0.0",
-    "mermaid": "^11.16.0"
-  }
+    "mermaid": "^11.16.0",
+    "puppeteer-core": "^25.10.0"
+  },
+  "license": "AGPL-3.0"
 }
