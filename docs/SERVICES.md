@@ -993,7 +993,7 @@ editor.
 graph LR
   PIPE[Pipeline] -->|has| N1[node: Generate]
   PIPE -->|has| N2[node: Echo]
-  N1 -->|"feeds {fromPort,toPort}"| N2
+  N1 -->|"carries {fromPort,toPort}"| N2
   N1 -->|has| C1["Connection<br/>(Subdomain)"]
   C1 -->|has| S1[Service]
   S1 -->|is| PROTO[prototype]
@@ -1005,7 +1005,10 @@ graph LR
 - **Ports** are first-class `Port` Things on the service **prototype**, resolved by walking the bound
   service's `is`-chain (relationships do **not** inherit through `is`, so ports resolve at read time).
 - A **wire** is a relationship whose predicate `is` the wire archetype — identified by the role that
-  archetype is marked with, never by the predicate name `"feeds"` — carrying `fromPort`/`toPort`.
+  archetype is marked with, never by the predicate name `"carries"` — carrying `fromPort`/`toPort`.
+  The name is the model's to choose, and it is deliberately not `feeds`: that word already names
+  matter moving between built things (a swale into a buffer, a compost station into a greenhouse),
+  and a dashboard scope resolves a predicate **by name**.
 - **Every role is a flag the archetype carries**, not a name: `__IsPipelineArchetype`,
   `__IsPipelineNodeArchetype`, `__IsConnectionArchetype`, `__IsServiceArchetype`, `__IsPortArchetype`,
   `__IsPipelineWireArchetype`, `__IsPipelineInputArchetype`, `__IsPipelineOutputArchetype`,

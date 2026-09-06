@@ -81,7 +81,7 @@ public sealed class GraphFixture
     public PipelineGraph Build() => new(_things, _rels);
 }
 
-// The canonical demo: Generate –feeds(echo→message)→ Echo. Each node binds a Connection (subdomain)
+// The canonical demo: Generate –carries(echo→message)→ Echo. Each node binds a Connection (subdomain)
 // → Service → shared EchoProto prototype with typed ports.
 public static class TestGraphs
 {
@@ -89,8 +89,8 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var feeds = fx.Thing("feeds");
-        fx.Rel(feeds, vocabulary.Is, vocabulary.PipelineWire); // the feeds predicate is a pipeline wire
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire); // the carries predicate is a pipeline wire
 
         var proto = fx.Thing("EchoProto");
         fx.Rel(proto, vocabulary.Is, vocabulary.Service);
@@ -125,7 +125,7 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, gen);
         fx.Rel(pipe, vocabulary.Has, ech);
 
-        fx.Rel(gen, feeds, ech, ("fromPort", "echo"), ("toPort", "message"));
+        fx.Rel(gen, carries, ech, ("fromPort", "echo"), ("toPort", "message"));
 
         return (fx, pipe.Id);
     }
@@ -137,8 +137,8 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var feeds = fx.Thing("feeds");
-        fx.Rel(feeds, vocabulary.Is, vocabulary.PipelineWire);
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
 
         // Echo service node: message (in) → echo (out).
         var proto = fx.Thing("EchoProto");
@@ -178,8 +178,8 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, ech);
         fx.Rel(pipe, vocabulary.Has, output);
 
-        fx.Rel(input, feeds, ech, ("fromPort", "seed"), ("toPort", "message"));
-        fx.Rel(ech, feeds, output, ("fromPort", "echo"), ("toPort", "result"));
+        fx.Rel(input, carries, ech, ("fromPort", "seed"), ("toPort", "message"));
+        fx.Rel(ech, carries, output, ("fromPort", "echo"), ("toPort", "result"));
 
         return (fx, pipe.Id);
     }
@@ -191,8 +191,8 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var feeds = fx.Thing("feeds");
-        fx.Rel(feeds, vocabulary.Is, vocabulary.PipelineWire);
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
 
         var proto = InputOutputPrototype(fx, vocabulary, "IOProto");
         var a = ServiceNode(fx, vocabulary, proto, "A", "a");
@@ -206,8 +206,8 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Has, c);
 
         // Both wires target C.in, but land at different to-paths so they deep-merge instead of overwriting.
-        fx.Rel(a, feeds, c, ("fromPort", "out"), ("toPort", "in"), ("toPath", "a"));
-        fx.Rel(b, feeds, c, ("fromPort", "out"), ("toPort", "in"), ("toPath", "b"));
+        fx.Rel(a, carries, c, ("fromPort", "out"), ("toPort", "in"), ("toPath", "a"));
+        fx.Rel(b, carries, c, ("fromPort", "out"), ("toPort", "in"), ("toPath", "b"));
 
         return (fx, pipe.Id);
     }
@@ -218,8 +218,8 @@ public static class TestGraphs
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary();
-        var feeds = fx.Thing("feeds");
-        fx.Rel(feeds, vocabulary.Is, vocabulary.PipelineWire);
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
 
         var proto = InputOutputPrototype(fx, vocabulary, "IOProto");
         var a = ServiceNode(fx, vocabulary, proto, "A", "a");
@@ -229,7 +229,7 @@ public static class TestGraphs
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
         fx.Rel(pipe, vocabulary.Has, a);
         fx.Rel(pipe, vocabulary.Has, c);
-        fx.Rel(a, feeds, c, ("fromPort", "out"), ("toPort", "in"), ("transform", transform));
+        fx.Rel(a, carries, c, ("fromPort", "out"), ("toPort", "in"), ("transform", transform));
 
         return (fx, pipe.Id);
     }
