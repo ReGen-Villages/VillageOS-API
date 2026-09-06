@@ -89,7 +89,7 @@ Mirrors `vos.Infrastructure.Tests/Fixtures/pipeline-demo.seed.json` and the cont
   as `x` / `y`; a param binding rides as a `paramBindings` JSON property.
 - A **connection** `is PlatformServiceConnection`, carries a `Subdomain`, and `has` a `Service`; the service
   `has` its `Port` children (`portName` / `direction` / `type` / `required` / `collection`).
-- A **wire** is the `feeds` predicate (which `is PipelineWire`), carrying `fromPort` / `toPort` and optional
+- A **wire** is the `carries` predicate (which `is PipelineWire`), carrying `fromPort` / `toPort` and optional
   `fromPath` / `toPath` / `transform`.
 - A seeded **run** `is PipelineRun`, points `of` its pipeline, and `has` `NodeRun` children (a per-item
   `NodeRun` carrying `index` / `total` drives fan-out progress).

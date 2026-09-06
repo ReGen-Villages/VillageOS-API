@@ -138,7 +138,7 @@ def build():
     is_ = k.predicate("is")
     has = k.predicate("has")
     of = k.predicate("of")
-    feeds = k.predicate("feeds")
+    carries = k.predicate("carries")
 
     Pipeline = k.archetype("Pipeline")
     PipelineNode = k.archetype("PipelineNode")
@@ -151,7 +151,7 @@ def build():
     PipelineRun = k.archetype("PipelineRun")
     NodeRun = k.archetype("NodeRun")
 
-    k.rel(feeds, is_, PipelineWire)          # wires are the `feeds` predicate, identified by this archetype
+    k.rel(carries, is_, PipelineWire)          # wires are the `carries` predicate, identified by this archetype
     k.rel(PipelineInput, is_, PipelineNode)  # boundary nodes are pipeline nodes too
     k.rel(PipelineOutput, is_, PipelineNode)
 
@@ -228,7 +228,7 @@ def build():
             for optional in ("fromPath", "toPath", "transform"):
                 if wire.get(optional):
                     props[optional] = typed(wire[optional], "vos.String")
-            k.rel(node_id[wire["from"]], feeds, node_id[wire["to"]], props)
+            k.rel(node_id[wire["from"]], carries, node_id[wire["to"]], props)
 
         # Seeded run history (#5646/#5635): a PipelineRun -of-> pipeline, each carrying NodeRuns so the History
         # panel and node status rings show data with no live Phloem. A fan-out node also gets per-item NodeRuns

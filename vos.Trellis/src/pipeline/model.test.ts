@@ -10,7 +10,7 @@ import { loadPipeline } from './serialize';
 /** An archetype's own mark, which is the only thing that says what role it plays. */
 const marked = (roleFlag: string): Record<string, unknown> => ({ [roleFlag]: true });
 
-// Build the demo model (Generate –feeds(echo→message)→ Echo), node -has-> connection[subdomain] -has-> service.
+// Build the demo model (Generate –carries(echo→message)→ Echo), node -has-> connection[subdomain] -has-> service.
 // Every archetype here is named something the editor has never heard of and says what it is by the flag it
 // carries, so a fixture that resolves at all proves nothing is found by name (#6530).
 function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchetypeId: string } {
@@ -25,14 +25,14 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
     rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
-  const is = T('is'), has = T('has'), feeds = T('feeds');
+  const is = T('is'), has = T('has'), carries = T('carries');
   const pipelineA = T('Workflow', marked(ARCHETYPE_FLAG.Pipeline)),
     nodeA = T('Step', marked(ARCHETYPE_FLAG.PipelineNode)),
     connA = T('Endpoint', marked(ARCHETYPE_FLAG.Connection)),
     svcA = T('Capability', marked(ARCHETYPE_FLAG.Service)),
     portA = T('Socket', marked(ARCHETYPE_FLAG.Port)),
     wireA = T('Link', marked(ARCHETYPE_FLAG.PipelineWire));
-  R(feeds.Id, is.Id, wireA.Id);
+  R(carries.Id, is.Id, wireA.Id);
 
   const proto = T('EchoProto');
   R(proto.Id, is.Id, svcA.Id);
@@ -62,7 +62,7 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   R(pipe.Id, is.Id, pipelineA.Id);
   R(pipe.Id, has.Id, gen.Id);
   R(pipe.Id, has.Id, ech.Id);
-  R(gen.Id, feeds.Id, ech.Id, { fromPort: 'echo', toPort: 'message' });
+  R(gen.Id, carries.Id, ech.Id, { fromPort: 'echo', toPort: 'message' });
 
   return { model: new PipelineModel(things, rels), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
 }
@@ -79,7 +79,7 @@ describe('PipelineModel', () => {
 
   it('identifies the wire predicate by the mark its archetype carries, not by name', () => {
     const { model } = demoModel();
-    expect(model.wirePredicateId()).toBe(model.predicateIdByName('feeds'));
+    expect(model.wirePredicateId()).toBe(model.predicateIdByName('carries'));
   });
 
   it('gives the archetype a save writes its `is` edge to, whatever the model calls it', () => {

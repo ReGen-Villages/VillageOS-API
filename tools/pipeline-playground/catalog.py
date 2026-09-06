@@ -241,7 +241,7 @@ PIPELINES = [
         "wires": [{"from": "energy", "fromPort": "pctOfConsumption", "to": "out", "toPort": "pctOfConsumption"}],
     },
 
-    # 10. Capstone: a source feeds one wired input, two others are param-bound, two analyses run in parallel,
+    # 10. Capstone: a source supplies one wired input, two others are param-bound, two analyses run in parallel,
     #     merge into a report, and end at a sink — sources + wires + params + merge + sink in one DAG.
     {
         "name": "Site Analysis (Combined)",

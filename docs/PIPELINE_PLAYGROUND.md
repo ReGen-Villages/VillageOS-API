@@ -78,7 +78,7 @@ These bind inputs to **run parameters** — the **Params** bar appears above the
 | **Water Self-Sufficiency** | A `Water Reserve` node with three param-bound inputs. |
 | **Energy Self-Sufficiency** | An `Energy Balance` node with every input param-bound. |
 | **Number Cruncher** | A numeric chain mixing **wired and param-bound** inputs on the same node: `Random → Multiply (factor param) → Sum (offset param) → Output`. |
-| **Site Analysis (Combined)** | The capstone. A `Site Parameters` source feeds one wired input (`population`) while others are param-bound; `Water Reserve` and `Energy Balance` run in parallel, merge into a report, and end at a `Publish` sink. |
+| **Site Analysis (Combined)** | The capstone. A `Site Parameters` source supplies one wired input (`population`) while others are param-bound; `Water Reserve` and `Energy Balance` run in parallel, merge into a report, and end at a `Publish` sink. |
 | **Enrichment Batch** | Fan-out into a sink: a list of records is enriched one item at a time, then published. |
 
 ## Running a pipeline

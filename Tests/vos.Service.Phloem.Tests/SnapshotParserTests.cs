@@ -92,7 +92,7 @@ public class SnapshotParserTests
     {
         var from = Guid.NewGuid();
         var to = Guid.NewGuid();
-        var feeds = Guid.NewGuid();
+        var carries = Guid.NewGuid();
         var wireArchetype = Guid.NewGuid();
         var isPredicate = Guid.NewGuid();
         var json = $$"""
@@ -104,12 +104,12 @@ public class SnapshotParserTests
               { "Id": "{{isPredicate}}", "Name": "is", "Properties": {} },
               { "Id": "{{wireArchetype}}", "Name": "PipelineWire", "IsArchetype": true,
                 "Properties": { "__IsPipelineWireArchetype": { "typeInfo": "vos.Boolean", "value": true } } },
-              { "Id": "{{feeds}}", "Name": "feeds", "Properties": {} }
+              { "Id": "{{carries}}", "Name": "carries", "Properties": {} }
             ],
             "relationships": [
-              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{feeds}}", "PredicateId": "{{isPredicate}}",
+              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{carries}}", "PredicateId": "{{isPredicate}}",
                 "TargetId": "{{wireArchetype}}", "Properties": {} },
-              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{feeds}}", "TargetId": "{{to}}",
+              { "Id": "{{Guid.NewGuid()}}", "SubjectId": "{{from}}", "PredicateId": "{{carries}}", "TargetId": "{{to}}",
                 "Properties": {
                   "fromPort": { "typeInfo": "vos.String", "value": "echo" },
                   "toPort": { "typeInfo": "vos.String", "value": "message" } } }

@@ -75,8 +75,8 @@ public class PipelineModelTests
     {
         var fx = new GraphFixture();
         var vocabulary = fx.DeclareVocabulary(namePrefix: "Renamed");
-        var feeds = fx.Thing("carries");
-        fx.Rel(feeds, vocabulary.Is, vocabulary.PipelineWire);
+        var carries = fx.Thing("carries");
+        fx.Rel(carries, vocabulary.Is, vocabulary.PipelineWire);
 
         var prototype = fx.Thing("proto");
         fx.Rel(prototype, vocabulary.Is, vocabulary.Service);
@@ -106,7 +106,7 @@ public class PipelineModelTests
         fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
         fx.Rel(pipe, vocabulary.Has, first);
         fx.Rel(pipe, vocabulary.Has, second);
-        fx.Rel(first, feeds, second, ("fromPort", "produced"), ("toPort", "consumed"));
+        fx.Rel(first, carries, second, ("fromPort", "produced"), ("toPort", "consumed"));
 
         var dag = PipelineDagBuilder.Build(fx.Build(), pipe.Id);
 
@@ -251,8 +251,8 @@ public class PipelineModelTests
     public void Validate_Cycle_IsRejected()
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
-        // add the back-edge Echo –feeds(echo→message)→ Generate to make a cycle
-        fx.Rel(fx.Get("Echo"), fx.Get("feeds"), fx.Get("Generate"), ("fromPort", "echo"), ("toPort", "message"));
+        // add the back-edge Echo –carries(echo→message)→ Generate to make a cycle
+        fx.Rel(fx.Get("Echo"), fx.Get("carries"), fx.Get("Generate"), ("fromPort", "echo"), ("toPort", "message"));
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
         var result = DagValidator.Validate(dag);
@@ -266,7 +266,7 @@ public class PipelineModelTests
     {
         var (fx, pipelineId) = TestGraphs.DemoPipeline();
         // a wire whose target port does not exist on Echo
-        fx.Rel(fx.Get("Generate"), fx.Get("feeds"), fx.Get("Echo"), ("fromPort", "echo"), ("toPort", "nope"));
+        fx.Rel(fx.Get("Generate"), fx.Get("carries"), fx.Get("Echo"), ("fromPort", "echo"), ("toPort", "nope"));
         var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
 
         var result = DagValidator.Validate(dag);

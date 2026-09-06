@@ -38,7 +38,7 @@ function graphWithVocabulary() {
   const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
     rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
 
-  T('is', 'is'); T('has', 'has'); T('feeds', 'feeds');
+  T('is', 'is'); T('has', 'has'); T('carries', 'carries');
   T('arch-pipeline', 'Workflow', marked(ARCHETYPE_FLAG.Pipeline));
   T('arch-node', 'Step', marked(ARCHETYPE_FLAG.PipelineNode));
   T('arch-connection', 'Endpoint', marked(ARCHETYPE_FLAG.Connection));
@@ -48,7 +48,7 @@ function graphWithVocabulary() {
   // Boundary-node archetypes (#5873); each is-a pipeline node so the node collection picks its instances up.
   T('arch-input', 'Start', marked(ARCHETYPE_FLAG.PipelineInput)); R('arch-input', 'is', 'arch-node');
   T('arch-output', 'Finish', marked(ARCHETYPE_FLAG.PipelineOutput)); R('arch-output', 'is', 'arch-node');
-  R('feeds', 'is', 'arch-wire');
+  R('carries', 'is', 'arch-wire');
 
   return { T, R, things, rels };
 }
@@ -64,7 +64,7 @@ function buildModel(): PipelineModel {
   T('P', 'MyPipeline'); R('P', 'is', 'arch-pipeline');
   T('N1', 'Node1'); R('N1', 'is', 'arch-node'); R('N1', 'has', 'conn'); R('P', 'has', 'N1');
   T('N2', 'Node2'); R('N2', 'is', 'arch-node'); R('N2', 'has', 'conn'); R('P', 'has', 'N2');
-  R('N1', 'feeds', 'N2', { fromPort: 'out', toPort: 'in' });
+  R('N1', 'carries', 'N2', { fromPort: 'out', toPort: 'in' });
 
   return new PipelineModel(things, rels);
 }
@@ -134,7 +134,7 @@ describe('savePipeline — update in place (existing pipeline id)', () => {
     const edges = [{ id: 'e1', source: 'N2', sourceHandle: 'out', target: 'N1', targetHandle: 'in' }];
     await savePipeline('MyPipeline', [node('N1', 'Node1'), node('N2', 'Node2')], edges, model, 'P');
     // N2->N1 is new (fixture only had N1->N2), so a wire is created + its ports set.
-    expect(relCreate).toHaveBeenCalledWith('N2', 'feeds', 'N1');
+    expect(relCreate).toHaveBeenCalledWith('N2', 'carries', 'N1');
     expect(relationshipApi.setProperty).toHaveBeenCalledWith('new-rel', 'fromPort', 'vos.String', 'out');
   });
 });
@@ -218,7 +218,7 @@ describe('loadPipeline — wire field-paths (#5874)', () => {
     T('FP', 'FieldPipe'); R('FP', 'is', 'arch-pipeline');
     T('N1', 'N1'); R('N1', 'is', 'arch-node'); R('FP', 'has', 'N1');
     T('N2', 'N2'); R('N2', 'is', 'arch-node'); R('FP', 'has', 'N2');
-    R('N1', 'feeds', 'N2', { fromPort: 'out', toPort: 'in', fromPath: 'user.id', toPath: 'a' });
+    R('N1', 'carries', 'N2', { fromPort: 'out', toPort: 'in', fromPath: 'user.id', toPath: 'a' });
 
     const loaded = loadPipeline('FP', new PipelineModel(things, rels))!;
     const edge = loaded.edges[0];
@@ -243,7 +243,7 @@ describe('savePipeline / loadPipeline — wire transform (#5875)', () => {
     T('TP', 'TransformPipe'); R('TP', 'is', 'arch-pipeline');
     T('N1', 'N1'); R('N1', 'is', 'arch-node'); R('TP', 'has', 'N1');
     T('N2', 'N2'); R('N2', 'is', 'arch-node'); R('TP', 'has', 'N2');
-    R('N1', 'feeds', 'N2', { fromPort: 'out', toPort: 'in', transform: '{"x": y}' });
+    R('N1', 'carries', 'N2', { fromPort: 'out', toPort: 'in', transform: '{"x": y}' });
 
     const loaded = loadPipeline('TP', new PipelineModel(things, rels))!;
     expect(loaded.edges[0].transform).toBe('{"x": y}');

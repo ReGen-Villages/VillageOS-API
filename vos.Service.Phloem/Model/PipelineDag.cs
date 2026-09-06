@@ -46,7 +46,7 @@ public sealed class DagNode
         Ports.FirstOrDefault(p => string.Equals(p.PortName, portName, StringComparison.OrdinalIgnoreCase));
 }
 
-// A wire: an output port on one node feeds an input port on another. FromPath and
+// A wire: an output port on one node carries its value to an input port on another. FromPath and
 // ToPath (both optional, empty = the whole payload) select a field of the upstream output
 // and place it at a field of the downstream input, so several wires can compose one input (#5874). An optional
 // Transform is a JSONata expression that reshapes the extracted value before placement (#5875).
