@@ -203,8 +203,12 @@ public class MyceliumClientTests
         result!.Value.Id.Should().Be(newId);
     }
 
+    // The broker takes a property with its type on it and refuses a bare value, so what this asserts
+    // is the envelope rather than the reading as it arrived (#6930). Asserting the bare shape is what
+    // agreed with the writer about a rule neither of them applied; the case that could not is in the
+    // broker-contract suite, which writes into the real engine.
     [Fact]
-    public async Task CreateThingAsync_WithProperties_PostsProperties()
+    public async Task CreateThingAsync_WithProperties_PostsEachOneWithItsType()
     {
         var newId = Guid.NewGuid();
         string? sentBody = null;
@@ -222,7 +226,7 @@ public class MyceliumClientTests
         await sut.CreateThingAsync("X", new Dictionary<string, object?> { ["k"] = 1 });
 
         sentBody.Should().NotBeNull();
-        sentBody!.Should().Contain("\"k\":1");
+        sentBody!.Should().Contain("\"k\":{\"typeInfo\":\"vos.Double\",\"value\":1}");
     }
 
     [Fact]

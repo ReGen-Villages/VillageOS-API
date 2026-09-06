@@ -182,3 +182,6 @@ tools/simulator/*.ckpt
 docs/*.pdf
 docs/*.html
 tools/docs-pdf/*.pdf
+
+# The engine a broker-contract run needs, staged from a platform checkout by ci/stage-the-engine.sh.
+.vos-engine/

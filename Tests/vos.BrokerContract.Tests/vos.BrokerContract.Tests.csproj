@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Where a staged engine is. ci/stage-the-engine.sh writes one here; the build points VosRelease
+       at the one it stages for itself. Absent, this project still compiles and its suite reports that
+       it did not run — a checkout without an engine builds like any other. -->
+  <PropertyGroup>
+    <VosRelease Condition="'$(VosRelease)' == ''">$(MSBuildThisFileDirectory)..\..\.vos-engine</VosRelease>
+    <VosTestingProperties>$(VosRelease)\tools\testing\vos.Mycelium.Testing.props</VosTestingProperties>
+    <VosEngineIsStaged Condition="Exists('$(VosTestingProperties)')">true</VosEngineIsStaged>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(VosEngineIsStaged)' == 'true'">
+    <DefineConstants>$(DefineConstants);VOS_ENGINE_IS_STAGED</DefineConstants>
+  </PropertyGroup>
+
+  <Import Project="$(VosTestingProperties)" Condition="'$(VosEngineIsStaged)' == 'true'" />
+
+  <ItemGroup Condition="'$(VosEngineIsStaged)' != 'true'">
+    <Compile Remove="AgainstTheEngine\**\*.cs" />
+  </ItemGroup>
+
+  <!-- A suite that compiles to nothing passes, and a build that staged the engine wrongly would
+       report that pass as a green run over the cases it was added for. The build sets this, so a
+       staging step that silently produced nothing fails here instead. -->
+  <Target Name="RefuseAMissingEngineWhenTheBuildRequiresOne" BeforeTargets="BeforeBuild"
+          Condition="'$(VosRequireEngine)' == 'true' and '$(VosEngineIsStaged)' != 'true'">
+    <Error Text="VosRequireEngine is set and no staged engine was found at $(VosTestingProperties). Nothing would have run." />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0"/>
+    <PackageReference Include="xunit" Version="2.7.0"/>
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector" Version="6.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" Version="6.12.0"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\vos.Service.Delta\vos.Service.Delta.csproj"/>
+    <ProjectReference Include="..\..\vos.Service.Phloem\vos.Service.Phloem.csproj"/>
+    <ProjectReference Include="..\..\vos.Service.Tributary\vos.Service.Tributary.csproj"/>
+    <ProjectReference Include="..\vos.Tests.Shared\vos.Tests.Shared.csproj"/>
+  </ItemGroup>
+</Project>
