@@ -25,6 +25,10 @@ const ALLOWED = new Set<string>([
   'e.g. user.id',
   'e.g. a',
   'e.g. {"name": firstName & " " & lastName}',
+  // The company's name. It is the mark's accessible name, and a proper noun is the same sentence
+  // in every language, so translating it would give a reader who cannot see the mark a name that
+  // nothing else in the product is called.
+  'ReGen Villages',
 ]);
 
 const VISIBLE_ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
