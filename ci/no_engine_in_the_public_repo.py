@@ -30,9 +30,9 @@ UNSEARCHED = ('bin', 'obj', 'node_modules')
 
 _ALTERNATIVES = '|'.join(namespace.replace('.', r'\.') for namespace in ENGINE_NAMESPACES)
 
-# `using X;`, `global using X;`, `using static X.Y;` and `using Alias = X.Y;`. The trailing class
-# refuses a longer namespace that merely starts with an engine one — `vos.CoreThing` is not
-# `vos.Core` — while still matching every namespace genuinely under it.
+# `using X;`, `global using X;`, `using static X.Y;` and `using Alias = X.Y;`. The whole import has to
+# reach the semicolon, so a longer word that merely starts with an engine namespace does not match —
+# `vos.CoreThings` is not `vos.Core` — while every namespace genuinely under one still does.
 IMPORT = re.compile(
     r'^\s*(?:global\s+)?using\s+'
     r'(?:static\s+|[A-Za-z_]\w*\s*=\s*)?'

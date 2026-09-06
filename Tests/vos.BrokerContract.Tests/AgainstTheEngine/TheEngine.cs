@@ -67,7 +67,7 @@ public sealed class TheEngine : IAsyncLifetime
             Id = identifier,
             Name = name,
             IsArchetype = isArchetype,
-            Properties = TypedProperties.Typed(properties ?? new Dictionary<string, object?>()),
+            Properties = TypedProperties.Typed(properties),
         });
 
         written.EnsureSuccessStatusCode();

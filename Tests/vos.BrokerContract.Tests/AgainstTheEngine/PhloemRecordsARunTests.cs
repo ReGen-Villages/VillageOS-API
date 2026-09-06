@@ -24,9 +24,11 @@ public class PhloemRecordsARunTests : IClassFixture<TheEngine>
         _engine.ClientFactory, NullLogger<MyceliumGateway>.Instance, TheEngine.Url, _engine.AdminToken);
 
     /// <summary>What the gateway needs to find before it can write: the built-in predicates by name,
-    /// and an archetype for each run role found by the flag it carries. Declared per test rather than
-    /// once, because a name resolves to one Thing and two tests sharing a host would each add their
-    /// own.</summary>
+    /// and an archetype for each run role found by the flag it carries.
+    ///
+    /// Every case arranges this and the host is shared by the class, so it has to be write-once. A
+    /// second Thing of the same name makes the name ambiguous, and the gateway resolves its predicates
+    /// by name — so the arrangement would break the thing it exists to set up.</summary>
     private async Task<Guid> AModelThatMarksItsRunArchetypesAsync()
     {
         foreach (var predicate in new[] { ModelNames.Is, ModelNames.Has, ModelNames.Of })
