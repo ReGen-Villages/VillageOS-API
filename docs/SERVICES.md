@@ -1052,9 +1052,17 @@ graph LR
   `Subdomain` is the dispatch address Phloem forwards to.
 - **Ports** are first-class `Port` Things on the service **prototype**, resolved by walking the bound
   service's `is`-chain (relationships do **not** inherit through `is`, so ports resolve at read time).
-- A **wire** is a relationship whose predicate `is` the wire archetype — identified by the role that
-  archetype is marked with, never by the predicate name `"carries"` — carrying `fromPort`/`toPort`.
-  The name is the model's to choose, and it is deliberately not `feeds`: that word already names
+- A **wire** carries `fromPort`/`toPort`, and Phloem reads it in either of two shapes. **Drawn as an
+  edge**, it is a relationship whose predicate `is` the wire archetype. **Held as a Thing**, the wire
+  itself `is` the wire archetype, its source node `has` it, and it points at its target node. Both are
+  found by the role the archetype is marked with, never by the predicate name `"carries"`.
+- **Two nodes may carry more than one wire only in the second shape.** The model refuses a second active
+  relationship with the same subject, predicate and target, so as an edge a node pair carries one wire
+  whatever ports either side declares, and further inputs have to travel as node parameter bindings —
+  which the validator does not check, while every wire's ports are proved to exist and to have compatible
+  types. As Things, two wires between a pair are two Things and the rule never applies. The Thing shape is
+  replacing the edge shape; both are read while producers move over.
+- The predicate name is the model's to choose, and it is deliberately not `feeds`: that word already names
   matter moving between built things (a swale into a buffer, a compost station into a greenhouse),
   and a dashboard scope resolves a predicate **by name**.
 - **Every role is a flag the archetype carries**, not a name: `__IsPipelineArchetype`,

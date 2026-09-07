@@ -399,12 +399,73 @@ public static class TestGraphs
         return node;
     }
 
+    // The same two nodes as DemoPipeline, wired by wire Things rather than by edges, and wired twice:
+    // two Things between one node pair is the case an edge cannot express, because the model refuses a
+    // second edge on one subject, predicate and target.
+    public static (GraphFixture Fixture, Guid PipelineId) ParallelWirePipeline()
+    {
+        var fx = new GraphFixture();
+        var vocabulary = fx.DeclareVocabulary();
+        var carries = fx.Thing("carries");
+
+        var proto = fx.Thing("RelayProto");
+        fx.Rel(proto, vocabulary.Is, vocabulary.Service);
+        Port(fx, vocabulary, proto, "message", "in", "string", required: true);
+        Port(fx, vocabulary, proto, "context", "in", "string");
+        Port(fx, vocabulary, proto, "echo", "out", "string");
+        Port(fx, vocabulary, proto, "trace", "out", "string");
+
+        var genSvc = fx.Thing("genSvc");
+        fx.Rel(genSvc, vocabulary.Is, proto);
+        var echSvc = fx.Thing("echSvc");
+        fx.Rel(echSvc, vocabulary.Is, proto);
+
+        var genConn = fx.Thing("genConn", ("Subdomain", "gen"));
+        fx.Rel(genConn, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(genConn, vocabulary.Has, genSvc);
+        var echConn = fx.Thing("echConn", ("Subdomain", "ech"));
+        fx.Rel(echConn, vocabulary.Is, vocabulary.Connection);
+        fx.Rel(echConn, vocabulary.Has, echSvc);
+
+        var gen = fx.Thing("Generate");
+        fx.Rel(gen, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(gen, vocabulary.Has, genConn);
+        var ech = fx.Thing("Echo");
+        fx.Rel(ech, vocabulary.Is, vocabulary.PipelineNode);
+        fx.Rel(ech, vocabulary.Has, echConn);
+
+        var pipe = fx.Thing("Demo");
+        fx.Rel(pipe, vocabulary.Is, vocabulary.Pipeline);
+        fx.Rel(pipe, vocabulary.Has, gen);
+        fx.Rel(pipe, vocabulary.Has, ech);
+
+        WireThing(fx, vocabulary, carries, gen, ech, "echo", "message");
+        WireThing(fx, vocabulary, carries, gen, ech, "trace", "context");
+
+        return (fx, pipe.Id);
+    }
+
+    private static void WireThing(
+        GraphFixture fx, PipelineVocabulary vocabulary, GraphThing carries,
+        GraphThing from, GraphThing to, string fromPort, string toPort)
+    {
+        var wire = fx.Thing($"w.{fromPort}.{toPort}", ("fromPort", fromPort), ("toPort", toPort));
+        fx.Rel(wire, vocabulary.Is, vocabulary.PipelineWire);
+        fx.Rel(from, vocabulary.Has, wire);
+        fx.Rel(wire, carries, to);
+    }
+
     private static void NumberPort(
         GraphFixture fx, PipelineVocabulary vocabulary, GraphThing prototype, string name, string direction, bool required = false)
+        => Port(fx, vocabulary, prototype, name, direction, "number", required);
+
+    private static void Port(
+        GraphFixture fx, PipelineVocabulary vocabulary, GraphThing prototype,
+        string name, string direction, string type, bool required = false)
     {
         var props = required
-            ? new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name), ("required", "true") }
-            : new (string, object)[] { ("direction", direction), ("type", "number"), ("portName", name) };
+            ? new (string, object)[] { ("direction", direction), ("type", type), ("portName", name), ("required", "true") }
+            : new (string, object)[] { ("direction", direction), ("type", type), ("portName", name) };
         var port = fx.Thing($"p.{name}", props);
         fx.Rel(port, vocabulary.Is, vocabulary.Port);
         fx.Rel(prototype, vocabulary.Has, port);
