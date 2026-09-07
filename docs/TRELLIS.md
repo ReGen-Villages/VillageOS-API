@@ -570,6 +570,10 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   to every member. A model may rename every one of these archetypes and still be authored here, and it is the
   same contract Phloem reads, so a model can never be orchestrated and un-authorable at once. A model that
   marks none is refused on save with a message saying so, rather than writing a pipeline nothing can find.
+  - The **wire predicate** takes one more condition, because a wire may itself be a Thing of the wire
+    archetype rather than an edge through one: the predicate is the Thing of that archetype which the model
+    also **uses as a predicate**. Without it the page would pick a wire and save every new wire through
+    something that is not a predicate at all.
 
 The model side (archetypes, node-binds-Connection, the wire predicate) and the orchestrator are
 documented in [`SERVICES.md` §16 (Pipelines / DAG orchestration)](SERVICES.md).
