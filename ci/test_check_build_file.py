@@ -21,17 +21,17 @@ eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main')), 'True', 'R
 steps:
 - bash: echo publish
   displayName: 'Publish Docs to Wiki'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
 
 - bash: echo mirror
   displayName: 'Mirror to GitHub'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
 
 - task: SomeTask@1
   displayName: 'Mirror Wiki to GitHub'
   inputs:
     script: echo wiki
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
 """
 
 
@@ -65,14 +65,23 @@ class CheckBuildFileTests(unittest.TestCase):
 
         self.assertIn('System.PullRequest.TargetBranch', problems(branch_only)[0])
 
-    def test_a_publishing_step_left_on_develop_is_reported(self):
-        on_develop = COMPLIANT.replace(
-            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n\n"
+    def test_a_publishing_step_moved_to_main_is_reported(self):
+        on_main = COMPLIANT.replace(
+            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n\n"
+            "- bash: echo mirror",
+            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))"
+            "\n\n- bash: echo mirror")
+
+        self.assertIn('"Publish Docs to Wiki" must run on develop only', problems(on_main)[0])
+
+    def test_a_publishing_step_widened_to_both_branches_is_reported(self):
+        on_both = COMPLIANT.replace(
+            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n\n"
             "- bash: echo mirror",
             "  condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), "
             "eq(variables['Build.SourceBranch'], 'refs/heads/main')))\n\n- bash: echo mirror")
 
-        self.assertIn('"Publish Docs to Wiki" must run on main only', problems(on_develop)[0])
+        self.assertIn('"Publish Docs to Wiki" must run on develop only', problems(on_both)[0])
 
     def test_a_second_push_trigger_is_reported(self):
         twice = COMPLIANT + '\ntrigger:\n  branches:\n    include:\n      - main\n'
@@ -97,7 +106,7 @@ class CheckBuildFileTests(unittest.TestCase):
     def test_a_publishing_step_with_no_condition_at_all_is_reported(self):
         unconditional = COMPLIANT.replace(
             "- bash: echo publish\n  displayName: 'Publish Docs to Wiki'\n"
-            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n",
+            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n",
             "- bash: echo publish\n  displayName: 'Publish Docs to Wiki'\n")
 
         self.assertIn('"Publish Docs to Wiki" has no condition', problems(unconditional)[0])
@@ -110,7 +119,7 @@ class CheckBuildFileTests(unittest.TestCase):
 
     def test_the_last_step_in_the_file_having_no_condition_is_reported(self):
         unconditional = COMPLIANT[:COMPLIANT.index(
-            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))\n"
+            "  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n"
             "\n- task: SomeTask@1")] + "\n- task: SomeTask@1\n  displayName: 'Mirror Wiki to GitHub'\n"
 
         self.assertIn('"Mirror Wiki to GitHub" has no condition', problems(unconditional)[-1])

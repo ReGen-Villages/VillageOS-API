@@ -1,8 +1,8 @@
 """What the build runs on, and what it publishes, read as a passing build when they are wrong.
 
 A widened trigger, a configuration that no longer follows the branch, and a publishing step gated
-back to develop all produce more green builds rather than a failure, so nothing in a build result
-would look wrong. This reads the build file and says what has drifted.
+to main all produce more green builds rather than a failure, so nothing in a build result would
+look wrong. This reads the build file and says what has drifted.
 
 Stock Python: the build agents carry python3 and nothing else, and a guard that needed installing
 would be one more thing able to fail.
@@ -11,9 +11,11 @@ would be one more thing able to fail.
 MAIN = 'refs/heads/main'
 DEVELOP = 'refs/heads/develop'
 
-# main is the release branch, so main is what leaves the repository. The wiki mirror publishes
-# whatever the docs publish left on the project wiki, so the pair only agree while both run on the
-# same branch.
+# develop is the branch that moves, so develop is what the public copy follows: gated to main it
+# published nothing at all, because main has never been promoted. The wiki mirror publishes whatever
+# the docs publish left on the project wiki, so the pair only agree while both run on the same
+# branch — which is why a condition naming main is refused whether it moved the step there or
+# widened it to both.
 PUBLISHING_STEPS = ('Publish Docs to Wiki', 'Mirror to GitHub', 'Mirror Wiki to GitHub')
 
 # A build against main compiles Release, which is what a release is built in; everything else
@@ -112,8 +114,8 @@ def problems(build_file_text):
             found.append('The build has no step named "%s", so nothing publishes it' % step)
         elif not condition:
             found.append('"%s" has no condition, so it publishes from every branch' % step)
-        elif MAIN not in condition or DEVELOP in condition:
+        elif DEVELOP not in condition or MAIN in condition:
             found.append(
-                '"%s" must run on main only; its condition reads %s' % (step, condition.strip()))
+                '"%s" must run on develop only; its condition reads %s' % (step, condition.strip()))
 
     return found

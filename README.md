@@ -89,15 +89,16 @@ npm run lint     # Lint
 ```
 
 The build runs `npm run lint`, `npm test` and `npm run build`, so a failure in any of them fails the
-build — and on `main` stops the wiki publish and the GitHub mirror. It runs when `develop` or
+build — and on `develop` stops the wiki publish and the GitHub mirror. It runs when `develop` or
 `main` moves and when a pull request into `develop` is validated; a push to a branch with no pull
 request open builds nothing. Run them before pushing rather than finding out from the build.
 
 A build **against `main`** compiles Release — a merge to it, and a pull request targeting it, since
 a merge is too late to learn that Release does not compile. Every other build compiles Debug, which
 is what you run locally. The difference is not only optimization here: `MyceliumClientBase` throws
-on an outbound contract violation in Debug and logs it in Release. `main` is also the only branch
-that publishes: the documentation to the project wiki, and the repository and that wiki to GitHub.
+on an outbound contract violation in Debug and logs it in Release. `develop` is the branch that
+publishes: the documentation to the project wiki, and the repository and that wiki to GitHub, so
+what is public is what has been integrated rather than what was last promoted.
 
 `npm test` runs offline. `npm run test:integration` covers what only a live
 platform can answer — currently that the property type names Trellis holds are
