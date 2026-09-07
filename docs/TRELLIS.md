@@ -525,12 +525,20 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
   a runtime error becomes a clear node failure. A wire with a transform shows a `ƒ` in its label; the expression
   persists as a `transform` property on the wire.
 - **New / Save / Load** — **New** clears the canvas; **Save** writes the pipeline and its nodes under the
-  archetypes the model marks for them, with the `has` edges and one wire edge per wire on the canvas (node
+  archetypes the model marks for them, with the `has` edges and one wire per wire on the canvas (node
   `‑has→ connection`, positions round-trip as x/y); **Load** picks an existing pipeline from the model.
   **Editing is in place**: saving a loaded pipeline **updates it** rather than forking a duplicate — the Thing graph (pipeline + nodes + `is`/`has` edges) rides one idempotent
   fragment upsert (existing nodes keep their Ids), and nodes or wires removed on the canvas are retracted on
-  save. Wire `fromPort`/`toPort` are written per-edge (the fragment endpoint does not carry relationship
-  properties). A node can also be deleted from its detail panel.
+  save. A node can also be deleted from its detail panel.
+  - **A wire is written as a Thing**: the source node `has` it, it `is` the wire archetype, and it points at
+    its target through the wire predicate, with `fromPort`/`toPort` and the paths as its own properties. That
+    is what lets **two nodes carry more than one wire** — the model refuses a second relationship on one
+    subject, predicate and target, so a wire drawn as an edge caps a pair at one. A wire the model already
+    holds as an edge keeps its shape and is still edited and removed in place, so nothing has to be migrated
+    to keep working. Wires are written per-wire rather than in the fragment, because the fragment endpoint
+    does not carry a relationship's properties.
+  - Every value a wire carries is declared when it is created, **empty where unset**, because a Thing's
+    property write updates rather than creates — an undeclared path could not be added later.
 - **Undo & optimistic rollback** (#5872) — the toolbar **Undo** button (or **Ctrl/Cmd+Z**) reverses the last
   edit: add / move / delete a node, add / delete a wire, or change a param binding. Editing is **optimistic** —
   changes show immediately and an **unsaved changes** indicator appears; on a successful save (or load, or New)

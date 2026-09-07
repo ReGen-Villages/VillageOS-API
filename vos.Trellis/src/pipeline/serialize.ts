@@ -72,7 +72,10 @@ export async function savePipeline(
   const wireId = model.wirePredicateId();
   const pipelineArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.Pipeline);
   const nodeArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.PipelineNode);
-  if (!isId || !hasId || !wireId || !pipelineArchetype || !nodeArchetype)
+  // A wire is written as a Thing of the wire archetype, pointing at its target through the wire predicate,
+  // so a save needs both — the archetype to say what the Thing is, the predicate to say where it goes.
+  const wireArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.PipelineWire);
+  if (!isId || !hasId || !wireId || !wireArchetype || !pipelineArchetype || !nodeArchetype)
     throw new Error('This model marks no archetype as a pipeline, a pipeline node or a wire — load a seed that marks them.');
 
   const portArchetype = model.archetypeCarrying(ARCHETYPE_FLAG.Port);
@@ -148,26 +151,40 @@ export async function savePipeline(
     ? model.outgoing(existingPipelineId, 'has').filter((t) => model.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineNode)).map((t) => t.Id)
     : [];
   const persistedWires = persistedNodeIds.flatMap((nid) =>
-    model.outgoingWireRels(nid).map((w) => ({ relId: w.relId, key: wireKey(nid, w.fromPort, w.targetId, w.toPort), fromPath: w.fromPath, toPath: w.toPath, transform: w.transform })));
+    model.outgoingWires(nid).map((w) => ({ ...w, key: wireKey(nid, w.fromPort, w.targetId, w.toPort) })));
   const persistedByKey = new Map(persistedWires.map((w) => [w.key, w]));
+
+  // A wire persisted in either shape is edited through its own shape's calls: a relationship for one drawn
+  // as an edge, a Thing for one held. A wire that is new is written held, which is the only shape that lets
+  // a node pair carry more than one.
+  const writeOn = (shape: 'edge' | 'held') =>
+    shape === 'edge' ? relationshipApi.setProperty : thingApi.setProperty;
 
   for (const w of desired) {
     const existing = persistedByKey.get(wireKey(w.from, w.fp, w.to, w.tp));
     if (existing) {
       // Wire persists — only re-write a field-path or transform that actually changed.
-      if (w.fromPath !== existing.fromPath) await relationshipApi.setProperty(existing.relId, 'fromPath', STRING, w.fromPath);
-      if (w.toPath !== existing.toPath) await relationshipApi.setProperty(existing.relId, 'toPath', STRING, w.toPath);
-      if (w.transform !== existing.transform) await relationshipApi.setProperty(existing.relId, 'transform', STRING, w.transform);
+      const write = writeOn(existing.shape);
+      if (w.fromPath !== existing.fromPath) await write(existing.wireId, 'fromPath', STRING, w.fromPath);
+      if (w.toPath !== existing.toPath) await write(existing.wireId, 'toPath', STRING, w.toPath);
+      if (w.transform !== existing.transform) await write(existing.wireId, 'transform', STRING, w.transform);
       continue;
     }
-    const rel = await relationshipApi.create(w.from, wireId, w.to);
-    await relationshipApi.setProperty(rel.Id, 'fromPort', STRING, w.fp);
-    await relationshipApi.setProperty(rel.Id, 'toPort', STRING, w.tp);
-    if (w.fromPath) await relationshipApi.setProperty(rel.Id, 'fromPath', STRING, w.fromPath);
-    if (w.toPath) await relationshipApi.setProperty(rel.Id, 'toPath', STRING, w.toPath);
-    if (w.transform) await relationshipApi.setProperty(rel.Id, 'transform', STRING, w.transform);
+    const wire = await thingApi.create(`${w.fp} to ${w.tp}`);
+    // Every value is declared at creation, empty where unset, because a Thing's property write updates and
+    // does not create — so a path added later is an update rather than a call that answers "no such property".
+    await thingApi.addProperty(wire.Id, 'fromPort', STRING, w.fp);
+    await thingApi.addProperty(wire.Id, 'toPort', STRING, w.tp);
+    await thingApi.addProperty(wire.Id, 'fromPath', STRING, w.fromPath);
+    await thingApi.addProperty(wire.Id, 'toPath', STRING, w.toPath);
+    await thingApi.addProperty(wire.Id, 'transform', STRING, w.transform);
+    await relationshipApi.create(wire.Id, isId, wireArchetype);
+    await relationshipApi.create(w.from, hasId, wire.Id);
+    await relationshipApi.create(wire.Id, wireId, w.to);
   }
-  for (const w of persistedWires) if (!desiredKeys.has(w.key)) await relationshipApi.remove(w.relId);
+  for (const w of persistedWires)
+    if (!desiredKeys.has(w.key))
+      await (w.shape === 'edge' ? relationshipApi.remove(w.wireId) : thingApi.remove(w.wireId));
 
   // Ports removed from a boundary node (still on the canvas) are retracted.
   for (const portId of portsToRetract) await thingApi.remove(portId);
