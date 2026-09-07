@@ -54,16 +54,22 @@ export class PipelineModel {
   private readonly byId: Map<string, VosThing>;
   // Relationships indexed by subject so traversal is O(node degree), not O(all relationships).
   private readonly bySubject: Map<string, VosRelationship[]>;
+  // The Things this model uses as a predicate. A wire held as a Thing is of the wire archetype exactly as
+  // the wire predicate is, so being of that archetype no longer tells the two apart — being used as a
+  // predicate does.
+  private readonly usedAsPredicate: Set<string>;
   private readonly roleCache = new Map<string, boolean>();
 
   constructor(things: VosThing[], rels: VosRelationship[]) {
     this.things = things;
     this.byId = new Map(things.map((t) => [t.Id, t]));
     this.bySubject = new Map();
+    this.usedAsPredicate = new Set();
     for (const rel of rels) {
       const arr = this.bySubject.get(rel.SubjectId);
       if (arr) arr.push(rel);
       else this.bySubject.set(rel.SubjectId, [rel]);
+      this.usedAsPredicate.add(rel.PredicateId);
     }
   }
 
@@ -214,9 +220,14 @@ export class PipelineModel {
     return this.things.find((t) => t.Name.toLowerCase() === name.toLowerCase())?.Id;
   }
 
-  /** Id of the wire predicate — the predicate Thing of the archetype the model marks as holding wires. */
+  /** Id of the wire predicate — the predicate Thing of the archetype the model marks as holding wires.
+   *  A wire held as a Thing is of that same archetype, so this also asks that the Thing is one the model
+   *  uses as a predicate; without that it returns whichever the snapshot happens to list first, and a save
+   *  writes every new wire through a Thing that is not a predicate at all. */
   wirePredicateId(): string | undefined {
-    return this.things.find((t) => this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineWire))?.Id;
+    return this.things.find(
+      (t) => this.usedAsPredicate.has(t.Id) && this.isOfArchetypeCarrying(t.Id, ARCHETYPE_FLAG.PipelineWire),
+    )?.Id;
   }
 
   /** Id of the archetype this model marks with the given role — the Thing an `is` edge is written to.

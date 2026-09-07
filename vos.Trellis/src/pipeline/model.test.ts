@@ -67,6 +67,46 @@ function demoModel(): { model: PipelineModel; pipelineId: string; pipelineArchet
   return { model: new PipelineModel(things, rels), pipelineId: pipe.Id, pipelineArchetypeId: pipelineA.Id };
 }
 
+// The same two nodes, wired by Things rather than edges, and wired twice — the case an edge cannot
+// express, because the model refuses a second edge on one subject, predicate and target. The wires are
+// listed before the predicate on purpose: a snapshot's order is arbitrary, and both are of the wire
+// archetype, so anything picking "the first of that archetype" picks a wire here.
+function heldWireModel(): { model: PipelineModel; carriesId: string } {
+  const things: VosThing[] = [];
+  const rels: VosRelationship[] = [];
+  let n = 0;
+  const T = (name: string, props: Record<string, unknown> = {}): VosThing => {
+    const t = { Id: `t${++n}`, Name: name, Properties: props };
+    things.push(t);
+    return t;
+  };
+  const R = (s: string, p: string, t: string, props: Record<string, unknown> = {}) =>
+    rels.push({ Id: `r${++n}`, Name: '', SubjectId: s, PredicateId: p, TargetId: t, Properties: props });
+
+  const is = T('is'), has = T('has');
+  const nodeA = T('Step', marked(ARCHETYPE_FLAG.PipelineNode));
+  const wireA = T('Link', marked(ARCHETYPE_FLAG.PipelineWire));
+
+  const wireOne = T('w.echo', { fromPort: 'echo', toPort: 'message' });
+  const wireTwo = T('w.trace', { fromPort: 'trace', toPort: 'context' });
+  const carries = T('carries');
+  // Both shapes are read while one replaces the other, so the predicate keeps its own mark: this model
+  // holds three Things of the wire archetype and only one of them is the predicate.
+  R(carries.Id, is.Id, wireA.Id);
+
+  const gen = T('Generate'), ech = T('Echo');
+  R(gen.Id, is.Id, nodeA.Id);
+  R(ech.Id, is.Id, nodeA.Id);
+
+  for (const wire of [wireOne, wireTwo]) {
+    R(wire.Id, is.Id, wireA.Id);
+    R(gen.Id, has.Id, wire.Id);
+    R(wire.Id, carries.Id, ech.Id);
+  }
+
+  return { model: new PipelineModel(things, rels), carriesId: carries.Id };
+}
+
 describe('PipelineModel', () => {
   it('lists dispatchable connections with subdomain and resolved ports', () => {
     const { model } = demoModel();
@@ -80,6 +120,11 @@ describe('PipelineModel', () => {
   it('identifies the wire predicate by the mark its archetype carries, not by name', () => {
     const { model } = demoModel();
     expect(model.wirePredicateId()).toBe(model.predicateIdByName('carries'));
+  });
+
+  it('does not mistake a wire held as a Thing for the wire predicate, whichever the model lists first', () => {
+    const { model, carriesId } = heldWireModel();
+    expect(model.wirePredicateId()).toBe(carriesId);
   });
 
   it('gives the archetype a save writes its `is` edge to, whatever the model calls it', () => {
