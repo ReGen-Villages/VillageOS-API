@@ -339,6 +339,24 @@ describe('a wire held as a Thing', () => {
     expect(loaded.edges.map((e) => e.sourceHandle)).toEqual(['out']);
   });
 
+  it('skips a wire whose Thing has gone, which is the state a removal leaves behind', () => {
+    // Removing a wire retracts its Thing and leaves its `is`, `has` and pointing edges: the platform's
+    // delete does not cascade. The Thing goes from the model and the edges do not, so the reader meets a
+    // `has` edge whose target it cannot find — and must not draw a wire that was removed.
+    const { T, R, things, rels } = graphWithVocabulary();
+    T('P', 'MyPipeline'); R('P', 'is', 'arch-pipeline');
+    T('N1', 'Node1'); R('N1', 'is', 'arch-node'); R('P', 'has', 'N1');
+    T('N2', 'Node2'); R('N2', 'is', 'arch-node'); R('P', 'has', 'N2');
+    T('W1', 'w.out.in', { fromPort: 'out', toPort: 'in' });
+    R('W1', 'is', 'arch-wire'); R('N1', 'has', 'W1'); R('W1', 'carries', 'N2');
+    // The edges of a wire whose Thing is no longer in the model.
+    R('N1', 'has', 'W-gone'); R('W-gone', 'carries', 'N2');
+
+    const loaded = loadPipeline('P', new PipelineModel(things, rels))!;
+
+    expect(loaded.edges.map((e) => e.sourceHandle)).toEqual(['out']);
+  });
+
   it('leaves two wires between one node pair alone when neither changed', async () => {
     await savePipeline('P', [node('N1', 'Node1'), node('N2', 'Node2')],
       [wire('out', 'in'), wire('trace', 'context')], buildModelWithHeldWires(), 'P');
