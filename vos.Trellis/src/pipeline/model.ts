@@ -41,6 +41,29 @@ export interface PortInfo {
   required: boolean;
 }
 
+/** A wire as the editor reads it, whichever shape the model holds it in. */
+export interface WireRead {
+  wireId: string;
+  shape: 'edge' | 'held';
+  targetId: string;
+  fromPort: string;
+  toPort: string;
+  fromPath: string;
+  toPath: string;
+  transform: string;
+}
+
+/** The five values a wire carries, read the same off an edge and off a wire Thing. */
+function wireMapping(properties: Record<string, unknown>) {
+  return {
+    fromPort: String(properties.fromPort ?? ''),
+    toPort: String(properties.toPort ?? ''),
+    fromPath: String(properties.fromPath ?? ''),
+    toPath: String(properties.toPath ?? ''),
+    transform: String(properties.transform ?? ''),
+  };
+}
+
 export interface ConnectionInfo {
   connectionId: string;
   name: string;
@@ -175,42 +198,28 @@ export class PipelineModel {
     return result;
   }
 
-  /** Outgoing wires from a node: edges through a predicate the model marks as holding wires, with their
-   * port mapping and the optional field-paths (#5874). */
-  outgoingWires(subjectId: string): { targetId: string; fromPort: string; toPort: string; fromPath: string; toPath: string; transform: string }[] {
+  /** Outgoing wires from a node, in either shape the model may hold them in, with their port mapping and
+   * the optional field-paths (#5874). `wireId` is what the save edits and removes the wire through, and
+   * `shape` says which call that is: a relationship for a wire drawn as an edge, a Thing for one held. */
+  outgoingWires(subjectId: string): WireRead[] {
     const rels = this.bySubject.get(subjectId);
     if (!rels) return [];
-    const out: { targetId: string; fromPort: string; toPort: string; fromPath: string; toPath: string; transform: string }[] = [];
+    const out: WireRead[] = [];
     for (const rel of rels) {
-      if (this.isOfArchetypeCarrying(rel.PredicateId, ARCHETYPE_FLAG.PipelineWire))
-        out.push({
-          targetId: rel.TargetId,
-          fromPort: String(rel.Properties.fromPort ?? ''),
-          toPort: String(rel.Properties.toPort ?? ''),
-          fromPath: String(rel.Properties.fromPath ?? ''),
-          toPath: String(rel.Properties.toPath ?? ''),
-          transform: String(rel.Properties.transform ?? ''),
-        });
-    }
-    return out;
-  }
-
-  /** Outgoing wires with their relationship Id — the save diff needs the id to delete a removed wire. */
-  outgoingWireRels(subjectId: string): { relId: string; targetId: string; fromPort: string; toPort: string; fromPath: string; toPath: string; transform: string }[] {
-    const rels = this.bySubject.get(subjectId);
-    if (!rels) return [];
-    const out: { relId: string; targetId: string; fromPort: string; toPort: string; fromPath: string; toPath: string; transform: string }[] = [];
-    for (const rel of rels) {
-      if (this.isOfArchetypeCarrying(rel.PredicateId, ARCHETYPE_FLAG.PipelineWire))
-        out.push({
-          relId: rel.Id,
-          targetId: rel.TargetId,
-          fromPort: String(rel.Properties.fromPort ?? ''),
-          toPort: String(rel.Properties.toPort ?? ''),
-          fromPath: String(rel.Properties.fromPath ?? ''),
-          toPath: String(rel.Properties.toPath ?? ''),
-          transform: String(rel.Properties.transform ?? ''),
-        });
+      // Drawn as an edge: the predicate is of the wire archetype and the edge carries the mapping.
+      if (this.isOfArchetypeCarrying(rel.PredicateId, ARCHETYPE_FLAG.PipelineWire)) {
+        out.push({ wireId: rel.Id, shape: 'edge', targetId: rel.TargetId, ...wireMapping(rel.Properties) });
+        continue;
+      }
+      // Held as a Thing: the node `has` a Thing of the wire archetype, and that Thing points at the node
+      // the wire carries into. A wire pointing at nothing that is a node is half-drawn and is skipped.
+      const held = this.byId.get(rel.TargetId);
+      if (!held || !this.isOfArchetypeCarrying(held.Id, ARCHETYPE_FLAG.PipelineWire)) continue;
+      const target = (this.bySubject.get(held.Id) ?? [])
+        .map((r) => r.TargetId)
+        .find((id) => this.isOfArchetypeCarrying(id, ARCHETYPE_FLAG.PipelineNode));
+      if (!target) continue;
+      out.push({ wireId: held.Id, shape: 'held', targetId: target, ...wireMapping(held.Properties) });
     }
     return out;
   }
