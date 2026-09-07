@@ -45,6 +45,8 @@ public sealed class PipelineGraph
 {
     private const string IsPredicate = "is";
 
+    private const string HasPredicate = "has";
+
     private readonly Dictionary<Guid, GraphThing> _things;
     private readonly List<GraphRelationship> _relationships;
 
@@ -103,6 +105,30 @@ public sealed class PipelineGraph
             if (rel.SubjectId != subject.Id) continue;
             if (Thing(rel.PredicateId) is { } predicate && IsOfArchetypeCarrying(predicate, roleFlag))
                 yield return rel;
+        }
+    }
+
+    /// <summary>Things the subject <c>has</c> that are of an archetype carrying <paramref name="roleFlag"/>,
+    /// each with the Thing it points at that is of an archetype carrying <paramref name="targetRoleFlag"/> —
+    /// how a wire held as a Thing is found, and where it goes, without naming either predicate.
+    ///
+    /// A wire that points at no such Thing is skipped rather than reported: it is half-drawn, and the shape
+    /// this reads is one an editor writes a piece at a time.</summary>
+    public IEnumerable<(GraphThing Held, GraphThing Target)> HeldThingsCarrying(
+        GraphThing subject, string roleFlag, string targetRoleFlag)
+    {
+        foreach (var held in OutgoingTargets(subject, HasPredicate))
+        {
+            if (!IsOfArchetypeCarrying(held, roleFlag)) continue;
+            foreach (var rel in _relationships)
+            {
+                if (rel.SubjectId != held.Id) continue;
+                if (Thing(rel.TargetId) is { } target && IsOfArchetypeCarrying(target, targetRoleFlag))
+                {
+                    yield return (held, target);
+                    break;
+                }
+            }
         }
     }
 }

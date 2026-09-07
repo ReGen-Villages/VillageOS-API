@@ -42,6 +42,39 @@ public class PipelineModelTests
         DagValidator.Validate(dag).IsValid.Should().BeTrue();
     }
 
+    [Fact] // A wire held as a Thing carries the same port mapping an edge-shaped wire carries.
+    public void Build_WiresHeldAsThings_ResolveTheirPorts()
+    {
+        var (fx, pipelineId) = TestGraphs.ParallelWirePipeline();
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        var generate = dag.Node(fx.Get("Generate").Id)!;
+        var echo = dag.Node(fx.Get("Echo").Id)!;
+        dag.Wires.Should().OnlyContain(w => w.FromNodeId == generate.NodeId && w.ToNodeId == echo.NodeId);
+        dag.Wires.Select(w => (w.FromPort, w.ToPort)).Should()
+            .BeEquivalentTo(new[] { ("echo", "message"), ("trace", "context") });
+    }
+
+    [Fact] // Two wires between one node pair — the case an edge-shaped wire cannot express at all.
+    public void Build_TwoWireThingsBetweenOneNodePair_YieldsBoth()
+    {
+        var (fx, pipelineId) = TestGraphs.ParallelWirePipeline();
+
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        dag.Wires.Should().HaveCount(2);
+    }
+
+    [Fact] // Ports are proved whichever shape the wire arrived in.
+    public void Validate_ParallelWirePipeline_IsValid()
+    {
+        var (fx, pipelineId) = TestGraphs.ParallelWirePipeline();
+        var dag = PipelineDagBuilder.Build(fx.Build(), pipelineId);
+
+        DagValidator.Validate(dag).IsValid.Should().BeTrue();
+    }
+
     [Fact]
     public void Build_ResolvesNodesSubdomainsPortsAndWire()
     {

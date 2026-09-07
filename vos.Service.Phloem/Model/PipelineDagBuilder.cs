@@ -33,20 +33,25 @@ public static class PipelineDagBuilder
         var nodeIds = nodeThings.Select(n => n.Id).ToHashSet();
         var nodes = nodeThings.Select(n => BuildNode(graph, n)).ToList();
 
+        // A wire reaches the builder in either of two shapes, and the second is replacing the first: drawn as
+        // an edge, which caps a node pair at one because the model refuses a second edge on one triple, or
+        // held as a Thing, which does not. Both carry the same port mapping and yield the same DagWire.
         var wires = new List<DagWire>();
         foreach (var nodeThing in nodeThings)
+        {
             foreach (var rel in graph.OutgoingByPredicateCarrying(nodeThing, PipelineArchetypes.PipelineWireFlag))
             {
                 if (!nodeIds.Contains(rel.TargetId)) continue; // ignore wires leaving the pipeline
-                wires.Add(new DagWire(
-                    nodeThing.Id,
-                    rel.PropertyString(ModelNames.FromPort) ?? string.Empty,
-                    rel.TargetId,
-                    rel.PropertyString(ModelNames.ToPort) ?? string.Empty,
-                    rel.PropertyString(ModelNames.FromPath) ?? string.Empty,
-                    rel.PropertyString(ModelNames.ToPath) ?? string.Empty,
-                    rel.PropertyString(ModelNames.Transform) ?? string.Empty));
+                wires.Add(WireFrom(nodeThing.Id, rel.TargetId, rel.PropertyString));
             }
+
+            foreach (var (wire, target) in graph.HeldThingsCarrying(
+                         nodeThing, PipelineArchetypes.PipelineWireFlag, PipelineArchetypes.PipelineNodeFlag))
+            {
+                if (!nodeIds.Contains(target.Id)) continue;
+                wires.Add(WireFrom(nodeThing.Id, target.Id, wire.PropertyString));
+            }
+        }
 
         return new PipelineDag
         {
@@ -56,6 +61,17 @@ public static class PipelineDagBuilder
             Wires = wires,
         };
     }
+
+    // An edge and a wire Thing are different types carrying the same five properties, so each hands over its
+    // own reader rather than the mapping being written out twice.
+    private static DagWire WireFrom(Guid fromNodeId, Guid toNodeId, Func<string, string?> property) =>
+        new(fromNodeId,
+            property(ModelNames.FromPort) ?? string.Empty,
+            toNodeId,
+            property(ModelNames.ToPort) ?? string.Empty,
+            property(ModelNames.FromPath) ?? string.Empty,
+            property(ModelNames.ToPath) ?? string.Empty,
+            property(ModelNames.Transform) ?? string.Empty);
 
     private static DagNode BuildNode(PipelineGraph graph, GraphThing nodeThing)
     {
