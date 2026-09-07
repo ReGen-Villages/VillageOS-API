@@ -13,6 +13,9 @@ serde_json = "1"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 jsonwebtoken = "9"
 uuid = { version = "1", features = ["v4"] }
+
+# Only the tests decode a key; the service passes the base64 it is handed straight through.
+[dev-dependencies]
 base64 = "0.22"
 
 [[bin]]

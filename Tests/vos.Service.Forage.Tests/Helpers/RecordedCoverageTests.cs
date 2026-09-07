@@ -189,7 +189,9 @@ public class RecordedCoverageTests
     public void TheReadReachesACoverageOnlyAfterTheSubjectsItCouldHangFrom()
     {
         var traverse = CoveringSourceResolver.SelectorFor(Guid.NewGuid()).Traverse;
-        var names = traverse.Select(rule => rule.Predicate).ToList();
+
+        traverse.Should().NotBeNull("a selector that traverses nothing reaches no coverage at all");
+        var names = traverse!.Select(rule => rule.Predicate).ToList();
 
         names.IndexOf(CoveringSourceResolver.AppliesToPredicate)
             .Should().BeGreaterThan(names.IndexOf(CoveringSourceResolver.HasPredicate));

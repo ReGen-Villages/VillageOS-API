@@ -221,7 +221,7 @@ public class MetabolismTests : IAsyncLifetime
     #region Concurrent updates
 
     [Fact]
-    public void UpdateProperty_ConcurrentQuantityAndFrequency_BothApplied()
+    public async Task UpdateProperty_ConcurrentQuantityAndFrequency_BothApplied()
     {
         _engine.Register(MakeConfig(quantity: 1.0m, freqSeconds: 60));
 
@@ -229,7 +229,7 @@ public class MetabolismTests : IAsyncLifetime
         var barrier = new Barrier(2);
         var t1 = Task.Run(() => { barrier.SignalAndWait(); _engine.UpdateProperty("rel-1", "quantity", 3.0m); });
         var t2 = Task.Run(() => { barrier.SignalAndWait(); _engine.UpdateProperty("rel-1", "frequencySeconds", 5); });
-        Task.WaitAll(t1, t2);
+        await Task.WhenAll(t1, t2);
 
         var config = _engine.GetAll().First().Config;
         config.Quantity.Should().Be(3.0m);

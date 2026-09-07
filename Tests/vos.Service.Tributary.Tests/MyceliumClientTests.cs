@@ -134,7 +134,7 @@ public class MyceliumClientTests
 
         result.Should().NotBeNull();
         result!.Should().ContainKey("Endpoint.url");
-        result["Endpoint.url"].GetString().Should().Be("https://example.com/api");
+        result!["Endpoint.url"].GetString().Should().Be("https://example.com/api");
         result["Endpoint.httpMethod"].GetString().Should().Be("GET");
     }
 

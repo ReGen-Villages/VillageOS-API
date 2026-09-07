@@ -24,7 +24,6 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -580,6 +579,7 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
     use jsonwebtoken::{encode, EncodingKey, Header};
     use serde::Serialize;
 
