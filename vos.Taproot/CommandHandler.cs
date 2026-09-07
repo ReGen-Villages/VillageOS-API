@@ -7,6 +7,7 @@ namespace vos.Taproot
         private readonly MyceliumClient _mycelium;
         private readonly string _myceliumUrl;
         private readonly bool _interactiveMode;
+        private readonly Dictionary<string, Func<string, string, Task>> _commandHandlers;
 
         public CommandHandler(TextReader reader, TextWriter writer, MyceliumClient mycelium, string myceliumUrl, bool interactiveMode = false)
         {
@@ -15,6 +16,7 @@ namespace vos.Taproot
             _mycelium = mycelium;
             _myceliumUrl = myceliumUrl;
             _interactiveMode = interactiveMode;
+            _commandHandlers = BuildCommandHandlers();
         }
 
         public void ShowHelp()
@@ -130,8 +132,7 @@ namespace vos.Taproot
 
         public async Task HandleCommandAsync(string cmd, string? arg)
         {
-            var handlers = GetCommandHandlers();
-            if (handlers.TryGetValue(cmd, out var handler))
+            if (_commandHandlers.TryGetValue(cmd, out var handler))
                 await handler(cmd, arg ?? string.Empty);
             else
                 _writer.WriteLine("Unknown command; type help for list of commands.");
@@ -166,7 +167,7 @@ namespace vos.Taproot
             _writer.WriteLine("Model cleared. All things and relationships have been removed.");
         }
 
-        private Dictionary<string, Func<string, string, Task>> GetCommandHandlers() => new()
+        private Dictionary<string, Func<string, string, Task>> BuildCommandHandlers() => new()
         {
             ["cd"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _mycelium).ExecuteAsync(),
             ["pwd"] = async (c, a) => await new FileSystemCommandHandler(c, a, _writer, _mycelium).ExecuteAsync(),
