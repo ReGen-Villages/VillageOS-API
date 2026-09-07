@@ -84,10 +84,11 @@ hangs off it). A page whose content already matches is left alone, so a build th
 documentation adds no revisions.
 
 The `Publish Docs to Wiki` step in [`azure-pipelines.yml`](../../azure-pipelines.yml) runs both
-scripts on `main`, **before** the `Mirror Wiki to GitHub` step, so one build carries a
-documentation change from a merge all the way to the public GitHub wiki. On `main` rather than
-`develop` because that mirror publishes whatever this step left on the project wiki: split across
-two branches, a `main` build would push `develop`'s documentation to the public wiki.
+scripts on `develop`, **before** the `Mirror Wiki to GitHub` step, so one build carries a
+documentation change from a merge all the way to the public GitHub wiki. On the same branch the
+repository mirror runs on, because that wiki mirror publishes whatever this step left on the project
+wiki: split across two branches, the public wiki would describe one branch beside the other
+branch's code.
 
 ### Why the API and not git
 

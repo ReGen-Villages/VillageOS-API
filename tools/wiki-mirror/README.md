@@ -39,9 +39,10 @@ The pure transforms (`convert`, `convertMermaid`, `buildSidebar`, `flatName`,
 ## CI integration
 
 The `Mirror Wiki to GitHub` step in [`azure-pipelines.yml`](../../azure-pipelines.yml)
-runs on `main`: it clones the DevOps wiki, runs this converter, then force-pushes
-the result to the GitHub wiki. `main` is the released branch, and `Publish Docs to
-Wiki` runs on it first, so what is cloned here is `main`'s own documentation.
+runs on `develop`: it clones the DevOps wiki, runs this converter, then force-pushes
+the result to the GitHub wiki. `develop` is the branch the public copy follows, and
+`Publish Docs to Wiki` runs on it first, so what is cloned here is `develop`'s own
+documentation.
 
 One-time prerequisites:
 
