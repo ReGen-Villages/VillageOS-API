@@ -7,6 +7,9 @@ Registration/deregistration are mocked so the tests never touch the network.
 """
 
 import base64
+import hashlib
+import hmac
+import json
 import time
 from unittest.mock import AsyncMock, patch
 
@@ -15,6 +18,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from fastapi.testclient import TestClient
+from jwt.utils import base64url_encode
 
 import app as appmod
 from app import app
@@ -69,12 +73,18 @@ def make_token(pair, **overrides) -> str:
 
 
 def forged_from_the_verification_key(pair, **overrides) -> str:
-    """What someone who reads the verification key off a daemon can produce."""
-    return jwt.encode(
-        claims_with(**overrides),
-        base64.b64decode(verification_key_of(pair)),
-        algorithm="HS256",
+    """What someone who reads the verification key off a daemon can produce.
+
+    Signed by hand: pyjwt refuses to use a public key as an HMAC secret, and a forger is not using pyjwt.
+    """
+    header_and_claims = b".".join(
+        base64url_encode(json.dumps(part).encode())
+        for part in ({"alg": "HS256", "typ": "JWT"}, claims_with(**overrides))
     )
+    signature = hmac.new(
+        base64.b64decode(verification_key_of(pair)), header_and_claims, hashlib.sha256
+    ).digest()
+    return b".".join((header_and_claims, base64url_encode(signature))).decode()
 
 
 def test_health(client):
@@ -181,7 +191,6 @@ def test_handle_rejects_a_token_carrying_no_signature(client, signing):
 
 # ---- Write kinds (Fact / Observation / Sediment) ----
 import asyncio
-import json
 
 import httpx
 
