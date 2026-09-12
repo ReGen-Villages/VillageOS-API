@@ -6,7 +6,7 @@
 > describe intended scope, not a stability or support guarantee. Expect rough edges, incomplete features,
 > and breaking changes. Do not rely on it for production workloads.
 
-This repository holds the **client-facing tools** for [VillageOS](https://dev.azure.com/ReGenVillages/VillageOS), a *temporal graph platform* — a database that stores everything as connected "Things" and remembers how they change over time.
+This repository holds the **client-facing tools** for VillageOS, a *temporal graph platform* — a database that stores everything as connected "Things" and remembers how they change over time.
 
 Three kinds of tool live here:
 
@@ -148,13 +148,13 @@ local artifact.
 
 In-repo docs live in **[docs/](docs/README.md)** — an indexed map grouped by client tools, platform concepts, and microservice authoring.
 
-The same documentation is published to the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is **generated from the files in `docs/`** on every merge to main — edit the file, never the wiki page. See [tools/docs-to-wiki](tools/docs-to-wiki/).
+The same documentation is published to the [VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki), which is **generated from the files in `docs/`** on every merge to main — edit the file, never the wiki page. See [tools/docs-to-wiki](tools/docs-to-wiki/).
 
 Key pages:
 
-- [Trellis](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTrellis) — visualization stack, tech spec, user guide
-- [Taproot](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FTaproot) — command reference
-- [Services](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2FServices) — the service host, the wire contract, and each service
+- [Trellis](https://github.com/ReGen-Villages/VillageOS-API/wiki/Trellis) — visualization stack, tech spec, user guide
+- [Taproot](https://github.com/ReGen-Villages/VillageOS-API/wiki/Taproot) — command reference
+- [Services](https://github.com/ReGen-Villages/VillageOS-API/wiki/Services) — the service host, the wire contract, and each service
 
 ## License
 
