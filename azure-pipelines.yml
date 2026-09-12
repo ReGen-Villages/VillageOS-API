@@ -83,10 +83,10 @@ steps:
 # Serves the wiki converters and the Trellis checks below. 22 rather than 20 because Vite asks for
 # ^20.19 || >=22.12 — a 20.x line that resolved below 20.19 would fail the GUI build, and 22 is the
 # version both Vite and Vitest name.
-- task: NodeTool@0
+- task: UseNode@1
   displayName: 'Install Node.js'
   inputs:
-    versionSpec: '22.x'
+    version: '22.x'
 
 - script: dotnet restore
   displayName: 'Restore NuGet Packages'
