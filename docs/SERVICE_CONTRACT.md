@@ -556,3 +556,36 @@ let res = deposit_sediment(cfg, &http,
     &[SedimentReading { thing_id: thing_id.into(), property: "temperature".into(),
         value: json!(19.8), observed_at: "2026-06-19T12:00:00Z".into() }]).await?;
 ```
+
+## Being told once: vigils
+
+A `state` connection is dispatched for every Thing of an archetype entering the range it watches.
+A service whose work is finished later by somebody else — a step that waits on one particular Thing
+reaching one particular state — needs to be told once, about that Thing, without following every
+state change in the model. It places a **vigil**, a Bearer-authed POST:
+
+| Route | Body | Success |
+|---|---|---|
+| `POST /api/vigils` | `{ "SubjectId", "RangeId", "ConnectionId" }` — the Thing, the range Thing whose entry answers the vigil, and the connection to dispatch | `201` with the vigil: `Id`, `Name`, the three Things it names, `State` (the range's name) and `DispatchState` — `null` while it waits, the dispatch record's state once it has been answered |
+| `GET /api/vigils` | — | `200` every live vigil the caller may read, in the same shape |
+| `DELETE /api/vigils/{id}` | — | `200`; retires a vigil whose wait is over for the service's own reasons, taking any record on it with it |
+
+When the subject enters the range, the platform dispatches the connection **once**, with the same
+`POST /handle` a `state` connection's dispatch makes: `subjectId` is the Thing, `targetId` is the
+vigil, and `properties.__DispatchRecordState` is the state's name. A subject already standing in the
+range is answered at once — the placement's `DispatchState` is then non-null. The dispatch is a
+record the platform owns, driven by the same reconciler and completing under the connection's own
+completion rules, so delivery is at-least-once exactly as for a `state` connection: handle a repeat of
+the same `relationshipId` as done. The vigil survives a restart; it is retired by the platform once its
+dispatch has resolved, or once the Thing it was kept over is deleted, and it is never answered a second
+time. Two vigils on one Thing for one state are two answers, even to one connection, so a service
+waiting twice on one Thing places two.
+
+The range is named as a Thing, not as a state's name: a vigil watches a range declared as a Thing of
+its own — one that `is` the archetype carrying `__IsRangeArchetype` and relates to the archetype it
+judges — which is the form a range takes whenever something needs an edge to it. Refusals name what
+cannot serve: `400` for a range that is not a Thing of that kind, one that judges no archetype the
+subject `is`, or a connection with no bound service; `404` for a Thing the caller may not read; `400`
+naming the missing mark for a model that declares no vigil vocabulary (the archetype carrying
+`__IsVigilArchetype` and predicates carrying `__IsVigilSubjectPredicate`, `__IsStateWatchPredicate`
+and `__IsNotifiedConnectionPredicate`). The platform's shipped archetype set declares all four.
