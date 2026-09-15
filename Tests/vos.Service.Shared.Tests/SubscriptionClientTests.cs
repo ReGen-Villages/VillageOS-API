@@ -134,6 +134,35 @@ public class SubscriptionClientTests
     }
 
     [Fact]
+    public async Task SubscribeAsync_sends_the_relationship_rules_under_the_names_the_broker_binds()
+    {
+        // A field the broker does not bind is dropped silently, and the read then carries every edge
+        // touching the Thing — the whole history the rule was there to leave out.
+        HttpRequestMessage? captured = null;
+        var body = $$"""
+        { "subscriptionId": "{{Guid.NewGuid()}}", "watermark": 1,
+          "snapshot": { "watermark": 1, "things": [], "relationships": [] } }
+        """;
+        var (client, _) = Build(req => { captured = req; return Json(body); });
+
+        await client.SubscribeAsync(new SubscriptionSelector
+        {
+            Relationships =
+            [
+                new RelationshipRule { Predicate = "holds" },
+                new RelationshipRule { PredicateFlag = "__IsStandsAtPredicate", Direction = "incoming" },
+            ],
+        });
+
+        var sent = await captured!.Content!.ReadAsStringAsync();
+        sent.Should().Contain("\"relationships\":[");
+        sent.Should().Contain("\"predicate\":\"holds\"");
+        sent.Should().Contain("\"direction\":\"outgoing\"");
+        sent.Should().Contain("\"predicateFlag\":\"__IsStandsAtPredicate\"");
+        sent.Should().Contain("\"direction\":\"incoming\"");
+    }
+
+    [Fact]
     public async Task RemoveObjectsAsync_sends_delete_with_ids()
     {
         HttpRequestMessage? captured = null;
