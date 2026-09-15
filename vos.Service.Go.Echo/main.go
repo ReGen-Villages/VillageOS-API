@@ -482,6 +482,7 @@ func (s *service) health(w http.ResponseWriter, _ *http.Request) {
 		"status":            "Healthy",
 		"service":           serviceName,
 		"requestsProcessed": s.requests.Load(),
+		"processId":         os.Getpid(),
 	})
 }
 
