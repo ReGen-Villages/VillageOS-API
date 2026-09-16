@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useModelStore } from './modelStore';
 import type { VosThing, VosRelationship } from '../types/vos';
 
@@ -112,5 +112,80 @@ describe('modelStore', () => {
     expect(things).toEqual([]);
     expect(relationships).toEqual([]);
     expect(loaded).toBe(false);
+  });
+});
+
+// A flush used to rebuild the whole index to change one Thing — a Map over every Thing in the
+// model, then a fresh array out of it — so its cost grew with the model however small the batch.
+// The index is kept and mutated instead, and what is asserted is how many entries a batch writes
+// into it: a count is stable where a stopwatch on a build agent is not.
+describe('a flush costs the size of the batch, not the size of the model', () => {
+  const MODEL_SIZE = 50_000;
+  const aModelOf = (count: number) => Array.from({ length: count }, (_, i) => thing(`T${i}`, `t${i}`));
+  const edgesOf = (count: number) => Array.from({ length: count }, (_, i) => rel(`R${i}`, `r${i}`));
+
+  let indexWrites: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => { indexWrites = vi.spyOn(Map.prototype, 'set'); });
+  afterEach(() => { indexWrites.mockRestore(); });
+
+  it('changes one Thing in a large model without touching the rest of the index', () => {
+    useModelStore.getState().setThings(aModelOf(MODEL_SIZE));
+    useModelStore.getState().applyBatch({ thingUpserts: [thing('T7', 'first')] });
+    indexWrites.mockClear();
+
+    useModelStore.getState().applyBatch({ thingUpserts: [thing('T7', 'renamed')] });
+
+    expect(indexWrites).toHaveBeenCalledTimes(1);
+    expect(useModelStore.getState().things).toHaveLength(MODEL_SIZE);
+    expect(useModelStore.getState().things.find((t) => t.Id === 'T7')?.Name).toBe('renamed');
+  });
+
+  it('changes one relationship in a large model without touching the rest of the index', () => {
+    useModelStore.getState().setRelationships(edgesOf(MODEL_SIZE));
+    useModelStore.getState().applyBatch({ relationshipUpserts: [rel('R7', 'first')] });
+    indexWrites.mockClear();
+
+    useModelStore.getState().applyBatch({ relationshipUpserts: [rel('R7', 'renamed')] });
+
+    expect(indexWrites).toHaveBeenCalledTimes(1);
+    expect(useModelStore.getState().relationships).toHaveLength(MODEL_SIZE);
+  });
+
+  // A kept index invites the fault where something writes the store without going through its
+  // actions and the index quietly disagrees with what the page draws. The hook's own test does
+  // exactly that through setState, so the index is rebuilt once against an array it does not know.
+  it('re-indexes once after the store was written round the back, then keeps the index', () => {
+    useModelStore.getState().setThings(aModelOf(10));
+    useModelStore.getState().applyBatch({ thingUpserts: [thing('T7', 'first')] });
+    useModelStore.setState({ things: [thing('X1', 'x1'), thing('X2', 'x2'), thing('X3', 'x3')] });
+    indexWrites.mockClear();
+
+    useModelStore.getState().applyBatch({ thingUpserts: [thing('X2', 'renamed')] });
+    expect(indexWrites).toHaveBeenCalledTimes(3 + 1);
+    expect(useModelStore.getState().things.map((t) => t.Id)).toEqual(['X1', 'X2', 'X3']);
+    expect(useModelStore.getState().things.find((t) => t.Id === 'X2')?.Name).toBe('renamed');
+
+    indexWrites.mockClear();
+    useModelStore.getState().applyBatch({ thingUpserts: [thing('X2', 'again')] });
+    expect(indexWrites).toHaveBeenCalledTimes(1);
+  });
+
+  // Between a load and the next flush every Thing of the model just replaced would otherwise stay
+  // reachable through the index — on a switch between models, the whole of the old one.
+  it('drops the index at a load, so the replaced model is released before the next flush', () => {
+    const cleared = vi.spyOn(Map.prototype, 'clear');
+    useModelStore.getState().setThings(aModelOf(10));
+    useModelStore.getState().applyBatch({ thingUpserts: [thing('T7', 'first')] });
+    cleared.mockClear();
+
+    useModelStore.getState().setThings(aModelOf(3));
+    expect(cleared).toHaveBeenCalledTimes(1);
+
+    useModelStore.getState().setRelationships(edgesOf(3));
+    useModelStore.getState().applyBatch({ relationshipUpserts: [rel('R1', 'first')] });
+    cleared.mockClear();
+    useModelStore.getState().clear();
+    expect(cleared).toHaveBeenCalledTimes(2);
+    cleared.mockRestore();
   });
 });
