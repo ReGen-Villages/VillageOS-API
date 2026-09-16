@@ -73,7 +73,20 @@ export type Binding =
    *  cannot express, since a Thing in no derived state appears in no state's list. Read from the
    *  client-side model index, so instances only: a sub-archetype is descended into, never listed.
    *  Rows are ordered by name, which is what makes a `limit`ed list the same list every time. */
-  | { kind: 'thingList'; archetype: string; scope?: ScopeRef; limit?: number; computed?: ComputedColumn[] }
+  | {
+      kind: 'thingList';
+      archetype: string;
+      scope?: ScopeRef;
+      limit?: number;
+      computed?: ComputedColumn[];
+      /** Keep only the rows the platform lists for this derived state, asked once for the roster.
+       *  Unlike `stateList`, the rows are still the roster's own, so a table narrowed to a state
+       *  carries every value the console holds for them. */
+      inState?: string;
+      /** Keep only the rows whose properties satisfy every comparison — the same comparisons an
+       *  `aggregate` takes. */
+      where?: PropertyFilter[];
+    }
   /** Aggregate over Things of an archetype held in the model store (client-side). */
   | {
       kind: 'aggregate';
@@ -253,6 +266,30 @@ export interface RelationStep {
   /** Drop reached Things currently in this derived state — how a walk skips the work already
    *  finished and keeps only what is still open. */
   notInState?: string;
+}
+
+/** One column of a table a person composed from a kind's own declarations. */
+export type ComposedColumn =
+  /** A property the row carries, read straight off it. */
+  | { source: 'property'; name: string; numeric?: boolean }
+  /** What a path of links reaches from the row — the Thing's name, or a property of it. */
+  | { source: 'path'; steps: RelationStep[]; property?: string; label: string }
+  /** The first of these states the row holds. */
+  | { source: 'state'; states: string[] };
+
+/** What a composed table was made from: a kind of Thing, its columns, a filter and a sort. */
+export interface Composition {
+  kind: string;
+  columns: ComposedColumn[];
+  /** Keep only the rows holding this derived state. Live only: no read answers a state at an
+   *  instant, so a composition carrying a moment carries no state. */
+  inState?: string;
+  /** Read the rows as the model stood at this instant, rather than as it stands. */
+  moment?: string;
+  /** Keep only the rows whose properties satisfy every comparison. */
+  where?: PropertyFilter[];
+  sortKey?: string;
+  sortDir?: 'asc' | 'desc';
 }
 
 /**
@@ -623,6 +660,9 @@ export interface DashboardSpec {
   detail?: DetailSpec;
   /** Optional per-locale translations of this spec's display strings. */
   translations?: SpecTranslations;
+  /** The choices a composed page was made from. Present only on a page the console kept, which is
+   *  what lets it offer to rename or remove the page and leave a seeded one alone. */
+  composed?: Composition;
 }
 
 /** A discovered dashboard: the source Thing + its spec. */

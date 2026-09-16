@@ -19,6 +19,7 @@ import { NAVIGATION_AND_SETTINGS, subscriptionForSpec } from '../api/dashboardSu
 import { localizeSpec } from '../api/dashboardLocalization';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { useDetailWindows } from '../components/dashboard/detail/DetailWindowManager';
+import { ComposedPageControls } from '../components/dashboard/ComposedPageControls';
 
 const REFRESH_EVENTS = [
   'StatesChanged',
@@ -157,6 +158,7 @@ export function OperationsPage() {
               ))}
             </div>
           )}
+          {dashboard && <ComposedPageControls dashboard={dashboard} idx={idx} />}
           <div className="text-[11px] text-zinc-400 dark:text-zinc-500 inline-flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
             {connected ? 'live' : 'offline'}
