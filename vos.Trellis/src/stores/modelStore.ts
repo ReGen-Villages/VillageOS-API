@@ -27,12 +27,6 @@ interface ModelState {
 
   setThings: (things: VosThing[]) => void;
   setRelationships: (relationships: VosRelationship[]) => void;
-  /** Update things via a mapper function (for incremental updates). */
-  updateThings: (updater: (prev: VosThing[]) => VosThing[]) => void;
-  /** Update relationships via a mapper function. */
-  updateRelationships: (updater: (prev: VosRelationship[]) => VosRelationship[]) => void;
-  /** Remove the thing with this Id, if present (no-op otherwise). */
-  /** Remove the relationship with this Id, if present (no-op otherwise). */
   /** Apply a coalesced batch of live changes in a single write. Used by the debounced SSE flush;
    *  the kept index makes a batch cost its own size plus one copy of the array's references,
    *  whatever the size of the model. */
@@ -101,8 +95,6 @@ export const useModelStore = create<ModelState>((set) => ({
     relationshipsById.forget();
     set({ relationships });
   },
-  updateThings: (updater) => set((s) => ({ things: updater(s.things) })),
-  updateRelationships: (updater) => set((s) => ({ relationships: updater(s.relationships) })),
   applyBatch: (batch) => set((s) => {
     const next: Partial<ModelState> = {};
 

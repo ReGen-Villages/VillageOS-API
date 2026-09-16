@@ -33,19 +33,6 @@ describe('modelStore', () => {
     expect(useModelStore.getState().relationships).toHaveLength(1);
   });
 
-  it('updateThings applies an updater function', () => {
-    useModelStore.getState().setThings([thing('1', 'A')]);
-    useModelStore.getState().updateThings((prev) => [...prev, thing('2', 'B')]);
-    expect(useModelStore.getState().things).toHaveLength(2);
-    expect(useModelStore.getState().things[1].Name).toBe('B');
-  });
-
-  it('updateRelationships applies an updater function', () => {
-    useModelStore.getState().setRelationships([rel('r1', 'X')]);
-    useModelStore.getState().updateRelationships((prev) => prev.filter((r) => r.Id !== 'r1'));
-    expect(useModelStore.getState().relationships).toHaveLength(0);
-  });
-
   it('markLoaded sets loaded to true', () => {
     useModelStore.getState().markLoaded();
     expect(useModelStore.getState().loaded).toBe(true);
