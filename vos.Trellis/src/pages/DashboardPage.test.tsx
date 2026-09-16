@@ -51,8 +51,6 @@ async function settled(): Promise<void> {
 const servicesReads = () => vi.mocked(myceliumApi.getServices).mock.calls.length;
 const endpointReads = () => vi.mocked(endpointApi.getAll).mock.calls.length;
 
-// Under a simulation a service request completes hundreds of times a second, and the page read the
-// whole registry again on each one, landing on the host that is already the run's bottleneck.
 describe('DashboardPage registry refresh', () => {
   beforeEach(() => {
     streamHandlers.clear();
@@ -86,7 +84,6 @@ describe('DashboardPage registry refresh', () => {
     expect(endpointReads()).toBe(endpointsBefore + 1);
   });
 
-  // A debounce that restarts on every event would never read at all while a simulation runs.
   it('keeps reading the registry while the events keep coming', async () => {
     openDashboard();
     await settled();
