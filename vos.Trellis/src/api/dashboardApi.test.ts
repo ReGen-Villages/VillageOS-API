@@ -1599,12 +1599,14 @@ describe('state bindings ask the server to narrow', () => {
       expect(reads.asked[0]).toMatchObject({ countOnly: true, within: 'site1', withinPredicate: 'contains' });
     });
 
-    it('reads an answer carrying no count as nought rather than as nothing', async () => {
+    // Nought is how an empty state reads, and a read that answered no number is not that.
+    it('refuses an answer carrying no count rather than reading it as nought', async () => {
       const reads: ModelReads = {
         ...countingReads(0),
         thingsInState: async (state) => ({ StateName: state }),
       };
-      expect(await resolveBinding({ kind: 'stateCount', state: 'flagged' }, { ...estateCtx(null), reads })).toBe(0);
+      await expect(resolveBinding({ kind: 'stateCount', state: 'flagged' }, { ...estateCtx(null), reads }))
+        .rejects.toThrow('answered no count');
     });
 
     it('names the state a funnel stage excludes as one that disqualifies', async () => {

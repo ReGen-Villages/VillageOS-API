@@ -751,7 +751,8 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         return (resp.Things ?? []).filter((t) => members.has(t.Id)).length;
       }
       const resp = await ctx.reads.thingsInState(binding.state, { ...narrowing, countOnly: true });
-      return resp.Count ?? 0;
+      if (resp.Count === undefined) throw new Error(`The state read for ${binding.state} answered no count.`);
+      return resp.Count;
     }
 
     case 'stateList': {
