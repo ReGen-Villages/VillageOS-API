@@ -180,7 +180,14 @@ public class SubscriptionClientTests
                    $"data: {{\"Kind\":\"ThingEntered\",\"EntityId\":\"{thingId}\",\"Thing\":{{\"Id\":\"{thingId}\",\"Name\":\"Willow Bend\",\"IsArchetype\":false,\"Properties\":{{}},\"States\":[]}}}}\n\n" +
                    $"id: 43\nevent: RelationshipCreated\n" +
                    $"data: {{\"Kind\":\"RelationshipCreated\",\"EntityId\":\"{edgeId}\",\"Relationship\":{{\"Id\":\"{edgeId}\",\"SubjectId\":\"{thingId}\",\"PredicateId\":\"{Guid.NewGuid()}\",\"TargetId\":\"{Guid.NewGuid()}\",\"Properties\":{{}},\"States\":[]}}}}\n\n";
-        var (client, _) = Build(_ => Sse(wire));
+        var lastEventIds = new List<string?>();
+        var (client, _) = Build(req =>
+        {
+            lastEventIds.Add(req.Headers.TryGetValues("Last-Event-ID", out var v) ? v.First() : null);
+            // The first connection delivers the entry alone and ends, so the reconnect shows what an
+            // id-less event did to the resume position; the second delivers the change and ends.
+            return Sse(lastEventIds.Count == 1 ? wire[..wire.IndexOf("id: 43")] : wire[wire.IndexOf("id: 43")..]);
+        });
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var got = new List<ModelChangeEvent>();
@@ -196,6 +203,7 @@ public class SubscriptionClientTests
         got[0].Thing!.Relationships.Should().BeNull("a Thing on the stream carries no incident-edge list");
         got[1].Sequence.Should().Be(43);
         got[1].Relationship!.SubjectId.Should().Be(thingId);
+        lastEventIds.Should().Equal(new[] { "42", "42" }, "an entry moves the resume position nowhere; only the change after it does");
     }
 
     [Fact]
