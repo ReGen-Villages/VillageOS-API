@@ -119,9 +119,13 @@ export const useModelStore = create<ModelState>((set) => ({
     const touchThings =
       batch.thingUpserts?.length || batch.thingRemovals?.length ||
       batch.thingPropertyUpdates?.length || batch.thingPropertyRemovals?.length;
+    let statesMoved = false;
     if (touchThings) {
       const map = thingsById.forThe(s.things);
-      for (const id of batch.thingRemovals ?? []) map.delete(id);
+      for (const id of batch.thingRemovals ?? []) {
+        map.delete(id);
+        if (s.thingStates.delete(id)) statesMoved = true;
+      }
       for (const t of batch.thingUpserts ?? []) map.set(t.Id, t);
       for (const u of batch.thingPropertyUpdates ?? []) {
         const current = map.get(u.id);
@@ -159,8 +163,9 @@ export const useModelStore = create<ModelState>((set) => ({
     if (batch.thingStateUpdates?.length) {
       const held = thingsById.forThe(next.things ?? s.things);
       for (const u of batch.thingStateUpdates) if (held.has(u.id)) s.thingStates.set(u.id, u.states);
-      next.thingStatesVersion = s.thingStatesVersion + 1;
+      statesMoved = true;
     }
+    if (statesMoved) next.thingStatesVersion = s.thingStatesVersion + 1;
 
     return next;
   }),

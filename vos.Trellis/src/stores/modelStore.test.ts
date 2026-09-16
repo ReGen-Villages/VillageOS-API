@@ -208,6 +208,18 @@ describe('the derived states beside the model', () => {
     expect(useModelStore.getState().thingStates.has('T9')).toBe(false);
   });
 
+  it('leaves no state entry behind for a Thing that was removed', () => {
+    useModelStore.getState().setThings(held);
+    useModelStore.getState().seedThingStates(new Map([['T1', ['flagged']], ['T2', ['metered']]]));
+    const version = useModelStore.getState().thingStatesVersion;
+
+    useModelStore.getState().applyBatch({ thingRemovals: ['T1'] });
+
+    expect(useModelStore.getState().thingStates.has('T1')).toBe(false);
+    expect(useModelStore.getState().thingStates.get('T2')).toEqual(['metered']);
+    expect(useModelStore.getState().thingStatesVersion).toBe(version + 1);
+  });
+
   it('drops the states at a load and on clear', () => {
     useModelStore.getState().seedThingStates(new Map([['T1', ['flagged']]]));
     useModelStore.getState().setThings(held);
