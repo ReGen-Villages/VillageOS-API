@@ -93,8 +93,6 @@ describe('useSse', () => {
     unmount();
   });
 
-  // A kind the object stream is not listening for never reaches a handler, however the server
-  // spells it, so an entry or a departure the platform sent would be lost without a trace.
   it.each(['ThingEntered', 'ThingLeft', 'RelationshipEntered', 'RelationshipLeft'])(
     'hands a %s event through as the object the platform sent', async (kind) => {
       const { result, unmount } = renderHook(() => useSse());

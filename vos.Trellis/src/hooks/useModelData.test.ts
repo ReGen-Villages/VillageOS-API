@@ -151,8 +151,6 @@ describe('useModelData', () => {
     expect(useModelStore.getState().relationships).toHaveLength(1);
   });
 
-  // The stream carries a created Thing whole, so a model under a busy simulation no longer costs
-  // one request per creation from every open tab.
   it('ThingCreated lands the Thing it carries in the store, with its properties, and asks for nothing', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalledTimes(1));
@@ -223,9 +221,6 @@ describe('useModelData', () => {
     expect(mockGetAllRels).not.toHaveBeenCalled();
   });
 
-  // A following subscription admits a Thing when a later fact — the `is` edge that types it — makes
-  // it match, and says when one is taken out. The roster of a page left open grows and shrinks
-  // with the model rather than waiting for a reload.
   it('ThingEntered adds the Thing it carries', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
@@ -278,8 +273,6 @@ describe('useModelData', () => {
     expect(mockGetAllRels).not.toHaveBeenCalled();
   });
 
-  // Of one window's events the last word wins: a Thing created and deleted before the flush is not
-  // in the store afterwards, and one that left and came back is.
   it('a Thing that entered and left in one window is not kept', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
