@@ -30,6 +30,10 @@ const FEED_COLLAPSED_KEY = 'vos-activity-feed-collapsed';
 // events; the poll stays as a fallback for a dropped stream.
 const ENGINE_METRICS_POLL_MS = 15000;
 
+// Under a simulation a service request completes hundreds of times a second, far more often than
+// the registry is worth reading again.
+const REGISTRY_REFRESH_WINDOW_MS = 2000;
+
 export function DashboardPage() {
   useSubscription(WHOLE_MODEL);
   const navigate = useNavigate();
@@ -97,16 +101,30 @@ export function DashboardPage() {
 
   // Mycelium-specific live updates only; model data is handled at app level.
   useEffect(() => {
+    // The first event after a quiet spell claims the window and the rest are absorbed; events that
+    // arrive while the read runs claim the next one. A debounce restarting on every event would
+    // never read at all while a simulation runs.
+    let registryRefresh: ReturnType<typeof setTimeout> | null = null;
+    const registryMoved = () => {
+      if (registryRefresh) return;
+      registryRefresh = setTimeout(() => {
+        registryRefresh = null;
+        void loadMyceliumData();
+      }, REGISTRY_REFRESH_WINDOW_MS);
+    };
     const unsubs = [
-      on('ServiceHealthChanged', () => myceliumApi.getServices().then(setServices)),
-      on('DaemonStatusChanged', () => myceliumApi.getServices().then(setServices)),
-      on('ServiceRequestCompleted', () => myceliumApi.getServices().then(setServices)),
-      on('EndpointServiceRequestCompleted', () => endpointApi.getAll().then(setEndpointServices)),
+      on('ServiceHealthChanged', registryMoved),
+      on('DaemonStatusChanged', registryMoved),
+      on('ServiceRequestCompleted', registryMoved),
+      on('EndpointServiceRequestCompleted', registryMoved),
       on('ModelChanged', () => loadMyceliumData()),
       on('ModelChanged', () => loadEngineMetrics()),
       on('EngineConfigurationChanged', () => loadEngineMetrics()),
     ];
-    return () => unsubs.forEach((u) => u());
+    return () => {
+      if (registryRefresh) clearTimeout(registryRefresh);
+      unsubs.forEach((u) => u());
+    };
   }, [on, loadMyceliumData, loadEngineMetrics]);
 
   const handleDownloadServiceLog = async (serviceKey: string) => {
