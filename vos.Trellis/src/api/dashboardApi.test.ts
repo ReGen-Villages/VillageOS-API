@@ -1563,9 +1563,6 @@ describe('state bindings ask the server to narrow', () => {
     expect(rows[0]).toMatchObject({ id: 'b1', area: 3, site: 'SITE-1' });
   });
 
-  // A figure of four hundred used to cost four hundred rows on the wire on every refresh: the count
-  // was the length of the member list. The platform answers a number when asked for one, with every
-  // narrowing the request carries applied first.
   describe('a count asks for the number', () => {
     function countingReads(count: number): ModelReads & { asked: StateNarrowing[] } {
       const asked: StateNarrowing[] = [];
@@ -1619,8 +1616,6 @@ describe('state bindings ask the server to narrow', () => {
       expect(reads.asked[0]).toMatchObject({ countOnly: true, notIn: ['cleared'] });
     });
 
-    // The endpoint walks outward from a container only, so a scope pointing the other way is still
-    // narrowed here, and the platform's number would be the one before that narrowing.
     it('keeps reading members for an inward scope and counts what the scope reaches', async () => {
       const asked: StateNarrowing[] = [];
       const reads: ModelReads = {
