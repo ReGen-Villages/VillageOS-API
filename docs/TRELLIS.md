@@ -770,6 +770,8 @@ Safari limits the number of simultaneous WebGL contexts, and the graph already u
 
 Check the connection indicators on the Dashboard page. If "Live" shows red, the SSE connection has dropped. This usually recovers automatically within 30 seconds (exponential backoff). If "Mycelium" shows red, Mycelium process may have stopped.
 
+A created Thing or edge is applied from the event itself — nothing is fetched for it — so a creation that never appears is a creation the subscription did not cover, not a lost request. A narrowed page is sent a Thing typed later into one of its types (`ThingEntered`) but never a Thing named by id or reached by a walk after it opened; those arrive on the next open.
+
 ### Search finds nothing
 
 - Check if case-sensitive mode (**Aa**) is accidentally active
@@ -1391,10 +1393,14 @@ the one in force, so a page leaving restores whatever the page beneath it asked 
 
 Two properties of the platform shape this:
 
-- **A narrowed subscription covers a fixed set.** Only `{ all: true }` also covers objects created
-  after it opened. What a narrowed page holds is therefore refreshed by asking again — which is what
-  a reconnect, a model change and a change of declaration each do — rather than by the stream
-  delivering something the subscription never covered.
+- **A narrowed subscription covers a fixed set, except for the types it follows.** Only
+  `{ all: true }` covers every object created after it opened. The two narrowed selectors ask for
+  `includeLaterMatches`, so the types they name keep matching: a Thing is created before it is
+  typed, and the `is` edge that types it into a followed type delivers the Thing as `ThingEntered`
+  with the edges it already held as `RelationshipEntered`; retracting its last matching `is` edge
+  sends `ThingLeft` and `RelationshipLeft`. Everything else — the ids, the names, the walks — is
+  fixed when the subscription opens and refreshed by asking again, which is what a reconnect, a
+  model change and a change of declaration each do.
 - **A derived value is announced but never replayed.** The computing pass publishes a
   property change for a roll-up, and a resume replays the journal, which holds no Fact for it. A
   client that reconnects therefore re-reads rather than waiting, which the fresh snapshot does.
@@ -1458,7 +1464,8 @@ type.
 
 - **useModelData** (app-shell hook): Subscribes to structural and property events and keeps the `modelStore` current with an incremental strategy — individual events do not trigger a full-model refetch (each subscription's snapshot is what fills the store, see below):
   - **Delete → local removal** (zero network): ThingDeleted / RelationshipDeleted read the event's `EntityId` and drop that element from the store in the same batch as everything else in the window. Unknown ids are a no-op.
-  - **Create → single-object hydrate**: the handler reads the event's `EntityId`, fetches just that one object (`GET /api/things/{id}` or `/api/relationships/{id}`) and `upsert`s it. Upsert is idempotent, so duplicate events don't double-add. A failed hydrate is **retried once** after a short delay (covers a transient fetch error); a genuine create/delete race 404s again and is correctly abandoned (the delete event removes it). The event carries the object whole, so this fetch is a request the handler could stop making; Trellis does not yet apply the body, and does not follow later matches, so the entering and leaving kinds do not reach it.
+  - **Create → apply the body** (zero network): ThingCreated / RelationshipCreated carry the object whole in the snapshot's shape, and the handler unwraps it the way the snapshot path does and `upsert`s it in the same batch. Nothing is fetched, so a model under a busy simulation costs no request per creation. An event carrying no body applies nothing. Upsert is idempotent, so duplicate events don't double-add.
+  - **Enter and leave → the same paths**: ThingEntered / RelationshipEntered upsert what they carry; ThingLeft / RelationshipLeft remove by id. Of one window's events for an entity the last word wins — an arrival cancels a pending removal and a removal a pending arrival.
   - **The load follows the subscription.** Every open — the first, a reconnect, and a page changing what the subscription covers — raises `SUBSCRIPTION_OPENED`, and that is what starts a load:
     - **Narrowed** → the snapshot *is* the load. The Things the page is about arrived with it, so nothing reads the model to find them again, and a reconnect refills the page the same way rather than waiting for the stream to re-deliver what it missed.
     - **Whole model** → `reloadModelData()`, the only path that honours the properties the model says its pages are drawn with (`ModelLoadProperties`, which the snapshot has no equivalent for). A narrowed set already in the store is emptied first, so a page that asked for the whole model is never shown a narrower page's set as though it were the model.
