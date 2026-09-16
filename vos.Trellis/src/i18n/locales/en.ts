@@ -278,6 +278,12 @@ export const en = {
       lastDays_one: 'last day',
       lastDays_other: 'last {{count}} days',
     },
+    heatmap: {
+      sunrise: 'Sunrise',
+      sunset: 'Sunset',
+      warmest: 'Highest {{value}} on {{when}}',
+      coldest: 'Lowest {{value}} on {{when}}',
+    },
     rangeBar: {
       recordedHigh: 'Recorded high',
       designHigh: 'Design high',

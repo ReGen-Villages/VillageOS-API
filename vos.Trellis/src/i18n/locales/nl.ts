@@ -280,6 +280,12 @@ export const nl: PartialResources = {
       lastDays_one: 'afgelopen dag',
       lastDays_other: 'afgelopen {{count}} dagen',
     },
+    heatmap: {
+      sunrise: 'Zonsopkomst',
+      sunset: 'Zonsondergang',
+      warmest: 'Hoogste {{value}} op {{when}}',
+      coldest: 'Laagste {{value}} op {{when}}',
+    },
     rangeBar: {
       recordedHigh: 'Hoogste meting',
       designHigh: 'Ontwerpmaximum',

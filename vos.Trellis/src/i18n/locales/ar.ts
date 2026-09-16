@@ -386,6 +386,12 @@ export const ar: PartialResources & ArabicPlurals = {
       lastDays_many: "آخر {{count}} يومًا",
       lastDays_other: "آخر {{count}} يوم",
     },
+    heatmap: {
+      sunrise: "شروق الشمس",
+      sunset: "غروب الشمس",
+      warmest: "الأعلى {{value}} في {{when}}",
+      coldest: "الأدنى {{value}} في {{when}}",
+    },
     rangeBar: {
       recordedHigh: "أعلى قيمة مسجّلة",
       designHigh: "الحد الأعلى التصميمي",
