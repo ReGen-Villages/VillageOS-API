@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MULTI_STEP_FORM_TEST_TIMEOUT_MILLISECONDS } from '../testTimeouts';
 
 vi.setConfig({ testTimeout: MULTI_STEP_FORM_TEST_TIMEOUT_MILLISECONDS });
@@ -19,20 +19,34 @@ vi.mock('../api/findingsApi', () => ({ findingsApi: { readWithTicket: vi.fn() } 
 // The map cannot build in a test's document, and what this page owes it is only the wiring: the pick
 // handler when no position exists, and the boundary when one does.
 vi.mock('../components/map/MapView', () => ({
-  MapView: (props: { onPositionPick?: (position: { latitude: number; longitude: number }) => void }) => (
-    <button
-      data-testid="map"
-      onClick={() => props.onPositionPick?.({ latitude: 48.8, longitude: 2.3 })}
-    />
+  MapView: (props: {
+    onPositionPick?: (position: { latitude: number; longitude: number }) => void;
+    onBoundaryChange?: (boundary: { latitude: number; longitude: number }[]) => void;
+  }) => (
+    <>
+      <button
+        data-testid="map"
+        onClick={() => props.onPositionPick?.({ latitude: 48.8, longitude: 2.3 })}
+      />
+      {props.onBoundaryChange && (
+        <button data-testid="draw" onClick={() => props.onBoundaryChange?.(aRing)} />
+      )}
+    </>
   ),
 }));
-// The report is the findings page's dashboard, proven where it lives; here it only has to appear.
+// The report is the findings page's dashboard, proven where it lives; here it only has to appear, and
+// to be handed the sections the tiles did not take.
 vi.mock('../components/dashboard/DashboardSections', () => ({
-  DashboardSections: () => <div data-testid="dashboard" />,
+  DashboardSections: vi.fn(() => <div data-testid="dashboard" />),
 }));
-vi.mock('../hooks/useDashboard', () => ({ useResolveContext: () => ({}) }));
+vi.mock('../hooks/useDashboard', () => ({
+  useResolveContext: () => ({}),
+  useBinding: (binding?: { value?: unknown }) => ({ loading: false, error: false, value: binding?.value ?? null }),
+  useBindings: (bindings: { value?: unknown }[]) =>
+    bindings.map((binding) => ({ loading: false, error: false, value: binding?.value ?? null })),
+}));
 vi.mock('../api/dashboardLocalization', () => ({
-  localizeSpec: () => ({ sections: [] }),
+  localizeSpec: vi.fn(() => ({ sections: [] })),
 }));
 vi.mock('../publicFindings/answeredFindings', () => ({
   findingsFrom: () => ({ spec: {}, scopeId: 'site-1', index: {}, reads: {} }),
@@ -40,6 +54,8 @@ vi.mock('../publicFindings/answeredFindings', () => ({
 
 import { intakeApi } from '../api/intakeApi';
 import { findingsApi } from '../api/findingsApi';
+import { localizeSpec } from '../api/dashboardLocalization';
+import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { ExplorePage } from './ExplorePage';
 
 const aRing = [
@@ -62,7 +78,9 @@ beforeEach(() => {
     ],
     parcelLookup: true,
     placeSearch: true,
+    themes: [{ name: 'Temperature', colour: '#F0A840', icon: 'thermometer', order: 1 }],
   });
+  vi.mocked(localizeSpec).mockReturnValue({ title: 'Site submission', sections: [] });
   vi.mocked(intakeApi.parcelAt).mockResolvedValue({ boundary: aRing, attribution: '© the register' });
   vi.mocked(intakeApi.askForCode).mockResolvedValue(undefined);
   vi.mocked(intakeApi.exchangeTicket).mockResolvedValue('ticket-1');
@@ -151,5 +169,86 @@ describe('the plot-first page', () => {
     expect(document.submissionId).toBe(vi.mocked(intakeApi.submitWithTicket).mock.calls[0][0].submissionId);
     expect(document.site.population).toBe(320);
     expect(ticket).toBe('ticket-3');
+  });
+});
+
+describe('the facts beside the map', () => {
+  it('shows the area and the coordinates as cards once the land is picked, each naming its source', async () => {
+    await pickTheLand();
+
+    const area = screen.getByRole('group', { name: 'Area' });
+    expect(within(area).getByText(/hectares/)).toBeInTheDocument();
+    expect(within(area).getByText(/acres/)).toBeInTheDocument();
+    expect(within(area).getByText('© the register')).toBeInTheDocument();
+
+    const coordinates = screen.getByRole('group', { name: 'Coordinates' });
+    expect(within(coordinates).getByText('48°48′00.00″ N 2°18′00.00″ E')).toBeInTheDocument();
+    expect(within(coordinates).getByText('clicked on the map')).toBeInTheDocument();
+  });
+
+  it('says a drawn boundary was drawn by hand', async () => {
+    vi.mocked(intakeApi.parcelAt).mockResolvedValue(null);
+    await pickTheLand();
+    await screen.findByText(/Click corner by corner/);
+    expect(screen.queryByRole('group', { name: 'Area' })).toBeNull();
+
+    fireEvent.click(screen.getByTestId('draw'));
+
+    expect(within(screen.getByRole('group', { name: 'Area' })).getByText('drawn by hand')).toBeInTheDocument();
+  });
+
+  it('adds the reference as a card once the submission is accepted, and the model\'s own facts beside it', async () => {
+    vi.mocked(localizeSpec).mockReturnValue({
+      title: 'Site submission',
+      sections: [
+        {
+          title: 'The land',
+          facts: true,
+          widgets: [{ type: 'kpi', title: 'Elevation', value: { kind: 'const', value: 1431 }, format: 'integer', unit: 'm' }],
+        },
+        { title: 'Balances', widgets: [] },
+      ],
+    });
+
+    await reachTheReport();
+
+    const reference = screen.getByRole('group', { name: 'Reference' });
+    expect(within(reference).getByText('sub-ref-1')).toBeInTheDocument();
+    const elevation = screen.getByRole('group', { name: 'Elevation' });
+    expect(within(elevation).getByText('1,431')).toBeInTheDocument();
+    // The facts section is drawn beside the map and nowhere else.
+    const handed = vi.mocked(DashboardSections).mock.calls.at(-1)![0].sections;
+    expect(handed.map((section) => section.title)).toEqual(['Balances']);
+  });
+});
+
+describe('the report as tiles', () => {
+  it('draws a section naming a theme as a tile and hands the rest to the list', async () => {
+    vi.mocked(localizeSpec).mockReturnValue({
+      title: 'Site submission',
+      sections: [
+        { title: 'Temperature', theme: 'Temperature', widgets: [] },
+        { title: 'Balances', widgets: [] },
+      ],
+    });
+
+    await reachTheReport();
+
+    expect(screen.getByRole('button', { name: 'Temperature' })).toHaveStyle({ backgroundColor: '#F0A840' });
+    const handed = vi.mocked(DashboardSections).mock.calls.at(-1)![0].sections;
+    expect(handed.map((section) => section.title)).toEqual(['Balances']);
+  });
+
+  it('renders a spec naming no theme exactly as before', async () => {
+    vi.mocked(localizeSpec).mockReturnValue({
+      title: 'Site submission',
+      sections: [{ title: 'Balances', widgets: [] }],
+    });
+
+    await reachTheReport();
+
+    expect(screen.queryByRole('button', { name: 'Temperature' })).toBeNull();
+    const handed = vi.mocked(DashboardSections).mock.calls.at(-1)![0].sections;
+    expect(handed.map((section) => section.title)).toEqual(['Balances']);
   });
 });

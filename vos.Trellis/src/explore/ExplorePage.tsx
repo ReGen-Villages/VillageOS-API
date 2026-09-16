@@ -8,23 +8,30 @@
  * model's own dashboard through the same widgets the findings page renders, so a figure added there
  * appears here with no change.
  */
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Compass } from 'lucide-react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Compass, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { findingsApi } from '../api/findingsApi';
 import { localizeSpec } from '../api/dashboardLocalization';
+import { asNumber, asRows, type ResolveContext } from '../api/dashboardApi';
 import { intakeApi, type FormOptions, type FoundPlace } from '../api/intakeApi';
 import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
 import { ToastContainer } from '../components/common/Toast';
 import { toast } from '../components/common/toastStore';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
+import { ThemedTiles } from '../components/dashboard/ThemedTiles';
+import { formatNumber } from '../components/dashboard/widgets/format';
+import { OriginLines } from '../components/dashboard/widgets/KpiCard';
 import { useElementWidth } from '../hooks/useElementWidth';
-import { useResolveContext } from '../hooks/useDashboard';
+import { useBinding, useResolveContext } from '../hooks/useDashboard';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
-import { withShareSet, wholePercentages } from '../intake/submissionDraft';
+import { fromHectares, withShareSet, wholePercentages } from '../intake/submissionDraft';
 import { findingsFrom, type Findings } from '../publicFindings/answeredFindings';
+import type { DashboardSection, KpiWidget } from '../types/dashboard';
+import { degreesMinutesSeconds } from '../utils/degreesMinutesSeconds';
 import { sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
 import {
+  BOUNDARY_FETCHED_FROM_REGISTER,
   documentFrom,
   emptyExplore,
   landDescribed,
@@ -35,6 +42,7 @@ import {
   withFetchedBoundary,
   withPosition,
   type ExploreState,
+  type PositionSource,
 } from './exploreState';
 
 const MapView = lazy(() => import('../components/map/MapView').then((m) => ({ default: m.MapView })));
@@ -102,8 +110,8 @@ export function ExplorePage() {
     };
   }, []);
 
-  const pick = useCallback((position: BoundaryPoint) => {
-    setState((current) => withPosition(current, position));
+  const pick = useCallback((position: BoundaryPoint, placedBy: PositionSource) => {
+    setState((current) => withPosition(current, position, placedBy));
     setFetchingParcel(true);
     intakeApi
       .parcelAt(position.latitude, position.longitude)
@@ -124,7 +132,7 @@ export function ExplorePage() {
 
   const useMyLocation = useCallback(() => {
     navigator.geolocation?.getCurrentPosition(
-      (found) => pick({ latitude: found.coords.latitude, longitude: found.coords.longitude }),
+      (found) => pick({ latitude: found.coords.latitude, longitude: found.coords.longitude }, 'device'),
       () => toast.error(t('explore.geolocationRefused')),
     );
   }, [pick, t]);
@@ -302,6 +310,7 @@ export function ExplorePage() {
           <ReportStep
             options={options}
             state={state}
+            drawnArea={drawnArea}
             reference={session.reference}
             findings={findings}
             expired={expired}
@@ -345,16 +354,12 @@ function PlotStep({
   state: ExploreState;
   fetchingParcel: boolean;
   drawnArea: number | null;
-  onPick: (position: BoundaryPoint) => void;
+  onPick: (position: BoundaryPoint, placedBy: PositionSource) => void;
   onUseMyLocation: () => void;
   onBoundaryDrawn: (boundary: BoundaryPoint[]) => void;
   onBoundaryCleared: () => void;
 }) {
-  const { t, i18n } = useTranslation();
-  const area = useMemo(
-    () => new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 }),
-    [i18n.language],
-  );
+  const { t } = useTranslation();
   const picked = state.position !== null;
   const centre = state.position ?? { latitude: WORLD.latitude, longitude: WORLD.longitude };
 
@@ -369,8 +374,8 @@ function PlotStep({
           : t('explore.pickHint')}
       </p>
 
+      {options?.placeSearch && <PlaceSearch onPick={(position) => onPick(position, 'place-search')} />}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        {options?.placeSearch && <PlaceSearch onPick={onPick} />}
         <button
           type="button"
           onClick={onUseMyLocation}
@@ -389,7 +394,7 @@ function PlotStep({
         )}
       </div>
 
-      <div className="h-96 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
+      <BesideTheMap facts={<LandFacts state={state} drawnArea={drawnArea} reference={null} />}>
         <Suspense fallback={null}>
           <MapView
             latitude={centre.latitude}
@@ -400,26 +405,120 @@ function PlotStep({
             showMarker={picked}
             boundary={picked ? state.boundary : undefined}
             onBoundaryChange={picked ? onBoundaryDrawn : undefined}
-            onPositionPick={picked ? undefined : onPick}
+            onPositionPick={picked ? undefined : (position) => onPick(position, 'map')}
           />
         </Suspense>
-      </div>
+      </BesideTheMap>
 
       <div className="mt-2 text-sm text-zinc-700 dark:text-zinc-200">
         {fetchingParcel && <p className="text-zinc-400 dark:text-zinc-500">{t('explore.fetchingParcel')}</p>}
-        {!fetchingParcel && picked && state.boundarySource === 'fetched-from-register' && (
-          <p className="text-emerald-600 dark:text-emerald-400">
-            {t('explore.parcelFound')}
-            {state.boundaryAttribution && (
-              <span className="text-zinc-400 dark:text-zinc-500"> — {state.boundaryAttribution}</span>
-            )}
-          </p>
-        )}
-        {drawnArea !== null && (
-          <p className="tabular-nums">{t('explore.areaReadout', { value: area.format(drawnArea) })}</p>
+        {!fetchingParcel && picked && state.boundarySource === BOUNDARY_FETCHED_FROM_REGISTER && (
+          <p className="text-emerald-600 dark:text-emerald-400">{t('explore.parcelFound')}</p>
         )}
       </div>
     </section>
+  );
+}
+
+/** The map with the fact cards in a column beside it — beneath it on a phone, where a column would
+ *  leave the map too narrow to click a corner on. The map stretches to the column, so a fifth card
+ *  does not leave a gap under it. */
+function BesideTheMap({ facts, children }: { facts: ReactNode; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
+      <div className="h-96 sm:h-auto sm:min-h-96 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700">
+        {children}
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-1 sm:content-start">{facts}</div>
+    </div>
+  );
+}
+
+/** What the page knows about the land without asking anybody: how much of it there is, where it is,
+ *  and — once the submission has been accepted — what to quote to whoever reviews it. Each card names
+ *  where its figure came from in place of a tick. */
+function LandFacts({
+  state,
+  drawnArea,
+  reference,
+}: {
+  state: ExploreState;
+  drawnArea: number | null;
+  reference: string | null;
+}) {
+  const { t, i18n } = useTranslation();
+  const area = useMemo(
+    () => new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 }),
+    [i18n.language],
+  );
+  const placedBy: Record<PositionSource, string> = {
+    map: t('explore.facts.fromTheMap'),
+    'place-search': t('explore.facts.fromPlaceSearch'),
+    device: t('explore.facts.fromDevice'),
+  };
+
+  return (
+    <>
+      {drawnArea !== null && (
+        <FactCard
+          label={t('explore.facts.area')}
+          source={
+            state.boundarySource === BOUNDARY_FETCHED_FROM_REGISTER
+              ? state.boundaryAttribution
+              : t('explore.facts.drawnByHand')
+          }
+        >
+          <span className="block text-lg font-bold tabular-nums">
+            {t('explore.facts.hectares', { value: area.format(drawnArea) })}
+          </span>
+          <span className="block text-xs text-zinc-500 dark:text-zinc-400 tabular-nums">
+            {t('explore.facts.acres', { value: area.format(fromHectares(drawnArea, 'acres')) })}
+          </span>
+        </FactCard>
+      )}
+      {state.position !== null && state.positionSource !== null && (
+        <FactCard label={t('explore.facts.coordinates')} source={placedBy[state.positionSource]}>
+          <span className="block text-sm font-bold tabular-nums">{degreesMinutesSeconds(state.position)}</span>
+        </FactCard>
+      )}
+      {reference !== null && (
+        <FactCard label={t('explore.facts.reference')} source={null}>
+          <span className="block break-all font-mono text-xs font-semibold">{reference}</span>
+        </FactCard>
+      )}
+    </>
+  );
+}
+
+/** A fact the model holds about the land, drawn beside the map: the figure, the title, and where the
+ *  model says it came from. The same three things the `kpi` widget draws, on a card shaped for the
+ *  column it stands in. */
+function ModelFact({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContext }) {
+  const value = useBinding(widget.value, ctx);
+  const origin = useBinding(widget.origin, ctx);
+
+  return (
+    <FactCard label={widget.title} source={null}>
+      <span className="block text-lg font-bold tabular-nums">
+        {value.loading ? '···' : formatNumber(asNumber(value.value), widget.format)}
+        {widget.unit && <span className="ml-1 text-xs font-semibold text-zinc-400 dark:text-zinc-500">{widget.unit}</span>}
+      </span>
+      <OriginLines rows={asRows(origin.value)} />
+    </FactCard>
+  );
+}
+
+function FactCard({ label, source, children }: { label: string; source: string | null; children: ReactNode }) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="rounded-lg border border-zinc-200 bg-white p-3 text-center text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+    >
+      {children}
+      <span className="mt-1 block text-[11px] text-zinc-500 dark:text-zinc-400">{label}</span>
+      {source && <span className="mt-1 block text-[11px] text-sky-600 dark:text-sky-400">{source}</span>}
+    </div>
   );
 }
 
@@ -442,7 +541,7 @@ function PlaceSearch({ onPick }: { onPick: (position: BoundaryPoint) => void }) 
   }
 
   return (
-    <div className="relative flex items-center gap-2">
+    <div className="relative mb-3 flex items-center gap-2">
       <input
         value={typed}
         onChange={(event) => setTyped(event.target.value)}
@@ -451,15 +550,16 @@ function PlaceSearch({ onPick }: { onPick: (position: BoundaryPoint) => void }) 
         }}
         placeholder={t('explore.searchPlaceholder')}
         aria-label={t('explore.searchPlaceholder')}
-        className="w-64 px-2 py-1.5 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+        className="min-w-0 flex-1 rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
       />
       <button
         type="button"
         onClick={() => void search()}
         disabled={searching || typed.trim().length === 0}
-        className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
+        aria-label={t('explore.searchButton')}
+        className="rounded-full bg-emerald-600 p-2 text-white hover:bg-emerald-700 disabled:opacity-40"
       >
-        {t('explore.searchButton')}
+        <Search size={16} aria-hidden="true" />
       </button>
       {found !== null && (
         <ul className="absolute top-full left-0 z-10 mt-1 w-80 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow">
@@ -548,6 +648,7 @@ function ClaimStep({
 function ReportStep({
   options,
   state,
+  drawnArea,
   reference,
   findings,
   expired,
@@ -561,6 +662,7 @@ function ReportStep({
 }: {
   options: FormOptions | null;
   state: ExploreState;
+  drawnArea: number | null;
   reference: string;
   findings: Findings | null;
   expired: boolean;
@@ -577,15 +679,10 @@ function ReportStep({
   return (
     <>
       <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              {t('explore.reportTitle', { site: state.siteName })}
-            </h2>
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">
-              {t('explore.reference')} <span className="font-mono">{reference}</span>
-            </p>
-          </div>
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            {t('explore.reportTitle', { site: state.siteName })}
+          </h2>
           <button
             type="button"
             onClick={onRefresh}
@@ -626,8 +723,13 @@ function ReportStep({
           </div>
         )}
 
-        {findings ? <Drawn findings={findings} /> : (
-          <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">{t('explore.reportComing')}</p>
+        {findings ? (
+          <Drawn findings={findings} options={options} state={state} drawnArea={drawnArea} reference={reference} />
+        ) : (
+          <>
+            <ReportMap options={options} state={state} drawnArea={drawnArea} reference={reference} />
+            <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">{t('explore.reportComing')}</p>
+          </>
         )}
       </section>
 
@@ -636,21 +738,87 @@ function ReportStep({
   );
 }
 
-/** The model's own dashboard, exactly as the findings page draws it. */
-function Drawn({ findings }: { findings: Findings }) {
+/** The land as it was described, with what is known about it beside — what the page worked out itself,
+ *  and whatever facts the model has resolved since. */
+function ReportMap({
+  options,
+  state,
+  drawnArea,
+  reference,
+  children,
+}: {
+  options: FormOptions | null;
+  state: ExploreState;
+  drawnArea: number | null;
+  reference: string;
+  children?: ReactNode;
+}) {
+  const centre = state.position ?? { latitude: WORLD.latitude, longitude: WORLD.longitude };
+  return (
+    <BesideTheMap
+      facts={
+        <>
+          <LandFacts state={state} drawnArea={drawnArea} reference={reference} />
+          {children}
+        </>
+      }
+    >
+      <Suspense fallback={null}>
+        <MapView
+          latitude={centre.latitude}
+          longitude={centre.longitude}
+          sources={options?.basemapSources ?? []}
+          initialZoom={PLOT_ZOOM}
+          boundary={state.boundary}
+        />
+      </Suspense>
+    </BesideTheMap>
+  );
+}
+
+/** The model's own dashboard, drawn as the tile design draws it: the sections naming a theme as tiles,
+ *  the section marked as the facts beside the map, and everything else as the list the findings page
+ *  draws. A spec naming neither renders exactly as it did. */
+function Drawn({
+  findings,
+  options,
+  state,
+  drawnArea,
+  reference,
+}: {
+  findings: Findings;
+  options: FormOptions | null;
+  state: ExploreState;
+  drawnArea: number | null;
+  reference: string;
+}) {
   const { t, i18n } = useTranslation();
   const [measure, width] = useElementWidth();
   const spec = useMemo(() => localizeSpec(findings.spec, i18n.language), [findings.spec, i18n.language]);
   const ctx = useResolveContext(findings.index, findings.scopeId, spec.compare?.archetype, () => findings.reads);
+  const facts = spec.sections
+    .filter((section) => section.facts)
+    .flatMap((section) => section.widgets)
+    .filter((widget): widget is KpiWidget => widget.type === 'kpi');
+  const listed = spec.sections.filter((section: DashboardSection) => !section.facts && section.theme === undefined);
+  const tiled = spec.sections.length > listed.length;
 
   return (
-    <div ref={measure} className="mt-4">
-      <DashboardSections
-        sections={spec.sections}
-        ctx={ctx}
-        isWide={width >= WIDE}
-        whenEmpty={<p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">{t('explore.emptyView')}</p>}
-      />
+    <div ref={measure}>
+      <ReportMap options={options} state={state} drawnArea={drawnArea} reference={reference}>
+        {facts.map((widget, at) => <ModelFact key={at} widget={widget} ctx={ctx} />)}
+      </ReportMap>
+      <ThemedTiles sections={spec.sections} themes={options?.themes ?? []} ctx={ctx} />
+      {(listed.length > 0 || !tiled) && (
+        <div className="mt-4">
+          <DashboardSections
+            sections={listed}
+            ctx={ctx}
+            isWide={width >= WIDE}
+            whenEmpty={<p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">{t('explore.emptyView')}</p>}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hashStringToIndex, brightenColor, resolvePredicateColor, INSTANCE_PALETTE, PREDICATE_PALETTE } from './colors';
+import { hashStringToIndex, brightenColor, inkFor, resolvePredicateColor, INSTANCE_PALETTE, PREDICATE_PALETTE } from './colors';
 
 describe('brightenColor', () => {
   it('returns unchanged color at t=0', () => {
@@ -88,5 +88,22 @@ describe('resolvePredicateColor', () => {
     const a = resolvePredicateColor('is', {});
     const b = resolvePredicateColor('is', {});
     expect(a).toBe(b);
+  });
+});
+
+describe('inkFor', () => {
+  it('puts dark ink on a pale face and light ink on a deep one', () => {
+    expect(inkFor('#FFF0C0')).toBe('dark');
+    expect(inkFor('#C5D8F5')).toBe('dark');
+    expect(inkFor('#F0A840')).toBe('light');
+    expect(inkFor('#3B7DE0')).toBe('light');
+  });
+
+  it('reads a three-digit hex the way a browser does', () => {
+    expect(inkFor('#fff')).toBe('dark');
+  });
+
+  it('puts light ink on a colour it cannot read', () => {
+    expect(inkFor('cornsilk')).toBe('light');
   });
 });

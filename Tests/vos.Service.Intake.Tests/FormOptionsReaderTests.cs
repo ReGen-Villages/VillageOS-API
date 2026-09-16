@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using vos.Service.Intake;
+using vos.Service.Intake.Models;
 using vos.Service.Intake.Services;
 using Xunit;
 
@@ -126,6 +127,49 @@ public class FormOptionsReaderTests
 
         options.HazardTypes.Should().BeEmpty();
         options.HazardLevels.Should().BeEmpty();
+    }
+
+    // The themes a section of the report may name: found by the mark their archetype carries, each with
+    // what faces its tile, in the order the model gives them.
+    [Fact]
+    public void The_themes_travel_as_the_model_declares_them_in_the_order_it_gives_them()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("Theme", FormOptionsReader.ThemeArchetypeFlag)
+            .Stating("Water", ("colour", "#3B7DE0"), ("icon", "droplet"), ("order", 2))
+            .Stating("Temperature", ("colour", "#F0A840"), ("icon", "thermometer"), ("order", 1))
+            .Stating("Terrain")
+            .Relate("Water", "is", "Theme")
+            .Relate("Temperature", "is", "Theme")
+            .Relate("Terrain", "is", "Theme");
+
+        var options = FormOptionsReader.Read(model.Build());
+
+        options.Themes.Select(theme => theme.Name).Should().Equal("Temperature", "Water", "Terrain");
+        options.Themes[0].Should().BeEquivalentTo(new DeclaredTheme("Temperature", "#F0A840", "thermometer", 1));
+        options.Themes[2].Should().BeEquivalentTo(new DeclaredTheme("Terrain", null, null, null));
+    }
+
+    // A model seeded before the tile design declares no themes, and its report draws as a list rather
+    // than the form refusing to answer.
+    [Fact]
+    public void A_model_declaring_no_themes_answers_with_none_rather_than_refusing()
+    {
+        var options = FormOptionsReader.Read(DeclaredModel.Seeded().Build());
+
+        options.Themes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_model_marking_two_theme_archetypes_is_refused_as_unseeded()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("Theme", FormOptionsReader.ThemeArchetypeFlag)
+            .WithArchetype("Motif", FormOptionsReader.ThemeArchetypeFlag);
+
+        var reading = () => FormOptionsReader.Read(model.Build());
+
+        reading.Should().Throw<ModelNotSeededError>().WithMessage("*Theme*Motif*");
     }
 
     [Fact]

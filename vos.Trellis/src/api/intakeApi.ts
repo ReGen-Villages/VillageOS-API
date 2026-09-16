@@ -1,5 +1,6 @@
 import type { SubmissionDocument } from '../intake/submissionDraft';
 import type { BasemapSource, DeclaredBasemapSource } from '../types/basemap';
+import type { DeclaredTheme } from '../types/dashboard';
 import { basemapSourcesFrom } from '../utils/basemapSources';
 
 /** What the intake service answered a submission with: something the submitter can quote to whoever
@@ -43,6 +44,9 @@ export interface FormOptions {
    *  honour: no search box over a model with no gazetteer, no fetch attempt against no register. */
   parcelLookup: boolean;
   placeSearch: boolean;
+  /** The themes a dashboard section may name, as the model declares them — what faces a tile on the
+   *  report. Empty where the model declares none, which draws every section as a list. */
+  themes: DeclaredTheme[];
 }
 
 /** The legal parcel a register holds at a position, as named pairs, with the register's own credit
@@ -75,6 +79,7 @@ export const intakeApi = {
       defaultProgramme?: { category: string; sharePct: number }[];
       parcelLookup?: boolean;
       placeSearch?: boolean;
+      themes?: Partial<DeclaredTheme>[];
     };
     return {
       allocationCategories: answered.allocationCategories ?? [],
@@ -84,6 +89,12 @@ export const intakeApi = {
       defaultProgramme: answered.defaultProgramme ?? [],
       parcelLookup: answered.parcelLookup ?? false,
       placeSearch: answered.placeSearch ?? false,
+      themes: (answered.themes ?? []).map((theme) => ({
+        name: theme.name ?? '',
+        colour: theme.colour ?? null,
+        icon: theme.icon ?? null,
+        order: theme.order ?? null,
+      })),
     };
   },
 

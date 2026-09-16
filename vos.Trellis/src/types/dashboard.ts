@@ -530,6 +530,18 @@ export interface DashboardSection {
   /** Relative column widths for 'split'/'kpi-strip'. */
   widths?: number[];
   widgets: Widget[];
+  /** The name of a {@link DeclaredTheme} the model holds. A page that draws themes draws this
+   *  section as a tile faced in the theme's colour: its `kpi` widgets are the summary shown while the
+   *  tile is hovered or focused, its other widgets the gallery a click opens, and a card in the
+   *  gallery opens the widget full width. A section with no widgets is a muted tile reading "not
+   *  assessed". A section naming no theme, and every section on a page that draws no themes, renders
+   *  as a list exactly as before. */
+  theme?: string;
+  /** Marks the section whose `kpi` widgets are the facts about the land: the explore page draws them
+   *  as cards beside the map — the figure, the title, and where the model says it came from in place
+   *  of a tick — and not in the report beneath. The page draws the area, the coordinates and the
+   *  reference from what it knows itself, so this section carries only what the page cannot know. */
+  facts?: boolean;
 }
 
 /** Declares the entity type compared in the scope switcher + leaderboard. */
@@ -642,4 +654,16 @@ export interface DashboardDescriptor {
 export interface ScopeEntity {
   id: string;
   name: string;
+}
+
+/** A theme the model declares for a dashboard section to name, read by the mark its archetype carries
+ *  and handed to a page as the model states it. `colour` is a CSS colour for the tile's face, `icon` a
+ *  name from the icon set Trellis renders with, `order` the tile's place in the grid. Each is null
+ *  where the model states none: a tile then takes a neutral face, no icon, and a place after every
+ *  ordered tile. */
+export interface DeclaredTheme {
+  name: string;
+  colour: string | null;
+  icon: string | null;
+  order: number | null;
 }

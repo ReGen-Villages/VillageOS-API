@@ -266,9 +266,21 @@ The public build carries a second way in beside the wizard, so the two approache
 and can be compared (#6905 model, #6906 service, #6907 page). It inverts the wizard's order: the land
 comes first, and the report comes before the questions.
 
-- **The map is first.** A place search, the browser's own position, or a click puts the pin — nothing
-  geographic is typed. Where a land register covers the point, the legal parcel boundary is fetched
-  and recorded as `fetched-from-register`; anywhere else the boundary is drawn as in the wizard.
+- **The map is first, with the address box leading.** A place search, the browser's own position, or
+  a click puts the pin — nothing geographic is typed. Where a land register covers the point, the
+  legal parcel boundary is fetched and recorded as `fetched-from-register`; anywhere else the
+  boundary is drawn as in the wizard.
+- **The facts about the land stand beside the map as they become known.** The area, in hectares and
+  acres, once a boundary encloses some; the coordinates, in degrees, minutes and seconds, once the pin
+  is placed; the reference once the submission is accepted; and whatever the model has since resolved
+  about the site, from the section of the dashboard marked `facts`. Each card names where its figure
+  came from in place of a tick — the register's credit, *drawn by hand*, how the pin was placed, or the
+  model's own account of the value's origin.
+- **The report is a grid of tiles.** Each section of the submission dashboard that names a theme the
+  model declares is a tile faced in the theme's colour and icon; its figures show on hover or focus,
+  a click opens its charts as a gallery, and a card opens full width. A section naming no theme
+  draws as the list it always did, so the same spec serves the findings page unchanged. See
+  [TRELLIS.md](TRELLIS.md#a-section-drawn-as-a-tile).
 - **The only questions are a name for the land, the person's name, and the mailbox** — the same
   verification exchange as the wizard, and nothing else. The programme starts from the default share
   each category declares in the model, and the population and household size start unset.
@@ -1233,8 +1245,10 @@ application, so sharing a file is the point and reaching the broker through one 
 **`GET /submissions/form` answers what a form draws itself with and nothing else.** It demands no
 credential for the same reason `POST /submissions` demands none, and it spends the same request budget.
 The categories are found by the mark their archetype carries; the basemap sources by the archetype name
-[TRELLIS.md §22](TRELLIS.md#22-the-map-and-its-basemap-sources) states for every client that draws a map.
-A model that was never seeded is answered `503` with nothing in the body, as a submission into one is.
+[TRELLIS.md §22](TRELLIS.md#22-the-map-and-its-basemap-sources) states for every client that draws a map;
+the themes a report's tiles are faced with by the mark `__IsThemeArchetype`, each with its colour, icon
+and order as the model states them, and none where the model declares no themes. A model that was
+never seeded is answered `503` with nothing in the body, as a submission into one is.
 
 **Nothing but the email address reaches the service before the address is verified.** The page holds what
 was collected in the browser; asking for a code sends the address alone; the answers go with the ticket

@@ -80,6 +80,32 @@ export function brightenColor(hex: string, t: number): string {
   return `#${mix(r).toString(16).padStart(2, '0')}${mix(g).toString(16).padStart(2, '0')}${mix(b).toString(16).padStart(2, '0')}`;
 }
 
+/** Which ink reads on a face of this colour: dark on a pale face, light on a deep one, judged by the
+ *  face's relative luminance. A colour that is not a hex triplet — a name, an `rgb()` — takes light
+ *  ink, which reads on every face the model is likely to declare. */
+export function inkFor(colour: string): 'light' | 'dark' {
+  const channels = hexChannels(colour);
+  if (!channels) return 'light';
+  const linear = (channel: number) => {
+    const fraction = channel / 255;
+    return fraction <= 0.03928 ? fraction / 12.92 : ((fraction + 0.055) / 1.055) ** 2.4;
+  };
+  const [red, green, blue] = channels.map(linear);
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  return luminance > PALE_FACE_LUMINANCE ? 'dark' : 'light';
+}
+
+/** Above this the face is pale enough that white ink washes out. */
+const PALE_FACE_LUMINANCE = 0.55;
+
+function hexChannels(colour: string): [number, number, number] | null {
+  const hex = colour.trim();
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex);
+  if (!match) return null;
+  const digits = match[1].length === 3 ? [...match[1]].map((digit) => digit + digit).join('') : match[1];
+  return [0, 2, 4].map((at) => parseInt(digits.slice(at, at + 2), 16)) as [number, number, number];
+}
+
 /** Deterministic hash of a string into a palette index. */
 export function hashStringToIndex(s: string, paletteSize: number): number {
   let hash = 0;
