@@ -17,16 +17,29 @@ export interface ModelBatch {
   relationshipPropertyUpdates?: { id: string; name: string; value: unknown }[];
   thingPropertyRemovals?: { id: string; path: string }[];
   relationshipPropertyRemovals?: { id: string; name: string }[];
+  /** The whole set of states a Thing now holds — never a delta — so the newest applied wins
+   *  whatever order they arrived in. */
+  thingStateUpdates?: { id: string; states: string[] }[];
 }
 
 interface ModelState {
   things: VosThing[];
   relationships: VosRelationship[];
+  /** The derived states each held Thing currently holds, kept beside the model rather than on it. A
+   *  state moves far more often than the model's shape does, and folding one into `things` would
+   *  rebuild that array — and every index built from it — on every state change. Written in place
+   *  for the same reason the index is; the version beside it is what says it moved. */
+  thingStates: Map<string, string[]>;
+  thingStatesVersion: number;
   /** True after first successful load (phased or full). */
   loaded: boolean;
 
   setThings: (things: VosThing[]) => void;
   setRelationships: (relationships: VosRelationship[]) => void;
+  /** Replace every state with what a fresh snapshot holds. Replaces rather than merges: a Thing
+   *  that has left its last state has no entry in the snapshot, and merging would leave it holding
+   *  that state for as long as the session lasted. */
+  seedThingStates: (thingStates: Map<string, string[]>) => void;
   /** Apply a coalesced batch of live changes in a single write. Used by the debounced SSE flush;
    *  the kept index makes a batch cost its own size plus one copy of the array's references,
    *  whatever the size of the model. */
@@ -83,18 +96,23 @@ const relationshipsById = new KeptById<VosRelationship>();
 export const useModelStore = create<ModelState>((set) => ({
   things: [],
   relationships: [],
+  thingStates: new Map(),
+  thingStatesVersion: 0,
   loaded: false,
 
   // A load replaces the model, so the index is dropped rather than left holding the last one until
-  // the next flush rebuilds it — on a switch between models, the whole of the old one.
+  // the next flush rebuilds it — on a switch between models, the whole of the old one. The states
+  // go with it: what the load replaces, the snapshot beside it re-seeds.
   setThings: (things) => {
     thingsById.forget();
-    set({ things });
+    set((s) => ({ things, thingStates: new Map(), thingStatesVersion: s.thingStatesVersion + 1 }));
   },
   setRelationships: (relationships) => {
     relationshipsById.forget();
     set({ relationships });
   },
+  seedThingStates: (thingStates) =>
+    set((s) => ({ thingStates, thingStatesVersion: s.thingStatesVersion + 1 })),
   applyBatch: (batch) => set((s) => {
     const next: Partial<ModelState> = {};
 
@@ -136,12 +154,37 @@ export const useModelStore = create<ModelState>((set) => ({
       next.relationships = relationshipsById.asArray();
     }
 
+    // The events stream carries every Thing's state changes, so a change to a Thing the store does
+    // not hold is dropped rather than kept for no reader.
+    if (batch.thingStateUpdates?.length) {
+      const held = thingsById.forThe(next.things ?? s.things);
+      for (const u of batch.thingStateUpdates) if (held.has(u.id)) s.thingStates.set(u.id, u.states);
+      next.thingStatesVersion = s.thingStatesVersion + 1;
+    }
+
     return next;
   }),
   markLoaded: () => set({ loaded: true }),
   clear: () => {
     thingsById.forget();
     relationshipsById.forget();
-    set({ things: [], relationships: [], loaded: false });
+    set((s) => ({
+      things: [], relationships: [], loaded: false,
+      thingStates: new Map(), thingStatesVersion: s.thingStatesVersion + 1,
+    }));
   },
 }));
+
+/**
+ * The states as they stand, for a component that draws them.
+ *
+ * Reading the map is not enough on its own: it is written in place, so its identity never changes
+ * and a component that only selected it would draw the states once and never again — and nothing
+ * about that read would look wrong. The version beside it is what moves, so watching that is what
+ * redraws the caller. The two belong in one expression: written apart, the watch reads as a line
+ * with no effect and the read reads as complete, and either can be removed without anything failing.
+ */
+export function useThingStates(): Map<string, string[]> {
+  useModelStore((s) => s.thingStatesVersion);
+  return useModelStore.getState().thingStates;
+}

@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
-const mockGetThingStates = vi.fn();
 const mockGetStateTransitions = vi.fn();
+const stateReads = vi.fn();
 
+vi.mock('../../../api/client', () => ({ apiClient: { get: (path: string) => stateReads(path) } }));
 vi.mock('../../../api/stateApi', () => ({
   stateApi: {
-    getThingStates: (id: string, signal?: AbortSignal) => mockGetThingStates(id, signal),
     getStateTransitions: (id: string, _from?: string, _to?: string, signal?: AbortSignal) =>
       mockGetStateTransitions(id, signal),
   },
@@ -14,6 +14,7 @@ vi.mock('../../../api/stateApi', () => ({
 
 import { buildModelIndex } from '../../../api/dashboardApi';
 import type { VosThing, VosRelationship } from '../../../types/vos';
+import { useModelStore } from '../../../stores/modelStore';
 import { useEntityDetail } from './useEntityDetail';
 
 function thing(Id: string, Name: string): VosThing {
@@ -34,7 +35,7 @@ function index() {
 describe('useEntityDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetThingStates.mockResolvedValue({ CurrentStates: [] });
+    useModelStore.getState().clear();
     mockGetStateTransitions.mockResolvedValue({
       ThingId: 'root',
       ThingName: 'ROOT-1',
@@ -55,13 +56,12 @@ describe('useEntityDetail', () => {
     });
   }
 
-  // The fixture has 2 Things (root + child), so each round is 2 state calls.
-  const rounds = () => mockGetThingStates.mock.calls.length / 2;
+  const rounds = () => mockGetStateTransitions.mock.calls.length;
 
-  // The dashboard bumps `nonce` every 400 ms while a sim runs. A round costs a request per
-  // related Thing, so following every bump would put one open window into the hundreds of
-  // requests per second. The throttle is leading-edge — the first bump after a quiet period
-  // refreshes promptly — so what must not happen is a round per bump, not a round at all.
+  // The dashboard bumps `nonce` every 400 ms while a sim runs. A round costs a history request,
+  // so following every bump would put one open window into requests per second. The throttle is
+  // leading-edge — the first bump after a quiet period refreshes promptly — so what must not
+  // happen is a round per bump, not a round at all.
   it('does not start a fetch round per nonce bump', async () => {
     const idx = index();
     const { rerender } = renderHook(({ nonce }) => useEntityDetail(idx, 'root', detail, nonce), {
@@ -91,7 +91,7 @@ describe('useEntityDetail', () => {
       initialProps: { nonce: 0 },
     });
     await settle();
-    const afterFirstRound = mockGetThingStates.mock.calls.length;
+    const afterFirstRound = rounds();
 
     for (let n = 1; n <= 30; n++) {
       rerender({ nonce: n });
@@ -100,23 +100,56 @@ describe('useEntityDetail', () => {
       });
     }
 
-    expect(mockGetThingStates.mock.calls.length).toBeGreaterThan(afterFirstRound);
+    expect(rounds()).toBeGreaterThan(afterFirstRound);
   });
 
-  it('fetches the root and its related Things, and abandons a superseded round', async () => {
+  it('abandons a superseded history round', async () => {
     const idx = index();
     const { rerender, unmount } = renderHook(({ nonce }) => useEntityDetail(idx, 'root', detail, nonce), {
       initialProps: { nonce: 0 },
     });
     await settle();
 
-    expect(mockGetThingStates.mock.calls.map((c) => c[0]).sort()).toEqual(['child', 'root']);
-    const signal: AbortSignal = mockGetThingStates.mock.calls[0][1];
+    const signal: AbortSignal = mockGetStateTransitions.mock.calls[0][1];
     expect(signal.aborted).toBe(false);
 
     rerender({ nonce: 1 });
     unmount();
     expect(signal.aborted).toBe(true);
+  });
+
+  it('shows the states the snapshot seeded for the root and its related Things, asking for none', async () => {
+    useModelStore.getState().seedThingStates(new Map([['root', ['flagged']], ['child', ['metered', 'verified']]]));
+    const idx = index();
+    const { result } = renderHook(() => useEntityDetail(idx, 'root', detail, 0));
+    await settle();
+
+    expect(result.current.statesById.get('root')).toEqual(['flagged']);
+    expect(result.current.statesById.get('child')).toEqual(['metered', 'verified']);
+    expect(stateReads).not.toHaveBeenCalled();
+  });
+
+  // Reading the states back would pass without the card watching anything: a hook re-rendered for
+  // any other reason reads them as they stand. Counting renders holds that a state moving is itself
+  // what redraws the card.
+  it('redraws when a state moves, with nothing else changing', async () => {
+    useModelStore.setState({ things: [thing('root', 'ROOT-1')], relationships: [] });
+    useModelStore.getState().seedThingStates(new Map([['root', ['flagged']]]));
+    const idx = index();
+    let renders = 0;
+    const { result } = renderHook(() => {
+      renders += 1;
+      return useEntityDetail(idx, 'root', detail, 0);
+    });
+    await settle();
+    const before = renders;
+
+    await act(async () => {
+      useModelStore.getState().applyBatch({ thingStateUpdates: [{ id: 'root', states: ['cleared'] }] });
+    });
+
+    expect(renders).toBeGreaterThan(before);
+    expect(result.current.statesById.get('root')).toEqual(['cleared']);
   });
 
   it('resolves the configured relations against the model', async () => {

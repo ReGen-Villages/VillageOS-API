@@ -241,14 +241,6 @@ export interface ThingStates {
   OutOfBoundsCount: number;
 }
 
-/** Response of GET /api/things/{id}/states — a single Thing's currently-holding derived states. */
-export interface ObjectStatesResponse {
-  ObjectId: string;
-  ObjectName: string;
-  CurrentStates: string[];
-  RangeEvaluations: RangeEvaluation[];
-  OutOfBoundsCount: number;
-}
 
 /** One PropertyValueAsserted/Retracted record from the Commit Log (provenance audit trail). */
 export interface PropertyFact {

@@ -92,6 +92,7 @@ function loadWhatOpened(opened: SubscriptionOpened): void {
   if (opened.covered) {
     useModelStore.getState().setThings(opened.covered.things);
     useModelStore.getState().setRelationships(opened.covered.relationships);
+    useModelStore.getState().seedThingStates(opened.covered.thingStates);
     holdsNarrowedSet = true;
     useModelStore.getState().markLoaded();
     return;
@@ -109,10 +110,18 @@ function entityId(data: unknown): string | undefined {
 }
 
 /** The Thing a creation or entry carries, in the shape the store holds — the snapshot's shape,
- *  unwrapped the same way. An event carrying none has nothing to apply. */
-function carriedThing(data: unknown): VosThing | undefined {
-  const thing = (data as { Thing?: VosThing } | undefined)?.Thing;
-  return thing ? unwrapThing(thing) : undefined;
+ *  unwrapped the same way — with the states it held when the event was written. An event carrying
+ *  none has nothing to apply. */
+function carriedThing(data: unknown): { thing: VosThing; states: string[] } | undefined {
+  const thing = (data as { Thing?: VosThing & { States: string[] } } | undefined)?.Thing;
+  return thing ? { thing: unwrapThing(thing), states: thing.States } : undefined;
+}
+
+/** A derived-state event names its entity and the whole set of states it now holds — never a delta.
+ *  One missing its state set is skipped rather than read as the entity having left every state. */
+function stateChange(data: unknown): { id: string; states: string[] } | undefined {
+  const event = data as { entityId?: string; currentStates?: string[] } | undefined;
+  return event?.entityId && event.currentStates ? { id: event.entityId, states: event.currentStates } : undefined;
 }
 
 function carriedRelationship(data: unknown): VosRelationship | undefined {
@@ -148,6 +157,7 @@ export function useModelData(): void {
       relRemove: new Set<string>(),
       thingProps: new Map<string, Map<string, PropertyChange>>(),
       relProps: new Map<string, Map<string, PropertyChange>>(),
+      thingStates: new Map<string, string[]>(),
     };
 
     const recordProperty = (
@@ -208,6 +218,9 @@ export function useModelData(): void {
           else relationshipPropertyUpdates.push({ id, name, value: change.value });
       pending.relProps.clear();
 
+      const thingStateUpdates = [...pending.thingStates].map(([id, states]) => ({ id, states }));
+      pending.thingStates.clear();
+
       useModelStore.getState().applyBatch({
         thingUpserts,
         thingRemovals,
@@ -217,12 +230,17 @@ export function useModelData(): void {
         relationshipPropertyUpdates,
         thingPropertyRemovals,
         relationshipPropertyRemovals,
+        thingStateUpdates,
       });
     }
 
     const thingArrived = (data: unknown) => {
-      const thing = carriedThing(data);
-      if (thing) { pending.thingRemove.delete(thing.Id); pending.thingUpserts.set(thing.Id, thing); schedule(); }
+      const carried = carriedThing(data);
+      if (!carried) return;
+      pending.thingRemove.delete(carried.thing.Id);
+      pending.thingUpserts.set(carried.thing.Id, carried.thing);
+      if (holdsNarrowedSet) pending.thingStates.set(carried.thing.Id, carried.states);
+      schedule();
     };
     const thingGone = (data: unknown) => {
       const id = entityId(data);
@@ -265,7 +283,14 @@ export function useModelData(): void {
       // again rather than reconciled — which also re-answers with the new model's snapshot.
       on('ModelChanged', () => resubscribe()),
       on('ModelCleared', () => useModelStore.getState().clear()),
-      on('StatesChanged', () => useUiStore.getState().bumpStatesVersion()),
+      // Kept only while the store holds a narrowed page's set: the events stream carries every
+      // Thing's state changes, and a page reading across the whole model draws none of them, so
+      // keeping them there would grow with the model for no reader.
+      on('StatesChanged', (data) => {
+        useUiStore.getState().bumpStatesVersion();
+        const change = holdsNarrowedSet ? stateChange(data) : undefined;
+        if (change) { pending.thingStates.set(change.id, change.states); schedule(); }
+      }),
     ];
     return () => {
       if (timer) clearTimeout(timer);
