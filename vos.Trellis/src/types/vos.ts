@@ -169,15 +169,19 @@ export interface TemporalReduceQuery {
 }
 
 export interface TemporalReduceGroup {
-  key: string;
-  value: number;
+  Key: string;
+  Value: number;
 }
 
+/** Answered with the capitals every Mycelium route answers in, as the bucketed reduction is. */
 export interface TemporalReduceResponse {
   /** Ordered by key — numerically where the key is a number, part by part where it is composite. */
-  groups: TemporalReduceGroup[];
-  /** Samples carrying nothing the reduction could read. */
-  unusableSamples: number;
+  Groups: TemporalReduceGroup[];
+  /** Readings in the window the reduction could read. */
+  Samples: number;
+  /** Readings carrying nothing the reduction could read — so an answer with no groups says whether
+   *  the window was empty or unreadable. */
+  UnusableSamples: number;
 }
 
 export interface PropertyVersionsResponse {

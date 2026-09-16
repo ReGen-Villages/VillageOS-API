@@ -256,7 +256,7 @@ describe('the report as tiles', () => {
 describe('the history a chart asks for', () => {
   it('is reduced through the intake service under the ticket the page holds, and the renewal is kept', async () => {
     vi.mocked(findingsApi.reduceWithTicket).mockResolvedValue({
-      answer: { groups: [{ key: '1', value: 27.4 }], unusableSamples: 0 }, ticket: 'ticket-4',
+      answer: { Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 }, ticket: 'ticket-4',
     });
     await reachTheReport();
     const [, reduce] = vi.mocked(findingsFrom).mock.calls.at(-1)!;
@@ -265,7 +265,7 @@ describe('the history a chart asks for', () => {
       steps: [{ fold: 'monthOfYear' as const, function: 'Max' as const }],
     };
 
-    await expect(reduce!(question)).resolves.toEqual({ groups: [{ key: '1', value: 27.4 }], unusableSamples: 0 });
+    await expect(reduce!(question)).resolves.toEqual({ Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 });
 
     const [submissionId, ticket, asked] = vi.mocked(findingsApi.reduceWithTicket).mock.calls[0];
     expect(submissionId).toBe(vi.mocked(intakeApi.submitWithTicket).mock.calls[0][0].submissionId);

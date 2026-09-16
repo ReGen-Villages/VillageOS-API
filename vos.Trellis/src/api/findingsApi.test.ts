@@ -93,7 +93,7 @@ describe('asking the intake service to reduce the site\'s history', () => {
     fetchMock.mockResolvedValue({
       ok: true,
       headers: new Headers({ 'X-Submission-Ticket': 'ticket-2' }),
-      json: () => Promise.resolve({ groups: [{ key: '1', value: 27.4 }], unusableSamples: 0 }),
+      json: () => Promise.resolve({ Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 }),
     });
     const question = {
       property: 'temperature', windowSeconds: 31_536_000, steps: [{ fold: 'monthOfYear' as const, function: 'Max' as const }],
@@ -110,7 +110,7 @@ describe('asking the intake service to reduce the site\'s history', () => {
       }),
     );
     expect(answered).toEqual({
-      answer: { groups: [{ key: '1', value: 27.4 }], unusableSamples: 0 },
+      answer: { Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 },
       ticket: 'ticket-2',
     });
   });

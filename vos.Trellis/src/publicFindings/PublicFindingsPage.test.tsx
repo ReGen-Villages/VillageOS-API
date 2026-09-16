@@ -170,7 +170,7 @@ describe('a chart on the findings page', () => {
       },
     });
     vi.mocked(findingsApi.reduceWithTicket).mockResolvedValue({
-      answer: { groups: [{ key: 'all', value: 33.1 }], unusableSamples: 0 }, ticket: 'ticket-2',
+      answer: { Groups: [{ Key: 'all', Value: 33.1 }], Samples: 8760, UnusableSamples: 0 }, ticket: 'ticket-2',
     });
     render(<PublicFindingsPage />);
 

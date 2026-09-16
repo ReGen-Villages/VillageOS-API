@@ -2267,7 +2267,7 @@ describe('history reads the platform reduction over a property series', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(temporalApi.reduce).mockResolvedValue({
-      groups: [{ key: '1', value: 27.4 }, { key: '2', value: 26.9 }], unusableSamples: 0,
+      Groups: [{ Key: '1', Value: 27.4 }, { Key: '2', Value: 26.9 }], Samples: 8760, UnusableSamples: 0,
     });
   });
 

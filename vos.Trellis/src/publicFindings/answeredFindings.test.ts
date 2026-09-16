@@ -116,14 +116,14 @@ describe('the findings a submitter is answered with', () => {
   // The history reduction is the one read the page makes after the document arrived — through the intake
   // service, under the ticket the page holds — so whoever builds the findings supplies it.
   it('reduces a property series through whatever the page hands it', async () => {
-    const reduce = vi.fn().mockResolvedValue({ groups: [{ key: '1', value: 27.4 }], unusableSamples: 0 });
+    const reduce = vi.fn().mockResolvedValue({ Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 });
     const { reads } = findingsFrom(answered(), reduce);
     const question = {
       thingId: 'site-1', property: 'temperature', windowSeconds: 31_536_000,
       steps: [{ fold: 'monthOfYear' as const, function: 'Max' as const }],
     };
 
-    await expect(reads.reduce(question)).resolves.toEqual({ groups: [{ key: '1', value: 27.4 }], unusableSamples: 0 });
+    await expect(reads.reduce(question)).resolves.toEqual({ Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 });
     expect(reduce).toHaveBeenCalledWith(question);
   });
 

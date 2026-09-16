@@ -907,7 +907,7 @@ async function resolveHistory(
       ...(offset !== null ? { utcOffsetSeconds: offset } : {}),
       steps: binding.steps,
     });
-    return answer.groups.map((group) => ({ key: group.key, value: group.value }));
+    return answer.Groups.map((group) => ({ key: group.Key, value: group.Value }));
   } catch {
     return null;
   }

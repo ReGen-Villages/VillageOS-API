@@ -1806,8 +1806,11 @@ series; `hourOfDay`, `dayOfYear`, `monthOfYear` and the composites `hourOfDay,da
 reduced: `Min`, `Max`, `Average`, `Sum`, `Count`, `Percentile` (with `percentile`), `ShareWithin`
 (with `from` and `to`, closed on both ends, answering 0–1), `CountAtOrBelow` and `CountAbove` (with
 `threshold`), `SumAbove` and `SumBelow` (with `threshold`; the sum of the excess beyond it — degree
-days). The binding resolves to one row per group, `{ key, value }`, in the platform's order, so a
-widget reads a month as `"3"` and a composite as `"14,172"`.
+days). The platform answers `Groups` of `Key` and `Value` with the capitals every Mycelium route
+answers in, beside `Samples` and `UnusableSamples`; the binding resolves to one row per group,
+`{ key, value }`, in the platform's order, so a widget reads a month as `"3"` and a composite as
+`"14,172"`. A step after a cyclic fold may only fold by `all`, because a cycle places its groups
+nowhere on the calendar.
 
 **The Thing is the page's scope entity and the calendar is its own.** A series belongs to one Thing,
 so the binding names none: it reads the selected compare entity, and resolves to nothing where none is
