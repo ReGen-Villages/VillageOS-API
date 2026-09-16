@@ -217,8 +217,6 @@ describe('useEntityDetail dispatches', () => {
     });
   }
 
-  // The stamps are written without becoming Facts, so the loaded model may hold a dispatch in
-  // the state it was created in for ever. Each dispatched edge is read back instead.
   it('reads each dispatched edge back from the platform in the same round as the states', async () => {
     mockGetRelationship.mockResolvedValue({
       Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child',

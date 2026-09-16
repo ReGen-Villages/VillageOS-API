@@ -100,8 +100,6 @@ export function useEntityDetail(
     (async () => {
       // The root's state history rides alongside the current-state fan-out rather than after it.
       // It is rejected, not thrown, when the model has no active engine — the rest still resolves.
-      // The dispatch stamps are read from the platform rather than taken off the loaded model: they
-      // are written without becoming Facts, so nothing about them reaches the change stream.
       const [stateResults, [historyResult], dispatchResults] = await Promise.all([
         Promise.allSettled(allIds.map((id) => stateApi.getThingStates(id, signal))),
         Promise.allSettled(historyEnabled ? [stateApi.getStateTransitions(thingId, undefined, undefined, signal)] : []),

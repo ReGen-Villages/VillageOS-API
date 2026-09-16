@@ -321,7 +321,6 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
           </section>
         )}
 
-        {/* Who worked on it: the services the platform dispatched, and when */}
         {dispatches.length > 0 && (
           <section>
             <SectionTitle>{t('entityDetail.handledBy')}</SectionTitle>
