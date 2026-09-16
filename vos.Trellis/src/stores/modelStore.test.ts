@@ -157,8 +157,6 @@ describe('a flush costs the size of the batch, not the size of the model', () =>
     expect(indexWrites).toHaveBeenCalledTimes(1);
   });
 
-  // Between a load and the next flush every Thing of the model just replaced would otherwise stay
-  // reachable through the index — on a switch between models, the whole of the old one.
   it('drops the index at a load, so the replaced model is released before the next flush', () => {
     const cleared = vi.spyOn(Map.prototype, 'clear');
     useModelStore.getState().setThings(aModelOf(10));
