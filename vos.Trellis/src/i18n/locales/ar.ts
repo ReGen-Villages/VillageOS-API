@@ -372,6 +372,7 @@ export const ar: PartialResources & ArabicPlurals = {
   },
   widgets: {
     history: {
+      series: "سلاسل",
       lastYears_zero: "آخر {{count}} سنة",
       lastYears_one: "السنة الماضية",
       lastYears_two: "آخر سنتين",

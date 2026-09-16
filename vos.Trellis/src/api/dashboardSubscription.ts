@@ -73,6 +73,7 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
         : []),
       ...(widget.bands ?? []).flatMap((band) => [band.from, band.to]),
     ];
+    case 'lineSeries': return widget.series.map((entry) => entry.value);
   }
 }
 

@@ -274,6 +274,7 @@ export const nl: PartialResources = {
   },
   widgets: {
     history: {
+      series: 'Reeksen',
       lastYears_one: 'afgelopen jaar',
       lastYears_other: 'afgelopen {{count}} jaar',
       lastDays_one: 'afgelopen dag',
