@@ -43,8 +43,17 @@ describe('relationshipApi.get', () => {
   it('gets a single relationship from the id URL', async () => {
     mockGet.mockResolvedValue({ Id: 'rel-123', Name: 'is', SubjectId: 's1', PredicateId: 'p1', TargetId: 't1', Properties: {} });
     const rel = await relationshipApi.get('rel-123');
-    expect(mockGet).toHaveBeenCalledWith('/api/relationships/rel-123');
+    expect(mockGet).toHaveBeenCalledWith('/api/relationships/rel-123', undefined);
     expect(rel.Id).toBe('rel-123');
+  });
+
+  // A card reading several edges in one round abandons it when the card closes or moves on;
+  // without the signal reaching the request those reads keep competing for connections.
+  it("passes the caller's abort signal down to the request", async () => {
+    mockGet.mockResolvedValue({ Id: 'rel-123', Name: 'is', SubjectId: 's1', PredicateId: 'p1', TargetId: 't1', Properties: {} });
+    const { signal } = new AbortController();
+    await relationshipApi.get('rel-123', signal);
+    expect(mockGet).toHaveBeenCalledWith('/api/relationships/rel-123', signal);
   });
 });
 
