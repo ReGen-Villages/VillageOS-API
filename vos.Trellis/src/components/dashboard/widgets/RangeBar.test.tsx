@@ -157,6 +157,25 @@ describe('the stacked range bar', () => {
     expect(within(tooltip).getByText('Design high')).toBeInTheDocument();
   });
 
+  it('opens the tooltip on the other side of a bar near the right edge, so it stays inside the card', () => {
+    draw();
+
+    fireEvent.mouseEnter(screen.getByRole('img', { name: /^Dec/ }));
+
+    expect(screen.getByRole('tooltip').style.right).not.toBe('');
+    expect(screen.getByRole('tooltip').style.left).toBe('');
+  });
+
+  it('reads a window shorter than a year in days', () => {
+    const ninetyDays = 90 * 86_400;
+    const months = series('rain', MONTHS, null);
+    const mean: Binding = { ...months.mean, windowSeconds: ninetyDays } as Binding;
+    values.set(JSON.stringify(mean), values.get(JSON.stringify(months.mean))!);
+    draw({ ...widget, annual: undefined, months: { ...months, mean } });
+
+    expect(screen.getByText('last 90 days')).toBeInTheDocument();
+  });
+
   it('carries a legend for the seven statistics and a table twin of every bar', () => {
     draw();
 
