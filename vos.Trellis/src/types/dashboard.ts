@@ -440,9 +440,11 @@ export interface LeaderMetric {
   direction?: 'up-good' | 'down-good';
   /** Contribution to the weighted score (0..1). Metrics without a weight don't score. */
   weight?: number;
-  /** Value at/above which the metric is "good" (for a 0..1 normalisation). */
+  /** The value that scores full marks. Left out, it is 100 for an `up-good` metric and 0 for a
+   *  `down-good` one. */
   best?: number;
-  /** Value at/below which the metric is "worst". */
+  /** The value that scores nothing. Left out, it is 0 for an `up-good` metric and 100 for a
+   *  `down-good` one. A metric stating both bounds scores the same under either direction. */
   worst?: number;
 }
 
