@@ -216,7 +216,6 @@ describe('the facts beside the map', () => {
     expect(within(reference).getByText('sub-ref-1')).toBeInTheDocument();
     const elevation = screen.getByRole('group', { name: 'Elevation' });
     expect(within(elevation).getByText('1,431')).toBeInTheDocument();
-    // The facts section is drawn beside the map and nowhere else.
     const handed = vi.mocked(DashboardSections).mock.calls.at(-1)![0].sections;
     expect(handed.map((section) => section.title)).toEqual(['Balances']);
   });

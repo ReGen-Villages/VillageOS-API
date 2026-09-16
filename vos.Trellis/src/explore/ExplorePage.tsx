@@ -482,7 +482,7 @@ function LandFacts({
         </FactCard>
       )}
       {reference !== null && (
-        <FactCard label={t('explore.facts.reference')} source={null}>
+        <FactCard label={t('explore.facts.reference')}>
           <span className="block break-all font-mono text-xs font-semibold">{reference}</span>
         </FactCard>
       )}
@@ -498,7 +498,7 @@ function ModelFact({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContext }) 
   const origin = useBinding(widget.origin, ctx);
 
   return (
-    <FactCard label={widget.title} source={null}>
+    <FactCard label={widget.title}>
       <span className="block text-lg font-bold tabular-nums">
         {value.loading ? '···' : formatNumber(asNumber(value.value), widget.format)}
         {widget.unit && <span className="ml-1 text-xs font-semibold text-zinc-400 dark:text-zinc-500">{widget.unit}</span>}
@@ -508,7 +508,7 @@ function ModelFact({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContext }) 
   );
 }
 
-function FactCard({ label, source, children }: { label: string; source: string | null; children: ReactNode }) {
+function FactCard({ label, source, children }: { label: string; source?: string | null; children: ReactNode }) {
   return (
     <div
       role="group"
@@ -801,7 +801,6 @@ function Drawn({
     .flatMap((section) => section.widgets)
     .filter((widget): widget is KpiWidget => widget.type === 'kpi');
   const listed = spec.sections.filter((section: DashboardSection) => !section.facts && section.theme === undefined);
-  const tiled = spec.sections.length > listed.length;
 
   return (
     <div ref={measure}>
@@ -809,7 +808,7 @@ function Drawn({
         {facts.map((widget, at) => <ModelFact key={at} widget={widget} ctx={ctx} />)}
       </ReportMap>
       <ThemedTiles sections={spec.sections} themes={options?.themes ?? []} ctx={ctx} />
-      {(listed.length > 0 || !tiled) && (
+      {(listed.length > 0 || spec.sections.length === 0) && (
         <div className="mt-4">
           <DashboardSections
             sections={listed}

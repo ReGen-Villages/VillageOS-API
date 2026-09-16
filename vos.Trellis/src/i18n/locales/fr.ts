@@ -766,7 +766,6 @@ export const fr: PartialResources = {
     seeReport: 'Afficher le rapport',
     fieldsNeeded: 'Il faut un nom pour le terrain, votre nom et une adresse e-mail.',
     reportTitle: 'Ce que {{site}} pourrait donner',
-    reference: 'Référence',
     refresh: 'Relire',
     reportComing: 'La plateforme consulte ce terrain. Le rapport se remplit à mesure que les réponses arrivent.',
     emptyView: "La page sur laquelle ces résultats sont dessinés ne liste aucune section, il n'y a donc encore rien à montrer.",

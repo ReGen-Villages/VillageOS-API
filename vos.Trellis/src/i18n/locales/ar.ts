@@ -896,7 +896,6 @@ export const ar: PartialResources & ArabicPlurals = {
     seeReport: "اعرض التقرير",
     fieldsNeeded: "يلزم اسم للأرض واسمك وعنوان بريد إلكتروني.",
     reportTitle: "ما يمكن أن تعطيه {{site}}",
-    reference: "المرجع",
     refresh: "أعد القراءة",
     reportComing: "تبحث المنصة عن هذه الأرض. يكتمل التقرير مع وصول الإجابات.",
     emptyView: "الصفحة التي تُرسم عليها هذه النتائج لا تضم أقسامًا، فلا شيء يُعرض بعد.",

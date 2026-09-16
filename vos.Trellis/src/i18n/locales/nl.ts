@@ -766,7 +766,6 @@ export const nl: PartialResources = {
     seeReport: 'Toon het rapport',
     fieldsNeeded: 'Een naam voor de grond, uw naam en een e-mailadres zijn alle drie nodig.',
     reportTitle: 'Wat {{site}} zou kunnen',
-    reference: 'Referentie',
     refresh: 'Opnieuw lezen',
     reportComing: 'Het platform zoekt deze grond op. Het rapport vult zich naarmate antwoorden binnenkomen.',
     emptyView: 'De pagina waarop deze bevindingen worden getekend bevat geen onderdelen, dus er is nog niets te tonen.',

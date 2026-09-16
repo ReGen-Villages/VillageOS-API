@@ -766,7 +766,6 @@ export const de: PartialResources = {
     seeReport: 'Bericht anzeigen',
     fieldsNeeded: 'Ein Name für das Land, Ihr Name und eine E-Mail-Adresse werden alle drei gebraucht.',
     reportTitle: 'Was {{site}} könnte',
-    reference: 'Referenz',
     refresh: 'Erneut lesen',
     reportComing: 'Die Plattform schlägt dieses Land gerade nach. Der Bericht füllt sich, sobald Antworten eintreffen.',
     emptyView: 'Die Seite, auf der diese Ergebnisse gezeichnet werden, führt keine Abschnitte auf, es gibt also noch nichts zu zeigen.',

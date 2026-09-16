@@ -764,7 +764,6 @@ export const en = {
     seeReport: 'Show the report',
     fieldsNeeded: 'A name for the land, your name and an email address are all needed.',
     reportTitle: 'What {{site}} could do',
-    reference: 'Reference',
     refresh: 'Read again',
     reportComing: 'The platform is looking this land up. The report fills in as answers arrive.',
     emptyView: 'The page these findings are drawn on lists no sections, so there is nothing to show yet.',
