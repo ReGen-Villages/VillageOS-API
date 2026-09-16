@@ -7,6 +7,8 @@ import type {
   CriteriaComparisonDto,
 } from '../types/vos';
 import type { Binding } from '../types/dashboard';
+import type { ModelReads } from './modelReads';
+import type { StateNarrowing } from './stateQuery';
 
 vi.mock('./stateApi', () => ({ stateApi: { getThingsInState: vi.fn() } }));
 
@@ -314,14 +316,11 @@ describe('resolveBinding', () => {
     expect(rows[0]).toMatchObject({ name: 'V-1', self_sufficiency_rate: 98.9 });
   });
 
-  it('stateCount counts Things returned by the state endpoint', async () => {
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-      StateName: 'harvested',
-      Things: [{ Id: 'a', Name: 'A' }, { Id: 'b', Name: 'B' }, { Id: 'c', Name: 'C' }],
-    });
+  it('stateCount answers with the count the state endpoint gave', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'harvested', Count: 3 });
     const v = await resolveBinding({ kind: 'stateCount', state: 'harvested' }, ctxFor(null));
     expect(v).toBe(3);
-    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.anything());
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.objectContaining({ countOnly: true }));
   });
 
   it('stateList lays out the columns the platform sent beside each id', async () => {
@@ -360,12 +359,12 @@ describe('resolveBinding', () => {
     // Answers the way the endpoint does, so these read as the narrowing arriving rather than as the
     // browser discarding what it asked for.
     beforeEach(() => {
-      vi.mocked(stateApi.getThingsInState).mockImplementation(async (_state, narrowing) => ({
-        StateName: 'open',
-        Things: narrowing?.type === 'Order'
+      vi.mocked(stateApi.getThingsInState).mockImplementation(async (_state, narrowing) => {
+        const Things = narrowing?.type === 'Order'
           ? [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }]
-          : [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }, { Id: 'l1', Name: 'L-1' }],
-      }));
+          : [{ Id: 'o1', Name: 'O-1' }, { Id: 'o2', Name: 'O-2' }, { Id: 'l1', Name: 'L-1' }];
+        return narrowing?.countOnly ? { StateName: 'open', Count: Things.length } : { StateName: 'open', Things };
+      });
     });
 
     it('stateCount counts only Things of the given archetype', async () => {
@@ -438,10 +437,7 @@ describe('resolveBinding', () => {
     });
 
     it('counts across every entity when no scope is selected', async () => {
-      vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-        StateName: 'flagged',
-        Things: [{ Id: 'direct1', Name: 'DIRECT-1' }, { Id: 'direct2', Name: 'DIRECT-2' }],
-      });
+      vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'flagged', Count: 2 });
       const v = await resolveBinding(
         { kind: 'stateCount', state: 'flagged', scope: { viaPredicate: 'links', direction: 'out' } },
         scopeCtx(null),
@@ -711,13 +707,12 @@ describe('resolveBinding', () => {
       });
     });
 
-    // Every widget resolves its own bindings, so the same state wanted by a count, a funnel stage
-    // and a table used to be three requests per refresh.
+    // Every widget resolves its own bindings, so the same state wanted by a funnel stage and a
+    // table's column used to be two requests per refresh.
     describe('state reads shared across a refresh generation', () => {
       it('asks once for a state that several bindings of one generation want', async () => {
         const ctx: ResolveContext = { ...fleet(null), reads: brokerModelReads() };
         await Promise.all([
-          resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx),
           resolveBinding({ kind: 'stateList', state: 'reachable' }, ctx),
           resolveBinding({ kind: 'thingList', archetype: 'Machine',
             computed: [{ key: 'condition', value: { kind: 'stateOf', states: ['reachable'] } }] }, ctx),
@@ -731,7 +726,7 @@ describe('resolveBinding', () => {
         const ctx: ResolveContext = { ...fleet(null), reads: brokerModelReads() };
         vi.mocked(stateApi.getThingsInState)
           .mockRejectedValueOnce(new Error('broker unreachable'))
-          .mockResolvedValueOnce({ StateName: 'reachable', Things: [{ Id: 'rbt1', Name: 'RBT-1' }] });
+          .mockResolvedValueOnce({ StateName: 'reachable', Count: 1 });
         await expect(resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx)).rejects.toThrow();
         expect(await resolveBinding({ kind: 'stateCount', state: 'reachable' }, ctx)).toBe(1);
       });
@@ -1406,9 +1401,10 @@ describe('state bindings ask the server to narrow', () => {
   }
 
   const answered = (Things: { Id: string; Name: string }[]) => ({ StateName: 'flagged', Things });
+  const counted = (Count: number) => ({ StateName: 'flagged', Count });
 
   it('names the archetype as a type rather than filtering the answer', async () => {
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(counted(1));
     const count = await resolveBinding(
       { kind: 'stateCount', state: 'flagged', archetype: 'Building' },
       estateCtx(null),
@@ -1419,8 +1415,8 @@ describe('state bindings ask the server to narrow', () => {
 
   // The server walks the containment; counting its answer again here would be the same walk twice,
   // and the second one would disagree the moment the browser index lagged the model.
-  it('sends an outgoing scope as a container and counts the answer as it arrives', async () => {
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b3', Name: 'BLD-3' }]));
+  it('sends an outgoing scope as a container and shows the number that arrives', async () => {
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(counted(1));
     const count = await resolveBinding(
       { kind: 'stateCount', state: 'flagged', scope: BUILDING_SCOPE },
       estateCtx('site1'),
@@ -1433,7 +1429,7 @@ describe('state bindings ask the server to narrow', () => {
   });
 
   it('sends no container when every compare entity is selected', async () => {
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }, { Id: 'b3', Name: 'BLD-3' }]));
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue(counted(2));
     const count = await resolveBinding(
       { kind: 'stateCount', state: 'flagged', scope: BUILDING_SCOPE },
       estateCtx(null),
@@ -1493,7 +1489,7 @@ describe('state bindings ask the server to narrow', () => {
   // a wrong number on screen with nothing to say it went wrong.
   it('gives two widgets narrowing one state differently their own answers', async () => {
     vi.mocked(stateApi.getThingsInState).mockImplementation(async (_state: string, narrowing?: { type?: string }) =>
-      answered(narrowing?.type === 'Building' ? [{ Id: 'b1', Name: 'BLD-1' }] : [{ Id: 'r1', Name: 'RDG-1' }, { Id: 'r2', Name: 'RDG-2' }]),
+      counted(narrowing?.type === 'Building' ? 1 : 2),
     );
     const ctx = estateCtx(null);
     const [orders, everything] = await Promise.all([
@@ -1503,16 +1499,6 @@ describe('state bindings ask the server to narrow', () => {
     expect(orders).toBe(1);
     expect(everything).toBe(2);
     expect(stateApi.getThingsInState).toHaveBeenCalledTimes(2);
-  });
-
-  it('still asks once for two widgets narrowing one state the same way', async () => {
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
-    const ctx = estateCtx(null);
-    await Promise.all([
-      resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, ctx),
-      resolveBinding({ kind: 'stateList', state: 'flagged', archetype: 'Building' }, ctx),
-    ]);
-    expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
   });
 
   // The columns a table draws are named on the binding, so the platform can send the row complete.
@@ -1575,6 +1561,100 @@ describe('state bindings ask the server to narrow', () => {
     }, estateCtx(null));
 
     expect(rows[0]).toMatchObject({ id: 'b1', area: 3, site: 'SITE-1' });
+  });
+
+  // A figure of four hundred used to cost four hundred rows on the wire on every refresh: the count
+  // was the length of the member list. The platform answers a number when asked for one, with every
+  // narrowing the request carries applied first.
+  describe('a count asks for the number', () => {
+    function countingReads(count: number): ModelReads & { asked: StateNarrowing[] } {
+      const asked: StateNarrowing[] = [];
+      return {
+        asked,
+        thingsInState: async (state, narrowing) => {
+          asked.push(narrowing ?? {});
+          return { StateName: state, Count: count };
+        },
+        thingRanges: async () => null,
+        aggregate: () => Promise.reject(new Error('not read here')),
+        fromService: async () => null,
+      };
+    }
+
+    it('answers with the count the platform gave, not the length of a list', async () => {
+      const reads = countingReads(403);
+      const count = await resolveBinding(
+        { kind: 'stateCount', state: 'flagged', archetype: 'Building' },
+        { ...estateCtx(null), reads },
+      );
+      expect(count).toBe(403);
+      expect(reads.asked).toEqual([expect.objectContaining({ countOnly: true, type: 'Building' })]);
+      expect(reads.asked[0]).not.toHaveProperty('limit');
+    });
+
+    it('sends an outward scope as the container of the counting request', async () => {
+      const reads = countingReads(2);
+      const count = await resolveBinding(
+        { kind: 'stateCount', state: 'flagged', scope: BUILDING_SCOPE },
+        { ...estateCtx('site1'), reads },
+      );
+      expect(count).toBe(2);
+      expect(reads.asked[0]).toMatchObject({ countOnly: true, within: 'site1', withinPredicate: 'contains' });
+    });
+
+    it('reads an answer carrying no count as nought rather than as nothing', async () => {
+      const reads: ModelReads = {
+        ...countingReads(0),
+        thingsInState: async (state) => ({ StateName: state }),
+      };
+      expect(await resolveBinding({ kind: 'stateCount', state: 'flagged' }, { ...estateCtx(null), reads })).toBe(0);
+    });
+
+    it('names the state a funnel stage excludes as one that disqualifies', async () => {
+      const reads = countingReads(5);
+      await resolveBinding(
+        { kind: 'stateCount', state: 'flagged', excludeState: 'cleared' },
+        { ...estateCtx(null), reads },
+      );
+      expect(reads.asked[0]).toMatchObject({ countOnly: true, notIn: ['cleared'] });
+    });
+
+    // The endpoint walks outward from a container only, so a scope pointing the other way is still
+    // narrowed here, and the platform's number would be the one before that narrowing.
+    it('keeps reading members for an inward scope and counts what the scope reaches', async () => {
+      const asked: StateNarrowing[] = [];
+      const reads: ModelReads = {
+        ...countingReads(0),
+        thingsInState: async (state, narrowing) => {
+          asked.push(narrowing ?? {});
+          return { StateName: state, Things: [{ Id: 'r1', Name: 'RDG-1' }, { Id: 'r2', Name: 'RDG-2' }] };
+        },
+      };
+      const count = await resolveBinding(
+        { kind: 'stateCount', state: 'flagged', scope: SPRING_SCOPE },
+        { ...estateCtx('spring1'), reads },
+      );
+      expect(count).toBe(1);
+      expect(asked[0]).not.toHaveProperty('countOnly');
+    });
+
+    it('asks once for two counts narrowed the same way, and twice for a count beside a list', async () => {
+      vi.mocked(stateApi.getThingsInState).mockImplementation(async (state, narrowing) =>
+        narrowing?.countOnly ? { StateName: state, Count: 1 } : answered([{ Id: 'b1', Name: 'BLD-1' }]),
+      );
+      const ctx = estateCtx(null);
+      await Promise.all([
+        resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, ctx),
+        resolveBinding({ kind: 'stateCount', state: 'flagged', archetype: 'Building' }, ctx),
+      ]);
+      expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
+
+      await Promise.all([
+        resolveBinding({ kind: 'stateCount', state: 'flagged' }, ctx),
+        resolveBinding({ kind: 'stateList', state: 'flagged' }, ctx),
+      ]);
+      expect(stateApi.getThingsInState).toHaveBeenCalledTimes(3);
+    });
   });
 });
 
