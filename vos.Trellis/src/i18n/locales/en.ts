@@ -271,6 +271,22 @@ export const en = {
     signIn: 'Sign In',
   },
   widgets: {
+    history: {
+      lastYears_one: 'last year',
+      lastYears_other: 'last {{count}} years',
+      lastDays_one: 'last day',
+      lastDays_other: 'last {{count}} days',
+    },
+    rangeBar: {
+      recordedHigh: 'Recorded high',
+      designHigh: 'Design high',
+      averageHigh: 'Average high',
+      mean: 'Mean',
+      averageLow: 'Average low',
+      designLow: 'Design low',
+      recordedLow: 'Recorded low',
+      annual: 'Annual',
+    },
     bullet: { target: 'target', healthyBand: 'healthy band', warning: 'warning', critical: 'critical' },
     kpi: { onTarget: 'on target', watch: 'watch', peak: 'peak', trough: 'trough' },
     working: { notDerived: 'the model is given this figure rather than working it out' },

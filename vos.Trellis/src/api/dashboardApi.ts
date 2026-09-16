@@ -24,6 +24,7 @@ import {
   DASHBOARD_SPEC_PROPERTY,
   IS_PREDICATE,
   SCOPE_REF,
+  UTC_OFFSET_PROPERTY,
   type Binding,
   type ComputedColumn,
   type DashboardDescriptor,
@@ -800,6 +801,9 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
         return null;
       }
     }
+
+    case 'history':
+      return resolveHistory(binding, ctx);
   }
 }
 
@@ -882,6 +886,31 @@ async function resolveTimeseries(
   if (points === null) return null;
   if (binding.buckets > 1) return points;
   return points.length ? points[0] : null;
+}
+
+/** The platform's reduction over one property's history on the scope entity, as rows keyed the way
+ *  the platform keyed the groups. The calendar offset is the entity's own where it states one. A
+ *  question the platform refuses resolves to nothing rather than to an empty series, as a bucketed
+ *  one does. */
+async function resolveHistory(
+  binding: Extract<Binding, { kind: 'history' }>,
+  ctx: ResolveContext,
+): Promise<Row[] | null> {
+  if (!ctx.scopeId) return null;
+  const entity = ctx.idx.byId.get(ctx.scopeId);
+  const offset = entity ? nullableNumber(effectiveProperties(entity, ctx.idx)[UTC_OFFSET_PROPERTY]) : null;
+  try {
+    const answer = await ctx.reads.reduce({
+      thingId: ctx.scopeId,
+      property: binding.property,
+      windowSeconds: binding.windowSeconds,
+      ...(offset !== null ? { utcOffsetSeconds: offset } : {}),
+      steps: binding.steps,
+    });
+    return answer.groups.map((group) => ({ key: group.key, value: group.value }));
+  } catch {
+    return null;
+  }
 }
 
 // ---- coercion helpers for widgets --------------------------------------

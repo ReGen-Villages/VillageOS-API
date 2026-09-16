@@ -66,6 +66,13 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
     case 'verdict': return widget.rows.map((row) => row.verdicts);
     case 'working': return widget.rows.flatMap((row) => [row.value, row.working]);
     case 'exceptionBar': return widget.buckets.map((bucket) => bucket.value);
+    case 'rangeBar': return [
+      ...[widget.months, widget.annual].flatMap((period) => period
+        ? [period.recordedHigh, period.designHigh, period.averageHigh, period.mean,
+          period.averageLow, period.designLow, period.recordedLow]
+        : []),
+      ...(widget.bands ?? []).flatMap((band) => [band.from, band.to]),
+    ];
   }
 }
 

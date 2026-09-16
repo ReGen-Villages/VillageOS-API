@@ -28,6 +28,7 @@ import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
 import { fromHectares, withShareSet, wholePercentages } from '../intake/submissionDraft';
 import { findingsFrom, type Findings } from '../publicFindings/answeredFindings';
 import type { DashboardSection, KpiWidget } from '../types/dashboard';
+import type { TemporalReduceQuery } from '../types/vos';
 import { degreesMinutesSeconds } from '../utils/degreesMinutesSeconds';
 import { sphericalAreaHectares, type BoundaryPoint } from '../utils/parcelGeometry';
 import {
@@ -167,14 +168,26 @@ export function ExplorePage() {
     }
   }
 
+  // A chart's history reduction is asked after the findings arrived, through the intake service under
+  // the same ticket, and its renewal is kept like every other act's. The service scopes the question
+  // to the Thing the submission is about, so the one the resolver named is dropped here.
+  const reduceThroughTheService = useCallback(async (query: TemporalReduceQuery) => {
+    const held = ticket.current;
+    if (held === null) throw new Error('No ticket is held.');
+    const { thingId: _scopedByTheService, ...question } = query;
+    const reduced = await findingsApi.reduceWithTicket(stateRef.current.submissionId, held, question);
+    ticket.current = reduced.ticket;
+    return reduced.answer;
+  }, []);
+
   const readFindings = useCallback(async (): Promise<void> => {
     const held = ticket.current;
     if (held === null) return;
     const read = await findingsApi.readWithTicket(
       stateRef.current.submissionId, stateRef.current.emailAddress.trim(), held);
     ticket.current = read.ticket;
-    setFindings(findingsFrom(read.findings));
-  }, []);
+    setFindings(findingsFrom(read.findings, reduceThroughTheService));
+  }, [reduceThroughTheService]);
 
   // The report replaces the two sections above it, and a page left where the claim step had scrolled to
   // opens partway down its own report — past the figures it leads with, which reads as a report with

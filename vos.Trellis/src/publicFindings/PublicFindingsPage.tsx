@@ -11,7 +11,7 @@
  * Nothing here reaches the broker. That is the point of the page rather than an accident of how it was
  * written, and `../publicForm/noSignedInCode.test.ts` fails if an import ever leads back to it.
  */
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Sprout } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { findingsApi } from '../api/findingsApi';
@@ -22,6 +22,7 @@ import { ToastContainer } from '../components/common/Toast';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useResolveContext } from '../hooks/useDashboard';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
+import type { TemporalReduceQuery } from '../types/vos';
 import { findingsFrom, type Findings } from './answeredFindings';
 
 /** The width above which a section lays its widgets out in tracks, as the signed-in page uses. */
@@ -80,6 +81,19 @@ function AskForFindings({ onRead }: { onRead: (findings: Findings) => void }) {
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
 
+  // The ticket the read bought outlives the form: a chart on the page reduces a property's history
+  // through the service under it, and keeps the renewal each answer hands back. The service scopes
+  // the question to the Thing the submission is about, so the one the resolver named is dropped here.
+  const ticket = useRef<string | null>(null);
+  const reduceThroughTheService = useCallback(async (query: TemporalReduceQuery) => {
+    const held = ticket.current;
+    if (held === null) throw new Error('No ticket is held.');
+    const { thingId: _scopedByTheService, ...question } = query;
+    const reduced = await findingsApi.reduceWithTicket(submissionId.trim(), held, question);
+    ticket.current = reduced.ticket;
+    return reduced.answer;
+  }, [submissionId]);
+
   const canAsk = submissionId.trim().length > 0 && emailAddress.trim().length > 0;
 
   async function attempt(act: () => Promise<void>) {
@@ -99,8 +113,11 @@ function AskForFindings({ onRead }: { onRead: (findings: Findings) => void }) {
       className="max-w-md space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
-        void attempt(async () =>
-          onRead(findingsFrom(await findingsApi.read(submissionId.trim(), emailAddress.trim(), code.trim()))));
+        void attempt(async () => {
+          const read = await findingsApi.read(submissionId.trim(), emailAddress.trim(), code.trim());
+          ticket.current = read.ticket;
+          onRead(findingsFrom(read.findings, reduceThroughTheService));
+        });
       }}
     >
       <Field label={t('publicFindings.reference')} hint={t('publicFindings.referenceHint')}>

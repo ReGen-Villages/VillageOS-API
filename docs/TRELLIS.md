@@ -1201,7 +1201,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict / working widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A `stateList` row is the exception in mechanism only: its columns are resolved own-first and then up the `is` chain by the platform and sent with the row, so an inherited value reaches it just the same. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes); that narrowing, the scope, an excluded state, a row cap and — for `stateList` — the columns its rows carry all ride on the request now, so the broker answers the question the widget asked rather than a larger one the browser then cuts down (see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict / working / range-bar widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A `stateList` row is the exception in mechanism only: its columns are resolved own-first and then up the `is` chain by the platform and sent with the row, so an inherited value reaches it just the same. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes); that narrowing, the scope, an excluded state, a row cap and — for `stateList` — the columns its rows carry all ride on the request now, so the broker answers the question the widget asked rather than a larger one the browser then cuts down (see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
 | `/intake` | `IntakeWizardPage` | The land-intake wizard (#6016): project, contact, location, size and programme, and parcel, posted to the intake service as one document once the address on it has been verified: pressing **Send a code** asks the service to send one to the contact's email address, and the submission goes when that code is entered. The code is never part of the draft. The draft is written to browser storage on every keystroke, keyed by the model, so a closed tab loses nothing, and it is cleared once the submission is in the model. The area is stored in hectares whatever unit it is typed in; an area that is not a figure is left out rather than sent as zero. The programme categories are the Things under the archetype marked `__IsAllocationCategoryArchetype` — the same vocabulary the intake service resolves a submitted word against — so the wizard cannot offer a term that is then refused, and the shares always describe the whole parcel. Coordinates are read out of a pasted map link by `src/utils/mapLink.ts`, which refuses a pair that could not be a point on Earth and names a shortened link as one to open by hand; once both are given the location step shows the site on the shared map module (#6014). The parcel step draws the boundary on that same map (#6015) — a draft square of the stated area or corners placed by hand — with the drawn area measured on the sphere by `src/utils/parcelGeometry.ts` and compared with the stated area. Offered only where `VITE_INTAKE_URL` is set. The wizard itself is `src/intake/IntakeWizard.tsx`, which the public submission form renders too, so a field added to one appears in the other; pure logic in `src/intake/submissionDraft.ts` and `src/pages/modelVocabulary.ts`. |
 | `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
@@ -1246,11 +1246,13 @@ goes and which origins the service must be started with.
 with, through the same `resolveBinding` and the same widgets the operations page uses, so a figure added
 to that dashboard appears on it with no change here — and a balance nobody assessed reads in the words
 the model wrote, on both pages, because it is one spec. What makes that possible is that nothing in
-`dashboardApi.ts` opens a connection: the four reads a loaded model cannot answer — state membership, a
-Thing's ranges, a reduction over history, and a model-side service — are asked of the `ModelReads` its
-resolve context carries. The application supplies `brokerModelReads`, which asks the broker and shares
-each question across one refresh; the findings page supplies one backed by the document it was handed,
-and refuses the two a submitter's page never asks rather than answering them with nothing.
+`dashboardApi.ts` opens a connection: the reads a loaded model cannot answer — state membership, a
+Thing's ranges, a reduction over Things by time bucket, a reduction over one property's history, and a
+model-side service — are asked of the `ModelReads` its resolve context carries. The application
+supplies `brokerModelReads`, which asks the broker and shares each question across one refresh; the
+findings page and the explore page supply one backed by the document they were handed, answer the
+history reduction through the intake service under the ticket the read bought, and refuse the two a
+submitter's page never asks rather than answering them with nothing.
 
 ---
 
@@ -1785,6 +1787,76 @@ question the platform refuses resolves to nothing rather than to an empty series
              "scope": { "viaPredicate": "contains", "direction": "out" } }
 }
 ```
+
+### A property's history, reduced
+
+`history` is the platform's reduction over **one property's observation series** on the page's
+scope entity, through `POST /api/temporal/reduce` — the read a chart over a site's climate binds
+to. It names the property, how far back to read, and the steps that reduce it in order: the first
+step reads the samples, each later one the previous step's groups.
+
+```json
+{ "kind": "history", "property": "temperature", "windowSeconds": 31536000,
+  "steps": [ { "fold": "day", "function": "Max" }, { "fold": "monthOfYear", "function": "Average" } ] }
+```
+
+A step's `fold` says how samples or groups are keyed — `hour`, `day`, `month`, `year` for a calendar
+series; `hourOfDay`, `dayOfYear`, `monthOfYear` and the composites `hourOfDay,dayOfYear` and
+`monthOfYear,hourOfDay` for a calendar fold; `all` for one group — and its `function` how each key is
+reduced: `Min`, `Max`, `Average`, `Sum`, `Count`, `Percentile` (with `percentile`), `ShareWithin`
+(with `from` and `to`, closed on both ends, answering 0–1), `CountAtOrBelow` and `CountAbove` (with
+`threshold`), `SumAbove` and `SumBelow` (with `threshold`; the sum of the excess beyond it — degree
+days). The binding resolves to one row per group, `{ key, value }`, in the platform's order, so a
+widget reads a month as `"3"` and a composite as `"14,172"`.
+
+**The Thing is the page's scope entity and the calendar is its own.** A series belongs to one Thing,
+so the binding names none: it reads the selected compare entity, and resolves to nothing where none is
+selected. Calendar folds are taken in the offset the entity states as `utcOffsetSeconds`, the one
+property name the grammar itself knows, so a site's day is the site's day rather than the server's.
+
+**Cost.** One request per distinct question per refresh — the same question from several widgets, or
+several times from one, is asked once — and on the platform one walk over the property's retained
+samples per question. A question the platform refuses (past ten thousand groups) resolves to nothing
+rather than to an empty series, as a bucketed one does.
+
+On the public pages the question goes through the intake service under the page's ticket
+(`POST /findings/{submissionId}/reduce`), which supplies the submission's own site; the page names
+no Thing and holds no credential. See [LAND_INTAKE.md §9](LAND_INTAKE.md#what-a-submitter-gets-back).
+
+### The range bar
+
+`rangeBar` draws twelve stacked bars, one a month, against bands the model declares, with the same
+statistics over the whole window as one bar beside them — the climate summary's temperature and
+wet-bulb range plots.
+
+```json
+{ "type": "rangeBar", "title": "Temperature range", "unit": "°C", "format": "decimal1",
+  "floor": -10, "ceiling": 40,
+  "months": { "recordedHigh": …, "designHigh": …, "averageHigh": …, "mean": …,
+              "averageLow": …, "designLow": …, "recordedLow": … },
+  "annual": { … the same seven, folded by "all" … },
+  "bands": [ { "label": "Comfort zone", "colour": "#9ca3af",
+               "from": { "kind": "related", "via": [ { "predicate": "studies", "direction": "in" } ], "property": "comfortLowCelsius" },
+               "to":   { "kind": "related", "via": [ { "predicate": "studies", "direction": "in" } ], "property": "comfortHighCelsius" } } ] }
+```
+
+Each of the seven statistics is a `history` binding: `months` resolve to groups keyed `1`–`12`,
+`annual` to one group. A bar stacks four segments — design low to average low, average low to mean,
+mean to average high, average high to design high — on a diverging scale about the mean (the far arms
+deeper, the near arms paler), draws the mean as a line across the bar and the recorded low and high
+as open circles. A statistic the platform answered nothing for leaves its segment out; a month with
+none is left out; `annual` left out draws no annual bar.
+
+**A band is the model's.** Its bounds are bindings — the study's thresholds, read where the study
+holds them — and its colour is the spec's; the widget colours no band and knows no threshold. A bound
+left unbound runs to the chart's edge, which is how a limit with no upper end is drawn. `floor` and
+`ceiling` fix the axis; absent, it fits the data and the bands with a little air.
+
+What every chart widget carries: the window read off its bindings ("last year", "last 10 years") as
+the card's hint; a tooltip with every statistic of the bar under the pointer or the keyboard focus —
+each bar is focusable and named with its figures; a legend; and a visually hidden table twin of every
+bar, so nothing a chart shows can only be seen. Colours come from the chart tokens in `index.css`,
+stepped for the light and the dark surface and validated as a set.
 
 ### A word this build cannot answer
 

@@ -273,6 +273,22 @@ export const de: PartialResources = {
     signIn: 'Anmelden',
   },
   widgets: {
+    history: {
+      lastYears_one: 'letztes Jahr',
+      lastYears_other: 'letzte {{count}} Jahre',
+      lastDays_one: 'letzter Tag',
+      lastDays_other: 'letzte {{count}} Tage',
+    },
+    rangeBar: {
+      recordedHigh: 'Höchstwert',
+      designHigh: 'Auslegungshoch',
+      averageHigh: 'Mittleres Hoch',
+      mean: 'Mittel',
+      averageLow: 'Mittleres Tief',
+      designLow: 'Auslegungstief',
+      recordedLow: 'Tiefstwert',
+      annual: 'Jahr',
+    },
     bullet: { target: 'Ziel', healthyBand: 'gesunder Bereich', warning: 'Warnung', critical: 'kritisch' },
     kpi: { onTarget: 'im Ziel', watch: 'beobachten', peak: 'Spitze', trough: 'Tief' },
     working: { notDerived: 'dieser Wert wird dem Modell vorgegeben und nicht von ihm errechnet' },

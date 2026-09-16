@@ -41,6 +41,39 @@
   --spark: #60a5fa;
 }
 
+/*
+ * The chart palette the hand-drawn history widgets draw with, stepped for each surface and validated
+ * as a set: the categorical slots in their fixed order, the two arms of the diverging scale a range
+ * bar stacks about its mean (the far step deeper, the near step paler), and the recessive chrome.
+ * What a band, a class or a threshold is coloured comes from the model, never from here.
+ */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --chart-cool-far: #2a78d6;
+  --chart-cool-near: #86b6ef;
+  --chart-warm-near: #ee9695;
+  --chart-warm-far: #e34948;
+  --chart-ink: #0b0b0b;
+  --chart-ink-muted: #898781;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+}
+.dark {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --chart-cool-far: #3987e5;
+  --chart-cool-near: #86b6ef;
+  --chart-warm-near: #f1a4a3;
+  --chart-warm-far: #e66767;
+  --chart-ink: #ffffff;
+  --chart-ink-muted: #898781;
+  --chart-grid: #2c2c2a;
+  --chart-axis: #383835;
+}
+
 body {
   margin: 0;
   min-height: 100vh;

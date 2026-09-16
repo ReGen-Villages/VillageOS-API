@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { resolveBinding } from '../api/dashboardApi';
 import type { ResolveContext } from '../api/dashboardApi';
 import { findingsFrom, type FindingsAnswer } from './answeredFindings';
@@ -111,6 +111,28 @@ describe('the findings a submitter is answered with', () => {
     )) as Record<string, unknown>[];
 
     expect(rows).toEqual([]);
+  });
+
+  // The history reduction is the one read the page makes after the document arrived — through the intake
+  // service, under the ticket the page holds — so whoever builds the findings supplies it.
+  it('reduces a property series through whatever the page hands it', async () => {
+    const reduce = vi.fn().mockResolvedValue({ groups: [{ key: '1', value: 27.4 }], unusableSamples: 0 });
+    const { reads } = findingsFrom(answered(), reduce);
+    const question = {
+      thingId: 'site-1', property: 'temperature', windowSeconds: 31_536_000,
+      steps: [{ fold: 'monthOfYear' as const, function: 'Max' as const }],
+    };
+
+    await expect(reads.reduce(question)).resolves.toEqual({ groups: [{ key: '1', value: 27.4 }], unusableSamples: 0 });
+    expect(reduce).toHaveBeenCalledWith(question);
+  });
+
+  it('refuses a history reduction where the page handed it nothing to ask with', async () => {
+    const { reads } = findingsFrom(answered());
+
+    await expect(reads.reduce({
+      thingId: 'site-1', property: 'temperature', windowSeconds: 60, steps: [],
+    })).rejects.toThrow();
   });
 
   // Nothing is how a figure the analysis has not computed reads, and a question this page cannot ask is

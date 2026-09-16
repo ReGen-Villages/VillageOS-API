@@ -9,7 +9,7 @@
  * Every domain word lives in the model's spec — see the discovery + resolver in
  * `src/api/dashboardApi.ts`.
  */
-import type { OriginKind } from './vos';
+import type { HistoryStep, OriginKind } from './vos';
 
 /** The archetype a model-resident dashboard config Thing must be `is`-linked to. */
 export const DASHBOARD_ARCHETYPE = 'Dashboard';
@@ -22,6 +22,10 @@ export const SCOPE_REF = '$scope';
  *  the values they inherit, so both the walk and the subscription that has to carry it name the
  *  same predicate. */
 export const IS_PREDICATE = 'is';
+/** The property on a page's scope entity that says which clock offset its calendar is read in, which
+ *  a `history` binding hands the platform so a fold by day or month is the entity's own day or month
+ *  rather than the server's. The one property name this file states, like the spec's own. */
+export const UTC_OFFSET_PROPERTY = 'utcOffsetSeconds';
 
 export type NumberFormat =
   | 'integer'
@@ -213,7 +217,18 @@ export type Binding =
    *  hatch for model-specific aggregation. `select` is a dot-path into the JSON reply, and a
    *  `$scope` anywhere in `body` is replaced with the selected compare-entity id (null for "All"),
    *  so the service can answer for the same entity the rest of the page is showing. */
-  | { kind: 'service'; endpoint: string; body?: unknown; select?: string };
+  | { kind: 'service'; endpoint: string; body?: unknown; select?: string }
+  /** One property's observation history on the page's scope entity, reduced by the platform
+   *  (POST /api/temporal/reduce) through `steps` in order: the first reads the samples, each later one
+   *  the previous step's groups. Resolves to one row per group, `{ key, value }`, in the platform's
+   *  order — a fold by month of year answers keys `1`–`12`, a composite fold `H,D`, `all` one row.
+   *  The offset the calendar is folded in is read off the scope entity's {@link UTC_OFFSET_PROPERTY}.
+   *  Resolves to nothing where no scope entity is selected — a series is one Thing's — and where the
+   *  platform refuses the question, which it does past ten thousand groups.
+   *
+   *  Costs one request per distinct question per refresh: the same question from several widgets is
+   *  asked once. The platform walks the property's retained samples once per question. */
+  | { kind: 'history'; property: string; windowSeconds: number; steps: HistoryStep[] };
 
 /**
  * A column of a row-producing binding (`thingList`, `stateList`, `compareEntities`) derived per
@@ -511,6 +526,49 @@ export interface WorkingWidget {
   rows: WorkingRow[];
 }
 
+/** The seven statistics a range bar stacks for one period, each a binding resolving to groups — one
+ *  per month for the monthly bars, one for the whole window for the annual bar. Named as a climate
+ *  summary names them: the extremes ever recorded, the design values (a high percentile and a low
+ *  one), the average of the daily highs and lows, and the mean. */
+export interface RangeSeries {
+  recordedHigh: Binding;
+  designHigh: Binding;
+  averageHigh: Binding;
+  mean: Binding;
+  averageLow: Binding;
+  designLow: Binding;
+  recordedLow: Binding;
+}
+
+/** A band drawn behind a chart between two bounds the model states — a comfort zone, a danger limit.
+ *  A bound left unbound runs to the chart's edge, which is how a limit with no upper end is drawn.
+ *  The colour is the spec's: a band means what the model says it means, and the widget colours nothing
+ *  of its own. */
+export interface RangeBand {
+  label: string;
+  from?: Binding;
+  to?: Binding;
+  colour: string;
+}
+
+/** Twelve stacked range bars, one a month, against bands the model declares, with the same statistics
+ *  over the whole window as one bar beside them. Each bar stacks design low to average low, average
+ *  low to mean, mean to average high and average high to design high, draws the mean as a line across
+ *  it, and the recorded low and high as open circles. `floor` and `ceiling` fix the axis; absent, it
+ *  fits the data and the bands. The window label is read off the bindings. */
+export interface RangeBarWidget {
+  type: 'rangeBar';
+  title?: string;
+  hint?: string;
+  months: RangeSeries;
+  annual?: RangeSeries;
+  bands?: RangeBand[];
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -520,7 +578,8 @@ export type Widget =
   | LeaderboardWidget
   | VerdictWidget
   | WorkingWidget
-  | ExceptionWidget;
+  | ExceptionWidget
+  | RangeBarWidget;
 
 export interface DashboardSection {
   title?: string;

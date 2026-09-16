@@ -1,17 +1,26 @@
 /**
  * What the intake service answered, turned into what the resolver reads.
  *
- * The page holds no credential, so the four questions a loaded model cannot answer are answered from
- * the same document rather than from the broker: which Things hold a state, off the states each Thing
- * arrived carrying, and a Thing's ranges, off the ranges the service read for it. The two a submitter's
- * page never asks — a reduction over history, and a model-side service — refuse rather than resolving
- * to nothing, because nothing is how a figure the analysis has not computed reads, and a question this
- * page cannot ask is not that.
+ * The page holds no credential, so the questions a loaded model cannot answer are answered from the
+ * same document rather than from the broker: which Things hold a state, off the states each Thing
+ * arrived carrying, and a Thing's ranges, off the ranges the service read for it. A reduction over a
+ * property's history is the one question asked after the document arrived — the intake service
+ * proxies it under the page's ticket — so whoever builds the findings hands in the way to ask it. The
+ * two a submitter's page never asks — a reduction over Things by time bucket, and a model-side
+ * service — refuse rather than resolving to nothing, because nothing is how a figure the analysis has
+ * not computed reads, and a question this page cannot ask is not that.
  */
 import { buildModelIndex, type ModelIndex } from '../api/dashboardApi';
 import type { ModelReads } from '../api/modelReads';
 import type { DashboardSpec } from '../types/dashboard';
-import type { ThingRangesResponse, ThingsInStateResponse, VosRelationship, VosThing } from '../types/vos';
+import type {
+  TemporalReduceQuery,
+  TemporalReduceResponse,
+  ThingRangesResponse,
+  ThingsInStateResponse,
+  VosRelationship,
+  VosThing,
+} from '../types/vos';
 import { unwrapRelationship, unwrapThing } from '../utils/propertyMapper';
 
 /** The wire shape, as the broker wrote it and the service passed it on. `States` is a Thing's derived
@@ -38,7 +47,11 @@ export interface Findings {
 /** Throws where the service answered a spec that is not one. Read here rather than while rendering, so
  *  a page that cannot be drawn says so where every other refusal is said, instead of drawing nothing —
  *  which is how a figure the analysis has not computed reads. */
-export function findingsFrom(answer: FindingsAnswer): Findings {
+export function findingsFrom(
+  answer: FindingsAnswer,
+  reduce: (query: TemporalReduceQuery) => Promise<TemporalReduceResponse> = () =>
+    Promise.reject(new Error('This page was handed no way to reduce a property series.')),
+): Findings {
   const spec = JSON.parse(answer.spec) as DashboardSpec;
   const relationships = answer.relationships.map(unwrapRelationship);
   const holders = statesByThing(answer.things);
@@ -50,7 +63,8 @@ export function findingsFrom(answer: FindingsAnswer): Findings {
     reads: {
       thingsInState: (state) => Promise.resolve(inState(state, answer.things, holders)),
       thingRanges: (thingId) => Promise.resolve(answer.ranges[thingId] ?? null),
-      aggregate: () => Promise.reject(new Error('A findings page reads no history.')),
+      aggregate: () => Promise.reject(new Error('A findings page reduces no Things by time bucket.')),
+      reduce,
       fromService: () => Promise.reject(new Error('A findings page calls no service.')),
     },
   };

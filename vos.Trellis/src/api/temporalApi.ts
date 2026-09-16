@@ -7,6 +7,8 @@ import type {
   PropertyFactsResponse,
   TemporalAggregateQuery,
   TemporalAggregateResponse,
+  TemporalReduceQuery,
+  TemporalReduceResponse,
 } from '../types/vos';
 
 function timeParams(start?: string, end?: string): string {
@@ -24,6 +26,9 @@ export const temporalApi = {
    *  hears about it rather than drawing an empty series. */
   aggregate: (query: TemporalAggregateQuery) =>
     apiClient.post<TemporalAggregateResponse>('/api/temporal/aggregate', query),
+
+  reduce: (query: TemporalReduceQuery) =>
+    apiClient.post<TemporalReduceResponse>('/api/temporal/reduce', query),
 
   getPropertyVersions: (thingId: string, propertyName: string, start?: string, end?: string) =>
     apiClient.get<PropertyVersionsResponse>(
