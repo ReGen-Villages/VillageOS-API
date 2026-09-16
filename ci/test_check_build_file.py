@@ -43,8 +43,8 @@ jobs:
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
 """
 
-# The shape the build file had before its steps sat in a job: the same steps at column zero, which
-# is how a step reader that only knew that shape was written.
+# Steps at column zero and no job: what the guard must report, and a shape its step reader must still
+# read correctly to report only that.
 STEPS_IN_NO_JOB = PREAMBLE + """\
 steps:
 - bash: echo publish
@@ -153,24 +153,32 @@ class CheckBuildFileTests(unittest.TestCase):
         self.assertIn('"Mirror Wiki to GitHub" has no condition', problems(unconditional)[-1])
 
     def test_a_build_file_whose_steps_sit_in_no_job_is_reported(self):
-        self.assertEqual(1, len(problems(STEPS_IN_NO_JOB)))
-        self.assertIn('declares no job', problems(STEPS_IN_NO_JOB)[0])
+        reported = problems(STEPS_IN_NO_JOB)
+
+        self.assertEqual(1, len(reported))
+        self.assertIn('declares no job', reported[0])
 
     def test_a_job_with_no_timeout_is_reported(self):
         unbounded = COMPLIANT.replace(TIMEOUT, '')
 
         self.assertIn('"build" declares no timeoutInMinutes', problems(unbounded)[0])
 
-    def test_a_step_ends_where_the_next_step_begins_and_not_at_column_zero(self):
-        # The step with no condition is followed by one with a condition, which a reader that only
-        # ended a step at column zero would hand to the step before it.
-        unconditional = COMPLIANT.replace(
-            "  - bash: echo mirror\n    displayName: 'Mirror to GitHub'\n"
-            "    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))\n",
-            "  - bash: echo mirror\n    displayName: 'Mirror to GitHub'\n")
+    def test_a_timeout_on_a_step_does_not_count_for_its_job(self):
+        on_a_step = COMPLIANT.replace(TIMEOUT, '').replace(
+            "  - bash: echo publish\n", "  - bash: echo publish\n    timeoutInMinutes: 5\n")
 
-        self.assertEqual(['"Mirror to GitHub" has no condition, so it publishes from every branch'],
-                         problems(unconditional))
+        self.assertIn('"build" declares no timeoutInMinutes', problems(on_a_step)[0])
+
+    def test_a_blank_line_among_a_jobs_settings_is_read_through(self):
+        spaced = COMPLIANT.replace("- job: build\n", "- job: build\n\n")
+
+        self.assertEqual([], problems(spaced))
+
+    def test_a_blank_line_after_a_steps_name_is_read_through(self):
+        spaced = COMPLIANT.replace(
+            "    displayName: 'Publish Docs to Wiki'\n", "    displayName: 'Publish Docs to Wiki'\n\n")
+
+        self.assertEqual([], problems(spaced))
 
     def test_a_publishing_step_that_disappeared_is_reported(self):
         renamed = COMPLIANT.replace("displayName: 'Mirror Wiki to GitHub'", "displayName: 'Sync wiki'")
