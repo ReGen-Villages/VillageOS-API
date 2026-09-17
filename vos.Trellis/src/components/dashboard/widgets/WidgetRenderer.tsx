@@ -16,6 +16,7 @@ import { DataTable } from './DataTable';
 import { RangeBar } from './RangeBar';
 import { LineSeries } from './LineSeries';
 import { Heatmap } from './Heatmap';
+import { StackedShares } from './StackedShares';
 import { WidgetCard } from './WidgetCard';
 
 /** Renders a single widget by its `type`. The only place that knows the widget union.
@@ -59,6 +60,8 @@ export function WidgetRenderer({
       return <LineSeries widget={widget} ctx={ctx} />;
     case 'heatmap':
       return <Heatmap widget={widget} ctx={ctx} />;
+    case 'stackedShares':
+      return <StackedShares widget={widget} ctx={ctx} />;
     default:
       return <UnknownWidget reason={{ unknownType: (widget as { type?: unknown }).type }} />;
   }

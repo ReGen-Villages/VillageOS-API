@@ -617,6 +617,27 @@ export interface HeatmapWidget {
   ceiling?: number;
 }
 
+/** One class of a stacked share chart: what it is called, the colour the model gives it, and the
+ *  binding whose groups are its share of each month — a `history` binding folded by `monthOfYear`
+ *  with `ShareWithin` between the class's bounds, answering a fraction. */
+export interface StackedSharesClass {
+  label: string;
+  colour: string;
+  share: Binding;
+}
+
+/** Twelve bars, one a month, each stacked from the classes' shares in the order listed, the first at
+ *  the bottom — the thermal-stress distribution across the year. The shares are the model's answers
+ *  and the colours the model's; the widget scales nothing to a hundred, so classes that do not sum
+ *  to one draw a bar that does not reach the top. A class the platform answered nothing for is left
+ *  out, and so is a month no class was answered for. */
+export interface StackedSharesWidget {
+  type: 'stackedShares';
+  title?: string;
+  hint?: string;
+  classes: StackedSharesClass[];
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -629,7 +650,8 @@ export type Widget =
   | ExceptionWidget
   | RangeBarWidget
   | LineSeriesWidget
-  | HeatmapWidget;
+  | HeatmapWidget
+  | StackedSharesWidget;
 
 export interface DashboardSection {
   title?: string;
