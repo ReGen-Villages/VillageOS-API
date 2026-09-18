@@ -357,7 +357,7 @@ function main(): void {
     const method = req.method ?? "GET";
 
     if (method === "GET" && url === "/health") {
-      return sendJson(res, 200, { status: "Healthy", service: SERVICE_NAME, requestsProcessed });
+      return sendJson(res, 200, { status: "Healthy", service: SERVICE_NAME, requestsProcessed, processId: process.pid });
     }
     if (method === "GET" && url === "/stats") {
       return sendJson(res, 200, {

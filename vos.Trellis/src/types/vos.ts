@@ -336,7 +336,11 @@ export interface CriteriaValidationResult {
  *  properties — a name the Thing does not hold is absent from it rather than null. */
 export interface ThingsInStateResponse {
   StateName: string;
-  Things: Array<{ Id: string; Name: string; Properties?: Record<string, unknown> }>;
+  /** Absent when the request asked for the count alone. */
+  Things?: Array<{ Id: string; Name: string; Properties?: Record<string, unknown> }>;
+  /** Present only when the request asked for the count alone, so no answer carries both a number
+   *  and the members it is supposed to be counting. */
+  Count?: number;
 }
 
 /** Window the returned state history covers. `Source` is "in-memory" while history comes from the
