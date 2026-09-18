@@ -100,6 +100,15 @@ describe('the findings a submitter is answered with', () => {
     });
   });
 
+  it('counts the Things that arrived holding a state, as the number and not as nought', async () => {
+    const count = await resolveBinding(
+      { kind: 'stateCount', state: 'EnergyNetPositive' },
+      contextFor(answered()),
+    );
+
+    expect(count).toBe(1);
+  });
+
   it('draws no verdict row for a state nothing in the answer holds', async () => {
     const rows = (await resolveBinding(
       {

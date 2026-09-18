@@ -221,6 +221,49 @@ with an empty series that would read as "nothing happened". Members carrying no 
 measure do not fail the request; they are counted in `unusableMembers`, so a reading of zero because
 nobody stamped the instant is distinguishable from a reading of zero because nothing happened.
 
+## Reducing one property's history by calendar
+
+The third question — *what one property's readings come to by calendar: the monthly mean of the
+daily high, the share of hours inside a band, the frost days a year* — is answered by
+`POST /api/temporal/reduce`, over the property's retained samples in the tiers, in steps.
+
+```http
+POST /api/temporal/reduce
+{"thingId":"<guid>","property":"temperatureCelsius","windowSeconds":315360000,"utcOffsetSeconds":7200,
+ "steps":[{"fold":"day","function":"Max"},{"fold":"monthOfYear","function":"Average"}]}
+
+{"Groups":[{"Key":"1","Value":3.4},{"Key":"2","Value":4.9},…],"Samples":87600,"UnusableSamples":0}
+```
+
+| Field | Meaning |
+|---|---|
+| `thingId`, `property` | The one Thing and the series on it. A property keeping no history is refused |
+| `windowSeconds` | How far back the window reaches from the model clock's now |
+| `utcOffsetSeconds` | The offset the calendar folds are taken in; universal time when left out. A site's own `utcOffsetSeconds` is the one to pass |
+| `steps` | Applied in order: the first folds the samples, each later one the groups the step before it produced |
+| a step's `fold` | A calendar period — `hour`, `day`, `month`, `year`, keyed `2026-07-05T09`, `2026-07-05`, `2026-07`, `2026` — or a cycle laid over itself — `hourOfDay`, `dayOfYear`, `monthOfYear`, `hourOfDay,dayOfYear`, `monthOfYear,hourOfDay`, keyed by the numbers, a composite by each part — or `all`, one group |
+| a step's `function` | `Min`, `Max`, `Average`, `Sum`, `Count`; `Percentile` with `percentile` (interpolated between ranks); `ShareWithin` with `from` and `to` (closed at both ends, a bound left out open, answering a fraction); `CountAtOrBelow` and `CountAbove` with `threshold`; `SumAbove` and `SumBelow` with `threshold` — the positive excess beyond it, summed: degree days |
+
+The answer is the groups in key order — numeric where the key is a number, part by part where it is
+composite — with the capitals every Mycelium route answers in, beside how many samples the window held
+that could and could not be read, so an answer with no groups says whether the window was empty or
+unreadable. A group a cyclic fold produced sits at no instant, so only `all` can fold it further; a
+first step that could produce more than ten thousand groups, a parameter beside a function that does
+not read it, and an unknown fold or function are each refused with `400` and the reason. The read walks
+the property's retained samples once, so its cost follows the depth of history the property keeps and
+not the size of the model; a window reaching further back than the retention answers what is retained
+and says nothing more.
+
+Worked questions the site charts ask: the monthly mean of the daily high across ten years is
+`[{day, Max}, {month, Average}]`; frost days a year averaged across the years is
+`[{day, Min}, {year, CountAtOrBelow 0}, {all, Average}]`; the hour-by-day grid is
+`[{"hourOfDay,dayOfYear", Average}]`; cooling degree days a month is
+`[{day, Average}, {month, SumAbove 18}, {monthOfYear, Average}]`.
+
+The same question reaches a page holding no credential through the intake service, which supplies
+the submission's own site: `POST /findings/{submissionId}/reduce` under the page's ticket, with the
+body above minus `thingId` — see [LAND_INTAKE.md §9](LAND_INTAKE.md#what-a-submitter-gets-back).
+
 ## See also
 
 - [`TRIBUTARY.md`](TRIBUTARY.md) — the outbound fetcher that ingests readings as observations into
