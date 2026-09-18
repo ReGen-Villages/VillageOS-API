@@ -70,7 +70,15 @@ describe('stateApi.getThingsInState, narrowed', () => {
       Things: [{ Id: 'r1', Name: 'RSV-1', Properties: { volume: 4 } }],
     });
     const answer = await stateApi.getThingsInState('flagged', { properties: ['volume'] });
-    expect(answer.Things[0].Properties).toEqual({ volume: 4 });
+    expect(answer.Things?.[0].Properties).toEqual({ volume: 4 });
+  });
+
+  it('asks for the count alone, and carries the number back without a member list', async () => {
+    mockGet.mockResolvedValue({ StateName: 'flagged', Count: 403 });
+    const answer = await stateApi.getThingsInState('flagged', { type: 'Reservoir', countOnly: true });
+    expect(mockGet).toHaveBeenCalledWith('/api/states/flagged/things?type=Reservoir&countOnly=true');
+    expect(answer.Count).toBe(403);
+    expect(answer.Things).toBeUndefined();
   });
 });
 

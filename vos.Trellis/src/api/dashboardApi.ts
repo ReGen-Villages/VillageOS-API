@@ -35,6 +35,7 @@ import {
   type PropertyFilter,
 } from '../types/dashboard';
 import type { ModelReads } from './modelReads';
+import type { StateNarrowing } from './stateQuery';
 import { effectiveProperties, effectiveDerivedDefinitions } from '../utils/propertyMapper';
 import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
@@ -256,7 +257,7 @@ export function discoverDashboards(
   return discoverDashboardsFromIndex(buildModelIndex(things, relationships));
 }
 
-function parseSpec(raw: unknown): DashboardSpec | null {
+export function parseSpec(raw: unknown): DashboardSpec | null {
   let obj: unknown = raw;
   if (typeof raw === 'string') {
     try {
@@ -382,7 +383,7 @@ function passesFilters(thing: VosThing, filters: PropertyFilter[] | undefined, i
  *  spends it. The id is tried first because it is exact: Thing names are not unique in this model
  *  and the index keeps whichever Thing of a name it saw first, so a name is the weaker answer and
  *  belongs in the fallback. */
-function referencedThing(ref: string | undefined, ctx: ResolveContext): VosThing | null {
+export function referencedThing(ref: string | undefined, ctx: ResolveContext): VosThing | null {
   if (!ref || ref === SCOPE_REF) return ctx.scopeId ? (ctx.idx.byId.get(ctx.scopeId) ?? null) : null;
   return ctx.idx.byId.get(ref) ?? ctx.idx.byName.get(ref) ?? null;
 }
@@ -573,6 +574,60 @@ function selectPath(obj: unknown, path?: string): unknown {
   }, obj);
 }
 
+/** The Things an aggregate reduces: the archetype's instances, narrowed to the scope and to the
+ *  filters the binding states. Shared with the breakdown a figure opens to, so the rows a reader is
+ *  shown are the rows the figure was reduced from rather than a second walk that could drift.
+ *
+ *  Starts from the scope's members when there is a scope, not from the archetype: as a per-row
+ *  column this asks about one row's handful of members, while the archetype can hold every Thing
+ *  the page lists. */
+export function aggregateMembers(
+  binding: Extract<Binding, { kind: 'aggregate' }>,
+  ctx: ResolveContext,
+): VosThing[] {
+  const members = scopeMemberIds(binding.scope, ctx);
+  const ofArchetype = thingIdsOfArchetype(binding.archetype, ctx.idx);
+  const candidates = members ? [...members].filter((id) => ofArchetype.has(id)) : [...ofArchetype];
+  return candidates
+    .map((id) => ctx.idx.byId.get(id))
+    .filter((t): t is VosThing => !!t && passesFilters(t, binding.where, ctx.idx));
+}
+
+/** An aggregate's answer over the members it reduces. A reduction over nothing answers zero, not
+ *  nothing: a page asking how much of something there is has its answer when there is none of it. */
+export function aggregateValue(
+  binding: Extract<Binding, { kind: 'aggregate' }>,
+  members: VosThing[],
+  ctx: ResolveContext,
+): number {
+  if (binding.op === 'count') return members.length;
+  const values = members
+    .map((t) => num(effectiveProperties(t, ctx.idx)[binding.property ?? '']))
+    .filter((n) => !isNaN(n));
+  if (!values.length) return 0;
+  switch (binding.op) {
+    case 'sum': return values.reduce((a, b) => a + b, 0);
+    case 'avg': return values.reduce((a, b) => a + b, 0) / values.length;
+    case 'min': return Math.min(...values);
+    case 'max': return Math.max(...values);
+  }
+  return 0;
+}
+
+/** One value over another, or null where the division has no answer — nothing to divide, or
+ *  nothing to divide by. Shared with the breakdown a ratio opens to. */
+export function divide(top: number | null, bottom: number | null): number | null {
+  if (top === null || bottom === null || bottom === 0) return null;
+  return top / bottom;
+}
+
+/** One table row for a Thing: its id and name beside the properties it effectively holds, where
+ *  the page holds the Thing. A state read answers with an id and a name and nothing else. */
+export function rowOfThing(id: string, name: string, ctx: ResolveContext): Row {
+  const held = ctx.idx.byId.get(id);
+  return { id, name, ...(held ? effectiveProperties(held, ctx.idx) : {}) };
+}
+
 export async function resolveBinding(binding: Binding, ctx: ResolveContext): Promise<BindingResult> {
   switch (binding.kind) {
     case 'const':
@@ -593,39 +648,15 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       return t ? num(effectiveProperties(t, ctx.idx)[binding.property]) : null;
     }
 
-    case 'aggregate': {
-      const members = scopeMemberIds(binding.scope, ctx);
-      const ofArchetype = thingIdsOfArchetype(binding.archetype, ctx.idx);
-      // Start from the scope's members when there is a scope, not from the archetype: as a
-      // per-row column this asks about one row's handful of members, while the archetype can
-      // hold every Thing the page lists.
-      const candidates = members ? [...members].filter((id) => ofArchetype.has(id)) : [...ofArchetype];
-      const items = candidates
-        .map((id) => ctx.idx.byId.get(id))
-        .filter((t): t is VosThing => !!t && passesFilters(t, binding.where, ctx.idx));
-      if (binding.op === 'count') return items.length;
-      const vals = items
-        .map((t) => num(effectiveProperties(t, ctx.idx)[binding.property ?? '']))
-        .filter((n) => !isNaN(n));
-      if (!vals.length) return 0;
-      switch (binding.op) {
-        case 'sum': return vals.reduce((a, b) => a + b, 0);
-        case 'avg': return vals.reduce((a, b) => a + b, 0) / vals.length;
-        case 'min': return Math.min(...vals);
-        case 'max': return Math.max(...vals);
-      }
-      return 0;
-    }
+    case 'aggregate':
+      return aggregateValue(binding, aggregateMembers(binding, ctx), ctx);
 
     case 'ratio': {
       const [numerator, denominator] = await Promise.all([
         resolveBinding(binding.numerator, ctx),
         resolveBinding(binding.denominator, ctx),
       ]);
-      const top = asNumber(numerator);
-      const bottom = asNumber(denominator);
-      if (top === null || bottom === null || bottom === 0) return null;
-      return top / bottom;
+      return divide(asNumber(numerator), asNumber(denominator));
     }
 
     case 'related': {
@@ -737,11 +768,21 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
 
     case 'stateCount': {
       const container = containerFor(binding.scope, ctx);
-      const resp = await ctx.reads.thingsInState(binding.state, { type: binding.archetype, ...container });
-      // Only what the request could not carry is narrowed here.
+      const narrowing: StateNarrowing = {
+        type: binding.archetype,
+        notIn: binding.excludeState ? [binding.excludeState] : undefined,
+        ...container,
+      };
+      // Only a scope the request cannot carry is narrowed here, and only that path reads the members:
+      // the platform's number would be the one before the local walk.
       const members = container ? null : scopeMemberIds(binding.scope, ctx);
-      const list = resp.Things ?? [];
-      return members ? list.filter((t) => members.has(t.Id)).length : list.length;
+      if (members) {
+        const resp = await ctx.reads.thingsInState(binding.state, narrowing);
+        return (resp.Things ?? []).filter((t) => members.has(t.Id)).length;
+      }
+      const resp = await ctx.reads.thingsInState(binding.state, { ...narrowing, countOnly: true });
+      if (resp.Count === undefined) throw new Error(`The state read for ${binding.state} answered no count.`);
+      return resp.Count;
     }
 
     case 'stateList': {
@@ -777,6 +818,11 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       let list = thingsOfArchetype(binding.archetype, ctx.idx);
       const members = scopeMemberIds(binding.scope, ctx);
       if (members) list = list.filter((t) => members.has(t.Id));
+      if (binding.where) list = list.filter((t) => passesFilters(t, binding.where, ctx.idx));
+      if (binding.inState && list.length) {
+        const inState = new Set(((await ctx.reads.thingsInState(binding.inState, { type: binding.archetype })).Things ?? []).map((t) => t.Id));
+        list = list.filter((t) => inState.has(t.Id));
+      }
       list.sort((a, b) => a.Name.localeCompare(b.Name));
       if (binding.limit) list = list.slice(0, binding.limit);
       const rows = list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, ctx.idx) }) as Row);

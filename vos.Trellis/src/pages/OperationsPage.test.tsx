@@ -112,10 +112,7 @@ describe('OperationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     declaredSubscriptions.length = 0;
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-      StateName: 'harvested',
-      Things: [{ Id: 'p1', Name: 'PLOT-1' }, { Id: 'p2', Name: 'PLOT-2' }],
-    });
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'harvested', Count: 2 });
     seedStore();
   });
 
@@ -146,10 +143,10 @@ describe('OperationsPage', () => {
     expect(await screen.findByText('98.9')).toBeInTheDocument();
   });
 
-  it('resolves a stateCount funnel bar from the state endpoint', async () => {
+  it('resolves a stateCount funnel bar from the number the state endpoint gave', async () => {
     renderAt();
     expect(await screen.findByText('2')).toBeInTheDocument();
-    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.anything());
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.objectContaining({ countOnly: true }));
   });
 
   it('ranks sites in the leaderboard with the winner marked', async () => {

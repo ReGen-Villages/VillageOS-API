@@ -1308,6 +1308,36 @@ rejected submission's retention period has run and `submissions dispose` has tak
 model, the reference and the address name nothing, and the page says so in the same words as a reference
 nobody ever submitted under.
 
+**Two reads the page makes after the document arrived are proxied by the same service** (#7060). The
+charts over the site's climate history ask the platform's reduction over one property's series —
+`POST /findings/{submissionId}/reduce`, under the ticket, with the reduce read's request minus its
+`thingId`: the service verifies the ticket was issued for the address the submission names, supplies
+the submission's own site, and hands the platform's answer back in its own words, status included, so
+a question the platform refuses reaches the page with the reason. The satellite view's tiles come
+through `GET /basemaps/{registration}/{z}/{x}/{y}`, anonymous like the position lookups because the
+opening map is drawn before anything is verified: the route names a tile registration the model marks
+`__IsBasemapTileRegistration`, forwards the three placeholders through the fetching service — which
+keeps the bytes on its disk for the registration's cache life — and serves the bytes back with a
+`Cache-Control` of the same life. A registration without the mark is not served, whatever the route
+names, so this service is a proxy for the basemaps the model declares and for nothing else. Neither
+route hands a page the provider's address or any key.
+
+**A submitter can share files about their land once the report is up, and the same service takes
+them** (#7059). `POST /submissions/{submissionId}/documents`, under the ticket, is a form carrying
+`file` and a `description`: any type, up to 25 MB, refused over that with the limit named. The bytes
+go to a folder beside the service (`--documentDirectory`, `documents` by default), keyed by submission
+and under a key of the store's own, so the name a person gave the file is a value on a Thing and never
+a path. The model gets what it declares for one — the archetype marked `__IsSharedDocumentArchetype`
+with the file's name, description, media type, size and when it was shared — related to the
+submission's project through the predicate marked `__IsSharedDocumentPredicate`, so the review page
+lists a submission's files from the model and never asks this service. `GET
+/submissions/{submissionId}/documents`, under the ticket, lists the same for the page that shared them.
+A model declaring no shared file takes none: the route says files are not taken here rather than
+keeping bytes nothing can list. Once the retention pass has taken a rejected submission out of the
+model, its files go with it — the store asks the model each hour which of the submissions it holds
+files for still stand, and forgets the rest — and a folder of its own is the reason a deployment that
+never shares a file configures nothing.
+
 ### From submission to project
 
 Submissions land in a staging model. Becoming a project is a deliberate act.

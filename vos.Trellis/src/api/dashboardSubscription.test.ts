@@ -21,6 +21,11 @@ describe('subscriptionForSpec', () => {
     expect(selector.names).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.names!));
   });
 
+  it('asks to keep following the types it names, as the navigation does', () => {
+    expect(subscriptionForSpec(specWith({}), null).includeLaterMatches).toBe(true);
+    expect(NAVIGATION_AND_SETTINGS.includeLaterMatches).toBe(true);
+  });
+
   it('asks for the entities the scope switcher offers', () => {
     const selector = subscriptionForSpec(specWith({ compare: { label: 'site', archetype: 'Site' } }), null);
 
