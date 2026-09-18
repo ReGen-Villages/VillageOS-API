@@ -141,7 +141,8 @@ app.MapGet("/health", () => new
 {
     status = "Healthy",
     service = "Echo",
-    requestsProcessed = requestCount
+    requestsProcessed = requestCount,
+    processId = Environment.ProcessId
 });
 
 app.MapGet("/stats", (EndpointServiceMyceliumClient myceliumClient) => new
