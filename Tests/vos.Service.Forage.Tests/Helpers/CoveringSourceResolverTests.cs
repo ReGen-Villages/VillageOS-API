@@ -371,6 +371,29 @@ public class CoveringSourceResolverTests
         values["granularity"].Should().Be("daily");
     }
 
+    // The window's dates go to a provider's archive, which reads the Gregorian calendar; a host counting
+    // in another calendar would otherwise address the same window as a different decade.
+    [Fact]
+    public void Resolve_AWindowIsWrittenInTheGregorianCalendarWhateverTheHostsCulture()
+    {
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("th-TH");
+        try
+        {
+            var model = ClimateHistory(new ModelBuilder()
+                .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal"));
+
+            var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"), Today)[0].Calls[0].Values;
+
+            values["startDate"].Should().Be("2016-09-18");
+            values["endDate"].Should().Be("2026-09-18");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = culture;
+        }
+    }
+
     [Fact]
     public void Resolve_AReachThatIsNotAWholeNumberOfYears_GivesNoWindow()
     {

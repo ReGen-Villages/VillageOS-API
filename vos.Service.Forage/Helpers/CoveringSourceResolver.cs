@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using vos.Service.Shared.Subscriptions;
@@ -512,8 +513,8 @@ public static class CoveringSourceResolver
 
         if (values.TryGetValue(ReachProperty, out var reach) && int.TryParse(reach, out var years) && years > 0)
         {
-            values[WindowStartPlaceholder] = windowEnd.AddYears(-years).ToString("yyyy-MM-dd");
-            values[WindowEndPlaceholder] = windowEnd.ToString("yyyy-MM-dd");
+            values[WindowStartPlaceholder] = windowEnd.AddYears(-years).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            values[WindowEndPlaceholder] = windowEnd.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
 
         var provided = snapshot.Relationships
@@ -534,7 +535,7 @@ public static class CoveringSourceResolver
 
     private static bool Carries(SnapshotThing thing, string flag) =>
         thing.Properties.TryGetValue(flag, out var property)
-        && property.Value.ValueKind == System.Text.Json.JsonValueKind.True;
+        && property.Value.ValueKind == JsonValueKind.True;
 
     // The Things one source is called about for one site. A source that declares nothing it resolves
     // onto is called once, about the site; one that does is called once per Thing the site has of the
