@@ -45,405 +45,418 @@ variables:
     value: $[ replace(replace(or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/main')), 'True', 'Release'), 'False', 'Debug') ]
   - name: testResultsDirectory
     value: '$(Agent.TempDirectory)/TestResults'
+  # MSBuild's worker processes outlive the build that started them by a quarter of an hour — here,
+  # the whole test step, on an agent short of memory — and every run wipes the checkout they last
+  # looked at, so there is nothing for them to remember.
+  - name: MSBUILDDISABLENODEREUSE
+    value: '1'
   # Azure DevOps project-wiki git repo id (from `az devops wiki list`). The wiki
   # is mirrored from here to the GitHub wiki on develop.
   - name: wikiRepoId
     value: 'de73fcdb-2959-4209-a858-f3d697e8c632'
 
-steps:
-# A self-hosted agent keeps its working directory between runs, so a stale file from an earlier
-# build would otherwise still be here — including one the guard below is meant to catch.
-- checkout: self
-  clean: true
+# Every job says how long it may run. Left to the pool's default, a step that stops making progress
+# holds an agent for an hour, and a pull request in either repository waits behind it. The limit
+# sits well above what the build takes on the slowest agent with cold toolchain caches, so reaching
+# it means something stopped rather than that it was slow.
+jobs:
+- job: build_and_test
+  displayName: 'Build and test'
+  timeoutInMinutes: 20
+  steps:
+  # A self-hosted agent keeps its working directory between runs, so a stale file from an earlier
+  # build would otherwise still be here — including one the guard below is meant to catch.
+  - checkout: self
+    clean: true
 
-# Fail fast if proprietary engine code ever reappears in the public repo (it must not — the
-# engine lives only in the private VillageOS repo). Runs before build AND before the GitHub
-# mirror step (which is gated on succeeded()), so a violation can never be published.
-#
-# A script rather than the greps this used to be, because those could not be proved and one of them
-# was wrong in a way nobody could see: it matched a prefix, so it refused the one piece of the engine
-# a consumer is meant to compile against (`vos.Mycelium.Testing`) while missing an aliased import of
-# the engine itself. ci/test_no_engine_in_the_public_repo.py makes each rule bite in front of you.
-- script: python3 ci/no_engine_in_the_public_repo.py
-  displayName: 'Guard: no proprietary engine in public repo'
+  # Fail fast if proprietary engine code ever reappears in the public repo (it must not — the
+  # engine lives only in the private VillageOS repo). Runs before build AND before the GitHub
+  # mirror step (which is gated on succeeded()), so a violation can never be published.
+  #
+  # A script rather than the greps this used to be, because those could not be proved and one of them
+  # was wrong in a way nobody could see: it matched a prefix, so it refused the one piece of the engine
+  # a consumer is meant to compile against (`vos.Mycelium.Testing`) while missing an aliased import of
+  # the engine itself. ci/test_no_engine_in_the_public_repo.py makes each rule bite in front of you.
+  - script: python3 ci/no_engine_in_the_public_repo.py
+    displayName: 'Guard: no proprietary engine in public repo'
 
-# A widened trigger, a configuration that stops following the branch, and a publishing step gated
-# back to develop all produce more green builds rather than a failure, so nothing in a build result
-# would look wrong. ci/check_build_file.py reads the build file and says what has drifted; the same
-# run covers the guard itself, so a check that stopped checking is caught too.
-- script: python3 -m unittest discover -s ci -p 'test_*.py'
-  displayName: 'Guard: the build file matches the branch policy'
+  # A widened trigger, a configuration that stops following the branch, and a publishing step gated
+  # back to develop all produce more green builds rather than a failure, so nothing in a build result
+  # would look wrong. ci/check_build_file.py reads the build file and says what has drifted; the same
+  # run covers the guard itself, so a check that stopped checking is caught too.
+  - script: python3 -m unittest discover -s ci -p 'test_*.py'
+    displayName: 'Guard: the build file matches the branch policy'
 
-- task: UseDotNet@2
-  displayName: 'Install .NET SDK'
-  inputs:
-    packageType: 'sdk'
-    version: '10.x'
+  - task: UseDotNet@2
+    displayName: 'Install .NET SDK'
+    inputs:
+      packageType: 'sdk'
+      version: '10.x'
 
-# Serves the wiki converters and the Trellis checks below. 22 rather than 20 because Vite asks for
-# ^20.19 || >=22.12 — a 20.x line that resolved below 20.19 would fail the GUI build, and 22 is the
-# version both Vite and Vitest name.
-- task: UseNode@1
-  displayName: 'Install Node.js'
-  inputs:
-    version: '22.x'
+  # Serves the wiki converters and the Trellis checks below. 22 rather than 20 because Vite asks for
+  # ^20.19 || >=22.12 — a 20.x line that resolved below 20.19 would fail the GUI build, and 22 is the
+  # version both Vite and Vitest name.
+  - task: UseNode@1
+    displayName: 'Install Node.js'
+    inputs:
+      version: '22.x'
 
-- script: dotnet restore
-  displayName: 'Restore NuGet Packages'
+  - script: dotnet restore
+    displayName: 'Restore NuGet Packages'
 
-- script: dotnet build --configuration $(buildConfiguration) --no-restore
-  displayName: 'Build Solution'
+  - script: dotnet build --configuration $(buildConfiguration) --no-restore
+    displayName: 'Build Solution'
 
-# The solution rather than a wildcard over the test projects: a wildcard starts a separate test run
-# per project, and each one loads the runner, starts a test host and waits for the previous project
-# to finish. One run over the solution tests the projects alongside each other instead.
-# maxcpucount caps how many projects test at once. The default is one per processor, which on an
-# agent machine already short of memory at idle would start more test hosts than it can hold. Four
-# costs no time, because the run lasts as long as its slowest single project either way.
-- task: DotNetCoreCLI@2
-  displayName: 'Run Tests with Coverage'
-  inputs:
-    command: 'test'
-    projects: 'VillageOS-API.sln'
-    arguments: '--configuration $(buildConfiguration) --no-build -maxcpucount:4 --logger trx --results-directory $(testResultsDirectory) --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
-    publishTestResults: false
+  # The solution rather than a wildcard over the test projects: a wildcard starts a separate test run
+  # per project, and each one loads the runner, starts a test host and waits for the previous project
+  # to finish. One run over the solution tests the projects alongside each other instead.
+  # maxcpucount caps how many projects test at once. The default is one per processor, which on an
+  # agent machine already short of memory at idle would start more test hosts than it can hold. Four
+  # costs no time, because the run lasts as long as its slowest single project either way.
+  - task: DotNetCoreCLI@2
+    displayName: 'Run Tests with Coverage'
+    inputs:
+      command: 'test'
+      projects: 'VillageOS-API.sln'
+      arguments: '--configuration $(buildConfiguration) --no-build -maxcpucount:4 --logger trx --results-directory $(testResultsDirectory) --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura'
+      publishTestResults: false
 
-- task: PublishTestResults@2
-  displayName: 'Publish Test Results'
-  inputs:
-    testResultsFormat: 'VSTest'
-    testResultsFiles: '$(testResultsDirectory)/**/*.trx'
-    mergeTestResults: true
-    failTaskOnFailedTests: true
-    testRunTitle: 'VillageOS Tests - $(Build.SourceBranchName)'
-  condition: always()
+  - task: PublishTestResults@2
+    displayName: 'Publish Test Results'
+    inputs:
+      testResultsFormat: 'VSTest'
+      testResultsFiles: '$(testResultsDirectory)/**/*.trx'
+      mergeTestResults: true
+      failTaskOnFailedTests: true
+      testRunTitle: 'VillageOS Tests - $(Build.SourceBranchName)'
+    condition: always()
 
-# Coverage for both stacks is published together, after the GUI tests have run. See the publish
-# step below the Trellis steps.
+  # Coverage for both stacks is published together, after the GUI tests have run. See the publish
+  # step below the Trellis steps.
 
-# The four echo services are the worked examples of the managed-microservice contract in Go, Node,
-# Python and Rust. Each ships a test suite, and until now the pipeline ran none of them, so all four
-# could rot without anything reporting it. Each step runs even when an earlier one failed, so one
-# build reports every broken example rather than one per push.
-# The Amsterdam agents carry .NET, Node, Java and python3, and neither Go nor Rust, so the build
-# brings those two itself. GoTool unpacks into the agent tool cache, so only the first build on a
-# given agent pays the download.
-- task: GoTool@0
-  displayName: 'Install Go'
-  inputs:
-    version: '1.26'   # the version go.mod asks for
-  condition: always()
+  # The four echo services are the worked examples of the managed-microservice contract in Go, Node,
+  # Python and Rust. Each ships a test suite, and until now the pipeline ran none of them, so all four
+  # could rot without anything reporting it. Each step runs even when an earlier one failed, so one
+  # build reports every broken example rather than one per push.
+  # The Amsterdam agents carry .NET, Node, Java and python3, and neither Go nor Rust, so the build
+  # brings those two itself. GoTool unpacks into the agent tool cache, so only the first build on a
+  # given agent pays the download.
+  - task: GoTool@0
+    displayName: 'Install Go'
+    inputs:
+      version: '1.26'   # the version go.mod asks for
+    condition: always()
 
-- script: go test ./...
-  displayName: 'Test Go echo service'
-  workingDirectory: vos.Service.Go.Echo
-  condition: always()
+  - script: go test ./...
+    displayName: 'Test Go echo service'
+    workingDirectory: vos.Service.Go.Echo
+    condition: always()
 
-# Only devDependencies (TypeScript and the Node types); `npm test` compiles and then runs.
-- script: |
-    set -euo pipefail
-    npm ci
-    npm test
-  displayName: 'Test Node echo service'
-  workingDirectory: vos.Service.Node.Echo
-  condition: always()
+  # Only devDependencies (TypeScript and the Node types); `npm test` compiles and then runs.
+  - script: |
+      set -euo pipefail
+      npm ci
+      npm test
+    displayName: 'Test Node echo service'
+    workingDirectory: vos.Service.Node.Echo
+    condition: always()
 
-# macOS ships no `python`, and its `python3` is externally managed, so pip refuses to install into
-# it — this is the one step here with dependencies to install, hence the virtual environment.
-- script: |
-    set -euo pipefail
-    python3 -m venv .venv
-    .venv/bin/python -m pip install --upgrade pip
-    .venv/bin/python -m pip install -r requirements.txt
-    .venv/bin/python -m pytest
-  displayName: 'Test Python echo service'
-  workingDirectory: vos.Service.Python.Echo
-  condition: always()
+  # macOS ships no `python`, and its `python3` is externally managed, so pip refuses to install into
+  # it — this is the one step here with dependencies to install, hence the virtual environment.
+  - script: |
+      set -euo pipefail
+      python3 -m venv .venv
+      .venv/bin/python -m pip install --upgrade pip
+      .venv/bin/python -m pip install -r requirements.txt
+      .venv/bin/python -m pytest
+    displayName: 'Test Python echo service'
+    workingDirectory: vos.Service.Python.Echo
+    condition: always()
 
-# There is no first-party Rust task, so rustup's own installer — skipped when an earlier build on
-# this agent already ran it. prependpath puts cargo on PATH for the steps below; the registry
-# location goes into a variable because the cache task cannot read a shell one.
-- bash: |
-    set -euo pipefail
-    if [ ! -x "$HOME/.cargo/bin/cargo" ]; then
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-        | sh -s -- -y --no-modify-path --default-toolchain stable
-    fi
-    echo "##vso[task.prependpath]$HOME/.cargo/bin"
-    echo "##vso[task.setvariable variable=cargoRegistry]$HOME/.cargo/registry"
-  displayName: 'Install Rust'
-  condition: always()
+  # There is no first-party Rust task, so rustup's own installer — skipped when an earlier build on
+  # this agent already ran it. prependpath puts cargo on PATH for the steps below; the registry
+  # location goes into a variable because the cache task cannot read a shell one.
+  - bash: |
+      set -euo pipefail
+      if [ ! -x "$HOME/.cargo/bin/cargo" ]; then
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+          | sh -s -- -y --no-modify-path --default-toolchain stable
+      fi
+      echo "##vso[task.prependpath]$HOME/.cargo/bin"
+      echo "##vso[task.setvariable variable=cargoRegistry]$HOME/.cargo/registry"
+    displayName: 'Install Rust'
+    condition: always()
 
-# Cargo builds axum, tokio and reqwest from source, which is the slowest step in the build. The
-# cache keys on the lock file, so only a dependency change pays that cost again.
-- task: Cache@2
-  displayName: 'Cache Rust dependencies'
-  inputs:
-    key: 'cargo | "$(Agent.OS)" | vos.Service.Rust.Echo/Cargo.lock'
-    restoreKeys: |
-      cargo | "$(Agent.OS)"
-    path: '$(cargoRegistry)'
-  condition: always()
+  # Cargo builds axum, tokio and reqwest from source, which is the slowest step in the build. The
+  # cache keys on the lock file, so only a dependency change pays that cost again.
+  - task: Cache@2
+    displayName: 'Cache Rust dependencies'
+    inputs:
+      key: 'cargo | "$(Agent.OS)" | vos.Service.Rust.Echo/Cargo.lock'
+      restoreKeys: |
+        cargo | "$(Agent.OS)"
+      path: '$(cargoRegistry)'
+    condition: always()
 
-- script: cargo test
-  displayName: 'Test Rust echo service'
-  workingDirectory: vos.Service.Rust.Echo
-  condition: always()
+  - script: cargo test
+    displayName: 'Test Rust echo service'
+    workingDirectory: vos.Service.Rust.Echo
+    condition: always()
 
-- script: node --test
-  displayName: 'Test wiki-mirror converter'
-  workingDirectory: tools/wiki-mirror
-  condition: always()
+  - script: node --test
+    displayName: 'Test wiki-mirror converter'
+    workingDirectory: tools/wiki-mirror
+    condition: always()
 
-# Also the guard against wiki drift: one of these tests fails when a markdown file the repository
-# carries is in neither list of tools/docs-to-wiki/wiki-map.json, so a new document forces the
-# decision about whether it is published. A file git ignores is a local working note, not a
-# document the wiki could ever publish, so it is not counted.
-- script: node --test
-  displayName: 'Test docs-to-wiki converter'
-  workingDirectory: tools/docs-to-wiki
-  condition: always()
+  # Also the guard against wiki drift: one of these tests fails when a markdown file the repository
+  # carries is in neither list of tools/docs-to-wiki/wiki-map.json, so a new document forces the
+  # decision about whether it is published. A file git ignores is a local working note, not a
+  # document the wiki could ever publish, so it is not counted.
+  - script: node --test
+    displayName: 'Test docs-to-wiki converter'
+    workingDirectory: tools/docs-to-wiki
+    condition: always()
 
-# The PDF renderer reads a guide's own shape — its parts, its chapters, the contents list it writes
-# for itself — and turns a figure drawn on a dark ground light for print. Every one of those is a
-# decision about a document nobody renders in a build, so the units are tested rather than the PDF.
-# It installs first: unlike the tools above it has dependencies.
-- script: npm ci && node --test
-  displayName: 'Test docs-pdf renderer'
-  workingDirectory: tools/docs-pdf
-  condition: always()
+  # The PDF renderer reads a guide's own shape — its parts, its chapters, the contents list it writes
+  # for itself — and turns a figure drawn on a dark ground light for print. Every one of those is a
+  # decision about a document nobody renders in a build, so the units are tested rather than the PDF.
+  # It installs first: unlike the tools above it has dependencies.
+  - script: npm ci && node --test
+    displayName: 'Test docs-pdf renderer'
+    workingDirectory: tools/docs-pdf
+    condition: always()
 
-# The Python tools each ship a unittest suite that no step ran, so the simulator, the layout
-# importer and the playground generator could all break and merge green — and the first two share
-# one Mycelium client, so a change to it can break the pair at once. Discovery rather than a named
-# module, so a new test file is run by having been written. Stock Python: nothing to install.
-- script: python3 -m unittest discover
-  displayName: 'Test simulator'
-  workingDirectory: tools/simulator
-  condition: always()
+  # The Python tools each ship a unittest suite that no step ran, so the simulator, the layout
+  # importer and the playground generator could all break and merge green — and the first two share
+  # one Mycelium client, so a change to it can break the pair at once. Discovery rather than a named
+  # module, so a new test file is run by having been written. Stock Python: nothing to install.
+  - script: python3 -m unittest discover
+    displayName: 'Test simulator'
+    workingDirectory: tools/simulator
+    condition: always()
 
-- script: python3 -m unittest discover
-  displayName: 'Test layout-importer'
-  workingDirectory: tools/layout-importer
-  condition: always()
+  - script: python3 -m unittest discover
+    displayName: 'Test layout-importer'
+    workingDirectory: tools/layout-importer
+    condition: always()
 
-- script: python3 -m unittest discover
-  displayName: 'Test pipeline-playground'
-  workingDirectory: tools/pipeline-playground
-  condition: always()
+  - script: python3 -m unittest discover
+    displayName: 'Test pipeline-playground'
+    workingDirectory: tools/pipeline-playground
+    condition: always()
 
-# The GUI's own checks. Nothing here ran them until now, and both halves of that had been paying:
-# lint errors accumulated across the pages, panels and hooks with nothing to fail (#6150), and the
-# GUI test suite — the guard for the binding resolver, the property panels and the live-update path
-# — had never gated a merge. Each step runs even when an earlier one failed, so one run reports
-# every problem rather than one per push. They sit ahead of the mirror and the wiki publish, whose
-# succeeded() conditions then stop a red GUI from being published.
-- script: npm ci
-  displayName: 'Install Trellis dependencies'
-  workingDirectory: vos.Trellis
-  condition: always()
+  # The GUI's own checks. Nothing here ran them until now, and both halves of that had been paying:
+  # lint errors accumulated across the pages, panels and hooks with nothing to fail (#6150), and the
+  # GUI test suite — the guard for the binding resolver, the property panels and the live-update path
+  # — had never gated a merge. Each step runs even when an earlier one failed, so one run reports
+  # every problem rather than one per push. They sit ahead of the mirror and the wiki publish, whose
+  # succeeded() conditions then stop a red GUI from being published.
+  - script: npm ci
+    displayName: 'Install Trellis dependencies'
+    workingDirectory: vos.Trellis
+    condition: always()
 
-- script: npm run lint
-  displayName: 'Lint Trellis'
-  workingDirectory: vos.Trellis
-  condition: always()
+  - script: npm run lint
+    displayName: 'Lint Trellis'
+    workingDirectory: vos.Trellis
+    condition: always()
 
-# Both reporters: junit alone replaces the console output, which leaves a failing build's log
-# saying only that the run exited 1, with the failures readable exclusively in the Tests tab.
-# --coverage writes a cobertura report to vos.Trellis/coverage (configured in vite.config.ts).
-# Without it the GUI figure was never measured, so it could fall a long way unnoticed while the
-# platform figure looked healthy.
-- script: npm run test -- --coverage --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/trellis-junit.xml
-  displayName: 'Test Trellis'
-  workingDirectory: vos.Trellis
-  condition: always()
+  # Both reporters: junit alone replaces the console output, which leaves a failing build's log
+  # saying only that the run exited 1, with the failures readable exclusively in the Tests tab.
+  # --coverage writes a cobertura report to vos.Trellis/coverage (configured in vite.config.ts).
+  # Without it the GUI figure was never measured, so it could fall a long way unnoticed while the
+  # platform figure looked healthy.
+  - script: npm run test -- --coverage --reporter=default --reporter=junit --outputFile.junit=$(testResultsDirectory)/trellis-junit.xml
+    displayName: 'Test Trellis'
+    workingDirectory: vos.Trellis
+    condition: always()
 
-- task: PublishTestResults@2
-  displayName: 'Publish Trellis Test Results'
-  inputs:
-    testResultsFormat: 'JUnit'
-    testResultsFiles: '$(testResultsDirectory)/trellis-junit.xml'
-    testRunTitle: 'Trellis'
-    mergeTestResults: true
-    failTaskOnFailedTests: true
-  condition: always()
+  - task: PublishTestResults@2
+    displayName: 'Publish Trellis Test Results'
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '$(testResultsDirectory)/trellis-junit.xml'
+      testRunTitle: 'Trellis'
+      mergeTestResults: true
+      failTaskOnFailedTests: true
+    condition: always()
 
-# Both stacks in one report, so the GUI figure sits next to the platform figure instead of being
-# invisible. Runs after the GUI tests because its report is one of the two being published.
-- task: PublishCodeCoverageResults@2
-  displayName: 'Publish Code Coverage'
-  inputs:
-    summaryFileLocation: |
-      $(testResultsDirectory)/**/coverage.cobertura.xml
-      $(Build.SourcesDirectory)/vos.Trellis/coverage/cobertura-coverage.xml
-  condition: succeededOrFailed()
+  # Both stacks in one report, so the GUI figure sits next to the platform figure instead of being
+  # invisible. Runs after the GUI tests because its report is one of the two being published.
+  - task: PublishCodeCoverageResults@2
+    displayName: 'Publish Code Coverage'
+    inputs:
+      summaryFileLocation: |
+        $(testResultsDirectory)/**/coverage.cobertura.xml
+        $(Build.SourcesDirectory)/vos.Trellis/coverage/cobertura-coverage.xml
+    condition: succeededOrFailed()
 
-# Covers the type-check too — `npm run build` is `tsc -b` then the bundle, and nothing else in this
-# pipeline type-checks the GUI. Emits to vos.Trellis/dist here: the output directory resolves to a
-# sibling vos.Mycelium/wwwroot when one exists, and to dist when it does not.
-- script: npm run build
-  displayName: 'Build Trellis'
-  workingDirectory: vos.Trellis
-  condition: always()
+  # Covers the type-check too — `npm run build` is `tsc -b` then the bundle, and nothing else in this
+  # pipeline type-checks the GUI. Emits to vos.Trellis/dist here: the output directory resolves to a
+  # sibling vos.Mycelium/wwwroot when one exists, and to dist when it does not.
+  - script: npm run build
+    displayName: 'Build Trellis'
+    workingDirectory: vos.Trellis
+    condition: always()
 
-# The public pages are a build of their own and a deliverable of their own — see deploy/README.md.
-# Built here because nothing else exercises their configuration, and a page that will not build is one
-# nobody discovers until they come to place it on the site.
-- script: npm run build:public
-  displayName: 'Build the public submission form, findings page and explore page'
-  workingDirectory: vos.Trellis
-  condition: always()
+  # The public pages are a build of their own and a deliverable of their own — see deploy/README.md.
+  # Built here because nothing else exercises their configuration, and a page that will not build is one
+  # nobody discovers until they come to place it on the site.
+  - script: npm run build:public
+    displayName: 'Build the public submission form, findings page and explore page'
+    workingDirectory: vos.Trellis
+    condition: always()
 
-# A worker copied for its address alone is emitted without the half it imports, so no tile is ever
-# parsed and every built map draws blank with nothing reported (Bug #6910). It exists only in built
-# output — the development server resolves the import out of the installed package — so it is checked
-# here, after both builds, rather than by a test.
-- script: npm run check:built-imports
-  displayName: 'Check every built worker carries what it imports'
-  workingDirectory: vos.Trellis
-  condition: always()
+  # A worker copied for its address alone is emitted without the half it imports, so no tile is ever
+  # parsed and every built map draws blank with nothing reported (Bug #6910). It exists only in built
+  # output — the development server resolves the import out of the installed package — so it is checked
+  # here, after both builds, rather than by a test.
+  - script: npm run check:built-imports
+    displayName: 'Check every built worker carries what it imports'
+    workingDirectory: vos.Trellis
+    condition: always()
 
-- script: |
-    echo "========================================"
-    echo "Build Summary for $(Build.SourceBranchName)"
-    echo "========================================"
-    echo "Build Number: $(Build.BuildNumber)"
-    echo "Build ID: $(Build.BuildId)"
-    echo "Repository: $(Build.Repository.Name)"
-    echo "Commit: $(Build.SourceVersion)"
-    echo "Triggered By: $(Build.RequestedFor)"
-    echo "========================================"
-  displayName: 'Build Summary'
-  condition: always()
+  - script: |
+      echo "========================================"
+      echo "Build Summary for $(Build.SourceBranchName)"
+      echo "========================================"
+      echo "Build Number: $(Build.BuildNumber)"
+      echo "Build ID: $(Build.BuildId)"
+      echo "Repository: $(Build.Repository.Name)"
+      echo "Commit: $(Build.SourceVersion)"
+      echo "Triggered By: $(Build.RequestedFor)"
+      echo "========================================"
+    displayName: 'Build Summary'
+    condition: always()
 
-# --------------------------------------------
-# MIRROR TO GITHUB (develop only)
-# --------------------------------------------
-# Requires pipeline variable GITHUB_PAT (secret) — fine-grained PAT with
-# Contents:Read+Write on ReGen-Villages/VillageOS-API, or a classic token with repo scope.
-# Set in Azure DevOps > Pipelines > Edit > Variables
-- bash: |
-    # Without this the step's exit code is the final git push's, so anything failing before it goes
-    # unreported — which is how an unrewritten README reached the public mirror (#6367).
-    set -euo pipefail
-    git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.git" 2>/dev/null || true
+  # --------------------------------------------
+  # MIRROR TO GITHUB (develop only)
+  # --------------------------------------------
+  # Requires pipeline variable GITHUB_PAT (secret) — fine-grained PAT with
+  # Contents:Read+Write on ReGen-Villages/VillageOS-API, or a classic token with repo scope.
+  # Set in Azure DevOps > Pipelines > Edit > Variables
+  - bash: |
+      # Without this the step's exit code is the final git push's, so anything failing before it goes
+      # unreported — which is how an unrewritten README reached the public mirror (#6367).
+      set -euo pipefail
+      git remote add github "https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.git" 2>/dev/null || true
 
-    # Rewrite Azure DevOps wiki URLs → GitHub wiki URLs so the GitHub README
-    # links to the GitHub wiki (the canonical README keeps DevOps links).
-    # The canonical README uses the ID-stable pagePath form
-    # (.../VillageOS-API-Wiki?pagePath=%2FPage); the page name maps to the
-    # GitHub wiki slug. The wiki-root link and the VillageOS project link are
-    # rewritten by exact match. Keep these patterns in sync with README.md.
-    # Written through a temporary file rather than edited in place: `sed -i` means "no backup" to
-    # GNU sed and "the next argument is the backup extension" to the BSD sed macOS ships, and the
-    # agents are macOS.
-    sed \
-      -e 's|https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2F\([^)]*\)|https://github.com/ReGen-Villages/VillageOS-API/wiki/\1|g' \
-      -e 's|\[VillageOS\](https://dev.azure.com/ReGenVillages/VillageOS)|VillageOS|g' \
-      -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)|[VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki)|g' \
-      README.md > "$AGENT_TEMPDIRECTORY/README.mirror.md"
-    mv "$AGENT_TEMPDIRECTORY/README.mirror.md" README.md
-    git add README.md
-    git -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
-      commit -m "ci: rewrite wiki links for GitHub mirror" --allow-empty || true
+      # Rewrite Azure DevOps wiki URLs → GitHub wiki URLs so the GitHub README
+      # links to the GitHub wiki (the canonical README keeps DevOps links).
+      # The canonical README uses the ID-stable pagePath form
+      # (.../VillageOS-API-Wiki?pagePath=%2FPage); the page name maps to the
+      # GitHub wiki slug. The wiki-root link and the VillageOS project link are
+      # rewritten by exact match. Keep these patterns in sync with README.md.
+      # Written through a temporary file rather than edited in place: `sed -i` means "no backup" to
+      # GNU sed and "the next argument is the backup extension" to the BSD sed macOS ships, and the
+      # agents are macOS.
+      sed \
+        -e 's|https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki/wikis/VillageOS-API-Wiki?pagePath=%2F\([^)]*\)|https://github.com/ReGen-Villages/VillageOS-API/wiki/\1|g' \
+        -e 's|\[VillageOS\](https://dev.azure.com/ReGenVillages/VillageOS)|VillageOS|g' \
+        -e 's|\[VillageOS API Wiki\](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki)|[VillageOS API Wiki](https://github.com/ReGen-Villages/VillageOS-API/wiki)|g' \
+        README.md > "$AGENT_TEMPDIRECTORY/README.mirror.md"
+      mv "$AGENT_TEMPDIRECTORY/README.mirror.md" README.md
+      git add README.md
+      git -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
+        commit -m "ci: rewrite wiki links for GitHub mirror" --allow-empty || true
 
-    # Fully-qualified ref so the first push to a freshly (re)created empty repo works —
-    # a short ref (HEAD:develop) only resolves when the branch already exists on the remote.
-    git push github "HEAD:refs/heads/develop" --force
-  displayName: 'Mirror to GitHub'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
-  env:
-    GITHUB_PAT: $(GITHUB_PAT)
+      # Fully-qualified ref so the first push to a freshly (re)created empty repo works —
+      # a short ref (HEAD:develop) only resolves when the branch already exists on the remote.
+      git push github "HEAD:refs/heads/develop" --force
+    displayName: 'Mirror to GitHub'
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    env:
+      GITHUB_PAT: $(GITHUB_PAT)
 
-# --------------------------------------------
-# PUBLISH DOCS TO THE PROJECT WIKI (develop only)
-# --------------------------------------------
-# The repository is the source of truth for the wiki: tools/docs-to-wiki generates every page
-# from a document listed in its manifest. This runs before the GitHub wiki mirror below, so a
-# single build carries a documentation change from the merge all the way to the public GitHub
-# wiki — and on the same branch the repository mirror runs on, because that mirror publishes
-# whatever this step left on the project wiki. Split across two branches, the public wiki would
-# describe one branch beside the other branch's code.
-#
-# Prerequisite: AZURE_DEVOPS_PAT needs the Wiki scope, Read & Write. Publishing goes through the
-# wiki REST API rather than git precisely so that is enough: a project wiki is a git repository,
-# so pushing to it needs the Code scope, which on a classic token means write access to every
-# repository in the organisation — far more than publishing a wiki should carry. The mirror step
-# below still clones the wiki, which is what its Code: Read covers.
-#
-# Pages absent from the manifest are removed rather than left behind. Wiki history keeps every
-# version, and a page whose content already matches is left untouched so a build that changes no
-# documentation adds no revisions.
-- bash: |
-    set -euo pipefail
-    OUT="$AGENT_TEMPDIRECTORY/wiki-generated"
-    MANIFEST=tools/docs-to-wiki/wiki-map.json
-    node tools/docs-to-wiki/docs-to-wiki.js "$(Build.SourcesDirectory)" "$MANIFEST" "$OUT"
-    node tools/docs-to-wiki/publish-wiki.js "$MANIFEST" "$OUT"
-  displayName: 'Publish Docs to Wiki'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
-  env:
-    AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
+  # --------------------------------------------
+  # PUBLISH DOCS TO THE PROJECT WIKI (develop only)
+  # --------------------------------------------
+  # The repository is the source of truth for the wiki: tools/docs-to-wiki generates every page
+  # from a document listed in its manifest. This runs before the GitHub wiki mirror below, so a
+  # single build carries a documentation change from the merge all the way to the public GitHub
+  # wiki — and on the same branch the repository mirror runs on, because that mirror publishes
+  # whatever this step left on the project wiki. Split across two branches, the public wiki would
+  # describe one branch beside the other branch's code.
+  #
+  # Prerequisite: AZURE_DEVOPS_PAT needs the Wiki scope, Read & Write. Publishing goes through the
+  # wiki REST API rather than git precisely so that is enough: a project wiki is a git repository,
+  # so pushing to it needs the Code scope, which on a classic token means write access to every
+  # repository in the organisation — far more than publishing a wiki should carry. The mirror step
+  # below still clones the wiki, which is what its Code: Read covers.
+  #
+  # Pages absent from the manifest are removed rather than left behind. Wiki history keeps every
+  # version, and a page whose content already matches is left untouched so a build that changes no
+  # documentation adds no revisions.
+  - bash: |
+      set -euo pipefail
+      OUT="$AGENT_TEMPDIRECTORY/wiki-generated"
+      MANIFEST=tools/docs-to-wiki/wiki-map.json
+      node tools/docs-to-wiki/docs-to-wiki.js "$(Build.SourcesDirectory)" "$MANIFEST" "$OUT"
+      node tools/docs-to-wiki/publish-wiki.js "$MANIFEST" "$OUT"
+    displayName: 'Publish Docs to Wiki'
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    env:
+      AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
 
-# --------------------------------------------
-# MIRROR WIKI TO GITHUB (develop only)
-# --------------------------------------------
-# Repopulates the GitHub wiki from the canonical Azure DevOps project wiki,
-# converting every DevOps-specific link to its GitHub target (see
-# tools/wiki-mirror/sync-wiki.js). Without this the GitHub README's wiki links
-# 404 because the GitHub wiki is never populated.
-#
-# Prerequisites (one-time):
-#   - GitHub: enable Wikis in repo Settings → Features (creates the .wiki.git repo).
-#   - AZURE_DEVOPS_PAT (secret pipeline variable): a PAT with Code:Read used to
-#     clone the canonical project wiki. System.AccessToken can NOT be used here:
-#     the project has "Protect access to repositories in YAML pipelines"
-#     (enforceReferencedRepoScopedToken), which scopes the build token to only
-#     checked-out repos — the wiki isn't one, so it returns TF401019. A PAT
-#     bypasses that scoping. Declaring the wiki as a repository resource does NOT
-#     extend the scoped token (verified), and a `checkout: wiki` step would remap
-#     the self-repo source dir and break the build (Bug #5525).
-#   - GITHUB_PAT: classic token with repo scope (covers both the repo push and the
-#     wiki push; fine-grained PATs cannot reliably push to GitHub wikis).
-- bash: |
-    set -euo pipefail
-    SRC="$AGENT_TEMPDIRECTORY/devops-wiki"
-    OUT="$AGENT_TEMPDIRECTORY/wiki-out"
-    DEST="$AGENT_TEMPDIRECTORY/github-wiki"
-    WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.wiki.git"
+  # --------------------------------------------
+  # MIRROR WIKI TO GITHUB (develop only)
+  # --------------------------------------------
+  # Repopulates the GitHub wiki from the canonical Azure DevOps project wiki,
+  # converting every DevOps-specific link to its GitHub target (see
+  # tools/wiki-mirror/sync-wiki.js). Without this the GitHub README's wiki links
+  # 404 because the GitHub wiki is never populated.
+  #
+  # Prerequisites (one-time):
+  #   - GitHub: enable Wikis in repo Settings → Features (creates the .wiki.git repo).
+  #   - AZURE_DEVOPS_PAT (secret pipeline variable): a PAT with Code:Read used to
+  #     clone the canonical project wiki. System.AccessToken can NOT be used here:
+  #     the project has "Protect access to repositories in YAML pipelines"
+  #     (enforceReferencedRepoScopedToken), which scopes the build token to only
+  #     checked-out repos — the wiki isn't one, so it returns TF401019. A PAT
+  #     bypasses that scoping. Declaring the wiki as a repository resource does NOT
+  #     extend the scoped token (verified), and a `checkout: wiki` step would remap
+  #     the self-repo source dir and break the build (Bug #5525).
+  #   - GITHUB_PAT: classic token with repo scope (covers both the repo push and the
+  #     wiki push; fine-grained PATs cannot reliably push to GitHub wikis).
+  - bash: |
+      set -euo pipefail
+      SRC="$AGENT_TEMPDIRECTORY/devops-wiki"
+      OUT="$AGENT_TEMPDIRECTORY/wiki-out"
+      DEST="$AGENT_TEMPDIRECTORY/github-wiki"
+      WIKI_URL="https://x-access-token:${GITHUB_PAT}@github.com/ReGen-Villages/VillageOS-API.wiki.git"
 
-    # 1. Clone the canonical Azure DevOps project wiki using AZURE_DEVOPS_PAT.
-    #    System.AccessToken is scoped to checked-out repos only and the wiki is
-    #    not one, so it returns TF401019; a PAT bypasses that scoping (Bug #5525).
-    rm -rf "$SRC"
-    AZDO_AUTH=$(printf ':%s' "$AZURE_DEVOPS_PAT" | base64 | tr -d '\n')
-    git -c http.extraheader="Authorization: Basic ${AZDO_AUTH}" \
-      clone --depth 1 \
-      "https://dev.azure.com/ReGenVillages/VillageOS-API/_git/$(wikiRepoId)" "$SRC"
+      # 1. Clone the canonical Azure DevOps project wiki using AZURE_DEVOPS_PAT.
+      #    System.AccessToken is scoped to checked-out repos only and the wiki is
+      #    not one, so it returns TF401019; a PAT bypasses that scoping (Bug #5525).
+      rm -rf "$SRC"
+      AZDO_AUTH=$(printf ':%s' "$AZURE_DEVOPS_PAT" | base64 | tr -d '\n')
+      git -c http.extraheader="Authorization: Basic ${AZDO_AUTH}" \
+        clone --depth 1 \
+        "https://dev.azure.com/ReGenVillages/VillageOS-API/_git/$(wikiRepoId)" "$SRC"
 
-    # 2. Convert DevOps wiki -> GitHub wiki content.
-    node tools/wiki-mirror/sync-wiki.js "$SRC" "$OUT"
+      # 2. Convert DevOps wiki -> GitHub wiki content.
+      node tools/wiki-mirror/sync-wiki.js "$SRC" "$OUT"
 
-    # 3. Clone the GitHub wiki (or init if the .wiki.git is empty).
-    rm -rf "$DEST"
-    git clone "$WIKI_URL" "$DEST" || {
-      mkdir -p "$DEST"
-      git -C "$DEST" init -q
-      git -C "$DEST" remote add origin "$WIKI_URL"
-    }
+      # 3. Clone the GitHub wiki (or init if the .wiki.git is empty).
+      rm -rf "$DEST"
+      git clone "$WIKI_URL" "$DEST" || {
+        mkdir -p "$DEST"
+        git -C "$DEST" init -q
+        git -C "$DEST" remote add origin "$WIKI_URL"
+      }
 
-    # 4. Replace all pages with the freshly converted content.
-    find "$DEST" -maxdepth 1 -name '*.md' -delete
-    cp "$OUT"/*.md "$DEST"/
+      # 4. Replace all pages with the freshly converted content.
+      find "$DEST" -maxdepth 1 -name '*.md' -delete
+      cp "$OUT"/*.md "$DEST"/
 
-    # 5. Commit and push (GitHub wikis use the master branch).
-    git -C "$DEST" add -A
-    git -C "$DEST" -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
-      commit -m "ci: sync wiki from Azure DevOps" || { echo "No wiki changes."; exit 0; }
-    git -C "$DEST" push origin HEAD:refs/heads/master --force
-  displayName: 'Mirror Wiki to GitHub'
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
-  env:
-    GITHUB_PAT: $(GITHUB_PAT)
-    AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
+      # 5. Commit and push (GitHub wikis use the master branch).
+      git -C "$DEST" add -A
+      git -C "$DEST" -c user.name="Azure Pipelines" -c user.email="azuredevops@regenvillages.com" \
+        commit -m "ci: sync wiki from Azure DevOps" || { echo "No wiki changes."; exit 0; }
+      git -C "$DEST" push origin HEAD:refs/heads/master --force
+    displayName: 'Mirror Wiki to GitHub'
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    env:
+      GITHUB_PAT: $(GITHUB_PAT)
+      AZURE_DEVOPS_PAT: $(AZURE_DEVOPS_PAT)
 
