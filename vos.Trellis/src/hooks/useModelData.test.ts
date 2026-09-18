@@ -333,6 +333,78 @@ describe('useModelData', () => {
     expect(useModelStore.getState().things).toHaveLength(0);
   });
 
+  it('seeds the states a narrowed subscription answered with', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({ covered: {
+        things: [{ Id: 't1', Name: 'A', Properties: {} }],
+        relationships: [],
+        thingStates: new Map([['t1', ['flagged']]]),
+      } });
+    });
+
+    expect(useModelStore.getState().thingStates.get('t1')).toEqual(['flagged']);
+  });
+
+  it('lands a StatesChanged for a held Thing on a narrowed page, and nothing for one not held', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({ covered: {
+        things: [{ Id: 't1', Name: 'A', Properties: {} }],
+        relationships: [],
+        thingStates: new Map([['t1', ['flagged']]]),
+      } });
+    });
+
+    await act(async () => {
+      handlers.get('StatesChanged')!({ entityId: 't1', currentStates: ['cleared'] });
+      handlers.get('StatesChanged')!({ entityId: 't9', currentStates: ['flagged'] });
+    });
+
+    await waitFor(() => expect(useModelStore.getState().thingStates.get('t1')).toEqual(['cleared']));
+    expect(useModelStore.getState().thingStates.has('t9')).toBe(false);
+  });
+
+  it('keeps no state change on a whole-model page', async () => {
+    mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: {} }]);
+    await mountLoaded();
+    await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
+
+    await act(async () => { handlers.get('StatesChanged')!({ entityId: 't1', currentStates: ['flagged'] }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+
+    expect(useModelStore.getState().thingStates.size).toBe(0);
+  });
+
+  it('a StatesChanged carrying no state set changes nothing', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({ covered: {
+        things: [{ Id: 't1', Name: 'A', Properties: {} }],
+        relationships: [],
+        thingStates: new Map([['t1', ['flagged']]]),
+      } });
+    });
+
+    await act(async () => { handlers.get('StatesChanged')!({ entityId: 't1' }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+
+    expect(useModelStore.getState().thingStates.get('t1')).toEqual(['flagged']);
+  });
+
+  it('seeds the states an entering Thing carries', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({ covered: { things: [], relationships: [], thingStates: new Map() } });
+    });
+
+    await act(async () => {
+      handlers.get('ThingEntered')!({ EntityId: 't-typed', Thing: { ...wireThing('t-typed', 'Typed'), States: ['flagged'] } });
+    });
+
+    await waitFor(() => expect(useModelStore.getState().thingStates.get('t-typed')).toEqual(['flagged']));
+  });
+
   it('bumps uiStore.statesVersion when StatesChanged fires', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
@@ -387,6 +459,7 @@ describe('useModelData', () => {
         covered: {
           things: [{ Id: 't1', Name: 'Scoped', Properties: {} }],
           relationships: [{ Id: 'r1', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} }],
+          thingStates: new Map(),
         },
       });
     });
@@ -402,7 +475,7 @@ describe('useModelData', () => {
   it('empties a narrowed set before loading the whole model over it', async () => {
     renderHook(() => useModelData());
     await act(async () => {
-      subscriptionOpened({ covered: { things: [{ Id: 't1', Name: 'Scoped', Properties: {} }], relationships: [] } });
+      subscriptionOpened({ covered: { things: [{ Id: 't1', Name: 'Scoped', Properties: {} }], relationships: [], thingStates: new Map() } });
     });
 
     let finishLoad: (things: unknown[]) => void = () => {};

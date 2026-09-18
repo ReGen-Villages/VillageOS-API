@@ -233,15 +233,17 @@ async function openStreams() {
 function announceOpened(
   subscriptionId: string,
   watermark: number,
-  snapshot: { things?: VosThing[]; relationships?: VosRelationship[] } | undefined,
+  snapshot: { things?: (VosThing & { States: string[] })[]; relationships?: VosRelationship[] } | undefined,
   selector: SubscriptionSelector,
 ) {
+  const things = snapshot?.things ?? [];
   const opened: SubscriptionOpened = {
     subscriptionId,
     watermark,
     covered: selector.all ? null : {
-      things: (snapshot?.things ?? []).map(unwrapThing),
+      things: things.map(unwrapThing),
       relationships: (snapshot?.relationships ?? []).map(unwrapRelationship),
+      thingStates: new Map(things.map((thing) => [thing.Id, thing.States])),
     },
   };
   dispatch(SUBSCRIPTION_OPENED, opened);

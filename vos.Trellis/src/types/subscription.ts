@@ -60,5 +60,10 @@ export interface SubscriptionOpened {
    * whole-model snapshot into the shape the store holds and then discarding it costs an object per
    * Thing and per property on the largest answer the platform gives.
    */
-  covered: { things: VosThing[]; relationships: VosRelationship[] } | null;
+  covered: {
+    things: VosThing[];
+    relationships: VosRelationship[];
+    /** The derived states each Thing held at `watermark`, empty for a Thing holding none. */
+    thingStates: Map<string, string[]>;
+  } | null;
 }

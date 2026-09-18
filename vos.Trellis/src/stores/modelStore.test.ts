@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { useModelStore } from './modelStore';
+import { renderHook, act } from '@testing-library/react';
+import { useModelStore, useThingStates } from './modelStore';
 import type { VosThing, VosRelationship } from '../types/vos';
 
 const thing = (id: string, name: string) => ({
@@ -172,5 +173,73 @@ describe('a flush costs the size of the batch, not the size of the model', () =>
     useModelStore.getState().clear();
     expect(cleared).toHaveBeenCalledTimes(2);
     cleared.mockRestore();
+  });
+});
+
+describe('the derived states beside the model', () => {
+  const held = [thing('T1', 'one'), thing('T2', 'two')];
+
+  it('seeds from a snapshot, replacing what was there', () => {
+    useModelStore.getState().seedThingStates(new Map([['T1', ['flagged']]]));
+    useModelStore.getState().seedThingStates(new Map([['T2', ['metered']]]));
+
+    expect(useModelStore.getState().thingStates.get('T1')).toBeUndefined();
+    expect(useModelStore.getState().thingStates.get('T2')).toEqual(['metered']);
+  });
+
+  it('writes a state change in place and moves the version', () => {
+    useModelStore.getState().setThings(held);
+    useModelStore.getState().seedThingStates(new Map([['T1', ['flagged']]]));
+    const map = useModelStore.getState().thingStates;
+    const version = useModelStore.getState().thingStatesVersion;
+
+    useModelStore.getState().applyBatch({ thingStateUpdates: [{ id: 'T1', states: ['cleared'] }] });
+
+    expect(useModelStore.getState().thingStates).toBe(map);
+    expect(map.get('T1')).toEqual(['cleared']);
+    expect(useModelStore.getState().thingStatesVersion).toBe(version + 1);
+  });
+
+  it('keeps a state change only for a Thing the store holds', () => {
+    useModelStore.getState().setThings(held);
+
+    useModelStore.getState().applyBatch({ thingStateUpdates: [{ id: 'T9', states: ['flagged'] }] });
+
+    expect(useModelStore.getState().thingStates.has('T9')).toBe(false);
+  });
+
+  it('leaves no state entry behind for a Thing that was removed', () => {
+    useModelStore.getState().setThings(held);
+    useModelStore.getState().seedThingStates(new Map([['T1', ['flagged']], ['T2', ['metered']]]));
+    const version = useModelStore.getState().thingStatesVersion;
+
+    useModelStore.getState().applyBatch({ thingRemovals: ['T1'] });
+
+    expect(useModelStore.getState().thingStates.has('T1')).toBe(false);
+    expect(useModelStore.getState().thingStates.get('T2')).toEqual(['metered']);
+    expect(useModelStore.getState().thingStatesVersion).toBe(version + 1);
+  });
+
+  it('drops the states at a load and on clear', () => {
+    useModelStore.getState().seedThingStates(new Map([['T1', ['flagged']]]));
+    useModelStore.getState().setThings(held);
+    expect(useModelStore.getState().thingStates.size).toBe(0);
+
+    useModelStore.getState().seedThingStates(new Map([['T1', ['flagged']]]));
+    useModelStore.getState().clear();
+    expect(useModelStore.getState().thingStates.size).toBe(0);
+  });
+
+  it('redraws a component reading the states when one moves', () => {
+    useModelStore.getState().setThings(held);
+    useModelStore.getState().seedThingStates(new Map([['T1', ['flagged']]]));
+    let renders = 0;
+    const { result } = renderHook(() => { renders += 1; return useThingStates(); });
+    const before = renders;
+
+    act(() => { useModelStore.getState().applyBatch({ thingStateUpdates: [{ id: 'T1', states: ['cleared'] }] }); });
+
+    expect(renders).toBeGreaterThan(before);
+    expect(result.current.get('T1')).toEqual(['cleared']);
   });
 });

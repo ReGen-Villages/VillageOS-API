@@ -1,7 +1,6 @@
 import { apiClient } from './client';
 import type {
   ThingsInStateResponse,
-  ObjectStatesResponse,
   StateTransitionsResponse,
   StateOccurrencesResponse,
 } from '../types/vos';
@@ -18,10 +17,6 @@ function withWindow(path: string, from?: string, to?: string): string {
 export const stateApi = {
   getThingsInState: (stateName: string, narrowing?: StateNarrowing) =>
     apiClient.get<ThingsInStateResponse>(thingsInStatePath(stateName, narrowing)),
-
-  /** Current derived states of one Thing (its range evaluations that currently hold). */
-  getThingStates: (thingId: string, signal?: AbortSignal) =>
-    apiClient.get<ObjectStatesResponse>(`/api/things/${thingId}/states`, signal),
 
   /** When a Thing entered and exited each derived state, with the triggering property write.
    *  The response's `Coverage` states how far back the history reaches. */

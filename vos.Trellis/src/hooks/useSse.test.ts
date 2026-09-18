@@ -351,7 +351,10 @@ describe('useSse', () => {
         subscriptionId: 's1',
         watermark: 4,
         snapshot: {
-          things: [{ Id: 't1', Name: 'Site', Properties: { area: { typeInfo: 'vos.Double', value: 3 } } }],
+          things: [
+            { Id: 't1', Name: 'Site', Properties: { area: { typeInfo: 'vos.Double', value: 3 } }, States: ['flagged'] },
+            { Id: 't2', Name: 'Spring', Properties: {}, States: [] },
+          ],
           relationships: [{ Id: 'r1', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} }],
         },
       }),
@@ -374,6 +377,7 @@ describe('useSse', () => {
     expect(opened.watermark).toBe(4);
     expect(opened.covered!.things[0].Properties).toEqual({ area: 3 }); // unwrapped, as read elsewhere
     expect(opened.covered!.relationships).toHaveLength(1);
+    expect(opened.covered!.thingStates).toEqual(new Map([['t1', ['flagged']], ['t2', []]]));
     act(() => off());
     page.unmount();
     unmount();
