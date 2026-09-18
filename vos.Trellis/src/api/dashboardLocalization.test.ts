@@ -9,6 +9,7 @@ import type {
   TableWidget,
   VerdictWidget,
   RangeBarWidget,
+  HeatmapWidget,
 } from '../types/dashboard';
 
 /** A spec exercising every widget type plus a detail card. The base strings are
@@ -370,5 +371,32 @@ describe('localizeSpec over a rangeBar widget', () => {
 
   it('never rewrites a value that is not wording, even when a translation entry matches it', () => {
     expect(localized.bands![0].colour).toBe('Comfort');
+  });
+});
+
+describe('localizeSpec over a heatmap widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'heatmap',
+              title: 'Sun',
+              hint: 'hour by day',
+              unit: 'watts',
+              value: { kind: 'const', value: 1 },
+            } satisfies HeatmapWidget] }],
+    translations: {
+      es: {
+          'Sun': 'Sol',
+          'hour by day': 'hora por día',
+          'watts': 'vatios',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as HeatmapWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Sol');
+    expect(localized.hint).toBe('hora por día');
+    expect(localized.unit).toBe('vatios');
   });
 });
