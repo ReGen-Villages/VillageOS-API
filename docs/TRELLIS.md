@@ -1351,9 +1351,13 @@ events below ride the object stream; the rest ride the system stream.
 
 | Event | Payload | Triggered By |
 |-------|---------|-------------|
-| `ThingCreated` | `{ EntityId }` (id only — client hydrates via `GET /api/things/{id}`) | `POST /api/things` |
+| `ThingCreated` | `{ EntityId, Thing }` — the Thing whole, in the snapshot's shape | `POST /api/things` |
+| `ThingEntered` | `{ EntityId, Thing }` — a Thing a later `is` edge typed into a followed type | `POST /api/relationships` on a following subscription |
+| `ThingLeft` | `{ EntityId }` — a followed Thing whose last matching `is` edge was retracted | `DELETE /api/relationships/{id}` on a following subscription |
 | `ThingDeleted` | `{ EntityId }` | `DELETE /api/things/{id}` |
-| `RelationshipCreated` | `{ EntityId }` (id only — client hydrates via `GET /api/relationships/{id}`) | `POST /api/relationships` |
+| `RelationshipCreated` | `{ EntityId, Relationship }` — the edge whole, with `SubjectId`, `PredicateId`, `TargetId` | `POST /api/relationships` |
+| `RelationshipEntered` | `{ EntityId, Relationship }` — an edge an entering Thing already held | with `ThingEntered` |
+| `RelationshipLeft` | `{ EntityId }` — an edge a leaving Thing alone held | with `ThingLeft` |
 | `RelationshipDeleted` | `{ EntityId }` | `DELETE /api/relationships/{id}` |
 | `PropertyChanged` | `thingId, name, value` | `POST /api/things/{id}/properties` |
 | `PropertyDeleted` | `thingId, name` | `DELETE /api/things/{id}/properties/{name}` |
@@ -1454,7 +1458,7 @@ type.
 
 - **useModelData** (app-shell hook): Subscribes to structural and property events and keeps the `modelStore` current with an incremental strategy — individual events do not trigger a full-model refetch (each subscription's snapshot is what fills the store, see below):
   - **Delete → local removal** (zero network): ThingDeleted / RelationshipDeleted read the event's `EntityId` and drop that element from the store in the same batch as everything else in the window. Unknown ids are a no-op.
-  - **Create → single-object hydrate**: ThingCreated / RelationshipCreated carry only an id (the broker deliberately does not stream a new object's properties), so the handler fetches just that one object (`GET /api/things/{id}` or `/api/relationships/{id}`) and `upsert`s it. Upsert is idempotent, so duplicate events don't double-add. A failed hydrate is **retried once** after a short delay (covers a transient fetch error); a genuine create/delete race 404s again and is correctly abandoned (the delete event removes it).
+  - **Create → single-object hydrate**: the handler reads the event's `EntityId`, fetches just that one object (`GET /api/things/{id}` or `/api/relationships/{id}`) and `upsert`s it. Upsert is idempotent, so duplicate events don't double-add. A failed hydrate is **retried once** after a short delay (covers a transient fetch error); a genuine create/delete race 404s again and is correctly abandoned (the delete event removes it). The event carries the object whole, so this fetch is a request the handler could stop making; Trellis does not yet apply the body, and does not follow later matches, so the entering and leaving kinds do not reach it.
   - **The load follows the subscription.** Every open — the first, a reconnect, and a page changing what the subscription covers — raises `SUBSCRIPTION_OPENED`, and that is what starts a load:
     - **Narrowed** → the snapshot *is* the load. The Things the page is about arrived with it, so nothing reads the model to find them again, and a reconnect refills the page the same way rather than waiting for the stream to re-deliver what it missed.
     - **Whole model** → `reloadModelData()`, the only path that honours the properties the model says its pages are drawn with (`ModelLoadProperties`, which the snapshot has no equivalent for). A narrowed set already in the store is emptied first, so a page that asked for the whole model is never shown a narrower page's set as though it were the model.

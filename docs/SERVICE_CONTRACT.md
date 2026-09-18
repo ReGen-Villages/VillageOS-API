@@ -135,10 +135,14 @@ you whenever it appears. Three things to know before you rely on it:
   membership when you open. A traversal is a walk of the model, and the match is asked inside every
   commit for every subscriber.
 - **An edge is covered when either of its ends is.** `"includeRelationships": false` turns that off.
-- **One gap: a Thing typed after it was created.** Created and typed in one request is covered. Created
-  in one request and typed in a later one is not — its creation is judged when it has no type, so you
-  get the `is` edge and never got the Thing. Read a Thing whenever an edge names one you do not hold. A
-  resume does not have the gap; the replay re-asks coverage per record, and by then the Thing matches.
+- **A Thing enters when its `is` edge types it, and arrives whole.** A Thing is created before it is
+  typed, so its creation is judged when it has no type and is not delivered; the `is` edge that first
+  makes it match delivers it as `ThingEntered`, whole, before the edge's own `RelationshipCreated`, with
+  any edges it already held as `RelationshipEntered`. This holds whether or not edges travel: a
+  subscription that declined them still enters the Thing. A Thing the rule admitted whose last matching
+  `is` edge is retracted leaves as `ThingLeft`, with the edges it alone held as `RelationshipLeft`, and
+  stops flowing until typed again; a deleted Thing is `ThingDeleted`. The membership you opened with is
+  kept as given. A mark withdrawn from an archetype does not make its members leave.
 
 **Read both, and read them through `StatedValue`.** A value written for a property name the Thing's
 archetype declares is not an own property: the platform clones the declaration into an override under
@@ -273,11 +277,33 @@ data: {"Kind":"PropertyChanged","EntityId":"<guid>","PropertyName":"temp","Value
 
 ```
 
-`id:` is the commit sequence. Kinds: `ThingCreated`, `ThingDeleted`, `RelationshipCreated`,
-`RelationshipDeleted`, `PropertyChanged`, `PropertyDeleted`, `RelationshipPropertyChanged`.
+`id:` is the commit sequence. The stream delivers changes to the subscription's **membership**, so a
+Thing or an edge you meet for the first time arrives whole and you fetch nothing:
+
+| Kind | `data` beside `Kind` and `EntityId` | When |
+| --- | --- | --- |
+| `ThingCreated` | `Thing`: the Thing in the snapshot's shape (`Id`, `Name`, `IsArchetype`, `Properties`, `RollupProperties`, `InheritedOverrides`, `States`), without the snapshot's `Relationships` list — its edges arrive as events | a Thing created that the subscription covers at its creation |
+| `ThingEntered` | `Thing`, as above | a Thing a later fact brought into a following subscription: the `is` edge that first typed it into a watched type, or a property change on a Thing typed while nothing was watching |
+| `ThingLeft` | — | a Thing the rule admitted whose last matching `is` edge was retracted while the Thing stays |
+| `ThingDeleted` | — | |
+| `RelationshipCreated` | `Relationship`: the edge in the snapshot's shape (`Id`, `Name`, `SubjectId`, `PredicateId`, `TargetId`, `Properties`, `InheritedOverrides`, `States`) | |
+| `RelationshipEntered` | `Relationship`, as above | an edge an entering Thing already held |
+| `RelationshipLeft` | — | an edge a leaving Thing alone held in the membership |
+| `RelationshipDeleted` | — | |
+| `PropertyChanged`, `RelationshipPropertyChanged` | `PropertyName`, `Value` | |
+| `PropertyDeleted`, `RelationshipPropertyDeleted` | `PropertyName` | |
+
+A body is the entity as it stands when the event is written, so it may already hold a later change
+that then arrives again as its own event; apply both. `States` in a body are the states at that
+moment; later state changes still arrive on the events stream as `StatesChanged`.
+
+**Entries and departures ride beside the change that caused them**, written before it. Of the events
+delivered for one change, only the last carries `id:` — the change itself, or the last entry where the
+change is not delivered — so a resume position names a sequence you received whole.
 **Resume:** on reconnect send the last sequence seen via the `Last-Event-ID` header (EventSource
-does this automatically) or `?lastEventId=`; the server replays committed changes after it, then
-goes live — gap-free and exactly-once. Initial connect resumes from the snapshot `watermark`.
+does this automatically) or `?lastEventId=`; the server replays committed changes after it, with the
+entries and departures each caused, then goes live — gap-free and exactly-once. Initial connect
+resumes from the snapshot `watermark`.
 
 **Derived changes are live-only.** A computed (roll-up) property's change arrives as an ordinary
 property-changed event, but no Fact exists for it, so a resume — which replays the journal —
@@ -361,7 +387,7 @@ const es = new EventSource(
   `${base}/api/subscriptions/${sub.subscriptionId}/stream?lastEventId=${sub.watermark}`,
   { fetch: (u, o) => fetch(u, { ...o, headers: { ...o.headers, Authorization: `Bearer ${token}` } }) },
 );
-for (const kind of ['ThingCreated','ThingDeleted','PropertyChanged','RelationshipPropertyChanged'])
+for (const kind of ['ThingCreated','ThingEntered','ThingLeft','ThingDeleted','PropertyChanged','RelationshipPropertyChanged'])
   es.addEventListener(kind, e => apply(kind, JSON.parse(e.data)));
 ```
 
