@@ -17,6 +17,16 @@ vi.mock('../api/relationshipApi', () => ({
   relationshipApi: { getAll: () => mockGetAllRels(), get: (id: string) => mockGetRel(id) },
 }));
 
+/** A Thing as the stream carries it: the snapshot's shape, properties in their typed wrappers. */
+const wireThing = (Id: string, Name: string, properties: Record<string, unknown> = {}) => ({
+  Id, Name, IsArchetype: false,
+  Properties: Object.fromEntries(Object.entries(properties).map(([name, value]) => [name, { typeInfo: 'vos.Double', value }])),
+  RollupProperties: null, InheritedOverrides: null, States: [],
+});
+const wireEdge = (Id: string, SubjectId: string, PredicateId: string, TargetId: string) => ({
+  Id, Name: null, SubjectId, PredicateId, TargetId, Properties: {}, InheritedOverrides: null, States: [],
+});
+
 // Capture the SSE handler registry so tests can fire events synthetically.
 type Handler = (...args: unknown[]) => void;
 const handlers = new Map<string, Handler>();
@@ -141,16 +151,18 @@ describe('useModelData', () => {
     expect(useModelStore.getState().relationships).toHaveLength(1);
   });
 
-  it('ThingCreated hydrates the single new thing and upserts it without a full refetch', async () => {
+  it('ThingCreated lands the Thing it carries in the store, with its properties, and asks for nothing', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalledTimes(1));
     mockGetAllThings.mockClear();
 
-    mockGetThing.mockResolvedValue({ Id: 't-new', Name: 'New' });
-    await act(async () => { handlers.get('ThingCreated')!({ EntityId: 't-new' }); });
+    await act(async () => {
+      handlers.get('ThingCreated')!({ EntityId: 't-new', Thing: wireThing('t-new', 'New', { volume: 4 }) });
+    });
 
     await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
-    expect(mockGetThing).toHaveBeenCalledWith('t-new');
+    expect(useModelStore.getState().things[0]).toMatchObject({ Id: 't-new', Name: 'New', Properties: { volume: 4 } });
+    expect(mockGetThing).not.toHaveBeenCalled();
     expect(mockGetAllThings).not.toHaveBeenCalled();
   });
 
@@ -158,26 +170,21 @@ describe('useModelData', () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
 
-    mockGetThing.mockResolvedValue({ Id: 't-new', Name: 'New' });
-    await act(async () => { handlers.get('ThingCreated')!({ EntityId: 't-new' }); });
-    await act(async () => { handlers.get('ThingCreated')!({ EntityId: 't-new' }); });
+    await act(async () => { handlers.get('ThingCreated')!({ EntityId: 't-new', Thing: wireThing('t-new', 'New') }); });
+    await act(async () => { handlers.get('ThingCreated')!({ EntityId: 't-new', Thing: wireThing('t-new', 'New') }); });
 
     await waitFor(() => expect(useModelStore.getState().things.filter((t) => t.Id === 't-new')).toHaveLength(1));
-    expect(mockGetThing).toHaveBeenCalledTimes(1); // deduped within the flush window
   });
 
   it('coalesces a burst of structural events into a single batched store write', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
 
-    mockGetThing.mockImplementation((id: string) => Promise.resolve({ Id: id, Name: id, Properties: {} }));
     let writes = 0;
     const unsub = useModelStore.subscribe(() => { writes++; });
 
     await act(async () => {
-      handlers.get('ThingCreated')!({ EntityId: 'a' });
-      handlers.get('ThingCreated')!({ EntityId: 'b' });
-      handlers.get('ThingCreated')!({ EntityId: 'c' });
+      for (const id of ['a', 'b', 'c']) handlers.get('ThingCreated')!({ EntityId: id, Thing: wireThing(id, id) });
     });
 
     await waitFor(() =>
@@ -187,29 +194,96 @@ describe('useModelData', () => {
     expect(writes).toBe(1); // one applyBatch for the whole burst, not one write per event
   });
 
-  it('ThingCreated with a failed hydrate does not throw or change the store', async () => {
+  it('ThingCreated carrying no body changes nothing and asks for nothing', async () => {
     useModelStore.setState({ things: [{ Id: 't1', Name: 'A', Properties: {} }], relationships: [] });
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
     useModelStore.setState({ things: [{ Id: 't1', Name: 'A', Properties: {} }], relationships: [] });
 
-    mockGetThing.mockRejectedValue(new Error('404'));
     await act(async () => { handlers.get('ThingCreated')!({ EntityId: 'gone' }); });
 
     expect(useModelStore.getState().things).toHaveLength(1);
+    expect(mockGetThing).not.toHaveBeenCalled();
   });
 
-  it('RelationshipCreated hydrates the single new relationship and upserts it', async () => {
+  it('RelationshipCreated lands the edge it carries with its three ends, and asks for nothing', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllRels).toHaveBeenCalled());
     mockGetAllRels.mockClear();
 
-    mockGetRel.mockResolvedValue({ Id: 'r-new', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2' });
-    await act(async () => { handlers.get('RelationshipCreated')!({ EntityId: 'r-new' }); });
+    await act(async () => {
+      handlers.get('RelationshipCreated')!({ EntityId: 'r-new', Relationship: wireEdge('r-new', 't1', 'p', 't2') });
+    });
 
     await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(1));
-    expect(mockGetRel).toHaveBeenCalledWith('r-new');
+    expect(useModelStore.getState().relationships[0]).toMatchObject({ Id: 'r-new', SubjectId: 't1', PredicateId: 'p', TargetId: 't2' });
+    expect(mockGetRel).not.toHaveBeenCalled();
     expect(mockGetAllRels).not.toHaveBeenCalled();
+  });
+
+  it('ThingEntered adds the Thing it carries', async () => {
+    await mountLoaded();
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+
+    await act(async () => {
+      handlers.get('ThingEntered')!({ EntityId: 't-typed', Thing: wireThing('t-typed', 'Typed', { area: 9 }) });
+    });
+
+    await waitFor(() => expect(useModelStore.getState().things.map((t) => t.Id)).toEqual(['t-typed']));
+    expect(useModelStore.getState().things[0].Properties).toEqual({ area: 9 });
+    expect(mockGetThing).not.toHaveBeenCalled();
+  });
+
+  it('RelationshipEntered adds the edge it carries', async () => {
+    await mountLoaded();
+    await waitFor(() => expect(mockGetAllRels).toHaveBeenCalled());
+
+    await act(async () => {
+      handlers.get('RelationshipEntered')!({ EntityId: 'r-held', Relationship: wireEdge('r-held', 't-typed', 'is', 'arch') });
+    });
+
+    await waitFor(() => expect(useModelStore.getState().relationships.map((r) => r.Id)).toEqual(['r-held']));
+    expect(mockGetRel).not.toHaveBeenCalled();
+  });
+
+  it('ThingLeft removes the Thing without a full refetch', async () => {
+    mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: {} }, { Id: 't2', Name: 'B', Properties: {} }]);
+    await mountLoaded();
+    await waitFor(() => expect(useModelStore.getState().things).toHaveLength(2));
+    mockGetAllThings.mockClear();
+
+    await act(async () => { handlers.get('ThingLeft')!({ EntityId: 't1' }); });
+
+    await waitFor(() => expect(useModelStore.getState().things.map((t) => t.Id)).toEqual(['t2']));
+    expect(mockGetAllThings).not.toHaveBeenCalled();
+  });
+
+  it('RelationshipLeft removes the edge without a full refetch', async () => {
+    mockGetAllRels.mockResolvedValue([
+      { Id: 'r1', Name: 'is', SubjectId: 't1', PredicateId: 'p', TargetId: 't2' },
+      { Id: 'r2', Name: 'is', SubjectId: 't2', PredicateId: 'p', TargetId: 't3' },
+    ]);
+    await mountLoaded();
+    await waitFor(() => expect(useModelStore.getState().relationships).toHaveLength(2));
+    mockGetAllRels.mockClear();
+
+    await act(async () => { handlers.get('RelationshipLeft')!({ EntityId: 'r1' }); });
+
+    await waitFor(() => expect(useModelStore.getState().relationships.map((r) => r.Id)).toEqual(['r2']));
+    expect(mockGetAllRels).not.toHaveBeenCalled();
+  });
+
+  it('a Thing that entered and left in one window is not kept', async () => {
+    await mountLoaded();
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+
+    await act(async () => {
+      handlers.get('ThingEntered')!({ EntityId: 't-brief', Thing: wireThing('t-brief', 'Brief') });
+      handlers.get('ThingLeft')!({ EntityId: 't-brief' });
+    });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+
+    expect(useModelStore.getState().things).toHaveLength(0);
   });
 
   it('ThingDeleted removes the thing locally without a full refetch', async () => {
@@ -257,6 +331,78 @@ describe('useModelData', () => {
 
     await act(async () => handlers.get('ModelCleared')!());
     expect(useModelStore.getState().things).toHaveLength(0);
+  });
+
+  it('seeds the states a narrowed subscription answered with', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({ covered: {
+        things: [{ Id: 't1', Name: 'A', Properties: {} }],
+        relationships: [],
+        thingStates: new Map([['t1', ['flagged']]]),
+      } });
+    });
+
+    expect(useModelStore.getState().thingStates.get('t1')).toEqual(['flagged']);
+  });
+
+  it('lands a StatesChanged for a held Thing on a narrowed page, and nothing for one not held', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({ covered: {
+        things: [{ Id: 't1', Name: 'A', Properties: {} }],
+        relationships: [],
+        thingStates: new Map([['t1', ['flagged']]]),
+      } });
+    });
+
+    await act(async () => {
+      handlers.get('StatesChanged')!({ entityId: 't1', currentStates: ['cleared'] });
+      handlers.get('StatesChanged')!({ entityId: 't9', currentStates: ['flagged'] });
+    });
+
+    await waitFor(() => expect(useModelStore.getState().thingStates.get('t1')).toEqual(['cleared']));
+    expect(useModelStore.getState().thingStates.has('t9')).toBe(false);
+  });
+
+  it('keeps no state change on a whole-model page', async () => {
+    mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: {} }]);
+    await mountLoaded();
+    await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
+
+    await act(async () => { handlers.get('StatesChanged')!({ entityId: 't1', currentStates: ['flagged'] }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+
+    expect(useModelStore.getState().thingStates.size).toBe(0);
+  });
+
+  it('a StatesChanged carrying no state set changes nothing', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({ covered: {
+        things: [{ Id: 't1', Name: 'A', Properties: {} }],
+        relationships: [],
+        thingStates: new Map([['t1', ['flagged']]]),
+      } });
+    });
+
+    await act(async () => { handlers.get('StatesChanged')!({ entityId: 't1' }); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+
+    expect(useModelStore.getState().thingStates.get('t1')).toEqual(['flagged']);
+  });
+
+  it('seeds the states an entering Thing carries', async () => {
+    renderHook(() => useModelData());
+    await act(async () => {
+      subscriptionOpened({ covered: { things: [], relationships: [], thingStates: new Map() } });
+    });
+
+    await act(async () => {
+      handlers.get('ThingEntered')!({ EntityId: 't-typed', Thing: { ...wireThing('t-typed', 'Typed'), States: ['flagged'] } });
+    });
+
+    await waitFor(() => expect(useModelStore.getState().thingStates.get('t-typed')).toEqual(['flagged']));
   });
 
   it('bumps uiStore.statesVersion when StatesChanged fires', async () => {
@@ -313,6 +459,7 @@ describe('useModelData', () => {
         covered: {
           things: [{ Id: 't1', Name: 'Scoped', Properties: {} }],
           relationships: [{ Id: 'r1', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} }],
+          thingStates: new Map(),
         },
       });
     });
@@ -328,7 +475,7 @@ describe('useModelData', () => {
   it('empties a narrowed set before loading the whole model over it', async () => {
     renderHook(() => useModelData());
     await act(async () => {
-      subscriptionOpened({ covered: { things: [{ Id: 't1', Name: 'Scoped', Properties: {} }], relationships: [] } });
+      subscriptionOpened({ covered: { things: [{ Id: 't1', Name: 'Scoped', Properties: {} }], relationships: [], thingStates: new Map() } });
     });
 
     let finishLoad: (things: unknown[]) => void = () => {};
@@ -358,29 +505,6 @@ describe('useModelData', () => {
     await act(async () => { subscriptionOpened(); });
 
     expect(toast.error).not.toHaveBeenCalled();
-  });
-
-  it('retries a failed Thing hydrate once, then upserts (Bug #5940)', async () => {
-    vi.useFakeTimers();
-    try {
-      await mountLoaded();
-      await act(async () => {});
-      mockGetThing.mockReset();
-      mockGetThing
-        .mockRejectedValueOnce(new Error('transient'))
-        .mockResolvedValueOnce({ Id: 't-new', Name: 'New', Properties: {} });
-
-      await act(async () => {
-        handlers.get('ThingCreated')!({ EntityId: 't-new' });
-        // Flush debounce (150) + hydrate retry delay (400) must both elapse.
-        await vi.advanceTimersByTimeAsync(700);
-      });
-
-      expect(mockGetThing).toHaveBeenCalledTimes(2);
-      expect(useModelStore.getState().things.map((t) => t.Id)).toContain('t-new');
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it('PropertyChanged updates the things array in place without a full reload', async () => {

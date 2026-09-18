@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X } from 'lucide-react';
 import type { TableWidget, Widget } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
 import { unimplementedWordsIn } from '../../../api/bindingVocabulary';
@@ -14,6 +13,7 @@ import { WorkingList } from './WorkingList';
 import { ExceptionBar } from './ExceptionBar';
 import { DataTable } from './DataTable';
 import { RangeBar } from './RangeBar';
+import { SearchBox } from './SearchBox';
 import { WidgetCard } from './WidgetCard';
 
 /** Renders a single widget by its `type`. The only place that knows the widget union.
@@ -34,7 +34,7 @@ export function WidgetRenderer({
 
   switch (widget.type) {
     case 'kpi':
-      return <KpiCard widget={widget} ctx={ctx} />;
+      return <KpiCard widget={widget} ctx={ctx} openDetail={openDetail} />;
     case 'funnel':
       return <Funnel widget={widget} ctx={ctx} openDetail={openDetail} />;
     case 'bullet':
@@ -92,20 +92,7 @@ function TableWidgetView({
   const onRowClick = widget.rowDetail && openDetail ? (row: Row) => openDetail(String(row.id)) : undefined;
 
   const searchBox = widget.searchable ? (
-    <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-900/50 rounded px-2 py-1 w-44">
-      <Search size={12} className="text-zinc-400 flex-shrink-0" />
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={t('widgets.table.searchPlaceholder')}
-        className="bg-transparent text-xs text-zinc-700 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none flex-1 min-w-0"
-      />
-      {query && (
-        <button onClick={() => setQuery('')} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex-shrink-0">
-          <X size={12} />
-        </button>
-      )}
-    </div>
+    <SearchBox value={query} onChange={setQuery} placeholder={t('widgets.table.searchPlaceholder')} className="bg-zinc-100 dark:bg-zinc-900/50 w-44" />
   ) : undefined;
 
   return (

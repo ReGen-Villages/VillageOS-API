@@ -16,13 +16,14 @@ public class EndpointCallChecksTests
     private static readonly ResolvedKind TokenExchange = new("TokenExchangeAuth", ["tokenUrl", "tokenPath"]);
     private static readonly ResolvedKind OffsetPaging = new("OffsetPaging", []);
     private static readonly ResolvedKind DiskCache = new("DiskCache", ["cacheTtl"]);
+    private static readonly ResolvedKind ModelAsset = new("ModelAsset", ["assetProperty", "assetSubject"]);
 
     // ---------- what the kinds require ----------
 
     [Fact]
     public void UnmetRequirement_EverythingSupplied_RefusesNothing()
     {
-        var kinds = new EndpointKinds(null, TokenExchange, null, null);
+        var kinds = new EndpointKinds(null, TokenExchange, null, null, null);
 
         EndpointCallChecks.UnmetRequirement(kinds, Effective(("tokenUrl", "https://t"), ("tokenPath", "token")))
             .Should().BeNull();
@@ -31,12 +32,23 @@ public class EndpointCallChecksTests
     [Fact]
     public void UnmetRequirement_KeyLeftBlank_NamesTheKindAndTheKey()
     {
-        var kinds = new EndpointKinds(null, TokenExchange, null, null);
+        var kinds = new EndpointKinds(null, TokenExchange, null, null, null);
 
         var refusal = EndpointCallChecks.UnmetRequirement(kinds, Effective(("tokenUrl", ""), ("tokenPath", "token")));
 
         refusal!.StatusCode.Should().Be(400);
         refusal.Error.Should().Contain("TokenExchangeAuth").And.Contain("tokenUrl");
+    }
+
+    [Fact]
+    public void UnmetRequirement_CoversTheKeepingKind()
+    {
+        var kinds = new EndpointKinds(null, null, null, null, ModelAsset);
+
+        var refusal = EndpointCallChecks.UnmetRequirement(kinds, Effective(("assetProperty", "surfaceMap")));
+
+        refusal!.StatusCode.Should().Be(400);
+        refusal.Error.Should().Contain("ModelAsset").And.Contain("assetSubject");
     }
 
     // ---------- the response body ----------
@@ -414,12 +426,91 @@ public class EndpointCallChecksTests
         refusal!.Error.Should().Contain("cacheTtl");
     }
 
+    // ---------- the keep ----------
+
+    [Fact]
+    public void TryKeeping_NoKind_KeepsNothing()
+    {
+        EndpointCallChecks.TryKeeping(null, Effective(), null, out var keep, out var refusal).Should().BeTrue();
+
+        keep.Should().BeNull();
+        refusal.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryKeeping_ModelAssetSettings_SayWhereTheTicketGoes()
+    {
+        var effective = Effective(("assetProperty", "surfaceMap"), ("assetSubject", "SiteAlpha"));
+
+        EndpointCallChecks.TryKeeping(ModelAsset, effective, null, out var keep, out _).Should().BeTrue();
+
+        keep.Should().Be(new KeepPlan("surfaceMap", "SiteAlpha", null));
+    }
+
+    // The value that selected the historical image also timestamps it — valid time, not save time.
+    [Fact]
+    public void TryKeeping_ObservedAtParameterNamed_TheSuppliedValueIsTheDepictedTime()
+    {
+        var effective = Effective(
+            ("assetProperty", "surfaceMap"), ("assetSubject", "SiteAlpha"), ("observedAtParameter", "when"));
+        var addressParameters = new Dictionary<string, string> { ["when"] = "1998-06-15T12:00:00Z" };
+
+        EndpointCallChecks.TryKeeping(ModelAsset, effective, addressParameters, out var keep, out _).Should().BeTrue();
+
+        keep!.ObservedAt.Should().Be(new DateTime(1998, 6, 15, 12, 0, 0, DateTimeKind.Utc));
+    }
+
+    // Absent is an answer: no depicted time means the broker stamps the batch from the model clock.
+    [Fact]
+    public void TryKeeping_ObservedAtParameterNamedButNoValueSupplied_LeavesTheTimeAbsent()
+    {
+        var effective = Effective(
+            ("assetProperty", "surfaceMap"), ("assetSubject", "SiteAlpha"), ("observedAtParameter", "when"));
+
+        EndpointCallChecks.TryKeeping(ModelAsset, effective, new Dictionary<string, string>(), out var keep, out _)
+            .Should().BeTrue();
+
+        keep!.ObservedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryKeeping_ObservedAtValueThatIsNotATime_RefusesNamingBoth()
+    {
+        var effective = Effective(
+            ("assetProperty", "surfaceMap"), ("assetSubject", "SiteAlpha"), ("observedAtParameter", "when"));
+        var addressParameters = new Dictionary<string, string> { ["when"] = "latest" };
+
+        EndpointCallChecks.TryKeeping(ModelAsset, effective, addressParameters, out _, out var refusal)
+            .Should().BeFalse();
+
+        refusal!.Error.Should().Contain("observedAtParameter").And.Contain("when").And.Contain("latest");
+    }
+
+    [Fact]
+    public void TryKeeping_KindThatUnderDeclares_RefusesSayingWhatTheMechanismNeeds()
+    {
+        var underDeclared = new ResolvedKind("ModelAsset", []);
+
+        EndpointCallChecks.TryKeeping(underDeclared, Effective(), null, out _, out var refusal).Should().BeFalse();
+
+        refusal!.Error.Should().Contain("assetProperty").And.Contain("assetSubject");
+    }
+
+    [Fact]
+    public void TryKeeping_KindNothingHereImplements_RefusesNamingBothHalves()
+    {
+        EndpointCallChecks.TryKeeping(new ResolvedKind("S3Vault", []), Effective(), null, out _, out var refusal)
+            .Should().BeFalse();
+
+        refusal!.Error.Should().Contain("S3Vault").And.Contain("ModelAsset");
+    }
+
     // ---------- what cannot be combined ----------
 
     [Fact]
     public void PagingClash_BinaryBodyReadPageByPage_RefusesNamingBothKinds()
     {
-        var kinds = new EndpointKinds(Binary, null, OffsetPaging, null);
+        var kinds = new EndpointKinds(Binary, null, OffsetPaging, null, null);
         var paging = new OffsetPaginationConfig("o", null, null, "m", "i");
 
         var refusal = EndpointCallChecks.PagingClash(kinds, binary: true, paging);
@@ -430,7 +521,7 @@ public class EndpointCallChecksTests
     [Fact]
     public void PagingClash_TextBodyReadPageByPage_IsFine()
     {
-        var kinds = new EndpointKinds(Json, null, OffsetPaging, null);
+        var kinds = new EndpointKinds(Json, null, OffsetPaging, null, null);
         var paging = new OffsetPaginationConfig("o", null, null, "m", "i");
 
         EndpointCallChecks.PagingClash(kinds, binary: false, paging).Should().BeNull();
@@ -439,7 +530,7 @@ public class EndpointCallChecksTests
     [Fact]
     public void CachingClash_CachedResponseAssembledPageByPage_Refuses()
     {
-        var kinds = new EndpointKinds(null, null, OffsetPaging, DiskCache);
+        var kinds = new EndpointKinds(null, null, OffsetPaging, DiskCache, null);
         var paging = new OffsetPaginationConfig("o", null, null, "m", "i");
 
         EndpointCallChecks.CachingClash(kinds, TimeSpan.FromSeconds(1), paging, "GET", default)!
@@ -450,7 +541,7 @@ public class EndpointCallChecksTests
     [Fact]
     public void CachingClash_CachedResponseBehindACredential_Refuses()
     {
-        var kinds = new EndpointKinds(null, TokenExchange, null, DiskCache);
+        var kinds = new EndpointKinds(null, TokenExchange, null, DiskCache, null);
 
         EndpointCallChecks.CachingClash(kinds, TimeSpan.FromSeconds(1), null, "GET", default)!
             .Error.Should().Contain("DiskCache").And.Contain("TokenExchangeAuth");
@@ -460,7 +551,7 @@ public class EndpointCallChecksTests
     [Fact]
     public void CachingClash_OutboundBodyOnAMethodThatCarriesOne_Refuses()
     {
-        var kinds = new EndpointKinds(null, null, null, DiskCache);
+        var kinds = new EndpointKinds(null, null, null, DiskCache, null);
         var body = JsonDocument.Parse("""{"q":1}""").RootElement;
 
         EndpointCallChecks.CachingClash(kinds, TimeSpan.FromSeconds(1), null, "POST", body)!
@@ -470,7 +561,7 @@ public class EndpointCallChecksTests
     [Fact]
     public void CachingClash_OutboundBodyOnAMethodThatDropsIt_IsFine()
     {
-        var kinds = new EndpointKinds(null, null, null, DiskCache);
+        var kinds = new EndpointKinds(null, null, null, DiskCache, null);
         var body = JsonDocument.Parse("""{"q":1}""").RootElement;
 
         EndpointCallChecks.CachingClash(kinds, TimeSpan.FromSeconds(1), null, "GET", body).Should().BeNull();
@@ -479,10 +570,39 @@ public class EndpointCallChecksTests
     [Fact]
     public void CachingClash_NothingCached_IsFine()
     {
-        var kinds = new EndpointKinds(null, TokenExchange, OffsetPaging, null);
+        var kinds = new EndpointKinds(null, TokenExchange, OffsetPaging, null, null);
         var paging = new OffsetPaginationConfig("o", null, null, "m", "i");
 
         EndpointCallChecks.CachingClash(kinds, null, paging, "POST", JsonDocument.Parse("{}").RootElement).Should().BeNull();
+    }
+
+    // A paged aggregate is assembled by this service, so keeping it would deposit bytes the
+    // provider never served.
+    [Fact]
+    public void KeepingClash_DepositAssembledPageByPage_Refuses()
+    {
+        var kinds = new EndpointKinds(null, null, OffsetPaging, null, ModelAsset);
+        var paging = new OffsetPaginationConfig("o", null, null, "m", "i");
+
+        EndpointCallChecks.KeepingClash(kinds, new KeepPlan("surfaceMap", "SiteAlpha", null), paging)!
+            .Error.Should().Contain("ModelAsset").And.Contain("OffsetPaging");
+    }
+
+    [Fact]
+    public void KeepingClash_NothingKept_IsFine()
+    {
+        var kinds = new EndpointKinds(null, null, OffsetPaging, null, null);
+        var paging = new OffsetPaginationConfig("o", null, null, "m", "i");
+
+        EndpointCallChecks.KeepingClash(kinds, null, paging).Should().BeNull();
+    }
+
+    [Fact]
+    public void KeepingClash_KeptInOneFetch_IsFine()
+    {
+        var kinds = new EndpointKinds(null, null, null, null, ModelAsset);
+
+        EndpointCallChecks.KeepingClash(kinds, new KeepPlan("surfaceMap", "SiteAlpha", null), null).Should().BeNull();
     }
 
     // ---------- harness ----------

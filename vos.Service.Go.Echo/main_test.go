@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -264,6 +265,9 @@ func TestHealth(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	if resp["status"] != "Healthy" {
 		t.Fatalf("health: %v", resp)
+	}
+	if resp["processId"] != float64(os.Getpid()) {
+		t.Fatalf("health names another process: %v", resp["processId"])
 	}
 }
 

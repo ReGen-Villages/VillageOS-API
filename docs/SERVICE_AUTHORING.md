@@ -180,7 +180,8 @@ this guards against a burst of repeats, not against every repeat there will ever
 after that window, or after the handler restarts, runs the work a second time. A record of what
 completed that survives either belongs on the relation itself.
 
-**`GET /health`** → `{ "status": "Healthy", "service": "YourService", "requestsProcessed": <n> }`
+**`GET /health`** → `{ "status": "Healthy", "service": "YourService", "requestsProcessed": <n>, "processId": <pid> }` —
+`processId` is what lets the platform measure a service it did not start itself; the shared host answers it for you.
 
 **`GET /stats`** → `{ "service": "...", "version": "...", "requestsProcessed": <n>, "handlerId": "<uuid>", "myceliumUrl": "..." }`
 

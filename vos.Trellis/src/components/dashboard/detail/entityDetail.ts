@@ -116,21 +116,6 @@ export function resolveRelations(
   return walk(rootId, specs, new Set([rootId]));
 }
 
-/** Every related Thing id across the resolved tree — for fetching each one's derived states. */
-export function flattenRelatedIds(relations: ResolvedRelation[]): string[] {
-  const ids: string[] = [];
-  const walk = (rels: ResolvedRelation[]) => {
-    for (const group of rels) {
-      for (const edge of group.edges) {
-        ids.push(edge.thingId);
-        walk(edge.children);
-      }
-    }
-  };
-  walk(relations);
-  return ids;
-}
-
 /** A derived-state change of the root Thing, for the handling-history list. */
 export interface StateChange {
   at: string;
