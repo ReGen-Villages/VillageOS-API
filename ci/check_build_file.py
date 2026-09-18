@@ -2,7 +2,8 @@
 
 A widened trigger, a configuration that no longer follows the branch, and a publishing step gated
 to main all produce more green builds rather than a failure, so nothing in a build result would
-look wrong. This reads the build file and says what has drifted.
+look wrong. A job with no time limit shows nothing in a green build either, and holds a shared agent
+for an hour on a red one. This reads the build file and says what has drifted.
 
 Stock Python: the build agents carry python3 and nothing else, and a guard that needed installing
 would be one more thing able to fail.
@@ -66,18 +67,46 @@ def build_configuration_value(build_file_text):
     return ''
 
 
+def indentation(line):
+    return len(line) - len(line.lstrip())
+
+
 def step_condition(build_file_text, display_name):
-    """The condition line of a named step, '' when it has none, None when there is no such step."""
+    """The condition line of a named step, '' when it has none, None when there is no such step.
+
+    A step ends at the first line sitting left of its display name — the next step's own marker, or
+    whatever follows the job. A list nested deeper inside the step is part of it.
+    """
     lines = build_file_text.splitlines()
     for index, line in enumerate(lines):
         if "displayName: '%s'" % display_name in line:
             for following in lines[index + 1:]:
-                if following.startswith('- '):
+                if not following.strip():
+                    continue
+                if indentation(following) < indentation(line):
                     break
                 if following.strip().startswith('condition:'):
                     return following
             return ''
     return None
+
+
+def jobs(build_file_text):
+    """Each job's name with the lines between its name and its steps, where its own settings live."""
+    lines = build_file_text.splitlines()
+    found = []
+    for index, line in enumerate(lines):
+        if not line.strip().startswith('- job:'):
+            continue
+        settings = []
+        for following in lines[index + 1:]:
+            if not following.strip():
+                continue
+            if following.strip() == 'steps:' or indentation(following) <= indentation(line):
+                break
+            settings.append(following.strip())
+        found.append((line.strip()[len('- job:'):].strip(), settings))
+    return found
 
 
 def problems(build_file_text):
@@ -117,5 +146,16 @@ def problems(build_file_text):
         elif DEVELOP not in condition or MAIN in condition:
             found.append(
                 '"%s" must run on develop only; its condition reads %s' % (step, condition.strip()))
+
+    declared_jobs = jobs(build_file_text)
+    if not declared_jobs:
+        found.append(
+            'The build file declares no job, so its steps run as one with the pool\'s default time '
+            'limit, and a step that stops making progress holds an agent for an hour')
+    for name, settings in declared_jobs:
+        if not any(setting.startswith('timeoutInMinutes:') for setting in settings):
+            found.append(
+                'The job "%s" declares no timeoutInMinutes, so when it stops making progress it holds '
+                'an agent for the pool\'s default hour' % name)
 
     return found
