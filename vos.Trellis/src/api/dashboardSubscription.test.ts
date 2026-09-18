@@ -358,3 +358,20 @@ describe('subscriptionForSpec over a rangeBar widget', () => {
     expect(selector.types).toEqual(expect.arrayContaining(['RecordedHigh', 'DesignHigh', 'AverageHigh', 'Mean', 'AverageLow', 'DesignLow', 'RecordedLow', 'BandFrom', 'BandTo']));
   });
 });
+
+// A binding the widget holds and the subscription does not name is a figure that never arrives on a
+// live page, so every one of the widget's bindings has to reach the selector.
+describe('subscriptionForSpec over a lineSeries widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+              type: 'lineSeries',
+              title: 'Rain',
+              series: [{ label: 'This year', value: { kind: 'aggregate', archetype: 'ThisYear', op: 'count' } }, { label: 'Last year', value: { kind: 'aggregate', archetype: 'LastYear', op: 'count' } }],
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['ThisYear', 'LastYear']));
+  });
+});
