@@ -674,6 +674,27 @@ export interface DivergingBarWidget {
   unit?: string;
 }
 
+/** One series of a small-multiples panel: what it is called, the binding whose groups are its figure
+ *  per month and hour — a `history` binding folded by `monthOfYear,hourOfDay` — and how it is written. */
+export interface SmallMultiplesSeries {
+  label: string;
+  value: Binding;
+  unit?: string;
+  format?: NumberFormat;
+}
+
+/** Twelve monthly panels, each a bar an hour on one scale and a line through the hours on another —
+ *  the humidity and the temperature through the day — with a band the model states drawn behind the
+ *  line on the line's scale. A month neither series was answered for is left out. */
+export interface SmallMultiplesWidget {
+  type: 'smallMultiples';
+  title?: string;
+  hint?: string;
+  bars: SmallMultiplesSeries;
+  line: SmallMultiplesSeries;
+  band?: RangeBand;
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -688,7 +709,8 @@ export type Widget =
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget
-  | DivergingBarWidget;
+  | DivergingBarWidget
+  | SmallMultiplesWidget;
 
 export interface DashboardSection {
   title?: string;
