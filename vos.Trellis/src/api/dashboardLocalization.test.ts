@@ -9,6 +9,7 @@ import type {
   TableWidget,
   VerdictWidget,
   RangeBarWidget,
+  LineSeriesWidget,
   HeatmapWidget,
 } from '../types/dashboard';
 
@@ -374,6 +375,32 @@ describe('localizeSpec over a rangeBar widget', () => {
   });
 });
 
+describe('localizeSpec over a lineSeries widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'lineSeries',
+              title: 'Rain',
+              hint: 'monthly',
+              unit: 'millimetres',
+              series: [{ label: 'This year', value: { kind: 'const', value: 1 } }],
+            } satisfies LineSeriesWidget] }],
+    translations: {
+      es: {
+          'Rain': 'Lluvia',
+          'monthly': 'mensual',
+          'millimetres': 'milímetros',
+          'This year': 'Este año',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as LineSeriesWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Lluvia');
+    expect(localized.hint).toBe('mensual');
+    expect(localized.unit).toBe('milímetros');
+    expect(localized.series[0].label).toBe('Este año');
 describe('localizeSpec over a heatmap widget', () => {
   const spec: DashboardSpec = {
     title: 'Analysis',
