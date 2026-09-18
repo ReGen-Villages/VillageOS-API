@@ -21,7 +21,7 @@ vi.mock('./rangeApi', () => ({
 }));
 
 vi.mock('./temporalApi', () => ({
-  temporalApi: { getPropertyVersions: vi.fn(), aggregate: vi.fn() },
+  temporalApi: { getPropertyVersions: vi.fn(), aggregate: vi.fn(), reduce: vi.fn() },
 }));
 
 import { stateApi } from './stateApi';
@@ -1604,6 +1604,7 @@ describe('state bindings ask the server to narrow', () => {
         thingRanges: async () => null,
         aggregate: () => Promise.reject(new Error('not read here')),
         fromService: async () => null,
+        reduce: () => Promise.reject(new Error('not read here')),
       };
     }
 
@@ -2348,5 +2349,74 @@ describe('the newest point of a series', () => {
       BucketSeconds: QUARTER_HOUR, UnusableMembers: 0,
     });
     expect(await resolveBinding({ kind: 'latest', series } as Binding, seriesCtx())).toBeNull();
+  });
+});
+
+// The history reduction is the platform's, over one property's observation series on the page's own
+// scope entity; the client folds nothing (Feature 7038, platform Task 7043).
+describe('history reads the platform reduction over a property series', () => {
+  const UTC_OFFSET_PROPERTY = 'utcOffsetSeconds';
+
+  function siteCtx(scopeId: string | null, siteProperties: Record<string, unknown> = {}): ResolveContext {
+    const things: VosThing[] = [
+      { Id: 'is', Name: 'is', Properties: {} },
+      { Id: 'site1', Name: 'SITE-1', Properties: siteProperties },
+    ];
+    return { idx: buildModelIndex(things, []), scopeId, reads: brokerModelReads() };
+  }
+
+  const A_YEAR = 31_536_000;
+  const monthlyHigh: Binding = {
+    kind: 'history', property: 'temperature', windowSeconds: A_YEAR,
+    steps: [{ fold: 'day', function: 'Max' }, { fold: 'monthOfYear', function: 'Average' }],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(temporalApi.reduce).mockResolvedValue({
+      Groups: [{ Key: '1', Value: 27.4 }, { Key: '2', Value: 26.9 }], Samples: 8760, UnusableSamples: 0,
+    });
+  });
+
+  it('asks about the scope entity, in its own clock offset, with the steps as the spec wrote them', async () => {
+    await resolveBinding(monthlyHigh, siteCtx('site1', { [UTC_OFFSET_PROPERTY]: 7200 }));
+
+    expect(temporalApi.reduce).toHaveBeenCalledWith({
+      thingId: 'site1', property: 'temperature', windowSeconds: A_YEAR, utcOffsetSeconds: 7200,
+      steps: [{ fold: 'day', function: 'Max' }, { fold: 'monthOfYear', function: 'Average' }],
+    });
+  });
+
+  it('names no offset where the entity states none, so the platform folds in its own', async () => {
+    await resolveBinding(monthlyHigh, siteCtx('site1'));
+
+    expect(vi.mocked(temporalApi.reduce).mock.calls[0][0].utcOffsetSeconds).toBeUndefined();
+  });
+
+  it('answers the groups as rows keyed as the platform keyed them, in the platform order', async () => {
+    expect(await resolveBinding(monthlyHigh, siteCtx('site1'))).toEqual([
+      { key: '1', value: 27.4 }, { key: '2', value: 26.9 },
+    ]);
+  });
+
+  // "All" names no property series to reduce, and a series read for nobody would be a figure for
+  // nobody.
+  it('resolves to nothing where no scope entity is selected, and asks nothing', async () => {
+    expect(await resolveBinding(monthlyHigh, siteCtx(null))).toBeNull();
+    expect(temporalApi.reduce).not.toHaveBeenCalled();
+  });
+
+  it('resolves to nothing rather than an empty series when the platform refuses the question', async () => {
+    vi.mocked(temporalApi.reduce).mockRejectedValue(new Error('400: too many groups'));
+
+    expect(await resolveBinding(monthlyHigh, siteCtx('site1'))).toBeNull();
+  });
+
+  it('asks one question once however many widgets bind to it in a refresh', async () => {
+    const ctx = siteCtx('site1');
+
+    await Promise.all([resolveBinding(monthlyHigh, ctx), resolveBinding({ ...monthlyHigh }, ctx)]);
+
+    expect(temporalApi.reduce).toHaveBeenCalledTimes(1);
   });
 });

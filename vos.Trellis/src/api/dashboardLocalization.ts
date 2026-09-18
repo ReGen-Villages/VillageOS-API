@@ -23,6 +23,7 @@ import type {
   GanttWidget,
   KpiWidget,
   LeaderboardWidget,
+  RangeBarWidget,
   RelationSpec,
   TableColumn,
   TableWidget,
@@ -178,6 +179,16 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
         hint: tr(widget.hint),
         note: tr(widget.note),
         buckets: widget.buckets.map((bucket) => ({ ...bucket, label: tr(bucket.label) })),
+      };
+      return w;
+    }
+    case 'rangeBar': {
+      const w: RangeBarWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        unit: tr(widget.unit),
+        bands: widget.bands?.map((band) => ({ ...band, label: tr(band.label) })),
       };
       return w;
     }

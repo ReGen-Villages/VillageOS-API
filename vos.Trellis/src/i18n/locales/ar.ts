@@ -42,6 +42,18 @@ type ArabicPlurals = {
     relationshipsCount_few?: string;
     relationshipsCount_many?: string;
   };
+  widgets?: {
+    history?: {
+      lastYears_zero?: string;
+      lastYears_two?: string;
+      lastYears_few?: string;
+      lastYears_many?: string;
+      lastDays_zero?: string;
+      lastDays_two?: string;
+      lastDays_few?: string;
+      lastDays_many?: string;
+    };
+  };
   thingSearch?: {
     foundCount_zero?: string;
     foundCount_two?: string;
@@ -360,6 +372,30 @@ export const ar: PartialResources & ArabicPlurals = {
     signIn: 'تسجيل الدخول',
   },
   widgets: {
+    history: {
+      lastYears_zero: "آخر {{count}} سنة",
+      lastYears_one: "السنة الماضية",
+      lastYears_two: "آخر سنتين",
+      lastYears_few: "آخر {{count}} سنوات",
+      lastYears_many: "آخر {{count}} سنة",
+      lastYears_other: "آخر {{count}} سنة",
+      lastDays_zero: "آخر {{count}} يوم",
+      lastDays_one: "اليوم الماضي",
+      lastDays_two: "آخر يومين",
+      lastDays_few: "آخر {{count}} أيام",
+      lastDays_many: "آخر {{count}} يومًا",
+      lastDays_other: "آخر {{count}} يوم",
+    },
+    rangeBar: {
+      recordedHigh: "أعلى قيمة مسجّلة",
+      designHigh: "الحد الأعلى التصميمي",
+      averageHigh: "متوسط الحد الأعلى",
+      mean: "المتوسط",
+      averageLow: "متوسط الحد الأدنى",
+      designLow: "الحد الأدنى التصميمي",
+      recordedLow: "أدنى قيمة مسجّلة",
+      annual: "سنوي",
+    },
     bullet: { target: 'الهدف', healthyBand: 'النطاق الصحي', warning: 'تحذير', critical: 'حرج' },
     kpi: { onTarget: 'ضمن الهدف', watch: 'مراقبة', peak: 'الذروة', trough: 'القاع' },
     working: { notDerived: 'هذا الرقم يُعطى للنموذج ولا يحسبه بنفسه' },

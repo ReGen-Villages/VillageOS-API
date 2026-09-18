@@ -135,6 +135,55 @@ export interface TemporalAggregateResponse {
   UnusableMembers: number;
 }
 
+/** How samples or groups are keyed by one step of a history reduction. */
+export type HistoryFold =
+  | 'hour' | 'day' | 'month' | 'year'
+  | 'hourOfDay' | 'dayOfYear' | 'monthOfYear'
+  | 'hourOfDay,dayOfYear' | 'monthOfYear,hourOfDay'
+  | 'all';
+
+export type HistoryFunction =
+  | 'Min' | 'Max' | 'Average' | 'Sum' | 'Count' | 'Percentile' | 'ShareWithin'
+  | 'CountAtOrBelow' | 'CountAbove' | 'SumAbove' | 'SumBelow';
+
+/** One step of a history reduction: the first reads the samples, each later one the previous step's
+ *  groups. `percentile` goes with `Percentile`, `from` and `to` (closed on both ends) with
+ *  `ShareWithin`, `threshold` with the count and sum functions that name one. */
+export interface HistoryStep {
+  fold: HistoryFold;
+  function: HistoryFunction;
+  percentile?: number;
+  from?: number;
+  to?: number;
+  threshold?: number;
+}
+
+/** POST /api/temporal/reduce: one property's observation history on one Thing, reduced by the steps
+ *  in order. Calendar folds are taken in `utcOffsetSeconds`, zero when omitted. */
+export interface TemporalReduceQuery {
+  thingId: string;
+  property: string;
+  windowSeconds: number;
+  utcOffsetSeconds?: number;
+  steps: HistoryStep[];
+}
+
+export interface TemporalReduceGroup {
+  Key: string;
+  Value: number;
+}
+
+/** Answered with the capitals every Mycelium route answers in, as the bucketed reduction is. */
+export interface TemporalReduceResponse {
+  /** Ordered by key — numerically where the key is a number, part by part where it is composite. */
+  Groups: TemporalReduceGroup[];
+  /** Readings in the window the reduction could read. */
+  Samples: number;
+  /** Readings carrying nothing the reduction could read — so an answer with no groups says whether
+   *  the window was empty or unreadable. */
+  UnusableSamples: number;
+}
+
 export interface PropertyVersionsResponse {
   ObjectId: string;
   PropertyName: string;

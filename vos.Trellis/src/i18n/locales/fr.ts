@@ -274,6 +274,22 @@ export const fr: PartialResources = {
     signIn: 'Se connecter',
   },
   widgets: {
+    history: {
+      lastYears_one: 'dernière année',
+      lastYears_other: '{{count}} dernières années',
+      lastDays_one: 'dernier jour',
+      lastDays_other: '{{count}} derniers jours',
+    },
+    rangeBar: {
+      recordedHigh: 'Maximum enregistré',
+      designHigh: 'Maximum de conception',
+      averageHigh: 'Maximum moyen',
+      mean: 'Moyenne',
+      averageLow: 'Minimum moyen',
+      designLow: 'Minimum de conception',
+      recordedLow: 'Minimum enregistré',
+      annual: 'Annuel',
+    },
     bullet: { target: 'objectif', healthyBand: 'plage saine', warning: 'avertissement', critical: 'critique' },
     kpi: { onTarget: 'dans l’objectif', watch: 'à surveiller', peak: 'pic', trough: 'creux' },
     working: { notDerived: 'cette valeur est fournie au modèle et non calculée par lui' },

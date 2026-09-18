@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 vi.mock('../api/findingsApi', () => ({
-  findingsApi: { askForCode: vi.fn(), read: vi.fn() },
+  findingsApi: { askForCode: vi.fn(), read: vi.fn(), reduceWithTicket: vi.fn() },
 }));
 
 import { findingsApi } from '../api/findingsApi';
@@ -44,7 +44,7 @@ const ANSWER: FindingsAnswer = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(findingsApi.askForCode).mockResolvedValue(undefined);
-  vi.mocked(findingsApi.read).mockResolvedValue(ANSWER);
+  vi.mocked(findingsApi.read).mockResolvedValue({ findings: ANSWER, ticket: 'ticket-1' });
 });
 
 function fill(): void {
@@ -111,8 +111,8 @@ describe('the page a submitter reads their own findings on', () => {
   // has to say that is what it is rather than looking like an analysis that found nothing.
   it('says so when the page it was sent lists no sections', async () => {
     vi.mocked(findingsApi.read).mockResolvedValue({
-      ...ANSWER,
-      spec: JSON.stringify({ title: 'Site submission', sections: [] }),
+      ticket: 'ticket-1',
+      findings: { ...ANSWER, spec: JSON.stringify({ title: 'Site submission', sections: [] }) },
     });
     render(<PublicFindingsPage />);
 
@@ -124,7 +124,7 @@ describe('the page a submitter reads their own findings on', () => {
   // Drawing nothing is how a figure the analysis has not computed reads. A page that cannot be drawn at
   // all has to say so, in the place every other refusal is said.
   it('says so when the service answered a page it cannot draw', async () => {
-    vi.mocked(findingsApi.read).mockResolvedValue({ ...ANSWER, spec: 'not a spec' });
+    vi.mocked(findingsApi.read).mockResolvedValue({ ticket: 'ticket-1', findings: { ...ANSWER, spec: 'not a spec' } });
     render(<PublicFindingsPage />);
 
     await read();
@@ -146,5 +146,39 @@ describe('the page a submitter reads their own findings on', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show my findings' }));
 
     expect(await screen.findByText(/No submission was found/)).toBeInTheDocument();
+  });
+});
+
+// A chart on this page reduces the site's history through the intake service, under the ticket the
+// read handed back — the same exchange the plot-first page rides.
+describe('a chart on the findings page', () => {
+  it('reduces the site\'s history through the service under the ticket the read bought', async () => {
+    vi.mocked(findingsApi.read).mockResolvedValue({
+      ticket: 'ticket-1',
+      findings: {
+        ...ANSWER,
+        spec: JSON.stringify({
+          title: 'Site submission',
+          sections: [{
+            title: 'Climate',
+            widgets: [{
+              type: 'kpi', title: 'Warmest month',
+              value: { kind: 'history', property: 'temperature', windowSeconds: 31_536_000, steps: [{ fold: 'all', function: 'Max' }] },
+            }],
+          }],
+        }),
+      },
+    });
+    vi.mocked(findingsApi.reduceWithTicket).mockResolvedValue({
+      answer: { Groups: [{ Key: 'all', Value: 33.1 }], Samples: 8760, UnusableSamples: 0 }, ticket: 'ticket-2',
+    });
+    render(<PublicFindingsPage />);
+
+    await read();
+
+    await waitFor(() => expect(findingsApi.reduceWithTicket).toHaveBeenCalledWith(
+      REFERENCE, 'ticket-1',
+      { property: 'temperature', windowSeconds: 31_536_000, steps: [{ fold: 'all', function: 'Max' }] },
+    ));
   });
 });

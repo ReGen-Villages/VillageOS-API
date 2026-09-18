@@ -1303,6 +1303,14 @@ appears for the submitter with no code change, and a balance nobody assessed rea
 the same words on both. What made that possible was taking the broker out of the resolver: see
 [TRELLIS.md](TRELLIS.md#the-public-pages-are-not-among-these-routes).
 
+**A chart on the page reduces the site's history through the service.** The climate charts bind to
+the platform's reduction over one property's observation series ([TRELLIS.md](TRELLIS.md#a-propertys-history-reduced)),
+a question asked after the findings arrived and one the page cannot put to the broker. It puts it to
+`POST /findings/{submissionId}/reduce` under the ticket the read bought — the body is the platform's
+without the Thing, which the service supplies as the submission's own site — and carries the renewed
+ticket on. The route is part of the tile design's intake work and lands beside the shared-document
+routes.
+
 **The page lives as long as the submission does.** Nothing expires it and nothing stores a link. Once a
 rejected submission's retention period has run and `submissions dispose` has taken it out of the live
 model, the reference and the address name nothing, and the page says so in the same words as a reference

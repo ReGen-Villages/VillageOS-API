@@ -15,7 +15,7 @@ vi.mock('../api/intakeApi', () => ({
     submitWithTicket: vi.fn(),
   },
 }));
-vi.mock('../api/findingsApi', () => ({ findingsApi: { readWithTicket: vi.fn() } }));
+vi.mock('../api/findingsApi', () => ({ findingsApi: { readWithTicket: vi.fn(), reduceWithTicket: vi.fn() } }));
 // The map cannot build in a test's document, and what this page owes it is only the wiring: the pick
 // handler when no position exists, and the boundary when one does.
 vi.mock('../components/map/MapView', () => ({
@@ -49,12 +49,13 @@ vi.mock('../api/dashboardLocalization', () => ({
   localizeSpec: vi.fn(() => ({ sections: [] })),
 }));
 vi.mock('../publicFindings/answeredFindings', () => ({
-  findingsFrom: () => ({ spec: {}, scopeId: 'site-1', index: {}, reads: {} }),
+  findingsFrom: vi.fn(() => ({ spec: {}, scopeId: 'site-1', index: {}, reads: {} })),
 }));
 
 import { intakeApi } from '../api/intakeApi';
 import { findingsApi } from '../api/findingsApi';
 import { localizeSpec } from '../api/dashboardLocalization';
+import { findingsFrom } from '../publicFindings/answeredFindings';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
 import { ExplorePage } from './ExplorePage';
 
@@ -249,5 +250,30 @@ describe('the report as tiles', () => {
     expect(screen.queryByRole('button', { name: 'Temperature' })).toBeNull();
     const handed = vi.mocked(DashboardSections).mock.calls.at(-1)![0].sections;
     expect(handed.map((section) => section.title)).toEqual(['Balances']);
+  });
+});
+
+describe('the history a chart asks for', () => {
+  it('is reduced through the intake service under the ticket the page holds, and the renewal is kept', async () => {
+    vi.mocked(findingsApi.reduceWithTicket).mockResolvedValue({
+      answer: { Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 }, ticket: 'ticket-4',
+    });
+    await reachTheReport();
+    const [, reduce] = vi.mocked(findingsFrom).mock.calls.at(-1)!;
+    const question = {
+      thingId: 'site-1', property: 'temperature', windowSeconds: 31_536_000,
+      steps: [{ fold: 'monthOfYear' as const, function: 'Max' as const }],
+    };
+
+    await expect(reduce!(question)).resolves.toEqual({ Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 });
+
+    const [submissionId, ticket, asked] = vi.mocked(findingsApi.reduceWithTicket).mock.calls[0];
+    expect(submissionId).toBe(vi.mocked(intakeApi.submitWithTicket).mock.calls[0][0].submissionId);
+    expect(ticket).toBe('ticket-3');
+    expect(asked).toEqual({ property: 'temperature', windowSeconds: 31_536_000, steps: question.steps });
+
+    // The next read rides the ticket the reduction handed back.
+    fireEvent.click(screen.getByRole('button', { name: 'Read again' }));
+    await waitFor(() => expect(vi.mocked(findingsApi.readWithTicket).mock.calls.at(-1)![2]).toBe('ticket-4'));
   });
 });

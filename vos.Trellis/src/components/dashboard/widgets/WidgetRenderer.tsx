@@ -12,6 +12,7 @@ import { VerdictList } from './VerdictList';
 import { WorkingList } from './WorkingList';
 import { ExceptionBar } from './ExceptionBar';
 import { DataTable } from './DataTable';
+import { RangeBar } from './RangeBar';
 import { SearchBox } from './SearchBox';
 import { WidgetCard } from './WidgetCard';
 
@@ -50,6 +51,8 @@ export function WidgetRenderer({
       return <ExceptionBar widget={widget} ctx={ctx} />;
     case 'table':
       return <TableWidgetView widget={widget} ctx={ctx} openDetail={openDetail} />;
+    case 'rangeBar':
+      return <RangeBar widget={widget} ctx={ctx} />;
     default:
       return <UnknownWidget reason={{ unknownType: (widget as { type?: unknown }).type }} />;
   }
