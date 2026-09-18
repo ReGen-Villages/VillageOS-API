@@ -51,6 +51,35 @@ internal static class MyceliumStub
         return null;
     }
 
+    // The broker's asset store, stubbed exactly as Tributary relies on it: bytes in, 201 and a
+    // { hash } ticket naming the content. Captured deposits let a test read what was kept — and
+    // count that a repeat served from cache kept nothing.
+    internal static HttpResponseMessage? RouteAssetDeposit(
+        HttpRequestMessage request, string ticket, List<(byte[] Bytes, string? ContentType)>? deposits = null)
+    {
+        if (request.Method != HttpMethod.Post || request.RequestUri!.AbsolutePath != "/api/assets")
+            return null;
+        deposits?.Add((
+            request.Content!.ReadAsByteArrayAsync().GetAwaiter().GetResult(),
+            request.Content.Headers.ContentType?.ToString()));
+        return new HttpResponseMessage(HttpStatusCode.Created)
+        {
+            Content = new StringContent($$"""{"hash":"{{ticket}}"}""", Encoding.UTF8, "application/json")
+        };
+    }
+
+    // The observation write a ticket rides in on, captured so a test can read what landed on the
+    // subject's series.
+    internal static HttpResponseMessage? RouteObservationWrite(
+        HttpRequestMessage request, Guid thingId, List<string>? payloads = null)
+    {
+        if (request.Method != HttpMethod.Post
+            || request.RequestUri!.AbsolutePath != $"/api/things/{thingId}/observations")
+            return null;
+        payloads?.Add(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+        return Json("""{"accepted":1}""");
+    }
+
     // One kind an endpoint reaches, and the keys that kind requires of it.
     internal readonly record struct Kind(string Role, string Name, params string[] Requires);
 

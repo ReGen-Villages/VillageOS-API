@@ -7,8 +7,12 @@ namespace vos.Service.Intake.Configuration;
 // position lookups are forwarded through. No origin given leaves the list empty, which is a service
 // that allows no cross-origin caller at all.
 public sealed record IntakeLaunchSettings(
-    ServiceLaunchSettings Service, string[] PublicFormOrigins, string FetcherSubdomain)
+    ServiceLaunchSettings Service, string[] PublicFormOrigins, string FetcherSubdomain, string DocumentDirectory)
 {
+    /// <summary>Where the files a submitter shares are kept, keyed by submission, when no folder is
+    /// given: beside the service, so a deployment that never shares a file configures nothing.</summary>
+    public const string DefaultDocumentDirectory = "documents";
+
     /// <summary>The routing label the fetching service answers on, as the shipped analysis template
     /// declares it — the same default the discovery service uses, overridden the same way where a
     /// deployment points its fetches elsewhere.</summary>
@@ -23,12 +27,18 @@ public sealed record IntakeLaunchSettings(
             return null;
 
         return new IntakeLaunchSettings(
-            service, ReadPublicFormOrigins(reader), ReadFetcherSubdomain(reader));
+            service, ReadPublicFormOrigins(reader), ReadFetcherSubdomain(reader), ReadDocumentDirectory(reader));
     }
 
     private static string[] ReadPublicFormOrigins(LaunchSettingReader reader) =>
         reader.Read("publicFormOrigin")
             ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
+
+    private static string ReadDocumentDirectory(LaunchSettingReader reader)
+    {
+        var raw = reader.Read("documentDirectory");
+        return string.IsNullOrWhiteSpace(raw) ? DefaultDocumentDirectory : raw.Trim();
+    }
 
     private static string ReadFetcherSubdomain(LaunchSettingReader reader)
     {
@@ -37,8 +47,9 @@ public sealed record IntakeLaunchSettings(
     }
 
     public static string UsageMessage => ServiceLaunchSettings.BuildUsageMessage(
-        " [--publicFormOrigin=<origin>[,<origin>]] [--fetcherSubdomain=<name>]" + MailDelivery.UsageSummary,
+        " [--publicFormOrigin=<origin>[,<origin>]] [--fetcherSubdomain=<name>] [--documentDirectory=<path>]" + MailDelivery.UsageSummary,
         "\n  --publicFormOrigin  Origin(s) of the public form allowed to call this service across origins"
         + "\n  --fetcherSubdomain  Endpoint service the position lookups are forwarded through"
+        + "\n  --documentDirectory Folder the files submitters share are kept in, beside the service unless rooted"
         + MailDelivery.UsageMessage);
 }

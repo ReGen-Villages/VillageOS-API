@@ -439,6 +439,8 @@ export const fr: PartialResources = {
     loading: "chargement…",
     stateHistoryUnavailable: "Historique des états indisponible — aucun moteur réactif actif pour ce modèle.",
     noStateChanges: "Aucun changement d'état enregistré.",
+    handledBy: "Traité par",
+    dispatchesSinceModelLoad: "Enregistré depuis le chargement de ce modèle par la plateforme — une exécution antérieure n'affiche aucune heure.",
   },
   panels: {
     node: {

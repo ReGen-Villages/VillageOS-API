@@ -55,6 +55,21 @@ public class ServiceHostTests
         body.GetProperty("service").GetString().Should().Be(ServiceName);
     }
 
+    // The platform reads a daemon it did not launch through the process the daemon reports here: it
+    // holds no handle to one it never started, and the health probe is where it already visits every
+    // daemon each interval.
+    [Fact]
+    public async Task MapHealth_ReportsTheProcessTheServiceIsRunningAs()
+    {
+        await using var app = BuildApp();
+        app.MapHealth(ServiceName);
+        await app.StartAsync();
+
+        var body = await app.GetTestClient().GetFromJsonAsync<JsonElement>("/health");
+
+        body.GetProperty("processId").GetInt32().Should().Be(Environment.ProcessId);
+    }
+
     [Fact]
     public async Task MapHealthAndStats_ReportsTheHandlerIdentityAndBrokerAddress()
     {
