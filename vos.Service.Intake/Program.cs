@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using System.Net;
 using System.Text.Json;
 using System.Threading.RateLimiting;
@@ -137,6 +138,12 @@ try
     builder.Services.AddSingleton<SubmissionTicket>();
     builder.Services.AddSingleton<SubmissionIntakeService>();
     builder.Services.AddSingleton<SubmissionFindingsService>();
+    builder.Services.AddSingleton(new DocumentStore(
+        Path.IsPathRooted(launchSettings.DocumentDirectory)
+            ? launchSettings.DocumentDirectory
+            : Path.Combine(AppContext.BaseDirectory, launchSettings.DocumentDirectory)));
+    builder.Services.AddSingleton<SharedDocumentService>();
+    builder.Services.AddHostedService<DocumentReclaimService>();
     builder.Services.AddSingleton(provider => new BasemapTileService(
         provider.GetRequiredService<IntakeMyceliumClient>(),
         provider.GetRequiredService<ISubscriptionClient>(),
@@ -523,6 +530,94 @@ try
                                           && !context.RequestAborted.IsCancellationRequested))
         {
             logger.LogError(error, "A tile could not be answered: {Reason}", error.Message);
+            return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
+        }
+    }).RequireRateLimiting(SubmissionRate.PolicyName);
+
+    // The files a submitter shares after the report. The bytes go to the store beside this service and the
+    // model gets the Thing it declares for one; both under the ticket, since a file is about one
+    // submitter's land. The review page lists a submission's files from the model itself.
+    app.MapPost("/submissions/{submissionId}/documents", async (
+        string submissionId, HttpContext context, SharedDocumentService documents, SubmissionTicket tickets,
+        ILogger<SharedDocumentService> logger) =>
+    {
+        var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
+        if (tickets.WhyRefused(presented) is { } notFromAForm)
+            return Refused(context, "the ticket was not accepted",
+                Results.Json(new { error = notFromAForm }, statusCode: StatusCodes.Status403Forbidden));
+        if (!context.Request.HasFormContentType)
+            return Refused(context, "the body was not a form",
+                Results.BadRequest(new { error = "A file is sent as a form: 'file' and, beside it, 'description'." }));
+
+        var form = await context.Request.ReadFormAsync(context.RequestAborted);
+        var file = form.Files.GetFile("file");
+        if (file is null || file.Length == 0)
+            return Refused(context, "no file was sent",
+                Results.BadRequest(new { error = "The form carries no 'file', or an empty one." }));
+        if (file.Length > SharedDocumentService.MaximumFileBytes)
+            return Refused(context, "the file was too large",
+                Results.Json(new { error = $"A file may be at most {SharedDocumentService.MaximumFileBytes / (1024 * 1024)} MB." },
+                    statusCode: StatusCodes.Status413PayloadTooLarge));
+        var description = form["description"].ToString();
+        if (description.Length > SubmissionLimits.LongestProse)
+            return Refused(context, "the description was too long",
+                Results.BadRequest(new { error = $"A description is at most {SubmissionLimits.LongestProse} characters." }));
+
+        try
+        {
+            await using var bytes = file.OpenReadStream();
+            var shared = await documents.ShareAsync(
+                submissionId, address => tickets.WasIssuedFor(presented, address),
+                Path.GetFileName(file.FileName), file.ContentType, description, bytes, context.RequestAborted);
+            switch (shared.Outcome)
+            {
+                case ShareOutcome.Shared:
+                    context.Response.Headers[SubmissionTicket.HeaderName] = tickets.Issue(shared.Address!);
+                    return Results.Json(shared.Document, statusCode: StatusCodes.Status201Created);
+                case ShareOutcome.NotTakenHere:
+                    return Refused(context, "this model takes no shared file",
+                        Results.Json(new { error = "Files are not taken here: the model declares no place for one." },
+                            statusCode: StatusCodes.Status404NotFound));
+                default:
+                    return Refused(context, "the reference and the ticket name no submission",
+                        Results.Json(new { error = SubmissionFindingsService.NotYourSubmission }, statusCode: StatusCodes.Status404NotFound));
+            }
+        }
+        catch (Exception error) when (error is ModelNotSeededError or HttpRequestException or SubmissionError
+                                      || (error is TaskCanceledException
+                                          && !context.RequestAborted.IsCancellationRequested))
+        {
+            logger.LogError(error, "A shared file could not be taken: {Reason}", error.Message);
+            return Results.Problem("This service cannot take a file at the moment.", statusCode: 503);
+        }
+    }).RequireRateLimiting(SubmissionRate.PolicyName)
+      // The service-wide body limit is a form's; a file is allowed what a file is allowed, and the
+      // route refuses what is over that itself, with the reason.
+      .WithMetadata(new RequestSizeLimitAttribute(SharedDocumentService.MaximumRequestBytes));
+
+    app.MapGet("/submissions/{submissionId}/documents", async (
+        string submissionId, HttpContext context, SharedDocumentService documents, SubmissionTicket tickets,
+        ILogger<SharedDocumentService> logger) =>
+    {
+        var presented = context.Request.Headers[SubmissionTicket.HeaderName].ToString();
+        if (tickets.WhyRefused(presented) is { } notFromAForm)
+            return Refused(context, "the ticket was not accepted",
+                Results.Json(new { error = notFromAForm }, statusCode: StatusCodes.Status403Forbidden));
+        try
+        {
+            var listed = await documents.ListAsync(
+                submissionId, address => tickets.WasIssuedFor(presented, address), context.RequestAborted);
+            if (listed is not { } answer)
+                return Refused(context, "the reference and the ticket name no submission",
+                    Results.Json(new { error = SubmissionFindingsService.NotYourSubmission }, statusCode: StatusCodes.Status404NotFound));
+            context.Response.Headers[SubmissionTicket.HeaderName] = tickets.Issue(answer.Address);
+            return Results.Ok(new { documents = answer.Documents });
+        }
+        catch (Exception error) when (error is ModelNotSeededError or HttpRequestException
+                                      || (error is TaskCanceledException
+                                          && !context.RequestAborted.IsCancellationRequested))
+        {
+            logger.LogError(error, "Shared files could not be listed: {Reason}", error.Message);
             return Results.Problem("This service cannot answer at the moment.", statusCode: 503);
         }
     }).RequireRateLimiting(SubmissionRate.PolicyName);

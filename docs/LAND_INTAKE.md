@@ -1308,6 +1308,22 @@ keeps the bytes on its disk for the registration's cache life — and serves the
 names, so this service is a proxy for the basemaps the model declares and for nothing else. Neither
 route hands a page the provider's address or any key.
 
+**A submitter can share files about their land once the report is up, and the same service takes
+them** (#7059). `POST /submissions/{submissionId}/documents`, under the ticket, is a form carrying
+`file` and a `description`: any type, up to 25 MB, refused over that with the limit named. The bytes
+go to a folder beside the service (`--documentDirectory`, `documents` by default), keyed by submission
+and under a key of the store's own, so the name a person gave the file is a value on a Thing and never
+a path. The model gets what it declares for one — the archetype marked `__IsSharedDocumentArchetype`
+with the file's name, description, media type, size and when it was shared — related to the
+submission's project through the predicate marked `__IsSharedDocumentPredicate`, so the review page
+lists a submission's files from the model and never asks this service. `GET
+/submissions/{submissionId}/documents`, under the ticket, lists the same for the page that shared them.
+A model declaring no shared file takes none: the route says files are not taken here rather than
+keeping bytes nothing can list. Once the retention pass has taken a rejected submission out of the
+model, its files go with it — the store asks the model each hour which of the submissions it holds
+files for still stand, and forgets the rest — and a folder of its own is the reason a deployment that
+never shares a file configures nothing.
+
 ### From submission to project
 
 Submissions land in a staging model. Becoming a project is a deliberate act.
