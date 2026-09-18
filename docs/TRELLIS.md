@@ -1476,7 +1476,7 @@ type.
 - **GraphDataLoader** (renderer sync): mirrors the `modelStore` into the Sigma graph. The first load (empty graph) does a full `loadGraph()` and fits the camera; every later change — including creates and deletes — is applied by `reconcileGraph()`, which adds/patches nodes and edges in place, skips existing nodes' `x`/`y` so the running force layout is undisturbed, and never resets the camera. Net effect: created and deleted Things and Relationships appear on the graph immediately, without a rebuild or camera jump.
 
   Removals take a different route inside `reconcileGraph()`: it folds the live graph's settled positions and live-only attributes (such as clustering's `fixed` flags) into the freshly built target, then does one `clear()` + `import()`. Sigma re-indexes the entire graph synchronously on every `nodeDropped` / `edgeDropped` event, so dropping elements one at a time costs O(removed × graph size). Hiding a large share of a big model — the type filter's **None** button on a 30k-Thing seed — wedged the main thread long enough to look like a crash. One `cleared` event costs a single re-index, and the re-import rides Sigma's per-element add path, which is O(1) each.
-- **DashboardPage**: Subscribes to ServiceHealthChanged, DaemonStatusChanged, ServiceRequestCompleted → refetches `/api/mycelium/services`; EndpointServiceRequestCompleted → refetches `/api/endpoints` (this is what keeps each service row's "Last Req" current)
+- **DashboardPage**: Subscribes to ServiceHealthChanged, DaemonStatusChanged, ServiceRequestCompleted and EndpointServiceRequestCompleted → marks the service registry stale, and refetches `/api/mycelium/services` and `/api/endpoints` once per two-second window (this is what keeps each service row's "Last Req" current). The first event after a quiet spell claims the window and the rest are absorbed; events arriving while the read runs claim the next window, so the page keeps reading while a simulation keeps completing requests — a debounce restarting on every event would never read at all. ModelChanged refetches at once.
 - **AppLayout**: Subscribes to ActivityEvent → pushes to `activityStore`
 
 Detail panels use dedicated `detailThing` / `detailRelationship` state (React state in GraphPage, not in Zustand) decoupled from the main `things[]` / `relationships[]` arrays. This prevents O(n) re-renders when only the detail panel content changes.
@@ -1549,7 +1549,7 @@ Four components on `DashboardPage`:
 | Component | Data Source | Updates |
 |-----------|-----------|---------|
 | `ModelStatsCard` | `GET /api/things` + `GET /api/relationships` | SSE model events |
-| `ServicesPanel` | `GET /api/mycelium/services` + `GET /api/endpoints` | SSE `ServiceHealthChanged`, `DaemonStatusChanged`, `ServiceRequestCompleted`, `EndpointServiceRequestCompleted` |
+| `ServicesPanel` | `GET /api/mycelium/services` + `GET /api/endpoints` | SSE `ServiceHealthChanged`, `DaemonStatusChanged`, `ServiceRequestCompleted`, `EndpointServiceRequestCompleted`, read once per two-second window |
 | `ActivityFeed` | SSE `ActivityEvent` only | Real-time (keeps last 200). Pause/resume (buffers new events while paused), category filter chips (Model/Things/Rels/Props/Services), color-coded event types, collapsible panel, resizable height (drag handle, persisted to localStorage) |
 
 ### Dashboard Top-Right Controls
