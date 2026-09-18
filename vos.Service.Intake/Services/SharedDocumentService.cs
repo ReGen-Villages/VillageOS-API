@@ -84,11 +84,17 @@ public sealed class SharedDocumentService(
 
     /// <summary>Takes the files of every submission the model no longer holds. The retention pass prunes
     /// a rejected submission's Things once its period has run; the bytes cannot go with them, since the
-    /// model never held them, so this asks the model which submissions still stand and forgets the rest.</summary>
+    /// model never held them, so this asks the model which submissions still stand and forgets the rest.
+    /// A model that declares no shared file is asked nothing: one not seeded yet, or not the one the files
+    /// were taken into, would otherwise read as having let every submission go.</summary>
     public async Task<int> ReclaimAsync(CancellationToken cancellation)
     {
         var held = store.SubmissionsHeld();
         if (held.Count == 0) return 0;
+
+        var declared = await subscriptions.ReadAsync(
+            SharedDocumentReader.DeclarationSelector(), SharedDocumentReader.ReadDeclarations, logger, cancellation);
+        if (declared is null) return 0;
 
         var records = held.Select(submissionId => StableIdentity.Derive(submissionId, SubmissionFragmentComposer.SubmissionRole)).ToList();
         var standing = await subscriptions.ReadAsync(

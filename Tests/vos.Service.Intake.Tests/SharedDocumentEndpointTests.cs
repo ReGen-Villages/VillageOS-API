@@ -252,4 +252,22 @@ public sealed class SharedDocumentEndpointTests : IDisposable
         Directory.Exists(Path.Combine(_folder, gone)).Should().BeFalse();
         File.Exists(Path.Combine(_folder, WillowBend.SubmissionId, "kept.pdf")).Should().BeTrue();
     }
+
+    // The pass forgets what the model does not answer for, so a model that declares no shared file — one
+    // not seeded yet, or not the one the files were taken into — must answer for nothing rather than
+    // read as having let every submission go.
+    [Fact]
+    public async Task A_model_declaring_no_shared_file_reclaims_nothing()
+    {
+        var (factory, _) = Holding(BrokerSnapshot.WithTwoSubmissions(), runsTheReclaimPass: false);
+        await using var __ = factory;
+        Directory.CreateDirectory(Path.Combine(_folder, WillowBend.SubmissionId));
+        await File.WriteAllBytesAsync(Path.Combine(_folder, WillowBend.SubmissionId, "kept.pdf"), SomeBytes);
+
+        var documents = factory.Services.GetRequiredService<SharedDocumentService>();
+        var forgotten = await documents.ReclaimAsync(CancellationToken.None);
+
+        forgotten.Should().Be(0);
+        File.Exists(Path.Combine(_folder, WillowBend.SubmissionId, "kept.pdf")).Should().BeTrue();
+    }
 }
