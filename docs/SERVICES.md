@@ -474,8 +474,10 @@ call would be refused whatever the service holds. A stopped service stays
 listed until the monitor's auto-deregistration removes it.
 
 Today each service hand-rolls the `/health` body shape (Echo returns
-`requestsProcessed`; Metabolism returns five fields). The monitor only reads
-`status`. The fixed-envelope health shape arrives with the Delivery contract;
+`requestsProcessed`; Metabolism returns five fields). The monitor reads the
+status code and, from a healthy answer, `processId` — the process a service
+the platform did not start is running as, which is how the performance page
+measures it. The fixed-envelope health shape arrives with the Delivery contract;
 see [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) §1.8.
 
 ### Deregistration triggers

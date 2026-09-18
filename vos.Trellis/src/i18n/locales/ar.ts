@@ -581,6 +581,8 @@ export const ar: PartialResources & ArabicPlurals = {
     loading: "جارٍ التحميل…",
     stateHistoryUnavailable: "سجل الحالات غير متاح — لا يوجد محرك تفاعلي نشط لهذا النموذج.",
     noStateChanges: "لم يُسجَّل أي تغيير في الحالة.",
+    handledBy: "عالجته",
+    dispatchesSinceModelLoad: "مسجَّل منذ أن حمّلت المنصة هذا النموذج — التشغيل الأسبق لا يظهر له وقت.",
   },
   panels: {
     node: {

@@ -467,6 +467,8 @@ export const it: PartialResources = {
     loading: "caricamento…",
     stateHistoryUnavailable: "Cronologia degli stati non disponibile — nessun motore reattivo attivo per questo modello.",
     noStateChanges: "Nessun cambiamento di stato registrato.",
+    handledBy: "Gestito da",
+    dispatchesSinceModelLoad: "Registrato da quando la piattaforma ha caricato questo modello — un'esecuzione precedente non mostra alcun orario.",
   },
   panels: {
     node: {

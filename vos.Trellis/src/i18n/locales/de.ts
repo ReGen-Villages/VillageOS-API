@@ -467,6 +467,8 @@ export const de: PartialResources = {
     loading: "wird geladen…",
     stateHistoryUnavailable: "Zustandsverlauf nicht verfügbar — keine aktive reaktive Engine für dieses Modell.",
     noStateChanges: "Keine Zustandsänderungen aufgezeichnet.",
+    handledBy: "Verarbeitet von",
+    dispatchesSinceModelLoad: "Aufgezeichnet, seit die Plattform dieses Modell geladen hat — ein früherer Lauf zeigt keine Zeit.",
   },
   panels: {
     node: {

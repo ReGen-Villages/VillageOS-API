@@ -35,6 +35,7 @@ import {
   type PropertyFilter,
 } from '../types/dashboard';
 import type { ModelReads } from './modelReads';
+import type { StateNarrowing } from './stateQuery';
 import { effectiveProperties, effectiveDerivedDefinitions } from '../utils/propertyMapper';
 import { valueOrigin } from '../utils/propertyOrigin';
 import { findRange } from '../utils/rangeHelpers';
@@ -767,11 +768,21 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
 
     case 'stateCount': {
       const container = containerFor(binding.scope, ctx);
-      const resp = await ctx.reads.thingsInState(binding.state, { type: binding.archetype, ...container });
-      // Only what the request could not carry is narrowed here.
+      const narrowing: StateNarrowing = {
+        type: binding.archetype,
+        notIn: binding.excludeState ? [binding.excludeState] : undefined,
+        ...container,
+      };
+      // Only a scope the request cannot carry is narrowed here, and only that path reads the members:
+      // the platform's number would be the one before the local walk.
       const members = container ? null : scopeMemberIds(binding.scope, ctx);
-      const list = resp.Things ?? [];
-      return members ? list.filter((t) => members.has(t.Id)).length : list.length;
+      if (members) {
+        const resp = await ctx.reads.thingsInState(binding.state, narrowing);
+        return (resp.Things ?? []).filter((t) => members.has(t.Id)).length;
+      }
+      const resp = await ctx.reads.thingsInState(binding.state, { ...narrowing, countOnly: true });
+      if (resp.Count === undefined) throw new Error(`The state read for ${binding.state} answered no count.`);
+      return resp.Count;
     }
 
     case 'stateList': {

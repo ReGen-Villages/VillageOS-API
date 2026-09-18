@@ -579,7 +579,7 @@ function StateQueryPanel() {
     setLoading(true);
     try {
       const data = await stateApi.getThingsInState(stateName.trim());
-      setResults(data.Things);
+      setResults(data.Things ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('temporal.toast.queryStateFailed'));
     } finally {

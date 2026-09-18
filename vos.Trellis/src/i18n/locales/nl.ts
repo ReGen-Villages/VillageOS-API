@@ -467,6 +467,8 @@ export const nl: PartialResources = {
     loading: "laden…",
     stateHistoryUnavailable: "Statusgeschiedenis niet beschikbaar — geen actieve reactieve engine voor dit model.",
     noStateChanges: "Geen statuswijzigingen vastgelegd.",
+    handledBy: "Verwerkt door",
+    dispatchesSinceModelLoad: "Vastgelegd sinds het platform dit model laadde — een eerdere uitvoering toont geen tijd.",
   },
   panels: {
     node: {
