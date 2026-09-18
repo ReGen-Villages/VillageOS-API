@@ -404,6 +404,9 @@ describe('localizeSpec over a lineSeries widget', () => {
     expect(localized.hint).toBe('mensual');
     expect(localized.unit).toBe('milímetros');
     expect(localized.series[0].label).toBe('Este año');
+  });
+});
+
 describe('localizeSpec over a heatmap widget', () => {
   const spec: DashboardSpec = {
     title: 'Analysis',
@@ -428,6 +431,9 @@ describe('localizeSpec over a heatmap widget', () => {
     expect(localized.title).toBe('Sol');
     expect(localized.hint).toBe('hora por día');
     expect(localized.unit).toBe('vatios');
+  });
+});
+
 describe('localizeSpec over a stackedShares widget', () => {
   const spec: DashboardSpec = {
     title: 'Analysis',
