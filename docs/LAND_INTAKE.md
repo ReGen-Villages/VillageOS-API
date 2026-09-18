@@ -293,6 +293,15 @@ comes first, and the report comes before the questions.
   a fragment upserts — and every figure recomputes. A successful post or read hands a fresh ticket
   back in the response header, so a long session is not sent back to the mailbox every ten minutes,
   while an abandoned ticket still dies at its own age.
+- **After the report, the page asks for surveys.** *Have you done any surveys which you can share?* —
+  yes opens a file box that takes several files at once, each with a description typed beside it; not
+  now closes the question. Each file goes to the intake service under the same ticket (see the shared
+  files in [§9](#9-public-submissions-and-the-trust-boundary)), one after another so every send rides
+  the ticket the last one handed back, with the browser reporting how far the bytes have got. A file
+  over the limit is refused on the page before a byte is sent, with the limit named; a refusal from
+  the service is shown beside the file in the service's own words. What the model holds is listed
+  below with each file's description, read back through the service when the report opens, so a
+  person who returns sees what they shared before.
 
 What the two approaches share is deliberately everything that matters: one submission document, one
 composing path, one verification exchange, one dashboard. What differs is only the order the person

@@ -6,7 +6,8 @@
  * the same pair the service checks — this mailbox, and the submission that names it — because a
  * reference is known to whoever submitted and to anybody who guessed one.
  */
-import { intakeApi, intakeServiceAddress, refusalFrom, TICKET_HEADER } from './intakeApi';
+import { intakeApi, intakeServiceAddress, refusalFrom, refusalIn, TICKET_HEADER } from './intakeApi';
+import type { SharedSurvey } from '../explore/sharedSurveys';
 import type { FindingsAnswer } from '../publicFindings/answeredFindings';
 import type { TemporalReduceQuery, TemporalReduceResponse } from '../types/vos';
 
@@ -67,4 +68,65 @@ export const findingsApi = {
       ticket: response.headers.get(TICKET_HEADER) ?? ticket,
     };
   },
+
+  /** A survey shared about the land: the file and its description go up as a form under the ticket and
+   *  the service answers the document the model now holds. Sent through the browser's own request
+   *  object rather than `fetch`, which is the one of the two that reports how far the bytes have got —
+   *  a 25 MB file on a phone is long enough to want telling. */
+  shareDocumentWithTicket: (
+    submissionId: string,
+    ticket: string,
+    file: File,
+    description: string,
+    onProgress: (fraction: number) => void,
+  ): Promise<{ document: SharedSurvey; ticket: string }> =>
+    new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('POST', `${intakeServiceAddress()}/submissions/${submissionId}/documents`);
+      request.setRequestHeader(TICKET_HEADER, ticket);
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
+      };
+      request.onerror = () => reject(new Error('The file could not be sent.'));
+      request.onload = () => {
+        if (request.status < 200 || request.status >= 300) {
+          reject(new Error(refusalIn(parsedOrNull(request.responseText), request.status)));
+          return;
+        }
+        resolve({
+          document: JSON.parse(request.responseText) as SharedSurvey,
+          ticket: request.getResponseHeader(TICKET_HEADER) ?? ticket,
+        });
+      };
+      const form = new FormData();
+      form.append('file', file);
+      form.append('description', description);
+      request.send(form);
+    }),
+
+  /** The files the model holds for the submission, under the ticket, for the page that shared them. */
+  listDocumentsWithTicket: async (
+    submissionId: string,
+    ticket: string,
+  ): Promise<{ documents: SharedSurvey[]; ticket: string }> => {
+    const response = await fetch(`${intakeServiceAddress()}/submissions/${submissionId}/documents`, {
+      method: 'GET',
+      headers: { [TICKET_HEADER]: ticket },
+    });
+
+    if (!response.ok) throw new Error(await refusalFrom(response));
+    const answered = (await response.json()) as { documents?: SharedSurvey[] };
+    return {
+      documents: answered.documents ?? [],
+      ticket: response.headers.get(TICKET_HEADER) ?? ticket,
+    };
+  },
 };
+
+function parsedOrNull(text: string): { error?: string } | null {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}

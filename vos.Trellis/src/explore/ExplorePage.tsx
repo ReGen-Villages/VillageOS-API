@@ -27,6 +27,8 @@ import { useBinding, useResolveContext } from '../hooks/useDashboard';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
 import { fromHectares, withShareSet, wholePercentages } from '../intake/submissionDraft';
 import { findingsFrom, type Findings } from '../publicFindings/answeredFindings';
+import { SurveysStep } from './SurveysStep';
+import type { SharedSurvey } from './sharedSurveys';
 import type { DashboardSection, KpiWidget } from '../types/dashboard';
 import type { TemporalReduceQuery } from '../types/vos';
 import { degreesMinutesSeconds } from '../utils/degreesMinutesSeconds';
@@ -178,6 +180,32 @@ export function ExplorePage() {
     const reduced = await findingsApi.reduceWithTicket(stateRef.current.submissionId, held, question);
     ticket.current = reduced.ticket;
     return reduced.answer;
+  }, []);
+
+  // A survey goes up under the same ticket and the renewal is kept the same way. A ticket that aged out
+  // is the one refusal the person mends here rather than reads beside the file.
+  const shareSurvey = useCallback(async (
+    file: File, description: string, onProgress: (fraction: number) => void,
+  ): Promise<SharedSurvey> => {
+    const held = ticket.current;
+    if (held === null) throw new Error('No ticket is held.');
+    try {
+      const shared = await findingsApi.shareDocumentWithTicket(
+        stateRef.current.submissionId, held, file, description, onProgress);
+      ticket.current = shared.ticket;
+      return shared.document;
+    } catch (error) {
+      if (isTicketRefusal(error)) setExpired(true);
+      throw error;
+    }
+  }, []);
+
+  const listSurveys = useCallback(async (): Promise<SharedSurvey[]> => {
+    const held = ticket.current;
+    if (held === null) return [];
+    const listed = await findingsApi.listDocumentsWithTicket(stateRef.current.submissionId, held);
+    ticket.current = listed.ticket;
+    return listed.documents;
   }, []);
 
   const readFindings = useCallback(async (): Promise<void> => {
@@ -334,6 +362,8 @@ export function ExplorePage() {
             onResume={() => void resume()}
             onRefresh={() => void readFindings().catch(() => undefined)}
             onDial={(patch) => setState((s) => ({ ...s, ...patch }))}
+            onShareSurvey={shareSurvey}
+            onListSurveys={listSurveys}
           />
         )}
       </main>
@@ -672,6 +702,8 @@ function ReportStep({
   onResume,
   onRefresh,
   onDial,
+  onShareSurvey,
+  onListSurveys,
 }: {
   options: FormOptions | null;
   state: ExploreState;
@@ -686,6 +718,8 @@ function ReportStep({
   onResume: () => void;
   onRefresh: () => void;
   onDial: (patch: Partial<ExploreState>) => void;
+  onShareSurvey: (file: File, description: string, onProgress: (fraction: number) => void) => Promise<SharedSurvey>;
+  onListSurveys: () => Promise<SharedSurvey[]>;
 }) {
   const { t } = useTranslation();
 
@@ -746,6 +780,7 @@ function ReportStep({
         )}
       </section>
 
+      <SurveysStep share={onShareSurvey} list={onListSurveys} />
       <Dials options={options} state={state} onDial={onDial} />
     </>
   );

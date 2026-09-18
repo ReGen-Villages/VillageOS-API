@@ -936,7 +936,9 @@ vos.Trellis/
     ├── explore/                 # The third page in that build: land first, report before questions
     │   ├── main.tsx             # Its entry, as the form's
     │   ├── ExplorePage.tsx      # Map-first intake beside the wizard, and the report with the dials
-    │   └── exploreState.ts      # The exploration, the register boundary, and the posted document
+    │   ├── exploreState.ts      # The exploration, the register boundary, and the posted document
+    │   ├── SurveysStep.tsx      # The surveys asked for after the report, sent one by one under the ticket
+    │   └── sharedSurveys.ts     # The chosen files, how far each has got, and what the model lists
     │
     └── components/
         ├── layout/
@@ -1226,7 +1228,7 @@ their own entries and their own configuration in `vite.public.config.ts`:
 |---|---|---|---|
 | Submission form | `src/publicForm/main.tsx` | `index.html` | The wizard somebody with land fills in |
 | Findings | `src/publicFindings/main.tsx` | `findings.html` | What the analysis made of a submission already sent |
-| Explore | `src/explore/main.tsx` | `explore.html` | The plot-first way in, beside the wizard: map first with the facts about the land beside it, the report as themed tiles before the questions, and dials that re-post the same submission — see [LAND_INTAKE.md §4](LAND_INTAKE.md#the-plot-first-page) and [A section drawn as a tile](#a-section-drawn-as-a-tile) |
+| Explore | `src/explore/main.tsx` | `explore.html` | The plot-first way in, beside the wizard: map first with the facts about the land beside it, the report as themed tiles before the questions, dials that re-post the same submission, and the surveys asked for after the report — see [LAND_INTAKE.md §4](LAND_INTAKE.md#the-plot-first-page) and [A section drawn as a tile](#a-section-drawn-as-a-tile) |
 
 ```
 VITE_INTAKE_URL=https://intake.example.org npm run build:public
