@@ -17,6 +17,7 @@ import { RangeBar } from './RangeBar';
 import { LineSeries } from './LineSeries';
 import { Heatmap } from './Heatmap';
 import { StackedShares } from './StackedShares';
+import { DivergingBar } from './DivergingBar';
 import { WidgetCard } from './WidgetCard';
 
 /** Renders a single widget by its `type`. The only place that knows the widget union.
@@ -62,6 +63,8 @@ export function WidgetRenderer({
       return <Heatmap widget={widget} ctx={ctx} />;
     case 'stackedShares':
       return <StackedShares widget={widget} ctx={ctx} />;
+    case 'divergingBar':
+      return <DivergingBar widget={widget} ctx={ctx} />;
     default:
       return <UnknownWidget reason={{ unknownType: (widget as { type?: unknown }).type }} />;
   }

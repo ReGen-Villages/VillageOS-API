@@ -638,6 +638,28 @@ export interface StackedSharesWidget {
   classes: StackedSharesClass[];
 }
 
+/** One direction of a diverging bar: what it is called, the binding whose groups are its monthly
+ *  figures — a `history` binding folded by `monthOfYear` — and the threshold the figures were counted
+ *  against, bound to the model's own value so the legend names the number the model holds. */
+export interface DivergingBarSide {
+  label: string;
+  value: Binding;
+  threshold?: Binding;
+}
+
+/** Twelve months, each one bar rising above a line and one falling below it, on one scale — the
+ *  cooling and heating degree days. The up side takes the warm tone, the down side the cool one. A
+ *  month neither side was answered for is left out. */
+export interface DivergingBarWidget {
+  type: 'divergingBar';
+  title?: string;
+  hint?: string;
+  up: DivergingBarSide;
+  down: DivergingBarSide;
+  format?: NumberFormat;
+  unit?: string;
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -651,7 +673,8 @@ export type Widget =
   | RangeBarWidget
   | LineSeriesWidget
   | HeatmapWidget
-  | StackedSharesWidget;
+  | StackedSharesWidget
+  | DivergingBarWidget;
 
 export interface DashboardSection {
   title?: string;

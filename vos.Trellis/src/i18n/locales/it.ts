@@ -280,6 +280,10 @@ export const it: PartialResources = {
       lastDays_one: 'ultimo giorno',
       lastDays_other: 'ultimi {{count}} giorni',
     },
+    divergingBar: {
+      above: 'sopra {{threshold}}',
+      below: 'sotto {{threshold}}',
+    },
     heatmap: {
       sunrise: 'Alba',
       sunset: 'Tramonto',
