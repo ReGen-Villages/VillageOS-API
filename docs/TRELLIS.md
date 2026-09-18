@@ -2274,6 +2274,53 @@ fan-out. The wiring — which Things are connections and which service each bind
 — is worked out once per model index and held against it in a `WeakMap`, so
 several open cards share one walk and it is collected with the index.
 
+### A figure opens to show what it is made of
+
+A dotted rule under a KPI figure means the model derived it rather than
+somebody typing it in, and it opens to what it is made of. It appears only
+where that is true, so it stays information rather than decoration. Whether it
+appears is settled by the binding's shape alone (`hasBreakdown` in
+`api/figureBreakdown.ts`), so drawing it costs no request.
+
+Opening a figure gives the whole viewport to the figure, the model's own words
+for what it names — archetype, state, property, the compare entity it was
+narrowed to, its filters, untranslated as everywhere else — and the evidence:
+
+| The figure's binding | What opens |
+| --- | --- |
+| `stateCount` | The Things counted, one row each |
+| `aggregate` | The members reduced, and the value each contributed |
+| `property` on one Thing | That Thing — or, with no compare entity selected, every entity the figure averaged |
+| `ratio` | Both sides, each with its own figure and its own rows |
+| `latest` over several buckets | The same question over the same window, in equal parts, oldest first |
+| `const`, `service`, `timeseries`, a `latest` of one bucket | Nothing — no rule is drawn |
+
+**The evidence is the same narrowed question the figure was formed from**, not
+a second binding written beside it. A count opens by asking the state read for
+the members under the count's own narrowing (state, archetype, scope) — the
+question the number answered, asked for its rows. An aggregate's member walk
+and its reduction are two exported helpers (`aggregateMembers`,
+`aggregateValue`) the resolver's own case calls, so the figure and the rows
+behind it come from one walk. A ratio opens to both sides, each resolved the
+same way. A trailing-window point opens to the buckets it was folded from by
+asking the platform for the same window at one bucket per point.
+
+**Rows.** `breakdownTable` chooses the columns: the name leads, the measure
+the figure reduced comes next, then the properties the rows carry — the ones
+that tell rows apart first, ties broken by how many rows carry the property,
+then by name — capped, with the properties left out named under the table. A
+row's card opens through the dashboard's `openDetail`. The rows behind a count
+arrive from the platform as id and name: a count's type is not among what the
+page subscribes to, so a row's properties are drawn only where the page holds
+the Thing.
+
+**Cost.** Nothing until a reader opens a figure; the rule itself is decided
+from the spec. An open panel resolves the breakdown once per refresh of the
+page's context, the way a widget's binding does, and the answer on screen stays
+until the next one lands. A count's breakdown is one state read; an aggregate's
+is the walk the figure already made; a ratio's is both sides; a window's is one
+reduction request.
+
 ### Translating a dashboard spec (i18n)
 
 The config-driven operations dashboard (`OperationsPage`) renders every label
