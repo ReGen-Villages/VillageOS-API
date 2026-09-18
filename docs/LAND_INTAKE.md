@@ -1294,6 +1294,20 @@ rejected submission's retention period has run and `submissions dispose` has tak
 model, the reference and the address name nothing, and the page says so in the same words as a reference
 nobody ever submitted under.
 
+**Two reads the page makes after the document arrived are proxied by the same service** (#7060). The
+charts over the site's climate history ask the platform's reduction over one property's series —
+`POST /findings/{submissionId}/reduce`, under the ticket, with the reduce read's request minus its
+`thingId`: the service verifies the ticket was issued for the address the submission names, supplies
+the submission's own site, and hands the platform's answer back in its own words, status included, so
+a question the platform refuses reaches the page with the reason. The satellite view's tiles come
+through `GET /basemaps/{registration}/{z}/{x}/{y}`, anonymous like the position lookups because the
+opening map is drawn before anything is verified: the route names a tile registration the model marks
+`__IsBasemapTileRegistration`, forwards the three placeholders through the fetching service — which
+keeps the bytes on its disk for the registration's cache life — and serves the bytes back with a
+`Cache-Control` of the same life. A registration without the mark is not served, whatever the route
+names, so this service is a proxy for the basemaps the model declares and for nothing else. Neither
+route hands a page the provider's address or any key.
+
 ### From submission to project
 
 Submissions land in a staging model. Becoming a project is a deliberate act.
