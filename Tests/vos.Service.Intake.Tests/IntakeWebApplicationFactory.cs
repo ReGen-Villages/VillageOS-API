@@ -72,6 +72,14 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     /// <summary>Where codes go, or null to leave the service on its default of sending them.</summary>
     public string? MailDelivery { get; set; }
 
+    /// <summary>Where shared files are kept, or null for the service's default beside itself. A test about
+    /// files gives a folder of its own and removes it after.</summary>
+    public string? DocumentDirectory { get; set; }
+
+    /// <summary>Whether the hourly pass that takes out the files of let-go submissions runs with the host.
+    /// A test that drives the pass by hand leaves it out, or the two would race over the same folders.</summary>
+    public bool RunsTheReclaimPass { get; set; } = true;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(EnvironmentName);
@@ -85,6 +93,8 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             builder.UseSetting("ApiKey", ApiKey);
         // The service refuses to start without these unless codes go to the console, so every test
         // supplies them; nothing here reaches a mail server, because the mailer below is what sends.
+        if (DocumentDirectory is not null)
+            builder.UseSetting("DocumentDirectory", DocumentDirectory);
         builder.UseSetting("MailHost", "smtp.example.test");
         builder.UseSetting("MailFrom", "intake@example.test");
         if (MailDelivery != null)
@@ -113,6 +123,8 @@ public class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             }
             if (ArrivesThroughAProxy)
                 services.AddSingleton<IStartupFilter, ArrivingThroughTheProxy>();
+            if (!RunsTheReclaimPass)
+                services.Remove(services.Single(descriptor => descriptor.ImplementationType == typeof(DocumentReclaimService)));
         });
     }
 

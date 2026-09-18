@@ -80,7 +80,16 @@ describe('modelApi.getAtTime', () => {
 
     const snapshot = await modelApi.getAtTime('2026-09-05T03:31:10Z');
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/model?timestamp=2026-09-05T03%3A31%3A10Z');
+    expect(apiClient.get).toHaveBeenCalledWith('/api/model?timestamp=2026-09-05T03%3A31%3A10Z', undefined);
     expect(snapshot.Things[0].InheritedOverrides['reservoir-id']).toEqual(reservoir);
+  });
+
+  it('passes the caller’s abort signal down, so a superseded moment is abandoned rather than left running', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ Timestamp: '', Things: [], Relationships: [] });
+    const { signal } = new AbortController();
+
+    await modelApi.getAtTime('2026-09-05T03:31:10Z', signal);
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/model?timestamp=2026-09-05T03%3A31%3A10Z', signal);
   });
 });
