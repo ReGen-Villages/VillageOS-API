@@ -437,6 +437,8 @@ export const en = {
     loading: "loading…",
     stateHistoryUnavailable: "State history unavailable — no active reactive engine for this model.",
     noStateChanges: "No state changes recorded.",
+    handledBy: "Handled by",
+    dispatchesSinceModelLoad: "Recorded since the platform loaded this model — an earlier run shows no time.",
   },
   panels: {
     node: {
