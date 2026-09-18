@@ -334,6 +334,104 @@ describe('a tile reading the newest point of a series', () => {
   });
 });
 
+// A binding the widget holds and the subscription does not name is a figure that never arrives on a
+// live page, so every one of the widget's bindings has to reach the selector.
+describe('subscriptionForSpec over a rangeBar widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+              type: 'rangeBar',
+              title: 'Temperature',
+              hint: 'by month',
+              unit: 'degrees',
+              months: {
+                recordedHigh: { kind: 'aggregate', archetype: 'RecordedHigh', op: 'count' }, designHigh: { kind: 'aggregate', archetype: 'DesignHigh', op: 'count' },
+                averageHigh: { kind: 'aggregate', archetype: 'AverageHigh', op: 'count' }, mean: { kind: 'aggregate', archetype: 'Mean', op: 'count' },
+                averageLow: { kind: 'aggregate', archetype: 'AverageLow', op: 'count' }, designLow: { kind: 'aggregate', archetype: 'DesignLow', op: 'count' },
+                recordedLow: { kind: 'aggregate', archetype: 'RecordedLow', op: 'count' },
+              },
+              bands: [{ label: 'Comfort', from: { kind: 'aggregate', archetype: 'BandFrom', op: 'count' }, to: { kind: 'aggregate', archetype: 'BandTo', op: 'count' }, colour: '#0f0' }],
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['RecordedHigh', 'DesignHigh', 'AverageHigh', 'Mean', 'AverageLow', 'DesignLow', 'RecordedLow', 'BandFrom', 'BandTo']));
+  });
+});
+
+// A binding the widget holds and the subscription does not name is a figure that never arrives on a
+// live page, so every one of the widget's bindings has to reach the selector.
+describe('subscriptionForSpec over a lineSeries widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+              type: 'lineSeries',
+              title: 'Rain',
+              series: [{ label: 'This year', value: { kind: 'aggregate', archetype: 'ThisYear', op: 'count' } }, { label: 'Last year', value: { kind: 'aggregate', archetype: 'LastYear', op: 'count' } }],
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['ThisYear', 'LastYear']));
+  });
+});
+
+// A binding the widget holds and the subscription does not name is a figure that never arrives on a
+// live page, so every one of the widget's bindings has to reach the selector.
+describe('subscriptionForSpec over a heatmap widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+              type: 'heatmap',
+              title: 'Sun',
+              value: { kind: 'aggregate', archetype: 'Reading', op: 'count' },
+              sun: { latitude: { kind: 'aggregate', archetype: 'Latitude', op: 'count' }, longitude: { kind: 'aggregate', archetype: 'Longitude', op: 'count' }, utcOffsetSeconds: { kind: 'aggregate', archetype: 'Offset', op: 'count' } },
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Reading', 'Latitude', 'Longitude', 'Offset']));
+  });
+});
+
+// A binding the widget holds and the subscription does not name is a figure that never arrives on a
+// live page, so every one of the widget's bindings has to reach the selector.
+describe('subscriptionForSpec over a stackedShares widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+              type: 'stackedShares',
+              title: 'Cover',
+              classes: [
+                { label: 'Trees', colour: '#080', share: { kind: 'aggregate', archetype: 'Trees', op: 'count' } },
+                { label: 'Grass', colour: '#8f8', share: { kind: 'aggregate', archetype: 'Grass', op: 'count' } },
+              ],
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Trees', 'Grass']));
+  });
+});
+
+// A binding the widget holds and the subscription does not name is a figure that never arrives on a
+// live page, so every one of the widget's bindings has to reach the selector.
+describe('subscriptionForSpec over a divergingBar widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+              type: 'divergingBar',
+              title: 'Balance',
+              up: { label: 'Gain', value: { kind: 'aggregate', archetype: 'Gain', op: 'count' }, threshold: { kind: 'aggregate', archetype: 'GainLine', op: 'count' } },
+              down: { label: 'Loss', value: { kind: 'aggregate', archetype: 'Loss', op: 'count' }, threshold: { kind: 'aggregate', archetype: 'LossLine', op: 'count' } },
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Gain', 'GainLine', 'Loss', 'LossLine']));
+  });
+});
+
 // A step's parameter bound to the model — a setpoint the study declares, a bound a class Thing carries
 // — is read like the series it shapes, so the Thing it names is in the subscription and a change to it
 // re-asks the question.

@@ -8,6 +8,9 @@ import type {
   LeaderboardWidget,
   TableWidget,
   VerdictWidget,
+  RangeBarWidget,
+  StackedSharesWidget,
+  DivergingBarWidget,
 } from '../types/dashboard';
 
 /** A spec exercising every widget type plus a detail card. The base strings are
@@ -330,5 +333,106 @@ describe('localizeSpec over an origin binding', () => {
   it('never rewrites the origin the wording is keyed by, nor the property it reads', () => {
     expect(Object.keys(binding.reads)).toEqual(['measured', 'unknown']);
     expect(binding.property).toBe('rainfallMillimetresPerYear');
+  });
+});
+
+describe('localizeSpec over a rangeBar widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'rangeBar',
+              title: 'Temperature',
+              hint: 'by month',
+              unit: 'degrees',
+              months: {
+                recordedHigh: { kind: 'const', value: 1 }, designHigh: { kind: 'const', value: 1 },
+                averageHigh: { kind: 'const', value: 1 }, mean: { kind: 'const', value: 1 },
+                averageLow: { kind: 'const', value: 1 }, designLow: { kind: 'const', value: 1 },
+                recordedLow: { kind: 'const', value: 1 },
+              },
+              bands: [{ label: 'Comfort', colour: 'Comfort' }],
+            } satisfies RangeBarWidget] }],
+    translations: {
+      es: {
+          'Temperature': 'Temperatura',
+          'by month': 'por mes',
+          'degrees': 'grados',
+          'Comfort': 'Confort',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as RangeBarWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Temperatura');
+    expect(localized.hint).toBe('por mes');
+    expect(localized.unit).toBe('grados');
+    expect(localized.bands![0].label).toBe('Confort');
+  });
+
+  it('never rewrites a value that is not wording, even when a translation entry matches it', () => {
+    expect(localized.bands![0].colour).toBe('Comfort');
+  });
+});
+
+describe('localizeSpec over a stackedShares widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'stackedShares',
+              title: 'Cover',
+              hint: 'by month',
+              classes: [{ label: 'Trees', colour: 'Trees', share: { kind: 'const', value: 1 } }],
+            } satisfies StackedSharesWidget] }],
+    translations: {
+      es: {
+          'Cover': 'Cubierta',
+          'by month': 'por mes',
+          'Trees': 'Árboles',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as StackedSharesWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Cubierta');
+    expect(localized.hint).toBe('por mes');
+    expect(localized.classes[0].label).toBe('Árboles');
+  });
+
+  it('never rewrites a value that is not wording, even when a translation entry matches it', () => {
+    expect(localized.classes[0].colour).toBe('Trees');
+  });
+});
+
+describe('localizeSpec over a divergingBar widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'divergingBar',
+              title: 'Balance',
+              hint: 'by month',
+              unit: 'litres',
+              up: { label: 'Gain', value: { kind: 'const', value: 1 } },
+              down: { label: 'Loss', value: { kind: 'const', value: 1 } },
+            } satisfies DivergingBarWidget] }],
+    translations: {
+      es: {
+          'Balance': 'Balance hídrico',
+          'by month': 'por mes',
+          'litres': 'litros',
+          'Gain': 'Ganancia',
+          'Loss': 'Pérdida',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as DivergingBarWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Balance hídrico');
+    expect(localized.hint).toBe('por mes');
+    expect(localized.unit).toBe('litros');
+    expect(localized.up.label).toBe('Ganancia');
+    expect(localized.down.label).toBe('Pérdida');
   });
 });
