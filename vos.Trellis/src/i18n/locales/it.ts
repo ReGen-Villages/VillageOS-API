@@ -275,6 +275,7 @@ export const it: PartialResources = {
   },
   widgets: {
     history: {
+      series: 'Serie',
       lastYears_one: 'ultimo anno',
       lastYears_other: 'ultimi {{count}} anni',
       lastDays_one: 'ultimo giorno',

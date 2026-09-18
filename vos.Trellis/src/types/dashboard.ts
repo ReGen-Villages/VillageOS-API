@@ -610,6 +610,28 @@ export interface RangeBarWidget {
   ceiling?: number;
 }
 
+/** One line of a series chart: what it is called in the legend, and the binding whose groups it
+ *  joins — a `history` binding folded by a calendar period, so the keys order along the axis. */
+export interface LineSeriesEntry {
+  label: string;
+  value: Binding;
+}
+
+/** Several series over one calendar axis, one line with a point per group each, on one scale — the
+ *  monthly means of the daily high, mean and low across the window. Series take the categorical
+ *  palette in the order listed; the legend names them. A series the platform answered nothing for is
+ *  left out. `floor` and `ceiling` fix the axis; absent, it fits the data. */
+export interface LineSeriesWidget {
+  type: 'lineSeries';
+  title?: string;
+  hint?: string;
+  series: LineSeriesEntry[];
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -620,7 +642,8 @@ export type Widget =
   | VerdictWidget
   | WorkingWidget
   | ExceptionWidget
-  | RangeBarWidget;
+  | RangeBarWidget
+  | LineSeriesWidget;
 
 export interface DashboardSection {
   title?: string;

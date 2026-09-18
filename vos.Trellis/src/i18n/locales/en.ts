@@ -273,6 +273,7 @@ export const en = {
   },
   widgets: {
     history: {
+      series: 'Series',
       lastYears_one: 'last year',
       lastYears_other: 'last {{count}} years',
       lastDays_one: 'last day',
