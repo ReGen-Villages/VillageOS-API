@@ -150,6 +150,21 @@ public class FormOptionsReaderTests
         options.Themes[2].Should().BeEquivalentTo(new DeclaredTheme("Terrain", null, null, null));
     }
 
+    // An order a seed wrote as a word is no order, not a broken form: the theme keeps its place among
+    // the unordered ones and everything else still answers.
+    [Fact]
+    public void A_theme_whose_order_is_not_a_number_is_answered_without_one()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("Theme", FormOptionsReader.ThemeArchetypeFlag)
+            .Stating("Water", ("colour", "#3B7DE0"), ("order", "second"))
+            .Relate("Water", "is", "Theme");
+
+        var options = FormOptionsReader.Read(model.Build());
+
+        options.Themes.Single().Should().BeEquivalentTo(new DeclaredTheme("Water", "#3B7DE0", null, null));
+    }
+
     // A model seeded before the tile design declares no themes, and its report draws as a list rather
     // than the form refusing to answer.
     [Fact]
