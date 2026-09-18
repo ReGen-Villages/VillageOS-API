@@ -402,6 +402,9 @@ describe('localizeSpec over a stackedShares widget', () => {
 
   it('never rewrites a value that is not wording, even when a translation entry matches it', () => {
     expect(localized.classes[0].colour).toBe('Trees');
+  });
+});
+
 describe('localizeSpec over a divergingBar widget', () => {
   const spec: DashboardSpec = {
     title: 'Analysis',
