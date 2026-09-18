@@ -732,6 +732,10 @@ export interface DashboardSection {
    *  of a tick — and not in the report beneath. The page draws the area, the coordinates and the
    *  reference from what it knows itself, so this section carries only what the page cannot know. */
   facts?: boolean;
+  /** Names the section as a tab of the closing view over the land: the explore page draws every
+   *  section carrying one as a tab in a sheet along the bottom of the map, in spec order, and not in
+   *  the report beneath. The word is the tab's key; the section's title is what the tab reads. */
+  tab?: string;
 }
 
 /** Declares the entity type compared in the scope switcher + leaderboard. */

@@ -825,6 +825,11 @@ export const es: PartialResources = {
       listTitle: 'Archivos que ha compartido',
       noDescription: 'sin descripción',
     },
+    overview: {
+      open: 'Verlo sobre el terreno',
+      close: 'Volver al informe',
+      title: 'El terreno, pestaña a pestaña',
+    },
     facts: {
       area: 'Superficie',
       hectares: '{{value}} hectáreas',

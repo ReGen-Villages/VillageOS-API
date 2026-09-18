@@ -83,7 +83,7 @@ export const intakeApi = {
     };
     return {
       allocationCategories: answered.allocationCategories ?? [],
-      basemapSources: basemapSourcesFrom(answered.basemapSources ?? []),
+      basemapSources: basemapSourcesFrom(answered.basemapSources ?? []).map(servedByTheService),
       hazardTypes: answered.hazardTypes ?? [],
       hazardLevels: answered.hazardLevels ?? [],
       defaultProgramme: answered.defaultProgramme ?? [],
@@ -180,6 +180,15 @@ export const intakeApi = {
     };
   },
 };
+
+/** A tile address that is a path is a route of the intake service — imagery it proxies so a page holds
+ *  no provider address — and the public pages are served from a site of their own, so the path is
+ *  resolved against the service rather than the page. */
+function servedByTheService(source: BasemapSource): BasemapSource {
+  return source.kind === 'raster' && source.tileUrl.startsWith('/')
+    ? { ...source, tileUrl: `${intakeServiceAddress()}${source.tileUrl}` }
+    : source;
+}
 
 export function intakeServiceAddress(): string {
   const base = intakeUrl().replace(/\/$/, '');

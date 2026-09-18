@@ -61,6 +61,7 @@ import { findingsApi } from '../api/findingsApi';
 import { localizeSpec } from '../api/dashboardLocalization';
 import { findingsFrom } from '../publicFindings/answeredFindings';
 import { DashboardSections } from '../components/dashboard/DashboardSections';
+import { useMapStore } from '../stores/mapStore';
 import { ExplorePage } from './ExplorePage';
 
 const aRing = [
@@ -391,5 +392,75 @@ describe('the surveys asked for after the report', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Share the files' }));
 
     expect(await screen.findByText(/confirm your mailbox again/)).toBeInTheDocument();
+  });
+});
+
+// The closing view: the parcel on the imagery the model declares, with the sections the page declares
+// as tabs in a sheet along the bottom.
+describe('the overview over the land', () => {
+  const TABS = [
+    { title: 'Location', tab: 'location', layout: 'kpi-strip' as const, widgets: [] },
+    { title: 'Water', tab: 'water', layout: 'kpi-strip' as const, widgets: [] },
+    { title: 'Nutrition', tab: 'nutrition', layout: 'kpi-strip' as const, widgets: [] },
+    { title: 'Housing', tab: 'housing', layout: 'kpi-strip' as const, widgets: [] },
+    { title: 'Infrastructure', tab: 'infrastructure', layout: 'kpi-strip' as const, widgets: [] },
+    { title: 'Overview', tab: 'overview', layout: 'kpi-strip' as const, widgets: [] },
+  ];
+  const IMAGERY = { id: 'src-2', name: 'Satellite', attribution: 'Example imagery', kind: 'raster' as const, tileUrl: 'https://example.test/{z}/{x}/{y}', maximumZoom: 19 };
+  const STREETS = { id: 'src-1', name: 'Streets', attribution: 'Example', kind: 'style' as const, styleUrl: 'https://example.test/s.json' };
+
+  beforeEach(() => {
+    vi.mocked(localizeSpec).mockReturnValue({ title: 'Site submission', sections: [{ title: 'Balances', widgets: [] }, ...TABS] });
+    useMapStore.setState({ selectedSourceName: null });
+  });
+
+  it('keeps the tab sections out of the report beneath, and offers the overview once the report is up', async () => {
+    await reachTheReport();
+
+    const handed = vi.mocked(DashboardSections).mock.calls.at(-1)![0].sections;
+    expect(handed.map((section) => section.title)).toEqual(['Balances']);
+    expect(screen.getByRole('button', { name: 'See it on the land' })).toBeInTheDocument();
+  });
+
+  it('draws the six tabs in order over the map, the first open, and each tab its own section', async () => {
+    await reachTheReport();
+
+    fireEvent.click(screen.getByRole('button', { name: 'See it on the land' }));
+
+    const sheet = screen.getByRole('tablist');
+    expect(within(sheet).getAllByRole('tab').map((tab) => tab.textContent))
+      .toEqual(['Location', 'Water', 'Nutrition', 'Housing', 'Infrastructure', 'Overview']);
+    expect(within(sheet).getByRole('tab', { name: 'Location' })).toHaveAttribute('aria-selected', 'true');
+    expect(vi.mocked(DashboardSections).mock.calls.at(-1)![0].sections.map((section) => section.tab)).toEqual(['location']);
+
+    fireEvent.click(within(sheet).getByRole('tab', { name: 'Water' }));
+
+    expect(within(sheet).getByRole('tab', { name: 'Water' })).toHaveAttribute('aria-selected', 'true');
+    expect(vi.mocked(DashboardSections).mock.calls.at(-1)![0].sections.map((section) => section.tab)).toEqual(['water']);
+  });
+
+  it('opens on the imagery the model declares and gives the map back its layer on closing', async () => {
+    vi.mocked(intakeApi.formOptions).mockResolvedValue({
+      ...(await intakeApi.formOptions()),
+      basemapSources: [IMAGERY, STREETS],
+    });
+    await reachTheReport();
+    useMapStore.getState().selectSource('Streets');
+
+    fireEvent.click(screen.getByRole('button', { name: 'See it on the land' }));
+    expect(useMapStore.getState().selectedSourceName).toBe('Satellite');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to the report' }));
+
+    expect(useMapStore.getState().selectedSourceName).toBe('Streets');
+    expect(screen.queryByRole('tablist')).toBeNull();
+  });
+
+  it('is not offered where the page declares no tab', async () => {
+    vi.mocked(localizeSpec).mockReturnValue({ title: 'Site submission', sections: [{ title: 'Balances', widgets: [] }] });
+
+    await reachTheReport();
+
+    expect(screen.queryByRole('button', { name: 'See it on the land' })).toBeNull();
   });
 });
