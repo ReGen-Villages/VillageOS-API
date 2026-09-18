@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using vos.Service.Shared;
@@ -122,6 +123,45 @@ public class MyceliumClient : MyceliumClientBase, IEndpointMyceliumClient
         {
             Logger.LogError(ex, "Error submitting observations to thing {ThingId}", thingId);
             return false;
+        }
+    }
+
+    // Deposits response bytes into the broker's content-addressed asset store and answers with the
+    // ticket naming them, or null when the store did not accept them. The store owns the hashing —
+    // a ticket is whatever the store answered, never computed here, so the two can never disagree
+    // about a name. The Content-Type rides with the bytes because the store serves them back
+    // verbatim under the same type.
+    public async Task<string?> DepositAssetAsync(byte[] bytes, string contentType)
+    {
+        try
+        {
+            var client = await CreateAuthenticatedClientAsync(TimeSpan.FromSeconds(30));
+            using var content = new ByteArrayContent(bytes);
+            content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
+
+            var response = await client.PostAsync($"{MyceliumUrl}/api/assets", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Logger.LogWarning("Failed to deposit {ByteLength} bytes to the asset store. Status: {StatusCode}. Error: {Error}",
+                    bytes.Length, response.StatusCode, error);
+                return null;
+            }
+
+            var root = await response.Content.ReadFromJsonAsync<JsonElement>();
+            if (root.ValueKind == JsonValueKind.Object
+                && TryGetPropertyCaseInsensitive(root, "hash", out var hash)
+                && hash.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(hash.GetString()))
+                return hash.GetString();
+
+            Logger.LogWarning("The asset store accepted {ByteLength} bytes but answered no hash.", bytes.Length);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error depositing {ByteLength} bytes to the asset store", bytes.Length);
+            return null;
         }
     }
 

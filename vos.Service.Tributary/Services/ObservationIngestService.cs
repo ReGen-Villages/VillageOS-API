@@ -157,6 +157,28 @@ public class ObservationIngestService
         return new ObservationIngestResult(true, entitiesTouched, observationsSubmitted, null, null);
     }
 
+    // One value onto one already-resolved subject, through the same steps every ingest takes: the
+    // `observed` edge first, then the sample. A caller with a single value to place — an asset
+    // ticket, say — rides this rather than composing readings, so its writes carry provenance and
+    // model-clock discipline identically to the reshape lane. Null when the value landed; otherwise
+    // the words saying which half was refused.
+    public async Task<string?> ObserveValueAsync(
+        Guid endpointThingId, Guid subjectId, string property, object? value, DateTime? observedAt,
+        ObservedEdges? alreadyObserved = null)
+    {
+        var provenance = new ProvenanceWriter(
+            _myceliumClient, endpointThingId, alreadyObserved ?? ObservedEdges.None);
+
+        if (await provenance.EnsureObservedAsync(subjectId) is { } failure)
+            return failure;
+
+        if (!await _myceliumClient.SubmitObservationsAsync(
+                subjectId, [new ObservationSample(property, value, observedAt)]))
+            return "Failed to submit observations for entity.";
+
+        return null;
+    }
+
     private async Task<ObservationIngestResult> ObserveOntoSubjectAsync(
         Guid subjectId, List<Reading> readings, ProvenanceWriter provenance)
     {
