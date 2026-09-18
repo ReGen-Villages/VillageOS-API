@@ -1604,6 +1604,7 @@ describe('state bindings ask the server to narrow', () => {
         thingRanges: async () => null,
         aggregate: () => Promise.reject(new Error('not read here')),
         fromService: async () => null,
+        reduce: () => Promise.reject(new Error('not read here')),
       };
     }
 
