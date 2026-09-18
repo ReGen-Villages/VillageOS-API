@@ -147,9 +147,12 @@ describe('sharing a survey file through the intake service', () => {
     open(method: string, url: string) { ScriptedRequest.opened.push({ method, url }); }
     setRequestHeader(name: string, value: string) { ScriptedRequest.headers[name] = value; }
     getResponseHeader(name: string) { return name === 'X-Submission-Ticket' ? ScriptedRequest.answer.ticket : null; }
+    static fails = false;
+
     send(body: FormData) {
       ScriptedRequest.sent = body;
       for (const step of ScriptedRequest.progress) this.upload.onprogress?.({ lengthComputable: true, ...step });
+      if (ScriptedRequest.fails) { this.onerror?.(); return; }
       this.status = ScriptedRequest.answer.status;
       this.responseText = ScriptedRequest.answer.body;
       this.onload?.();
@@ -166,6 +169,7 @@ describe('sharing a survey file through the intake service', () => {
     ScriptedRequest.headers = {};
     ScriptedRequest.sent = null;
     ScriptedRequest.progress = [];
+    ScriptedRequest.fails = false;
     ScriptedRequest.answer = { status: 201, body: JSON.stringify(DOCUMENT), ticket: 'ticket-2' };
     vi.stubGlobal('XMLHttpRequest', ScriptedRequest);
   });
@@ -190,6 +194,20 @@ describe('sharing a survey file through the intake service', () => {
 
     await expect(findingsApi.shareDocumentWithTicket(REFERENCE, 'ticket-1', new File(['x'], 'x.bin'), '', () => undefined))
       .rejects.toThrow('A file may be at most 25 MB.');
+  });
+
+  it('says the file could not be sent when the request never reaches the service', async () => {
+    ScriptedRequest.fails = true;
+
+    await expect(findingsApi.shareDocumentWithTicket(REFERENCE, 'ticket-1', new File(['x'], 'x.bin'), '', () => undefined))
+      .rejects.toThrow('The file could not be sent.');
+  });
+
+  it('reads a refusal that is not JSON by its status alone', async () => {
+    ScriptedRequest.answer = { status: 502, body: '<html>Bad Gateway</html>', ticket: null };
+
+    await expect(findingsApi.shareDocumentWithTicket(REFERENCE, 'ticket-1', new File(['x'], 'x.bin'), '', () => undefined))
+      .rejects.toThrow('502');
   });
 
   it('lists the files the model holds for the submission under the ticket', async () => {
