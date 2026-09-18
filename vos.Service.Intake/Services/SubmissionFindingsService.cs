@@ -4,6 +4,9 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Services;
 
+/// <summary>The broker's answer as it gave it, and the address the ticket was renewed for.</summary>
+public sealed record ReducedForSubmitter(int Status, string Body, string Address);
+
 /// <summary>
 /// What the platform worked out about one submitter's land, answered to the submitter and to nobody else.
 /// </summary>
@@ -17,9 +20,6 @@ namespace vos.Service.Intake.Services;
 /// wording. Told apart, answering would say whether a reference exists for anybody who tried one.
 /// </para>
 /// </remarks>
-/// <summary>The broker's answer as it gave it, and the address the ticket was renewed for.</summary>
-public sealed record ReducedForSubmitter(int Status, string Body, string Address);
-
 public sealed class SubmissionFindingsService(
     IntakeMyceliumClient mycelium, ILogger<SubmissionFindingsService> logger)
 {

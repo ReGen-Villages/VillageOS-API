@@ -78,10 +78,6 @@ public sealed class IntakeMyceliumClient(
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellation));
     }
 
-    /// <summary>One call through the broker's endpoint-forward route, answered with the body the
-    /// forwarded service returned. Null is a call that was not answered — refused, failed, or out of
-    /// time — logged by its status and never by its body, and the caller decides what standing that
-    /// leaves the lookup in.</summary>
     /// <summary>The history reduction, forwarded as asked and answered as the broker answered it — its
     /// status and its words — so a question the broker refuses reaches the page with the reason.</summary>
     public async Task<(int Status, string Body)> ReduceAsync(object question, CancellationToken cancellation)
@@ -91,6 +87,10 @@ public sealed class IntakeMyceliumClient(
         return ((int)response.StatusCode, await response.Content.ReadAsStringAsync(cancellation));
     }
 
+    /// <summary>One call through the broker's endpoint-forward route, answered with the body the
+    /// forwarded service returned. Null is a call that was not answered — refused, failed, or out of
+    /// time — logged by its status and never by its body, and the caller decides what standing that
+    /// leaves the lookup in.</summary>
     public async Task<string?> CallEndpointAsync(
         string subdomain, object request, CancellationToken cancellation)
     {
