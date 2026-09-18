@@ -11,6 +11,7 @@ import type {
   RangeBarWidget,
   LineSeriesWidget,
   HeatmapWidget,
+  StackedSharesWidget,
 } from '../types/dashboard';
 
 /** A spec exercising every widget type plus a detail card. The base strings are
@@ -428,5 +429,35 @@ describe('localizeSpec over a heatmap widget', () => {
     expect(localized.title).toBe('Sol');
     expect(localized.hint).toBe('hora por día');
     expect(localized.unit).toBe('vatios');
+  });
+});
+
+describe('localizeSpec over a stackedShares widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'stackedShares',
+              title: 'Cover',
+              hint: 'by month',
+              classes: [{ label: 'Trees', colour: 'Trees', share: { kind: 'const', value: 1 } }],
+            } satisfies StackedSharesWidget] }],
+    translations: {
+      es: {
+          'Cover': 'Cubierta',
+          'by month': 'por mes',
+          'Trees': 'Árboles',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as StackedSharesWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Cubierta');
+    expect(localized.hint).toBe('por mes');
+    expect(localized.classes[0].label).toBe('Árboles');
+  });
+
+  it('never rewrites a value that is not wording, even when a translation entry matches it', () => {
+    expect(localized.classes[0].colour).toBe('Trees');
   });
 });
