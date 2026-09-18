@@ -20,9 +20,10 @@ export interface FragmentResult {
 export const modelApi = {
   get: () => apiClient.getText('/api/model'),
 
-  getAtTime: async (timestamp: string) => {
+  getAtTime: async (timestamp: string, signal?: AbortSignal) => {
     const data = await apiClient.get<TemporalSnapshot>(
       `/api/model?timestamp=${encodeURIComponent(timestamp)}`,
+      signal,
     );
     return {
       ...data,

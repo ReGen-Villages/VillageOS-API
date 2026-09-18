@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildModelIndex } from '../../../api/dashboardApi';
 import type { VosThing, VosRelationship, StateTransition } from '../../../types/vos';
-import { resolveRelations, flattenRelatedIds, buildStateChanges } from './entityDetail';
+import { resolveRelations, buildStateChanges } from './entityDetail';
 
 function thing(id: string, name: string, properties: Record<string, unknown> = {}): VosThing {
   return { Id: id, Name: name, Properties: properties };
@@ -128,16 +128,6 @@ describe('resolveRelations', () => {
     ]);
     const phaseChildren = group.edges[0].children[0];
     expect(phaseChildren.edges.some((e) => e.thingId === 'project')).toBe(false);
-  });
-});
-
-describe('flattenRelatedIds', () => {
-  it('collects every related id across the nested tree', () => {
-    const idx = fixture();
-    const relations = resolveRelations('project', idx, [
-      { predicate: 'has', archetype: 'ProjectTask', relations: [{ predicate: 'has', archetype: 'Assignment' }] },
-    ]);
-    expect(new Set(flattenRelatedIds(relations))).toEqual(new Set(['task', 'assignment']));
   });
 });
 

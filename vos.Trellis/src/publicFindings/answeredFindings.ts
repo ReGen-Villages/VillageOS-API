@@ -61,7 +61,7 @@ export function findingsFrom(
     index: buildModelIndex(answer.things.map(unwrapThing), relationships),
     scopeId: answer.scopeId,
     reads: {
-      thingsInState: (state) => Promise.resolve(inState(state, answer.things, holders)),
+      thingsInState: (state, narrowing) => Promise.resolve(inState(state, answer.things, holders, narrowing?.countOnly)),
       thingRanges: (thingId) => Promise.resolve(answer.ranges[thingId] ?? null),
       aggregate: () => Promise.reject(new Error('A findings page reduces no Things by time bucket.')),
       reduce,
@@ -74,15 +74,16 @@ function statesByThing(things: AnsweredThing[]): Map<string, string[]> {
   return new Map(things.map((thing) => [thing.Id, thing.States ?? []]));
 }
 
+/** Answers the way the platform's state read does: the number alone when the count alone was asked
+ *  for, the members otherwise. */
 function inState(
   state: string,
   things: AnsweredThing[],
   holders: Map<string, string[]>,
+  countOnly: boolean | undefined,
 ): ThingsInStateResponse {
-  return {
-    StateName: state,
-    Things: things
-      .filter((thing) => holders.get(thing.Id)?.includes(state))
-      .map((thing) => ({ Id: thing.Id, Name: thing.Name })),
-  };
+  const holding = things.filter((thing) => holders.get(thing.Id)?.includes(state));
+  return countOnly
+    ? { StateName: state, Count: holding.length }
+    : { StateName: state, Things: holding.map((thing) => ({ Id: thing.Id, Name: thing.Name })) };
 }

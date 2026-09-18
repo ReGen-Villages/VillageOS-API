@@ -7,14 +7,15 @@ import { useBinding } from '../../../hooks/useDashboard';
 import { WidgetCard } from './WidgetCard';
 import { formatNumber } from './format';
 
-/** Normalise a metric value to 0..1 given its best/worst anchors + direction. */
+/** Normalise a metric value to 0..1: its best value scores 1 and its worst 0 whichever way round the
+ *  two lie. The bounds carry the direction, so `direction` only fills in the bounds a metric leaves
+ *  out. */
 function normalise(v: number, m: LeaderMetric): number {
-  const best = m.best ?? 100;
-  const worst = m.worst ?? 0;
+  const lowIsGood = m.direction === 'down-good';
+  const best = m.best ?? (lowIsGood ? 0 : 100);
+  const worst = m.worst ?? (lowIsGood ? 100 : 0);
   const span = best - worst || 1;
-  const raw = (v - worst) / span;
-  const n = m.direction === 'down-good' ? 1 - raw : raw;
-  return Math.max(0, Math.min(1, n));
+  return Math.max(0, Math.min(1, (v - worst) / span));
 }
 
 function score(row: Row, metrics: LeaderMetric[]): number {

@@ -23,6 +23,23 @@ public sealed class SubscriptionSelector
     public List<TraverseRule>? Traverse { get; set; }
     public bool IncludeIsAncestors { get; set; } = true;
     public bool IncludeRelationships { get; set; } = true;
+
+    // Which relationships the snapshot carries and the stream admits. Without rules, IncludeRelationships
+    // carries every active edge touching a selected Thing in both directions — for a long-lived Thing,
+    // every edge ever made against it. Each rule names a direction and a predicate by name or by flag
+    // (neither means every predicate); only the edges a selected Thing holds that way travel. Rules beside
+    // IncludeRelationships = false are refused by the broker as undecided.
+    public List<RelationshipRule>? Relationships { get; set; }
+}
+
+public sealed class RelationshipRule
+{
+    public string Predicate { get; set; } = "";
+
+    // By a flag the predicate carries rather than by the name a model chose. Set this or Predicate, never
+    // both; the broker refuses a rule that gives both.
+    public string? PredicateFlag { get; set; }
+    public string Direction { get; set; } = "outgoing"; // outgoing | incoming | both
 }
 
 public sealed class TraverseRule
