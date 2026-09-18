@@ -8,7 +8,14 @@ namespace vos.Service.Intake.Models;
 public sealed record FormOptions(
     IReadOnlyList<string> AllocationCategories, IReadOnlyList<DeclaredBasemapSource> BasemapSources,
     IReadOnlyList<string> HazardTypes, IReadOnlyList<string> HazardLevels,
-    IReadOnlyList<DeclaredShare> DefaultProgramme, bool ParcelLookup, bool PlaceSearch);
+    IReadOnlyList<DeclaredShare> DefaultProgramme, bool ParcelLookup, bool PlaceSearch,
+    IReadOnlyList<DeclaredTheme> Themes);
+
+/// <summary>A theme a section of the report may name, as the model declares it: the colour that faces
+/// its tile, the icon the page draws on it, and its place in the grid. Each is absent where the model
+/// states none, and passed through unjudged like a basemap's fields — the page that draws the tile is
+/// the one place that says what a face with no colour looks like.</summary>
+public sealed record DeclaredTheme(string Name, string? Colour, string? Icon, long? Order);
 
 /// <summary>One category's share of the starting programme, as the category Thing itself states it. A
 /// category stating none is offered unchosen, exactly as it is today.</summary>

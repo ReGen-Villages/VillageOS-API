@@ -61,6 +61,7 @@ beforeEach(() => {
     defaultProgramme: [],
     parcelLookup: false,
     placeSearch: false,
+    themes: [],
   });
 });
 

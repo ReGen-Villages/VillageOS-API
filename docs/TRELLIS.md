@@ -949,7 +949,8 @@ vos.Trellis/
     │   ├── villageScene.ts      # Batch builder: things → VillageSceneData (3D meshes + bounds, optional relationships for IFC containers)
     │   ├── browserDetect.ts     # Safari detection + canSupport3D() for WebGL context limits
     │   ├── meshHelpers.ts       # Shared 3D mesh constants + crossProduct()
-    │   ├── colors.ts            # Shared color palettes + ELEMENT_COLORS + deterministic hashStringToIndex()
+    │   ├── colors.ts            # Shared color palettes + ELEMENT_COLORS + deterministic hashStringToIndex() + inkFor()
+    │   ├── degreesMinutesSeconds.ts  # A position as a surveyor reads it, for the coordinates card
     │   ├── reducerHelpers.ts    # Pure styling functions for NodeReducer (selection, cluster styles)
     │   ├── nodeVisibility.ts    # Pure helpers for node/edge visibility + edgeTouchesNode (testable without WebGL)
     │   ├── predicateCluster.ts  # Predicate-based clustering algorithm + stats
@@ -1039,7 +1040,9 @@ vos.Trellis/
         ├── dashboard/
         │   ├── ModelStatsCard.tsx          # Thing/relationship/predicate/property counts
         │   ├── ServicesPanel.tsx           # Unified services: graph (predicate) + http (endpoint) connections
-        │   └── ActivityFeed.tsx            # Real-time SSE event log
+        │   ├── ActivityFeed.tsx            # Real-time SSE event log
+        │   ├── DashboardSections.tsx       # A spec's sections laid out as a list, shared by every page that draws one
+        │   └── ThemedTiles.tsx             # A spec's themed sections as a grid of tiles, with the summary and the gallery
         │
         └── common/
             ├── ErrorBoundary.tsx     # React error boundary with stack trace display
@@ -1279,7 +1282,7 @@ their own entries and their own configuration in `vite.public.config.ts`:
 |---|---|---|---|
 | Submission form | `src/publicForm/main.tsx` | `index.html` | The wizard somebody with land fills in |
 | Findings | `src/publicFindings/main.tsx` | `findings.html` | What the analysis made of a submission already sent |
-| Explore | `src/explore/main.tsx` | `explore.html` | The plot-first way in, beside the wizard: map first, the report before the questions, and dials that re-post the same submission — see [LAND_INTAKE.md §4](LAND_INTAKE.md#the-plot-first-page) |
+| Explore | `src/explore/main.tsx` | `explore.html` | The plot-first way in, beside the wizard: map first with the facts about the land beside it, the report as themed tiles before the questions, and dials that re-post the same submission — see [LAND_INTAKE.md §4](LAND_INTAKE.md#the-plot-first-page) and [A section drawn as a tile](#a-section-drawn-as-a-tile) |
 
 ```
 VITE_INTAKE_URL=https://intake.example.org npm run build:public
@@ -2489,6 +2492,50 @@ both are read off the spec. A page that reads a Thing the spec never mentions �
 walk that arrives at it — is not sent that Thing, and the binding resolves to nothing.
 
 Implementation: `subscriptionForSpec(spec, scopeId)` in `src/api/dashboardSubscription.ts`.
+
+### A section drawn as a tile
+
+A section may name a **theme** the model declares, and a page that draws themes then draws the
+section as a coloured tile rather than a list:
+
+```jsonc
+{ "title": "Temperature", "theme": "Temperature", "widgets": [ … ] }
+```
+
+The theme is a Thing under the archetype carrying `__IsThemeArchetype`, with three properties the
+page reads as the model states them: `colour`, a CSS colour for the tile's face; `icon`, a name from
+the icon set Trellis renders with (the same set a spec's own `icon` names — a name outside it draws
+no icon); and `order`, the tile's place in the grid. A theme stating no colour, and a section naming
+a theme the model does not declare, take a neutral face and come after every ordered tile.
+
+What a tile does with the section's widgets:
+
+| The section's… | Becomes… |
+|---|---|
+| `kpi` widgets | The summary, shown in place of the icon while the tile is hovered or focused: each figure formatted as the widget declares, with its title |
+| Every other widget | The gallery a click opens: each drawn by the same renderer the list uses, with a control that opens it full width |
+| No widgets at all | A muted tile reading *not assessed*, which opens nothing |
+
+The grid, the gallery and the opened widget are one component (`ThemedTiles`) holding which of the
+three is showing; the tiles are buttons, so every tile and every card is reached from the keyboard
+and the summary shows on focus as it does on hover. Nothing in it names a theme: the sections say
+which they name, and the model says what each looks like.
+
+**Where the themes come from.** The page a submitter opens holds no credential, so it reads them
+with the rest of what it draws itself with: `GET /submissions/form` answers `themes`, found by the
+mark, in the order the model gives them. The signed-in pages do not draw tiles today; a spec's
+`theme` is ignored where nothing hands the page any themes, so the two operations dashboards and
+the findings page render exactly as before. The ordering is the tile's own — a section's `layout`
+and `widths` say nothing on a tile.
+
+**The facts beside the map.** A section may instead carry `facts: true`. The explore page draws that
+section's `kpi` widgets as cards beside the map — the figure, the title, and the widget's `origin`
+line in place of a tick, which is where the source's name goes once the model records one — and
+leaves the section out of the report beneath. The page draws three cards of its own from what it
+knows without asking: the area (with the register's credit, or *drawn by hand*), the coordinates (with
+how the pin was placed), and the reference once the submission is accepted. A `facts` section should
+therefore carry only what the page cannot know for itself. A spec naming neither `theme` nor
+`facts` renders exactly as it did.
 
 ---
 

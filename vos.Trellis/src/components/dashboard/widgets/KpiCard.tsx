@@ -134,7 +134,7 @@ export function KpiCard({
  * unsaid rather than drawn as a blank line: Trellis has no wording of its own to put there, and a
  * placeholder would read as an answer.
  */
-function OriginLines({ rows }: { rows: Row[] }) {
+export function OriginLines({ rows }: { rows: Row[] }) {
   const lines = rows
     .filter((row) => ORIGIN_KINDS.includes(row.origin as OriginKind) && typeof row.reads === 'string')
     .map((row, i) => ({

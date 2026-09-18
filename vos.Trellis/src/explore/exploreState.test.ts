@@ -31,6 +31,7 @@ const options: FormOptions = {
   ],
   parcelLookup: true,
   placeSearch: true,
+  themes: [],
 };
 
 describe('the exploration before anything is posted', () => {
@@ -45,15 +46,20 @@ describe('the exploration before anything is posted', () => {
   });
 
   it('names the land after its position until somebody says otherwise', () => {
-    const state = withPosition(emptyExplore('id'), aField);
+    const state = withPosition(emptyExplore('id'), aField, 'map');
     expect(state.siteName).toBe('Site at 48.8010, 2.3010');
+  });
+
+  it('records how the pin was placed, so a card can say where the coordinates came from', () => {
+    expect(withPosition(emptyExplore('id'), aField, 'device').positionSource).toBe('device');
+    expect(withPosition(emptyExplore('id'), aField, 'place-search').positionSource).toBe('place-search');
   });
 
   it('starts the land over when the pin moves, because the boundary described the old position', () => {
     const withBoundary = withFetchedBoundary(
-      withPosition(emptyExplore('id'), aField), aRing, '© the land register');
+      withPosition(emptyExplore('id'), aField, 'map'), aRing, '© the land register');
 
-    const moved = withPosition(withBoundary, { latitude: 39.5, longitude: -8.4 });
+    const moved = withPosition(withBoundary, { latitude: 39.5, longitude: -8.4 }, 'place-search');
 
     expect(moved.boundary).toEqual([]);
     expect(moved.boundarySource).toBeNull();
@@ -62,7 +68,7 @@ describe('the exploration before anything is posted', () => {
 
   it('a corner placed by hand makes the whole boundary the persons own assertion', () => {
     const fetched = withFetchedBoundary(
-      withPosition(emptyExplore('id'), aField), aRing, '© the land register');
+      withPosition(emptyExplore('id'), aField, 'map'), aRing, '© the land register');
 
     const adjusted = withDrawnBoundary(fetched, [...aRing, { latitude: 48.803, longitude: 2.302 }]);
 
@@ -72,7 +78,7 @@ describe('the exploration before anything is posted', () => {
 
   it('clearing the boundary keeps the pin', () => {
     const cleared = withBoundaryCleared(
-      withFetchedBoundary(withPosition(emptyExplore('id'), aField), aRing, null));
+      withFetchedBoundary(withPosition(emptyExplore('id'), aField, 'map'), aRing, null));
     expect(cleared.position).toEqual(aField);
     expect(cleared.boundary).toEqual([]);
   });
@@ -80,7 +86,7 @@ describe('the exploration before anything is posted', () => {
 
 describe('the document an exploration posts', () => {
   const described = {
-    ...withFetchedBoundary(withPosition(emptyExplore('an-id'), aField), aRing, '© the register'),
+    ...withFetchedBoundary(withPosition(emptyExplore('an-id'), aField, 'map'), aRing, '© the register'),
     contactName: 'Ana Ferreira',
     emailAddress: 'ana.ferreira@example.pt',
     shares: seededShares(options),

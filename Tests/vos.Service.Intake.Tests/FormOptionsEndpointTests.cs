@@ -47,6 +47,25 @@ public class FormOptionsEndpointTests
             .Contain(WillowBend.VectorBasemapName);
     }
 
+    [Fact]
+    public async Task It_answers_the_themes_a_report_may_name()
+    {
+        var model = DeclaredModel.Seeded()
+            .WithArchetype("Theme", FormOptionsReader.ThemeArchetypeFlag)
+            .Stating("Water", ("colour", "#3B7DE0"), ("icon", "droplet"), ("order", 2))
+            .Relate("Water", "is", "Theme");
+        await using var factory = AnsweringWith(model.Build());
+        using var client = factory.CreateClient();
+
+        var answered = await client.GetFromJsonAsync<JsonElement>("/submissions/form");
+
+        var water = answered.GetProperty("themes").EnumerateArray().Single();
+        water.GetProperty("name").GetString().Should().Be("Water");
+        water.GetProperty("colour").GetString().Should().Be("#3B7DE0");
+        water.GetProperty("icon").GetString().Should().Be("droplet");
+        water.GetProperty("order").GetInt64().Should().Be(2);
+    }
+
     // The split a page offers before anybody has stated a programme, and whether the position lookups
     // are registered — both the model's answer, so a page draws only what the model can honour.
     [Fact]

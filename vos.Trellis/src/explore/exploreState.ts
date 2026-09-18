@@ -21,11 +21,15 @@ export const BOUNDARY_FETCHED_FROM_REGISTER = 'fetched-from-register';
 
 export type ExploreBoundarySource = typeof BOUNDARY_FETCHED_FROM_REGISTER | 'drawn-by-hand';
 
+/** How the pin came to be where it is, which is what the coordinates card names in place of a tick. */
+export type PositionSource = 'map' | 'place-search' | 'device';
+
 export interface ExploreState {
   /** Minted when the exploration starts and kept for its whole life, so every re-post lands on the
    *  Things the first post minted — which is the entire mechanism behind the dials. */
   readonly submissionId: string;
   readonly position: BoundaryPoint | null;
+  readonly positionSource: PositionSource | null;
   readonly boundary: readonly BoundaryPoint[];
   readonly boundarySource: ExploreBoundarySource | null;
   /** The register's credit line, displayed beside the boundary it answered. */
@@ -46,6 +50,7 @@ export function emptyExplore(submissionId: string): ExploreState {
   return {
     submissionId,
     position: null,
+    positionSource: null,
     boundary: [],
     boundarySource: null,
     boundaryAttribution: null,
@@ -70,10 +75,13 @@ export function seededShares(options: FormOptions): ProgrammeShares {
 
 /** A new pin starts the land over: whatever boundary was fetched or drawn described the old position.
  *  The site's name follows the pin until somebody edits it, which `named` below is for. */
-export function withPosition(state: ExploreState, position: BoundaryPoint): ExploreState {
+export function withPosition(
+  state: ExploreState, position: BoundaryPoint, placedBy: PositionSource,
+): ExploreState {
   return {
     ...state,
     position,
+    positionSource: placedBy,
     boundary: [],
     boundarySource: null,
     boundaryAttribution: null,
