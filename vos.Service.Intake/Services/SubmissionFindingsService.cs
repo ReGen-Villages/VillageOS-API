@@ -17,6 +17,9 @@ namespace vos.Service.Intake.Services;
 /// wording. Told apart, answering would say whether a reference exists for anybody who tried one.
 /// </para>
 /// </remarks>
+/// <summary>The broker's answer as it gave it, and the address the ticket was renewed for.</summary>
+public sealed record ReducedForSubmitter(int Status, string Body, string Address);
+
 public sealed class SubmissionFindingsService(
     IntakeMyceliumClient mycelium, ILogger<SubmissionFindingsService> logger)
 {
@@ -55,6 +58,25 @@ public sealed class SubmissionFindingsService(
             [.. things.Select(thing => thing.Clone())],
             [.. relationships.Select(edge => edge.Clone())],
             await RangesAsync(FindingsReader.JudgedThings(things), cancellation));
+    }
+
+    /// <summary>A reduction over one of the submission's own site's series, or null where the ticket was
+    /// issued for no address the submission names. The page names no Thing: the service supplies the site,
+    /// which is the one guarantee this route gives — a ticket reduces its own land and nobody else's.</summary>
+    public async Task<ReducedForSubmitter?> ReduceAsync(
+        string submissionId, Func<string, bool> ticketIssuedFor, JsonElement question, CancellationToken cancellation)
+    {
+        var contactId = StableIdentity.Derive(submissionId, ContactRole);
+        using var declared = await mycelium.ReadAsync(FindingsReader.DeclarationSelector(contactId), cancellation);
+        var address = FindingsReader.ReadDeclarations(declared.RootElement, contactId).ContactAddress;
+        if (address is null || !ticketIssuedFor(address)) return null;
+
+        var asked = new Dictionary<string, object?> { ["thingId"] = StableIdentity.Derive(submissionId, SiteRole) };
+        foreach (var field in question.EnumerateObject())
+            if (!string.Equals(field.Name, "thingId", StringComparison.OrdinalIgnoreCase))
+                asked[field.Name] = field.Value;
+        var (status, body) = await mycelium.ReduceAsync(asked, cancellation);
+        return new ReducedForSubmitter(status, body, address);
     }
 
     private const string SiteRole = "site";
