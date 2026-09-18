@@ -8,6 +8,7 @@ import type {
   LeaderboardWidget,
   TableWidget,
   VerdictWidget,
+  RangeBarWidget,
 } from '../types/dashboard';
 
 /** A spec exercising every widget type plus a detail card. The base strings are
@@ -330,5 +331,44 @@ describe('localizeSpec over an origin binding', () => {
   it('never rewrites the origin the wording is keyed by, nor the property it reads', () => {
     expect(Object.keys(binding.reads)).toEqual(['measured', 'unknown']);
     expect(binding.property).toBe('rainfallMillimetresPerYear');
+  });
+});
+
+describe('localizeSpec over a rangeBar widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'rangeBar',
+              title: 'Temperature',
+              hint: 'by month',
+              unit: 'degrees',
+              months: {
+                recordedHigh: { kind: 'const', value: 1 }, designHigh: { kind: 'const', value: 1 },
+                averageHigh: { kind: 'const', value: 1 }, mean: { kind: 'const', value: 1 },
+                averageLow: { kind: 'const', value: 1 }, designLow: { kind: 'const', value: 1 },
+                recordedLow: { kind: 'const', value: 1 },
+              },
+              bands: [{ label: 'Comfort', colour: 'Comfort' }],
+            } satisfies RangeBarWidget] }],
+    translations: {
+      es: {
+          'Temperature': 'Temperatura',
+          'by month': 'por mes',
+          'degrees': 'grados',
+          'Comfort': 'Confort',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as RangeBarWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Temperatura');
+    expect(localized.hint).toBe('por mes');
+    expect(localized.unit).toBe('grados');
+    expect(localized.bands![0].label).toBe('Confort');
+  });
+
+  it('never rewrites a value that is not wording, even when a translation entry matches it', () => {
+    expect(localized.bands![0].colour).toBe('Comfort');
   });
 });
