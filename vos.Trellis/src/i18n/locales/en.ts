@@ -423,6 +423,34 @@ export const en = {
     acrossNames_other: "across {{count}} property names",
     inheritedFrom: "Inherited from {{source}}",
   },
+  breakdown: {
+    title: "What this figure is made of",
+    close: "Close",
+    reading: "Working out what this is made of…",
+    nothingToList: "Nothing behind this figure can be listed.",
+    empty: "Nothing behind this figure right now.",
+    name: "Name",
+    rowsBehind_one: "{{count}} thing behind this figure",
+    rowsBehind_other: "{{count}} things behind this figure",
+    openRow: "click a row to open its card",
+    alsoHeld: "Each row holds more than this table shows: {{properties}}. Open a row for all of it.",
+    lead: {
+      count: "Counted, one row each.",
+      read: "Read from the Thing below.",
+      reduced: "Each row contributed its {{measure}}. The figure is their {{reduction}}.",
+      buckets: "The platform reduced this over time, so there are no Things to list. Below is the same question over the same window, in {{count}} equal parts, oldest first.",
+    },
+    reduction: { sum: "total", avg: "average", min: "smallest", max: "largest" },
+    division: { top: "What is divided", bottom: "What it is divided by" },
+    terms: {
+      archetype: "Archetype",
+      state: "In state",
+      property: "Property",
+      happenedAt: "Timed by",
+      within: "Within",
+      where: "Where",
+    },
+  },
   composer: {
     title: "Compose a table",
     intro: "Choose a kind of Thing. What the model declares for it is offered here; every choice is a column, a filter or the sort.",
@@ -497,6 +525,8 @@ export const en = {
     loading: "loading…",
     stateHistoryUnavailable: "State history unavailable — no active reactive engine for this model.",
     noStateChanges: "No state changes recorded.",
+    handledBy: "Handled by",
+    dispatchesSinceModelLoad: "Recorded since the platform loaded this model — an earlier run shows no time.",
   },
   panels: {
     node: {

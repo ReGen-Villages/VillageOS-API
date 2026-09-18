@@ -539,6 +539,34 @@ export const ar: PartialResources & ArabicPlurals = {
     acrossNames_many: 'عبر {{count}} اسم خاصية',
     inheritedFrom: "موروث من {{source}}",
   },
+  breakdown: {
+    title: "مِمَّ يتكوَّن هذا الرقم",
+    close: "إغلاق",
+    reading: "يجري استخلاص ما يتكوَّن منه…",
+    nothingToList: "لا يمكن سرد ما وراء هذا الرقم.",
+    empty: "لا شيء وراء هذا الرقم في الوقت الحالي.",
+    name: "الاسم",
+    rowsBehind_one: "شيء واحد وراء هذا الرقم",
+    rowsBehind_other: "{{count}} أشياء وراء هذا الرقم",
+    openRow: "انقر صفًّا لفتح بطاقته",
+    alsoHeld: "كل صف يحوي أكثر مما يعرضه هذا الجدول: {{properties}}. افتح صفًّا لعرضه كاملًا.",
+    lead: {
+      count: "معدودة، صفٌّ لكل منها.",
+      read: "مقروء من الشيء أدناه.",
+      reduced: "أسهم كل صف بقيمة {{measure}} الخاصة به. والرقم هو {{reduction}} تلك القيم.",
+      buckets: "اختزلت المنصة هذا عبر الزمن، فلا توجد أشياء تُسرد. أدناه السؤال نفسه على النافذة نفسها، في {{count}} أجزاء متساوية، الأقدم أولًا.",
+    },
+    reduction: { sum: "مجموع", avg: "متوسط", min: "أصغر قيمة", max: "أكبر قيمة" },
+    division: { top: "ما يُقسَم", bottom: "ما يُقسَم عليه" },
+    terms: {
+      archetype: "النمط الأصلي",
+      state: "في الحالة",
+      property: "الخاصية",
+      happenedAt: "مؤرَّخ بـ",
+      within: "ضمن",
+      where: "حيث",
+    },
+  },
   composer: {
     title: "تكوين جدول",
     intro: "اختر نوعًا من الأشياء. ما يعلنه النموذج له يُعرض هنا؛ كل اختيار يصبح عمودًا أو مرشِّحًا أو ترتيبًا.",
@@ -613,6 +641,8 @@ export const ar: PartialResources & ArabicPlurals = {
     loading: "جارٍ التحميل…",
     stateHistoryUnavailable: "سجل الحالات غير متاح — لا يوجد محرك تفاعلي نشط لهذا النموذج.",
     noStateChanges: "لم يُسجَّل أي تغيير في الحالة.",
+    handledBy: "عالجته",
+    dispatchesSinceModelLoad: "مسجَّل منذ أن حمّلت المنصة هذا النموذج — التشغيل الأسبق لا يظهر له وقت.",
   },
   panels: {
     node: {

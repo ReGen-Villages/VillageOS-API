@@ -9,7 +9,7 @@ vi.mock('../hooks/useSse', () => ({
 }));
 vi.mock('../api/stateApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/stateApi')>()),
-  stateApi: { getThingsInState: vi.fn(), getThingStates: vi.fn(), getStateTransitions: vi.fn() },
+  stateApi: { getThingsInState: vi.fn(), getStateTransitions: vi.fn() },
 }));
 vi.mock('../api/rangeApi', () => ({ rangeApi: { getAll: vi.fn() } }));
 vi.mock('../api/modelApi', () => ({ modelApi: { applyFragment: vi.fn(), getAtTime: vi.fn() } }));
@@ -72,7 +72,6 @@ describe('ComposerPage', () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'minted-id' });
     vi.mocked(rangeApi.getAll).mockResolvedValue({ ThingId: 'spring', ThingName: 'Spring', OwnRanges: [{ Name: 'dry' }] as never, InheritedRanges: [] });
     vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'dry', Things: [{ Id: 's2', Name: 'SPRING-2' }] });
-    vi.mocked(stateApi.getThingStates).mockResolvedValue({ ThingId: '', CurrentStates: [] } as never);
     vi.mocked(modelApi.applyFragment).mockResolvedValue({ thingsCreated: 1, thingsUpdated: 0, relationshipsCreated: 1, things: [] });
     seedStore();
   });

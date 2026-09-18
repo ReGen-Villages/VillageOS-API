@@ -425,6 +425,34 @@ export const fr: PartialResources = {
     acrossNames_other: "sur {{count}} noms de propriété",
     inheritedFrom: "Hérité de {{source}}",
   },
+  breakdown: {
+    title: "Ce qui compose ce chiffre",
+    close: "Fermer",
+    reading: "Recherche de ce qui le compose…",
+    nothingToList: "Ce qu'il y a derrière ce chiffre ne peut pas être énuméré.",
+    empty: "Rien derrière ce chiffre pour l'instant.",
+    name: "Nom",
+    rowsBehind_one: "{{count}} chose derrière ce chiffre",
+    rowsBehind_other: "{{count}} choses derrière ce chiffre",
+    openRow: "cliquez sur une ligne pour ouvrir sa fiche",
+    alsoHeld: "Chaque ligne contient plus que ce tableau n'affiche : {{properties}}. Ouvrez une ligne pour tout voir.",
+    lead: {
+      count: "Comptées, une ligne chacune.",
+      read: "Lu sur la chose ci-dessous.",
+      reduced: "Chaque ligne a apporté sa valeur {{measure}}. Le chiffre en est le {{reduction}}.",
+      buckets: "La plateforme a réduit ceci dans le temps, il n'y a donc aucune chose à énumérer. Ci-dessous, la même question sur la même fenêtre, en {{count}} parts égales, la plus ancienne d'abord.",
+    },
+    reduction: { sum: "total", avg: "moyenne", min: "plus petit", max: "plus grand" },
+    division: { top: "Ce qui est divisé", bottom: "Ce par quoi c'est divisé" },
+    terms: {
+      archetype: "Archétype",
+      state: "Dans l'état",
+      property: "Propriété",
+      happenedAt: "Daté par",
+      within: "Au sein de",
+      where: "Où",
+    },
+  },
   composer: {
     title: "Composer un tableau",
     intro: "Choisissez un type de chose. Ce que le modèle déclare pour lui est proposé ici ; chaque choix devient une colonne, un filtre ou le tri.",
@@ -499,6 +527,8 @@ export const fr: PartialResources = {
     loading: "chargement…",
     stateHistoryUnavailable: "Historique des états indisponible — aucun moteur réactif actif pour ce modèle.",
     noStateChanges: "Aucun changement d'état enregistré.",
+    handledBy: "Traité par",
+    dispatchesSinceModelLoad: "Enregistré depuis le chargement de ce modèle par la plateforme — une exécution antérieure n'affiche aucune heure.",
   },
   panels: {
     node: {

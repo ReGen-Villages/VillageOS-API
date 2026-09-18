@@ -425,6 +425,34 @@ export const it: PartialResources = {
     acrossNames_other: "in {{count}} nomi di proprietà",
     inheritedFrom: "Ereditato da {{source}}",
   },
+  breakdown: {
+    title: "Di che cosa è fatta questa cifra",
+    close: "Chiudi",
+    reading: "Sto ricavando di che cosa è fatta…",
+    nothingToList: "Ciò che sta dietro questa cifra non può essere elencato.",
+    empty: "Al momento dietro questa cifra non c'è nulla.",
+    name: "Nome",
+    rowsBehind_one: "{{count}} cosa dietro questa cifra",
+    rowsBehind_other: "{{count}} cose dietro questa cifra",
+    openRow: "clicca una riga per aprire la sua scheda",
+    alsoHeld: "Ogni riga contiene più di quanto mostri questa tabella: {{properties}}. Apri una riga per vedere tutto.",
+    lead: {
+      count: "Contate, una riga ciascuna.",
+      read: "Letta dalla cosa qui sotto.",
+      reduced: "Ogni riga ha contribuito con il suo {{measure}}. La cifra ne è il {{reduction}}.",
+      buckets: "La piattaforma ha ridotto questo dato nel tempo, quindi non ci sono cose da elencare. Qui sotto la stessa domanda sulla stessa finestra, in {{count}} parti uguali, dalla più vecchia.",
+    },
+    reduction: { sum: "totale", avg: "valore medio", min: "valore minimo", max: "valore massimo" },
+    division: { top: "Ciò che viene diviso", bottom: "Ciò per cui viene diviso" },
+    terms: {
+      archetype: "Archetipo",
+      state: "Nello stato",
+      property: "Proprietà",
+      happenedAt: "Datata da",
+      within: "All'interno di",
+      where: "Dove",
+    },
+  },
   composer: {
     title: "Comporre una tabella",
     intro: "Scegli un tipo di cosa. Ciò che il modello dichiara per esso è offerto qui; ogni scelta diventa una colonna, un filtro o l'ordinamento.",
@@ -499,6 +527,8 @@ export const it: PartialResources = {
     loading: "caricamento…",
     stateHistoryUnavailable: "Cronologia degli stati non disponibile — nessun motore reattivo attivo per questo modello.",
     noStateChanges: "Nessun cambiamento di stato registrato.",
+    handledBy: "Gestito da",
+    dispatchesSinceModelLoad: "Registrato da quando la piattaforma ha caricato questo modello — un'esecuzione precedente non mostra alcun orario.",
   },
   panels: {
     node: {

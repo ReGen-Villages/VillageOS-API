@@ -45,9 +45,11 @@ export type NumberFormat =
  */
 export type Binding =
   | { kind: 'const'; value: number }
-  /** Count of Things currently in a derived State (via GET /api/states/{state}/things).
-   *  `archetype` narrows the count to Things of that archetype (e.g. only Orders, not their lines). */
-  | { kind: 'stateCount'; state: string; scope?: ScopeRef; archetype?: string }
+  /** Count of Things currently in a derived State, asked of the platform as a number so a figure of
+   *  four hundred costs what a figure of four costs. `archetype` narrows the count to Things of that
+   *  archetype; `excludeState` drops Things also in that state, so a funnel stage counts only Things
+   *  that reached it and no further. */
+  | { kind: 'stateCount'; state: string; scope?: ScopeRef; archetype?: string; excludeState?: string }
   /** Rows of Things currently in a State, enriched with their properties for a table.
    *  `excludeState` drops Things also in that state — for a funnel stage, set it to the next
    *  stage's state so the list shows only Things that reached this stage and no further. */
@@ -477,9 +479,11 @@ export interface LeaderMetric {
   direction?: 'up-good' | 'down-good';
   /** Contribution to the weighted score (0..1). Metrics without a weight don't score. */
   weight?: number;
-  /** Value at/above which the metric is "good" (for a 0..1 normalisation). */
+  /** The value that scores full marks. Left out, it is 100 for an `up-good` metric and 0 for a
+   *  `down-good` one. */
   best?: number;
-  /** Value at/below which the metric is "worst". */
+  /** The value that scores nothing. Left out, it is 0 for an `up-good` metric and 100 for a
+   *  `down-good` one. A metric stating both bounds scores the same under either direction. */
   worst?: number;
 }
 

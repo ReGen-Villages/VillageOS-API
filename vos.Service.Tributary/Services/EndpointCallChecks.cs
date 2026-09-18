@@ -8,15 +8,18 @@ using vos.Service.Tributary.Helpers;
 namespace vos.Service.Tributary.Services;
 
 // The kind the endpoint reaches for each role, or null where it reaches none — which is a valid
-// answer meaning "the plain behaviour": a plain body, no credential, no paging, no cache.
+// answer meaning "the plain behaviour": a plain body, no credential, no paging, no cache, and
+// nothing kept beyond the response itself.
 public sealed record EndpointKinds(
-    ResolvedKind? Body, ResolvedKind? Authentication, ResolvedKind? Paging, ResolvedKind? Caching)
+    ResolvedKind? Body, ResolvedKind? Authentication, ResolvedKind? Paging, ResolvedKind? Caching,
+    ResolvedKind? Keeping)
 {
     public static EndpointKinds Reached(IReadOnlyDictionary<string, ResolvedKind> byRole) => new(
         byRole.GetValueOrDefault(EndpointKindRoles.ResponseBody),
         byRole.GetValueOrDefault(EndpointKindRoles.Authentication),
         byRole.GetValueOrDefault(EndpointKindRoles.Paging),
-        byRole.GetValueOrDefault(EndpointKindRoles.Caching));
+        byRole.GetValueOrDefault(EndpointKindRoles.Caching),
+        byRole.GetValueOrDefault(EndpointKindRoles.Keeping));
 }
 
 public sealed record EndpointAddress(Uri Uri, string Method);
@@ -30,6 +33,11 @@ public sealed record Reshape(string? Registered, JsonataTransform? Transform);
 public sealed record Credential(
     string? PreMinted, TokenExchangeRequest? Fetch, string Param, string? Header, string? Scheme);
 
+// Where a kept response's ticket goes: the property that receives it, the Thing that carries it,
+// and the time the content is about — null when nothing names one, so the broker stamps the model
+// clock rather than this process's wall clock.
+public sealed record KeepPlan(string AssetProperty, string AssetSubject, DateTime? ObservedAt);
+
 // Every check an outgoing call needs, each on its own: handed the endpoint's settings, it returns
 // what it worked out or a refusal, and it neither reads the model nor sends anything. The mechanisms
 // this service implements are named here by the kind Thing each answers to. The model owns which
@@ -42,6 +50,7 @@ public static class EndpointCallChecks
     public const string BinaryBodyMechanism = "BinaryResponse";
     public const string JsonBodyMechanism = "JsonResponse";
     public const string DiskCacheMechanism = "DiskCache";
+    public const string ModelAssetMechanism = "ModelAsset";
 
     private const string BinaryTransformClash =
         "A binary body cannot be combined with a response transform: there is no text to transform.";
@@ -51,7 +60,7 @@ public static class EndpointCallChecks
     // is always the same one.
     public static Refusal? UnmetRequirement(EndpointKinds kinds, IReadOnlyDictionary<string, JsonElement> effective)
     {
-        foreach (var kind in new[] { kinds.Body, kinds.Authentication, kinds.Paging, kinds.Caching })
+        foreach (var kind in new[] { kinds.Body, kinds.Authentication, kinds.Paging, kinds.Caching, kinds.Keeping })
         {
             var missing = EndpointKindResolver.MissingRequirements(kind, effective);
             if (missing.Count > 0)
@@ -407,6 +416,70 @@ public static class EndpointCallChecks
         return true;
     }
 
+    // Reaching no kind keeps nothing beyond the response — today's transient behaviour. ModelAsset
+    // deposits a real fetch's bytes and writes the ticket onto the named subject's property; the
+    // names are the model's own, so nothing here knows what the bytes depict. The depicted time is
+    // read from the address parameter the kind names, because the value that selected the content
+    // is also what it is about — valid time, not save time. A value that cannot be read as a time
+    // is refused rather than silently stamped "now": the sample would land on the wrong point of
+    // the subject's timeline and nothing downstream could tell.
+    public static bool TryKeeping(
+        ResolvedKind? kind,
+        IReadOnlyDictionary<string, JsonElement> effective,
+        IReadOnlyDictionary<string, string>? addressParameters,
+        out KeepPlan? keep,
+        [NotNullWhen(false)] out Refusal? refusal)
+    {
+        keep = null;
+        refusal = null;
+        switch (kind?.Name)
+        {
+            case null:
+                return true;
+            case ModelAssetMechanism:
+                break;
+            default:
+                refusal = UnimplementedKind(EndpointKindRoles.Keeping, kind.Name, ModelAssetMechanism);
+                return false;
+        }
+
+        if (!TryOptionalText(effective, "assetProperty", out var assetProperty, out refusal))
+            return false;
+        if (!TryOptionalText(effective, "assetSubject", out var assetSubject, out refusal))
+            return false;
+        if (string.IsNullOrWhiteSpace(assetProperty) || string.IsNullOrWhiteSpace(assetSubject))
+        {
+            // Reached only when the kind declares fewer requirements than the mechanism needs —
+            // the kind's own check is the one an endpoint author sees.
+            refusal = Refusal.BadRequest("Model asset keeping needs assetProperty and assetSubject.");
+            return false;
+        }
+
+        if (!TryOptionalText(effective, "observedAtParameter", out var observedAtParameter, out refusal))
+            return false;
+
+        DateTime? observedAt = null;
+        if (!string.IsNullOrWhiteSpace(observedAtParameter) && addressParameters != null)
+        {
+            var supplied = addressParameters.FirstOrDefault(parameter =>
+                string.Equals(parameter.Key, observedAtParameter.Trim(), StringComparison.OrdinalIgnoreCase)).Value;
+            if (!string.IsNullOrWhiteSpace(supplied))
+            {
+                if (!DateTime.TryParse(supplied, CultureInfo.InvariantCulture,
+                        DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed))
+                {
+                    refusal = Refusal.BadRequest(
+                        $"The observedAtParameter '{observedAtParameter.Trim()}' value '{supplied}' cannot be read as a time.");
+                    return false;
+                }
+                observedAt = parsed;
+            }
+        }
+
+        keep = new KeepPlan(assetProperty!.Trim(), assetSubject!.Trim(), observedAt);
+        return true;
+    }
+
     // A page is decoded text, and bytes cannot be.
     public static Refusal? PagingClash(EndpointKinds kinds, bool binary, OffsetPaginationConfig? paging) =>
         binary && paging != null
@@ -433,6 +506,14 @@ public static class EndpointCallChecks
                 "A request with an outbound body cannot be served from disk: the body is not part of the cache key.");
         return null;
     }
+
+    // A paged aggregate is assembled by this service, so keeping it would deposit bytes the provider
+    // never served — a ticket claiming an exact retrieval that never happened.
+    public static Refusal? KeepingClash(EndpointKinds kinds, KeepPlan? keep, OffsetPaginationConfig? paging) =>
+        keep != null && paging != null
+            ? Refusal.BadRequest(
+                $"A '{kinds.Keeping!.Name}' deposit cannot be assembled page by page as '{kinds.Paging!.Name}'.")
+            : null;
 
     // Says what the model asked for and what this service can actually do, because either half alone
     // sends the reader to the wrong place.

@@ -425,6 +425,34 @@ export const es: PartialResources = {
     acrossNames_other: "en {{count}} nombres de propiedad",
     inheritedFrom: "Heredado de {{source}}",
   },
+  breakdown: {
+    title: "De qué se compone esta cifra",
+    close: "Cerrar",
+    reading: "Averiguando de qué se compone…",
+    nothingToList: "No se puede enumerar lo que hay detrás de esta cifra.",
+    empty: "Ahora mismo no hay nada detrás de esta cifra.",
+    name: "Nombre",
+    rowsBehind_one: "{{count}} cosa detrás de esta cifra",
+    rowsBehind_other: "{{count}} cosas detrás de esta cifra",
+    openRow: "haz clic en una fila para abrir su ficha",
+    alsoHeld: "Cada fila contiene más de lo que muestra esta tabla: {{properties}}. Abre una fila para verlo todo.",
+    lead: {
+      count: "Contadas, una fila cada una.",
+      read: "Leída de la cosa de abajo.",
+      reduced: "Cada fila aportó su {{measure}}. La cifra es su {{reduction}}.",
+      buckets: "La plataforma redujo esto a lo largo del tiempo, así que no hay cosas que enumerar. Abajo está la misma pregunta sobre la misma ventana, en {{count}} partes iguales, la más antigua primero.",
+    },
+    reduction: { sum: "total", avg: "media", min: "valor menor", max: "valor mayor" },
+    division: { top: "Lo que se divide", bottom: "Entre lo que se divide" },
+    terms: {
+      archetype: "Arquetipo",
+      state: "En estado",
+      property: "Propiedad",
+      happenedAt: "Fechada por",
+      within: "Dentro de",
+      where: "Donde",
+    },
+  },
   composer: {
     title: "Componer una tabla",
     intro: "Elige una clase de cosa. Lo que el modelo declara para ella se ofrece aquí; cada elección es una columna, un filtro o el orden.",
@@ -499,6 +527,8 @@ export const es: PartialResources = {
     loading: "cargando…",
     stateHistoryUnavailable: "Historial de estados no disponible — no hay un motor reactivo activo para este modelo.",
     noStateChanges: "No se registraron cambios de estado.",
+    handledBy: "Procesado por",
+    dispatchesSinceModelLoad: "Registrado desde que la plataforma cargó este modelo — una ejecución anterior no muestra hora.",
   },
   panels: {
     node: {

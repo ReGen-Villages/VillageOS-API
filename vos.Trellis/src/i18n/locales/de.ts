@@ -425,6 +425,34 @@ export const de: PartialResources = {
     acrossNames_other: "über {{count}} Eigenschaftsnamen",
     inheritedFrom: "Geerbt von {{source}}",
   },
+  breakdown: {
+    title: "Woraus diese Zahl besteht",
+    close: "Schließen",
+    reading: "Wird ermittelt, woraus sie besteht…",
+    nothingToList: "Was hinter dieser Zahl steht, lässt sich nicht auflisten.",
+    empty: "Derzeit steht nichts hinter dieser Zahl.",
+    name: "Name",
+    rowsBehind_one: "{{count}} Ding hinter dieser Zahl",
+    rowsBehind_other: "{{count}} Dinge hinter dieser Zahl",
+    openRow: "auf eine Zeile klicken, um ihre Karte zu öffnen",
+    alsoHeld: "Jede Zeile hält mehr, als diese Tabelle zeigt: {{properties}}. Eine Zeile öffnen, um alles zu sehen.",
+    lead: {
+      count: "Gezählt, je eine Zeile.",
+      read: "Abgelesen vom Ding unten.",
+      reduced: "Jede Zeile hat ihren Wert {{measure}} beigesteuert. Die Zahl ist deren {{reduction}}.",
+      buckets: "Die Plattform hat dies über die Zeit verdichtet, es gibt also keine Dinge aufzulisten. Unten steht dieselbe Frage über denselben Zeitraum, in {{count}} gleichen Teilen, ältester zuerst.",
+    },
+    reduction: { sum: "Summe", avg: "Durchschnitt", min: "kleinster Wert", max: "größter Wert" },
+    division: { top: "Was geteilt wird", bottom: "Wodurch es geteilt wird" },
+    terms: {
+      archetype: "Archetyp",
+      state: "Im Zustand",
+      property: "Eigenschaft",
+      happenedAt: "Zeitstempel",
+      within: "Innerhalb",
+      where: "Wobei",
+    },
+  },
   composer: {
     title: "Eine Tabelle zusammenstellen",
     intro: "Wähle eine Art von Ding. Was das Modell dafür deklariert, wird hier angeboten; jede Wahl wird eine Spalte, ein Filter oder die Sortierung.",
@@ -499,6 +527,8 @@ export const de: PartialResources = {
     loading: "wird geladen…",
     stateHistoryUnavailable: "Zustandsverlauf nicht verfügbar — keine aktive reaktive Engine für dieses Modell.",
     noStateChanges: "Keine Zustandsänderungen aufgezeichnet.",
+    handledBy: "Verarbeitet von",
+    dispatchesSinceModelLoad: "Aufgezeichnet, seit die Plattform dieses Modell geladen hat — ein früherer Lauf zeigt keine Zeit.",
   },
   panels: {
     node: {

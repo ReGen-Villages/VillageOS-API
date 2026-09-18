@@ -35,7 +35,7 @@ type BindingFields = {
 
 export const BINDING_FIELDS: BindingFields = {
   const: ['value'],
-  stateCount: ['state', 'scope', 'archetype'],
+  stateCount: ['state', 'scope', 'archetype', 'excludeState'],
   stateList: ['state', 'excludeState', 'scope', 'limit', 'archetype', 'properties', 'computed'],
   thingList: ['archetype', 'scope', 'limit', 'computed', 'inState', 'where'],
   aggregate: ['archetype', 'op', 'property', 'where', 'scope'],

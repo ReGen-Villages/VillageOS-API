@@ -425,6 +425,34 @@ export const nl: PartialResources = {
     acrossNames_other: "in {{count}} eigenschapsnamen",
     inheritedFrom: "Overgeërfd van {{source}}",
   },
+  breakdown: {
+    title: "Waar dit getal uit bestaat",
+    close: "Sluiten",
+    reading: "Bezig uit te zoeken waar het uit bestaat…",
+    nothingToList: "Wat achter dit getal zit, valt niet op te sommen.",
+    empty: "Op dit moment zit er niets achter dit getal.",
+    name: "Naam",
+    rowsBehind_one: "{{count}} ding achter dit getal",
+    rowsBehind_other: "{{count}} dingen achter dit getal",
+    openRow: "klik op een regel om zijn kaart te openen",
+    alsoHeld: "Elke regel bevat meer dan deze tabel toont: {{properties}}. Open een regel om alles te zien.",
+    lead: {
+      count: "Geteld, één regel per stuk.",
+      read: "Afgelezen van het ding hieronder.",
+      reduced: "Elke regel droeg zijn {{measure}} bij. Het getal is daarvan het {{reduction}}.",
+      buckets: "Het platform heeft dit over de tijd samengevat, dus er zijn geen dingen om op te sommen. Hieronder dezelfde vraag over hetzelfde venster, in {{count}} gelijke delen, oudste eerst.",
+    },
+    reduction: { sum: "totaal", avg: "gemiddelde", min: "kleinste", max: "grootste" },
+    division: { top: "Wat gedeeld wordt", bottom: "Waardoor het gedeeld wordt" },
+    terms: {
+      archetype: "Archetype",
+      state: "In status",
+      property: "Eigenschap",
+      happenedAt: "Getijdstempeld op",
+      within: "Binnen",
+      where: "Waarbij",
+    },
+  },
   composer: {
     title: "Een tabel samenstellen",
     intro: "Kies een soort ding. Wat het model ervoor declareert wordt hier aangeboden; elke keuze wordt een kolom, een filter of de sortering.",
@@ -499,6 +527,8 @@ export const nl: PartialResources = {
     loading: "laden…",
     stateHistoryUnavailable: "Statusgeschiedenis niet beschikbaar — geen actieve reactieve engine voor dit model.",
     noStateChanges: "Geen statuswijzigingen vastgelegd.",
+    handledBy: "Verwerkt door",
+    dispatchesSinceModelLoad: "Vastgelegd sinds het platform dit model laadde — een eerdere uitvoering toont geen tijd.",
   },
   panels: {
     node: {
