@@ -11,6 +11,7 @@ import type {
   RangeBarWidget,
   StackedSharesWidget,
   DivergingBarWidget,
+  SmallMultiplesWidget,
 } from '../types/dashboard';
 
 /** A spec exercising every widget type plus a detail card. The base strings are
@@ -434,5 +435,45 @@ describe('localizeSpec over a divergingBar widget', () => {
     expect(localized.unit).toBe('litros');
     expect(localized.up.label).toBe('Ganancia');
     expect(localized.down.label).toBe('Pérdida');
+  });
+});
+
+describe('localizeSpec over a smallMultiples widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'smallMultiples',
+              title: 'Months',
+              hint: 'twelve panels',
+              bars: { label: 'Rain', unit: 'millimetres', value: { kind: 'const', value: 1 } },
+              line: { label: 'Heat', unit: 'degrees', value: { kind: 'const', value: 1 } },
+              band: { label: 'Comfort', colour: 'Comfort' },
+            } satisfies SmallMultiplesWidget] }],
+    translations: {
+      es: {
+          'Months': 'Meses',
+          'twelve panels': 'doce paneles',
+          'Rain': 'Lluvia',
+          'millimetres': 'milímetros',
+          'Heat': 'Calor',
+          'degrees': 'grados',
+          'Comfort': 'Confort',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as SmallMultiplesWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Meses');
+    expect(localized.hint).toBe('doce paneles');
+    expect(localized.bars.label).toBe('Lluvia');
+    expect(localized.bars.unit).toBe('milímetros');
+    expect(localized.line.label).toBe('Calor');
+    expect(localized.line.unit).toBe('grados');
+    expect(localized.band!.label).toBe('Confort');
+  });
+
+  it('never rewrites a value that is not wording, even when a translation entry matches it', () => {
+    expect(localized.band!.colour).toBe('Comfort');
   });
 });

@@ -471,3 +471,21 @@ describe('a history binding whose step parameter is bound', () => {
   });
 });
 
+// A binding the widget holds and the subscription does not name is a figure that never arrives on a
+// live page, so every one of the widget's bindings has to reach the selector.
+describe('subscriptionForSpec over a smallMultiples widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+              type: 'smallMultiples',
+              title: 'Months',
+              bars: { label: 'Rain', value: { kind: 'aggregate', archetype: 'Rain', op: 'count' } },
+              line: { label: 'Heat', value: { kind: 'aggregate', archetype: 'Heat', op: 'count' } },
+              band: { label: 'Comfort', from: { kind: 'aggregate', archetype: 'BandFrom', op: 'count' }, to: { kind: 'aggregate', archetype: 'BandTo', op: 'count' }, colour: '#0f0' },
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Rain', 'Heat', 'BandFrom', 'BandTo']));
+  });
+});
