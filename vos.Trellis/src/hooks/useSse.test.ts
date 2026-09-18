@@ -93,6 +93,22 @@ describe('useSse', () => {
     unmount();
   });
 
+  it.each(['ThingEntered', 'ThingLeft', 'RelationshipEntered', 'RelationshipLeft'])(
+    'hands a %s event through as the object the platform sent', async (kind) => {
+      const { result, unmount } = renderHook(() => useSse());
+      const handler = vi.fn();
+      let off: () => void = () => {};
+      act(() => { off = result.current.on(kind, handler); });
+
+      await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
+      act(() => FakeEventSource.instances[0].emit(kind, { EntityId: 't1', Thing: { Id: 't1' } }));
+
+      expect(handler).toHaveBeenCalledWith({ EntityId: 't1', Thing: { Id: 't1' } });
+      act(() => off());
+      unmount();
+    },
+  );
+
   it('opens both the object subscription and the system-events stream', async () => {
     const { unmount } = renderHook(() => useSse());
     await waitFor(() => expect(FakeEventSource.instances.length).toBe(2));

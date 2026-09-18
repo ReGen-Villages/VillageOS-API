@@ -14,6 +14,7 @@ const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 const KNOWN_EVENTS = [
   'ModelChanged', 'ModelCleared',
   'ThingCreated', 'ThingDeleted', 'RelationshipCreated', 'RelationshipDeleted',
+  'ThingEntered', 'ThingLeft', 'RelationshipEntered', 'RelationshipLeft',
   'PropertyChanged', 'PropertyDeleted', 'RelationshipPropertyChanged', 'RelationshipPropertyDeleted',
   'ServiceHealthChanged', 'DaemonStatusChanged', 'EndpointServiceRequestCompleted', 'ServiceRequestCompleted',
   'StatesChanged', 'RelationshipStatesChanged', 'ActivityEvent',
