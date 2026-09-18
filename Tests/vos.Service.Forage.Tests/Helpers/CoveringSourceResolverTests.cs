@@ -323,6 +323,80 @@ public class CoveringSourceResolverTests
         values["region"].Should().Be("iberia");
     }
 
+    // A source's address is filled from the subject outward, then from the source itself: its own values
+    // by name, the window's two dates from how far back it reaches, and the provider names of the
+    // variables it provides, joined — the shape the climate history is registered in, where a deployment
+    // tunes all three by editing the model and the call follows.
+    private static readonly DateOnly Today = new(2026, 9, 18);
+
+    private static ModelBuilder ClimateHistory(ModelBuilder model)
+    {
+        SourceCovering(model, "ClimateHistory", "Portugal");
+        model.WithValue("ClimateHistory", "historyYears", "10")
+             .WithValue("ClimateHistory", "granularity", "\"hourly\"")
+             .WithValue("provides", CoveringSourceResolver.ProvidedVariablePredicateFlag, "true")
+             .Relate("ClimateHistory", "provides", "temperatureCelsius")
+             .Relate("ClimateHistory", "provides", "rainMillimetres")
+             .WithValue("temperatureCelsius", CoveringSourceResolver.ProviderNameProperty, "\"temperature_2m\"")
+             .WithValue("rainMillimetres", CoveringSourceResolver.ProviderNameProperty, "\"rain\"");
+        return model;
+    }
+
+    [Fact]
+    public void Resolve_ASourceDeclaringItsReachAndProvidingVariables_IsCalledWithTheWindowTheGranularityAndTheNamesJoined()
+    {
+        var model = ClimateHistory(new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")
+            .WithValue("WillowBend", "latitude", "39.4"));
+
+        var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"), Today)[0].Calls[0].Values;
+
+        values["latitude"].Should().Be("39.4");
+        values["granularity"].Should().Be("hourly");
+        values["historyYears"].Should().Be("10");
+        values["startDate"].Should().Be("2016-09-18");
+        values["endDate"].Should().Be("2026-09-18");
+        values["variables"].Should().Be("rain,temperature_2m", "the provider names are joined in the Things' name order, so two runs address one call the same way");
+    }
+
+    [Fact]
+    public void Resolve_ANameTheSubjectAndTheSourceBothCarry_TakesTheSubjects()
+    {
+        var model = ClimateHistory(new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")
+            .WithValue("WillowBend", "granularity", "\"daily\""));
+
+        var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"), Today)[0].Calls[0].Values;
+
+        values["granularity"].Should().Be("daily");
+    }
+
+    [Fact]
+    public void Resolve_AReachThatIsNotAWholeNumberOfYears_GivesNoWindow()
+    {
+        var model = ClimateHistory(new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal"))
+            .WithValue("ClimateHistory", "historyYears", "\"ten\"");
+
+        var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"), Today)[0].Calls[0].Values;
+
+        values.Should().NotContainKey("startDate").And.NotContainKey("endDate");
+        values["historyYears"].Should().Be("ten", "the value still fills its own placeholder; only the window is not worked out from it");
+    }
+
+    [Fact]
+    public void Resolve_ASourceDeclaringNoReachAndProvidingNothing_IsAddressedAsBefore()
+    {
+        var model = new ModelBuilder()
+            .Relate("WillowBend", CoveringSourceResolver.IsInPredicate, "Portugal")
+            .WithValue("WillowBend", "latitude", "39.4");
+        SourceCovering(model, "OpenMeteo", "Portugal");
+
+        var values = CoveringSourceResolver.Resolve(model.Build(), model.Id("WillowBend"), Today)[0].Calls[0].Values;
+
+        values.Keys.Should().BeEquivalentTo("latitude");
+    }
+
     // A source that resolves onto an archetype, and a site holding two Things of it — the shape the
     // hazard portal is registered in, where every route wants one assessment's codes.
     private static ModelBuilder ResolvingOnto(string source, string archetype, params string[] owned)

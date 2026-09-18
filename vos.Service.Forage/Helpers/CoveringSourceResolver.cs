@@ -87,6 +87,17 @@ public static class CoveringSourceResolver
     // that fetches is the site's own, which addresses each call from the site outward.
     private static readonly IReadOnlyDictionary<string, string> NoAddress = new Dictionary<string, string>();
 
+    // What a source supplies to its own address beneath everything the subject supplies: its own values
+    // by name; a window of `historyYears` ending today where it declares one; and, where it reaches Things
+    // through the marked predicate, their provider names joined — so a deployment tunes a source's reach
+    // and its variables by editing the model, and the call follows.
+    public const string ReachProperty = "historyYears";
+    public const string ProvidedVariablePredicateFlag = "__IsProvidedVariablePredicate";
+    public const string ProviderNameProperty = "providerName";
+    public const string WindowStartPlaceholder = "startDate";
+    public const string WindowEndPlaceholder = "endDate";
+    public const string VariablesPlaceholder = "variables";
+
     // Place nesting is a handful of levels — a country inside a region inside the root is the deepest
     // shape anyone has needed. Far beyond that, and costing one unused set expansion per level, which
     // is cheaper than a second round trip to learn the true depth. Same reasoning as the endpoint
@@ -425,10 +436,14 @@ public static class CoveringSourceResolver
         return null;
     }
 
-    public static IReadOnlyList<CoveringSource> Resolve(SnapshotDocument snapshot, Guid siteId)
+    // The window a source reaching back is addressed with ends today in the wall clock's date, not the
+    // model's: the archive holds real dates, and a run anchored in simulated time still wants the years
+    // that actually happened.
+    public static IReadOnlyList<CoveringSource> Resolve(SnapshotDocument snapshot, Guid siteId, DateOnly? today = null)
     {
         var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
         var namesById = thingsById.ToDictionary(entry => entry.Key, entry => entry.Value.Name ?? string.Empty);
+        var windowEnd = today ?? DateOnly.FromDateTime(DateTime.UtcNow);
 
         var placesByDepth = PlacesByDepth(snapshot, siteId, namesById);
         var places = placesByDepth.SelectMany(level => level).ToHashSet();
@@ -449,7 +464,7 @@ public static class CoveringSourceResolver
             // that was never callable, and leaving it out here would report it as an outage later.
             if (EndpointOf(snapshot, namesById, thingsById, edge.SubjectId) is not { } endpoint) continue;
 
-            var calls = CallsFor(snapshot, thingsById, namesById, edge.SubjectId, siteId, siteValues);
+            var calls = CallsFor(snapshot, thingsById, namesById, edge.SubjectId, siteId, siteValues, windowEnd);
             covering.Add(new CoveringSource(
                 edge.SubjectId, source.Name ?? string.Empty, endpoint.Name ?? string.Empty, calls));
         }
@@ -467,20 +482,59 @@ public static class CoveringSourceResolver
         IReadOnlyDictionary<Guid, string> namesById,
         Guid sourceId,
         Guid siteId,
-        IReadOnlyDictionary<string, string> siteValues) =>
-        SubjectsCalledAbout(snapshot, thingsById, namesById, sourceId, siteId)
+        IReadOnlyDictionary<string, string> siteValues,
+        DateOnly windowEnd)
+    {
+        var sourceValues = SourceValues(snapshot, thingsById, sourceId, windowEnd);
+        return SubjectsCalledAbout(snapshot, thingsById, namesById, sourceId, siteId)
             .Select(subjectId => new SourceCall(
                 subjectId,
                 namesById.GetValueOrDefault(subjectId, string.Empty),
                 subjectId == siteId
-                    ? siteValues
+                    ? Layered([siteValues, sourceValues])
                     : Layered(
                     [
                         StatedValues.Of(snapshot, subjectId),
                         AgreedValues(snapshot, VocabularyOf(snapshot, namesById, subjectId)),
                         siteValues,
+                        sourceValues,
                     ])))
             .ToList();
+    }
+
+    private static Dictionary<string, string> SourceValues(
+        SnapshotDocument snapshot,
+        IReadOnlyDictionary<Guid, SnapshotThing> thingsById,
+        Guid sourceId,
+        DateOnly windowEnd)
+    {
+        var values = new Dictionary<string, string>(StatedValues.Of(snapshot, sourceId), StringComparer.OrdinalIgnoreCase);
+
+        if (values.TryGetValue(ReachProperty, out var reach) && int.TryParse(reach, out var years) && years > 0)
+        {
+            values[WindowStartPlaceholder] = windowEnd.AddYears(-years).ToString("yyyy-MM-dd");
+            values[WindowEndPlaceholder] = windowEnd.ToString("yyyy-MM-dd");
+        }
+
+        var provided = snapshot.Relationships
+            .Where(edge => edge.SubjectId == sourceId
+                && thingsById.TryGetValue(edge.PredicateId, out var predicate)
+                && Carries(predicate, ProvidedVariablePredicateFlag))
+            .Select(edge => thingsById.GetValueOrDefault(edge.TargetId))
+            .Where(variable => variable is not null)
+            .OrderBy(variable => variable!.Name, StringComparer.Ordinal)
+            .Select(variable => StatedValues.Of(snapshot, variable!.Id).GetValueOrDefault(ProviderNameProperty))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToList();
+        if (provided.Count > 0)
+            values[VariablesPlaceholder] = string.Join(",", provided);
+
+        return values;
+    }
+
+    private static bool Carries(SnapshotThing thing, string flag) =>
+        thing.Properties.TryGetValue(flag, out var property)
+        && property.Value.ValueKind == System.Text.Json.JsonValueKind.True;
 
     // The Things one source is called about for one site. A source that declares nothing it resolves
     // onto is called once, about the site; one that does is called once per Thing the site has of the
