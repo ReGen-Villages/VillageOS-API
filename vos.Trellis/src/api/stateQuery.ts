@@ -26,6 +26,11 @@ export interface StateNarrowing {
   limit?: number;
   /** Property names returned beside each id, so a row arrives complete. */
   properties?: string[];
+  /** Answer with how many Things the narrowing keeps and none of the Things themselves. Every
+   *  narrowing above still applies first, so the number is the size of the list that would have come
+   *  back. Refused beside {@link limit}: nothing in such an answer would say whether the number is
+   *  the whole one or the capped one. */
+  countOnly?: boolean;
 }
 
 /** The request one narrowed read makes. Exported because a caller sharing one in-flight request per
@@ -47,6 +52,7 @@ export function thingsInStatePath(stateName: string, narrowing?: StateNarrowing)
   if (narrowing.includeArchetypes) query.set('includeArchetypes', 'true');
   if (narrowing.limit !== undefined) query.set('limit', String(narrowing.limit));
   if (narrowing.properties?.length) query.set('properties', narrowing.properties.join(','));
+  if (narrowing.countOnly) query.set('countOnly', 'true');
   const suffix = query.toString();
   return suffix ? `${path}?${suffix}` : path;
 }

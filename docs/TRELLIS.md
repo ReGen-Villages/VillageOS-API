@@ -1696,12 +1696,20 @@ all of it and orders by name, so a capped list is the same list every time. A
 dashboard therefore stops pulling every Thing in a state to show a count or ten
 rows — on a model of real size that reply is the whole response.
 
-Two things follow from it:
+Three things follow from it:
 
+- **A count is asked for as a number.** `stateCount` sends `countOnly=true`, and
+  the endpoint applies every narrowing first and answers `Count` with no member
+  list, so a figure of four hundred costs what a figure of four costs. A count and
+  a list narrowed the same way are two questions, so they share no request. Like
+  `stateList`, a count takes an `excludeState`, sent as `notIn`, so a funnel stage
+  counts the Things that reached it and no further.
 - **An inbound scope keeps its local walk.** The endpoint walks outward from a
   container, so a scope pointing the other way has no server expression. Such a
   binding narrows in the browser as before, and its `limit` is applied after that
-  narrowing — a server-side cap would have taken the wrong rows.
+  narrowing — a server-side cap would have taken the wrong rows. A count with such
+  a scope still reads the members: the platform's number would be the one before
+  the walk.
 - **A row arrives with the columns its table draws.** `stateList` names them in
   `properties`, the endpoint sends them beside each id, and the row is what came
   back — nothing is added from the model index afterwards, so a state-driven
