@@ -77,6 +77,7 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
     case 'lineSeries': return widget.series.map((entry) => entry.value);
     case 'heatmap': return [widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds];
     case 'stackedShares': return widget.classes.map((entry) => entry.share);
+    case 'divergingBar': return [widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold];
   }
 }
 

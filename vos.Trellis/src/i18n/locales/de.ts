@@ -281,6 +281,10 @@ export const de: PartialResources = {
       lastDays_one: 'letzter Tag',
       lastDays_other: 'letzte {{count}} Tage',
     },
+    divergingBar: {
+      above: 'über {{threshold}}',
+      below: 'unter {{threshold}}',
+    },
     heatmap: {
       sunrise: 'Sonnenaufgang',
       sunset: 'Sonnenuntergang',

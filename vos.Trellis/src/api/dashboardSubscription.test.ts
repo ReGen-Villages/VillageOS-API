@@ -418,3 +418,21 @@ describe('subscriptionForSpec over a stackedShares widget', () => {
     expect(selector.types).toEqual(expect.arrayContaining(['Trees', 'Grass']));
   });
 });
+
+// A binding the widget holds and the subscription does not name is a figure that never arrives on a
+// live page, so every one of the widget's bindings has to reach the selector.
+describe('subscriptionForSpec over a divergingBar widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+              type: 'divergingBar',
+              title: 'Balance',
+              up: { label: 'Gain', value: { kind: 'aggregate', archetype: 'Gain', op: 'count' }, threshold: { kind: 'aggregate', archetype: 'GainLine', op: 'count' } },
+              down: { label: 'Loss', value: { kind: 'aggregate', archetype: 'Loss', op: 'count' }, threshold: { kind: 'aggregate', archetype: 'LossLine', op: 'count' } },
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Gain', 'GainLine', 'Loss', 'LossLine']));
+  });
+});

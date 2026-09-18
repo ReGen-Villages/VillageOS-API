@@ -18,6 +18,7 @@ import type {
   DashboardSection,
   DashboardSpec,
   DetailSpec,
+  DivergingBarWidget,
   ExceptionWidget,
   FunnelWidget,
   GanttWidget,
@@ -207,6 +208,17 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
     }
     case 'heatmap': {
       const w: HeatmapWidget = { ...widget, title: tr(widget.title), hint: tr(widget.hint), unit: tr(widget.unit) };
+      return w;
+    }
+    case 'divergingBar': {
+      const w: DivergingBarWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        unit: tr(widget.unit),
+        up: { ...widget.up, label: tr(widget.up.label) },
+        down: { ...widget.down, label: tr(widget.down.label) },
+      };
       return w;
     }
     case 'stackedShares': {

@@ -12,6 +12,7 @@ import type {
   LineSeriesWidget,
   HeatmapWidget,
   StackedSharesWidget,
+  DivergingBarWidget,
 } from '../types/dashboard';
 
 /** A spec exercising every widget type plus a detail card. The base strings are
@@ -459,5 +460,37 @@ describe('localizeSpec over a stackedShares widget', () => {
 
   it('never rewrites a value that is not wording, even when a translation entry matches it', () => {
     expect(localized.classes[0].colour).toBe('Trees');
+  });
+});
+
+describe('localizeSpec over a divergingBar widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'divergingBar',
+              title: 'Balance',
+              hint: 'by month',
+              unit: 'litres',
+              up: { label: 'Gain', value: { kind: 'const', value: 1 } },
+              down: { label: 'Loss', value: { kind: 'const', value: 1 } },
+            } satisfies DivergingBarWidget] }],
+    translations: {
+      es: {
+          'Balance': 'Balance hídrico',
+          'by month': 'por mes',
+          'litres': 'litros',
+          'Gain': 'Ganancia',
+          'Loss': 'Pérdida',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as DivergingBarWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Balance hídrico');
+    expect(localized.hint).toBe('por mes');
+    expect(localized.unit).toBe('litros');
+    expect(localized.up.label).toBe('Ganancia');
+    expect(localized.down.label).toBe('Pérdida');
   });
 });
