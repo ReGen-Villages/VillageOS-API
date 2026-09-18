@@ -198,6 +198,43 @@ public class SubscriptionClientTests
         got.Value!.Value.GetInt32().Should().Be(92);
     }
 
+    /// <summary>An entry rides beside the change that caused it and carries no id, so its sequence is
+    /// none; the change after it carries the sequence and is what moves the resume position.</summary>
+    [Fact]
+    public async Task StreamAsync_yields_an_entry_delivered_beside_a_change_and_resumes_from_the_change()
+    {
+        var thingId = Guid.NewGuid();
+        var edgeId = Guid.NewGuid();
+        var wire = $"event: ThingEntered\n" +
+                   $"data: {{\"Kind\":\"ThingEntered\",\"EntityId\":\"{thingId}\",\"Thing\":{{\"Id\":\"{thingId}\",\"Name\":\"Willow Bend\",\"IsArchetype\":false,\"Properties\":{{}},\"States\":[]}}}}\n\n" +
+                   $"id: 43\nevent: RelationshipCreated\n" +
+                   $"data: {{\"Kind\":\"RelationshipCreated\",\"EntityId\":\"{edgeId}\",\"Relationship\":{{\"Id\":\"{edgeId}\",\"SubjectId\":\"{thingId}\",\"PredicateId\":\"{Guid.NewGuid()}\",\"TargetId\":\"{Guid.NewGuid()}\",\"Properties\":{{}},\"States\":[]}}}}\n\n";
+        var lastEventIds = new List<string?>();
+        var (client, _) = Build(req =>
+        {
+            lastEventIds.Add(req.Headers.TryGetValues("Last-Event-ID", out var v) ? v.First() : null);
+            // The first connection delivers the entry alone and ends, so the reconnect shows what an
+            // id-less event did to the resume position; the second delivers the change and ends.
+            return Sse(lastEventIds.Count == 1 ? wire[..wire.IndexOf("id: 43")] : wire[wire.IndexOf("id: 43")..]);
+        });
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var got = new List<ModelChangeEvent>();
+        await foreach (var e in client.StreamAsync(Guid.NewGuid(), fromSequence: 42, cts.Token))
+        {
+            got.Add(e);
+            if (got.Count == 2) break;
+        }
+
+        got.Select(e => e.Kind).Should().Equal("ThingEntered", "RelationshipCreated");
+        got[0].Sequence.Should().Be(0, "an entry carries no id");
+        got[0].Thing!.Name.Should().Be("Willow Bend");
+        got[0].Thing!.Relationships.Should().BeNull("a Thing on the stream carries no incident-edge list");
+        got[1].Sequence.Should().Be(43);
+        got[1].Relationship!.SubjectId.Should().Be(thingId);
+        lastEventIds.Should().Equal(new[] { "42", "42" }, "an entry moves the resume position nowhere; only the change after it does");
+    }
+
     [Fact]
     public async Task StreamAsync_reconnects_and_resumes_with_last_event_id()
     {

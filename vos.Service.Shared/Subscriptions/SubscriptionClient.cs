@@ -96,9 +96,13 @@ public sealed class SubscriptionClient : MyceliumClientBase, ISubscriptionClient
                 await foreach (var frame in SseEventReader.ReadAsync(connection.Stream, ct))
                 {
                     var change = ParseChange(frame);
-                    if (change is null || change.Sequence <= lastSequence) continue; // skip noise + replay overlap
-                    lastSequence = change.Sequence;
-                    yield return change;
+                    if (change is null) continue;
+                    if (change.Sequence > 0)
+                    {
+                        if (change.Sequence <= lastSequence) continue; // replay overlap
+                        lastSequence = change.Sequence;
+                    }
+                    yield return change; // an entry or departure carries no id and moves nothing; the change after it does
                 }
             }
 

@@ -80,6 +80,9 @@ public sealed record InheritedPropertySet(
 // and since that is where every value a Thing states over its archetype's declaration is carried, a
 // reader of Properties alone finds each of them absent. Read both through
 // <see cref="SnapshotValues.StatedValue(SnapshotThing, string)"/> rather than either directly.
+//
+// Relationships is the closure's edges incident to the Thing, which only a snapshot can say anything
+// about; the same shape on the change stream carries none, since a Thing's edges arrive as events.
 public sealed record SnapshotThing(
     Guid Id,
     string? Name,
@@ -87,7 +90,7 @@ public sealed record SnapshotThing(
     Dictionary<string, SnapshotProperty> Properties,
     Dictionary<string, InheritedPropertySet>? InheritedOverrides,
     string[] States,
-    Guid[] Relationships);
+    Guid[]? Relationships);
 
 public sealed record SnapshotRelationship(
     Guid Id,
@@ -99,7 +102,12 @@ public sealed record SnapshotRelationship(
     Dictionary<string, InheritedPropertySet>? InheritedOverrides,
     string[] States);
 
-// Sequence is the commit sequence (the SSE event id) used for Last-Event-ID resume.
+// Sequence is the commit sequence (the SSE event id) used for Last-Event-ID resume. An entry or a
+// departure — a Thing or edge a following subscription brought in or let go — rides beside the change
+// that caused it and carries no id, so its Sequence is 0; the change after it carries the sequence.
+//
+// A Thing or an edge met for the first time arrives whole under Thing or Relationship, in the
+// snapshot's shape, so a consumer applies it without a read.
 public sealed record ModelChangeEvent
 {
     public long Sequence { get; init; }
@@ -107,6 +115,8 @@ public sealed record ModelChangeEvent
     public Guid EntityId { get; init; }
     public string? PropertyName { get; init; }
     public JsonElement? Value { get; init; }
+    public SnapshotThing? Thing { get; init; }
+    public SnapshotRelationship? Relationship { get; init; }
 
     [JsonIgnore] public bool IsPropertyChange => Kind is "PropertyChanged" or "RelationshipPropertyChanged";
 }
