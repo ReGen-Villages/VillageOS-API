@@ -21,6 +21,7 @@ import type {
   ExceptionWidget,
   FunnelWidget,
   GanttWidget,
+  HeatmapWidget,
   KpiWidget,
   LeaderboardWidget,
   LineSeriesWidget,
@@ -201,6 +202,10 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
         unit: tr(widget.unit),
         series: widget.series.map((entry) => ({ ...entry, label: tr(entry.label) })),
       };
+      return w;
+    }
+    case 'heatmap': {
+      const w: HeatmapWidget = { ...widget, title: tr(widget.title), hint: tr(widget.hint), unit: tr(widget.unit) };
       return w;
     }
   }

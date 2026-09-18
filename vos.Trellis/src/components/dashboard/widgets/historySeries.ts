@@ -35,3 +35,19 @@ export function monthNames(locale: string): string[] {
   const format = new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' });
   return Array.from({ length: 12 }, (_, month) => format.format(new Date(Date.UTC(2001, month, 1))));
 }
+
+/** A leap year, so the 366th day of a fold has a date to be named by. */
+const LEAP_YEAR = 2000;
+
+/** A day of the year as a date in the reader's language — "Jan 1", "1 janv." — with no year, since a
+ *  fold by day of year lays every year over the same days. */
+export function dayOfYearLabel(dayOfYear: number, locale: string): string {
+  const format = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return format.format(new Date(Date.UTC(LEAP_YEAR, 0, dayOfYear)));
+}
+
+/** The first day of the year of each month, for an axis over days of the year. */
+export function monthStarts(): number[] {
+  return Array.from({ length: 12 }, (_, month) =>
+    Math.round((Date.UTC(LEAP_YEAR, month, 1) - Date.UTC(LEAP_YEAR, 0, 1)) / 86_400_000) + 1);
+}

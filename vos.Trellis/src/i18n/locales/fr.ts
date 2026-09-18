@@ -281,6 +281,12 @@ export const fr: PartialResources = {
       lastDays_one: 'dernier jour',
       lastDays_other: '{{count}} derniers jours',
     },
+    heatmap: {
+      sunrise: 'Lever du soleil',
+      sunset: 'Coucher du soleil',
+      warmest: 'Maximum {{value}} le {{when}}',
+      coldest: 'Minimum {{value}} le {{when}}',
+    },
     rangeBar: {
       recordedHigh: 'Maximum enregistré',
       designHigh: 'Maximum de conception',

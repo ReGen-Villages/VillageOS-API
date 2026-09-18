@@ -380,3 +380,21 @@ describe('subscriptionForSpec over a lineSeries widget', () => {
     expect(selector.types).toEqual(expect.arrayContaining(['ThisYear', 'LastYear']));
   });
 });
+
+// A binding the widget holds and the subscription does not name is a figure that never arrives on a
+// live page, so every one of the widget's bindings has to reach the selector.
+describe('subscriptionForSpec over a heatmap widget', () => {
+  it('asks for every binding the widget holds', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+              type: 'heatmap',
+              title: 'Sun',
+              value: { kind: 'aggregate', archetype: 'Reading', op: 'count' },
+              sun: { latitude: { kind: 'aggregate', archetype: 'Latitude', op: 'count' }, longitude: { kind: 'aggregate', archetype: 'Longitude', op: 'count' }, utcOffsetSeconds: { kind: 'aggregate', archetype: 'Offset', op: 'count' } },
+            }),
+      null,
+    );
+
+    expect(selector.types).toEqual(expect.arrayContaining(['Reading', 'Latitude', 'Longitude', 'Offset']));
+  });
+});

@@ -632,6 +632,32 @@ export interface LineSeriesWidget {
   ceiling?: number;
 }
 
+/** Where the chart stands on Earth and in what clock, so it can draw when the sun rises and sets:
+ *  each a binding onto the model's own figures. The offset is the one the platform folded the hours
+ *  in; left unbound, the curves are drawn in universal time as the platform folds by default. */
+export interface SunPosition {
+  latitude: Binding;
+  longitude: Binding;
+  utcOffsetSeconds?: Binding;
+}
+
+/** Every hour of every day of the year as one cell coloured by value — a `history` binding folded
+ *  by `hourOfDay,dayOfYear` — painted on a canvas because the grid is thousands of cells, with the
+ *  sunrise and sunset curves over it where the spec binds the coordinates. The ramp is one hue,
+ *  light at the floor and dark at the ceiling, with a scale legend; `floor` and `ceiling` fix it,
+ *  absent it fits the data. */
+export interface HeatmapWidget {
+  type: 'heatmap';
+  title?: string;
+  hint?: string;
+  value: Binding;
+  sun?: SunPosition;
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -643,7 +669,8 @@ export type Widget =
   | WorkingWidget
   | ExceptionWidget
   | RangeBarWidget
-  | LineSeriesWidget;
+  | LineSeriesWidget
+  | HeatmapWidget;
 
 export interface DashboardSection {
   title?: string;
