@@ -14,8 +14,8 @@ export const relationshipApi = {
     return rels.map(unwrapRelationship);
   },
 
-  get: async (id: string) => {
-    const rel = await apiClient.get<VosRelationship>(`/api/relationships/${id}`);
+  get: async (id: string, signal?: AbortSignal) => {
+    const rel = await apiClient.get<VosRelationship>(`/api/relationships/${id}`, signal);
     return unwrapRelationship(rel);
   },
 

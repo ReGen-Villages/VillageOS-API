@@ -175,6 +175,7 @@ async fn health(State(state): State<Arc<AppState>>) -> Json<Value> {
         "status": "Healthy",
         "service": SERVICE_NAME,
         "requestsProcessed": state.requests.load(Ordering::SeqCst),
+        "processId": std::process::id(),
     }))
 }
 

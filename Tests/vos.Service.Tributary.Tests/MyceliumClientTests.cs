@@ -415,6 +415,74 @@ public class MyceliumClientTests
         ok.Should().BeFalse();
     }
 
+    // ---------- DepositAssetAsync ----------
+
+    [Fact]
+    public async Task DepositAssetAsync_Accepted_ReturnsTheTicketAndSendsTheBytesVerbatim()
+    {
+        var bytes = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF };
+        byte[]? sent = null;
+        string? sentContentType = null;
+        var handler = new MockHttpMessageHandler(request =>
+        {
+            if (request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/api/assets")
+            {
+                sent = request.Content!.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+                sentContentType = request.Content.Headers.ContentType?.ToString();
+                return new HttpResponseMessage(HttpStatusCode.Created)
+                {
+                    Content = new StringContent(
+                        """{"hash":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}""",
+                        Encoding.UTF8, "application/json")
+                };
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        var sut = CreateClient(handler);
+
+        var ticket = await sut.DepositAssetAsync(bytes, "image/png");
+
+        ticket.Should().Be("sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+        sent.Should().Equal(bytes);
+        sentContentType.Should().Be("image/png");
+    }
+
+    [Fact]
+    public async Task DepositAssetAsync_HashKeyInAnyCase_Parses()
+    {
+        var handler = new MockHttpMessageHandler(_ => JsonResponse("""{"Hash":"sha256:abc"}"""));
+        var sut = CreateClient(handler);
+
+        (await sut.DepositAssetAsync(new byte[] { 1 }, "application/octet-stream")).Should().Be("sha256:abc");
+    }
+
+    [Fact]
+    public async Task DepositAssetAsync_NonSuccessStatus_ReturnsNull()
+    {
+        var handler = new MockHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        var sut = CreateClient(handler);
+
+        (await sut.DepositAssetAsync(new byte[] { 1 }, "image/png")).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DepositAssetAsync_BodyWithoutAHash_ReturnsNull()
+    {
+        var handler = new MockHttpMessageHandler(_ => JsonResponse("""{"stored":true}"""));
+        var sut = CreateClient(handler);
+
+        (await sut.DepositAssetAsync(new byte[] { 1 }, "image/png")).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DepositAssetAsync_TransportThrows_ReturnsNull()
+    {
+        var handler = new MockHttpMessageHandler(_ => throw new HttpRequestException("boom"));
+        var sut = CreateClient(handler);
+
+        (await sut.DepositAssetAsync(new byte[] { 1 }, "image/png")).Should().BeNull();
+    }
+
     private static MyceliumClient CreateClient(HttpMessageHandler handler)
     {
         // Fresh HttpClient per CreateClient call so MyceliumClientBase.CreateAuthenticatedClientAsync
