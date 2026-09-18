@@ -65,7 +65,7 @@ sequenceDiagram
     M->>S: POST /handle (Bearer mycelium_request JWT) → 200
     M->>S: GET /health (polled) → Healthy
     M->>S: SIGTERM / POST /shutdown
-    S->>M: DELETE /api/mycelium/services/{handlerId} (Bearer)
+    Note over M,S: the service does not deregister; the liveness monitor removes it
 ```
 
 ## CLI arguments

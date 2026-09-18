@@ -13,6 +13,7 @@
 - [Snapshot Read Cost](#snapshot-read-cost)
 - [Microservice Management](#microservice-management)
 - [Model Import/Export](#model-importexport)
+- [Seeds, Models, Retention and Accounts](#seeds-models-retention-and-accounts)
 - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
 
@@ -56,7 +57,7 @@ All operations are performed remotely on the Mycelium's model.
 
 ### Starting the CLI
 
-**1. Start the Mycelium first.** Mycelium (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there. Its guide is the Mycelium page on that repository's wiki (`ReGenVillages/VillageOS` → wiki → Mycelium). It listens on `https://localhost:7243` by default.
+**1. Start the Mycelium first.** Mycelium (`vos.Mycelium`) lives in the **VillageOS** repository, not this one — run it from there. Its guide is the **Field Guide** on that repository's wiki (`ReGenVillages/VillageOS` → wiki → Field Guide); the chapter *Installing and running a blank system* covers the first start. It listens on `https://localhost:7243` by default.
 
 **2. In a new terminal, start the CLI.** It needs an API key, which it reads from `VOS_API_KEY` — see [Authentication](#authentication) for where to get one:
 
@@ -198,19 +199,24 @@ production** — it disables protection against man-in-the-middle attacks.
 | `serialize [file]` | Export model to JSON |
 | `seed [file]` | Alias for serialize |
 | `deserialize <file>` | Import model from JSON |
-| `plant <file>` | Alias for deserialize |
+| `plant <file> [mode] [--ringbuffer=N] [--samplerate=N]` | Import a model from JSON and, when a mode is given, set every property's retention to it |
 | `apply <file.json>` | Upsert a fragment (Things + Relationships) into the live model |
 | `submissions list` | What has arrived in this model: when, what it proposes, and what has been decided about it |
 | `submissions reject <submission>` | Move a submission to a disposable state |
 | `submissions promote <submission> <template> <predicates> <project name>` | Copy a submission into a project model of its own, built from a template. `<predicates>` is a comma-separated list saying what belongs with the site — the model's vocabulary, named rather than assumed. The project name takes the rest of the line, so it may contain spaces; the submission must therefore be given as an identifier here. Promoting twice produces one project |
 | `submissions dispose <predicates>` | The retention pass: clear every rejected submission whose period has run, taking everything it minted with it. The period is the disposition's (`daysBeforeColdStorage`), counted from when the submission was decided about. One nobody has decided about is kept indefinitely, and so is one resolved to a disposition naming no period. `<predicates>` is the same list `promote` takes; the predicate reaching the proposed site is added to it |
 | `ingest <file.ifc> [--new]` | Upload an IFC to the Xylem service to build or merge the model |
+| `seeds status` / `seeds list` / `seeds load <name>` / `seeds save <name>` / `seeds reload` | The seed files in Mycelium's seeds directory: loading progress, what is there, load one as the model, save the model as one, reload from disk |
+| `model list` / `model switch <id\|name>` | The models Mycelium holds, and which one this session works in |
+| `config mode [ModeName]` / `config mode get <thing> <property>` / `config mode set <thing> <property> <ModeName>` | Property retention: show or set the default, read or set one property's |
+| `mycelium status` / `mycelium endpoints` | Seed loading status; the registered endpoint services |
+| `user change-password <user-guid>` | Change an account's password, prompting for it |
 | `pwd` | Show current directory |
 | `cd <path>` | Change directory |
 
 **Note:** Where `<thing>`, `<subj>`, `<pred>`, or `<target>` appears, you can use either a GUID or a unique name. Names are case-insensitive. If a name is ambiguous (multiple things have the same name), you must use the GUID.
 
-**Note:** The review commands — `list`, `reject` and `promote` — have a page of their own in Trellis, [Reviewing what has arrived](TRELLIS.md#87-reviewing-what-has-arrived). It reads the same model the same way and calls the same two actions, so a staging model can be worked from a browser or from here. `submissions dispose` has no page: the retention pass is run from here.
+**Note:** The review commands — `list`, `reject` and `promote` — have a page of their own in Trellis, [Reviewing what has arrived](TRELLIS.md#88-reviewing-what-has-arrived). It reads the same model the same way and calls the same two actions, so a staging model can be worked from a browser or from here. `submissions dispose` has no page: the retention pass is run from here.
 
 ### Output Options
 
@@ -1202,6 +1208,54 @@ Changed directory to: /tmp
 Model saved to /tmp/backup.json
 ```
 
+## Seeds, Models, Retention and Accounts
+
+### Seeds on disk
+
+Mycelium loads its models from the seed files in its seeds directory at startup. The `seeds` commands
+work with that directory:
+
+```bash
+> seeds list                 # the seed files there, by name
+> seeds status               # how far the startup load has got
+> seeds load village         # replace the current model with that seed (daemons are stopped first)
+> seeds save backup          # write the current model to the directory as backup.seed.json
+> seeds reload               # discard the current model and load the directory again
+```
+
+`mycelium status` shows the same loading status; `mycelium endpoints` lists the endpoint services
+the model registers, with their request counts.
+
+### Switching model
+
+A session works in one model. `model list` shows every model Mycelium holds, and `model switch`
+moves the session to another by identifier or name — the same re-scoping the GUI's **Switch Model**
+does.
+
+### Property retention
+
+Every property keeps its history under a retention mode: `CurrentOnly`, `RingBuffer` (the last N
+values), `Sampled` (one value in N) or `FullHistory`. The default applies to every property that
+does not set its own.
+
+```bash
+> config mode                              # the default, with its ring-buffer size and sample rate
+> config mode RingBuffer --ringbuffer=100  # set the default
+> config mode get Home-1 temperature       # one property's
+> config mode set Home-1 temperature Sampled --samplerate=10
+```
+
+`plant <file> RingBuffer --ringbuffer=50` imports a model and sets every property to that mode in one
+step.
+
+### Accounts
+
+`user change-password <user-guid>` changes an account's password; the command prompts for the current
+and the new password rather than taking them on the command line, so neither is left in the shell's
+history. Creating
+and deleting accounts and keys is done through the REST API by an administrator (see the Field Guide's
+route table, on the VillageOS repository's wiki).
+
 ## Testing
 
 The CLI includes comprehensive tests covering all command handlers.
@@ -1217,22 +1271,11 @@ dotnet test
 
 ### Test Files
 
-| Test File | Coverage |
-|-----------|----------|
-| `CommandHandlerTests.cs` | Main command dispatcher |
-| `CreateCommandHandlerTests.cs` | Create operations |
-| `DeleteCommandHandlerTests.cs` | Delete operations |
-| `GetCommandHandlerTests.cs` | Get operations |
-| `SetCommandHandlerTests.cs` | Set operations |
-| `FindCommandHandlerTests.cs` | Find operations |
-| `ListCommandHandlerTests.cs` | List operations (including services) |
-| `StopCommandHandlerTests.cs` | Microservice stop operations |
-| `QueryCommandHandlerTests.cs` | Query operations |
-| `FileSystemCommandHandlerTests.cs` | File operations |
-| `TemporalCommandHandlerTests.cs` | Temporal commands |
-| `NameResolverTests.cs` | Name-to-ID resolution |
-| `OutputOptionsTests.cs` | Output formatting and `--showguids` flag |
-| `IntegrationTests.cs` | End-to-end scenarios |
+Every command handler has a test file of its own, named after it (`ListCommandHandlerTests.cs` for
+`ListCommandHandler.cs`), beside tests for the parser, the console options, name resolution, output
+options, the `MyceliumClient` (including its TLS handling) and end-to-end scenarios in
+`IntegrationTests.cs`. Tests that change the working directory share one collection so they never
+run at the same time.
 
 ### Test Architecture
 
@@ -1315,7 +1358,7 @@ You will see it as `Warning: Could not connect to Mycelium: …` when the CLI st
 ## Getting Help
 
 - **CLI Help:** Type `help` at the prompt
-- **Mycelium:** the Mycelium page on Mycelium repo's wiki (`ReGenVillages/VillageOS` → wiki → Mycelium)
+- **Mycelium:** the Field Guide on the VillageOS repository's wiki (`ReGenVillages/VillageOS` → wiki → Field Guide)
 - **This repository's guides:** the [documentation index](README.md), published to the VillageOS API Wiki
 
 ---
@@ -1323,4 +1366,4 @@ You will see it as `Warning: Could not connect to Mycelium: …` when the CLI st
 **Next Steps:**
 
 - See [`SERVICES.md`](SERVICES.md) to build relationship or endpoint services.
-- The Mycelium REST + SSE reference lives on Mycelium repo's wiki (`ReGenVillages/VillageOS`).
+- The Mycelium REST + SSE reference is the Field Guide's chapter *The API, route by route*, on the VillageOS repository's wiki.
