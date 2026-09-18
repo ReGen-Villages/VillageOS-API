@@ -1696,12 +1696,20 @@ all of it and orders by name, so a capped list is the same list every time. A
 dashboard therefore stops pulling every Thing in a state to show a count or ten
 rows — on a model of real size that reply is the whole response.
 
-Two things follow from it:
+Three things follow from it:
 
+- **A count is asked for as a number.** `stateCount` sends `countOnly=true`, and
+  the endpoint applies every narrowing first and answers `Count` with no member
+  list, so a figure of four hundred costs what a figure of four costs. A count and
+  a list narrowed the same way are two questions, so they share no request. Like
+  `stateList`, a count takes an `excludeState`, sent as `notIn`, so a funnel stage
+  counts the Things that reached it and no further.
 - **An inbound scope keeps its local walk.** The endpoint walks outward from a
   container, so a scope pointing the other way has no server expression. Such a
   binding narrows in the browser as before, and its `limit` is applied after that
-  narrowing — a server-side cap would have taken the wrong rows.
+  narrowing — a server-side cap would have taken the wrong rows. A count with such
+  a scope still reads the members: the platform's number would be the one before
+  the walk.
 - **A row arrives with the columns its table draws.** `stateList` names them in
   `properties`, the endpoint sends them beside each id, and the row is what came
   back — nothing is added from the model index afterwards, so a state-driven
@@ -2211,6 +2219,50 @@ already resolved. The `is` walk that finds the definition is not memoized, unlik
 the one for effective properties: a page asks it for the few figures it shows the
 working of, where effective properties are asked for on every binding of every
 refresh.
+
+### Who the platform ran on a Thing
+
+A Thing's detail card shows what it holds, the edges it sits on and how its
+derived states moved. A **Handled by** section lists every service the platform
+dispatched on it: the service, the connection it was reached through, when the
+platform last tried, how the dispatch ended and — where a service failed or
+refused — what it said.
+
+**Where it is read from.** Nothing is written to record this; the list is read
+from what the platform already leaves in the model. A service is reached through
+a connection in one of two shapes: a *handled edge*, whose predicate is a
+connection Thing, or a *record edge* the platform writes when the Thing enters a
+watched state, whose target is the connection — or a vigil that names its
+connection. The connection binds its service through whatever predicate the
+model chose: the first edge from the connection to a service Thing. Which
+Things are connections, services, vigils and record predicates is read from the
+flags the platform marks its own wiring with (`__IsConnectionArchetype`,
+`__IsServiceArchetype`, `__IsVigilArchetype`, `__IsDispatchRecordPredicate`,
+`__IsNotifiedConnectionPredicate`), never from a name. A flag is read off the
+Thing that owns it, not off a member that inherited it, and a flag two Things
+both own answers as none, so the card never reads one model two ways.
+
+Only the **subject** of an edge counts as handled. The other end is whatever the
+work pointed at, and listing it would have every hub in a site claim the whole
+run — a reservoir at the target end of every reading dispatched from a hundred
+catchments would show a hundred rows for one service that never ran on it. Work
+done on a related Thing is reached by opening that Thing's card.
+
+**Why each edge is read back.** The platform stamps the dispatched edge with
+`__DispatchState`, `__DispatchLastAttemptAt` and `__DispatchLastError`, but it
+writes them straight onto the edge rather than as committed Facts, so the change
+stream never carries them and the loaded model can hold a dispatch in the state
+it was created in for ever. The card reads each dispatched edge back with
+`GET /api/relationships/{id}` in the same request round as the states, under the
+same abort signal, at the same throttled cadence. A stamp the platform no longer
+holds — a dispatch from before this model was loaded — leaves the row undated
+and last, under a line saying the record starts at model load. No time is ever
+guessed.
+
+**Cost.** One request per dispatched edge per round, capped like the related-Thing
+fan-out. The wiring — which Things are connections and which service each binds
+— is worked out once per model index and held against it in a `WeakMap`, so
+several open cards share one walk and it is collected with the index.
 
 ### Translating a dashboard spec (i18n)
 

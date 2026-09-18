@@ -12,6 +12,14 @@ vi.mock('../../../api/stateApi', () => ({
   },
 }));
 
+const mockGetRelationship = vi.fn();
+
+vi.mock('../../../api/relationshipApi', () => ({
+  relationshipApi: {
+    get: (id: string, signal?: AbortSignal) => mockGetRelationship(id, signal),
+  },
+}));
+
 import { buildModelIndex } from '../../../api/dashboardApi';
 import type { VosThing, VosRelationship } from '../../../types/vos';
 import { useEntityDetail } from './useEntityDetail';
@@ -31,10 +39,33 @@ function index() {
   );
 }
 
+/** The same root, with its edge dispatched through a connection the platform flagged. */
+function indexWithAService() {
+  return buildModelIndex(
+    [
+      thing('root', 'ROOT-1'),
+      thing('child', 'CHILD-1'),
+      thing('is', 'is'),
+      thing('runs', 'runs'),
+      { Id: 'connectionArchetype', Name: 'Connection', Properties: { __IsConnectionArchetype: true }, IsArchetype: true },
+      { Id: 'serviceArchetype', Name: 'Service', Properties: { __IsServiceArchetype: true }, IsArchetype: true },
+      thing('has', 'has'),
+      thing('keeper', 'keeper service'),
+    ],
+    [
+      rel('w1', 'has', 'is', 'connectionArchetype'),
+      rel('w2', 'has', 'runs', 'keeper'),
+      rel('w3', 'keeper', 'is', 'serviceArchetype'),
+      rel('r1', 'root', 'has', 'child'),
+    ],
+  );
+}
+
 describe('useEntityDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetThingStates.mockResolvedValue({ CurrentStates: [] });
+    mockGetRelationship.mockResolvedValue({ Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child', Properties: {} });
     mockGetStateTransitions.mockResolvedValue({
       ThingId: 'root',
       ThingName: 'ROOT-1',
@@ -166,5 +197,57 @@ describe('useEntityDetail', () => {
     expect(result.current.stateChanges).toEqual([]);
     expect(result.current.loading).toBe(false);
     expect(result.current.relations[0].edges[0].thingId).toBe('child');
+  });
+});
+
+describe('useEntityDetail dispatches', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetThingStates.mockResolvedValue({ CurrentStates: [] });
+    mockGetStateTransitions.mockRejectedValue(new Error('503'));
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function settle() {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  }
+
+  it('reads each dispatched edge back from the platform in the same round as the states', async () => {
+    mockGetRelationship.mockResolvedValue({
+      Id: 'r1', SubjectId: 'root', PredicateId: 'has', TargetId: 'child',
+      Properties: { __DispatchState: 'Done', __DispatchLastAttemptAt: '2026-07-17T00:30:00Z' },
+    });
+    const idx = indexWithAService();
+    const { result } = renderHook(() => useEntityDetail(idx, 'root', { relations: [] }, 0));
+    await settle();
+
+    expect(mockGetRelationship.mock.calls.map((c) => c[0])).toEqual(['r1']);
+    expect(mockGetRelationship.mock.calls[0][1]).toBe(mockGetThingStates.mock.calls[0][1]);
+    expect(result.current.dispatches).toEqual([
+      expect.objectContaining({ relationshipId: 'r1', serviceName: 'keeper service', state: 'Done', at: '2026-07-17T00:30:00Z' }),
+    ]);
+  });
+
+  it('reads nothing back where no edge on the Thing is a dispatch', async () => {
+    const idx = index();
+    renderHook(() => useEntityDetail(idx, 'root', { relations: [] }, 0));
+    await settle();
+
+    expect(mockGetRelationship).not.toHaveBeenCalled();
+  });
+
+  it('still lists the dispatch, undated, when the platform refuses the edge read', async () => {
+    mockGetRelationship.mockRejectedValue(new Error('404'));
+    const idx = indexWithAService();
+    const { result } = renderHook(() => useEntityDetail(idx, 'root', { relations: [] }, 0));
+    await settle();
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.dispatches).toEqual([expect.objectContaining({ serviceName: 'keeper service', at: undefined })]);
   });
 });
