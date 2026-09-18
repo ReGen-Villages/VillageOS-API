@@ -142,7 +142,8 @@ public static class FormOptionsReader
         WholeNumber(thing, OrderProperty));
 
     private static long? WholeNumber(SnapshotThing thing, string property) =>
-        thing.StatedValue(property) is { } stated && stated.Value.TryGetInt64(out var number)
+        thing.StatedValue(property) is { } stated
+        && stated.Value.ValueKind == JsonValueKind.Number && stated.Value.TryGetInt64(out var number)
             ? number
             : null;
 
