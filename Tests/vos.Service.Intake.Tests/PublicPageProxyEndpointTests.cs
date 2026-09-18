@@ -157,6 +157,26 @@ public class PublicPageProxyEndpointTests
         (await response.Content.ReadAsStringAsync()).Should().Contain("Unknown fold");
     }
 
+    // Valid JSON that is not an object has no fields to forward; it is refused like a body that is not
+    // JSON at all, rather than failing inside the service.
+    [Fact]
+    public async Task A_question_that_is_not_an_object_is_refused_before_the_platform_is_asked()
+    {
+        var (factory, broker) = Holding();
+        await using var _ = factory;
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/findings/{WillowBend.SubmissionId}/reduce")
+        {
+            Content = JsonContent.Create(new[] { "day", "Max" }),
+        };
+        request.Headers.Add(TicketHeader, await TicketFor(factory, client, ThisAddress));
+
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        broker.ReduceCalls.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Without_a_ticket_nothing_is_reduced()
     {

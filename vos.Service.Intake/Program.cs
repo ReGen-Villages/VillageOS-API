@@ -480,9 +480,11 @@ try
         }
         catch (JsonException)
         {
-            return Refused(context, "the question was not JSON",
-                Results.BadRequest(new { error = "The body is the history reduction's request: 'property', 'windowSeconds' and 'steps'." }));
+            question = default;
         }
+        if (question.ValueKind != JsonValueKind.Object)
+            return Refused(context, "the question was not a JSON object",
+                Results.BadRequest(new { error = "The body is the history reduction's request: 'property', 'windowSeconds' and 'steps'." }));
 
         try
         {
