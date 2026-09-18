@@ -111,6 +111,7 @@ Body is a selector:
   "traverse": [ { "predicate": "produces", "direction": "outgoing", "depth": 1 } ],
   "includeIsAncestors": true,         // default true (keeps inherited values correct)
   "includeRelationships": true,
+  "relationships": [ { "predicate": "holds", "direction": "outgoing" } ],  // which edges travel; absent = every incident edge
   "includeSnapshot": true,            // false = the watermark alone, no closure sent back
   "includeLaterMatches": false        // true = types/markedTypes go on matching after this moment
 }
@@ -197,8 +198,20 @@ the slice **by shape** and get exactly that closure. Recipes:
 | A type **and** its neighbours along an edge | `{ "types": ["Battery"], "traverse": [{ "predicate": "powers", "direction": "outgoing", "depth": 1 }] }` |
 | Drop inherited type-default values | add `"includeIsAncestors": false` |
 | Things only, no relationships | add `"includeRelationships": false` |
+| A Thing's own outgoing edges, not the inbound ones made against it | add `"relationships": [{ "direction": "outgoing" }]`, or name the predicates: `[{ "predicate": "holds" }, { "predicateFlag": "__IsAtPredicate", "direction": "incoming" }]` |
 | Only the changes — you already read the objects | add `"includeSnapshot": false` |
 | Every Thing of a type, **including ones made later** | add `"includeLaterMatches": true` |
+
+**Naming which relationships travel.** `includeRelationships` alone carries every active edge touching a
+selected Thing, in both directions and over every predicate. A long-lived Thing gains an inbound edge for
+every unit of work drawn against it and keeps them, so a handler that needs only the Thing's own outgoing
+edges would otherwise read the whole history on every call, and pay more for it the longer the run.
+`relationships` is a list of rules — each a `direction` and a predicate by `predicate` or by
+`predicateFlag`, or neither for every predicate — and with it the snapshot carries the edges a selected
+Thing holds in a rule's direction over its predicate, and no others. A subscription with
+`includeLaterMatches` admits later edges under the same rules, so a later match arrives with the edges
+its snapshot would have carried. A rule naming both a predicate and a flag, or rules given beside
+`"includeRelationships": false`, is refused with `400` rather than guessed at.
 
 **Selecting by mark rather than by name.** An archetype's role is a boolean flag it carries, so a handler
 can ask for the role instead of the name the model happens to have given it — and keep working when that
