@@ -265,6 +265,17 @@ marks readers find Things by, and any name that Things standing at the same dist
 because relationship order is undefined and taking either would address different calls on different
 runs.
 
+**Then from the source itself.** Beneath everything the subject supplies, the source's own values fill
+placeholders by name, so a registration declaring `granularity` addresses `{granularity}`; a source
+declaring `historyYears` is given `{startDate}` and `{endDate}`, a window of that many years ending
+today — in the wall clock's date, because an archive holds the years that actually happened whatever
+time the model is anchored to; and a source reaching Things through a predicate carrying
+`__IsProvidedVariablePredicate` is given `{variables}`, each Thing's `providerName` joined with commas
+in the Things' name order, so two runs address one call the same way. A name the subject and the
+source both carry takes the subject's. That is how a climate history source's reach, granularity and
+variables live on the model: a deployment edits the registration or adds a variable Thing, and the
+next call carries it.
+
 **A source that declares what it resolves onto is called once per Thing, not once per site.** The
 hazard portal grades one assessment per call: its `resolvesOnto` edge names the `HazardAssessment`
 archetype, so a run calls it once for each assessment the site `has`, with that assessment as the

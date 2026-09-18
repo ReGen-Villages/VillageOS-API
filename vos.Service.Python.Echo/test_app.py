@@ -10,6 +10,7 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import time
 from unittest.mock import AsyncMock, patch
 
@@ -91,6 +92,7 @@ def test_health(client):
     res = client.get("/health")
     assert res.status_code == 200
     assert res.json()["status"] == "Healthy"
+    assert res.json()["processId"] == os.getpid()
     assert res.json()["service"] == "Python"
 
 

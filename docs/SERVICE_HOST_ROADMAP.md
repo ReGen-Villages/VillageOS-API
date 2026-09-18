@@ -194,8 +194,9 @@ suitable for the platform's liveness polling:
 
 ```jsonc
 {
-  "status": "Healthy",                  // shared — only field the platform reads
+  "status": "Healthy",                  // shared — read by the platform
   "service": "Echo",                    // shared — from serviceName
+  "processId": 4242,                    // shared — read by the platform to measure a service it did not start
   "uptimeSeconds": 1234,                // shared
   "requestsReceived": 42,               // shared — incremented by middleware
   "dedupedRequests": 3,                 // shared — from receive cache
