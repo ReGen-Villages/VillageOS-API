@@ -271,7 +271,8 @@ app = FastAPI(title="VillageOS Python Microservice", lifespan=lifespan)
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "Healthy", "service": SERVICE_NAME, "requestsProcessed": requests_processed}
+    return {"status": "Healthy", "service": SERVICE_NAME, "requestsProcessed": requests_processed,
+            "processId": os.getpid()}
 
 
 @app.get("/stats")

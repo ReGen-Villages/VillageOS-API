@@ -44,9 +44,10 @@ public static class ServiceHost
             provider.GetRequiredService<EndpointServiceMyceliumClient>(), serviceName, port));
 
     // Returns nothing to gate on, unlike MapShutdown: the broker polls /health to decide whether the
-    // service is alive, and it cannot do that behind authentication.
+    // service is alive, and it cannot do that behind authentication. The process id is how the broker
+    // measures a service it did not start itself — it holds no handle to such a process.
     public static void MapHealth(this WebApplication app, string serviceName) =>
-        app.MapGet("/health", () => new { status = "Healthy", service = serviceName });
+        app.MapGet("/health", () => new { status = "Healthy", service = serviceName, processId = Environment.ProcessId });
 
     // For a service the broker registers. The statistics name its registration, so a service that keeps no
     // registration maps health alone.

@@ -70,7 +70,7 @@ that is not a stream. A daemon can set a header, so it never needs one.
 | Method | Path | Body / result |
 |--------|------|---------------|
 | `POST` | `/handle` | Mycelium posts a relationship (`relationshipId`, `subjectId`, `targetId`, `properties`); reply `{ "success": true }` |
-| `GET` | `/health` | `200` `{ "status": "Healthy" }` |
+| `GET` | `/health` | `200` `{ "status": "Healthy", "processId": 4242 }` — `processId` is optional; with it, the platform reads the processor, memory and thread figures of a service it did not start itself, which it otherwise cannot reach |
 | `POST` | `/shutdown` | Begin graceful shutdown (stop work, exit) |
 
 **Timing guarantee.** When the trigger relationship arrives inside a `POST /api/model/fragment`
