@@ -586,6 +586,59 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
 The model side (archetypes, node-binds-Connection, the wire predicate) and the orchestrator are
 documented in [`SERVICES.md` §16 (Pipelines / DAG orchestration)](SERVICES.md).
 
+### 7.5 Compose — a table from a kind's own declarations
+
+The **Compose** page (`/compose`) is the one page nobody seeded. Choose a kind of Thing and the page
+offers what the model declares for it, read off the model the console already holds
+(`src/api/modelDeclaration.ts`):
+
+- **its properties**, up its `is` chain, each with the kind that declares it and an example value
+  read off an instance;
+- **the links its instances carry**, outward and inward, each with the kind at the far end and how
+  many carry it — `is` types rather than relates, so it is never offered;
+- **the states it derives**, own and inherited, read from the platform's ranges for the archetype.
+
+Every choice becomes a column, a filter or the sort, and the table draws at once through the same
+`DataTable` every dashboard uses. A property is read straight off the row. A link column reaches the
+Thing at the far end and shows its name; the column's own controls read a property of it instead, or
+go on along another link. Each hop is one walk per row, and the column says how many it takes. A
+state column shows the first of the chosen states the row holds. **In state** keeps only the rows
+holding one derived state; **Where** keeps only the rows whose property satisfies a comparison. A
+row opens the Thing's card.
+
+What the choices become is a `thingList` binding with computed columns — exactly what a seeded
+roster is (`src/utils/composer.ts`). `thingList` takes `inState` and `where` for this: a roster
+narrowed by state keeps the roster's own rows and asks the platform once for the state, where a
+`stateList` lists the state's members; a comparison is the one an `aggregate` already takes.
+
+**Keep as a page** writes what was composed as a `Dashboard` Thing — the Thing, its `is Dashboard`
+edge and its `spec` as one fragment (`src/api/dashboardPages.ts`), which the platform applies whole
+or not at all, so a page it refuses leaves nothing behind. The discovery lists every `Dashboard`
+Thing the model holds, so the page stands in the sidebar without a reload, for everyone who opens
+the console. A name a page already carries is refused before anything is written, as is a spec the
+console's own discovery cannot read back. A kept page must pass what the seed would refuse: the
+seed's rule that every kind, link and state a spec names must resolve in the model is mirrored as
+`unresolvedNames`, run before the write, so a kind removed since it was chosen is refused rather than
+written. The spec carries `composed: Composition` — the choices it was made from — which is what
+tells a kept page from a seeded one: the dashboard page offers **Rename** (rewrites the title and
+keeps the Thing's name, so the address stays) and **Remove page** (asks first, takes the page alone;
+what it listed stays) on a kept page and on no seeded one.
+
+**A moment in time** reads the same table as the model stood at an instant, through the platform's
+point-in-time read (`GET /api/model?timestamp`, `src/hooks/useModelIndexAt.ts`). The read answers the
+whole model and nothing narrower, so a chosen instant is left to settle before it is read for, and a
+read the next choice supersedes is abandoned. The read carries each Thing's own properties and its
+inherited overrides as they stood, but not its kind declaration; the moment's index takes that from
+the live model, since it cannot change after creation. What no read answers is a state at an
+instant, so a composition carrying a moment carries no state column and no state filter, and the
+page says so where the moment is chosen. Nothing is drawn between the choice and the answer: the
+rows standing now are not what a moment was asked for.
+
+**Cost.** The three readings walk the model the page already holds, once per chosen kind. A path
+column costs one walk per row per hop, said beside the column. A state filter is one state read per
+refresh. A moment is one whole-model read per settled instant — the most expensive thing this page
+can ask for, until the platform's narrowed read takes a timestamp.
+
 ---
 
 ## 8. Creating and Modifying Data
@@ -769,6 +822,8 @@ Safari limits the number of simultaneous WebGL contexts, and the graph already u
 ### Real-time updates not appearing
 
 Check the connection indicators on the Dashboard page. If "Live" shows red, the SSE connection has dropped. This usually recovers automatically within 30 seconds (exponential backoff). If "Mycelium" shows red, Mycelium process may have stopped.
+
+A created Thing or edge is applied from the event itself — nothing is fetched for it — so a creation that never appears is a creation the subscription did not cover, not a lost request. A narrowed page is sent a Thing typed later into one of its types (`ThingEntered`) but never a Thing named by id or reached by a walk after it opened; those arrive on the next open.
 
 ### Search finds nothing
 
@@ -1201,7 +1256,8 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict / working / range-bar / line-series / heatmap / stacked-shares widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A `stateList` row is the exception in mechanism only: its columns are resolved own-first and then up the `is` chain by the platform and sent with the row, so an inherited value reaches it just the same. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes); that narrowing, the scope, an excluded state, a row cap and — for `stateList` — the columns its rows carry all ride on the request now, so the broker answers the question the widget asked rather than a larger one the browser then cuts down (see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states, a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict / working / range-bar / line-series / heatmap / stacked-shares widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A `stateList` row is the exception in mechanism only: its columns are resolved own-first and then up the `is` chain by the platform and sent with the row, so an inherited value reaches it just the same. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes); that narrowing, the scope, an excluded state, a row cap and — for `stateList` — the columns its rows carry all ride on the request now, so the broker answers the question the widget asked rather than a larger one the browser then cuts down (see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states (read from the store, where the subscription put them — no request per Thing), a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/compose` | `ComposerPage` | A table composed from a kind's own declarations, drawn by the dashboard's table and kept as a `Dashboard` Thing — see [7.5 Compose](#75-compose--a-table-from-a-kinds-own-declarations). |
 | `/intake` | `IntakeWizardPage` | The land-intake wizard (#6016): project, contact, location, size and programme, and parcel, posted to the intake service as one document once the address on it has been verified: pressing **Send a code** asks the service to send one to the contact's email address, and the submission goes when that code is entered. The code is never part of the draft. The draft is written to browser storage on every keystroke, keyed by the model, so a closed tab loses nothing, and it is cleared once the submission is in the model. The area is stored in hectares whatever unit it is typed in; an area that is not a figure is left out rather than sent as zero. The programme categories are the Things under the archetype marked `__IsAllocationCategoryArchetype` — the same vocabulary the intake service resolves a submitted word against — so the wizard cannot offer a term that is then refused, and the shares always describe the whole parcel. Coordinates are read out of a pasted map link by `src/utils/mapLink.ts`, which refuses a pair that could not be a point on Earth and names a shortened link as one to open by hand; once both are given the location step shows the site on the shared map module (#6014). The parcel step draws the boundary on that same map (#6015) — a draft square of the stated area or corners placed by hand — with the drawn area measured on the sphere by `src/utils/parcelGeometry.ts` and compared with the stated area. Offered only where `VITE_INTAKE_URL` is set. The wizard itself is `src/intake/IntakeWizard.tsx`, which the public submission form renders too, so a field added to one appears in the other; pure logic in `src/intake/submissionDraft.ts` and `src/pages/modelVocabulary.ts`. |
 | `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |
@@ -1368,7 +1424,8 @@ events below ride the object stream; the rest ride the system stream.
 | `PropertyDeleted` | `thingId, name` | `DELETE /api/things/{id}/properties/{name}` |
 | `RelationshipPropertyChanged` | `relId, name, value` | `PUT /api/relationships/{id}/properties` |
 | `RelationshipPropertyDeleted` | `relId, name` | `DELETE /api/relationships/{id}/properties/{name}` |
-| `StatesChanged` | `thingId` | Range/state evaluation changes |
+| `StatesChanged` | `{ entityId, currentStates }` — the whole set of states the Thing now holds, never a delta | Range/state evaluation changes |
+| `RelationshipStatesChanged` | `{ entityId, currentStates }` | Range/state evaluation changes on a relationship |
 | `ModelChanged` | `model` | `POST /api/model` |
 | `ModelCleared` | — | `DELETE /api/model` |
 | `ServiceHealthChanged` | `handlerId, status, failureCount` | LivenessMonitor health checks |
@@ -1396,10 +1453,14 @@ the one in force, so a page leaving restores whatever the page beneath it asked 
 
 Two properties of the platform shape this:
 
-- **A narrowed subscription covers a fixed set.** Only `{ all: true }` also covers objects created
-  after it opened. What a narrowed page holds is therefore refreshed by asking again — which is what
-  a reconnect, a model change and a change of declaration each do — rather than by the stream
-  delivering something the subscription never covered.
+- **A narrowed subscription covers a fixed set, except for the types it follows.** Only
+  `{ all: true }` covers every object created after it opened. The two narrowed selectors ask for
+  `includeLaterMatches`, so the types they name keep matching: a Thing is created before it is
+  typed, and the `is` edge that types it into a followed type delivers the Thing as `ThingEntered`
+  with the edges it already held as `RelationshipEntered`; retracting its last matching `is` edge
+  sends `ThingLeft` and `RelationshipLeft`. Everything else — the ids, the names, the walks — is
+  fixed when the subscription opens and refreshed by asking again, which is what a reconnect, a
+  model change and a change of declaration each do.
 - **A derived value is announced but never replayed.** The computing pass publishes a
   property change for a roll-up, and a resume replays the journal, which holds no Fact for it. A
   client that reconnects therefore re-reads rather than waiting, which the fresh snapshot does.
@@ -1463,7 +1524,8 @@ type.
 
 - **useModelData** (app-shell hook): Subscribes to structural and property events and keeps the `modelStore` current with an incremental strategy — individual events do not trigger a full-model refetch (each subscription's snapshot is what fills the store, see below):
   - **Delete → local removal** (zero network): ThingDeleted / RelationshipDeleted read the event's `EntityId` and drop that element from the store in the same batch as everything else in the window. Unknown ids are a no-op.
-  - **Create → single-object hydrate**: the handler reads the event's `EntityId`, fetches just that one object (`GET /api/things/{id}` or `/api/relationships/{id}`) and `upsert`s it. Upsert is idempotent, so duplicate events don't double-add. A failed hydrate is **retried once** after a short delay (covers a transient fetch error); a genuine create/delete race 404s again and is correctly abandoned (the delete event removes it). The event carries the object whole, so this fetch is a request the handler could stop making; Trellis does not yet apply the body, and does not follow later matches, so the entering and leaving kinds do not reach it.
+  - **Create → apply the body** (zero network): ThingCreated / RelationshipCreated carry the object whole in the snapshot's shape, and the handler unwraps it the way the snapshot path does and `upsert`s it in the same batch. Nothing is fetched, so a model under a busy simulation costs no request per creation. An event carrying no body applies nothing. Upsert is idempotent, so duplicate events don't double-add.
+  - **Enter and leave → the same paths**: ThingEntered / RelationshipEntered upsert what they carry; ThingLeft / RelationshipLeft remove by id. Of one window's events for an entity the last word wins — an arrival cancels a pending removal and a removal a pending arrival.
   - **The load follows the subscription.** Every open — the first, a reconnect, and a page changing what the subscription covers — raises `SUBSCRIPTION_OPENED`, and that is what starts a load:
     - **Narrowed** → the snapshot *is* the load. The Things the page is about arrived with it, so nothing reads the model to find them again, and a reconnect refills the page the same way rather than waiting for the stream to re-deliver what it missed.
     - **Whole model** → `reloadModelData()`, the only path that honours the properties the model says its pages are drawn with (`ModelLoadProperties`, which the snapshot has no equivalent for). A narrowed set already in the store is emptied first, so a page that asked for the whole model is never shown a narrower page's set as though it were the model.
@@ -1478,10 +1540,12 @@ type.
     - `RelationshipPropertyDeleted` → takes the property off the relationship, behind the same on-screen test. Retracting a relationship property used to arrive as a change to `null` — indistinguishable from setting it to `null` — so a property one user deleted stayed on everyone else's screen as an empty row until a reload (#6149). Deleting is now its own event on both sides, and a `null` value means a real `null`.
   - **A deletion is not applied locally by the client that made it.** It comes back on the stream, the same way it reaches every other client, so the path that matters is exercised by ordinary use rather than only when someone else is watching.
   - **Counter bump**: StatesChanged → increments `statesVersion` (triggers Ranges tab re-fetch).
+  - **Derived states ride the stream.** The store keeps `thingStates`, a map from Thing id to the states it holds, beside the model rather than on it — a state moves far more often than the model's shape does, and folding one into `things` would rebuild that array and every index on every change. It is seeded from the snapshot's `States` on every open, from the body a created or entering Thing carries, and updated in place by `StatesChanged` in the same flush as everything else; a version counter beside it is what a component watches (`useThingStates()` pairs the watch and the read). Kept only for Things the store holds and only while it holds a narrowed page's set: the events stream carries every Thing's changes, and a page reading across the whole model draws no card. A load and `clear` drop it. A detail card reads its states from here and asks the platform for nothing but the history.
+  - **A flush costs the size of the batch, not the size of the model.** `applyBatch` writes into id-to-Thing and id-to-relationship maps the store keeps outside its state and mutates in place; only the arrays the pages read are rebuilt, as a copy of references. Each map remembers the array it was built from and compares references before use, so a write that bypasses the store's actions (a test's `setState`) is re-indexed once rather than served a stale index. A load (`setThings`, `setRelationships`) and `clear` drop the maps, so a replaced model is released rather than staying reachable until the next flush.
 - **GraphDataLoader** (renderer sync): mirrors the `modelStore` into the Sigma graph. The first load (empty graph) does a full `loadGraph()` and fits the camera; every later change — including creates and deletes — is applied by `reconcileGraph()`, which adds/patches nodes and edges in place, skips existing nodes' `x`/`y` so the running force layout is undisturbed, and never resets the camera. Net effect: created and deleted Things and Relationships appear on the graph immediately, without a rebuild or camera jump.
 
   Removals take a different route inside `reconcileGraph()`: it folds the live graph's settled positions and live-only attributes (such as clustering's `fixed` flags) into the freshly built target, then does one `clear()` + `import()`. Sigma re-indexes the entire graph synchronously on every `nodeDropped` / `edgeDropped` event, so dropping elements one at a time costs O(removed × graph size). Hiding a large share of a big model — the type filter's **None** button on a 30k-Thing seed — wedged the main thread long enough to look like a crash. One `cleared` event costs a single re-index, and the re-import rides Sigma's per-element add path, which is O(1) each.
-- **DashboardPage**: Subscribes to ServiceHealthChanged, DaemonStatusChanged, ServiceRequestCompleted → refetches `/api/mycelium/services`; EndpointServiceRequestCompleted → refetches `/api/endpoints` (this is what keeps each service row's "Last Req" current)
+- **DashboardPage**: Subscribes to ServiceHealthChanged, DaemonStatusChanged, ServiceRequestCompleted and EndpointServiceRequestCompleted → marks the service registry stale, and refetches `/api/mycelium/services` and `/api/endpoints` once per two-second window (this is what keeps each service row's "Last Req" current). The first event after a quiet spell claims the window and the rest are absorbed; events arriving while the read runs claim the next window, so the page keeps reading while a simulation keeps completing requests — a debounce restarting on every event would never read at all. ModelChanged refetches at once.
 - **AppLayout**: Subscribes to ActivityEvent → pushes to `activityStore`
 
 Detail panels use dedicated `detailThing` / `detailRelationship` state (React state in GraphPage, not in Zustand) decoupled from the main `things[]` / `relationships[]` arrays. This prevents O(n) re-renders when only the detail panel content changes.
@@ -1554,7 +1618,7 @@ Four components on `DashboardPage`:
 | Component | Data Source | Updates |
 |-----------|-----------|---------|
 | `ModelStatsCard` | `GET /api/things` + `GET /api/relationships` | SSE model events |
-| `ServicesPanel` | `GET /api/mycelium/services` + `GET /api/endpoints` | SSE `ServiceHealthChanged`, `DaemonStatusChanged`, `ServiceRequestCompleted`, `EndpointServiceRequestCompleted` |
+| `ServicesPanel` | `GET /api/mycelium/services` + `GET /api/endpoints` | SSE `ServiceHealthChanged`, `DaemonStatusChanged`, `ServiceRequestCompleted`, `EndpointServiceRequestCompleted`, read once per two-second window |
 | `ActivityFeed` | SSE `ActivityEvent` only | Real-time (keeps last 200). Pause/resume (buffers new events while paused), category filter chips (Model/Things/Rels/Props/Services), color-coded event types, collapsible panel, resizable height (drag handle, persisted to localStorage) |
 
 ### Dashboard Top-Right Controls
@@ -1701,12 +1765,20 @@ all of it and orders by name, so a capped list is the same list every time. A
 dashboard therefore stops pulling every Thing in a state to show a count or ten
 rows — on a model of real size that reply is the whole response.
 
-Two things follow from it:
+Three things follow from it:
 
+- **A count is asked for as a number.** `stateCount` sends `countOnly=true`, and
+  the endpoint applies every narrowing first and answers `Count` with no member
+  list, so a figure of four hundred costs what a figure of four costs. A count and
+  a list narrowed the same way are two questions, so they share no request. Like
+  `stateList`, a count takes an `excludeState`, sent as `notIn`, so a funnel stage
+  counts the Things that reached it and no further.
 - **An inbound scope keeps its local walk.** The endpoint walks outward from a
   container, so a scope pointing the other way has no server expression. Such a
   binding narrows in the browser as before, and its `limit` is applied after that
-  narrowing — a server-side cap would have taken the wrong rows.
+  narrowing — a server-side cap would have taken the wrong rows. A count with such
+  a scope still reads the members: the platform's number would be the one before
+  the walk.
 - **A row arrives with the columns its table draws.** `stateList` names them in
   `properties`, the endpoint sends them beside each id, and the row is what came
   back — nothing is added from the model index afterwards, so a state-driven
@@ -2381,6 +2453,97 @@ already resolved. The `is` walk that finds the definition is not memoized, unlik
 the one for effective properties: a page asks it for the few figures it shows the
 working of, where effective properties are asked for on every binding of every
 refresh.
+
+### Who the platform ran on a Thing
+
+A Thing's detail card shows what it holds, the edges it sits on and how its
+derived states moved. A **Handled by** section lists every service the platform
+dispatched on it: the service, the connection it was reached through, when the
+platform last tried, how the dispatch ended and — where a service failed or
+refused — what it said.
+
+**Where it is read from.** Nothing is written to record this; the list is read
+from what the platform already leaves in the model. A service is reached through
+a connection in one of two shapes: a *handled edge*, whose predicate is a
+connection Thing, or a *record edge* the platform writes when the Thing enters a
+watched state, whose target is the connection — or a vigil that names its
+connection. The connection binds its service through whatever predicate the
+model chose: the first edge from the connection to a service Thing. Which
+Things are connections, services, vigils and record predicates is read from the
+flags the platform marks its own wiring with (`__IsConnectionArchetype`,
+`__IsServiceArchetype`, `__IsVigilArchetype`, `__IsDispatchRecordPredicate`,
+`__IsNotifiedConnectionPredicate`), never from a name. A flag is read off the
+Thing that owns it, not off a member that inherited it, and a flag two Things
+both own answers as none, so the card never reads one model two ways.
+
+Only the **subject** of an edge counts as handled. The other end is whatever the
+work pointed at, and listing it would have every hub in a site claim the whole
+run — a reservoir at the target end of every reading dispatched from a hundred
+catchments would show a hundred rows for one service that never ran on it. Work
+done on a related Thing is reached by opening that Thing's card.
+
+**Why each edge is read back.** The platform stamps the dispatched edge with
+`__DispatchState`, `__DispatchLastAttemptAt` and `__DispatchLastError`, but it
+writes them straight onto the edge rather than as committed Facts, so the change
+stream never carries them and the loaded model can hold a dispatch in the state
+it was created in for ever. The card reads each dispatched edge back with
+`GET /api/relationships/{id}` in the same request round as the states, under the
+same abort signal, at the same throttled cadence. A stamp the platform no longer
+holds — a dispatch from before this model was loaded — leaves the row undated
+and last, under a line saying the record starts at model load. No time is ever
+guessed.
+
+**Cost.** One request per dispatched edge per round, capped like the related-Thing
+fan-out. The wiring — which Things are connections and which service each binds
+— is worked out once per model index and held against it in a `WeakMap`, so
+several open cards share one walk and it is collected with the index.
+
+### A figure opens to show what it is made of
+
+A dotted rule under a KPI figure means the model derived it rather than
+somebody typing it in, and it opens to what it is made of. It appears only
+where that is true, so it stays information rather than decoration. Whether it
+appears is settled by the binding's shape alone (`hasBreakdown` in
+`api/figureBreakdown.ts`), so drawing it costs no request.
+
+Opening a figure gives the whole viewport to the figure, the model's own words
+for what it names — archetype, state, property, the compare entity it was
+narrowed to, its filters, untranslated as everywhere else — and the evidence:
+
+| The figure's binding | What opens |
+| --- | --- |
+| `stateCount` | The Things counted, one row each |
+| `aggregate` | The members reduced, and the value each contributed |
+| `property` on one Thing | That Thing — or, with no compare entity selected, every entity the figure averaged |
+| `ratio` | Both sides, each with its own figure and its own rows |
+| `latest` over several buckets | The same question over the same window, in equal parts, oldest first |
+| `const`, `service`, `timeseries`, a `latest` of one bucket | Nothing — no rule is drawn |
+
+**The evidence is the same narrowed question the figure was formed from**, not
+a second binding written beside it. A count opens by asking the state read for
+the members under the count's own narrowing (state, archetype, scope) — the
+question the number answered, asked for its rows. An aggregate's member walk
+and its reduction are two exported helpers (`aggregateMembers`,
+`aggregateValue`) the resolver's own case calls, so the figure and the rows
+behind it come from one walk. A ratio opens to both sides, each resolved the
+same way. A trailing-window point opens to the buckets it was folded from by
+asking the platform for the same window at one bucket per point.
+
+**Rows.** `breakdownTable` chooses the columns: the name leads, the measure
+the figure reduced comes next, then the properties the rows carry — the ones
+that tell rows apart first, ties broken by how many rows carry the property,
+then by name — capped, with the properties left out named under the table. A
+row's card opens through the dashboard's `openDetail`. The rows behind a count
+arrive from the platform as id and name: a count's type is not among what the
+page subscribes to, so a row's properties are drawn only where the page holds
+the Thing.
+
+**Cost.** Nothing until a reader opens a figure; the rule itself is decided
+from the spec. An open panel resolves the breakdown once per refresh of the
+page's context, the way a widget's binding does, and the answer on screen stays
+until the next one lands. A count's breakdown is one state read; an aggregate's
+is the walk the figure already made; a ratio's is both sides; a window's is one
+reduction request.
 
 ### Translating a dashboard spec (i18n)
 

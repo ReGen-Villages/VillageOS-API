@@ -37,6 +37,7 @@ import type { SubscriptionSelector, TraverseDirection, TraverseRule } from '../t
 export const NAVIGATION_AND_SETTINGS: SubscriptionSelector = {
   types: [DASHBOARD_ARCHETYPE, GUI_SETTINGS_TYPE_NAME],
   names: [DASHBOARD_ARCHETYPE, GUI_SETTINGS_TYPE_NAME, IS_PREDICATE],
+  includeLaterMatches: true,
 };
 
 /** A scope walk is transitive — the selected entity relates to Things that in turn relate to the
@@ -234,6 +235,8 @@ function namedThings(spec: DashboardSpec): { ids: string[]; names: string[] } {
 export function subscriptionForSpec(spec: DashboardSpec, scopeId: string | null): SubscriptionSelector {
   const named = namedThings(spec);
   const traverse = [...scopeRules(spec), ...walkRules(specWalks(spec))];
+  // A Thing is created before it is typed, so only a subscription that keeps following its types is
+  // sent the Thing when its `is` edge admits it — which is what lets a roster grow on a page left open.
   const selector: SubscriptionSelector = {
     types: drawnTypes(spec, scopeId),
     names: [...new Set([
@@ -241,6 +244,7 @@ export function subscriptionForSpec(spec: DashboardSpec, scopeId: string | null)
       ...traverse.map((rule) => rule.predicate),
       ...named.names,
     ])],
+    includeLaterMatches: true,
   };
   const ids = scopeId ? [...new Set([scopeId, ...named.ids])] : named.ids;
   if (ids.length) selector.ids = ids;

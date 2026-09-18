@@ -485,6 +485,95 @@ public class ObservationIngestServiceTests
             Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
     }
 
+    // ---------- ObserveValueAsync ----------
+
+    [Fact]
+    public async Task ObserveValueAsync_OneSampleLandsOnTheSubject_CarryingTheTimeItIsAbout()
+    {
+        var endpointThingId = Guid.NewGuid();
+        var subjectId = Guid.NewGuid();
+        var observedId = Guid.NewGuid();
+        var depicted = new DateTime(1998, 6, 15, 0, 0, 0, DateTimeKind.Utc);
+        IReadOnlyList<ObservationSample>? written = null;
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.CreateRelationshipAsync(endpointThingId, observedId, subjectId).Returns(true);
+        client.SubmitObservationsAsync(subjectId, Arg.Do<IReadOnlyList<ObservationSample>>(s => written = s))
+            .Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var failure = await sut.ObserveValueAsync(
+            endpointThingId, subjectId, "surfaceMap", "sha256:abc", depicted,
+            new ObservedEdges(observedId, new HashSet<Guid>()));
+
+        failure.Should().BeNull();
+        written.Should().ContainSingle().Which.Should().Be(new ObservationSample("surfaceMap", "sha256:abc", depicted));
+        await client.Received(1).CreateRelationshipAsync(endpointThingId, observedId, subjectId);
+    }
+
+    [Fact]
+    public async Task ObserveValueAsync_NoTime_LeavesTheSampleForTheModelClock()
+    {
+        var subjectId = Guid.NewGuid();
+        IReadOnlyList<ObservationSample>? written = null;
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.SubmitObservationsAsync(subjectId, Arg.Do<IReadOnlyList<ObservationSample>>(s => written = s))
+            .Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var failure = await sut.ObserveValueAsync(
+            Guid.NewGuid(), subjectId, "surfaceMap", "sha256:abc", observedAt: null, Already(subjectId));
+
+        failure.Should().BeNull();
+        written.Should().ContainSingle().Which.ObservedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ObserveValueAsync_SubjectAlreadyObserved_WritesNoSecondEdge()
+    {
+        var subjectId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(true);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var failure = await sut.ObserveValueAsync(
+            Guid.NewGuid(), subjectId, "surfaceMap", "sha256:abc", null, Already(subjectId));
+
+        failure.Should().BeNull();
+        await client.DidNotReceive().CreateRelationshipAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Guid>());
+    }
+
+    // The edge goes in before the value, so a refused edge leaves nothing that cannot be walked back.
+    [Fact]
+    public async Task ObserveValueAsync_EdgeRefused_WritesNoValueEither()
+    {
+        var subjectId = Guid.NewGuid();
+        var observedId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.CreateRelationshipAsync(Arg.Any<Guid>(), observedId, subjectId).Returns(false);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var failure = await sut.ObserveValueAsync(
+            Guid.NewGuid(), subjectId, "surfaceMap", "sha256:abc", null,
+            new ObservedEdges(observedId, new HashSet<Guid>()));
+
+        failure.Should().NotBeNull();
+        await client.DidNotReceive().SubmitObservationsAsync(Arg.Any<Guid>(), Arg.Any<IReadOnlyList<ObservationSample>>());
+    }
+
+    [Fact]
+    public async Task ObserveValueAsync_SubmitRefused_SaysSo()
+    {
+        var subjectId = Guid.NewGuid();
+        var client = Substitute.For<IEndpointMyceliumClient>();
+        client.SubmitObservationsAsync(subjectId, Arg.Any<IReadOnlyList<ObservationSample>>()).Returns(false);
+        var sut = new ObservationIngestService(client, Substitute.For<ILogger<ObservationIngestService>>());
+
+        var failure = await sut.ObserveValueAsync(
+            Guid.NewGuid(), subjectId, "surfaceMap", "sha256:abc", null, Already(subjectId));
+
+        failure.Should().NotBeNull();
+    }
+
     private static ObservationIngestService CreateService()
     {
         var client = Substitute.For<IEndpointMyceliumClient>();
