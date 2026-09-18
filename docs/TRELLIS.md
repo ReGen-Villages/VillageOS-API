@@ -586,6 +586,59 @@ is just model data — the editor is CRUD over `thingApi`/`relationshipApi`, no 
 The model side (archetypes, node-binds-Connection, the wire predicate) and the orchestrator are
 documented in [`SERVICES.md` §16 (Pipelines / DAG orchestration)](SERVICES.md).
 
+### 7.5 Compose — a table from a kind's own declarations
+
+The **Compose** page (`/compose`) is the one page nobody seeded. Choose a kind of Thing and the page
+offers what the model declares for it, read off the model the console already holds
+(`src/api/modelDeclaration.ts`):
+
+- **its properties**, up its `is` chain, each with the kind that declares it and an example value
+  read off an instance;
+- **the links its instances carry**, outward and inward, each with the kind at the far end and how
+  many carry it — `is` types rather than relates, so it is never offered;
+- **the states it derives**, own and inherited, read from the platform's ranges for the archetype.
+
+Every choice becomes a column, a filter or the sort, and the table draws at once through the same
+`DataTable` every dashboard uses. A property is read straight off the row. A link column reaches the
+Thing at the far end and shows its name; the column's own controls read a property of it instead, or
+go on along another link. Each hop is one walk per row, and the column says how many it takes. A
+state column shows the first of the chosen states the row holds. **In state** keeps only the rows
+holding one derived state; **Where** keeps only the rows whose property satisfies a comparison. A
+row opens the Thing's card.
+
+What the choices become is a `thingList` binding with computed columns — exactly what a seeded
+roster is (`src/utils/composer.ts`). `thingList` takes `inState` and `where` for this: a roster
+narrowed by state keeps the roster's own rows and asks the platform once for the state, where a
+`stateList` lists the state's members; a comparison is the one an `aggregate` already takes.
+
+**Keep as a page** writes what was composed as a `Dashboard` Thing — the Thing, its `is Dashboard`
+edge and its `spec` as one fragment (`src/api/dashboardPages.ts`), which the platform applies whole
+or not at all, so a page it refuses leaves nothing behind. The discovery lists every `Dashboard`
+Thing the model holds, so the page stands in the sidebar without a reload, for everyone who opens
+the console. A name a page already carries is refused before anything is written, as is a spec the
+console's own discovery cannot read back. A kept page must pass what the seed would refuse: the
+seed's rule that every kind, link and state a spec names must resolve in the model is mirrored as
+`unresolvedNames`, run before the write, so a kind removed since it was chosen is refused rather than
+written. The spec carries `composed: Composition` — the choices it was made from — which is what
+tells a kept page from a seeded one: the dashboard page offers **Rename** (rewrites the title and
+keeps the Thing's name, so the address stays) and **Remove page** (asks first, takes the page alone;
+what it listed stays) on a kept page and on no seeded one.
+
+**A moment in time** reads the same table as the model stood at an instant, through the platform's
+point-in-time read (`GET /api/model?timestamp`, `src/hooks/useModelIndexAt.ts`). The read answers the
+whole model and nothing narrower, so a chosen instant is left to settle before it is read for, and a
+read the next choice supersedes is abandoned. The read carries each Thing's own properties and its
+inherited overrides as they stood, but not its kind declaration; the moment's index takes that from
+the live model, since it cannot change after creation. What no read answers is a state at an
+instant, so a composition carrying a moment carries no state column and no state filter, and the
+page says so where the moment is chosen. Nothing is drawn between the choice and the answer: the
+rows standing now are not what a moment was asked for.
+
+**Cost.** The three readings walk the model the page already holds, once per chosen kind. A path
+column costs one walk per row per hop, said beside the column. A state filter is one state read per
+refresh. A moment is one whole-model read per settled instant — the most expensive thing this page
+can ask for, until the platform's narrowed read takes a timestamp.
+
 ---
 
 ## 8. Creating and Modifying Data
@@ -1201,6 +1254,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
 | `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict / working widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A `stateList` row is the exception in mechanism only: its columns are resolved own-first and then up the `is` chain by the platform and sent with the row, so an inherited value reaches it just the same. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes); that narrowing, the scope, an excluded state, a row cap and — for `stateList` — the columns its rows carry all ride on the request now, so the broker answers the question the widget asked rather than a larger one the browser then cuts down (see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states (read from the store, where the subscription put them — no request per Thing), a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/compose` | `ComposerPage` | A table composed from a kind's own declarations, drawn by the dashboard's table and kept as a `Dashboard` Thing — see [7.5 Compose](#75-compose--a-table-from-a-kinds-own-declarations). |
 | `/intake` | `IntakeWizardPage` | The land-intake wizard (#6016): project, contact, location, size and programme, and parcel, posted to the intake service as one document once the address on it has been verified: pressing **Send a code** asks the service to send one to the contact's email address, and the submission goes when that code is entered. The code is never part of the draft. The draft is written to browser storage on every keystroke, keyed by the model, so a closed tab loses nothing, and it is cleared once the submission is in the model. The area is stored in hectares whatever unit it is typed in; an area that is not a figure is left out rather than sent as zero. The programme categories are the Things under the archetype marked `__IsAllocationCategoryArchetype` — the same vocabulary the intake service resolves a submitted word against — so the wizard cannot offer a term that is then refused, and the shares always describe the whole parcel. Coordinates are read out of a pasted map link by `src/utils/mapLink.ts`, which refuses a pair that could not be a point on Earth and names a shortened link as one to open by hand; once both are given the location step shows the site on the shared map module (#6014). The parcel step draws the boundary on that same map (#6015) — a draft square of the stated area or corners placed by hand — with the drawn area measured on the sphere by `src/utils/parcelGeometry.ts` and compared with the stated area. Offered only where `VITE_INTAKE_URL` is set. The wizard itself is `src/intake/IntakeWizard.tsx`, which the public submission form renders too, so a field added to one appears in the other; pure logic in `src/intake/submissionDraft.ts` and `src/pages/modelVocabulary.ts`. |
 | `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
 | `/graph` | `GraphPage` | Graph visualization with search bar, inline CRUD (create thing, add properties/relationships), detail panels, delete confirmations, lazy-loaded single-building 3D |

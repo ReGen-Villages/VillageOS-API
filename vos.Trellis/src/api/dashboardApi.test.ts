@@ -533,6 +533,35 @@ describe('resolveBinding', () => {
       const rows = await rowsOf({ kind: 'thingList', archetype: 'Spaceship' }, fleetCtx(null));
       expect(rows).toEqual([]);
     });
+
+    // A composed table is a roster narrowed by a state or a comparison, so `thingList` takes both,
+    // the way `aggregate` already takes a comparison and `stateList` a state.
+    describe('narrowed', () => {
+      beforeEach(() => {
+        vi.mocked(stateApi.getThingsInState).mockResolvedValue({
+          StateName: 'busy', Things: [{ Id: 'rbt1', Name: 'RBT-1' }, { Id: 'cnv1', Name: 'CNV-1' }],
+        });
+      });
+
+      it('keeps the rows whose property satisfies the comparison and no other', async () => {
+        const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', where: [{ property: 'duty_cycle', op: '>', value: 0.5 }] }, fleetCtx(null));
+        expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
+      });
+
+      it('keeps the rows the platform lists for the state and no other, asking once for the state', async () => {
+        const rows = await rowsOf({ kind: 'thingList', archetype: 'Machine', inState: 'busy' }, fleetCtx(null));
+        expect(rows.map((r) => r.name)).toEqual(['CNV-1', 'RBT-1']);
+        expect(stateApi.getThingsInState).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(stateApi.getThingsInState).mock.calls[0][1]).toMatchObject({ type: 'Machine' });
+      });
+
+      it('applies the state and the comparison together, and the cap after both', async () => {
+        const rows = await rowsOf({
+          kind: 'thingList', archetype: 'Machine', inState: 'busy', where: [{ property: 'duty_cycle', op: '<', value: 0.7 }], limit: 5,
+        }, fleetCtx(null));
+        expect(rows.map((r) => r.name)).toEqual(['RBT-1']);
+      });
+    });
   });
 
   // Feature (#6140): a row carried only what the row's own Thing stores, so a column whose value

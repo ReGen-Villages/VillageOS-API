@@ -257,7 +257,7 @@ export function discoverDashboards(
   return discoverDashboardsFromIndex(buildModelIndex(things, relationships));
 }
 
-function parseSpec(raw: unknown): DashboardSpec | null {
+export function parseSpec(raw: unknown): DashboardSpec | null {
   let obj: unknown = raw;
   if (typeof raw === 'string') {
     try {
@@ -818,6 +818,11 @@ export async function resolveBinding(binding: Binding, ctx: ResolveContext): Pro
       let list = thingsOfArchetype(binding.archetype, ctx.idx);
       const members = scopeMemberIds(binding.scope, ctx);
       if (members) list = list.filter((t) => members.has(t.Id));
+      if (binding.where) list = list.filter((t) => passesFilters(t, binding.where, ctx.idx));
+      if (binding.inState && list.length) {
+        const inState = new Set(((await ctx.reads.thingsInState(binding.inState, { type: binding.archetype })).Things ?? []).map((t) => t.Id));
+        list = list.filter((t) => inState.has(t.Id));
+      }
       list.sort((a, b) => a.Name.localeCompare(b.Name));
       if (binding.limit) list = list.slice(0, binding.limit);
       const rows = list.map((t) => ({ id: t.Id, name: t.Name, ...effectiveProperties(t, ctx.idx) }) as Row);
