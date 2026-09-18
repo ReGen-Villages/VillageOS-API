@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { StackedSharesWidget } from '../../../types/dashboard';
-import type { ResolveContext } from '../../../api/dashboardApi';
+import type { BindingResult, ResolveContext } from '../../../api/dashboardApi';
 import { useBindings } from '../../../hooks/useDashboard';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
@@ -27,10 +27,16 @@ export function StackedShares({ widget, ctx }: { widget: StackedSharesWidget; ct
   const [measure, measuredWidth] = useElementWidth();
   const [active, setActive] = useState<number | null>(null);
 
-  const resolved = useBindings(widget.classes.map((entry) => entry.share), ctx);
+  const resolved = useBindings(
+    widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined]), ctx);
   const classes = widget.classes
-    .map((entry, at) => ({ label: entry.label, colour: entry.colour, groups: groupsByKey(resolved[at]?.value ?? null) }))
-    .filter((entry) => entry.groups.size > 0);
+    .map((entry, at) => ({
+      label: entry.label,
+      colour: typeof entry.colour === 'object' ? asText(resolved[at * 2 + 1]?.value ?? null) : entry.colour,
+      groups: groupsByKey(resolved[at * 2]?.value ?? null),
+    }))
+    .filter((entry): entry is { label: string; colour: string; groups: Map<string, number> } =>
+      entry.groups.size > 0 && entry.colour !== null);
 
   const names = monthNames(i18n.language);
   const months = names
@@ -151,6 +157,12 @@ export function StackedShares({ widget, ctx }: { widget: StackedSharesWidget; ct
       />
     </WidgetCard>
   );
+}
+
+/** A colour bound to the model arrives as text; anything else is no colour, and the class is left out
+ *  rather than painted in a colour the model did not give it. */
+function asText(value: BindingResult): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 function ClassSwatch({ colour }: { colour: string }) {

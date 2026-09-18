@@ -75,7 +75,7 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
     ];
     case 'lineSeries': return widget.series.map((entry) => entry.value);
     case 'heatmap': return [widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds];
-    case 'stackedShares': return widget.classes.map((entry) => entry.share);
+    case 'stackedShares': return widget.classes.flatMap((entry) => [entry.share, typeof entry.colour === 'object' ? entry.colour : undefined]);
     case 'divergingBar': return [widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold];
   }
 }
@@ -87,6 +87,13 @@ function withNested(binding: Binding): Binding[] {
   const inner: (Binding | undefined)[] = [];
   if (binding.kind === 'ratio') inner.push(binding.numerator, binding.denominator);
   if (binding.kind === 'latest') inner.push(binding.series);
+  // A step's parameter may be bound to the model — a setpoint, a class's bound — and is read like the
+  // series it shapes.
+  if (binding.kind === 'history') {
+    for (const step of binding.steps)
+      for (const parameter of [step.percentile, step.from, step.to, step.threshold])
+        if (typeof parameter === 'object') inner.push(parameter);
+  }
   if ('computed' in binding) {
     for (const column of (binding.computed ?? []) as ComputedColumn[]) inner.push(column?.value);
   }

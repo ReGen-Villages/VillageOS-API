@@ -333,3 +333,43 @@ describe('a tile reading the newest point of a series', () => {
     expect(selector.types).not.toContain('Reading');
   });
 });
+
+// A step's parameter bound to the model — a setpoint the study declares, a bound a class Thing carries
+// — is read like the series it shapes, so the Thing it names is in the subscription and a change to it
+// re-asks the question.
+describe('a history binding whose step parameter is bound', () => {
+  it('follows the edge the bound parameter walks and names the Thing it reads', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+        type: 'kpi', title: 'degree days',
+        value: {
+          kind: 'history', property: 'temperatureCelsius', windowSeconds: 31536000,
+          steps: [{ fold: 'day', function: 'Average' }, {
+            fold: 'month', function: 'SumAbove',
+            threshold: { kind: 'related', via: [{ predicate: 'studies', direction: 'in' }], property: 'coolingSetpointCelsius' },
+          }],
+        },
+      }),
+      SCOPE_ID,
+    );
+
+    expect(selector.traverse!.map((rule) => rule.predicate)).toContain('studies');
+  });
+
+  it('names the class Thing a stacked share colours by', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+        type: 'stackedShares', title: 'stress',
+        classes: [{
+          label: 'no stress',
+          colour: { kind: 'property', thing: 'No thermal stress', property: 'colour' },
+          share: { kind: 'history', property: 'apparentTemperatureCelsius', windowSeconds: 31536000, steps: [{ fold: 'monthOfYear', function: 'ShareWithin', from: 9, to: 26 }] },
+        }],
+      }),
+      SCOPE_ID,
+    );
+
+    expect(selector.names).toContain('No thermal stress');
+  });
+});
+

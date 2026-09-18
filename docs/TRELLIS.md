@@ -1812,6 +1812,15 @@ answers in, beside `Samples` and `UnusableSamples`; the binding resolves to one 
 `"14,172"`. A step after a cyclic fold may only fold by `all`, because a cycle places its groups
 nowhere on the calendar.
 
+**A parameter may be the model's.** A step's `percentile`, `from`, `to` or `threshold` is a number,
+or a binding resolved to one before the platform is asked — the study's setpoint through
+`{ "kind": "related", "via": [ { "predicate": "studies", "direction": "in" } ], "property": "coolingSetpointCelsius" }`,
+a stress class's bound off the class Thing — so a chart's thresholds are what the model holds and not
+numbers written into the spec. A bound parameter the model answers nothing for leaves the whole
+binding unanswered rather than asking with nought. The Thing a bound parameter reads joins the
+page's subscription like any other, so moving the setpoint re-asks the question. The same holds for
+a `stackedShares` class's `colour`, which may bind to the class Thing's own.
+
 **The Thing is the page's scope entity and the calendar is its own.** A series belongs to one Thing,
 so the binding names none: it reads the selected compare entity, and resolves to nothing where none is
 selected. Calendar folds are taken in the offset the entity states as `utcOffsetSeconds`, the one
@@ -1941,8 +1950,10 @@ lists — the thermal-stress distribution across the year, one class per stress 
 ```
 
 Each class's `share` is a `history` binding folded by `monthOfYear` with `ShareWithin` between the
-class's bounds, answering a fraction per month; the classes are the model's Things, so the spec
-carries their labels, colours and bounds and the widget knows no band of its own. A bar stacks the
+class's bounds, answering a fraction per month; the classes are the model's Things, so the spec binds
+their colours and bounds to the class Things (a `colour` may be a binding, a bound may be one) and
+the widget knows no band of its own. A class whose bound colour the model does not answer is left
+out rather than painted in a colour the model never gave. A bar stacks the
 classes in the order listed, the first at the bottom, so one class can be followed across the year;
 the axis reads in whole percentages. **The widget scales nothing to a hundred**: the shares are the
 platform's answers, and classes that do not sum to one draw a bar that stops short, which is what a
