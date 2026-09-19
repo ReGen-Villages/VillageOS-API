@@ -191,9 +191,13 @@ export function intakeServiceAddress(): string {
  *  field to correct, and that is the whole value of the answer to whoever filled the form in. */
 export async function refusalFrom(response: Response): Promise<string> {
   try {
-    const body = await response.json();
-    return body?.error ?? body?.detail ?? body?.title ?? `The submission was refused (${response.status}).`;
+    return refusalIn(await response.json(), response.status);
   } catch {
-    return `The submission was refused (${response.status}).`;
+    return refusalIn(null, response.status);
   }
+}
+
+/** The service's own words for a refusal where it gave any, else the status. */
+export function refusalIn(body: { error?: string; detail?: string; title?: string } | null, status: number): string {
+  return body?.error ?? body?.detail ?? body?.title ?? `The submission was refused (${status}).`;
 }

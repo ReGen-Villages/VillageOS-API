@@ -125,3 +125,104 @@ describe('asking the intake service to reduce the site\'s history', () => {
       .rejects.toThrow('ten thousand groups');
   });
 });
+
+// A survey a submitter shares after the report: the bytes go up as a form under the ticket, the browser
+// reports how far they have got, and the service answers the document the model now holds.
+describe('sharing a survey file through the intake service', () => {
+  /** Stands in for the browser's own request object, which is the one that reports upload progress —
+   *  `fetch` has no way to. What the page hands it and what it fires back are both scripted here. */
+  class ScriptedRequest {
+    static opened: { method: string; url: string }[] = [];
+    static headers: Record<string, string> = {};
+    static sent: FormData | null = null;
+    static answer = { status: 201, body: '', ticket: null as string | null };
+    static progress: { loaded: number; total: number }[] = [];
+
+    upload = { onprogress: null as ((event: { lengthComputable: boolean; loaded: number; total: number }) => void) | null };
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    status = 0;
+    responseText = '';
+
+    open(method: string, url: string) { ScriptedRequest.opened.push({ method, url }); }
+    setRequestHeader(name: string, value: string) { ScriptedRequest.headers[name] = value; }
+    getResponseHeader(name: string) { return name === 'X-Submission-Ticket' ? ScriptedRequest.answer.ticket : null; }
+    static fails = false;
+
+    send(body: FormData) {
+      ScriptedRequest.sent = body;
+      for (const step of ScriptedRequest.progress) this.upload.onprogress?.({ lengthComputable: true, ...step });
+      if (ScriptedRequest.fails) { this.onerror?.(); return; }
+      this.status = ScriptedRequest.answer.status;
+      this.responseText = ScriptedRequest.answer.body;
+      this.onload?.();
+    }
+  }
+
+  const DOCUMENT = {
+    id: 'doc-1', fileName: 'soil.pdf', description: 'The soil survey', contentType: 'application/pdf',
+    sizeBytes: 4, sharedAt: '2026-09-18T10:00:00.0000000Z',
+  };
+
+  beforeEach(() => {
+    ScriptedRequest.opened = [];
+    ScriptedRequest.headers = {};
+    ScriptedRequest.sent = null;
+    ScriptedRequest.progress = [];
+    ScriptedRequest.fails = false;
+    ScriptedRequest.answer = { status: 201, body: JSON.stringify(DOCUMENT), ticket: 'ticket-2' };
+    vi.stubGlobal('XMLHttpRequest', ScriptedRequest);
+  });
+
+  it('posts the file and its description as a form under the ticket, reporting progress, and carries the renewed ticket back', async () => {
+    ScriptedRequest.progress = [{ loaded: 2, total: 4 }, { loaded: 4, total: 4 }];
+    const reported: number[] = [];
+    const file = new File(['soil'], 'soil.pdf', { type: 'application/pdf' });
+
+    const shared = await findingsApi.shareDocumentWithTicket(REFERENCE, 'ticket-1', file, 'The soil survey', (fraction) => reported.push(fraction));
+
+    expect(ScriptedRequest.opened).toEqual([{ method: 'POST', url: `http://localhost:6200/submissions/${REFERENCE}/documents` }]);
+    expect(ScriptedRequest.headers).toEqual({ 'X-Submission-Ticket': 'ticket-1' });
+    expect(ScriptedRequest.sent!.get('file')).toBe(file);
+    expect(ScriptedRequest.sent!.get('description')).toBe('The soil survey');
+    expect(reported).toEqual([0.5, 1]);
+    expect(shared).toEqual({ document: DOCUMENT, ticket: 'ticket-2' });
+  });
+
+  it('carries the service\'s own refusal', async () => {
+    ScriptedRequest.answer = { status: 413, body: JSON.stringify({ error: 'A file may be at most 25 MB.' }), ticket: null };
+
+    await expect(findingsApi.shareDocumentWithTicket(REFERENCE, 'ticket-1', new File(['x'], 'x.bin'), '', () => undefined))
+      .rejects.toThrow('A file may be at most 25 MB.');
+  });
+
+  it('says the file could not be sent when the request never reaches the service', async () => {
+    ScriptedRequest.fails = true;
+
+    await expect(findingsApi.shareDocumentWithTicket(REFERENCE, 'ticket-1', new File(['x'], 'x.bin'), '', () => undefined))
+      .rejects.toThrow('The file could not be sent.');
+  });
+
+  it('reads a refusal that is not JSON by its status alone', async () => {
+    ScriptedRequest.answer = { status: 502, body: '<html>Bad Gateway</html>', ticket: null };
+
+    await expect(findingsApi.shareDocumentWithTicket(REFERENCE, 'ticket-1', new File(['x'], 'x.bin'), '', () => undefined))
+      .rejects.toThrow('502');
+  });
+
+  it('lists the files the model holds for the submission under the ticket', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'X-Submission-Ticket': 'ticket-2' }),
+      json: () => Promise.resolve({ documents: [DOCUMENT] }),
+    });
+
+    const listed = await findingsApi.listDocumentsWithTicket(REFERENCE, 'ticket-1');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://localhost:6200/submissions/${REFERENCE}/documents`,
+      expect.objectContaining({ method: 'GET', headers: expect.objectContaining({ 'X-Submission-Ticket': 'ticket-1' }) }),
+    );
+    expect(listed).toEqual({ documents: [DOCUMENT], ticket: 'ticket-2' });
+  });
+});

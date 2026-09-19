@@ -15,7 +15,11 @@ vi.mock('../api/intakeApi', () => ({
     submitWithTicket: vi.fn(),
   },
 }));
-vi.mock('../api/findingsApi', () => ({ findingsApi: { readWithTicket: vi.fn(), reduceWithTicket: vi.fn() } }));
+vi.mock('../api/findingsApi', () => ({
+  findingsApi: {
+    readWithTicket: vi.fn(), reduceWithTicket: vi.fn(), shareDocumentWithTicket: vi.fn(), listDocumentsWithTicket: vi.fn(),
+  },
+}));
 // The map cannot build in a test's document, and what this page owes it is only the wiring: the pick
 // handler when no position exists, and the boundary when one does.
 vi.mock('../components/map/MapView', () => ({
@@ -93,6 +97,7 @@ beforeEach(() => {
     findings: { spec: '{}', scopeId: 'site-1', things: [], relationships: [], ranges: {} },
     ticket: 'ticket-3',
   });
+  vi.mocked(findingsApi.listDocumentsWithTicket).mockResolvedValue({ documents: [], ticket: 'ticket-3' });
 });
 
 async function pickTheLand(): Promise<void> {
@@ -275,5 +280,116 @@ describe('the history a chart asks for', () => {
     // The next read rides the ticket the reduction handed back.
     fireEvent.click(screen.getByRole('button', { name: 'Read again' }));
     await waitFor(() => expect(vi.mocked(findingsApi.readWithTicket).mock.calls.at(-1)![2]).toBe('ticket-4'));
+  });
+});
+
+// After the report, the page asks for surveys: the bytes go to the intake service under the ticket the
+// page holds, each with the description typed beside it, and what the model holds is listed after.
+describe('the surveys asked for after the report', () => {
+  const SOIL = { id: 'doc-1', fileName: 'soil.pdf', description: 'The soil test', contentType: 'application/pdf', sizeBytes: 4, sharedAt: '2026-09-18T10:00:00Z' };
+  const WATER = { id: 'doc-2', fileName: 'water.csv', description: 'Well readings', contentType: 'text/csv', sizeBytes: 6, sharedAt: '2026-09-18T10:01:00Z' };
+
+  function chooseFiles(...files: File[]): void {
+    fireEvent.change(screen.getByLabelText('Choose files'), { target: { files } });
+  }
+
+  it('is not asked before there is a report', async () => {
+    await pickTheLand();
+
+    expect(screen.queryByText('Have you done any surveys which you can share?')).toBeNull();
+  });
+
+  it('asks once the report is up, and yes opens the file box with a description per file', async () => {
+    await reachTheReport();
+    expect(screen.getByText('Have you done any surveys which you can share?')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Choose files')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, share files' }));
+    chooseFiles(new File(['soil'], 'soil.pdf', { type: 'application/pdf' }), new File(['w'], 'water.csv', { type: 'text/csv' }));
+
+    expect(screen.getByText('soil.pdf')).toBeInTheDocument();
+    expect(screen.getByText('water.csv')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('What is this file?')).toHaveLength(2);
+  });
+
+  it('not now closes the question without sending anything', async () => {
+    await reachTheReport();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+
+    expect(screen.queryByText('Have you done any surveys which you can share?')).toBeNull();
+    expect(findingsApi.shareDocumentWithTicket).not.toHaveBeenCalled();
+  });
+
+  it('sends each file with its description under the ticket the page holds, shows progress, and lists what the model now holds', async () => {
+    vi.mocked(findingsApi.shareDocumentWithTicket).mockImplementation(async (_id, _ticket, file, _description, onProgress) => {
+      onProgress(0.5);
+      return { document: file.name === 'soil.pdf' ? SOIL : WATER, ticket: `ticket-after-${file.name}` };
+    });
+    await reachTheReport();
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, share files' }));
+    chooseFiles(new File(['soil'], 'soil.pdf', { type: 'application/pdf' }), new File(['w'], 'water.csv', { type: 'text/csv' }));
+    const [soil, water] = screen.getAllByLabelText('What is this file?');
+    fireEvent.change(soil, { target: { value: 'The soil test' } });
+    fireEvent.change(water, { target: { value: 'Well readings' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share the files' }));
+
+    await waitFor(() => expect(findingsApi.shareDocumentWithTicket).toHaveBeenCalledTimes(2));
+    const calls = vi.mocked(findingsApi.shareDocumentWithTicket).mock.calls;
+    expect(calls[0][0]).toBe(vi.mocked(intakeApi.submitWithTicket).mock.calls[0][0].submissionId);
+    expect(calls[0][1]).toBe('ticket-3');
+    expect(calls[0][2].name).toBe('soil.pdf');
+    expect(calls[0][3]).toBe('The soil test');
+    // One file after another, each riding the ticket the last one handed back.
+    expect(calls[1][1]).toBe('ticket-after-soil.pdf');
+    expect(calls[1][3]).toBe('Well readings');
+
+    const listed = await screen.findByRole('list', { name: 'Files you have shared' });
+    expect(within(listed).getByText('soil.pdf')).toBeInTheDocument();
+    expect(within(listed).getByText('The soil test')).toBeInTheDocument();
+    expect(within(listed).getByText('water.csv')).toBeInTheDocument();
+    expect(within(listed).getByText('Well readings')).toBeInTheDocument();
+
+    // The next read rides the ticket the last share handed back.
+    fireEvent.click(screen.getByRole('button', { name: 'Read again' }));
+    await waitFor(() => expect(vi.mocked(findingsApi.readWithTicket).mock.calls.at(-1)![2]).toBe('ticket-after-water.csv'));
+  });
+
+  it('names the reason beside a file the service refuses, and sends nothing for one over the limit', async () => {
+    vi.mocked(findingsApi.shareDocumentWithTicket).mockRejectedValue(new Error('Files are not taken here: the model declares no place for one.'));
+    await reachTheReport();
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, share files' }));
+    const huge = new File(['x'], 'atlas.tif', { type: 'image/tiff' });
+    Object.defineProperty(huge, 'size', { value: 25 * 1024 * 1024 + 1 });
+    chooseFiles(new File(['soil'], 'soil.pdf', { type: 'application/pdf' }), huge);
+    expect(screen.getByText('Not shared: A file may be at most 25 MB.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share the files' }));
+
+    expect(await screen.findByText('Not shared: Files are not taken here: the model declares no place for one.')).toBeInTheDocument();
+    expect(findingsApi.shareDocumentWithTicket).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists the files already shared when the report opens, without asking again for what is listed', async () => {
+    vi.mocked(findingsApi.listDocumentsWithTicket).mockResolvedValue({ documents: [SOIL], ticket: 'ticket-listed' });
+
+    await reachTheReport();
+
+    const listed = await screen.findByRole('list', { name: 'Files you have shared' });
+    expect(within(listed).getByText('soil.pdf')).toBeInTheDocument();
+    expect(within(listed).getByText('The soil test')).toBeInTheDocument();
+    expect(vi.mocked(findingsApi.listDocumentsWithTicket).mock.calls[0][1]).toBe('ticket-3');
+  });
+
+  it('asks for the mailbox again when the ticket aged out before a file was sent', async () => {
+    vi.mocked(findingsApi.shareDocumentWithTicket).mockRejectedValue(new Error('The ticket has expired. Verify the address again.'));
+    await reachTheReport();
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, share files' }));
+    chooseFiles(new File(['soil'], 'soil.pdf', { type: 'application/pdf' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share the files' }));
+
+    expect(await screen.findByText(/confirm your mailbox again/)).toBeInTheDocument();
   });
 });
