@@ -246,6 +246,7 @@ export function subscriptionForSpec(spec: DashboardSpec, scopeId: string | null)
       ...named.names,
     ])],
     includeLaterMatches: true,
+    includeObservations: true,
   };
   const ids = scopeId ? [...new Set([scopeId, ...named.ids])] : named.ids;
   if (ids.length) selector.ids = ids;

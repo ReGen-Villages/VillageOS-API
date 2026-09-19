@@ -274,6 +274,7 @@ export function useModelData(): void {
       // after the last full load. The debounced applyBatch coalesces the high rate into one write
       // per window.
       on('PropertyChanged', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
+      on('PropertyObserved', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
       on('PropertyDeleted', (...args) => onThingProperty(args, { deleted: true })),
       on('RelationshipPropertyChanged', (...args) => onRelationshipProperty(args, { deleted: false, value: args[2] })),
       on('RelationshipPropertyDeleted', (...args) => onRelationshipProperty(args, { deleted: true })),

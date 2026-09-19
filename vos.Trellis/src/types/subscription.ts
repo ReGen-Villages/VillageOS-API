@@ -39,6 +39,11 @@ export interface SubscriptionSelector {
    *  one whose last matching `is` edge is retracted leaves as `ThingLeft`. `ids`, `names` and
    *  `traverse` cannot follow and fix their part of the membership when the subscription opens. */
   includeLaterMatches?: boolean;
+  /** Hear the samples that land on the covered Things' observation-only properties, each series held
+   *  to a cadence by the platform: at once while the series is slower than the cadence, once per
+   *  cadence with the latest value while it is faster. A sample arrives as `PropertyObserved`, with no
+   *  event id to resume from. Off by default; a page drawing readings asks. */
+  includeObservations?: boolean;
 }
 
 /** What a page that reads across the whole model asks for — the graph, the explorer, the searches.
