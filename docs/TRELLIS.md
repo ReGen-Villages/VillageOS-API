@@ -666,7 +666,7 @@ Click the **+** button next to the search bar at the top of the Graph page. An i
 1. **Select a node** by clicking it — the detail panel opens
 2. Click the **pencil icon** to enter edit mode
 3. Scroll to the bottom of the property list — an **Add Property** row appears
-4. Enter a **name**, select a **type** (string, the whole-number and decimal number types, bool, DateTime or Guid), and enter a **value**
+4. Enter a **name**, select a **type** (string, one of the number types, bool, DateTime or Guid), and enter a **value**
 5. Press **Enter** or click **+** to add the property
 6. The input auto-focuses for rapid successive additions
 

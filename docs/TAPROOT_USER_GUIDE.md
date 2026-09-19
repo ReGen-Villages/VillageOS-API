@@ -1224,7 +1224,7 @@ work with that directory:
 ```
 
 `mycelium status` shows the same loading status; `mycelium endpoints` lists the endpoint services
-the model registers, with their request counts.
+the model registers, each with its routing label and address.
 
 ### Switching model
 
@@ -1252,9 +1252,8 @@ step.
 
 `user change-password <user-guid>` changes an account's password; the command prompts for the current
 and the new password rather than taking them on the command line, so neither is left in the shell's
-history. Creating
-and deleting accounts and keys is done through the REST API by an administrator (see the Field Guide's
-route table, on the VillageOS repository's wiki).
+history. Creating and deleting accounts and keys is done through the REST API by an administrator
+(see the Field Guide's route table, on the VillageOS repository's wiki).
 
 ## Testing
 
