@@ -98,6 +98,8 @@ The sidebar can be collapsed to icon-only mode by clicking the chevron button at
 
 The sidebar footer holds a shared control panel visible on **every** page: a **light/dark theme** toggle, **Switch Model**, **Log Out**, and the **language** selector. This lets you change appearance, swap models, sign out, or switch language from anywhere without re-entering credentials. The panel collapses with the sidebar into a vertical icon strip.
 
+Above the controls, a **model statement** restates what is on screen for whoever walks past a console left open: whether the event stream is live, how many Things and relationships the model holds (*Reading the model…* until the first load lands), and the time of the newest activity event (*Nothing has moved yet* before one arrives). The counts are the store's, so they move as the stream applies changes; the live mark follows the stream's connection. Collapsed, only the mark stays, with the whole statement as its tooltip.
+
 ### 1.2a Switching Seeds (Models)
 
 Click the **Switch Model** button in the sidebar footer to open the seed library picker. This shows all seed files available in Mycelium's `seeds/library/` folder.
