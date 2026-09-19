@@ -145,6 +145,10 @@ public sealed class EndpointCallService
             return refusal.ToResult();
         if (EndpointCallChecks.CachingClash(kinds, cacheFor, pageConfig, address.Method, request.Body) is { } cachingClash)
             return cachingClash.ToResult();
+        if (!EndpointCallChecks.TryKeeping(kinds.Keeping, effective, request.AddressParameters, out var keep, out refusal))
+            return refusal.ToResult();
+        if (EndpointCallChecks.KeepingClash(kinds, keep, pageConfig) is { } keepingClash)
+            return keepingClash.ToResult();
 
         var endpointUri = address.Uri;
         var normalizedMethod = address.Method;
@@ -215,6 +219,10 @@ public sealed class EndpointCallService
                     return EndpointCallResult.Body(refusalWords, servedContentType, binaryStatus);
                 }
 
+                if (keep != null && binaryStatus is >= 200 and < 300
+                    && await KeepAsync(keep, bytes, servedContentType, thing.Value.Id, endpoint.Observed) is { } notKept)
+                    return notKept;
+
                 return EndpointCallResult.Body(BinaryEnvelope(bytes, servedContentType), "application/json");
             }
 
@@ -259,6 +267,11 @@ public sealed class EndpointCallService
 
                 if (cacheKey != null && status is >= 200 and < 300)
                     _diskCache.Write(request.EndpointName!, cacheKey, Encoding.UTF8.GetBytes(body), contentType ?? "application/json");
+
+                if (keep != null && status is >= 200 and < 300
+                    && await KeepAsync(keep, Encoding.UTF8.GetBytes(body), contentType ?? "application/json",
+                        thing.Value.Id, endpoint.Observed) is { } notKept)
+                    return notKept;
             }
 
             if (ProviderRefused(status))
@@ -304,6 +317,30 @@ public sealed class EndpointCallService
         public string Body { get; } = body;
         public string? ContentType { get; } = contentType;
         public int Offset { get; } = offset;
+    }
+
+    // Deposit the bytes, then write the ticket the store answered onto the subject's property. Runs
+    // only after a real 2xx fetch: a cache hit deposits nothing, because no new retrieval happened —
+    // and the store's content addressing makes a re-deposit of the same bytes idempotent anyway.
+    // The keep is a promise the model made, so any refused half — the deposit, the subject, the
+    // ticket write — fails the call rather than answering as though something was kept: null means
+    // kept, anything else is the 502 every other broker write failure here produces.
+    private async Task<EndpointCallResult?> KeepAsync(
+        KeepPlan keep, byte[] bytes, string contentType, Guid endpointThingId, ObservedEdges observed)
+    {
+        var ticket = await _mycelium.DepositAssetAsync(bytes, contentType);
+        if (ticket == null)
+            return Problem(502, "Asset keeping failed", "The asset store did not accept the response bytes.");
+
+        var subject = await _mycelium.FindThingByNameAsync(keep.AssetSubject);
+        if (subject == null)
+            return Problem(502, "Asset keeping failed", $"Asset subject thing not found: {keep.AssetSubject}");
+
+        if (await _observationService.ObserveValueAsync(
+                endpointThingId, subject.Value.Id, keep.AssetProperty, ticket, keep.ObservedAt, observed) is { } failure)
+            return Problem(502, "Asset keeping failed", failure);
+
+        return null;
     }
 
     // 404 is the provider answering that it holds nothing about this subject — a complete answer, so

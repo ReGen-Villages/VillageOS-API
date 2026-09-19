@@ -71,14 +71,16 @@ describe('the multi-line series', () => {
   });
 
   it('carries a legend for the series, the window it draws, and a table twin of every group', () => {
-    draw();
+    const { container } = draw();
 
     const legend = screen.getByRole('list');
     expect(within(legend).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
       'Daily high', 'Daily mean', 'Daily low',
     ]);
     expect(screen.getByText('last 11 years')).toBeInTheDocument();
-    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(133);
+    // Counted off the DOM rather than by role: a role query walks every node of the 133-row table,
+    // which took the loaded build agent past the test timeout.
+    expect(container.querySelectorAll('table tr')).toHaveLength(133);
   });
 
   it('opens a readout of every series at the group nearest the pointer', () => {

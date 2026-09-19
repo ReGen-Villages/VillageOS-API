@@ -14,6 +14,8 @@ import type {
   StackedSharesWidget,
   DivergingBarWidget,
   SmallMultiplesWidget,
+  ActionWidget,
+  FormWidget,
 } from '../types/dashboard';
 
 /** A spec exercising every widget type plus a detail card. The base strings are
@@ -533,5 +535,51 @@ describe('localizeSpec over a smallMultiples widget', () => {
 
   it('never rewrites a value that is not wording, even when a translation entry matches it', () => {
     expect(localized.band!.colour).toBe('Comfort');
+  });
+});
+
+describe('localizeSpec over the writing widgets', () => {
+  const spec: DashboardSpec = {
+    title: 'Springs',
+    sections: [
+      {
+        widgets: [
+          {
+            type: 'action',
+            title: 'Awaiting a verdict',
+            rows: { kind: 'stateList', state: 'sampled' },
+            asks: [{ key: 'reader', label: 'Reader' }],
+            writes: { via: 'verdicts', choices: [{ label: 'Potable', target: 'Potable' }, { label: 'Close it', act: 'close' }] },
+          },
+          {
+            type: 'form',
+            title: 'Book a reading',
+            fields: [{ key: 'litres', label: 'Litres', kind: 'number' }],
+            submit: 'Book',
+            preview: { act: 'cover', label: 'What this covers' },
+            writes: { via: 'readings', act: 'book', archetype: 'Reading' },
+          },
+        ],
+      },
+    ],
+    translations: {
+      nl: { 'Awaiting a verdict': 'Wacht op oordeel', Reader: 'Lezer', Potable: 'Drinkbaar', 'Close it': 'Sluiten', 'Book a reading': 'Meting boeken', Litres: 'Liter', Book: 'Boek', 'What this covers': 'Wat dit dekt', close: 'NOOIT', book: 'NOOIT' },
+    },
+  };
+  const [action, form] = localizeSpec(spec, 'nl').sections[0].widgets as [ActionWidget, FormWidget];
+
+  it('translates the labels a person reads and leaves the act and the reason as the endpoint reads them', () => {
+    expect(action.title).toBe('Wacht op oordeel');
+    expect(action.asks?.[0].label).toBe('Lezer');
+    expect(action.writes.choices.map((choice) => choice.label)).toEqual(['Drinkbaar', 'Sluiten']);
+    expect(action.writes.choices[1].act).toBe('close');
+    expect(action.writes.choices[0].target).toBe('Potable');
+  });
+
+  it('translates a form’s field labels, button and preview label, and not its act', () => {
+    expect(form.fields[0].label).toBe('Liter');
+    expect(form.submit).toBe('Boek');
+    expect(form.preview?.label).toBe('Wat dit dekt');
+    expect(form.writes.act).toBe('book');
   });
 });

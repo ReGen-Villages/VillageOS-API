@@ -1,10 +1,14 @@
 import { useMemo, useState, type UIEvent } from 'react';
+import { Download } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { Binding, TableColumn } from '../../../types/dashboard';
 import type { ResolveContext, Row } from '../../../api/dashboardApi';
 import { asRows, filterRows } from '../../../api/dashboardApi';
 import { useBinding } from '../../../hooks/useDashboard';
 import { useElementHeight } from '../../../hooks/useElementHeight';
+import { triggerDownload } from '../../../utils/logDownload';
 import { formatNumber, badgeTone, columnMaxima } from './format';
+import { csvFileName, tableToCsv } from './tableToCsv';
 
 /* One body row of the visibleRows cap: the 1.5 line box at the table font, plus the py-2 padding
    and bottom border of the cells below. In em, so the cap follows the font size — which is why
@@ -42,6 +46,7 @@ export function DataTable({
   query,
   searchKeys,
   onRowClick,
+  title,
 }: {
   columns: TableColumn[];
   rowsBinding?: Binding;
@@ -56,7 +61,10 @@ export function DataTable({
   query?: string;
   searchKeys?: string[];
   onRowClick?: (row: Row) => void;
+  /** What the table is called, which names the file it downloads as. */
+  title?: string;
 }) {
+  const { t } = useTranslation();
   const { loading, value } = useBinding(rowsBinding, ctx);
   const [headerRef, headerHeight] = useElementHeight();
   /* Measured from whichever row is at the top of the window, and only until a height comes back:
@@ -176,7 +184,21 @@ export function DataTable({
           </tbody>
         </table>
       </div>
-      {footnote && <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-2">{footnote}</div>}
+      <div className="flex items-baseline justify-between gap-2 mt-2">
+        {footnote ? <div className="text-[11px] text-zinc-400 dark:text-zinc-500">{footnote}</div> : <span />}
+        <button
+          type="button"
+          data-download
+          onClick={() => triggerDownload(
+            new Blob([tableToCsv(columns, sorted)], { type: 'text/csv;charset=utf-8' }),
+            csvFileName(title),
+          )}
+          className="inline-flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+        >
+          <Download size={12} aria-hidden="true" />
+          {t('table.downloadAsCsv')}
+        </button>
+      </div>
     </div>
   );
 }

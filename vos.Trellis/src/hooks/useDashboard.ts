@@ -1,9 +1,8 @@
 /**
- * Hooks that drive the config-driven dashboard: build a resolve context from
- * the live model store + selected scope, and resolve bindings (re-running when
- * scope or model data changes).
+ * Hooks that drive the config-driven dashboard: build a resolve context from the live model store
+ * and the selected scope, and resolve each binding again when what its own answer is made of moves.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   discoverDashboardsFromIndex,
   modelIndexFor,
@@ -12,8 +11,10 @@ import {
   type ModelIndex,
   type ResolveContext,
 } from '../api/dashboardApi';
+import { askedOfTheBroker, statesRead } from '../api/bindingRefresh';
 import type { ModelReads } from '../api/modelReads';
 import { useModelStore } from '../stores/modelStore';
+import { useUiStore } from '../stores/uiStore';
 import type { Binding, DashboardDescriptor } from '../types/dashboard';
 
 /** The index over the loaded model. Shared rather than memoized per component, so the navigation
@@ -29,28 +30,68 @@ export function useDashboards(): DashboardDescriptor[] {
   return discoverDashboardsFromIndex(useModelIndex());
 }
 
-/** Wrap a shared model index + the selected scope into a resolve context. `nonce` is
- *  part of the context identity only: bumping it forces server-side bindings to
- *  re-resolve on live events without rebuilding the (unchanged) index.
+/** Wrap a shared model index + the selected scope into a resolve context.
  *
  *  `makeReads` is called once per generation rather than passed as a value, because what it
- *  builds shares the reads of that generation: widgets asking about the same state ask once
- *  between them rather than once each. It is discarded whenever the identity changes — which is
- *  every live event and every timed refresh, the same moments that make a widget re-resolve at
- *  all. A factory rather than the reads themselves is also what keeps this file off the broker,
- *  so the page a submitter opens with no credential can use these hooks. */
+ *  builds shares the reads of that generation: widgets asking the same question ask once between
+ *  them rather than once each. It is discarded whenever anything that could change an answer moves
+ *  — a live event, a state, the cadence — so a generation never hands a reader the answer to a
+ *  question the model has since moved past. Which widgets then resolve again is a separate matter,
+ *  and {@link useBinding} decides it per binding. A factory rather than the reads themselves is
+ *  also what keeps this file off the broker, so the page a submitter opens with no credential can
+ *  use these hooks. */
 export function useResolveContext(
   idx: ModelIndex,
   scopeId: string | null,
   compareArchetype: string | undefined,
   makeReads: () => ModelReads,
   nonce = 0,
+  serverRefresh = 0,
 ): ResolveContext {
+  const stateVersions = useUiStore((s) => s.stateVersions);
   return useMemo(
-    () => ({ idx, scopeId, compareArchetype, nonce, reads: makeReads() }),
+    () => ({ idx, scopeId, compareArchetype, nonce, serverRefresh, stateVersions, reads: makeReads() }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [idx, scopeId, compareArchetype, nonce],
+    [idx, scopeId, compareArchetype, nonce, serverRefresh, stateVersions],
   );
+}
+
+/** A number naming one index, so what a binding waits for is one comparable value whether its
+ *  answer comes from the loaded model or from the broker. */
+const generations = new WeakMap<ModelIndex, number>();
+let generationsGiven = 0;
+
+function generationOf(idx: ModelIndex): number {
+  const known = generations.get(idx);
+  if (known !== undefined) return known;
+  generationsGiven += 1;
+  generations.set(idx, generationsGiven);
+  return generationsGiven;
+}
+
+/** The newest context, for an effect that must resolve against it without re-running whenever it
+ *  is replaced. Written in an effect of its own, declared first, so it is current before any effect
+ *  below it reads it. */
+function useLatest(ctx: ResolveContext): RefObject<ResolveContext> {
+  const held = useRef(ctx);
+  useEffect(() => {
+    held.current = ctx;
+  });
+  return held;
+}
+
+function waitOf(binding: Binding, ctx: ResolveContext): string {
+  if (!askedOfTheBroker(binding)) return `model:${generationOf(ctx.idx)}`;
+  const versions = ctx.stateVersions ?? {};
+  const states = statesRead(binding).map((state) => `${state}=${versions[state] ?? 0}`);
+  return `broker:${ctx.serverRefresh ?? 0}:${states.join(',')}`;
+}
+
+/** What these bindings are waiting for, as one value that moves when — and only when — one of them
+ *  has to be resolved again. A figure read from the loaded model follows that model; a figure the
+ *  broker answers follows the states its own answer is made of, and the page's cadence. */
+function waitFor(bindings: (Binding | undefined)[], ctx: ResolveContext): string {
+  return bindings.map((binding) => (binding ? waitOf(binding, ctx) : '')).join('|');
 }
 
 export interface BindingState {
@@ -70,12 +111,14 @@ interface Resolved {
  *  whether the latest resolution matches the current request key. */
 export function useBinding(binding: Binding | undefined, ctx: ResolveContext): BindingState {
   const key = binding ? JSON.stringify(binding) : '';
+  const waiting = waitFor([binding], ctx);
+  const context = useLatest(ctx);
   const [resolved, setResolved] = useState<Resolved>({ key: '\u0000init', value: null, error: false });
 
   useEffect(() => {
     if (!binding) return;
     let alive = true;
-    resolveBinding(binding, ctx).then(
+    resolveBinding(binding, context.current).then(
       (value) => alive && setResolved({ key, value, error: false }),
       () => alive && setResolved({ key, value: null, error: true }),
     );
@@ -83,7 +126,7 @@ export function useBinding(binding: Binding | undefined, ctx: ResolveContext): B
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, ctx]);
+  }, [key, waiting, ctx.scopeId, ctx.compareArchetype]);
 
   if (!binding) return { loading: false, value: null, error: false };
   const matched = resolved.key === key;
@@ -93,6 +136,8 @@ export function useBinding(binding: Binding | undefined, ctx: ResolveContext): B
 /** Resolve a list of bindings in parallel (e.g. funnel stage counts). */
 export function useBindings(bindings: (Binding | undefined)[], ctx: ResolveContext): BindingState[] {
   const key = JSON.stringify(bindings);
+  const waiting = waitFor(bindings, ctx);
+  const context = useLatest(ctx);
   const [resolved, setResolved] = useState<{ key: string; states: BindingState[] }>({
     key: '\u0000init',
     states: [],
@@ -103,7 +148,7 @@ export function useBindings(bindings: (Binding | undefined)[], ctx: ResolveConte
     Promise.all(
       bindings.map((b) =>
         b
-          ? resolveBinding(b, ctx).then(
+          ? resolveBinding(b, context.current).then(
               (value): BindingState => ({ loading: false, value, error: false }),
               (): BindingState => ({ loading: false, value: null, error: true }),
             )
@@ -116,7 +161,7 @@ export function useBindings(bindings: (Binding | undefined)[], ctx: ResolveConte
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, ctx]);
+  }, [key, waiting, ctx.scopeId, ctx.compareArchetype]);
 
   if (resolved.key === key && resolved.states.length === bindings.length) return resolved.states;
   return bindings.map((b) => ({ loading: !!b, value: null, error: false }));

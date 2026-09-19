@@ -42,14 +42,14 @@ describe('useSse', () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it('maps a PropertyChanged event to legacy positional args', async () => {
+  it.each(['PropertyChanged', 'PropertyObserved'])('maps a %s event to positional args', async (kind) => {
     const { result, unmount } = renderHook(() => useSse());
     const handler = vi.fn();
     let off: () => void = () => {};
-    act(() => { off = result.current.on('PropertyChanged', handler); });
+    act(() => { off = result.current.on(kind, handler); });
 
     await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
-    act(() => FakeEventSource.instances[0].emit('PropertyChanged',
+    act(() => FakeEventSource.instances[0].emit(kind,
       { EntityId: 't1', PropertyName: 'temp', Value: 5 }));
 
     expect(handler).toHaveBeenCalledWith('t1', 'temp', 5);
@@ -92,6 +92,22 @@ describe('useSse', () => {
     act(() => off());
     unmount();
   });
+
+  it.each(['ThingEntered', 'ThingLeft', 'RelationshipEntered', 'RelationshipLeft'])(
+    'hands a %s event through as the object the platform sent', async (kind) => {
+      const { result, unmount } = renderHook(() => useSse());
+      const handler = vi.fn();
+      let off: () => void = () => {};
+      act(() => { off = result.current.on(kind, handler); });
+
+      await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
+      act(() => FakeEventSource.instances[0].emit(kind, { EntityId: 't1', Thing: { Id: 't1' } }));
+
+      expect(handler).toHaveBeenCalledWith({ EntityId: 't1', Thing: { Id: 't1' } });
+      act(() => off());
+      unmount();
+    },
+  );
 
   it('opens both the object subscription and the system-events stream', async () => {
     const { unmount } = renderHook(() => useSse());
@@ -335,7 +351,10 @@ describe('useSse', () => {
         subscriptionId: 's1',
         watermark: 4,
         snapshot: {
-          things: [{ Id: 't1', Name: 'Site', Properties: { area: { typeInfo: 'vos.Double', value: 3 } } }],
+          things: [
+            { Id: 't1', Name: 'Site', Properties: { area: { typeInfo: 'vos.Double', value: 3 } }, States: ['flagged'] },
+            { Id: 't2', Name: 'Spring', Properties: {}, States: [] },
+          ],
           relationships: [{ Id: 'r1', SubjectId: 't1', PredicateId: 'p', TargetId: 't2', Properties: {} }],
         },
       }),
@@ -358,6 +377,7 @@ describe('useSse', () => {
     expect(opened.watermark).toBe(4);
     expect(opened.covered!.things[0].Properties).toEqual({ area: 3 }); // unwrapped, as read elsewhere
     expect(opened.covered!.relationships).toHaveLength(1);
+    expect(opened.covered!.thingStates).toEqual(new Map([['t1', ['flagged']], ['t2', []]]));
     act(() => off());
     page.unmount();
     unmount();

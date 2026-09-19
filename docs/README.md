@@ -24,7 +24,8 @@ Approachable for a general reader as well as an engineer.
 | [DELTA.md](DELTA.md) | The endpoint-registration service that provisions and validates data-source endpoints. |
 | [MODELBRIDGE.md](MODELBRIDGE.md) | The generic bridge between a pipeline DAG and the model (read a property, or write a computed result back). |
 | [TEMPORAL_READS.md](TEMPORAL_READS.md) | How "what is true now" and "what was true at a past moment" are served from different places, and why current-state reads stay fast however long the history grows. |
-| [LAND_INTAKE.md](LAND_INTAKE.md) | **Design, not yet built.** Taking in a piece of land and analysing it — the intake wizard, open-data discovery, and the site-analysis pipeline. Written for a general reader; render to a print-ready PDF with [tools/docs-pdf](../tools/docs-pdf/). |
+| [LAND_INTAKE.md](LAND_INTAKE.md) | **Partly built; its header says what is.** Taking in a piece of land and analysing it — the intake wizard, the public submission page, open-data discovery, and the site analysis. Written for a general reader; render to a print-ready PDF with [tools/docs-pdf](../tools/docs-pdf/). |
+| [FORAGE.md](FORAGE.md) | The discovery service: how a site is matched to the data sources that cover it, how each is called, and how the analysis is started from what came back. |
 
 ## Authoring microservices
 
@@ -37,8 +38,9 @@ Reference material for engineers building or hosting services. Denser by design.
 | [SERVICES.md](SERVICES.md) | The canonical reference for the shared C# service host and the services built on it. |
 | [SERVICE_HOST_ROADMAP.md](SERVICE_HOST_ROADMAP.md) | Planned work for consolidating the shared host across services. |
 | [../deploy/README.md](../deploy/README.md) | How a deployment routes requests: the reverse proxy that splits the hostnames, what each service must bind, and the origin the public form posts from. |
+| [../deploy/TUNNEL.md](../deploy/TUNNEL.md) | Reaching a deployment on a machine with no public address: what the Cloudflare account holder sets up, written for someone with no prior Cloudflare knowledge. |
 
 > These files are also published to the
 > [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is
-> generated from them on every merge to main. Edit the file here; a page edited in the wiki
+> generated from them on every build of `develop`. Edit the file here; a page edited in the wiki
 > browser is overwritten by the next build. See [tools/docs-to-wiki](../tools/docs-to-wiki/).

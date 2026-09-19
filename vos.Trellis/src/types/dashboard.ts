@@ -62,9 +62,11 @@ export interface HistoryStepBinding {
 
 export type Binding =
   | { kind: 'const'; value: number }
-  /** Count of Things currently in a derived State (via GET /api/states/{state}/things).
-   *  `archetype` narrows the count to Things of that archetype (e.g. only Orders, not their lines). */
-  | { kind: 'stateCount'; state: string; scope?: ScopeRef; archetype?: string }
+  /** Count of Things currently in a derived State, asked of the platform as a number so a figure of
+   *  four hundred costs what a figure of four costs. `archetype` narrows the count to Things of that
+   *  archetype; `excludeState` drops Things also in that state, so a funnel stage counts only Things
+   *  that reached it and no further. */
+  | { kind: 'stateCount'; state: string; scope?: ScopeRef; archetype?: string; excludeState?: string }
   /** Rows of Things currently in a State, enriched with their properties for a table.
    *  `excludeState` drops Things also in that state — for a funnel stage, set it to the next
    *  stage's state so the list shows only Things that reached this stage and no further. */
@@ -90,7 +92,20 @@ export type Binding =
    *  cannot express, since a Thing in no derived state appears in no state's list. Read from the
    *  client-side model index, so instances only: a sub-archetype is descended into, never listed.
    *  Rows are ordered by name, which is what makes a `limit`ed list the same list every time. */
-  | { kind: 'thingList'; archetype: string; scope?: ScopeRef; limit?: number; computed?: ComputedColumn[] }
+  | {
+      kind: 'thingList';
+      archetype: string;
+      scope?: ScopeRef;
+      limit?: number;
+      computed?: ComputedColumn[];
+      /** Keep only the rows the platform lists for this derived state, asked once for the roster.
+       *  Unlike `stateList`, the rows are still the roster's own, so a table narrowed to a state
+       *  carries every value the console holds for them. */
+      inState?: string;
+      /** Keep only the rows whose properties satisfy every comparison — the same comparisons an
+       *  `aggregate` takes. */
+      where?: PropertyFilter[];
+    }
   /** Aggregate over Things of an archetype held in the model store (client-side). */
   | {
       kind: 'aggregate';
@@ -283,6 +298,30 @@ export interface RelationStep {
   notInState?: string;
 }
 
+/** One column of a table a person composed from a kind's own declarations. */
+export type ComposedColumn =
+  /** A property the row carries, read straight off it. */
+  | { source: 'property'; name: string; numeric?: boolean }
+  /** What a path of links reaches from the row — the Thing's name, or a property of it. */
+  | { source: 'path'; steps: RelationStep[]; property?: string; label: string }
+  /** The first of these states the row holds. */
+  | { source: 'state'; states: string[] };
+
+/** What a composed table was made from: a kind of Thing, its columns, a filter and a sort. */
+export interface Composition {
+  kind: string;
+  columns: ComposedColumn[];
+  /** Keep only the rows holding this derived state. Live only: no read answers a state at an
+   *  instant, so a composition carrying a moment carries no state. */
+  inState?: string;
+  /** Read the rows as the model stood at this instant, rather than as it stands. */
+  moment?: string;
+  /** Keep only the rows whose properties satisfy every comparison. */
+  where?: PropertyFilter[];
+  sortKey?: string;
+  sortDir?: 'asc' | 'desc';
+}
+
 /**
  * A derived state a `verdict` binding asks about, with how it reads in words.
  *
@@ -468,9 +507,11 @@ export interface LeaderMetric {
   direction?: 'up-good' | 'down-good';
   /** Contribution to the weighted score (0..1). Metrics without a weight don't score. */
   weight?: number;
-  /** Value at/above which the metric is "good" (for a 0..1 normalisation). */
+  /** The value that scores full marks. Left out, it is 100 for an `up-good` metric and 0 for a
+   *  `down-good` one. */
   best?: number;
-  /** Value at/below which the metric is "worst". */
+  /** The value that scores nothing. Left out, it is 0 for an `up-good` metric and 100 for a
+   *  `down-good` one. A metric stating both bounds scores the same under either direction. */
   worst?: number;
 }
 
@@ -695,6 +736,94 @@ export interface SmallMultiplesWidget {
   band?: RangeBand;
 }
 
+/** A value a person supplies before pressing — typed, or chosen by name from the Things a binding
+ *  lists. Sent to the endpoint under `key`: as a number where `kind` is 'number', as the names
+ *  chosen where it is 'multichoice', as text otherwise, and not at all where an optional value was
+ *  left empty, because an endpoint reading "" as an answer would be answering a question nobody
+ *  asked. */
+export interface AskedValue {
+  key: string;
+  label: string;
+  /** How it is entered. 'choice' offers the rows `options` resolves to, by name, and takes one of
+   *  them; 'multichoice' offers the same rows and takes as many as are chosen. Default 'text'. */
+  kind?: 'text' | 'number' | 'datetime' | 'choice' | 'multichoice';
+  options?: Binding;
+  /** What is drawn beside each name in the roster. A field chosen from a roster draws no columns,
+   *  so this is what says which values its rows carry, the way a table's columns do. */
+  shows?: string[];
+  optional?: boolean;
+}
+
+/** One button on an action widget. A choice names either the Thing the act is about besides the
+ *  row — a reason, a verdict, a disposition the model declares, sent as `reason` and linked from
+ *  what was minted — or the act itself, by the name the endpoint accepts it under, sent as `view`. */
+export interface ActionChoice {
+  label: string;
+  target?: string;
+  viaPredicate?: string;
+  act?: string;
+}
+
+/** What pressing a choice writes, and no service named anywhere in it. Which service wakes is the
+ *  model's to decide from the edge the endpoint lays down — a spec naming a handler would move that
+ *  decision into the spec. */
+export interface ActionRecords {
+  /** The endpoint that accepts the act, by the name `POST /api/endpoints/{name}` forwards to. It
+   *  names a door, not an outcome. */
+  via: string;
+  /** The archetype the minted Thing `is`, where a press mints one. Declared here rather than left to
+   *  the endpoint so the seed rules that check every archetype a page names cover what it writes.
+   *  A press that marks the row itself mints nothing and names none. */
+  archetype?: string;
+  /** The edge from the minted Thing to the row it is about. */
+  predicate?: string;
+  choices: ActionChoice[];
+}
+
+/** A widget that records a decision rather than reporting one. Every other widget reads; this is
+ *  the one that acts on what it lists. */
+export interface ActionWidget {
+  type: 'action';
+  title?: string;
+  hint?: string;
+  /** The things a decision can be made about. */
+  rows: Binding;
+  /** What each row's name is read from, so a person sees what they are judging. */
+  label?: string;
+  /** What is drawn beside each name — a decision made by ringing somebody outside the system needs
+   *  the row to say enough to act on, and a name alone is not enough. */
+  shows?: string[];
+  /** What a person supplies for a row before pressing. Read once for the widget, however many rows
+   *  ask. */
+  asks?: AskedValue[];
+  writes: ActionRecords;
+}
+
+/** A widget that records something nothing on the page lists yet. Every other writing press is
+ *  about a row; this one mints the row. Its fields are the values the endpoint needs, posted under
+ *  the act's name. */
+export interface FormWidget {
+  type: 'form';
+  title?: string;
+  hint?: string;
+  fields: AskedValue[];
+  /** The words on the button. */
+  submit: string;
+  /** A read of the same fields, offered beside the press that acts on them — what a choice covers
+   *  before somebody commits to it. It posts what has been filled in so far under its own act and
+   *  shows the endpoint's answer, so it is offered before every value the act needs has been given.
+   *  Absent, nothing is offered and the form is the press alone. */
+  preview?: { act: string; label: string };
+  writes: {
+    /** The endpoint that accepts the act — a door, not an outcome, exactly as on an action widget. */
+    via: string;
+    /** The name the endpoint accepts this act under, sent as `view`. */
+    act: string;
+    /** The archetype the minted Thing `is`. */
+    archetype: string;
+  };
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -710,7 +839,9 @@ export type Widget =
   | HeatmapWidget
   | StackedSharesWidget
   | DivergingBarWidget
-  | SmallMultiplesWidget;
+  | SmallMultiplesWidget
+  | ActionWidget
+  | FormWidget;
 
 export interface DashboardSection {
   title?: string;
@@ -825,6 +956,9 @@ export interface DashboardSpec {
   detail?: DetailSpec;
   /** Optional per-locale translations of this spec's display strings. */
   translations?: SpecTranslations;
+  /** The choices a composed page was made from. Present only on a page the console kept, which is
+   *  what lets it offer to rename or remove the page and leave a seeded one alone. */
+  composed?: Composition;
 }
 
 /** A discovered dashboard: the source Thing + its spec. */

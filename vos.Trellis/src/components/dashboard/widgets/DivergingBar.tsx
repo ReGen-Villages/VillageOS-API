@@ -20,7 +20,7 @@ const FALLBACK_WIDTH = 480;
 const WIDEST_BAR = 24;
 const TICK_COUNT = 3;
 
-const SIDES = [
+export const SIDES = [
   { direction: 'up', fill: 'var(--chart-warm-far)', word: 'above' },
   { direction: 'down', fill: 'var(--chart-cool-far)', word: 'below' },
 ] as const;

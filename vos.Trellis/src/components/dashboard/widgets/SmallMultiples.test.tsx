@@ -121,7 +121,8 @@ describe('the small multiples', () => {
     expect(screen.getByText('last 10 years')).toBeInTheDocument();
     const legend = screen.getByRole('list');
     expect(within(legend).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Relative humidity', 'Temperature', 'Comfort band']);
-    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(12 * 24 + 1);
+    // Counted off the table itself: a role query over every row of every hour walks the whole tree per row.
+    expect(screen.getByRole('table').querySelectorAll('tr')).toHaveLength(12 * 24 + 1);
   });
 
   it('leaves out a month neither series was answered for', () => {

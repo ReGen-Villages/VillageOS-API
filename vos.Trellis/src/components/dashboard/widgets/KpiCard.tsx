@@ -7,13 +7,22 @@ import { useBinding } from '../../../hooks/useDashboard';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { WidgetCard } from './WidgetCard';
 import { Sparkline } from './Sparkline';
+import { DerivedFigure } from './DerivedFigure';
 import { formatNumber, formatDelta, deltaTone, originTone } from './format';
 import { originSentence } from './originSentence';
 
 /** Width to draw at before the card has been measured, and the floor a narrow card still gets. */
 const MINIMUM_SPARK_WIDTH = 108;
 
-export function KpiCard({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContext }) {
+export function KpiCard({
+  widget,
+  ctx,
+  openDetail,
+}: {
+  widget: KpiWidget;
+  ctx: ResolveContext;
+  openDetail?: (thingId: string) => void;
+}) {
   const { t } = useTranslation();
   const value = useBinding(widget.value, ctx);
   const delta = useBinding(widget.delta, ctx);
@@ -61,8 +70,18 @@ export function KpiCard({ widget, ctx }: { widget: KpiWidget; ctx: ResolveContex
       <div className="flex items-end gap-6">
         <div className="flex-shrink-0">
           <div className="text-3xl font-bold tracking-tight tabular-nums text-zinc-900 dark:text-white leading-none mt-2 mb-1">
-            {value.loading ? <span className="text-zinc-300 dark:text-zinc-600">···</span> : formatNumber(v, widget.format)}
-            {widget.unit && <span className="text-sm text-zinc-400 dark:text-zinc-500 font-semibold ml-1">{widget.unit}</span>}
+            <DerivedFigure
+              binding={widget.value}
+              ctx={ctx}
+              title={widget.title}
+              format={widget.format}
+              unit={widget.unit}
+              footnote={widget.footnote}
+              openDetail={openDetail}
+            >
+              {value.loading ? <span className="text-zinc-300 dark:text-zinc-600">···</span> : formatNumber(v, widget.format)}
+              {widget.unit && <span className="text-sm text-zinc-400 dark:text-zinc-500 font-semibold ml-1">{widget.unit}</span>}
+            </DerivedFigure>
           </div>
           {d !== null && (
             <div
