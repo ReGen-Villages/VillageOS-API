@@ -122,11 +122,10 @@ def test_shutdown(client):
 # The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
 def test_shutdown_does_not_ask_the_broker_to_withdraw():
     with patch("app.register_with_mycelium", new=AsyncMock(return_value=True)), \
-         patch("app._get_token", new=AsyncMock(return_value="tok")), \
-         patch("httpx.AsyncClient.delete", new=AsyncMock()) as delete:
+         patch("httpx.AsyncClient.request", new=AsyncMock()) as request:
         with TestClient(app):
             pass
-    assert delete.await_count == 0, "a service cannot deregister itself, so shutdown must not try"
+    assert request.await_count == 0, "a service cannot deregister itself, so shutdown must not try"
 
 
 def test_handle_rejects_missing_token_when_auth_enabled(client, signing):

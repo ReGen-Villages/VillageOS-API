@@ -340,6 +340,7 @@ function main(): void {
     `VillageOS ${SERVICE_NAME} microservice — port ${cfg.port}, mycelium ${cfg.myceliumUrl}, auth=${key !== null}`,
   );
 
+  const exitAfterShutdown = () => void shutdown(server).then(() => process.exit(0));
   const server = createServer(async (req, res) => {
     const url = req.url ?? "";
     const method = req.method ?? "GET";
@@ -409,7 +410,7 @@ function main(): void {
     if (method === "POST" && url === "/shutdown") {
       if (!authorized(req, cfg, key)) return sendJson(res, 401, { error: "unauthorized" });
       sendJson(res, 200, { message: `Shutting down ${SERVICE_NAME} microservice` });
-      setTimeout(() => void shutdown(server).then(() => process.exit(0)), 300);
+      setTimeout(exitAfterShutdown, 300);
       return;
     }
     sendJson(res, 404, { error: "not found" });
@@ -421,9 +422,8 @@ function main(): void {
       .catch((err) => console.error("registration failed:", err));
   });
 
-  const onSignal = () => void shutdown(server).then(() => process.exit(0));
-  process.on("SIGINT", onSignal);
-  process.on("SIGTERM", onSignal);
+  process.on("SIGINT", exitAfterShutdown);
+  process.on("SIGTERM", exitAfterShutdown);
 }
 
 export async function shutdown(server: Server): Promise<void> {
