@@ -87,7 +87,7 @@ does the work once, and answers 2xx to the repeat. C# handlers have a shared hel
 ## Registration
 
 - `POST /api/mycelium/register` (Bearer) — `{ handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint }`
-- `DELETE /api/mycelium/services/{handlerId}` (Bearer) — on shutdown
+- There is no deregistration call for a service to make: `DELETE /api/mycelium/services/{handlerId}` is admin-only and refuses a service token. A service that stops answering `/health` is removed by the broker's liveness monitor.
 
 An open SSE subscription also counts as a liveness signal: a service that is actively streaming
 is treated as healthy even if its `/health` is briefly unreachable.

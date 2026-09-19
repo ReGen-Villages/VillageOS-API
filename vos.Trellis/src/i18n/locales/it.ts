@@ -25,6 +25,20 @@ export const it: PartialResources = {
     properties: 'Proprietà',
     logs: 'Registri',
   },
+  table: {
+    downloadAsCsv: 'Scarica come CSV',
+  },
+  statement: {
+    live: 'In diretta',
+    notLive: 'Non in diretta',
+    reading: 'Lettura del modello…',
+    things_one: '{{count}} Cosa',
+    things_other: '{{count}} Cose',
+    relationships_one: '{{count}} relazione',
+    relationships_other: '{{count}} relazioni',
+    lastMoved: 'Ultimo movimento {{at}}',
+    nothingYet: 'Ancora nessun movimento',
+  },
   theme: {
     switchTo: 'Passa alla modalità {{mode}}',
     light: 'chiara',

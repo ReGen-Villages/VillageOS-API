@@ -52,7 +52,7 @@ Both come from the environment and are never flags. A command line is readable b
 
 - **Registration** — `register()` POSTs `{handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint}` to `/api/mycelium/register` with a bearer token.
 - **JWT validation** — `verifyJwt()` refuses any header naming an algorithm other than ES256, checks the elliptic-curve signature against the public key read from `VerificationKey`, then checks issuer, this service's own recipient name, and expiry with 30s clock skew (matching `ServiceTokenValidator`).
-- **Deregistration** — `DELETE /api/mycelium/services/{handlerId}` on SIGINT/SIGTERM and `/shutdown`.
+- **Shutdown** — `shutdown()` stops the listener on SIGINT/SIGTERM and `/shutdown`. It does not deregister: `DELETE /api/mycelium/services/{handlerId}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
 
 ## Verify
 

@@ -25,6 +25,20 @@ export const de: PartialResources = {
     properties: 'Eigenschaften',
     logs: 'Protokolle',
   },
+  table: {
+    downloadAsCsv: 'Als CSV herunterladen',
+  },
+  statement: {
+    live: 'Live',
+    notLive: 'Nicht live',
+    reading: 'Modell wird gelesen…',
+    things_one: '{{count}} Ding',
+    things_other: '{{count}} Dinge',
+    relationships_one: '{{count}} Beziehung',
+    relationships_other: '{{count}} Beziehungen',
+    lastMoved: 'Zuletzt bewegt {{at}}',
+    nothingYet: 'Noch nichts bewegt',
+  },
   theme: {
     switchTo: 'In den {{mode}} Modus wechseln',
     light: 'hellen',

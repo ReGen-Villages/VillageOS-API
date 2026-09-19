@@ -556,6 +556,20 @@ describe('useModelData', () => {
     await waitFor(() => expect(useModelStore.getState().things[0].Properties?.contained_units).toBe(3));
   });
 
+  // A sample the platform delivers to a subscription that asked for observations is a value on a
+  // property like any other; a figure bound to a reading moves with it instead of waiting for a reload.
+  it('PropertyObserved updates the store in place like a property change', async () => {
+    mockGetAllThings.mockResolvedValue([{ Id: 't1', Name: 'A', Properties: { passMilliseconds: 19.3 } }]);
+    await mountLoaded();
+    await waitFor(() => expect(useModelStore.getState().things).toHaveLength(1));
+    mockGetAllThings.mockClear();
+
+    await act(async () => handlers.get('PropertyObserved')!('t1', 'passMilliseconds', 84.1));
+
+    await waitFor(() => expect(useModelStore.getState().things[0].Properties?.passMilliseconds).toBe(84.1));
+    expect(mockGetAllThings).not.toHaveBeenCalled();
+  });
+
   // A thing can change several properties inside one debounce window; the buffer must keep
   // them all, not collapse to the last one written.
   it('coalesces multiple property changes on the same thing in one window', async () => {

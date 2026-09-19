@@ -13,13 +13,13 @@ The generator dropped the same content into two places:
 
 - **`PipelinePlayground` seed** — a small standalone model (`vos.Mycelium/seeds/PipelinePlayground.seed.json`).
   Load this to work with just the pipelines, nothing else.
-- **The `Josudan` seed** — the same services and DAGs merged into the Josudan site model, so you can build
-  pipelines alongside real building data.
+- **A site seed** — the generator can also merge the same services and DAGs into a site model
+  (`generate.py --into`), so you can build pipelines alongside real building data.
 
 ## Load them
 
-Open the GUI and click **Switch Model** (the ⇄ arrows in the Dashboard or Graph header) to open the seed
-picker, then choose **PipelinePlayground** (or **Josudan**). Mycelium replaces the current model with the
+Open the GUI and click **Switch Model** in the sidebar footer to open the seed picker, then choose
+**PipelinePlayground** (or the site seed you merged into). Mycelium replaces the current model with the
 seed and re-scopes your session to it.
 
 Now click **Pipelines** in the sidebar. On the left you'll see the **Services** palette populated with the
