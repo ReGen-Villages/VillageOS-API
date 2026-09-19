@@ -107,6 +107,30 @@ describe('subscriptionForSpec', () => {
     expect(selector.types).toContain('Parcel');
   });
 
+  it('asks for the rows a writing widget lists and the rosters its fields are chosen from', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+        type: 'action',
+        rows: { kind: 'thingList', archetype: 'Spring' },
+        asks: [{ key: 'reader', label: 'Reader', kind: 'choice', options: { kind: 'thingList', archetype: 'Person' } }],
+        writes: { via: 'readings', choices: [{ label: 'Assign', act: 'assign' }] },
+      }),
+      null,
+    );
+    expect(selector.types).toEqual(expect.arrayContaining(['Spring', 'Person']));
+
+    const form = subscriptionForSpec(
+      specDrawing({
+        type: 'form',
+        fields: [{ key: 'catchment', label: 'Catchment', kind: 'multichoice', options: { kind: 'thingList', archetype: 'Catchment' } }],
+        submit: 'Book',
+        writes: { via: 'readings', act: 'book', archetype: 'Reading' },
+      }),
+      null,
+    );
+    expect(form.types).toContain('Catchment');
+  });
+
   // A binding narrowed to the selected entity reaches its rows along that entity's edges, so asking
   // for its type as well would pull in every other entity's rows for a page showing one.
   it('leaves out a scoped binding\'s type once an entity is selected, and follows its edge instead', () => {

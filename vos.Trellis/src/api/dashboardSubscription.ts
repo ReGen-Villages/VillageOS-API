@@ -78,6 +78,8 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
     case 'heatmap': return [widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds];
     case 'stackedShares': return widget.classes.map((entry) => entry.share);
     case 'divergingBar': return [widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold];
+    case 'action': return [widget.rows, ...(widget.asks ?? []).map((field) => field.options)];
+    case 'form': return widget.fields.map((field) => field.options);
   }
 }
 
