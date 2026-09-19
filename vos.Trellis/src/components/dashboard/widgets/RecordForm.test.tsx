@@ -83,6 +83,29 @@ describe('RecordForm', () => {
     expect(await screen.findByText('Covers the north ridge')).toBeInTheDocument();
   });
 
+  it('offers a field taking several names as one open list, each name beside what the field shows, and posts every name chosen', async () => {
+    mockOptions.mockReturnValue([
+      { id: 'p1', name: 'Ada', role: 'reader' },
+      { id: 'p2', name: 'Grace', role: 'planner' },
+      { id: 'p3', name: 'Mary', role: '' },
+    ]);
+    const invites: FormWidget = {
+      ...BOOK,
+      fields: [{ key: 'readers', label: 'Readers', kind: 'multichoice', options: { kind: 'thingList', archetype: 'Person' }, shows: ['role'] }],
+      preview: undefined,
+    };
+    render(<RecordForm widget={invites} ctx={ctx} />);
+    expect(screen.getByRole('option', { name: 'Ada · reader' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Mary' })).toBeInTheDocument();
+
+    const readers = screen.getByLabelText('Readers') as HTMLSelectElement;
+    for (const option of readers.options) option.selected = option.value !== 'Mary';
+    fireEvent.change(readers);
+    fireEvent.click(screen.getByRole('button', { name: 'Book' }));
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/api/endpoints/readings', { view: 'book', readers: ['Ada', 'Grace'] }));
+  });
+
   it('shows no preview at all where the spec names none', () => {
     render(<RecordForm widget={{ ...BOOK, preview: undefined }} ctx={ctx} />);
     expect(screen.queryByRole('button', { name: 'What this covers' })).toBeNull();
