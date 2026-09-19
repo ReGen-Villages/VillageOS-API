@@ -103,7 +103,7 @@ curl http://localhost:7245/health           # {"status":"Healthy"}
 # 4. Verify Mycelium registration
 TOKEN=$(curl -s -X POST https://localhost:7243/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin"}' | jq -r '.token')
+  -d '{"username":"admin","password":"<from bootstrap-credentials.txt>"}' | jq -r '.token')
 curl -H "Authorization: Bearer $TOKEN" https://localhost:7243/api/mycelium/services
 ```
 
@@ -469,6 +469,11 @@ consecutive failures (a 45 s window) trigger auto-deregistration:
 After auto-deregistration the service must restart. The `ApplicationStarted`
 hook generates a new `HandlerId` and re-registers.
 
+Only a service that registered itself is removed this way. A daemon the model
+declares and Mycelium supervises is shown as stopped while its process is not
+running — a dormant state, not a stale registration — and stays listed so that
+it can be started.
+
 A service does not deregister itself: the removal route is admin-only, so the
 call would be refused whatever the service holds. A stopped service stays
 listed until the monitor's auto-deregistration removes it.
@@ -484,7 +489,7 @@ see [`SERVICE_HOST_ROADMAP.md`](SERVICE_HOST_ROADMAP.md) §1.8.
 
 | Trigger | Mechanism |
 |---|---|
-| Liveness failure (3× `/health` timeout) | Mycelium auto-deregisters |
+| Liveness failure (3× `/health` timeout) on a self-registered service | Mycelium auto-deregisters |
 | An administrator removing the entry | `DELETE /api/mycelium/services/{handlerId}` (admin-only) |
 
 A service that exits — SIGTERM, `POST /shutdown`, or Mycelium calling
@@ -840,14 +845,14 @@ streams, seed-loading, and JWT minting. Quick map for what calls what:
 | Session restore | `/api/auth/restore-session` | GET (HttpOnly cookie) |
 | Stream token (for `?access_token=` on an SSE address) | `/api/auth/stream-token` | POST |
 | Things | `/api/things` | GET, POST, DELETE |
-| Properties | `/api/properties` | GET, PUT, DELETE |
+| Properties | `/api/things/{id}/properties`, `…/properties/{name}` | GET, PUT, DELETE |
 | Relationships | `/api/relationships` | GET, POST, DELETE |
 | Mycelium registry | `/api/mycelium/register`, `/api/mycelium/services/{id}` | POST, DELETE |
 | Subscriptions (SSE) | `/api/subscriptions`, `/api/subscriptions/{id}/stream` | POST, GET (SSE) |
 | System events (SSE) | `/api/events/stream` | GET (SSE) |
 
-Full reference: the **Mycelium Guide** on Mycelium repo's wiki
-(`ReGenVillages/VillageOS` → wiki → Mycelium). Swagger UI is available at
+Full reference: the **Field Guide** on the VillageOS repository's wiki
+(`ReGenVillages/VillageOS` → wiki → Field Guide), chapter *The API, route by route*. Swagger UI is available at
 `/swagger` when Mycelium is running (default
 `https://localhost:7243/swagger`).
 
@@ -875,7 +880,7 @@ Create a key like this:
 ```bash
 TOKEN=$(curl -s -X POST https://localhost:7243/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin"}' | jq -r '.token')
+  -d '{"username":"admin","password":"<from bootstrap-credentials.txt>"}' | jq -r '.token')
 
 curl -s -H "Authorization: Bearer $TOKEN" \
   -X POST https://localhost:7243/api/auth/keys \
@@ -912,7 +917,7 @@ Mycelium's actual URL.
 
 The `/health` endpoint is not responding. Test directly:
 `curl http://localhost:<port>/health`. Check the port is bound
-(`netstat -an | findstr :<port>`) and that the handler returns
+(`lsof -i :<port>` on macOS and Linux, `netstat -an | findstr :<port>` on Windows) and that the handler returns
 `{ "status": "Healthy" }` with `200`.
 
 ### Service was auto-deregistered
@@ -922,8 +927,9 @@ then restart — the service re-registers with a new `HandlerId`.
 
 ### Port already in use
 
+Stop whatever holds it — `kill $(lsof -t -i :<port>)` on macOS and Linux,
 `Get-Process -Id (Get-NetTCPConnection -LocalPort <port>).OwningProcess | Stop-Process`
-(PowerShell), then restart. Or pass `--port=<other>`.
+in PowerShell — then restart. Or pass `--port=<other>`.
 
 ### Schema validation rejecting valid-looking payloads
 
@@ -943,8 +949,8 @@ lifecycle as relationship services, and act as pass-through proxies — Mycelium
 forwards request bodies as-is to the service's `/handle` endpoint. Mycelium
 also exposes per-subdomain request metrics (count, avg response time, errors).
 
-Full implementation details: the *Endpoint Services* section in the Mycelium
-Guide on Mycelium repo's wiki.
+Full implementation details: the *Services* chapter of the Field Guide on the
+VillageOS repository's wiki.
 
 ### 14.1 Tributary token-exchange auth + offset paging
 

@@ -12,7 +12,7 @@ When a relationship like `Chemistry-Test --[consumes]--> Reagent-Pool` is create
 
 ### One binary, two predicates
 
-`consumes` and `produces` are mirror images — one decrements, the other increments. Rather than maintain two nearly-identical projects, a single `Metabolism` binary accepts `--mode=consumes` or `--mode=produces`. The predicate thing's `ServiceArgs` property tells Mycelium which mode to pass:
+`consumes` and `produces` are mirror images — one decrements, the other increments. Rather than maintain two nearly-identical projects, a single `Metabolism` binary accepts `--mode=consumes` or `--mode=produces`. The `ServiceArgs` property on the Service each predicate `has` tells Mycelium which mode to pass:
 
 ```json
 { "ServiceArgs": "--mode=consumes" }
@@ -136,6 +136,8 @@ vos.Service.Metabolism/
 │   ├── MetabolismSubscriptionService.cs  # SSE subscription: streams changes + manages membership
 │   ├── Metabolism.cs                   # Simulation loop engine
 │   └── HandleRequestProcessor.cs       # Request validation + config extraction
+├── Helpers/
+│   └── JsonValueUnwrapper.cs           # Reads a value out of the platform's typed envelope
 └── Endpoints/
     └── EndpointMapper.cs               # HTTP endpoint definitions
 ```
@@ -181,35 +183,34 @@ These are set on the relationship (not the things) and control the simulation:
 
 ## How to Use
 
-### 1. Define the predicate things in your seed
+### 1. Define the connections and their services in your seed
 
-Mycelium needs predicate things with handler configuration:
-
-```json
-{
-  "Name": "consumes",
-  "Properties": {
-    "ExecutablePath": "../vos.Service.Metabolism/bin/Debug/net10.0/vos.Service.Metabolism.dll",
-    "ServicePort": 7102,
-    "ServiceArgs": "--mode=consumes",
-    "onLoad": true
-  }
-}
-```
+Each predicate is a connection that `has` a Service; one shared prototype carries the binary and each
+service holds only what differs between the two:
 
 ```json
+{ "Name": "consumes", "Properties": { "trigger": "graph" } }
+{ "Name": "produces", "Properties": { "trigger": "graph" } }
+
 {
-  "Name": "produces",
+  "Name": "Metabolism prototype",
   "Properties": {
     "ExecutablePath": "../vos.Service.Metabolism/bin/Debug/net10.0/vos.Service.Metabolism.dll",
-    "ServicePort": 7103,
-    "ServiceArgs": "--mode=produces",
-    "onLoad": true
+    "RunMode": "daemon",
+    "TokenScope": "metabolism:quantity,read"
   }
 }
+
+{ "Name": "consumes service", "Properties": { "ServicePort": 7102, "ServiceArgs": "--mode=consumes", "AutoStart": true } }
+{ "Name": "produces service", "Properties": { "ServicePort": 7103, "ServiceArgs": "--mode=produces", "AutoStart": true } }
 ```
 
-`onLoad: true` is important — it tells Mycelium to re-invoke the handler for all existing relationships when a seed is loaded. Since simulation state is in-memory (not serialized), simulations must be re-started on every load.
+Relationships wire them: `consumes is PlatformServiceConnection`, `consumes has "consumes service"`,
+`"consumes service" is "Metabolism prototype"`, `"Metabolism prototype" is Service` — and the same for
+`produces`. The full shape, and the marks the platform finds the two archetypes by, are in
+[`RELATIONSHIP_SERVICES.md`](RELATIONSHIP_SERVICES.md#platformserviceconnection--service-configuration).
+
+`AutoStart: true` is important — it tells Mycelium to re-invoke the handler for all existing relationships when a seed is loaded. Since simulation state is in-memory (not serialized), simulations must be re-started on every load.
 
 ### 2. Create a resource pool
 
