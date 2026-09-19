@@ -416,6 +416,17 @@ describe('useModelData', () => {
     expect(useUiStore.getState().stateVersions).toEqual({ flagged: 1, metered: 1 });
   });
 
+  // A walk step that keeps or drops what is in a state reads an edge's states as readily as a
+  // Thing's, so an edge's move has to reach the same counters.
+  it('moves the counters of the states a RelationshipStatesChanged names', async () => {
+    await mountLoaded();
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+
+    await act(async () => handlers.get('RelationshipStatesChanged')!({ entityId: 'r1', currentStates: ['open'] }));
+
+    expect(useUiStore.getState().stateVersions).toEqual({ open: 1 });
+  });
+
   it('moves the running counter alone for a StatesChanged naming no states', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
