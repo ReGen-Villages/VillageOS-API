@@ -17,6 +17,17 @@ export const en = {
     properties: 'Properties',
     logs: 'Logs',
   },
+  statement: {
+    live: 'Live',
+    notLive: 'Not live',
+    reading: 'Reading the model…',
+    things_one: '{{count}} Thing',
+    things_other: '{{count}} Things',
+    relationships_one: '{{count}} relationship',
+    relationships_other: '{{count}} relationships',
+    lastMoved: 'Last moved {{at}}',
+    nothingYet: 'Nothing has moved yet',
+  },
   theme: {
     switchTo: 'Switch to {{mode}} mode',
     light: 'light',
