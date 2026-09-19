@@ -28,6 +28,17 @@ export const fr: PartialResources = {
   table: {
     downloadAsCsv: 'Télécharger en CSV',
   },
+  statement: {
+    live: 'En direct',
+    notLive: 'Hors direct',
+    reading: 'Lecture du modèle…',
+    things_one: '{{count}} Chose',
+    things_other: '{{count}} Choses',
+    relationships_one: '{{count}} relation',
+    relationships_other: '{{count}} relations',
+    lastMoved: 'Dernier mouvement {{at}}',
+    nothingYet: 'Rien n’a encore bougé',
+  },
   theme: {
     switchTo: 'Passer en mode {{mode}}',
     light: 'clair',

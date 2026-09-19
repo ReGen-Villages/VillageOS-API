@@ -534,8 +534,6 @@ describe('resolveBinding', () => {
       expect(rows).toEqual([]);
     });
 
-    // A composed table is a roster narrowed by a state or a comparison, so `thingList` takes both,
-    // the way `aggregate` already takes a comparison and `stateList` a state.
     describe('narrowed', () => {
       beforeEach(() => {
         vi.mocked(stateApi.getThingsInState).mockResolvedValue({

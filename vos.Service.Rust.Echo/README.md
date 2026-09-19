@@ -1,6 +1,6 @@
 # VillageOS managed microservice — Rust example
 
-A complete VillageOS handler written in **Rust with Axum**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the four required endpoints, inbound JWT validation (`jsonwebtoken`), and graceful deregistration.
+A complete VillageOS handler written in **Rust with Axum**. It implements the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the four required endpoints, inbound JWT validation (`jsonwebtoken`), and graceful shutdown.
 
 It's the Rust analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace `handle_relationship()` in `src/main.rs` with your own logic.
 
@@ -50,7 +50,7 @@ Both come from the environment and are never flags. A command line is readable b
 
 - **Registration** — `register()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token, spawned once the listener is bound.
 - **JWT validation** — `verify_jwt()` uses `jsonwebtoken` with `Validation::new(Algorithm::ES256)` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
-- **Deregistration** — `DELETE /api/mycelium/services/{handler_id}` from Axum's graceful-shutdown hook on Ctrl-C. The broker refuses that route to a service token (it is admin-only) and removes the registration through its liveness monitor instead, so the call is logged as failed and does no harm; a handler of your own can leave it out.
+- **Shutdown** — Axum's graceful-shutdown hook on Ctrl-C makes no call to the broker. It does not deregister: `DELETE /api/mycelium/services/{handler_id}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
 
 ## Verify
 

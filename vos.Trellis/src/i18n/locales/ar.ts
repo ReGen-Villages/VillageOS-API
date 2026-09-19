@@ -118,6 +118,17 @@ export const ar: PartialResources & ArabicPlurals = {
   table: {
     downloadAsCsv: 'تنزيل بصيغة CSV',
   },
+  statement: {
+    live: 'مباشر',
+    notLive: 'غير مباشر',
+    reading: 'جارٍ قراءة النموذج…',
+    things_one: '{{count}} شيء',
+    things_other: '{{count}} أشياء',
+    relationships_one: '{{count}} علاقة',
+    relationships_other: '{{count}} علاقات',
+    lastMoved: 'آخر حركة {{at}}',
+    nothingYet: 'لم يتحرك شيء بعد',
+  },
   theme: {
     switchTo: 'التبديل إلى الوضع {{mode}}',
     light: 'الفاتح',

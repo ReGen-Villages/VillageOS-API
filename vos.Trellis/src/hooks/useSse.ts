@@ -16,6 +16,7 @@ const KNOWN_EVENTS = [
   'ThingCreated', 'ThingDeleted', 'RelationshipCreated', 'RelationshipDeleted',
   'ThingEntered', 'ThingLeft', 'RelationshipEntered', 'RelationshipLeft',
   'PropertyChanged', 'PropertyDeleted', 'RelationshipPropertyChanged', 'RelationshipPropertyDeleted',
+  'PropertyObserved',
   'ServiceHealthChanged', 'DaemonStatusChanged', 'EndpointServiceRequestCompleted', 'ServiceRequestCompleted',
   'StatesChanged', 'RelationshipStatesChanged', 'ActivityEvent',
 ];
@@ -82,6 +83,7 @@ function setConnected(v: boolean) { if (connectedState !== v) { connectedState =
  *  name, so adding one is a decision about its shape instead of an accident of what it is called. */
 const PROPERTY_EVENTS = new Set([
   'PropertyChanged', 'PropertyDeleted', 'RelationshipPropertyChanged', 'RelationshipPropertyDeleted',
+  'PropertyObserved',
 ]);
 
 // Map an SSE event's data object to the positional args the handlers expect.
