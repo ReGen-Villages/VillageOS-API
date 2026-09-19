@@ -346,3 +346,19 @@ test("unsubscribe issues a DELETE", async () => {
     s.restore();
   }
 });
+
+import { shutdown } from "./index.js";
+import { createServer } from "node:http";
+
+// The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
+test("shutdown does not ask the broker to withdraw", async () => {
+  const s = stubFetch(() => ({ status: 200 }));
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, "localhost", resolve));
+  try {
+    await shutdown(server);
+    assert.deepEqual(s.calls, [], "a service cannot deregister itself, so shutdown must not try");
+  } finally {
+    s.restore();
+  }
+});

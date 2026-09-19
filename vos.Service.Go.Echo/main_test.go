@@ -401,3 +401,17 @@ func TestSelectorSubscribe(t *testing.T) {
 	}
 	s.unsubscribe(sub.SubscriptionID)
 }
+
+// The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
+func TestShutdownDoesNotAskTheBrokerToWithdraw(t *testing.T) {
+	var got []capturedReq
+	srv := mockMycelium(t, &got)
+	defer srv.Close()
+	s := &service{cfg: config{MyceliumURL: srv.URL, Token: "tok"}, handlerID: "h-1", client: srv.Client()}
+
+	s.shutdown(&http.Server{})
+
+	if len(got) != 0 {
+		t.Fatalf("a service cannot deregister itself, so shutdown must not try; broker received %+v", got)
+	}
+}
