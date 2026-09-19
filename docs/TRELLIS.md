@@ -77,22 +77,28 @@ cd vos.Trellis
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser. You'll see a login form. Sign in with `admin` / `admin` (the default credentials, overridable via `VOS_ADMIN_PASSWORD` env var before first Mycelium run). If multiple models exist, you'll be prompted to select one. Alternatively, set `VITE_API_KEY` in `.env.local` for auto-login during development.
+Open `http://localhost:5173` in your browser. You'll see a login form. Sign in as `admin` with the password Mycelium wrote to `bootstrap-credentials.txt` in its data directory on its first start — or the one `VOS_ADMIN_PASSWORD` held then. There is no default password. If multiple models exist, you'll be prompted to select one. Alternatively, set `VITE_API_KEY` in `.env.local` for auto-login during development.
 
 If your account has been flagged for a password change (e.g., created by an admin with `MustChangePassword: true`), you'll see a password change form after login. Enter your current password and choose a new one — the app won't be accessible until the password is changed.
 
 Your session stays alive automatically — the GUI silently refreshes your authentication token in the background before it expires, so you won't be logged out unexpectedly during normal use.
 
-After login, the **Dashboard** is the default landing page. The sidebar on the left provides six navigation items:
+After login, the **Dashboard** is the default landing page. The sidebar on the left lists the pages:
 
-| Icon | Page | Purpose |
-|------|------|---------|
-| Grid | **Dashboard** | Model statistics, reactive-engine capacity, service health & daemon state, and live activity feed |
-| Network | **Graph** | Interactive graph visualization with search, clustering, 3D building view, and CRUD |
-| Box | **Model** | IFC-based 3D model viewer (Fragments) with type filtering and element selection |
-| Clock | **Temporal** | Time-range mutation explorer for viewing property change history |
-| Boxes | **Things** | Dedicated search page — find things by name across the entire model |
-| Search | **Properties** | Dedicated search page — find things and relationships by property name |
+| Page | Purpose |
+|------|---------|
+| **Dashboard** | Model statistics, reactive-engine capacity, service health & daemon state, and live activity feed |
+| **Operations** | The dashboards the model declares, one entry each, drawn from their specs ([Section 7](#7-dashboard)) |
+| **Compose** | Build a table from a kind's own declarations and keep it as a dashboard ([7.5](#75-compose--a-table-from-a-kinds-own-declarations)) |
+| **Land intake** | The land-intake wizard, shown when an intake service is configured ([8.7](#87-describing-a-piece-of-land)) |
+| **Submissions** | What has arrived and what a reviewer decides about it ([8.8](#88-reviewing-what-has-arrived)) |
+| **Graph** | Interactive graph visualization with search, clustering, 3D building view, and CRUD |
+| **Model** | IFC-based 3D model viewer (Fragments) with type filtering and element selection |
+| **Pipelines** | The visual pipeline editor and runner ([7.4](#74-pipelines-dag-editor)) |
+| **Temporal** | Time-range mutation explorer for viewing property change history |
+| **Things** | Dedicated search page — find things by name across the entire model |
+| **Properties** | Dedicated search page — find things and relationships by property name |
+| **Logs** | A live tail of the Mycelium log |
 
 The sidebar can be collapsed to icon-only mode by clicking the chevron button at the top-right of the sidebar panel.
 
@@ -100,7 +106,7 @@ The sidebar footer holds a shared control panel visible on **every** page: a **l
 
 ### 1.2a Switching Seeds (Models)
 
-Click the **Switch Model** button in the sidebar footer to open the seed library picker. This shows all seed files available in Mycelium's `seeds/library/` folder.
+Click the **Switch Model** button in the sidebar footer to open the seed picker. This shows every seed file in Mycelium's seeds directory — the same directory it loads from at startup.
 
 The seed picker provides:
 
@@ -213,9 +219,9 @@ Click any node in the graph. A **detail panel** slides in from the right showing
 
 **Rename in place** — the thing's name in the panel header has a **pencil icon**; click it to edit the name inline. Press **Enter** (or click away) to save, **Escape** to cancel; a blank or unchanged name is a no-op. The rename keeps the thing's Id and all of its edges — unlike delete-and-recreate — and the new name may contain spaces. The change is persisted by the broker as a `NameSet` Fact, so it streams over SSE and stays temporally reconstructable.
 
-The detail panel has three tabs (four for things with geometry):
+The detail panel has three tabs — **Ranges**, which it opens on, **Properties** and **Relationships** — and a fourth, **3D**, for things with geometry:
 
-**Properties** — Shows the thing's own properties (name, value, type). Each value is formatted to the type the platform declares for it: a date reads as a date rather than the stored timestamp, an identifier is shortened, geometry and GeoJSON show a summary instead of emptying a JSON body into the cell, and the floating-point and decimal types show the number of decimal places the model asks for (`FloatingPointDisplayPrecision` and `DecimalDisplayPrecision` on `GUI_Settings`, five each by default). Click the **pencil icon** to toggle inline editing mode: each property value becomes an editable field with a delete button (trash icon). The field follows the declared type — a checkbox for `vos.Boolean`, a date and time picker for `vos.DateTime`, a numeric field for the number types (whole-number types step by one, so a fraction cannot be entered), a text box otherwise. `vos.IfcGeometry` and `vos.GeoJson` are not editable inline and say so rather than showing a disabled box: a JSON body typed into a narrow panel field is not editing, and a half-valid body is worse than no edit. A value the type cannot hold is refused in the client before the request is sent, naming the property and what was typed, so the message arrives while the field that caused it is still in view — the platform's own conversion check remains the authority. The edit box deliberately holds the **stored** value rather than the formatted one — a reading shown to five places is rounded, and an edit box holding that rounded text would save the rounding back over the stored value. Edit a value and press **Enter** or click away to save; press **Escape** to cancel. A blue border indicates unsaved changes. The property type is preserved by the platform — editing a value never changes what the property holds. In edit mode, an **Add Property** row appears at the bottom with name, type dropdown, and value inputs — press Enter or click "+" to add a new property. Below the own properties, inherited properties are displayed with a clickable "← SourceName" link showing which type they come from. For example, clicking a "Serpentine-Home-4" node might show properties like `energy_rating: A+` inherited from the "Home" type. Clicking the source link navigates you to that type node. In edit mode, inherited property values are also editable (but cannot be deleted) — editing an inherited property creates an own property override that shadows the inherited value.
+**Properties** — Shows the thing's own properties (name, value, type). Each value is formatted to the type the platform declares for it: a date reads as a date rather than the stored timestamp, an identifier is shortened, geometry and GeoJSON show a summary instead of emptying a JSON body into the cell, and the floating-point and decimal types show the number of decimal places the model asks for (`FloatingPointDisplayPrecision` and `DecimalDisplayPrecision` on `GUI_Settings`, five each by default). Click the **pencil icon** to toggle inline editing mode: each property value becomes an editable field with a delete button (trash icon). The field follows the declared type — a checkbox for `vos.Boolean`, a date and time picker for `vos.DateTime`, a numeric field for the number types (whole-number types step by one, so a fraction cannot be entered), a text box otherwise. `vos.IfcGeometry` and `vos.GeoJson` are not editable inline and say so rather than showing a disabled box: a JSON body typed into a narrow panel field is not editing, and a half-valid body is worse than no edit. A value the type cannot hold is refused in the client before the request is sent, naming the property and what was typed, so the message arrives while the field that caused it is still in view — the platform's own conversion check remains the authority. The edit box deliberately holds the **stored** value rather than the formatted one — a reading shown to five places is rounded, and an edit box holding that rounded text would save the rounding back over the stored value. Edit a value and press **Enter** or click away to save; press **Escape** to cancel. A blue border indicates unsaved changes. The property type is preserved by the platform — editing a value never changes what the property holds. In edit mode, an **Add Property** row appears at the bottom with name, type dropdown, and value inputs — press Enter or click "+" to add a new property. Below the own properties, inherited properties are grouped under the type each comes from, one collapsible group per source with its property count; click the source's name to navigate to that type node. For example, clicking a "Serpentine-Home-4" node might show `energy_rating: A+` under the "Home" group. In edit mode, inherited property values are also editable (but cannot be deleted) — editing an inherited property creates an own property override that shadows the inherited value.
 
 **Relationships** — Lists all incoming and outgoing relationships. Each row shows the other thing's name and the predicate. For example, "Serpentine-Home-4" might show:
 
@@ -225,7 +231,7 @@ The detail panel has three tabs (four for things with geometry):
 
 Each thing name is a clickable link — clicking it navigates to that node, selecting it and scrolling the graph to center on it. Click the **chevron** next to a relationship to expand it and see its properties. Multiple relationships can be expanded simultaneously. Relationship properties also support inline editing (pencil toggle, same as own properties). Each relationship row also has an **edge-detail icon** — clicking it opens the **EdgeDetailPanel** for that relationship, where you can view and edit its properties and ranges without having to click the edge in the graph. In edit mode, an **Add Relationship** row appears at the bottom of each section (outgoing/incoming) with predicate and other-thing pickers — select both and click "+" to create a new relationship inline.
 
-**Ranges** — Shows any active ranges defined on this thing with their current state. A windmill spinner appears while data loads. Own ranges, inherited ranges, current states, and relationship ranges are all fetched in a single composite API call for efficiency. The tab uses a temporal snapshot approach — data reflects a point-in-time view when the tab was opened, and is not disrupted by ongoing SSE state-change events. Click the **refresh icon** in the tab bar to re-fetch the latest data without navigating away.
+**Ranges** — Shows any active ranges defined on this thing with their current state. A windmill spinner appears while data loads. Own ranges, inherited ranges, current states, and relationship ranges are all fetched in a single composite API call for efficiency. **Add Range** creates a range on the thing from a name and a criteria expression, and each own range has a delete control; an inherited range is removed from the type that declares it. The tab uses a temporal snapshot approach — data reflects a point-in-time view when the tab was opened, and is not disrupted by ongoing SSE state-change events. Click the **refresh icon** in the tab bar to re-fetch the latest data without navigating away.
 
 **3D** (conditional) — For things with IFC mesh geometry, a "3D" tab appears showing an interactive 3D view of the element. The model auto-rotates slowly. You can drag to orbit, scroll to zoom, and examine the element from any angle. For IFC container things (e.g., IfcBuilding, IfcBuildingStorey) that have no own geometry but contain child elements via `contains`/`aggregates` relationships, the 3D view renders all child meshes together, colored by IFC class. This tab is hidden on Safari due to WebGL context limits.
 
@@ -488,6 +494,7 @@ The top-right controls include:
 - **Mycelium** (green dot) — REST API connection active
 - **Live** (green dot) — SSE streams connected and receiving events
 - **Swagger** (document icon) — Opens the Mycelium API documentation (Swagger UI) in a new tab
+- **Reload seeds** (circular-arrows icon) — Discards the current model and loads the seeds directory again
 - **Shutdown** (power icon) — Shuts down Mycelium (with confirmation dialog)
 
 (Switch Model and Log Out live in the shared sidebar footer — see §1.2.)
@@ -659,7 +666,7 @@ Click the **+** button next to the search bar at the top of the Graph page. An i
 1. **Select a node** by clicking it — the detail panel opens
 2. Click the **pencil icon** to enter edit mode
 3. Scroll to the bottom of the property list — an **Add Property** row appears
-4. Enter a **name**, select a **type** (string, number, boolean, datetime), and enter a **value**
+4. Enter a **name**, select a **type** (string, one of the number types, bool, DateTime or Guid), and enter a **value**
 5. Press **Enter** or click **+** to add the property
 6. The input auto-focuses for rapid successive additions
 
@@ -907,154 +914,53 @@ graph TB
 
 ## 14. Project Structure
 
+The map below is by directory, because a file-by-file tree went stale within weeks of being written.
+Each directory has one job; a file's own header comment says what it does. Tests sit beside the code
+they test as `*.test.ts` / `*.test.tsx`.
+
 ```text
 vos.Trellis/
-├── package.json
-├── vite.config.ts              # Proxy /api → https://localhost:7243
-├── tsconfig.json
-├── index.html
+├── index.html, vite.config.ts   # The signed-in application; the dev server proxies /api to https://localhost:7243
+├── public-form.html, findings.html, explore.html, vite.public.config.ts
+│                                # The three public pages, built on their own (npm run build:public) — see §16
+├── vitest.integration.config.ts # The tests that need a running Mycelium (npm run test:integration)
 └── src/
-    ├── main.tsx                # React root
-    ├── App.tsx                 # Router + theme toggle
-    ├── index.css               # Tailwind import + body/root height
-    ├── setupTests.ts           # Vitest + testing-library
-    ├── testTimeouts.ts         # How long a test that renders the whole submission form and drives it is given
-    ├── sourceImports.ts        # What one file imports, for the guards that judge the client by what it reaches
-    │
-    ├── types/
-    │   ├── vos.ts              # VosThing, VosRelationship, PropertyValue, ranges, temporal types
-    │   └── Mycelium.ts           # RegisteredService, ServiceStats, ActivityEvent, EndpointServiceInfo
-    │
-    ├── api/
-    │   ├── client.ts           # Singleton API client (fetch + JWT auto-refresh + API key exchange + login/logout/switchModel/changePassword + silent token refresh + AuthRequiredError)
-    │   ├── thingApi.ts         # Thing CRUD + property get/set/delete + effective properties
-    │   ├── relationshipApi.ts  # Relationship CRUD
-    │   ├── modelApi.ts         # Model export/import/clear + temporal snapshots
-    │   ├── temporalApi.ts      # Property versions, mutations, recent values
-    │   ├── rangeApi.ts         # Composite range summary for things (rangeApi.getSummary), individual range/state queries for relationships (relationshipRangeApi)
-    │   ├── myceliumApi.ts        # Services (start/stop), shutdown, seed library (list/load/save)
-    │   └── endpointApi.ts      # Endpoint services listing (GET /api/endpoints)
-    │
-    ├── hooks/
-    │   ├── useSse.ts          # SSE connection singleton + subscription hook
-    │   └── useAuth.ts          # AuthContext, useAuth() hook, useAuthState() with login/logout/switchModel/selectModel/saveSeed/changePassword/VITE_API_KEY auto-exchange
-    │
-    ├── stores/
-    │   ├── uiStore.ts          # Selections, panel state, clustering, logical expansion, context-menu state
-    │   └── activityStore.ts    # Activity feed events (max 200)
-    │
-    ├── utils/
-    │   ├── graphologyMapper.ts  # VosModel → graphology Graph (nodes + edges)
-    │   ├── ifcMeshParser.ts     # IFC pre-tessellated mesh → centroid/SolidMeshData (sole geometry parser)
-    │   ├── villageScene.ts      # Batch builder: things → VillageSceneData (3D meshes + bounds, optional relationships for IFC containers)
-    │   ├── browserDetect.ts     # Safari detection + canSupport3D() for WebGL context limits
-    │   ├── meshHelpers.ts       # Shared 3D mesh constants + crossProduct()
-    │   ├── colors.ts            # Shared color palettes + ELEMENT_COLORS + deterministic hashStringToIndex() + inkFor()
-    │   ├── degreesMinutesSeconds.ts  # A position as a surveyor reads it, for the coordinates card
-    │   ├── reducerHelpers.ts    # Pure styling functions for NodeReducer (selection, cluster styles)
-    │   ├── nodeVisibility.ts    # Pure helpers for node/edge visibility + edgeTouchesNode (testable without WebGL)
-    │   ├── predicateCluster.ts  # Predicate-based clustering algorithm + stats
-    │   ├── searchFilter.ts      # Graph search with case-sensitive, exact-match, and regex options
-    │   ├── propertyUpdates.ts   # Pure helpers for incremental SSE property updates (avoids full reload)
-    │   ├── guiSettings.ts       # Extracts GUI settings (flash effects, force layout, predicate colors, number display precision) from GUI_Settings Thing; extractAllGuiSettings() single-traversal
-    │   ├── formatters.ts        # GUID, date, value display helpers
-    │   └── constants.ts         # Health colors, the platform's property type names
-    │
-    ├── pages/
-    │   ├── GraphPage.tsx        # Main graph + search + inline CRUD + detail panels
-    │   ├── DashboardPage.tsx    # Services (with daemon state), endpoint services, model stats, activity feed
-    │   ├── TemporalPage.tsx     # Time-range mutation explorer
-    │   ├── ModelPage.tsx        # Fragments-based 3D model viewer
-    │   ├── PipelinePage.tsx     # Pipeline / DAG editor (Phloem orchestration)
-    │   ├── ThingSearchPage.tsx  # Thing search
-    │   ├── PropertySearchPage.tsx # Property search
-    │   ├── IntakeWizardPage.tsx # The wizard as a signed-in planner reaches it: the frame, and the model read that fills it in
-    │   ├── modelVocabulary.ts   # The Thing that owns a mark, and the terms declared under it
-    │   ├── SubmissionReviewPage.tsx # What has arrived, and what a reviewer decides about it
-    │   └── submissionReview.ts  # The model reading behind that page, free of React
-    │
-    ├── intake/
-    │   ├── IntakeWizard.tsx     # Describing a piece of land and proposing it as a site — rendered by the planner's page and by the public form
-    │   ├── submissionDraft.ts   # The draft, the area units, the programme split, the parcel boundary and the posted document
-    │   └── formTestsDeclareTheirBudget.test.ts # Finds every test that renders this wizard and fails on one left on vitest's default budget
-    │
-    ├── publicForm/              # Built on its own (npm run build:public), served from a public site
-    │   ├── main.tsx             # Its entry: theme, language, and the page — no sign-in and no broker
-    │   ├── PublicSubmissionPage.tsx # The same wizard, drawn from what the intake service answers
-    │   └── noSignedInCode.test.ts   # Walks every public entry and fails on an import reaching the broker
-    │
-    ├── publicFindings/          # The second page in that build: a submitter reads their own findings
-    │   ├── main.tsx             # Its entry, as the form's
-    │   ├── PublicFindingsPage.tsx   # The model's own dashboard, drawn from what the intake service answers
-    │   └── answeredFindings.ts  # That answer as a spec, a model index and the reads a binding makes
-    │
-    ├── explore/                 # The third page in that build: land first, report before questions
-    │   ├── main.tsx             # Its entry, as the form's
-    │   ├── ExplorePage.tsx      # Map-first intake beside the wizard, and the report with the dials
-    │   └── exploreState.ts      # The exploration, the register boundary, and the posted document
-    │
+    ├── main.tsx, App.tsx        # React root; the router, sign-in gate and theme
+    ├── setupTests.ts, testShims.ts, testResizeObserver.ts, testTimeouts.ts
+    │                            # What every test starts with, and the budget a whole-form test is given
+    ├── sourceImports.ts         # What one file imports, for the guards that judge the client by what it reaches
+    ├── types/                   # The wire shapes: Things, relationships, ranges, temporal answers, dashboard specs,
+    │                            # basemaps, engine metrics, subscriptions, the service registry
+    ├── api/                     # client.ts (fetch, JWT refresh, API-key exchange, sign-in and model switching) and one
+    │                            # module per broker area; dashboardApi.ts and modelReads.ts resolve a dashboard's
+    │                            # bindings, brokerModelReads.ts answers them from the broker
+    ├── hooks/                   # useSse (the stream singleton), useModelData (the loaded model and its live updates),
+    │                            # useDashboard, useModelIndexAt (a moment in time), and the smaller ones
+    ├── stores/                  # Zustand: uiStore (selection, panels, clustering), modelStore (the live model),
+    │                            # activityStore (the feed), mapStore, themeStore
+    ├── utils/                   # Pure functions with no React in them: the graphology mapper, search, clustering,
+    │                            # GUI settings, formatters, parcel geometry, map links, the composer, the platform's type names
+    ├── pages/                   # One component per route in §16, plus the model reading behind a page kept free of React
+    ├── intake/                  # The land-intake wizard, rendered by the planner's page and by the public form
+    ├── publicForm/, publicFindings/, explore/
+    │                            # The three public pages' entries; noSignedInCode.test.ts fails on an import reaching sign-in
+    ├── pipeline/                # The pipeline editor's model, serialisation, validation and undo history
+    ├── i18n/                    # i18next setup and one file per language
     └── components/
-        ├── layout/
-        │   ├── AppLayout.tsx    # Root layout: sidebar + main + toast container
-        │   └── Sidebar.tsx      # Nav links (Dashboard, Graph, Model, Temporal, Things, Properties) + model name + collapsible
-        │
-        ├── graph/
-        │   ├── SigmaCanvas.tsx            # <SigmaContainer> wrapper with settings + Safari compositing fix
-        │   ├── GraphDataLoader.tsx        # Loads graphology graph into Sigma
-        │   ├── GraphSearchBar.tsx         # Search input with case-sensitive / exact-match / regex toggles + match count
-        │   ├── GraphEvents.tsx            # Click/right-click events → Zustand store (incl. logical node expansion, context menu)
-        │   ├── LayoutController.tsx       # FA2 worker lifecycle + cluster fixed/edge-weight setup
-        │   ├── LogicalNodeController.tsx  # Radial positioning of logical children + semantic zoom
-        │   ├── NodeReducer.tsx            # Visual filtering: search, clustering, selection reveal
-        │   ├── ClusterComputer.tsx        # Computes predicate-based cluster map from graph topology
-        │   ├── NodeContextMenu.tsx        # Right-click node context menu (view details, expand, copy ID, delete)
-        │   ├── RadialPredicateMenu.tsx    # Right-click background radial menu for predicate selection
-        │   ├── WebGLContextGuard.tsx      # WebGL context loss/recovery with MutationObserver for dynamic canvases
-        │   └── GraphToolbar.tsx           # Zoom, fit, re-layout, spread, cluster, semantic zoom, expansion controls
-        │
-        ├── auth/
-        │   ├── LoginForm.tsx           # Full-screen login form (username/password) + seed library picker (search, sort by name/size, scrollable list, save-to-library)
-        │   ├── ChangePasswordForm.tsx  # Forced password change form (shown when MustChangePassword flag is set)
-        │   └── RegenLogo.tsx           # Animated ReGen logo component
-        │
-        ├── three/
-        │   └── BuildingDetail3D.tsx    # Single-building 3D viewer (auto-rotate, orbit controls)
-        │
-        ├── model/
-        │   ├── FragmentsViewer.tsx     # Fragments-based 3D viewer (WebGL rendering, element picking) — backs the Model page
-        │   ├── LoadingOverlay.tsx      # Loading-state overlay for the viewer
-        │   └── ViewerToolbar.tsx       # 3D viewer toolbar controls
-        │
-        ├── panels/
-        │   ├── ResizablePanel.tsx        # Draggable-width overlay panel
-        │   ├── NodeDetailPanel.tsx       # Own properties, inherited properties (flat + tree), relationships, ranges, 3D tab
-        │   ├── EditableThingName.tsx     # Inline rename in the panel header (pencil → edit, Enter/blur saves, Escape cancels) via thingApi.rename
-        │   ├── EdgeDetailPanel.tsx       # Subject-Predicate-Target, properties, ranges (tabbed: Properties | Ranges)
-        │   ├── EditablePropertyList.tsx  # Inline property editing with dirty state, save on Enter/blur, type inference, AddPropertyRow for new properties
-        │   ├── RelationshipList.tsx      # Expandable relationship list with multi-expand, inline property editing, and AddRelationshipRow
-        │   ├── AddRelationshipRow.tsx    # Inline form for creating relationships (predicate + other-thing pickers)
-        │   ├── RangesTabContent.tsx     # States, own/inherited ranges, relationship ranges, binding evaluations with severity coloring
-        │   ├── TypeFilterPanel.tsx       # Type-visibility toggles with instance counts + sort options
-        │   └── PredicateFilterPanel.tsx  # Edge-visibility filter by predicate (bottom-right panel)
-        │
-        ├── dashboard/
-        │   ├── ModelStatsCard.tsx          # Thing/relationship/predicate/property counts
-        │   ├── ServicesPanel.tsx           # Unified services: graph (predicate) + http (endpoint) connections
-        │   ├── ActivityFeed.tsx            # Real-time SSE event log
-        │   ├── DashboardSections.tsx       # A spec's sections laid out as a list, shared by every page that draws one
-        │   └── ThemedTiles.tsx             # A spec's themed sections as a grid of tiles, with the summary and the gallery
-        │
-        └── common/
-            ├── ErrorBoundary.tsx     # React error boundary with stack trace display
-            ├── Toast.tsx             # Toast notifications (success/error/warning/info)
-            ├── ConfirmDialog.tsx     # Confirmation modal for destructive actions
-            ├── Badge.tsx             # Colored status pill
-            ├── ThingPicker.tsx       # Searchable thing selector with ranked results (exact→starts-with→contains)
-            ├── ThemeToggleButton.tsx # Dark/light theme toggle with OS-preference detection
-            └── WindmillSpinner.tsx   # Loading spinner (rotating windmill animation)
+        ├── layout/              # AppLayout, Sidebar, the session controls in its footer
+        ├── graph/               # The Sigma canvas and everything drawn on it: loader, events, layout, reducers,
+        │                        # clustering, menus, toolbar, WebGL context guard
+        ├── panels/              # The detail panels: NodeDetailPanel, EdgeDetailPanel, editable property and
+        │                        # relationship lists, ranges tab, type and predicate filters, retype and delete
+        ├── dashboard/           # The Dashboard page's cards, DashboardSections and ThemedTiles; widgets/ holds one
+        │                        # component per widget kind and WidgetRenderer; detail/ the floating Thing detail window
+        ├── pipeline/            # The editor's palette and node view
+        ├── model/               # The Fragments viewer behind the Model page, its toolbar, the IFC upload dropzone
+        ├── three/               # BuildingDetail3D, the single-building viewer in the detail panel
+        ├── map/                 # MapView, the shared map module (§22)
+        ├── auth/                # The sign-in and forced-password-change forms
+        └── common/              # Toasts, confirm dialog, badge, Thing picker, theme and language switches, spinner
 ```
-
----
 
 ## 15. Graph Visualization
 
@@ -1083,7 +989,7 @@ The graphology instance is created as `new Graph({ multi: true, type: 'directed'
 
 ### Data Loading
 
-GraphPage fetches the full thing list (`GET /api/things`) and the relationship list (`GET /api/relationships`) in parallel through a single `loadData()` call. The Fragments-based 3D viewer streams its own geometry separately from `/api/model/fragments`.
+The model is loaded once, by `reloadModelData()` in `useModelData.ts`: the thing list (`GET /api/things`, narrowed to the properties the model's `GUI_Settings` says its pages are drawn with, when it says so) and the relationship list (`GET /api/relationships`) in parallel, into `modelStore`. Every page reads that store; the stream keeps it current (§19). The Fragments-based 3D viewer streams its own geometry separately from `GET /api/model/bim/fragments`.
 
 ### Data Mapping (`graphologyMapper.ts`)
 
@@ -1092,7 +998,7 @@ GraphPage fetches the full thing list (`GET /api/things`) and the relationship l
 **Node classification:**
 
 - **Predicate**: has `ExecutablePath`/`ServicePort` property, or is used as a `PredicateId` in any relationship
-- **Type**: is the target of an `is` relationship (e.g., "Zone", "Sensor", "AMR")
+- **Type**: is the target of an `is` relationship (e.g., "Zone", "Sensor", "Home")
 - **Default**: regular instances
 
 **Node sizing:** `Math.max(3, Math.min(15, 3 + incomingRelationshipCount * 1.5))` — sized by incoming edges only (how many things point at this node), so types and hubs appear larger than leaf nodes
@@ -1193,16 +1099,15 @@ The platform's property model — own vs. inherited vs. override, resolved on re
 
 ### Property Inheritance Display
 
-When a node is selected, **NodeDetailPanel** fetches the full thing detail (including `InheritedOverrides`) and displays:
+When a node is selected, **NodeDetailPanel** reads the Thing's effective properties and its range summary. The panel has four tabs — Ranges (the one it opens on), Properties, Relationships and, for a Thing with geometry, 3D. What each shows:
 
-1. **Own** — properties directly on this thing. Supports **inline editing** via `EditablePropertyList`: a pencil toggle switches to edit mode where each property becomes an editable input with a delete button. Changes save on Enter or blur, dirty state shown via blue border, Escape reverts. In edit mode, an **AddPropertyRow** appears at the bottom with name, type dropdown, and value inputs for creating new properties inline (Enter to submit, auto-focuses name input for rapid additions). Every write names a type in the platform's own vocabulary (`vos.String`, `vos.Integer`, …) — the platform recognises no others and answers a short name like `double` with *Invalid type specified* (#6141). Those names are the `VOS_TYPES` set in `constants.ts`, and every API call that writes a property takes a `VosTypeName`, so a name the client writes by hand is checked when the code is compiled rather than when a user clicks save (#6147). `PROPERTY_TYPES` is the add-property dropdown's own subset of that set, leaving out the complex types (`vos.IfcGeometry`, `vos.GeoJson`) because those are written by ingest, not typed into a text box. A type name a property *reports* is not covered by the compiler — it arrives over the network, and a property's type is a plain settable string on the platform, so one can report a name no write route accepts. Reported names are narrowed through `asVosTypeName()` before a write; a property whose type falls outside the set is refused with a message naming that type, instead of being sent for an opaque rejection. An edit sends the type the platform reports for that property, carried on the row by `withDeclaredTypes()` from the resolved-properties read (#6146); nothing infers a type from the typed text, so a code stored as text is never announced as a number. A panel that has not read the resolved set yet offers no editing rather than guessing — the pencil stays disabled until it arrives. Adding is a separate call — `addProperty` on the create route for a Thing, and for a relationship the one route that both creates and updates
-2. **Inherited** (flat view) — from the Thing properties API, showing each inherited property with a clickable "← SourceName" link to navigate to the source type. In edit mode, inherited property values are editable (no delete) — saving creates an own property override that shadows the inherited value. After saving, effective properties are re-fetched so the overridden property moves to the Own section. Uses `EditablePropertyList` with `showAddRow={false}` and no `onDeleteProperty`
-3. **Inheritance Chain** (tree view) — recursive `InheritedPropertySetView` component rendering the full type hierarchy with nested indentation
-4. **Relationships** — `RelationshipList` component showing incoming/outgoing relationships with multi-expand (multiple relationships can be expanded simultaneously). Expanded relationships show their properties via `EditablePropertyList` with inline editing support; each reads its own resolved properties when opened, so a node with many edges reads none of them until a row is expanded. Each relationship row has an edge-detail icon that calls `selectEdge(id)` to open the **EdgeDetailPanel** for that relationship. In edit mode, an **AddRelationshipRow** appears at the bottom of each section (outgoing/incoming) with predicate and other-thing pickers for creating new relationships inline. Known predicates are sorted to the top of the predicate picker. Also in edit mode, a **RetypeRow** repoints the Thing's `is`-edge to a different archetype in one action (`retypeThing` removes the current type edges and adds the new one) — the human-in-the-loop reclassification
-5. **Ranges** — `RangesTabContent` showing active states as colored severity badges (green/yellow/red), own ranges with criteria and evaluation status, inherited ranges grouped by source, relationship ranges, and per-binding detail with deviation deltas. Data is fetched via a single composite `GET /api/things/{id}/range-summary` call that returns the thing's ranges, states, and all relationship range data in one response. Uses a **temporal snapshot** approach: `statesVersion` is captured when the tab opens (or when the selected node changes), and all fetches use that snapshot. Continuous SSE state-change pushes do not trigger re-fetches — the user gets a consistent point-in-time view. A windmill spinner shows while the summary loads. A **refresh button** in the tab bar lets the user manually re-fetch the latest data without navigating away
-6. **3D** (conditional) — appears for things with a `geometry` property on non-Safari browsers, or for IFC containers (things with an `ifcClass` property like IfcBuilding/IfcStorey) whose `contains`/`aggregates` children have geometry. Renders a lazy-loaded `BuildingDetail3D` viewer with auto-rotation and OrbitControls. IFC containers pass `childElements` to render all child meshes in a combined scene
+1. **Own** (Properties tab) — properties directly on this thing. Supports **inline editing** via `EditablePropertyList`: a pencil toggle switches to edit mode where each property becomes an editable input with a delete button. Changes save on Enter or blur, dirty state shown via blue border, Escape reverts. In edit mode, an **AddPropertyRow** appears at the bottom with name, type dropdown, and value inputs for creating new properties inline (Enter to submit, auto-focuses name input for rapid additions). Every write names a type in the platform's own vocabulary (`vos.String`, `vos.Integer`, …) — the platform recognises no others and answers a short name like `double` with *Invalid type specified* (#6141). Those names are the `VOS_TYPES` set in `constants.ts`, and every API call that writes a property takes a `VosTypeName`, so a name the client writes by hand is checked when the code is compiled rather than when a user clicks save (#6147). `PROPERTY_TYPES` is the add-property dropdown's own subset of that set, leaving out the complex types (`vos.IfcGeometry`, `vos.GeoJson`) because those are written by ingest, not typed into a text box. A type name a property *reports* is not covered by the compiler — it arrives over the network, and a property's type is a plain settable string on the platform, so one can report a name no write route accepts. Reported names are narrowed through `asVosTypeName()` before a write; a property whose type falls outside the set is refused with a message naming that type, instead of being sent for an opaque rejection. An edit sends the type the platform reports for that property, carried on the row by `withDeclaredTypes()` from the resolved-properties read (#6146); nothing infers a type from the typed text, so a code stored as text is never announced as a number. A panel that has not read the resolved set yet offers no editing rather than guessing — the pencil stays disabled until it arrives. Adding is a separate call — `addProperty` on the create route for a Thing, and for a relationship the one route that both creates and updates
+2. **Inherited** (Properties tab, below Own) — `InheritedPropertiesSection` reads the effective properties from the Thing properties API, keeps those tagged `IsInherited`, and groups them by `InheritedFrom` into one `CollapsiblePropertyGroup` per source Thing; the group's label navigates to that source. In edit mode, inherited property values are editable (no delete) — saving creates an own property override that shadows the inherited value. After saving, effective properties are re-fetched so the overridden property moves to the Own section. Uses `EditablePropertyList` with `showAddRow={false}` and no `onDeleteProperty`
+3. **Relationships** — `LogicalChildrenSection` first, for a Thing with geometry: the logical Things it contains. Then `RelationshipList` showing incoming/outgoing relationships with multi-expand (multiple relationships can be expanded simultaneously). Expanded relationships show their properties via `EditablePropertyList` with inline editing support; each reads its own resolved properties when opened, so a node with many edges reads none of them until a row is expanded. Each relationship row has an edge-detail icon that calls `selectEdge(id)` to open the **EdgeDetailPanel** for that relationship. In edit mode, an **AddRelationshipRow** appears at the bottom of each section (outgoing/incoming) with predicate and other-thing pickers for creating new relationships inline. Known predicates are sorted to the top of the predicate picker. Also in edit mode, a **RetypeRow** repoints the Thing's `is`-edge to a different archetype in one action (`retypeThing` removes the current type edges and adds the new one) — the human-in-the-loop reclassification
+4. **Ranges** — `RangesTabContent` showing active states as colored severity badges (green/yellow/red), own ranges with criteria and evaluation status, inherited ranges grouped by source, relationship ranges, and per-binding detail with deviation deltas. Data is fetched via a single composite `GET /api/things/{id}/range-summary` call that returns the thing's ranges, states, and all relationship range data in one response. Uses a **temporal snapshot** approach: `statesVersion` is captured when the tab opens (or when the selected node changes), and all fetches use that snapshot. Continuous SSE state-change pushes do not trigger re-fetches — the user gets a consistent point-in-time view. A windmill spinner shows while the summary loads. A **refresh button** in the tab bar lets the user manually re-fetch the latest data without navigating away
+5. **3D** (conditional) — appears for things with a `geometry` property on non-Safari browsers, or for IFC containers (things with an `ifcClass` property like IfcBuilding/IfcStorey) whose `contains`/`aggregates` children have geometry. Renders a lazy-loaded `BuildingDetail3D` viewer with auto-rotation and OrbitControls. IFC containers pass `childElements` to render all child meshes in a combined scene
 
-The seed data supports multi-level transitive inheritance (e.g., `EnvironmentalSensor → Sensor → PhysicalThing`), rendered as nested tree nodes in the chain view.
+The seed data supports multi-level transitive inheritance (e.g., `EnvironmentalSensor → Sensor → PhysicalThing`); a property inherited through several steps is shown under the Thing that declares it.
 
 ### Edge Detail Display
 
@@ -1213,23 +1118,12 @@ When an edge is selected, **EdgeDetailPanel** shows the relationship in a tabbed
 
 ### Sigma Settings
 
-```typescript
-{
-  renderLabels: true,
-  renderEdgeLabels: true,
-  defaultEdgeType: 'arrow',
-  enableEdgeEvents: true,
-  labelColor: { color: '#ffffff' },
-  labelSize: 10,
-  edgeLabelColor: { color: '#a1a1aa' },
-  edgeLabelSize: 11,
-  zIndex: true,
-  minCameraRatio: 0.02,
-  maxCameraRatio: 20,
-  hideEdgesOnMove: false,
-  hideLabelsOnMove: false,
-}
-```
+`SIGMA_SETTINGS` in `SigmaCanvas.tsx` is the one place the renderer is configured. The choices that matter:
+
+- Labels are drawn on a grid (`labelGridCellSize`, `labelDensity`) so they do not overlap, and a node smaller than `labelRenderedSizeThreshold` gets none; node labels sit on a dark pill and edge labels are centred on the edge, through custom draw functions, and the hover box is dark-themed rather than Sigma's white default.
+- Edges are arrows, and edge events are enabled so an edge can be clicked.
+- The camera is bounded (`minCameraRatio` 0.02, `maxCameraRatio` 20).
+- `hideEdgesOnMove` and `hideLabelsOnMove` are **on**: while the viewport is panning, zooming or the layout is animating, Sigma skips the per-edge and per-label passes and draws them again the instant movement stops.
 
 ### Interactions
 
@@ -1244,8 +1138,8 @@ When an edge is selected, **EdgeDetailPanel** shows the relationship in a tabbed
 - Scroll to zoom, drag to pan
 - Semantic zoom: zoomed in close (ratio < 0.3) → auto-expand nearby logical parents; zoomed out (ratio > 1.5) → collapse all
 - Toolbar: zoom in/out, fit to viewport, re-layout, spread mode toggle, freeze/resume layout, semantic zoom toggle, cluster expand/collapse all, expansion count indicator
-- Top-right controls: model name, switch model, logout
-- **Create Thing**: `+` button in the search bar area toggles an inline form (auto-focused name input, Enter to submit, Escape to cancel). Calls `thingApi.create()` then `loadData()` to refresh the graph
+- Top-right control: the import-fragment button; session controls (theme, switch model, log out, language) are in the sidebar footer
+- **Create Thing**: `+` button in the search bar area toggles an inline form (auto-focused name input, Enter to submit, Escape to cancel). Calls `thingApi.create()` then `reloadModelData()` to refresh the graph
 
 ---
 
@@ -1256,7 +1150,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations/{dashboard}` | `OperationsPage` | Config-driven operations dashboard. Every `Dashboard` Thing the model publishes gets its own address here and its own sidebar entry — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Renders a model-resident `Dashboard` spec (KPI / funnel / bullet / gantt / table / leaderboard / verdict / working / range-bar / line-series / heatmap / stacked-shares / diverging-bar widgets) through a generic binding resolver over the state/thing/temporal APIs; live via SSE. Bindings resolve **effective properties** (own values plus inherited overrides, own winning; sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing) via `effectiveProperties()`, so widgets read values a Thing inherits from its archetype — not just its own `Properties`. A `stateList` row is the exception in mechanism only: its columns are resolved own-first and then up the `is` chain by the platform and sent with the row, so an inherited value reaches it just the same. A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted as one or nothing): text is never parsed, however numeric it looks, so an identifier stored as text is not read as a measurement (#6142). A filter comparing against a number must therefore write it as a number in the spec, not as quoted text. `stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things of that archetype (e.g. count only Villages, not their homes); that narrowing, the scope, an excluded state, a row cap and — for `stateList` — the columns its rows carry all ride on the request now, so the broker answers the question the widget asked rather than a larger one the browser then cuts down (see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)). Archetype membership is resolved **transitively over the `is`-chain and counts instances only** — since archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), a query for a parent archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from whether anything `is` it: a type declared before the thing it describes exists — equipment a site has not bought — would otherwise be listed as an ordinary row, permanently. A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a `stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker), takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a top-N is what the widget means, remembering that its search box then reaches no further than it. A row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and `stateOf` bindings, let a column show what an edge or a derived state says instead — see [Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties). The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`, several may be open at once) driven by the model's `DetailSpec`: derived states (read from the store, where the subscription put them — no request per Thing), a **State transitions** timeline, properties, involved Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions` and shows each change point — states entered and exited, plus the property write that caused it (`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained", not "never happened". A model with no active reactive engine returns 503 and the section says the history is unavailable, leaving the rest of the window intact. |
+| `/operations/{dashboard}` | `OperationsPage` | The dashboards a model declares, one address and one sidebar entry per `Dashboard` Thing — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Each is drawn from its `spec` by a generic binding resolver over the state, thing and temporal APIs, live over the stream; the widget kinds are KPI, funnel, bullet, gantt, table, leaderboard, verdict, working, exception bar, range bar, line series, heatmap, stacked shares and diverging bar. The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. How a binding reads a value, how a state answer is narrowed, what a row carries and what the Thing detail window shows are in [§21](#21-dashboard-internals), under [How a binding reads a value](#how-a-binding-reads-a-value) and after. |
 | `/compose` | `ComposerPage` | A table composed from a kind's own declarations, drawn by the dashboard's table and kept as a `Dashboard` Thing — see [7.5 Compose](#75-compose--a-table-from-a-kinds-own-declarations). |
 | `/intake` | `IntakeWizardPage` | The land-intake wizard (#6016): project, contact, location, size and programme, and parcel, posted to the intake service as one document once the address on it has been verified: pressing **Send a code** asks the service to send one to the contact's email address, and the submission goes when that code is entered. The code is never part of the draft. The draft is written to browser storage on every keystroke, keyed by the model, so a closed tab loses nothing, and it is cleared once the submission is in the model. The area is stored in hectares whatever unit it is typed in; an area that is not a figure is left out rather than sent as zero. The programme categories are the Things under the archetype marked `__IsAllocationCategoryArchetype` — the same vocabulary the intake service resolves a submitted word against — so the wizard cannot offer a term that is then refused, and the shares always describe the whole parcel. Coordinates are read out of a pasted map link by `src/utils/mapLink.ts`, which refuses a pair that could not be a point on Earth and names a shortened link as one to open by hand; once both are given the location step shows the site on the shared map module (#6014). The parcel step draws the boundary on that same map (#6015) — a draft square of the stated area or corners placed by hand — with the drawn area measured on the sphere by `src/utils/parcelGeometry.ts` and compared with the stated area. Offered only where `VITE_INTAKE_URL` is set. The wizard itself is `src/intake/IntakeWizard.tsx`, which the public submission form renders too, so a field added to one appears in the other; pure logic in `src/intake/submissionDraft.ts` and `src/pages/modelVocabulary.ts`. |
 | `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
@@ -1374,7 +1268,7 @@ Singleton `ApiClient` class with:
 - `changePassword(userId, newPassword, currentPassword?)` — calls `PUT /api/auth/users/{id}/password`
 - `mintStreamToken()` — calls `POST /api/auth/stream-token` for the credential an `EventSource` address may carry (see [SSE Streams](#sse-streams)). One per stream open, reconnects included; the sign-in token stays in request headers
 - Silent token refresh — background `setTimeout` at 80% of token lifetime calls `POST /api/auth/refresh` to get a new JWT with the same identity and model scope; on failure triggers `onAuthRequired` callback
-- Auto-fetches JWT Bearer token via API key exchange (4-min client refresh / 5-min server expiry) or login (25-min client refresh / 30-min server expiry)
+- Auto-fetches JWT Bearer token via API key exchange (the client assumes a 5-minute token and refreshes at 80% of it) or login (the client assumes a 25-minute token and refreshes at 80% of it — every twenty minutes; the server's user token lives sixty minutes by default, `Jwt:ExpiryMinutes`, so the refresh always lands well inside it)
 - Base URL from `VITE_BROKER_URL` env var (defaults to `''` — same origin via Vite proxy)
 - IFC ingestion service URL from `VITE_INGEST_URL` env var — the **Xylem** endpoint the Model-page upload posts to (`ingestApi`, `POST <VITE_INGEST_URL>/ingest`, authenticated with the current JWT). Unset ⇒ the in-app upload is hidden and the page points at the CLI instead.
 - Land-intake service URL from `VITE_INTAKE_URL` env var — the **Intake** endpoint the wizard posts a submission to (`intakeApi`, `POST <VITE_INTAKE_URL>/submissions`, authenticated with the current JWT). Its own address rather than the broker's endpoint-forward route: that route resolves where to forward from data in the model, so anything the model named would be within reach of whoever could call it, and intake holds its own credential instead. Unset ⇒ the wizard's submit button says so and stays disabled.
@@ -1383,7 +1277,7 @@ Singleton `ApiClient` class with:
 
 | Module | Key Endpoints |
 |--------|--------------|
-| `client.ts` (auth) | `POST /api/auth/login`, `POST /api/auth/token`, `POST /api/auth/refresh`, `POST /api/auth/switch-model`, `POST /api/auth/restore-session`, `POST /api/auth/session/logout`, `PUT /api/auth/users/{id}/password`, `GET /api/models` |
+| `client.ts` (auth) | `POST /api/auth/login`, `POST /api/auth/token`, `POST /api/auth/refresh`, `POST /api/auth/switch-model`, `GET /api/auth/restore-session`, `POST /api/auth/session/logout`, `PUT /api/auth/users/{id}/password`, `GET /api/models` |
 | `thingApi` | CRUD for things, property get/set/delete, effective properties |
 | `relationshipApi` | Relationship CRUD + property set (`PUT /api/relationships/{id}/properties`) |
 | `modelApi` | Export/import/clear model, temporal snapshots, fragment upsert (`POST /api/model/fragment`), promotion into a project model (`POST /api/model/promote`) |
@@ -1391,6 +1285,18 @@ Singleton `ApiClient` class with:
 | `rangeApi` | Composite range summary for things (`GET /api/things/{id}/range-summary` — returns thing ranges, states, and all relationship range data in one call) |
 | `relationshipRangeApi` | Relationship range listing + state queries (`/api/relationships/{id}/ranges`, `/api/relationships/{id}/states`) |
 | `myceliumApi` | Service listing (with daemon state), start/stop, shutdown, seed library management (`getLibrarySeeds`, `loadSeed`, `saveSeed`), startup progress (`GET /api/mycelium/startup-status`) |
+| `endpointApi` | Endpoint services listing (`GET /api/endpoints`) |
+| `engineMetricsApi` | The two reactive engines' capacity (`GET /api/engines/metrics`) |
+| `configApi` | The default property retention and one property's (`/api/config/property-mode`, `…/properties/{name}/mode`) |
+| `logsApi` | The whole log file, the broker's or a daemon's (`GET /api/logs/download`); the tail and the stream are read by `useLogTail` |
+| `stateApi`, `stateQuery` | A state's members, a Thing's state transitions and occurrences (`/api/states/{name}/things`, `/api/things/{id}/state-transitions`, `…/states/{name}/occurrences`) |
+| `pipelineApi` | Spawning and cancelling a pipeline run through Phloem (`POST /api/endpoints/phloem`) |
+| `dashboardApi`, `modelReads`, `brokerModelReads` | Dashboard discovery and the binding resolver; the reads a loaded model cannot answer, and the application's answer to them (ask the broker, once per question per refresh) — see §21 |
+| `dashboardSubscription`, `dashboardPages`, `dashboardLocalization`, `bindingVocabulary`, `figureBreakdown` | What a dashboard subscribes to; keeping a composed page as a `Dashboard` Thing; translating a spec; the binding words this build answers; what one figure is made of — see §21 |
+| `modelDeclaration` | The three readings of a kind the Compose page offers (§7.5) |
+| `basemapApi` | The basemap sources a model declares, read out of the loaded model (§22) |
+| `ingestApi` | The Model page's IFC upload to Xylem (`POST <VITE_INGEST_URL>/ingest`) |
+| `intakeApi`, `findingsApi` | The wizard's submission to the intake service, and what it answers a submitter about their own land (`<VITE_INTAKE_URL>/submissions/…`) |
 
 ---
 
@@ -1624,10 +1530,11 @@ Four components on `DashboardPage`:
 ### Dashboard Top-Right Controls
 
 - **Swagger** (FileCode2 icon) — opens `/swagger` in a new tab. In dev mode, Vite proxies `/swagger` to Mycelium. In production, `Program.cs` serves Swagger UI before auth middleware
+- **Reload seeds** (RefreshCw icon) — discards the current model and loads the seeds directory again (`POST /api/mycelium/seeds/reload`)
 - **Shutdown** (Power icon) — shuts down Mycelium with confirmation dialog
-- **Switch Model** (ArrowLeftRight icon) — opens seed picker
-- **Log Out** (LogOut icon) — ends session
 - **Show Activity Feed** (PanelRightOpen icon) — only visible when feed is collapsed
+
+Switch Model and Log Out are in the sidebar footer, on every page.
 
 ### Health Status Indicators
 
@@ -1742,6 +1649,58 @@ on.
 Bounded, a widget wider than its card scrolls inside it: `DataTable` and `Leaderboard`
 each wrap their table in a horizontal scroll container, which can do nothing until the
 card above it has a width it must stay inside.
+
+### How a binding reads a value
+
+Bindings resolve **effective properties** — own values plus inherited overrides, own winning;
+sibling-ancestor conflicts broken deterministically by `SourceName`; memoized per Thing — via
+`effectiveProperties()`, so widgets read values a Thing inherits from its archetype, not just its own
+`Properties`. A `stateList` row is the exception in mechanism only: its columns are resolved own-first
+and then up the `is` chain by the platform and sent with the row, so an inherited value reaches it
+just the same.
+
+A binding that wants a number takes one only from a value that **is** a number (or a boolean, counted
+as one or nothing). Text is never parsed, however numeric it looks, so an identifier stored as text
+is not read as a measurement (#6142). A filter comparing against a number must therefore write it as
+a number in the spec, not as quoted text.
+
+### Which Things a binding is about
+
+`stateCount` / `stateList` bindings accept an optional `archetype` that narrows the result to Things
+of that archetype (count only Villages, not their homes). That narrowing, the scope, an excluded
+state, a row cap and — for `stateList` — the columns its rows carry all ride on the request, so the
+broker answers the question the widget asked rather than a larger one the browser then cuts down
+(see [Narrowing a state answer where it is answered](#narrowing-a-state-answer-where-it-is-answered)).
+
+Archetype membership is resolved **transitively over the `is` chain and counts instances only**.
+Archetypes are subtyped (`Resident is Party`, `GardenPlot is Location`), so a query for a parent
+archetype returns the instances of its sub-archetypes, not the sub-archetype nodes themselves. What
+counts as a sub-archetype comes from the Thing's own `IsArchetype` declaration (#6218), not from
+whether anything `is` it: a type declared before the thing it describes exists — equipment a site has
+not bought — would otherwise be listed as an ordinary row, permanently.
+
+A `thingList` binding lists **every Thing of an archetype whatever state each is in** — the roster a
+`stateList` cannot express, because a Thing in no derived state appears in no state's list. It reads
+the client-side model index (like `aggregate`, and unlike the state bindings, which call the broker),
+takes the same optional `scope` and `limit`, and orders rows by name so a capped list is the same list
+every time. A roster needs no `limit` to stay responsive — a table given `visibleRows` renders only
+the rows in view (see [The rows a table renders](#the-rows-a-table-renders)) — so set one only when a
+top-N is what the widget means, remembering that its search box then reaches no further than it. A
+row otherwise carries only what its own Thing stores; `computed` columns, plus the `related` and
+`stateOf` bindings, let a column show what an edge or a derived state says instead — see
+[Columns beyond a Thing's own properties](#columns-beyond-a-things-own-properties).
+
+### The Thing detail window
+
+Clicking a row opens a floating **Thing detail window** (`EntityDetailWindow`; several may be open
+at once) driven by the model's `DetailSpec`: derived states (read from the store, where the
+subscription put them — no request per Thing), a **State transitions** timeline, properties, involved
+Things, and handling history. The transitions timeline reads `GET /api/things/{id}/state-transitions`
+and shows each change point — states entered and exited, plus the property write that caused it
+(`old → new`). Its `Coverage` is surfaced in the window: while `Source` is `in-memory` the history
+only reaches back to model load and is lost on restart, so an empty timeline reads as "not retained",
+not "never happened". A model with no active reactive engine returns 503 and the section says the
+history is unavailable, leaving the rest of the window intact.
 
 ### The Thing a binding names
 
@@ -2853,9 +2812,9 @@ Seed files live in `vos.Mycelium/seeds/` and are auto-loaded by Mycelium on star
 }
 ```
 
-Note: Seeds use UUIDs for relationship Subject/Predicate/Target fields (generated by `generate_village_seed.py`). `InheritedOverrides` is optional and supports nested `Inherited` for transitive type hierarchies. The Mycelium's `SeedLoader` deserializes these via `InheritedPropertySetDto`. Seed generators live in `tools/`.
+Note: Seeds use UUIDs for relationship Subject/Predicate/Target fields (generated by `generate_village_seed.py`). `InheritedOverrides` is optional and supports nested `Inherited` for transitive type hierarchies. The Mycelium's `SeedLoader` deserializes these via `InheritedPropertySetDto`. Seed generators live in `tools/` of the VillageOS repository, beside the platform; the full anatomy of a seed is in its Field Guide.
 
-**Seed generator:** `tools/generate_village_seed.py` — a Python script that:
+**Seed generator:** `tools/generate_village_seed.py` there — a Python script that:
 
 - Defines types with inheritable properties
 - Creates instances with per-thing varying state (e.g., `battery_pct`, `status`)
@@ -2883,7 +2842,7 @@ Note: Seeds use UUIDs for relationship Subject/Predicate/Target fields (generate
 9. **Dashboard**: Start Mycelium with seed → Services panel shows correct status (health + daemon liveness together), updates flow in real-time
 10. **CLI parity**: Walk through each CLI command and verify the equivalent GUI operation produces the same result
 11. **Seed loading**: Import `village.seed.json` via REST API or CLI → nodes and edges render
-12. **Inheritance**: Click a typed instance → Inheritance Chain shows its type hierarchy
+12. **Inheritance**: Click a typed instance → the Properties tab groups its inherited properties under the type each comes from
 13. **Clustering**: Right-click → select "is" predicate → nodes cluster by type, unclustered nodes dim
 14. **Edge visibility**: Edges hidden by default; select a node → its edges appear; activate predicates → matching edges appear
 15. **Node sizing**: Type nodes (many incoming "is" edges) appear larger than leaf instances

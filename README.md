@@ -27,13 +27,13 @@ Everything talks to **Mycelium**, the VillageOS server that stores the graph and
 - Server-Sent Events (SSE) real-time updates with flash effects
 - Zustand state management
 - Config-driven **Operations** dashboard — a model supplies a JSON spec and Trellis renders KPI, chart, funnel, table, and leaderboard widgets against it (the GUI stays domain-agnostic)
-- Dashboard, Operations, Graph, Model, Pipelines, Temporal, Things, Properties, and Logs pages
+- Dashboard, Operations, Compose, Intake, Submissions, Graph, Temporal, Things, Properties, Model, Pipelines and Logs pages
 
 ### Taproot (CLI)
 
 **vos.Taproot** — Command-line interface for the Mycelium.
 
-- Interactive REPL with command history and tab completion
+- Interactive shell with command history and line editing
 - CRUD commands (create, get, list, delete, set, query, find)
 - Temporal queries (snapshot, at, history, mutations)
 - Service management (start service, stop service)
@@ -64,7 +64,7 @@ Writing your own handler in any language? See **[docs/SERVICE_AUTHORING.md](docs
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Node.js 20.19+](https://nodejs.org/) (for Trellis; required by Vite 7)
+- [Node.js 22](https://nodejs.org/) (for Trellis; Vite 7 accepts 20.19 or later, and the build uses 22)
 
 ## Getting Started
 
@@ -148,7 +148,7 @@ local artifact.
 
 In-repo docs live in **[docs/](docs/README.md)** — an indexed map grouped by client tools, platform concepts, and microservice authoring.
 
-The same documentation is published to the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is **generated from the files in `docs/`** on every merge to main — edit the file, never the wiki page. See [tools/docs-to-wiki](tools/docs-to-wiki/).
+The same documentation is published to the [VillageOS API Wiki](https://dev.azure.com/ReGenVillages/VillageOS-API/_wiki), which is **generated from the files in `docs/`** on every build of `develop` — edit the file, never the wiki page. See [tools/docs-to-wiki](tools/docs-to-wiki/).
 
 Key pages:
 

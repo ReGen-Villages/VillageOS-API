@@ -57,7 +57,7 @@ Both come from the environment and are never flags. A command line is readable b
 
 - **Registration** — `register_with_mycelium()` POSTs the registration envelope to `/api/mycelium/register` with a bearer token; runs from the FastAPI `lifespan` startup hook.
 - **JWT validation** — `verify_request()` (a FastAPI dependency) uses PyJWT with `algorithms=["ES256"]` — naming the one algorithm rather than honouring the token's own — against the public key read from `VerificationKey`, plus issuer, this service's own recipient name, and expiry with 30s leeway (matching `ServiceTokenValidator`).
-- **Deregistration** — `deregister_from_mycelium()` sends `DELETE /api/mycelium/services/{handler_id}` from the `lifespan` shutdown hook.
+- **Deregistration** — `deregister_from_mycelium()` sends `DELETE /api/mycelium/services/{handler_id}` from the `lifespan` shutdown hook. The broker refuses that route to a service token (it is admin-only) and removes the registration through its liveness monitor instead, so the call is logged as failed and does no harm; a handler of your own can leave it out.
 
 ## Test
 
