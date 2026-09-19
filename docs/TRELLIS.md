@@ -2573,6 +2573,43 @@ until the next one lands. A count's breakdown is one state read; an aggregate's
 is the walk the figure already made; a ratio's is both sides; a window's is one
 reduction request.
 
+### The widgets that write
+
+Every widget reads; two write. Both post to an endpoint the spec names —
+`POST /api/endpoints/{name}`, the route the pipeline page already uses — with
+the session the console holds and nothing that says who is asking. Neither
+builds a Thing: what the endpoint lays down is what the model acts on, so
+nothing on a page names a handler. A refusal is shown in the endpoint's own
+words, whether the endpoint refused with a status or answered `{ error }`, and
+so is whatever it says on taking the press; the console has no wording of its
+own to put there.
+
+| Widget | What it does | What it sends |
+| --- | --- | --- |
+| `action` | Decides about a row it lists. A choice names either the Thing the act is about — a reason, a verdict, a disposition the model declares — sent as `reason`, or the act itself, sent as `view`. A row can be asked for a value first (`asks`): typed, or chosen by name from a roster binding, and one field may take several names. `shows` names the values drawn beside the row. | the row by name (`record`), the choice, what was asked |
+| `form` | Records something nothing on the page lists yet. Its fields (`AskedValue[]`) are typed or chosen by name. An optional preview act posts what is filled so far under its own name and shows the endpoint's answer, before every required field is given. | the act (`view`), the fields |
+
+`writeRequest.ts` is the pure statement of what is sent: a number field as a
+number, a multichoice field as the names chosen, an optional field left empty
+not at all — an endpoint reading `""` as an answer would be answering a
+question nobody asked — and no field naming an actor. `dashboardWrites.ts` is
+the post. The rows an `action` lists and the rosters its fields are chosen from
+are declared to the subscription like any other binding.
+
+**What an endpoint has to accept.** No endpoint shipped with the platform takes
+these bodies today; the tests use a fake. An endpoint registered by a model has
+to accept `{ view | reason, record, …asked }` for an action and
+`{ view, …fields }` for a form, and answer `{ said }` on taking a press or
+`{ error }` (or a refusing status carrying `error`) on refusing one. The
+platform's endpoint forwarder hands the body to the service under the
+platform's own service token, so an endpoint that must know who pressed needs
+the platform to carry the caller's identity to it — a platform matter, not a
+page's. The intake service is not a candidate: it stays off the endpoint
+forward route by design.
+
+**Cost.** Nothing until a press. The rosters a widget's fields are chosen from
+are read once per widget, however many rows ask. One row is mid-write at a time.
+
 ### Translating a dashboard spec (i18n)
 
 The config-driven operations dashboard (`OperationsPage`) renders every label
@@ -2647,8 +2684,12 @@ leaderboard `title` / `hint` and each metric `label`; exception-bar `title` /
 `hint` / `note` and each bucket `label`; verdict `title` / `hint`, each row
 `label` / `unit`, and the `reads` wording of each candidate its binding lists;
 each wording in an `origin` binding's `reads`; working `title` / `hint` and each
-row `label` / `unit`; and in `detail`, each property-group `label` and each
-relation `label` (nested relations included).
+row `label` / `unit`; action `title` / `hint`, each asked field's `label` and
+each choice's `label`; form `title` / `hint`, each field's `label`, `submit` and
+the preview `label`; and in `detail`, each property-group `label` and each
+relation `label` (nested relations included). A choice's `act` and `target`, a
+form's `act` and every field's `key` are what the endpoint reads, and stay as
+written.
 
 `reads` is the one display string the vocabulary keeps on a binding rather than
 on a widget, and it is looked up for exactly that reason: it is the sentence a

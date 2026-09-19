@@ -701,6 +701,101 @@ export interface DivergingBarWidget {
   unit?: string;
 }
 
+/** A value a person supplies before pressing — typed, or chosen by name from the Things a binding
+ *  lists. Sent to the endpoint under `key`: as a number where `kind` is 'number', as the names
+ *  chosen where it is 'multichoice', as text otherwise, and not at all where an optional value was
+ *  left empty, because an endpoint reading "" as an answer would be answering a question nobody
+ *  asked. */
+export interface AskedValue {
+  key: string;
+  label: string;
+  /** How it is entered. 'choice' offers the rows `options` resolves to, by name, and takes one of
+   *  them; 'multichoice' offers the same rows and takes as many as are chosen. Default 'text'. */
+  kind?: 'text' | 'number' | 'datetime' | 'choice' | 'multichoice';
+  options?: Binding;
+  /** What is drawn beside each name in the roster. A field chosen from a roster draws no columns,
+   *  so this is what says which values its rows carry, the way a table's columns do. */
+  shows?: string[];
+  optional?: boolean;
+}
+
+/** One button on an action widget. A choice names either the Thing the act is about besides the
+ *  row — a reason, a verdict, a disposition the model declares, sent as `reason` and linked from
+ *  what was minted — or the act itself, by the name the endpoint accepts it under, sent as `view`. */
+export interface ActionChoice {
+  label: string;
+  target?: string;
+  viaPredicate?: string;
+  act?: string;
+}
+
+/** A value the minted Thing carries, read off the row the decision is about. */
+export interface CarriedValue {
+  property: string;
+  reads: string;
+}
+
+/** What pressing a choice writes, and no service named anywhere in it. Which service wakes is the
+ *  model's to decide from the edge the endpoint lays down — a spec naming a handler would move that
+ *  decision into the spec. */
+export interface ActionRecords {
+  /** The endpoint that accepts the act, by the name `POST /api/endpoints/{name}` forwards to. It
+   *  names a door, not an outcome. */
+  via: string;
+  /** The archetype the minted Thing `is`, where a press mints one. Declared here rather than left to
+   *  the endpoint so the seed rules that check every archetype a page names cover what it writes.
+   *  A press that marks the row itself mints nothing and names none. */
+  archetype?: string;
+  /** The edge from the minted Thing to the row it is about. */
+  predicate?: string;
+  carries?: CarriedValue[];
+  choices: ActionChoice[];
+}
+
+/** A widget that records a decision rather than reporting one. Every other widget reads; this is
+ *  the one that acts on what it lists. */
+export interface ActionWidget {
+  type: 'action';
+  title?: string;
+  hint?: string;
+  /** The things a decision can be made about. */
+  rows: Binding;
+  /** What each row's name is read from, so a person sees what they are judging. */
+  label?: string;
+  /** What is drawn beside each name — a decision made by ringing somebody outside the system needs
+   *  the row to say enough to act on, and a name alone is not enough. */
+  shows?: string[];
+  /** What a person supplies for a row before pressing. Read once for the widget, however many rows
+   *  ask. */
+  asks?: AskedValue[];
+  writes: ActionRecords;
+}
+
+/** A widget that records something nothing on the page lists yet. Every other writing press is
+ *  about a row; this one mints the row. Its fields are the values the endpoint needs, posted under
+ *  the act's name. */
+export interface FormWidget {
+  type: 'form';
+  title?: string;
+  hint?: string;
+  fields: AskedValue[];
+  /** The words on the button. */
+  submit: string;
+  /** A read of the same fields, offered beside the press that acts on them — what a choice covers
+   *  before somebody commits to it. It posts what has been filled in so far under its own act and
+   *  shows the endpoint's answer, so it is offered before every value the act needs has been given.
+   *  Absent, nothing is offered and the form is the press alone. */
+  preview?: { act: string; label: string };
+  writes: {
+    /** The endpoint that accepts the act — a door, not an outcome, exactly as on an action widget. */
+    via: string;
+    /** The name the endpoint accepts this act under, sent as `view`. */
+    act: string;
+    /** The archetype the minted Thing `is`. */
+    archetype: string;
+  };
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -715,7 +810,9 @@ export type Widget =
   | LineSeriesWidget
   | HeatmapWidget
   | StackedSharesWidget
-  | DivergingBarWidget;
+  | DivergingBarWidget
+  | ActionWidget
+  | FormWidget;
 
 export interface DashboardSection {
   title?: string;
