@@ -12,7 +12,7 @@ import { groupsByKey, monthNames, windowOf } from './historySeries';
 import { formatNumber } from './format';
 
 /** The seven statistics in the order the legend, the tooltip and the table read them: top down. */
-const STATISTICS = [
+export const STATISTICS = [
   'recordedHigh', 'designHigh', 'averageHigh', 'mean', 'averageLow', 'designLow', 'recordedLow',
 ] as const satisfies readonly (keyof RangeSeries)[];
 type Statistic = (typeof STATISTICS)[number];

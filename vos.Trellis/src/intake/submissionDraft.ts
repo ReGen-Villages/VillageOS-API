@@ -14,7 +14,8 @@ import { draftSquareAround, enclosesLand, type BoundaryPoint } from '../utils/pa
 /** How the land area is being typed. What is stored and submitted is always hectares: a submission read
  *  in acres and recorded as hectares is a site two and a half times too small, and nothing downstream
  *  could tell. */
-export type AreaUnit = 'hectares' | 'acres';
+export const AREA_UNITS = ['hectares', 'acres'] as const;
+export type AreaUnit = (typeof AREA_UNITS)[number];
 
 export const HECTARES_PER_ACRE = 0.40468564224;
 
