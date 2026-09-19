@@ -2159,10 +2159,43 @@ the same state narrowed the same way — is served by one request. So the roster
 above costs one request per listed state per refresh, whatever the row count.
 Two widgets narrowing one state differently are two questions and two requests,
 deliberately: sharing by state name alone would hand one of them the other's
-answer. `timeseries` and `service` columns have no such sharing and do cost one
-request per row. Everything else — `related`,
-`property`, `aggregate`, `ratio` — reads the client-side model index and calls
-nothing.
+answer. A `service` read is shared only while it is in flight — the widgets that
+write post through the same port, and a press answered from an earlier press's
+reply would record nothing and say it had — which still serves the widgets of one
+refresh, since they ask together. `timeseries` columns have no sharing and do
+cost one request per row. Everything else — `related`, `property`, `aggregate`,
+`ratio` — reads the client-side model index and calls nothing.
+
+### When a figure is asked again
+
+A binding waits on what its own answer is made of, and nothing else. Two kinds
+of figure sit on a page:
+
+- **Read from the loaded model** (`const`, `property`, `aggregate`, `thingList`,
+  `compareEntities`, and a walk that names no state): resolved again whenever the
+  store's index is rebuilt — which is every flush of live events. The cost is a
+  walk over an index the browser already holds.
+- **Answered by the broker** (`stateCount`, `stateList`, `stateOf`, `verdict`,
+  `timeseries`, `latest`, `service`, `history`, a `ratio` with either side
+  above, a walk step that keeps or drops what is in a state, a computed column
+  that does any of these): resolved again when a `StatesChanged` names one of
+  the derived states the binding reads (`bindingRefresh.ts` says which), on the
+  cadence the spec's `refreshSeconds` states, and when the model is replaced.
+  Not on a property change, and not because the index was rebuilt.
+
+A property change is the highest-rate event a running model emits, and before
+this rule one open dashboard re-asked every question on the page on each burst
+of them — tens of requests a second, unrelated to what had moved. The stream
+says which states a Thing holds after a change and never which it left, so a
+figure counting a state nobody is in any more sees it empty on the cadence; a
+page stating no cadence keeps the live event as the beat its broker-answered
+figures fall back on.
+
+`useDashboard.ts` decides per binding: `waitFor` folds what a binding waits on
+into one value, and the resolving effect re-runs when that value moves. The
+per-state counters live in `uiStore.stateVersions`, moved by `useModelData` on
+every `StatesChanged` — one entry per state name the model declares, for the
+session.
 
 ### Reading a judged value as a sentence
 
