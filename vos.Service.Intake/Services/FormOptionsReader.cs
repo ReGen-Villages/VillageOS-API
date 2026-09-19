@@ -30,6 +30,14 @@ public static class FormOptionsReader
     public const string TerrainExaggerationProperty = "terrainExaggeration";
     public const string BuildingSourceLayerProperty = "buildingSourceLayer";
 
+    /// <summary>The mark on the archetype whose members a report's sections name as their theme. Declared
+    /// in the platform repository's <c>land-intake.template.json</c>; the two agree by this literal.</summary>
+    public const string ThemeArchetypeFlag = "__IsThemeArchetype";
+
+    public const string ColourProperty = "colour";
+    public const string IconProperty = "icon";
+    public const string OrderProperty = "order";
+
     public static SubscriptionSelector Selector() => new()
     {
         Names = [SubmissionFragmentComposer.IsPredicateName],
@@ -38,6 +46,7 @@ public static class FormOptionsReader
             DeclaredVocabularyReader.AllocationCategoryArchetypeFlag,
             DeclaredVocabularyReader.HazardTypeArchetypeFlag,
             DeclaredVocabularyReader.HazardLevelArchetypeFlag,
+            ThemeArchetypeFlag,
         ],
         MarkedArchetypes =
         [
@@ -61,7 +70,8 @@ public static class FormOptionsReader
         DeclaredVocabularyReader.HazardLevelNamesOrNone(snapshot),
         DefaultProgramme(snapshot),
         PositionLookupReader.ParcelLookups(snapshot).Count > 0,
-        PositionLookupReader.PlaceSearch(snapshot) is not null);
+        PositionLookupReader.PlaceSearch(snapshot) is not null,
+        Themes(snapshot));
 
     /// <summary>The starting split, from the share each category Thing states for itself. Only the
     /// categories stating one are in it, so a model declaring no defaults offers a page that starts
@@ -99,6 +109,43 @@ public static class FormOptionsReader
                 .Select(declared => Source(thingsById[declared.Id])),
         ];
     }
+
+    // A model seeded before the report had tiles declares no theme archetype, and its report draws as a
+    // list. Two Things carrying the mark would leave nothing able to say which vocabulary a section's
+    // theme belongs to, so that model is refused as the categories' would be.
+    private static List<DeclaredTheme> Themes(SnapshotDocument snapshot)
+    {
+        var carrying = snapshot.Things.Where(thing => thing.CarriesFlag(ThemeArchetypeFlag)).ToList();
+        if (carrying.Count == 0) return [];
+        if (carrying.Count > 1)
+            throw new ModelNotSeededError(
+                $"this model carries '{ThemeArchetypeFlag}' on more than one Thing — "
+                + string.Join(", ", carrying.Select(thing => $"'{thing.Name}'"))
+                + " — so nothing can say which of them a section's theme is declared under.");
+
+        var thingsById = snapshot.Things.ToDictionary(thing => thing.Id);
+        return
+        [
+            .. DeclaredVocabularyReader.TermsUnder(snapshot, carrying[0].Id)
+                .Where(declared => thingsById.ContainsKey(declared.Id))
+                .Select(declared => Theme(thingsById[declared.Id]))
+                // Ordered tiles first, as the model orders them; the rest keep the name order the terms
+                // arrive in, so a page draws the same grid on every read.
+                .OrderBy(theme => theme.Order ?? long.MaxValue),
+        ];
+    }
+
+    private static DeclaredTheme Theme(SnapshotThing thing) => new(
+        thing.Name ?? string.Empty,
+        Text(thing, ColourProperty),
+        Text(thing, IconProperty),
+        WholeNumber(thing, OrderProperty));
+
+    private static long? WholeNumber(SnapshotThing thing, string property) =>
+        thing.StatedValue(property) is { } stated
+        && stated.Value.ValueKind == JsonValueKind.Number && stated.Value.TryGetInt64(out var number)
+            ? number
+            : null;
 
     private static DeclaredBasemapSource Source(SnapshotThing thing) => new(
         thing.Id,

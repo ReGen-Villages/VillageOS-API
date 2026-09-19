@@ -51,10 +51,10 @@ describe('asking the intake service for one submission\'s findings', () => {
     );
   });
 
-  it('answers with what the service read', async () => {
-    answering({ ok: true, json: () => Promise.resolve(ANSWER) });
+  it('answers with what the service read, and the ticket the page carries on with', async () => {
+    answering({ ok: true, headers: new Headers({ 'X-Submission-Ticket': 'ticket-2' }), json: () => Promise.resolve(ANSWER) });
 
-    await expect(findingsApi.read(REFERENCE, ADDRESS, '123456')).resolves.toEqual(ANSWER);
+    await expect(findingsApi.read(REFERENCE, ADDRESS, '123456')).resolves.toEqual({ findings: ANSWER, ticket: 'ticket-2' });
   });
 
   // What the service said, not the status it said it under: which of the reference and the address was
@@ -83,5 +83,45 @@ describe('asking the intake service for one submission\'s findings', () => {
     (import.meta.env as Record<string, string>).VITE_INTAKE_URL = '';
 
     await expect(findingsApi.read(REFERENCE, ADDRESS, '123456')).rejects.toThrow(/VITE_INTAKE_URL/);
+  });
+});
+
+// The history reduction a chart asks for after the findings arrived: the same ticket, the same renewal
+// on the way back, and the site supplied by the service rather than named by the page.
+describe('asking the intake service to reduce the site\'s history', () => {
+  it('posts the question under the ticket to the submission\'s own route, and carries the renewed ticket back', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'X-Submission-Ticket': 'ticket-2' }),
+      json: () => Promise.resolve({ Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 }),
+    });
+    const question = {
+      property: 'temperature', windowSeconds: 31_536_000, steps: [{ fold: 'monthOfYear' as const, function: 'Max' as const }],
+    };
+
+    const answered = await findingsApi.reduceWithTicket(REFERENCE, 'ticket-1', question);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `http://localhost:6200/findings/${REFERENCE}/reduce`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'X-Submission-Ticket': 'ticket-1' }),
+        body: JSON.stringify(question),
+      }),
+    );
+    expect(answered).toEqual({
+      answer: { Groups: [{ Key: '1', Value: 27.4 }], Samples: 8760, UnusableSamples: 0 },
+      ticket: 'ticket-2',
+    });
+  });
+
+  it('raises what the service said when it refuses the question', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false, status: 400, headers: new Headers(),
+      json: () => Promise.resolve({ error: 'A fold of hour over eleven years exceeds ten thousand groups.' }),
+    });
+
+    await expect(findingsApi.reduceWithTicket(REFERENCE, 'ticket-1', { property: 'temperature', windowSeconds: 1, steps: [] }))
+      .rejects.toThrow('ten thousand groups');
   });
 });

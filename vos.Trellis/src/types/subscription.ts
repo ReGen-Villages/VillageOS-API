@@ -34,6 +34,11 @@ export interface SubscriptionSelector {
   includeIsAncestors?: boolean;
   /** Include the edges between the selected Things. Default true. */
   includeRelationships?: boolean;
+  /** Keep covering what `types` names as it appears, rather than only what it named when the
+   *  subscription opened: a Thing typed into a followed type later arrives as `ThingEntered`, and
+   *  one whose last matching `is` edge is retracted leaves as `ThingLeft`. `ids`, `names` and
+   *  `traverse` cannot follow and fix their part of the membership when the subscription opens. */
+  includeLaterMatches?: boolean;
 }
 
 /** What a page that reads across the whole model asks for — the graph, the explorer, the searches.
@@ -55,5 +60,10 @@ export interface SubscriptionOpened {
    * whole-model snapshot into the shape the store holds and then discarding it costs an object per
    * Thing and per property on the largest answer the platform gives.
    */
-  covered: { things: VosThing[]; relationships: VosRelationship[] } | null;
+  covered: {
+    things: VosThing[];
+    relationships: VosRelationship[];
+    /** The derived states each Thing held at `watermark`, empty for a Thing holding none. */
+    thingStates: Map<string, string[]>;
+  } | null;
 }

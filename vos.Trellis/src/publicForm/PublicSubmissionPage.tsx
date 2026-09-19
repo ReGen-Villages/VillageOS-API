@@ -28,7 +28,7 @@ export function PublicSubmissionPage() {
   useStandalonePageDocument();
   const [options, setOptions] = useState<FormOptions>({
     allocationCategories: [], basemapSources: [], hazardTypes: [], hazardLevels: [],
-    defaultProgramme: [], parcelLookup: false, placeSearch: false,
+    defaultProgramme: [], parcelLookup: false, placeSearch: false, themes: [],
   });
   const [unreachable, setUnreachable] = useState(false);
 

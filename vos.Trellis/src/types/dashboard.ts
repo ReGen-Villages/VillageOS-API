@@ -9,7 +9,7 @@
  * Every domain word lives in the model's spec — see the discovery + resolver in
  * `src/api/dashboardApi.ts`.
  */
-import type { OriginKind } from './vos';
+import type { HistoryStep, OriginKind } from './vos';
 
 /** The archetype a model-resident dashboard config Thing must be `is`-linked to. */
 export const DASHBOARD_ARCHETYPE = 'Dashboard';
@@ -22,6 +22,10 @@ export const SCOPE_REF = '$scope';
  *  the values they inherit, so both the walk and the subscription that has to carry it name the
  *  same predicate. */
 export const IS_PREDICATE = 'is';
+/** The property on a page's scope entity that says which clock offset its calendar is read in, which
+ *  a `history` binding hands the platform so a fold by day or month is the entity's own day or month
+ *  rather than the server's. The one property name this file states, like the spec's own. */
+export const UTC_OFFSET_PROPERTY = 'utcOffsetSeconds';
 
 export type NumberFormat =
   | 'integer'
@@ -45,9 +49,11 @@ export type NumberFormat =
  */
 export type Binding =
   | { kind: 'const'; value: number }
-  /** Count of Things currently in a derived State (via GET /api/states/{state}/things).
-   *  `archetype` narrows the count to Things of that archetype (e.g. only Orders, not their lines). */
-  | { kind: 'stateCount'; state: string; scope?: ScopeRef; archetype?: string }
+  /** Count of Things currently in a derived State, asked of the platform as a number so a figure of
+   *  four hundred costs what a figure of four costs. `archetype` narrows the count to Things of that
+   *  archetype; `excludeState` drops Things also in that state, so a funnel stage counts only Things
+   *  that reached it and no further. */
+  | { kind: 'stateCount'; state: string; scope?: ScopeRef; archetype?: string; excludeState?: string }
   /** Rows of Things currently in a State, enriched with their properties for a table.
    *  `excludeState` drops Things also in that state — for a funnel stage, set it to the next
    *  stage's state so the list shows only Things that reached this stage and no further. */
@@ -73,7 +79,20 @@ export type Binding =
    *  cannot express, since a Thing in no derived state appears in no state's list. Read from the
    *  client-side model index, so instances only: a sub-archetype is descended into, never listed.
    *  Rows are ordered by name, which is what makes a `limit`ed list the same list every time. */
-  | { kind: 'thingList'; archetype: string; scope?: ScopeRef; limit?: number; computed?: ComputedColumn[] }
+  | {
+      kind: 'thingList';
+      archetype: string;
+      scope?: ScopeRef;
+      limit?: number;
+      computed?: ComputedColumn[];
+      /** Keep only the rows the platform lists for this derived state, asked once for the roster.
+       *  Unlike `stateList`, the rows are still the roster's own, so a table narrowed to a state
+       *  carries every value the console holds for them. */
+      inState?: string;
+      /** Keep only the rows whose properties satisfy every comparison — the same comparisons an
+       *  `aggregate` takes. */
+      where?: PropertyFilter[];
+    }
   /** Aggregate over Things of an archetype held in the model store (client-side). */
   | {
       kind: 'aggregate';
@@ -213,7 +232,18 @@ export type Binding =
    *  hatch for model-specific aggregation. `select` is a dot-path into the JSON reply, and a
    *  `$scope` anywhere in `body` is replaced with the selected compare-entity id (null for "All"),
    *  so the service can answer for the same entity the rest of the page is showing. */
-  | { kind: 'service'; endpoint: string; body?: unknown; select?: string };
+  | { kind: 'service'; endpoint: string; body?: unknown; select?: string }
+  /** One property's observation history on the page's scope entity, reduced by the platform
+   *  (POST /api/temporal/reduce) through `steps` in order: the first reads the samples, each later one
+   *  the previous step's groups. Resolves to one row per group, `{ key, value }`, in the platform's
+   *  order — a fold by month of year answers keys `1`–`12`, a composite fold `H,D`, `all` one row.
+   *  The offset the calendar is folded in is read off the scope entity's {@link UTC_OFFSET_PROPERTY}.
+   *  Resolves to nothing where no scope entity is selected — a series is one Thing's — and where the
+   *  platform refuses the question, which it does past ten thousand groups.
+   *
+   *  Costs one request per distinct question per refresh: the same question from several widgets is
+   *  asked once. The platform walks the property's retained samples once per question. */
+  | { kind: 'history'; property: string; windowSeconds: number; steps: HistoryStep[] };
 
 /**
  * A column of a row-producing binding (`thingList`, `stateList`, `compareEntities`) derived per
@@ -253,6 +283,30 @@ export interface RelationStep {
   /** Drop reached Things currently in this derived state — how a walk skips the work already
    *  finished and keeps only what is still open. */
   notInState?: string;
+}
+
+/** One column of a table a person composed from a kind's own declarations. */
+export type ComposedColumn =
+  /** A property the row carries, read straight off it. */
+  | { source: 'property'; name: string; numeric?: boolean }
+  /** What a path of links reaches from the row — the Thing's name, or a property of it. */
+  | { source: 'path'; steps: RelationStep[]; property?: string; label: string }
+  /** The first of these states the row holds. */
+  | { source: 'state'; states: string[] };
+
+/** What a composed table was made from: a kind of Thing, its columns, a filter and a sort. */
+export interface Composition {
+  kind: string;
+  columns: ComposedColumn[];
+  /** Keep only the rows holding this derived state. Live only: no read answers a state at an
+   *  instant, so a composition carrying a moment carries no state. */
+  inState?: string;
+  /** Read the rows as the model stood at this instant, rather than as it stands. */
+  moment?: string;
+  /** Keep only the rows whose properties satisfy every comparison. */
+  where?: PropertyFilter[];
+  sortKey?: string;
+  sortDir?: 'asc' | 'desc';
 }
 
 /**
@@ -440,9 +494,11 @@ export interface LeaderMetric {
   direction?: 'up-good' | 'down-good';
   /** Contribution to the weighted score (0..1). Metrics without a weight don't score. */
   weight?: number;
-  /** Value at/above which the metric is "good" (for a 0..1 normalisation). */
+  /** The value that scores full marks. Left out, it is 100 for an `up-good` metric and 0 for a
+   *  `down-good` one. */
   best?: number;
-  /** Value at/below which the metric is "worst". */
+  /** The value that scores nothing. Left out, it is 0 for an `up-good` metric and 100 for a
+   *  `down-good` one. A metric stating both bounds scores the same under either direction. */
   worst?: number;
 }
 
@@ -511,6 +567,140 @@ export interface WorkingWidget {
   rows: WorkingRow[];
 }
 
+/** The seven statistics a range bar stacks for one period, each a binding resolving to groups — one
+ *  per month for the monthly bars, one for the whole window for the annual bar. Named as a climate
+ *  summary names them: the extremes ever recorded, the design values (a high percentile and a low
+ *  one), the average of the daily highs and lows, and the mean. */
+export interface RangeSeries {
+  recordedHigh: Binding;
+  designHigh: Binding;
+  averageHigh: Binding;
+  mean: Binding;
+  averageLow: Binding;
+  designLow: Binding;
+  recordedLow: Binding;
+}
+
+/** A band drawn behind a chart between two bounds the model states — a comfort zone, a danger limit.
+ *  A bound left unbound runs to the chart's edge, which is how a limit with no upper end is drawn.
+ *  The colour is the spec's: a band means what the model says it means, and the widget colours nothing
+ *  of its own. */
+export interface RangeBand {
+  label: string;
+  from?: Binding;
+  to?: Binding;
+  colour: string;
+}
+
+/** Twelve stacked range bars, one a month, against bands the model declares, with the same statistics
+ *  over the whole window as one bar beside them. Each bar stacks design low to average low, average
+ *  low to mean, mean to average high and average high to design high, draws the mean as a line across
+ *  it, and the recorded low and high as open circles. `floor` and `ceiling` fix the axis; absent, it
+ *  fits the data and the bands. The window label is read off the bindings. */
+export interface RangeBarWidget {
+  type: 'rangeBar';
+  title?: string;
+  hint?: string;
+  months: RangeSeries;
+  annual?: RangeSeries;
+  bands?: RangeBand[];
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
+/** One line of a series chart: what it is called in the legend, and the binding whose groups it
+ *  joins — a `history` binding folded by a calendar period, so the keys order along the axis. */
+export interface LineSeriesEntry {
+  label: string;
+  value: Binding;
+}
+
+/** Several series over one calendar axis, one line with a point per group each, on one scale — the
+ *  monthly means of the daily high, mean and low across the window. Series take the categorical
+ *  palette in the order listed; the legend names them. A series the platform answered nothing for is
+ *  left out. `floor` and `ceiling` fix the axis; absent, it fits the data. */
+export interface LineSeriesWidget {
+  type: 'lineSeries';
+  title?: string;
+  hint?: string;
+  series: LineSeriesEntry[];
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
+/** Where the chart stands on Earth and in what clock, so it can draw when the sun rises and sets:
+ *  each a binding onto the model's own figures. The offset is the one the platform folded the hours
+ *  in; left unbound, the curves are drawn in universal time as the platform folds by default. */
+export interface SunPosition {
+  latitude: Binding;
+  longitude: Binding;
+  utcOffsetSeconds?: Binding;
+}
+
+/** Every hour of every day of the year as one cell coloured by value — a `history` binding folded
+ *  by `hourOfDay,dayOfYear` — painted on a canvas because the grid is thousands of cells, with the
+ *  sunrise and sunset curves over it where the spec binds the coordinates. The ramp is one hue,
+ *  light at the floor and dark at the ceiling, with a scale legend; `floor` and `ceiling` fix it,
+ *  absent it fits the data. */
+export interface HeatmapWidget {
+  type: 'heatmap';
+  title?: string;
+  hint?: string;
+  value: Binding;
+  sun?: SunPosition;
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
+/** One class of a stacked share chart: what it is called, the colour the model gives it, and the
+ *  binding whose groups are its share of each month — a `history` binding folded by `monthOfYear`
+ *  with `ShareWithin` between the class's bounds, answering a fraction. */
+export interface StackedSharesClass {
+  label: string;
+  colour: string;
+  share: Binding;
+}
+
+/** Twelve bars, one a month, each stacked from the classes' shares in the order listed, the first at
+ *  the bottom — the thermal-stress distribution across the year. The shares are the model's answers
+ *  and the colours the model's; the widget scales nothing to a hundred, so classes that do not sum
+ *  to one draw a bar that does not reach the top. A class the platform answered nothing for is left
+ *  out, and so is a month no class was answered for. */
+export interface StackedSharesWidget {
+  type: 'stackedShares';
+  title?: string;
+  hint?: string;
+  classes: StackedSharesClass[];
+}
+
+/** One direction of a diverging bar: what it is called, the binding whose groups are its monthly
+ *  figures — a `history` binding folded by `monthOfYear` — and the threshold the figures were counted
+ *  against, bound to the model's own value so the legend names the number the model holds. */
+export interface DivergingBarSide {
+  label: string;
+  value: Binding;
+  threshold?: Binding;
+}
+
+/** Twelve months, each one bar rising above a line and one falling below it, on one scale — the
+ *  cooling and heating degree days. The up side takes the warm tone, the down side the cool one. A
+ *  month neither side was answered for is left out. */
+export interface DivergingBarWidget {
+  type: 'divergingBar';
+  title?: string;
+  hint?: string;
+  up: DivergingBarSide;
+  down: DivergingBarSide;
+  format?: NumberFormat;
+  unit?: string;
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -520,7 +710,12 @@ export type Widget =
   | LeaderboardWidget
   | VerdictWidget
   | WorkingWidget
-  | ExceptionWidget;
+  | ExceptionWidget
+  | RangeBarWidget
+  | LineSeriesWidget
+  | HeatmapWidget
+  | StackedSharesWidget
+  | DivergingBarWidget;
 
 export interface DashboardSection {
   title?: string;
@@ -530,6 +725,18 @@ export interface DashboardSection {
   /** Relative column widths for 'split'/'kpi-strip'. */
   widths?: number[];
   widgets: Widget[];
+  /** The name of a {@link DeclaredTheme} the model holds. A page that draws themes draws this
+   *  section as a tile faced in the theme's colour: its `kpi` widgets are the summary shown while the
+   *  tile is hovered or focused, its other widgets the gallery a click opens, and a card in the
+   *  gallery opens the widget full width. A section with no widgets is a muted tile reading "not
+   *  assessed". A section naming no theme, and every section on a page that draws no themes, renders
+   *  as a list exactly as before. */
+  theme?: string;
+  /** Marks the section whose `kpi` widgets are the facts about the land: the explore page draws them
+   *  as cards beside the map — the figure, the title, and where the model says it came from in place
+   *  of a tick — and not in the report beneath. The page draws the area, the coordinates and the
+   *  reference from what it knows itself, so this section carries only what the page cannot know. */
+  facts?: boolean;
 }
 
 /** Declares the entity type compared in the scope switcher + leaderboard. */
@@ -623,6 +830,9 @@ export interface DashboardSpec {
   detail?: DetailSpec;
   /** Optional per-locale translations of this spec's display strings. */
   translations?: SpecTranslations;
+  /** The choices a composed page was made from. Present only on a page the console kept, which is
+   *  what lets it offer to rename or remove the page and leave a seeded one alone. */
+  composed?: Composition;
 }
 
 /** A discovered dashboard: the source Thing + its spec. */
@@ -642,4 +852,16 @@ export interface DashboardDescriptor {
 export interface ScopeEntity {
   id: string;
   name: string;
+}
+
+/** A theme the model declares for a dashboard section to name, read by the mark its archetype carries
+ *  and handed to a page as the model states it. `colour` is a CSS colour for the tile's face, `icon` a
+ *  name from the icon set Trellis renders with, `order` the tile's place in the grid. Each is null
+ *  where the model states none: a tile then takes a neutral face, no icon, and a place after every
+ *  ordered tile. */
+export interface DeclaredTheme {
+  name: string;
+  colour: string | null;
+  icon: string | null;
+  order: number | null;
 }

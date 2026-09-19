@@ -72,6 +72,10 @@ reconnects with replay if a stream is ever cut.
   a code that way, so no address is verified and a submission may name any address at all — which is
   why the service refuses to start with it anywhere but Development, and says so loudly in the log on
   the startup it does allow. The default, `--mailDelivery=server`, is the behaviour above.
+- **The intake service keeps the files submitters share on its own disk.** `--documentDirectory=<path>`
+  names the folder; the default is `documents` beside the service. Only the bytes live there, keyed by
+  submission — what a file is called and what it is about are in the model. The folder of a submission
+  the retention pass has taken out goes within the hour.
 - **The intake service holds an API key** (`ApiKey` in configuration or the environment) created
   against the intake model, so its credential does not expire and reaches no project model — see
   "Giving a service an API key" in [`../docs/SERVICES.md`](../docs/SERVICES.md).

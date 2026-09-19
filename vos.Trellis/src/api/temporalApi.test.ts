@@ -89,3 +89,17 @@ describe('temporalApi.aggregate', () => {
     });
   });
 });
+
+describe('temporalApi.reduce', () => {
+  it('posts the question to the history reduction endpoint', async () => {
+    mockPost.mockResolvedValue({ Groups: [], Samples: 0, UnusableSamples: 0 });
+    const question = {
+      thingId: 'site-1', property: 'temperature', windowSeconds: 31_536_000, utcOffsetSeconds: 7200,
+      steps: [{ fold: 'monthOfYear' as const, function: 'Max' as const }],
+    };
+
+    await temporalApi.reduce(question);
+
+    expect(mockPost).toHaveBeenCalledWith('/api/temporal/reduce', question);
+  });
+});

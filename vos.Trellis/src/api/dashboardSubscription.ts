@@ -37,6 +37,7 @@ import type { SubscriptionSelector, TraverseDirection, TraverseRule } from '../t
 export const NAVIGATION_AND_SETTINGS: SubscriptionSelector = {
   types: [DASHBOARD_ARCHETYPE, GUI_SETTINGS_TYPE_NAME],
   names: [DASHBOARD_ARCHETYPE, GUI_SETTINGS_TYPE_NAME, IS_PREDICATE],
+  includeLaterMatches: true,
 };
 
 /** A scope walk is transitive — the selected entity relates to Things that in turn relate to the
@@ -66,6 +67,17 @@ function widgetBindings(widget: Widget): (Binding | undefined)[] {
     case 'verdict': return widget.rows.map((row) => row.verdicts);
     case 'working': return widget.rows.flatMap((row) => [row.value, row.working]);
     case 'exceptionBar': return widget.buckets.map((bucket) => bucket.value);
+    case 'rangeBar': return [
+      ...[widget.months, widget.annual].flatMap((period) => period
+        ? [period.recordedHigh, period.designHigh, period.averageHigh, period.mean,
+          period.averageLow, period.designLow, period.recordedLow]
+        : []),
+      ...(widget.bands ?? []).flatMap((band) => [band.from, band.to]),
+    ];
+    case 'lineSeries': return widget.series.map((entry) => entry.value);
+    case 'heatmap': return [widget.value, widget.sun?.latitude, widget.sun?.longitude, widget.sun?.utcOffsetSeconds];
+    case 'stackedShares': return widget.classes.map((entry) => entry.share);
+    case 'divergingBar': return [widget.up.value, widget.up.threshold, widget.down.value, widget.down.threshold];
   }
 }
 
@@ -224,6 +236,8 @@ function namedThings(spec: DashboardSpec): { ids: string[]; names: string[] } {
 export function subscriptionForSpec(spec: DashboardSpec, scopeId: string | null): SubscriptionSelector {
   const named = namedThings(spec);
   const traverse = [...scopeRules(spec), ...walkRules(specWalks(spec))];
+  // A Thing is created before it is typed, so only a subscription that keeps following its types is
+  // sent the Thing when its `is` edge admits it — which is what lets a roster grow on a page left open.
   const selector: SubscriptionSelector = {
     types: drawnTypes(spec, scopeId),
     names: [...new Set([
@@ -231,6 +245,7 @@ export function subscriptionForSpec(spec: DashboardSpec, scopeId: string | null)
       ...traverse.map((rule) => rule.predicate),
       ...named.names,
     ])],
+    includeLaterMatches: true,
   };
   const ids = scopeId ? [...new Set([scopeId, ...named.ids])] : named.ids;
   if (ids.length) selector.ids = ids;

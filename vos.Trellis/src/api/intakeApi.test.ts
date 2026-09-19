@@ -180,6 +180,27 @@ describe('what the form draws itself with', () => {
     expect(options.basemapSources.map((source) => source.name)).toEqual(['Streets']);
   });
 
+  it('carries the themes the model declares, and none where the service names none', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          allocationCategories: [],
+          themes: [{ name: 'Water', colour: '#3B7DE0', icon: 'droplet', order: 2 }, { name: 'Bare' }],
+        }),
+    });
+
+    const options = await intakeApi.formOptions();
+
+    expect(options.themes).toEqual([
+      { name: 'Water', colour: '#3B7DE0', icon: 'droplet', order: 2 },
+      { name: 'Bare', colour: null, icon: null, order: null },
+    ]);
+
+    fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ allocationCategories: [] }) });
+    expect((await intakeApi.formOptions()).themes).toEqual([]);
+  });
+
   // A deployment whose model is not seeded answers this route with a problem document, and a form that
   // read the absent fields as an empty model would offer a programme step with nothing in it and no
   // explanation.

@@ -18,12 +18,17 @@ import type {
   DashboardSection,
   DashboardSpec,
   DetailSpec,
+  DivergingBarWidget,
   ExceptionWidget,
   FunnelWidget,
   GanttWidget,
+  HeatmapWidget,
   KpiWidget,
   LeaderboardWidget,
+  LineSeriesWidget,
+  RangeBarWidget,
   RelationSpec,
+  StackedSharesWidget,
   TableColumn,
   TableWidget,
   VerdictWidget,
@@ -178,6 +183,50 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
         hint: tr(widget.hint),
         note: tr(widget.note),
         buckets: widget.buckets.map((bucket) => ({ ...bucket, label: tr(bucket.label) })),
+      };
+      return w;
+    }
+    case 'rangeBar': {
+      const w: RangeBarWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        unit: tr(widget.unit),
+        bands: widget.bands?.map((band) => ({ ...band, label: tr(band.label) })),
+      };
+      return w;
+    }
+    case 'lineSeries': {
+      const w: LineSeriesWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        unit: tr(widget.unit),
+        series: widget.series.map((entry) => ({ ...entry, label: tr(entry.label) })),
+      };
+      return w;
+    }
+    case 'heatmap': {
+      const w: HeatmapWidget = { ...widget, title: tr(widget.title), hint: tr(widget.hint), unit: tr(widget.unit) };
+      return w;
+    }
+    case 'divergingBar': {
+      const w: DivergingBarWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        unit: tr(widget.unit),
+        up: { ...widget.up, label: tr(widget.up.label) },
+        down: { ...widget.down, label: tr(widget.down.label) },
+      };
+      return w;
+    }
+    case 'stackedShares': {
+      const w: StackedSharesWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        classes: widget.classes.map((entry) => ({ ...entry, label: tr(entry.label) })),
       };
       return w;
     }

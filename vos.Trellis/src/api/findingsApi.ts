@@ -8,15 +8,22 @@
  */
 import { intakeApi, intakeServiceAddress, refusalFrom, TICKET_HEADER } from './intakeApi';
 import type { FindingsAnswer } from '../publicFindings/answeredFindings';
+import type { TemporalReduceQuery, TemporalReduceResponse } from '../types/vos';
+
+/** The history reduction as the page asks it: the platform's question without the Thing, which the
+ *  service supplies as the submission's own site. */
+export type FindingsReduceQuery = Omit<TemporalReduceQuery, 'thingId'>;
 
 export const findingsApi = {
   /** Asks the service to send a code to the address, which is the step that establishes somebody reads
    *  what is sent there. The same route a submission's verification uses, and the same budget. */
   askForCode: intakeApi.askForCode,
 
-  read: async (submissionId: string, emailAddress: string, code: string): Promise<FindingsAnswer> => {
+  read: async (
+    submissionId: string, emailAddress: string, code: string,
+  ): Promise<{ findings: FindingsAnswer; ticket: string }> => {
     const ticket = await intakeApi.exchangeTicket(emailAddress, code);
-    return (await findingsApi.readWithTicket(submissionId, emailAddress, ticket)).findings;
+    return findingsApi.readWithTicket(submissionId, emailAddress, ticket);
   },
 
   /** Reads under a ticket already held — the one the submission itself was posted with, so a page that
@@ -36,6 +43,27 @@ export const findingsApi = {
     if (!response.ok) throw new Error(await refusalFrom(response));
     return {
       findings: await response.json(),
+      ticket: response.headers.get(TICKET_HEADER) ?? ticket,
+    };
+  },
+
+  /** One property's history on the submission's site, reduced by the platform and proxied by the
+   *  service under the ticket the findings were read with. The service scopes the question to that
+   *  submission's site, so the page names no Thing. A fresh ticket rides back as on every read. */
+  reduceWithTicket: async (
+    submissionId: string,
+    ticket: string,
+    question: FindingsReduceQuery,
+  ): Promise<{ answer: TemporalReduceResponse; ticket: string }> => {
+    const response = await fetch(`${intakeServiceAddress()}/findings/${submissionId}/reduce`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', [TICKET_HEADER]: ticket },
+      body: JSON.stringify(question),
+    });
+
+    if (!response.ok) throw new Error(await refusalFrom(response));
+    return {
+      answer: await response.json(),
       ticket: response.headers.get(TICKET_HEADER) ?? ticket,
     };
   },
