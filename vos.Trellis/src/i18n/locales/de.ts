@@ -25,6 +25,9 @@ export const de: PartialResources = {
     properties: 'Eigenschaften',
     logs: 'Protokolle',
   },
+  table: {
+    downloadAsCsv: 'Als CSV herunterladen',
+  },
   theme: {
     switchTo: 'In den {{mode}} Modus wechseln',
     light: 'hellen',

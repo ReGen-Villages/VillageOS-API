@@ -25,6 +25,9 @@ export const es: PartialResources = {
     properties: 'Propiedades',
     logs: 'Registros',
   },
+  table: {
+    downloadAsCsv: 'Descargar como CSV',
+  },
   theme: {
     switchTo: 'Cambiar al modo {{mode}}',
     light: 'claro',
