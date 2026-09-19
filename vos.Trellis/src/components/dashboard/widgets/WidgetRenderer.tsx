@@ -120,6 +120,7 @@ function TableWidgetView({
         query={widget.searchable ? query : undefined}
         searchKeys={widget.searchKeys}
         onRowClick={onRowClick}
+        title={widget.title}
       />
     </WidgetCard>
   );

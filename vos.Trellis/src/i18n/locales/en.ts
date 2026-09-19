@@ -17,6 +17,9 @@ export const en = {
     properties: 'Properties',
     logs: 'Logs',
   },
+  table: {
+    downloadAsCsv: 'Download as CSV',
+  },
   statement: {
     live: 'Live',
     notLive: 'Not live',

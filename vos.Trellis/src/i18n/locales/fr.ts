@@ -25,6 +25,9 @@ export const fr: PartialResources = {
     properties: 'Propriétés',
     logs: 'Journaux',
   },
+  table: {
+    downloadAsCsv: 'Télécharger en CSV',
+  },
   statement: {
     live: 'En direct',
     notLive: 'Hors direct',

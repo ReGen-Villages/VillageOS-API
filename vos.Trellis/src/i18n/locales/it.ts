@@ -25,6 +25,9 @@ export const it: PartialResources = {
     properties: 'Proprietà',
     logs: 'Registri',
   },
+  table: {
+    downloadAsCsv: 'Scarica come CSV',
+  },
   statement: {
     live: 'In diretta',
     notLive: 'Non in diretta',

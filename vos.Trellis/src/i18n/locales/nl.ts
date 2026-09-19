@@ -25,6 +25,9 @@ export const nl: PartialResources = {
     properties: 'Eigenschappen',
     logs: 'Logboeken',
   },
+  table: {
+    downloadAsCsv: 'Downloaden als CSV',
+  },
   statement: {
     live: 'Live',
     notLive: 'Niet live',

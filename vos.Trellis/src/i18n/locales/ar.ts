@@ -115,6 +115,9 @@ export const ar: PartialResources & ArabicPlurals = {
     properties: 'الخصائص',
     logs: 'السجلات',
   },
+  table: {
+    downloadAsCsv: 'تنزيل بصيغة CSV',
+  },
   statement: {
     live: 'مباشر',
     notLive: 'غير مباشر',

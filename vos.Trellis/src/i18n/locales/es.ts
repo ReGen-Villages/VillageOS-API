@@ -25,6 +25,9 @@ export const es: PartialResources = {
     properties: 'Propiedades',
     logs: 'Registros',
   },
+  table: {
+    downloadAsCsv: 'Descargar como CSV',
+  },
   statement: {
     live: 'En vivo',
     notLive: 'Sin conexión en vivo',
