@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import type { Binding, KpiWidget } from '../../../types/dashboard';
 import type { BindingResult, ResolveContext } from '../../../api/dashboardApi';
 
@@ -10,6 +10,16 @@ vi.mock('../../../hooks/useDashboard', () => ({
     loading: false,
     error: false,
     value: binding ? (values.get(JSON.stringify(binding)) ?? null) : null,
+  }),
+}));
+vi.mock('../../../hooks/useFigureBreakdown', () => ({
+  useFigureBreakdown: () => ({
+    loading: false,
+    breakdown: {
+      value: 3,
+      terms: { archetype: 'Catchment', state: 'flooded' },
+      behind: { kind: 'things', reduction: 'count', measure: null, rows: [{ id: 'c1', name: 'CATCH-1' }] },
+    },
   }),
 }));
 
@@ -146,5 +156,34 @@ describe('KpiCard where the widget calls neither direction good', () => {
     render(<KpiCard widget={measuredAgainstStated('up-good')} ctx={{} as ResolveContext} />);
 
     expect(screen.getByText('watch')).toBeInTheDocument();
+  });
+});
+
+describe('the mark that says the model derived a figure', () => {
+  it('draws it on a figure that names the Things behind it, and opens them', () => {
+    const widget: KpiWidget = {
+      type: 'kpi',
+      title: 'Flooded',
+      format: 'integer',
+      value: { kind: 'stateCount', state: 'flooded', archetype: 'Catchment' },
+    };
+    values.set(JSON.stringify(widget.value), 3);
+
+    render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);
+    const figure = screen.getByRole('button', { name: /Flooded — What this figure is made of/ });
+    fireEvent.click(figure);
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('CATCH-1')).toBeInTheDocument();
+  });
+
+  it('leaves it off a figure somebody typed in', () => {
+    const widget: KpiWidget = { type: 'kpi', title: 'Target', format: 'integer', value: { kind: 'const', value: 99 } };
+    values.set(JSON.stringify(widget.value), 99);
+
+    render(<KpiCard widget={widget} ctx={{} as ResolveContext} />);
+
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByText('99')).toBeInTheDocument();
   });
 });

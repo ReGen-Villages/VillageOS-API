@@ -14,9 +14,9 @@ import { useModelStore } from '../stores/modelStore';
 import { useSubscription } from '../hooks/useSse';
 import { WHOLE_MODEL } from '../types/subscription';
 import clsx from 'clsx';
+import { TEMPORAL_TABS } from './temporalTabs';
 
-const TABS = ['mutations', 'thingMutations', 'relationshipMutations', 'snapshot', 'propertyHistory', 'stateQuery'] as const;
-type Tab = typeof TABS[number];
+type Tab = typeof TEMPORAL_TABS[number];
 
 export function TemporalPage() {
   useSubscription(WHOLE_MODEL);
@@ -28,7 +28,7 @@ export function TemporalPage() {
       <h2 className="text-xl font-bold mb-4">{t('temporal.title')}</h2>
 
       <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-700 mb-6">
-        {TABS.map((key) => (
+        {TEMPORAL_TABS.map((key) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -579,7 +579,7 @@ function StateQueryPanel() {
     setLoading(true);
     try {
       const data = await stateApi.getThingsInState(stateName.trim());
-      setResults(data.Things);
+      setResults(data.Things ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('temporal.toast.queryStateFailed'));
     } finally {

@@ -24,6 +24,7 @@ import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import type { VosThing } from '../types/vos';
 import { Upload } from 'lucide-react';
 import { applyTypeFilter } from '../utils/typeFilter';
+import type { DeletableEntity } from './graphDeletions';
 
 // Feature #5362 — SigmaCanvas is lazy-loaded so the page commits (search bar,
 // type filter, top-right controls) BEFORE Sigma's mount-time work
@@ -44,7 +45,7 @@ export function GraphPage() {
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [exactMatch, setExactMatch] = useState(false);
   const [useRegex, setUseRegex] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'thing' | 'relationship'; id: string; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: DeletableEntity; id: string; name: string } | null>(null);
   const [showCreateThing, setShowCreateThing] = useState(false);
   const [newThingName, setNewThingName] = useState('');
   const [creatingThing, setCreatingThing] = useState(false);

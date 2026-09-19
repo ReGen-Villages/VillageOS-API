@@ -85,12 +85,15 @@ interface UiState {
   setHoveredNodeId: (id: string | null) => void;
   setDetailPanelWidth: (width: number) => void;
 
-  // ── States refresh counter ────────────────────────────────────────
-  // Bumped by useModelData on the Mycelium's `StatesChanged` SSE
-  // event so detail panels re-fetch ranges without each page owning a
-  // local subscription.
+  // ── States refresh counters ───────────────────────────────────────
+  // Moved by useModelData on the Mycelium's `StatesChanged` SSE event so detail panels re-fetch
+  // ranges without each page owning a local subscription. The running total is what a panel
+  // showing one Thing's ranges watches; the per-state counts are what a dashboard figure made of
+  // one state watches, so it re-reads when that state moves rather than whenever any does. One
+  // entry per state name the model declares, however long a run lasts.
   statesVersion: number;
-  bumpStatesVersion: () => void;
+  stateVersions: Record<string, number>;
+  statesMoved: (states: string[]) => void;
 
 
   // ── Type filter (Feature #5362) ───────────────────────────────────
@@ -199,9 +202,15 @@ export const useUiStore = create<UiState>((set) => ({
     set({ detailPanelWidth: clamped });
   },
 
-  // ── States refresh counter ────────────────────────────────────────
+  // ── States refresh counters ───────────────────────────────────────
   statesVersion: 0,
-  bumpStatesVersion: () => set((s) => ({ statesVersion: s.statesVersion + 1 })),
+  stateVersions: {},
+  statesMoved: (states) =>
+    set((s) => {
+      const moved = { ...s.stateVersions };
+      for (const state of states) moved[state] = (moved[state] ?? 0) + 1;
+      return { statesVersion: s.statesVersion + 1, stateVersions: moved };
+    }),
 
   // ── Type filter (Feature #5362) ───────────────────────────────────
   currentModelId: null,

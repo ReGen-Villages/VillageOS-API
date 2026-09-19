@@ -4,8 +4,15 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { VosThing, VosRelationship } from '../types/vos';
 
 const declaredSubscriptions: unknown[] = [];
+const streamHandlers = new Map<string, ((data?: unknown) => void)[]>();
 vi.mock('../hooks/useSse', () => ({
-  useSse: () => ({ connected: true, on: () => () => {} }),
+  useSse: () => ({
+    connected: true,
+    on: (event: string, handler: (data?: unknown) => void) => {
+      streamHandlers.set(event, [...(streamHandlers.get(event) ?? []), handler]);
+      return () => streamHandlers.set(event, (streamHandlers.get(event) ?? []).filter((held) => held !== handler));
+    },
+  }),
   useSubscription: (selector: unknown) => { declaredSubscriptions.push(selector); },
 }));
 vi.mock('../api/stateApi', async (importOriginal) => ({
@@ -17,7 +24,9 @@ import { stateApi } from '../api/stateApi';
 import { subscriptionForSpec } from '../api/dashboardSubscription';
 import type { DashboardSpec } from '../types/dashboard';
 import { useModelStore } from '../stores/modelStore';
+import { useUiStore } from '../stores/uiStore';
 import { OperationsPage } from './OperationsPage';
+import { act } from '@testing-library/react';
 
 const SPEC = {
   title: 'Ops',
@@ -112,10 +121,7 @@ describe('OperationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     declaredSubscriptions.length = 0;
-    vi.mocked(stateApi.getThingsInState).mockResolvedValue({
-      StateName: 'harvested',
-      Things: [{ Id: 'p1', Name: 'PLOT-1' }, { Id: 'p2', Name: 'PLOT-2' }],
-    });
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'harvested', Count: 2 });
     seedStore();
   });
 
@@ -146,10 +152,10 @@ describe('OperationsPage', () => {
     expect(await screen.findByText('98.9')).toBeInTheDocument();
   });
 
-  it('resolves a stateCount funnel bar from the state endpoint', async () => {
+  it('resolves a stateCount funnel bar from the number the state endpoint gave', async () => {
     renderAt();
     expect(await screen.findByText('2')).toBeInTheDocument();
-    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.anything());
+    expect(stateApi.getThingsInState).toHaveBeenCalledWith('harvested', expect.objectContaining({ countOnly: true }));
   });
 
   it('ranks sites in the leaderboard with the winner marked', async () => {
@@ -348,5 +354,120 @@ describe('OperationsPage on a spec authored wrong', () => {
     expect(await screen.findByText('7')).toBeInTheDocument();
     expect(screen.getByText('A figure the client draws')).toBeInTheDocument();
     expect(screen.getByText(/sankey/)).toBeInTheDocument();
+  });
+});
+
+// One open dashboard asked the platform tens of times a second on a running model: every live
+// event re-resolved every widget, and property changes are the highest-rate event there is.
+describe('what a live event makes the page ask again', () => {
+  const stateReads = () => vi.mocked(stateApi.getThingsInState).mock.calls.length;
+
+  function arrived(event: string, times: number, data: unknown = {}): void {
+    for (let count = 0; count < times; count += 1) streamHandlers.get(event)?.forEach((handler) => handler(data));
+  }
+
+  /** The stream's own beat: the states counter the model-data hook moves on a StatesChanged. */
+  function statesMoved(states: string[]): void {
+    useUiStore.getState().statesMoved(states);
+    arrived('StatesChanged', 1, { entityId: 'p1', currentStates: states });
+  }
+
+  async function pastTheDebounce(): Promise<void> {
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    streamHandlers.clear();
+    useUiStore.setState({ stateVersions: {} });
+    vi.mocked(stateApi.getThingsInState).mockResolvedValue({ StateName: 'harvested', Count: 2 });
+    seedStore();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  function withCadence(): void {
+    useModelStore.setState((s) => ({
+      things: s.things.map((thing) =>
+        thing.Id === 'dash1' ? { ...thing, Properties: { spec: JSON.stringify({ ...SPEC, refreshSeconds: 15 }) } } : thing),
+    }));
+  }
+
+  it('re-reads a figure from the model on a burst of property changes, and asks the platform nothing', async () => {
+    withCadence();
+    renderAt();
+    expect(await screen.findByText('96.5')).toBeInTheDocument();
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    const before = stateReads();
+
+    await act(async () => {
+      arrived('PropertyChanged', 200);
+      useModelStore.getState().applyBatch({ thingPropertyUpdates: [{ id: 'vil1', path: 'self_sufficiency_rate', value: 99.9 }] });
+    });
+    await pastTheDebounce();
+
+    expect(await screen.findByText('97.0')).toBeInTheDocument();
+    expect(stateReads()).toBe(before);
+  });
+
+  it('asks the platform once more when a state it counts moves', async () => {
+    withCadence();
+    renderAt();
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    const before = stateReads();
+
+    await act(async () => { statesMoved(['harvested']); });
+    await pastTheDebounce();
+
+    expect(stateReads()).toBe(before + 1);
+  });
+
+  it('asks the platform nothing when a state it does not read moves', async () => {
+    withCadence();
+    renderAt();
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    const before = stateReads();
+
+    await act(async () => { statesMoved(['planted']); });
+    await pastTheDebounce();
+
+    expect(stateReads()).toBe(before);
+  });
+
+  it('asks the platform again on the cadence the spec states', async () => {
+    withCadence();
+    renderAt();
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    const before = stateReads();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+
+    expect(stateReads()).toBe(before + 1);
+  });
+
+  // The event that takes a Thing out of a state names the states it still holds and never the one it
+  // left, so a page stating no cadence keeps the live event as the beat its figures fall back on.
+  it('keeps the live event as the beat on a page stating no cadence', async () => {
+    renderAt();
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    const before = stateReads();
+
+    await act(async () => { arrived('PropertyChanged', 200); });
+    await pastTheDebounce();
+
+    expect(stateReads()).toBe(before + 1);
+  });
+
+  it('asks every platform-answered figure again when the model is replaced', async () => {
+    withCadence();
+    renderAt();
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    const before = stateReads();
+
+    await act(async () => { arrived('ModelChanged', 1); });
+    await pastTheDebounce();
+
+    expect(stateReads()).toBe(before + 1);
   });
 });

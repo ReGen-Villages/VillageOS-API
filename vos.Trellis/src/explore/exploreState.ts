@@ -91,7 +91,7 @@ export function withPosition(
 
 /** What the land is called until somebody says otherwise. The position spelled out, because it is the
  *  one thing genuinely known — a made-up word would read as an answer where this reads as a default. */
-export function defaultSiteName(position: BoundaryPoint): string {
+function defaultSiteName(position: BoundaryPoint): string {
   return `Site at ${position.latitude.toFixed(4)}, ${position.longitude.toFixed(4)}`;
 }
 

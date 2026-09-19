@@ -77,10 +77,10 @@ value and whether it is expected to be overridden.
 
 | Role | Meaning | Examples |
 |------|---------|----------|
-| **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible via `AllowedKeys`; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token) |
+| **required-structural** | A structural key (declared blank on a template) that a registration MUST fill. Admissible via `AllowedKeys`; rejected if missing at use. | `url`; `tokenUrl`, `tokenRequest` (when minting a token); `assetProperty`, `assetSubject` (when keeping retrievals) |
 | **canonical-default** | A value a *child* template fixes to define a source type's identity — not normally overridden per registration. | `tokenPath`, `expiryPath`, `expiryUnit`; `offsetParam`, `pageSizeParam`, `hasMorePath`, `itemsPath` |
 | **sensible-default** | Has a built-in fallback (in code or a generic template default); commonly overridden per endpoint. | `httpMethod` (GET), `requestContentType` (application/json), `timeout` (30s), `tokenParam` (token) |
-| **optional** | May be absent entirely; the feature is simply off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize` |
+| **optional** | May be absent entirely; the feature is simply off. | `responseTransform` (absent → the body is returned unchanged, nothing is ingested), `headers`, `queryParams`, `acceptHeader`, `token` (pre-minted), `tokenHeader` / `tokenScheme`, `pageSize`, `observedAtParameter` |
 
 Which *mechanisms* apply is not in the table because it is not a property: an endpoint
 reaches `TokenExchangeAuth`, `OffsetPaging`, or `BinaryResponse` through its template's
@@ -305,11 +305,14 @@ request (see *Per-call address parameters*), so one registration serves the whol
 pyramid. Tile **metadata** endpoints (`f=json` service descriptions) are ordinary JSON
 endpoints and need none of this.
 
-**Model placement: transient passthrough.** A tile is a stateless fetch response. It is
-never persisted as a Thing, an observation, or a Fact — binary cannot be a scalar
-observation, and a base64 Fact would bloat the replay log. The model keeps nothing; when
-a deployment wants repeated fetches answered without contacting the source again, that is
-the `DiskCache` kind below — a file on the service's disk, not model state.
+**Model placement: transient passthrough — the default.** A tile is a stateless fetch
+response. Reaching no kind through `keepsBy`, it is never persisted as a Thing, an
+observation, or a Fact — binary cannot be a scalar observation, and a base64 Fact would
+bloat the replay log. The model keeps nothing by default; when a deployment wants repeated
+fetches answered without contacting the source again, that is the `DiskCache` kind below —
+a file on the service's disk, not model state — and when the model itself must remember
+what was retrieved, that is the `ModelAsset` kind below, which persists a reference and
+never the bytes, exactly because of those two constraints.
 
 **Caching to local disk.** An endpoint that reaches the **`DiskCache`** kind through
 `cachesBy` serves a repeated fetch from the service's disk while the entry is younger
@@ -326,8 +329,49 @@ paging, a credentialed (`TokenExchangeAuth`) call, and a request with an outboun
 (none of which are part of the key). The cache root is deployment configuration
 (`CacheDirectory`, default `cache/` under the service's working directory).
 
-Graph composition is pinned by `EsriTileEndpointTemplateTests` (Delta); behavior by
-`BinaryResponseKindTests` and `AcceptHeaderTests` (Tributary).
+**Keeping what was retrieved: `keepsBy` → `ModelAsset`.** The cache above is a speed layer
+the model cannot see; an endpoint that reaches the **`ModelAsset`** kind through `keepsBy`
+gives the model memory of the retrieval itself. On a real upstream fetch answered 2xx,
+Tributary deposits the response bytes — Content-Type and all — in the broker's
+content-addressed asset store (`POST /api/assets`, answering `{ "hash": "sha256:<64-hex>" }`,
+idempotent because the name is the content), then writes that ticket string onto the model
+through the ordinary observation lane. The bytes never enter the model: the ticket is an
+ordinary ~71-character scalar on a property series, so property history and as-of reads work
+unchanged — and because assets are immutable, an as-of read resolves to the exact bytes that
+were true then. Content identity, not a location pointer, is what
+[`TEMPORAL_READS.md`](TEMPORAL_READS.md)'s no-stubs rule permits: the key IS the address.
+
+The kind requires two keys and may name a third — all of them names the model supplies,
+none of them meaningful to this service:
+
+- **`assetProperty`** (required) — the property that receives tickets.
+- **`assetSubject`** (required) — the name of the Thing that carries them, resolved when
+  the ticket is written.
+- **`observedAtParameter`** (optional) — the name of an `addressParameters` key whose value
+  is the time the content is *about* (valid time, not save time): the value that selected a
+  historical image also timestamps it, so depositing a 1998 archive today lands a point at
+  1998. A supplied value that cannot be read as a time is refused before anything is
+  fetched. When nothing names the time, the sample is submitted without one and the broker
+  stamps the model clock — the same discipline every reading follows.
+
+The write path is the ingest's own: the `observed` provenance edge goes in before the
+ticket, so a kept value can be walked back to the registration that produced it like any
+other. A keep the broker refuses — the deposit, the subject resolution, or the ticket
+write — fails the call with a 502 rather than answering as though something was kept.
+
+It composes with the kinds above. `readsBodyAs → BinaryResponse` supplies the bytes
+verbatim (the ordinary pairing for imagery); a plain text body deposits its UTF-8 bytes.
+`cachesBy → DiskCache` serves repeats locally, and **a cache hit deposits nothing** — no
+new retrieval happened, and the store's content addressing makes the re-deposit after an
+expiry idempotent anyway. `OffsetPaging` is refused: the aggregate is assembled by this
+service, so keeping it would deposit bytes the provider never served. Reaching no kind
+through `keepsBy` is the transient default above, unchanged. The store itself — the
+`GET /api/assets/{hash}` serving lane, retention, GC — is broker-side and lives outside
+this service.
+
+Graph composition is pinned by `EsriTileEndpointTemplateTests` and
+`ModelAssetEndpointSpecTests` (Delta); behavior by `BinaryResponseKindTests`,
+`AcceptHeaderTests`, `DiskCacheHandleTests`, and `ModelAssetHandleTests` (Tributary).
 
 ## What the caller gets when the provider does not answer with a reading
 

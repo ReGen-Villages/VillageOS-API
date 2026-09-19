@@ -12,7 +12,7 @@ function isDeclaredWriteKind(value: unknown): value is DeclaredWriteKind {
  * The Mycelium serializes properties as { typeInfo: "vos.String", value: "..." }.
  * The GUI works with raw values, so we extract just the `value` field.
  */
-export function unwrapPropertyValue(v: unknown): unknown {
+function unwrapPropertyValue(v: unknown): unknown {
   if (v !== null && typeof v === 'object' && 'value' in (v as Record<string, unknown>)) {
     return (v as Record<string, unknown>).value;
   }

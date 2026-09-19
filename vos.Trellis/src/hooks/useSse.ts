@@ -14,7 +14,9 @@ const BASE_URL = import.meta.env.VITE_BROKER_URL || '';
 const KNOWN_EVENTS = [
   'ModelChanged', 'ModelCleared',
   'ThingCreated', 'ThingDeleted', 'RelationshipCreated', 'RelationshipDeleted',
+  'ThingEntered', 'ThingLeft', 'RelationshipEntered', 'RelationshipLeft',
   'PropertyChanged', 'PropertyDeleted', 'RelationshipPropertyChanged', 'RelationshipPropertyDeleted',
+  'PropertyObserved',
   'ServiceHealthChanged', 'DaemonStatusChanged', 'EndpointServiceRequestCompleted', 'ServiceRequestCompleted',
   'StatesChanged', 'RelationshipStatesChanged', 'ActivityEvent',
 ];
@@ -81,6 +83,7 @@ function setConnected(v: boolean) { if (connectedState !== v) { connectedState =
  *  name, so adding one is a decision about its shape instead of an accident of what it is called. */
 const PROPERTY_EVENTS = new Set([
   'PropertyChanged', 'PropertyDeleted', 'RelationshipPropertyChanged', 'RelationshipPropertyDeleted',
+  'PropertyObserved',
 ]);
 
 // Map an SSE event's data object to the positional args the handlers expect.
@@ -232,15 +235,17 @@ async function openStreams() {
 function announceOpened(
   subscriptionId: string,
   watermark: number,
-  snapshot: { things?: VosThing[]; relationships?: VosRelationship[] } | undefined,
+  snapshot: { things?: (VosThing & { States: string[] })[]; relationships?: VosRelationship[] } | undefined,
   selector: SubscriptionSelector,
 ) {
+  const things = snapshot?.things ?? [];
   const opened: SubscriptionOpened = {
     subscriptionId,
     watermark,
     covered: selector.all ? null : {
-      things: (snapshot?.things ?? []).map(unwrapThing),
+      things: things.map(unwrapThing),
       relationships: (snapshot?.relationships ?? []).map(unwrapRelationship),
+      thingStates: new Map(things.map((thing) => [thing.Id, thing.States])),
     },
   };
   dispatch(SUBSCRIPTION_OPENED, opened);

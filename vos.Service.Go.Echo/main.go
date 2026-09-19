@@ -12,8 +12,8 @@
 //     with Token and VerificationKey set on the daemon's environment.
 //  2. On startup the service registers (POST /api/mycelium/register).
 //  3. Mycelium calls POST /handle for each matching relationship (JWT-authed).
-//  4. On shutdown (SIGINT/SIGTERM or POST /shutdown) it deregisters
-//     (DELETE /api/mycelium/services/{handlerId}).
+//  4. On shutdown (SIGINT/SIGTERM or POST /shutdown) it stops answering; the
+//     broker's liveness monitor removes the registration.
 package main
 
 import (
@@ -158,22 +158,6 @@ func (s *service) register() error {
 		return fmt.Errorf("register returned %d", resp.StatusCode)
 	}
 	return nil
-}
-
-func (s *service) deregister() {
-	tok, err := s.token()
-	if err != nil {
-		log.Printf("deregister: could not get token: %v", err)
-		return
-	}
-	req, _ := http.NewRequest(http.MethodDelete, s.cfg.MyceliumURL+"/api/mycelium/services/"+s.handlerID, nil)
-	req.Header.Set("Authorization", "Bearer "+tok)
-	resp, err := s.client.Do(req)
-	if err != nil {
-		log.Printf("deregister failed: %v", err)
-		return
-	}
-	resp.Body.Close()
 }
 
 // Write kinds — Facts, Observations, Sediment. docs/SERVICE_CONTRACT.md § "Writing data back".
@@ -482,6 +466,7 @@ func (s *service) health(w http.ResponseWriter, _ *http.Request) {
 		"status":            "Healthy",
 		"service":           serviceName,
 		"requestsProcessed": s.requests.Load(),
+		"processId":         os.Getpid(),
 	})
 }
 
@@ -656,7 +641,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]any{"message": "Shutting down " + serviceName + " microservice"})
 		go func() {
 			time.Sleep(300 * time.Millisecond)
-			_ = srv.Shutdown(context.Background())
+			s.shutdown(srv)
 		}()
 	}))
 
@@ -673,16 +658,18 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-stop
-		log.Printf("shutting down — processed %d request(s)", s.requests.Load())
-		s.deregister()
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(ctx)
+		s.shutdown(srv)
 	}()
 
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
-	s.deregister() // covers the /shutdown path
 	log.Printf("stopped")
+}
+
+func (s *service) shutdown(srv *http.Server) {
+	log.Printf("shutting down — processed %d request(s)", s.requests.Load())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(ctx)
 }

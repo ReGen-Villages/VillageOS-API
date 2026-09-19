@@ -10,19 +10,15 @@ import { SUBSCRIPTION_OPENED, resubscribe, useSse, useDefaultSubscription } from
 import { useFlashTimer } from './useFlashTimer';
 import { toast } from '../components/common/toastStore';
 import { isVisibleRelationship } from '../utils/propertyUpdates';
+import { unwrapRelationship, unwrapThing } from '../utils/propertyMapper';
 import { GUI_SETTINGS_TYPE_NAME, readModelLoadProperties } from '../utils/guiSettings';
-
-/** How long to wait before a single hydrate retry (Bug #5940). */
-const HYDRATE_RETRY_MS = 400;
+import type { VosRelationship, VosThing } from '../types/vos';
 
 /** Coalesce a burst of SSE structural events into one store write. A high-throughput
  *  sim emits hundreds of ThingCreated/RelationshipCreated per second; applying each as
  *  its own O(N) store rebuild saturates the main thread and makes Trellis degrade as the
  *  model grows. We buffer events and flush once per window instead. */
 const FLUSH_DEBOUNCE_MS = 150;
-
-/** Max hydrate fetches in flight per flush — bounds the request fan-out on a big burst. */
-const HYDRATE_CONCURRENCY = 8;
 
 /** What happened to one property in a flush window: it was given a value, or it was retracted. */
 type PropertyChange = { deleted: false; value: unknown } | { deleted: true };
@@ -96,6 +92,7 @@ function loadWhatOpened(opened: SubscriptionOpened): void {
   if (opened.covered) {
     useModelStore.getState().setThings(opened.covered.things);
     useModelStore.getState().setRelationships(opened.covered.relationships);
+    useModelStore.getState().seedThingStates(opened.covered.thingStates);
     holdsNarrowedSet = true;
     useModelStore.getState().markLoaded();
     return;
@@ -112,33 +109,24 @@ function entityId(data: unknown): string | undefined {
   return (data as { EntityId?: string } | undefined)?.EntityId;
 }
 
-const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+/** The Thing a creation or entry carries, in the shape the store holds — the snapshot's shape,
+ *  unwrapped the same way — with the states it held when the event was written. An event carrying
+ *  none has nothing to apply. */
+function carriedThing(data: unknown): { thing: VosThing; states: string[] } | undefined {
+  const thing = (data as { Thing?: VosThing & { States: string[] } } | undefined)?.Thing;
+  return thing ? { thing: unwrapThing(thing), states: thing.States } : undefined;
+}
 
-// Structural create events carry only an id — the object's properties are
-// deliberately not streamed — so we hydrate the new objects and upsert them
-// rather than refetching the whole model. Each fetch is retried once on failure
-// (Bug #5940): a transient error would otherwise drop the object from the store
-// until the next ModelChanged. A genuine create/delete race 404s on the retry
-// too and is correctly abandoned (the delete event removes it).
-async function hydrateMany<T>(ids: string[], fetchOne: (id: string) => Promise<T>): Promise<T[]> {
-  const out: T[] = [];
-  let cursor = 0;
-  async function worker(): Promise<void> {
-    while (cursor < ids.length) {
-      const id = ids[cursor++];
-      try {
-        out.push(await fetchOne(id));
-      } catch {
-        try {
-          await delay(HYDRATE_RETRY_MS);
-          out.push(await fetchOne(id));
-        } catch { /* gone or still failing — reconciled by reconnect/ModelChanged */ }
-      }
-    }
-  }
-  const workers = Array.from({ length: Math.min(HYDRATE_CONCURRENCY, ids.length) }, worker);
-  await Promise.all(workers);
-  return out;
+/** A derived-state event names its entity and the whole set of states it now holds — never a delta.
+ *  One missing its state set is skipped rather than read as the entity having left every state. */
+function stateChange(data: unknown): { id: string; states: string[] } | undefined {
+  const event = data as { entityId?: string; currentStates?: string[] } | undefined;
+  return event?.entityId && event.currentStates ? { id: event.entityId, states: event.currentStates } : undefined;
+}
+
+function carriedRelationship(data: unknown): VosRelationship | undefined {
+  const relationship = (data as { Relationship?: VosRelationship } | undefined)?.Relationship;
+  return relationship ? unwrapRelationship(relationship) : undefined;
 }
 
 /**
@@ -160,18 +148,17 @@ export function useModelData(): void {
     // of structural changes becomes one store write instead of one O(N) rebuild each.
     // Property buffers are keyed by entity AND property name: keying by entity alone kept only the
     // last change in a window, which the full model reload on save used to hide (#6143).
+    // Of one window's events for an entity the last word wins: an arrival cancels a pending
+    // removal and a removal cancels a pending arrival.
     const pending = {
-      thingHydrate: new Set<string>(),
+      thingUpserts: new Map<string, VosThing>(),
       thingRemove: new Set<string>(),
-      relHydrate: new Set<string>(),
+      relUpserts: new Map<string, VosRelationship>(),
       relRemove: new Set<string>(),
       thingProps: new Map<string, Map<string, PropertyChange>>(),
       relProps: new Map<string, Map<string, PropertyChange>>(),
+      thingStates: new Map<string, string[]>(),
     };
-    const isEmpty = () =>
-      pending.thingHydrate.size === 0 && pending.thingRemove.size === 0 &&
-      pending.relHydrate.size === 0 && pending.relRemove.size === 0 &&
-      pending.thingProps.size === 0 && pending.relProps.size === 0;
 
     const recordProperty = (
       buffer: Map<string, Map<string, PropertyChange>>,
@@ -207,16 +194,12 @@ export function useModelData(): void {
     };
 
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let flushing = false;
-    const schedule = () => { if (!timer && !flushing) timer = setTimeout(() => void flush(), FLUSH_DEBOUNCE_MS); };
+    const schedule = () => { if (!timer) timer = setTimeout(flush, FLUSH_DEBOUNCE_MS); };
 
-    async function flush(): Promise<void> {
+    function flush(): void {
       timer = null;
-      flushing = true;
-      // Snapshot and clear the buffers up front so events arriving during the async
-      // hydrate below land in the next window rather than being dropped.
-      const thingIds = [...pending.thingHydrate]; pending.thingHydrate.clear();
-      const relIds = [...pending.relHydrate]; pending.relHydrate.clear();
+      const thingUpserts = [...pending.thingUpserts.values()]; pending.thingUpserts.clear();
+      const relationshipUpserts = [...pending.relUpserts.values()]; pending.relUpserts.clear();
       const thingRemovals = [...pending.thingRemove]; pending.thingRemove.clear();
       const relationshipRemovals = [...pending.relRemove]; pending.relRemove.clear();
       const thingPropertyUpdates: { id: string; path: string; value: unknown }[] = [];
@@ -235,10 +218,8 @@ export function useModelData(): void {
           else relationshipPropertyUpdates.push({ id, name, value: change.value });
       pending.relProps.clear();
 
-      const [thingUpserts, relationshipUpserts] = await Promise.all([
-        hydrateMany(thingIds, (id) => thingApi.get(id)),
-        hydrateMany(relIds, (id) => relationshipApi.get(id)),
-      ]);
+      const thingStateUpdates = [...pending.thingStates].map(([id, states]) => ({ id, states }));
+      pending.thingStates.clear();
 
       useModelStore.getState().applyBatch({
         thingUpserts,
@@ -249,35 +230,51 @@ export function useModelData(): void {
         relationshipPropertyUpdates,
         thingPropertyRemovals,
         relationshipPropertyRemovals,
+        thingStateUpdates,
       });
-
-      flushing = false;
-      if (!isEmpty()) schedule(); // events arrived mid-flush — drain them next window
     }
 
+    const thingArrived = (data: unknown) => {
+      const carried = carriedThing(data);
+      if (!carried) return;
+      pending.thingRemove.delete(carried.thing.Id);
+      pending.thingUpserts.set(carried.thing.Id, carried.thing);
+      if (holdsNarrowedSet) pending.thingStates.set(carried.thing.Id, carried.states);
+      schedule();
+    };
+    const thingGone = (data: unknown) => {
+      const id = entityId(data);
+      if (id) { pending.thingUpserts.delete(id); pending.thingRemove.add(id); schedule(); }
+    };
+    const relationshipArrived = (data: unknown) => {
+      const relationship = carriedRelationship(data);
+      if (relationship) {
+        pending.relRemove.delete(relationship.Id);
+        pending.relUpserts.set(relationship.Id, relationship);
+        schedule();
+      }
+    };
+    const relationshipGone = (data: unknown) => {
+      const id = entityId(data);
+      if (id) { pending.relUpserts.delete(id); pending.relRemove.add(id); schedule(); }
+    };
+
     const unsubs = [
-      on('ThingCreated', (data) => {
-        const id = entityId(data);
-        if (id) { pending.thingRemove.delete(id); pending.thingHydrate.add(id); schedule(); }
-      }),
-      on('ThingDeleted', (data) => {
-        const id = entityId(data);
-        if (id) { pending.thingHydrate.delete(id); pending.thingRemove.add(id); schedule(); }
-      }),
-      on('RelationshipCreated', (data) => {
-        const id = entityId(data);
-        if (id) { pending.relRemove.delete(id); pending.relHydrate.add(id); schedule(); }
-      }),
-      on('RelationshipDeleted', (data) => {
-        const id = entityId(data);
-        if (id) { pending.relHydrate.delete(id); pending.relRemove.add(id); schedule(); }
-      }),
+      on('ThingCreated', thingArrived),
+      on('ThingEntered', thingArrived),
+      on('ThingDeleted', thingGone),
+      on('ThingLeft', thingGone),
+      on('RelationshipCreated', relationshipArrived),
+      on('RelationshipEntered', relationshipArrived),
+      on('RelationshipDeleted', relationshipGone),
+      on('RelationshipLeft', relationshipGone),
       // Every property update lands in the store, not just graph-rendering ones. The Operations
       // dashboard reads live business properties (on-hand, reorder point, KPIs) straight from the
       // store, so dropping their updates left it showing stale or blank cells for anything changed
       // after the last full load. The debounced applyBatch coalesces the high rate into one write
       // per window.
       on('PropertyChanged', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
+      on('PropertyObserved', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
       on('PropertyDeleted', (...args) => onThingProperty(args, { deleted: true })),
       on('RelationshipPropertyChanged', (...args) => onRelationshipProperty(args, { deleted: false, value: args[2] })),
       on('RelationshipPropertyDeleted', (...args) => onRelationshipProperty(args, { deleted: true })),
@@ -287,7 +284,17 @@ export function useModelData(): void {
       // again rather than reconciled — which also re-answers with the new model's snapshot.
       on('ModelChanged', () => resubscribe()),
       on('ModelCleared', () => useModelStore.getState().clear()),
-      on('StatesChanged', () => useUiStore.getState().bumpStatesVersion()),
+      // The narrowed page's set is kept only while the store holds one: the events stream carries
+      // every Thing's state changes, and a page reading across the whole model draws none of them,
+      // so keeping them there would grow with the model for no reader. The stream says what is held
+      // after the change and never which state was left, so a figure counting a state nobody
+      // entered waits for the page's cadence to see it empty.
+      on('StatesChanged', (data) => {
+        const change = stateChange(data);
+        useUiStore.getState().statesMoved(change?.states ?? []);
+        if (holdsNarrowedSet && change) { pending.thingStates.set(change.id, change.states); schedule(); }
+      }),
+      on('RelationshipStatesChanged', (data) => useUiStore.getState().statesMoved(stateChange(data)?.states ?? [])),
     ];
     return () => {
       if (timer) clearTimeout(timer);

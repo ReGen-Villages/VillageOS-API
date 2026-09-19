@@ -10,7 +10,7 @@ The manifest names the wiki to publish to, so a repository that keeps its own do
 supplies a manifest and the path to it rather than carrying a copy of this tool. This repository's
 manifest is [`wiki-map.json`](wiki-map.json).
 
-**Do not edit pages in the wiki browser.** Edits are overwritten on the next main build,
+**Do not edit pages in the wiki browser.** Edits are overwritten on the next `develop` build,
 and each generated page says so at the top. Edit the document in `docs/` instead.
 
 ## What it does
