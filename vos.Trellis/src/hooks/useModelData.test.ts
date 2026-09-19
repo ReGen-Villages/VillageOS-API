@@ -89,7 +89,7 @@ describe('useModelData', () => {
     mockResubscribe.mockClear();
     vi.mocked(toast.error).mockClear();
     useModelStore.setState({ things: [], relationships: [], loaded: false });
-    useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, statesVersion: 0 });
+    useUiStore.setState({ selectedNodeId: null, selectedEdgeId: null, statesVersion: 0, stateVersions: {} });
   });
 
   // The model says which properties travel with its load, and the load has to ask for them.
@@ -405,12 +405,37 @@ describe('useModelData', () => {
     await waitFor(() => expect(useModelStore.getState().thingStates.get('t-typed')).toEqual(['flagged']));
   });
 
-  it('bumps uiStore.statesVersion when StatesChanged fires', async () => {
+  it('moves the running states counter and the counters of the states a StatesChanged names', async () => {
     await mountLoaded();
     await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
     const before = useUiStore.getState().statesVersion;
-    await act(async () => handlers.get('StatesChanged')!());
+
+    await act(async () => handlers.get('StatesChanged')!({ entityId: 't1', currentStates: ['flagged', 'metered'] }));
+
     expect(useUiStore.getState().statesVersion).toBe(before + 1);
+    expect(useUiStore.getState().stateVersions).toEqual({ flagged: 1, metered: 1 });
+  });
+
+  // A walk step that keeps or drops what is in a state reads an edge's states as readily as a
+  // Thing's, so an edge's move has to reach the same counters.
+  it('moves the counters of the states a RelationshipStatesChanged names', async () => {
+    await mountLoaded();
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+
+    await act(async () => handlers.get('RelationshipStatesChanged')!({ entityId: 'r1', currentStates: ['open'] }));
+
+    expect(useUiStore.getState().stateVersions).toEqual({ open: 1 });
+  });
+
+  it('moves the running counter alone for a StatesChanged naming no states', async () => {
+    await mountLoaded();
+    await waitFor(() => expect(mockGetAllThings).toHaveBeenCalled());
+    const before = useUiStore.getState().statesVersion;
+
+    await act(async () => handlers.get('StatesChanged')!({ entityId: 't1' }));
+
+    expect(useUiStore.getState().statesVersion).toBe(before + 1);
+    expect(useUiStore.getState().stateVersions).toEqual({});
   });
 
   it('reloadModelData is callable directly (from mutation handlers)', async () => {

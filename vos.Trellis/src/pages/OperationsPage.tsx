@@ -29,10 +29,8 @@ const REFRESH_EVENTS = [
   'ModelChanged',
 ];
 
-/** Coalesce a burst of live events into one dashboard re-resolution. Without this every
- *  PropertyChanged re-runs every widget binding, and PropertyChanged is the highest-rate
- *  event a busy model emits — so the cost climbs as the model grows and the page gets
- *  less responsive over time. */
+/** Coalesce a burst of live events into one refresh generation. Widgets resolving together then
+ *  share one read per question, and a reader is not shown a page assembled from two moments. */
 const REFRESH_DEBOUNCE_MS = 400;
 
 function useIsWide(minWidth = 1024): boolean {
@@ -66,7 +64,8 @@ export function OperationsPage() {
 
   const [scopeId, setScopeId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
-  const ctx = useResolveContext(idx, scopeId, spec?.compare?.archetype, brokerModelReads, nonce);
+  const [serverRefresh, setServerRefresh] = useState(0);
+  const ctx = useResolveContext(idx, scopeId, spec?.compare?.archetype, brokerModelReads, nonce, serverRefresh);
 
   // What this page is about, said to the platform: it is sent the Things its widgets read and the
   // later changes to those, instead of every change in a model whose size it does not depend on.
@@ -75,27 +74,37 @@ export function OperationsPage() {
     useMemo(() => (spec ? subscriptionForSpec(spec, scopeId) : NAVIGATION_AND_SETTINGS), [spec, scopeId]),
   );
 
-  // Live refresh: server-side bindings (state counts, services) re-resolve on relevant
-  // events even when the local store didn't change. Debounced so a burst of events
-  // triggers a single re-resolution instead of one per event.
+  // A trailing-window widget slides with the clock, and the event that takes a Thing out of a state
+  // names the states it still holds rather than the one it left — so a figure the broker answers
+  // falls back on the cadence the spec states.
+  const refreshSeconds = spec?.refreshSeconds ?? 0;
+
+  // A live event starts a new generation. What each widget does with it is its own to decide: a
+  // figure the broker answers waits on the states it is made of, so a burst of property changes
+  // costs the page nothing. A page stating no cadence has no other beat, so there the event drives
+  // the broker-answered figures as well.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const bump = () => {
       if (timer) return;
-      timer = setTimeout(() => { timer = null; setNonce((n) => n + 1); }, REFRESH_DEBOUNCE_MS);
+      timer = setTimeout(() => {
+        timer = null;
+        setNonce((n) => n + 1);
+        if (refreshSeconds <= 0) setServerRefresh((n) => n + 1);
+      }, REFRESH_DEBOUNCE_MS);
     };
     const unsubs = REFRESH_EVENTS.map((ev) => on(ev, bump));
     return () => { if (timer) clearTimeout(timer); unsubs.forEach((u) => u()); };
-  }, [on]);
+  }, [on, refreshSeconds]);
 
-  // A trailing-window widget slides with the clock, so the page also refreshes on the cadence the
-  // spec asks for — not only when the model emits an event.
-  const refreshSeconds = spec?.refreshSeconds ?? 0;
   useEffect(() => {
     if (refreshSeconds <= 0) return;
-    const timer = setInterval(() => setNonce((n) => n + 1), refreshSeconds * 1000);
+    const timer = setInterval(() => setServerRefresh((n) => n + 1), refreshSeconds * 1000);
     return () => clearInterval(timer);
   }, [refreshSeconds]);
+
+  // A reloaded model re-asks every broker-answered figure at once.
+  useEffect(() => on('ModelChanged', () => setServerRefresh((n) => n + 1)), [on]);
 
   const isWide = useIsWide();
   const { openDetail, windows } = useDetailWindows(idx, spec?.detail, nonce);

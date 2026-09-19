@@ -289,12 +289,20 @@ export interface ResolveContext {
   scopeId: string | null;
   /** Archetype of compare entities (for `$scope` averaging + compareEntities). */
   compareArchetype?: string;
-  /** Bumped on live events to force re-resolution of server-side bindings. Part of identity only. */
+  /** Bumped on live events, so a generation of reads is not shared with the one after it. Part of
+   *  identity only. */
   nonce?: number;
   /** What answers the four questions a loaded model cannot — state membership, a Thing's ranges, a
    *  reduction over history, a model-side service. Supplied by whoever built the context, so this
    *  file resolves the same specs whether the broker is reachable or not. */
   reads: ModelReads;
+  /** The beat a binding the broker answers follows when nothing about its own question moved: the
+   *  cadence the page's spec states, and a model reload. Part of identity only. */
+  serverRefresh?: number;
+  /** How many times each derived state has moved, read once for the page rather than by every
+   *  widget on it. A binding the broker answers reads the counts of the states its own answer is
+   *  made of, and resolves again only when one of those moved. Part of identity only. */
+  stateVersions?: Record<string, number>;
 }
 
 /** The scope as the state and temporal endpoints express it: the selected compare entity as a
