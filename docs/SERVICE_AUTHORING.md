@@ -65,7 +65,7 @@ sequenceDiagram
     M->>S: POST /handle (Bearer mycelium_request JWT) → 200
     M->>S: GET /health (polled) → Healthy
     M->>S: SIGTERM / POST /shutdown
-    S->>M: DELETE /api/mycelium/services/{handlerId} (Bearer)
+    Note over M,S: the service does not deregister; the liveness monitor removes it
 ```
 
 ## CLI arguments
@@ -180,7 +180,8 @@ this guards against a burst of repeats, not against every repeat there will ever
 after that window, or after the handler restarts, runs the work a second time. A record of what
 completed that survives either belongs on the relation itself.
 
-**`GET /health`** → `{ "status": "Healthy", "service": "YourService", "requestsProcessed": <n> }`
+**`GET /health`** → `{ "status": "Healthy", "service": "YourService", "requestsProcessed": <n>, "processId": <pid> }` —
+`processId` is what lets the platform measure a service it did not start itself; the shared host answers it for you.
 
 **`GET /stats`** → `{ "service": "...", "version": "...", "requestsProcessed": <n>, "handlerId": "<uuid>", "myceliumUrl": "..." }`
 

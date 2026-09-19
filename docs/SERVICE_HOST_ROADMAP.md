@@ -37,10 +37,9 @@ the entry here.
 > draining on shutdown, `X-Delivery-Id` dedup, the common response envelope,
 > and the outbox. Those are what the rest of this section is about.
 
-Every microservice in `VillageOS-API` today (`vos.Service.CSharp.Echo`,
-`.Tributary`, `.Delta`, `.Metabolism`) re-implements ~80 lines of host
-bootstrap, *and* none of them implement an idempotent delivery contract on the
-receive side. That is a real source of silent bugs:
+The host bootstrap is shared now (the table above), but no service implements
+an idempotent delivery contract on the receive side. That is a real source of
+silent bugs:
 
 - A caller that retries `POST /handle` with the same intent will register the
   same endpoint twice, produce duplicate observations, or start two simulations
@@ -57,9 +56,8 @@ receive side. That is a real source of silent bugs:
   observations) do so synchronously via `MyceliumClientBase` with no retry, no
   buffering, and no visibility into failures.
 
-Bootstrap duplication and missing delivery semantics are the same problem
-viewed from two angles: there is no shared place that says *"this is what a
-VillageOS-API microservice is."*
+The shared host is the place that says *"this is what a VillageOS-API
+microservice is"*; the delivery semantics below are what it does not yet say.
 
 ### 1.1 The recommendation in one line
 
@@ -194,8 +192,9 @@ suitable for the platform's liveness polling:
 
 ```jsonc
 {
-  "status": "Healthy",                  // shared — only field the platform reads
+  "status": "Healthy",                  // shared — read by the platform
   "service": "Echo",                    // shared — from serviceName
+  "processId": 4242,                    // shared — read by the platform to measure a service it did not start
   "uptimeSeconds": 1234,                // shared
   "requestsReceived": 42,               // shared — incremented by middleware
   "dedupedRequests": 3,                 // shared — from receive cache
@@ -329,18 +328,12 @@ flowchart LR
 
 ## 2. DI refactors still on the table
 
-Two of the three targeted DI items shipped and are no longer roadmap items:
-item 1 (Metabolism `Program.cs` DI alignment) and item 3
-(`IEndpointSeedProvider` for Delta).
+The other DI items once listed here — Metabolism's `Program.cs` alignment,
+`IEndpointSeedProvider` for Delta, and Metabolism consuming live changes over
+the shared `SubscriptionClient` (see [`METABOLISM.md`](METABOLISM.md)) — have
+shipped and are no longer roadmap items.
 
-### 2.1 Metabolism live-change consumption (done)
-
-> **Status:** `DONE`. Metabolism consumes live changes over the shared
-> `SubscriptionClient` (SSE), driven by `MetabolismSubscriptionService` — plain
-> `HttpClient` + an `IAsyncEnumerable` change stream, directly testable by feeding
-> events through the hosted service. See `docs/METABOLISM.md` for the design.
-
-### 2.2 `vos.Taproot` gets a `HostBuilder`
+### 2.1 `vos.Taproot` gets a `HostBuilder`
 
 > **Status:** `PROPOSED` for discussion — not to be implemented yet. This is a
 > significant refactor. Captured here so the option is documented and the

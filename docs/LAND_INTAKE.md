@@ -4,9 +4,10 @@
 > service composes a submission into them, and the wizard collects what a planner types and posts it
 > (#6016), shows the site on the map as the position is given (#6014), and draws the parcel boundary
 > checked against the stated area (#6015). Anybody may submit without a credential, having answered a
-> code sent to the address on the submission (#6026, #6027, #6799, #6803). Open-data discovery is still
-> design. A second, plot-first way in runs beside the wizard so the two approaches can be compared
-> (#6905, #6906, #6907) — see [the plot-first page](#the-plot-first-page) below.
+> code sent to the address on the submission (#6026, #6027, #6799, #6803). Open-data discovery runs:
+> Forage resolves a site against the registered sources and the analysis starts from what it wrote
+> ([FORAGE.md](FORAGE.md)). A second, plot-first way in runs beside the wizard so the two approaches
+> can be compared (#6905, #6906, #6907) — see [the plot-first page](#the-plot-first-page) below.
 > Tracked as Epic
 > [#6012](https://dev.azure.com/ReGenVillages/VillageOS-API/_workitems/edit/6012) (client, services)
 > and Epic [#6033](https://dev.azure.com/ReGenVillages/VillageOS/_workitems/edit/6033) (model, broker).
@@ -615,42 +616,40 @@ than failing the service that would have written it. That last part is what lets
 read as not assessed instead of as a site that failed.
 
 What is left to a service is what no declaration on the study can hold: a verdict, which is a boolean
-where an expression yields a number, and the harvest apportioned over the demands in serving order,
-which is an ordered fold rather than arithmetic. A figure summed across a set is a reduction the study
-declares, so that is not a service's work either.
+where an expression yields a number. A figure summed across a set is a reduction the study declares,
+and the harvest apportioned over the demands is worked out by the demands themselves, each taking the
+smaller of what it wants and what the demands before it left — so neither is a service's work.
 
-Each of those is a **reactive service**, not a node in a graph. A relationship whose subject is the
+That one is a **reactive service**, not a node in a graph. A relationship whose subject is the
 study and whose predicate is the connection bound to the service is what dispatches it: the service
-reads the study's effective properties, computes, writes what is its to write back as Facts, and starts
+reads the study's effective properties, computes, writes what is its to write back as a Fact, and starts
 watching the study. Every later change to an input recomputes on its own.
 
 ```mermaid
 flowchart TB
   R["<b>On the study</b><br/>area · programme split · population · household size<br/>solar resource · rainfall <i>(discovered)</i>"]
-  M["<b>Worked out by the model</b><br/>each allocation's area · both footprints<br/>every stored-water and food figure · each demand's size"]
+  M["<b>Worked out by the model</b><br/>each allocation's area · both footprints<br/>every stored-water and food figure · the harvest<br/>each demand's size and what it takes"]
   EB["<b>Energy<br/>balance</b>"]
-  RH["<b>Rainwater<br/>harvest</b>"]
   W["<b>Outputs on the study, judged by its ExpectedRanges</b>"]
 
   R --> M
   R -->|"solar resource · panel area · consumption"| EB
-  M -->|"built footprint · each demand's size"| RH
   M --> W
   EB --> W
-  RH --> W
 ```
 
 The arrows are property reads and writes on one Thing, not wires. The model answers the middle box as
-the model loads and again whenever a term moves; the harvest reads what it produced and re-fires. The
-energy balance reads none of it — its panel area is a roll-up over the site's own arrays — so it sits
-beside the model's own work rather than after it. Nothing sequences any of them: each recomputes when an
-input it declared moves, and the cascade is bounded by the model's recompute round limit.
+the model loads and again whenever a term moves. The energy balance reads none of it — its panel area
+is a roll-up over the site's own arrays — so it sits beside the model's own work rather than after it.
+Nothing sequences any of them: each recomputes when an input it declared moves, and the cascade is
+bounded by the model's recompute round limit.
 
-Three services that once sat here are retired. Land allocation went once a reduction could narrow to the
+Four services that once sat here are retired. Land allocation went once a reduction could narrow to the
 members a test admits and each footprint became a sum of the allocations whose category carries a mark
 (#6756). The water reserve and the food balance followed once the last figure each computed became a
 formula on the study: both were reading the study, computing and throwing the answer away (#6710,
-#6748). What is left is the energy balance's verdict and the harvest's apportionment across the demands.
+#6748). The rainwater harvest went last, once each demand became a Thing of the study's own that works
+out what it takes from what is left (#6892). What is left is the energy balance's verdict.
 
 **Each allocation's own area is a formula, not a write.** An allocation works out its normalised share of
 the stated programme and its share of the parcel from definitions the shared analysis declares on the
@@ -687,9 +686,11 @@ A dispatched relationship names the study; the service answers with what it comp
 {                                            {
   "relationshipId": "…",                       "success": true,
   "subjectId": "…",   // the study             "outputs": {
-  "targetId":  "…",                              "peopleFed": 20.4,
-  "properties": { }                              "pctOfPopulationFed": 6.375
-}                                              }
+  "targetId":  "…",                              "solarGenerationMwhPerYear": 1180.4,
+  "properties": { }                              "totalGenerationMwhPerYear": 1380.4,
+}                                                "pctOfConsumption": 104.2,
+                                                 "netPositive": true
+                                               }
                                              }
 ```
 
@@ -1316,6 +1317,36 @@ rejected submission's retention period has run and `submissions dispose` has tak
 model, the reference and the address name nothing, and the page says so in the same words as a reference
 nobody ever submitted under.
 
+**Two reads the page makes after the document arrived are proxied by the same service** (#7060). The
+charts over the site's climate history ask the platform's reduction over one property's series —
+`POST /findings/{submissionId}/reduce`, under the ticket, with the reduce read's request minus its
+`thingId`: the service verifies the ticket was issued for the address the submission names, supplies
+the submission's own site, and hands the platform's answer back in its own words, status included, so
+a question the platform refuses reaches the page with the reason. The satellite view's tiles come
+through `GET /basemaps/{registration}/{z}/{x}/{y}`, anonymous like the position lookups because the
+opening map is drawn before anything is verified: the route names a tile registration the model marks
+`__IsBasemapTileRegistration`, forwards the three placeholders through the fetching service — which
+keeps the bytes on its disk for the registration's cache life — and serves the bytes back with a
+`Cache-Control` of the same life. A registration without the mark is not served, whatever the route
+names, so this service is a proxy for the basemaps the model declares and for nothing else. Neither
+route hands a page the provider's address or any key.
+
+**A submitter can share files about their land once the report is up, and the same service takes
+them** (#7059). `POST /submissions/{submissionId}/documents`, under the ticket, is a form carrying
+`file` and a `description`: any type, up to 25 MB, refused over that with the limit named. The bytes
+go to a folder beside the service (`--documentDirectory`, `documents` by default), keyed by submission
+and under a key of the store's own, so the name a person gave the file is a value on a Thing and never
+a path. The model gets what it declares for one — the archetype marked `__IsSharedDocumentArchetype`
+with the file's name, description, media type, size and when it was shared — related to the
+submission's project through the predicate marked `__IsSharedDocumentPredicate`, so the review page
+lists a submission's files from the model and never asks this service. `GET
+/submissions/{submissionId}/documents`, under the ticket, lists the same for the page that shared them.
+A model declaring no shared file takes none: the route says files are not taken here rather than
+keeping bytes nothing can list. Once the retention pass has taken a rejected submission out of the
+model, its files go with it — the store asks the model each hour which of the submissions it holds
+files for still stand, and forgets the rest — and a folder of its own is the reason a deployment that
+never shares a file configures nothing.
+
 ### From submission to project
 
 Submissions land in a staging model. Becoming a project is a deliberate act.
@@ -1337,7 +1368,7 @@ A reviewer does this either from the **Submissions** page in Trellis or from `su
 the marks it puts on its own vocabulary rather than by any name — and both call the same two actions,
 so a staging model can be worked from a browser or a terminal. Clearing the rejected ones once their
 period has run is `submissions dispose`, which has no page: it is a retention pass rather than
-something a reviewer decides. See [the Trellis guide](TRELLIS.md#87-reviewing-what-has-arrived) and
+something a reviewer decides. See [the Trellis guide](TRELLIS.md#88-reviewing-what-has-arrived) and
 [the Taproot guide](TAPROOT_USER_GUIDE.md).
 
 ---
@@ -1350,12 +1381,13 @@ The main finding from designing this: most of it is already built.
 |---|---|
 | Energy balance calculation | **Exists** as a reactive service |
 | Water storage, food balance and land allocation calculations | **Exist** as formulas and reductions the study declares |
-| Rainwater harvest | **Exists** as a reactive service |
+| Rainwater harvest, apportioned over the demands in serving order | **Exists** as formulas on the study and on each of its demands (#6892) |
 | Dispatching a service by relating a Thing to it | **Exists** (handled predicates) |
 | Recomputing a service's outputs when its inputs move | **Exists** (input-change subscription) |
 | Bounding a chain where one computed value feeds another | **Exists** (recompute round limit) |
 | Fetching outside data as configuration, reshaping it, ingesting onto a Thing | **Exists** (Tributary) |
 | Validating and registering data sources | **Exists** (Delta) |
+| Working out which sources cover a site, calling each, and starting the analysis from what resolved | **Exists** (Forage) |
 | Rendering a report from a spec stored in the model | **Exists** (operations dashboard) |
 | Posting a whole submission in one idempotent call | **Exists** (fragments) |
 | Authentication, model isolation, service supervision | **Exists** (Mycelium) |

@@ -26,14 +26,14 @@ Passive predicates are created as regular predicate things without `ExecutablePa
 
 ### PlatformServiceConnection / Service model
 
-A dispatched predicate is a **PlatformServiceConnection** that **has** a **Service**; the Service carries the launch config. Both are ordinary model Things related by the generic `is`/`has` predicates — Mycelium resolves them by walking the `is`-chain and never hardcodes type names (the archetype names come from config: `PrototypeConnectionThingName` / `PrototypeServiceThingName`).
+A dispatched predicate is a **PlatformServiceConnection** that **has** a **Service**; the Service carries the launch config. Both are ordinary model Things related by the generic `is`/`has` predicates — Mycelium resolves them by walking the `is`-chain and never hardcodes type names: the connection archetype is whichever Thing carries the mark `__IsConnectionArchetype`, the service archetype whichever carries `__IsServiceArchetype`, so a model may call them what it likes.
 
 ```text
-PlatformServiceConnection {trigger}                        ← archetype: a routed connection (graph, http, or state)
+PlatformServiceConnection {__IsConnectionArchetype, trigger}   ← archetype: a routed connection (graph, http, or state)
   ← is ─ consumes {trigger: graph} ─has→ consumes service ─is→ Metabolism prototype
   ← is ─ produces {trigger: graph} ─has→ produces service ─is→ Metabolism prototype
 
-Service {ExecutablePath, ServicePort, ServiceArgs, AutoStart, RunMode, TokenScope}  ← archetype: the process
+Service {__IsServiceArchetype, ExecutablePath, ServicePort, ServiceArgs, AutoStart, RunMode, TokenScope}  ← archetype: the process
   ← is ─ Metabolism prototype {ExecutablePath, RunMode, TokenScope}   ← shared definition (one binary)
             ← is ─ consumes service {ServicePort, ServiceArgs, AutoStart}   ← per-instance overrides
             ← is ─ produces service {ServicePort, ServiceArgs, AutoStart}
@@ -49,7 +49,7 @@ has, feeds, powers, ...                     ← passive predicates (not Platform
 - **Built-in `is`**: in-process (Mycelium's `is`-inheritance + the range engine); not a PlatformServiceConnection.
 - **Passive predicates** (`contains`, `aggregates`, `has`, …): not PlatformServiceConnections; no service.
 
-At seed load, Mycelium discovers connections by transitive `is`-membership of the `PlatformServiceConnection` archetype and registers graph connections whose bound Service has `AutoStart: true` for auto-invocation. At runtime, the service broker resolves the bound Service to build the daemon config (including `TokenScope`).
+At seed load, Mycelium discovers connections by transitive `is`-membership of the archetype marked `__IsConnectionArchetype` and registers graph connections whose bound Service has `AutoStart: true` for auto-invocation. At runtime, the service broker resolves the bound Service to build the daemon config (including `TokenScope`).
 
 ---
 
@@ -126,7 +126,7 @@ flowchart TB
 
    When the relationship arrives inside a `POST /api/model/fragment` batch, invocation happens only after the whole fragment is applied — every Thing, edge, and property value in the batch is readable, and roll-ups are recomputed — and multiple handled edges in one fragment are dispatched in creation order. A handler never observes a half-applied fragment.
 
-4. **Registration**: Handlers register with Mycelium on startup; the broker's liveness monitor removes one that has stopped answering. The register / deregister / health-monitoring lifecycle (payloads, health-status state machine, auto-deregistration, error scenarios) is the same for all microservices and is documented authoritatively in the broker's service registration & lifecycle flow (private Mycelium docs) — not repeated here.
+4. **Registration**: Handlers register with Mycelium on startup; the broker's liveness monitor removes one that has stopped answering. The register / deregister / health-monitoring lifecycle (payloads, health-status state machine, auto-deregistration, error scenarios) is the same for all microservices and is documented in [`SERVICES.md` §8](SERVICES.md) and, on the platform side, in the *Services* chapter of the Field Guide — not repeated here.
 
 ### Handler startup context
 
@@ -137,7 +137,7 @@ at launch. (An earlier `{{…}}` template mechanism for injecting startup IDs wa
 and was removed once subscriptions superseded it.)
 
 > **Handler lifecycle internals** — how Mycelium supervises the daemon and invokes the handler
-> per relationship — live in the private Mycelium guide (broker internals).
+> per relationship — live in the platform's Field Guide (the *Services* chapter), on the VillageOS repository's wiki.
 
 ## Built-in `is` inheritance
 
@@ -572,7 +572,7 @@ On replay, the model's current value for a property is reconstructed from the **
 
 ### Log Files
 
-Handlers write to daily rolling log files in the project root's `logs/` directory:
+Handlers write to daily rolling log files in a `logs/` directory four levels above the service's build output — the repository root, when the service runs from its own `bin/` folder:
 
 - `consumes` handler: `logs/metabolism-consumes-YYYYMMDD.log`
 - `produces` handler: `logs/metabolism-produces-YYYYMMDD.log`
@@ -705,7 +705,7 @@ dotnet run --project vos.Service.Metabolism -- \
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| Handler not starting | Missing `ExecutablePath` or `ServicePort` on predicate thing | Add required properties to the predicate |
+| Handler not starting | Missing `ExecutablePath` or `ServicePort` on the Service the connection `has` (or on the prototype it `is`) | Add the missing property to the Service |
 | "Connection refused" in Mycelium logs | Daemon not running and auto-start failed | Check `ExecutablePath` is correct; check `logs/` for startup errors |
 | Daemon enters cooldown | 3+ consecutive startup failures | Wait 5 minutes or restart Mycelium; check handler logs |
 | Simulations not ticking | `startUtc` is in the future | Check the relationship's `startUtc` property |

@@ -18,6 +18,7 @@ import type { DetailSpec } from '../../../types/dashboard';
 import type { StateHistoryCoverage } from '../../../types/vos';
 import { useEntityDetail } from './useEntityDetail';
 import type { ResolvedRelation } from './entityDetail';
+import type { ServiceDispatch } from './serviceHandling';
 
 interface Props {
   idx: ModelIndex;
@@ -76,6 +77,59 @@ function CoverageNote({ coverage }: { coverage: StateHistoryCoverage }) {
     <div className="mt-1.5 text-[10.5px] text-zinc-400 dark:text-zinc-500">
       {t('entityDetail.inMemoryHistory', { time: formatDateTime(coverage.From) })}
     </div>
+  );
+}
+
+/** Every service the platform ran on this Thing, oldest first, each with the connection it was
+ *  reached through and how that dispatch ended. A service is a Thing, so its name opens its card. */
+function ServiceDispatches({
+  dispatches,
+  openDetail,
+}: {
+  dispatches: ServiceDispatch[];
+  openDetail: (thingId: string) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <ol className="mt-1 space-y-1.5">
+        {dispatches.map((dispatch) => (
+          <li key={dispatch.relationshipId} className="flex gap-2 text-[11.5px]">
+            <span className="text-zinc-400 dark:text-zinc-500 font-mono whitespace-nowrap flex-shrink-0 w-[62px]">
+              {dispatch.at ? formatTimestamp(dispatch.at) : '—'}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                {dispatch.serviceId ? (
+                  <button
+                    onClick={() => openDetail(dispatch.serviceId!)}
+                    className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    {dispatch.serviceName}
+                  </button>
+                ) : (
+                  <span className="font-semibold text-zinc-700 dark:text-zinc-200">{dispatch.serviceName}</span>
+                )}
+                <span className="text-zinc-400 dark:text-zinc-500 truncate">{dispatch.connectionName}</span>
+                {dispatch.state && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeTone(dispatch.state)}`}>
+                    {dispatch.state}
+                  </span>
+                )}
+              </span>
+              {dispatch.error && (
+                <span className="block text-[11px] text-red-600 dark:text-red-400 break-words">{dispatch.error}</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {dispatches.some((dispatch) => !dispatch.at) && (
+        <div className="mt-1.5 text-[10.5px] text-zinc-400 dark:text-zinc-500">
+          {t('entityDetail.dispatchesSinceModelLoad')}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -149,7 +203,7 @@ function RelationGroups({
 
 export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index, total, spreadTick, zIndex, onClose, onFocus, onSpread, openDetail, declaredTypes }: Props) {
   const { t } = useTranslation();
-  const { loading, root, relations, statesById, stateChanges, coverage } = useEntityDetail(idx, thingId, detail, nonce);
+  const { loading, root, relations, statesById, stateChanges, coverage, dispatches } = useEntityDetail(idx, thingId, detail, nonce);
   const numbers = useNumberDisplaySettings();
 
   const props = root ? effectiveProperties(root, idx) : {};
@@ -264,6 +318,13 @@ export function EntityDetailWindow({ idx, thingId, detail, nonce, offset, index,
           <section>
             <SectionTitle>{t('entityDetail.relations')}</SectionTitle>
             <RelationGroups relations={relations} statesById={statesById} openDetail={openDetail} declaredTypes={declaredTypes} numbers={numbers} />
+          </section>
+        )}
+
+        {dispatches.length > 0 && (
+          <section>
+            <SectionTitle>{t('entityDetail.handledBy')}</SectionTitle>
+            <ServiceDispatches dispatches={dispatches} openDetail={openDetail} />
           </section>
         )}
 

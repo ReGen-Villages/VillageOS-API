@@ -11,8 +11,9 @@ public static class EndpointKindRoles
     public const string Paging = "pagesBy";
     public const string ResponseBody = "readsBodyAs";
     public const string Caching = "cachesBy";
+    public const string Keeping = "keepsBy";
 
-    public static readonly IReadOnlyList<string> All = [Authentication, Paging, ResponseBody, Caching];
+    public static readonly IReadOnlyList<string> All = [Authentication, Paging, ResponseBody, Caching, Keeping];
 
     // The property each role was written as before a kind became a Thing. A seed still carrying one
     // is refused at provisioning, because writing it would leave the endpoint reaching nothing while

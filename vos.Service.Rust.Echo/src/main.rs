@@ -175,6 +175,7 @@ async fn health(State(state): State<Arc<AppState>>) -> Json<Value> {
         "status": "Healthy",
         "service": SERVICE_NAME,
         "requestsProcessed": state.requests.load(Ordering::SeqCst),
+        "processId": std::process::id(),
     }))
 }
 
@@ -225,20 +226,6 @@ async fn register(state: &AppState, http: &reqwest::Client) -> reqwest::Result<(
         .await?
         .error_for_status()?;
     Ok(())
-}
-
-async fn deregister(state: &AppState, http: &reqwest::Client) {
-    let Ok(token) = get_token(&state.config, http).await else {
-        return;
-    };
-    let _ = http
-        .delete(format!(
-            "{}/api/mycelium/services/{}",
-            state.config.mycelium_url, state.handler_id
-        ))
-        .bearer_auth(token)
-        .send()
-        .await;
 }
 
 // Write kinds — Facts, Observations, Sediment. docs/SERVICE_CONTRACT.md § "Writing data back".
@@ -557,23 +544,21 @@ async fn main() {
         .await
         .expect("bind");
 
-    // Graceful shutdown on Ctrl-C: deregister, then stop.
     let shut_state = state.clone();
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
             let _ = tokio::signal::ctrl_c().await;
-            let http = reqwest::Client::builder()
-                .danger_accept_invalid_certs(true)
-                .build()
-                .expect("http client");
-            println!(
-                "shutting down — processed {} request(s)",
-                shut_state.requests.load(Ordering::SeqCst)
-            );
-            deregister(&shut_state, &http).await;
+            on_shutdown(&shut_state).await;
         })
         .await
         .expect("server");
+}
+
+async fn on_shutdown(state: &AppState) {
+    println!(
+        "shutting down — processed {} request(s)",
+        state.requests.load(Ordering::SeqCst)
+    );
 }
 
 #[cfg(test)]
@@ -908,6 +893,22 @@ mod tests {
         assert!(body.contains("\"types\"") && body.contains("Battery"));
         assert!(body.contains("\"traverse\"") && body.contains("powers"));
         assert!(!body.contains("\"all\"")); // unset fields omitted
+    }
+
+    // The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
+    #[tokio::test]
+    async fn shutdown_does_not_ask_the_broker_to_withdraw() {
+        let cap: Cap = Arc::new(Mutex::new(Vec::new()));
+        let app = Router::new().fallback(sub_mock).with_state(cap.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let state = AppState { config: sel_cfg(format!("http://{addr}")), handler_id: "h-1".into(), requests: AtomicU64::new(0) };
+
+        on_shutdown(&state).await;
+
+        let calls = cap.lock().unwrap();
+        assert!(calls.is_empty(), "a service cannot deregister itself, so shutdown must not try; broker received {calls:?}");
     }
 
     #[tokio::test]

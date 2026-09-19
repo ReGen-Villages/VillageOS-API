@@ -13,6 +13,39 @@ split lives in the reverse proxy and nowhere else.**
 Replace the hostnames and the intake port with the deployment's own, put the GUI's build output
 where `root` points, and run `caddy run --config deploy/Caddyfile`.
 
+## Reaching the hosts through a tunnel
+
+**A machine with no public address — a laptop behind a router, a workstation on an office network —
+serves the same hostnames through a Cloudflare Tunnel. Nothing on the router is opened.**
+
+A connector program on the machine keeps an outgoing connection to Cloudflare. A request for the
+hostname arrives at Cloudflare and is sent down that connection, so the machine's address is never
+published, the certificate a visitor sees is Cloudflare's, and a flood of requests stops at
+Cloudflare's network rather than at the machine. The hostnames stay the same when the deployment later
+moves to a machine with a public address: the connector is installed there, and nothing else changes.
+
+What each side does:
+
+| Side | What it configures |
+|---|---|
+| The Cloudflare account that holds the domain | Authorises the machine once, in the browser, against the domain's zone; hosts the public pages on a static site; optionally a sign-in gate (Cloudflare Access) in front of the main host, so only listed email addresses reach the GUI's own login. [TUNNEL.md](TUNNEL.md) walks the account holder through it. |
+| The machine | Creates the tunnel under that authorisation and writes its own routing — one public hostname per host, `app.example.org` and `intake.example.org`, each to where that host is served on loopback — and the hostnames' DNS records. The connector is started and stopped with the services; the tunnel's credentials are written by `cloudflared` under the serving user's home, never on a command line. |
+
+Where the public hostname points depends on what runs:
+
+- **The broker alone** — `https://localhost:7243`, with the tunnel told not to verify the server's
+  certificate. The broker presents the development certificate, redirects plain HTTP to HTTPS, and
+  marks its session cookie secure; the connector must therefore speak HTTPS to it, and a visitor is
+  on HTTPS to Cloudflare regardless. The Caddyfile is not needed.
+- **Both hosts** — the proxy, over plain HTTP on the machine, which then splits the hostnames as above.
+  TLS between the proxy and the outside world is Cloudflare's job in this arrangement, so the proxy's
+  own certificate provisioning is switched off.
+
+The intake service's rate limit keeps working: the connector and the proxy both pass the caller's
+address on, and the service reads it from loopback only, as before. The broker's event streams send a
+heartbeat every fifteen seconds, which is inside Cloudflare's idle limit for a response, and the GUI
+reconnects with replay if a stream is ever cut.
+
 ## What the services must do
 
 - **Bind loopback.** Every service listens on this machine only and is unreachable except through
@@ -39,6 +72,10 @@ where `root` points, and run `caddy run --config deploy/Caddyfile`.
   a code that way, so no address is verified and a submission may name any address at all — which is
   why the service refuses to start with it anywhere but Development, and says so loudly in the log on
   the startup it does allow. The default, `--mailDelivery=server`, is the behaviour above.
+- **The intake service keeps the files submitters share on its own disk.** `--documentDirectory=<path>`
+  names the folder; the default is `documents` beside the service. Only the bytes live there, keyed by
+  submission — what a file is called and what it is about are in the model. The folder of a submission
+  the retention pass has taken out goes within the hour.
 - **The intake service holds an API key** (`ApiKey` in configuration or the environment) created
   against the intake model, so its credential does not expire and reaches no project model — see
   "Giving a service an API key" in [`../docs/SERVICES.md`](../docs/SERVICES.md).

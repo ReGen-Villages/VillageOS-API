@@ -21,6 +21,18 @@ describe('subscriptionForSpec', () => {
     expect(selector.names).toEqual(expect.arrayContaining(NAVIGATION_AND_SETTINGS.names!));
   });
 
+  it('asks to keep following the types it names, as the navigation does', () => {
+    expect(subscriptionForSpec(specWith({}), null).includeLaterMatches).toBe(true);
+  });
+
+  // A reading is written as an observation, which the platform delivers only to a subscription
+  // that asked; the navigation reads no readings and asks for none.
+  it('asks for observations, so a figure bound to a reading moves without a reload', () => {
+    expect(subscriptionForSpec(specWith({}), null).includeObservations).toBe(true);
+    expect(NAVIGATION_AND_SETTINGS.includeObservations).toBeUndefined();
+    expect(NAVIGATION_AND_SETTINGS.includeLaterMatches).toBe(true);
+  });
+
   it('asks for the entities the scope switcher offers', () => {
     const selector = subscriptionForSpec(specWith({ compare: { label: 'site', archetype: 'Site' } }), null);
 
@@ -93,6 +105,30 @@ describe('subscriptionForSpec', () => {
     );
 
     expect(selector.types).toContain('Parcel');
+  });
+
+  it('asks for the rows a writing widget lists and the rosters its fields are chosen from', () => {
+    const selector = subscriptionForSpec(
+      specDrawing({
+        type: 'action',
+        rows: { kind: 'thingList', archetype: 'Spring' },
+        asks: [{ key: 'reader', label: 'Reader', kind: 'choice', options: { kind: 'thingList', archetype: 'Person' } }],
+        writes: { via: 'readings', choices: [{ label: 'Assign', act: 'assign' }] },
+      }),
+      null,
+    );
+    expect(selector.types).toEqual(expect.arrayContaining(['Spring', 'Person']));
+
+    const form = subscriptionForSpec(
+      specDrawing({
+        type: 'form',
+        fields: [{ key: 'catchment', label: 'Catchment', kind: 'multichoice', options: { kind: 'thingList', archetype: 'Catchment' } }],
+        submit: 'Book',
+        writes: { via: 'readings', act: 'book', archetype: 'Reading' },
+      }),
+      null,
+    );
+    expect(form.types).toContain('Catchment');
   });
 
   // A binding narrowed to the selected entity reaches its rows along that entity's edges, so asking

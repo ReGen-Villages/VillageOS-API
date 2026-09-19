@@ -20,7 +20,7 @@ export function ThingPicker({ things, ...rest }: Omit<EntityPickerProps<VosThing
 }
 
 /** Generic searchable dropdown picker for any entity with Id and Name. */
-export function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholder = 'Search...', label }: EntityPickerProps<T>) {
+function EntityPicker<T extends PickerItem>({ items, value, onChange, placeholder = 'Search...', label }: EntityPickerProps<T>) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
