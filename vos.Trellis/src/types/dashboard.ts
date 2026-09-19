@@ -729,12 +729,6 @@ export interface ActionChoice {
   act?: string;
 }
 
-/** A value the minted Thing carries, read off the row the decision is about. */
-export interface CarriedValue {
-  property: string;
-  reads: string;
-}
-
 /** What pressing a choice writes, and no service named anywhere in it. Which service wakes is the
  *  model's to decide from the edge the endpoint lays down — a spec naming a handler would move that
  *  decision into the spec. */
@@ -748,7 +742,6 @@ export interface ActionRecords {
   archetype?: string;
   /** The edge from the minted Thing to the row it is about. */
   predicate?: string;
-  carries?: CarriedValue[];
   choices: ActionChoice[];
 }
 
