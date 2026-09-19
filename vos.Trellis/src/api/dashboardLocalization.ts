@@ -34,6 +34,9 @@ import type {
   VerdictWidget,
   WorkingWidget,
   Widget,
+  ActionWidget,
+  AskedValue,
+  FormWidget,
 } from '../types/dashboard';
 import { primarySubtag } from '../i18n/languages';
 
@@ -230,7 +233,34 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
       };
       return w;
     }
+    // A choice's label and a field's label are the spec's words; the act, the reason and the key
+    // each is sent under are what the endpoint reads, and stay as written.
+    case 'action': {
+      const w: ActionWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        asks: localizeFields(widget.asks, tr),
+        writes: { ...widget.writes, choices: widget.writes.choices.map((choice) => ({ ...choice, label: tr(choice.label) })) },
+      };
+      return w;
+    }
+    case 'form': {
+      const w: FormWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        fields: localizeFields(widget.fields, tr) ?? widget.fields,
+        submit: tr(widget.submit),
+        preview: widget.preview ? { ...widget.preview, label: tr(widget.preview.label) } : undefined,
+      };
+      return w;
+    }
   }
+}
+
+function localizeFields(fields: AskedValue[] | undefined, tr: SpecTranslator): AskedValue[] | undefined {
+  return fields?.map((field) => ({ ...field, label: tr(field.label) }));
 }
 
 function localizeSection(section: DashboardSection, tr: SpecTranslator): DashboardSection {

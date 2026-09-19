@@ -100,7 +100,7 @@ export async function breakdownOf(binding: Binding, ctx: ResolveContext): Promis
       // The count's own narrowing, asked for its rows: the state read narrows a list exactly as it
       // narrows a count, so the members listed are the members counted.
       const counted = asRows(
-        await resolveBinding({ kind: 'stateList', state: binding.state, scope: binding.scope, archetype: binding.archetype }, ctx),
+        await resolveBinding({ kind: 'stateList', state: binding.state, scope: binding.scope, archetype: binding.archetype, excludeState: binding.excludeState }, ctx),
       );
       return {
         value: counted.length,

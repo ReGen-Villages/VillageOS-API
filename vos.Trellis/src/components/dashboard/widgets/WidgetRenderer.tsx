@@ -11,6 +11,8 @@ import { Leaderboard } from './Leaderboard';
 import { VerdictList } from './VerdictList';
 import { WorkingList } from './WorkingList';
 import { ExceptionBar } from './ExceptionBar';
+import { ActionList } from './ActionList';
+import { RecordForm } from './RecordForm';
 import { DataTable } from './DataTable';
 import { RangeBar } from './RangeBar';
 import { LineSeries } from './LineSeries';
@@ -65,6 +67,10 @@ export function WidgetRenderer({
       return <StackedShares widget={widget} ctx={ctx} />;
     case 'divergingBar':
       return <DivergingBar widget={widget} ctx={ctx} />;
+    case 'action':
+      return <ActionList widget={widget} ctx={ctx} />;
+    case 'form':
+      return <RecordForm widget={widget} ctx={ctx} />;
     default:
       return <UnknownWidget reason={{ unknownType: (widget as { type?: unknown }).type }} />;
   }
@@ -120,6 +126,7 @@ function TableWidgetView({
         query={widget.searchable ? query : undefined}
         searchKeys={widget.searchKeys}
         onRowClick={onRowClick}
+        title={widget.title}
       />
     </WidgetCard>
   );

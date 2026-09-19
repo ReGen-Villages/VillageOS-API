@@ -7,9 +7,11 @@ import type { ThingRangesResponse, ThingsInStateResponse } from '../types/vos';
 vi.mock('./stateApi', () => ({ stateApi: { getThingsInState: vi.fn() } }));
 
 vi.mock('./rangeApi', () => ({ rangeApi: { getAll: vi.fn() } }));
+vi.mock('./client', () => ({ apiClient: { post: vi.fn() } }));
 
 import { stateApi } from './stateApi';
 import { rangeApi } from './rangeApi';
+import { apiClient } from './client';
 import { brokerModelReads } from './brokerModelReads';
 
 const answered = (Things: { Id: string; Name: string }[]) =>
@@ -21,6 +23,52 @@ describe('what one refresh generation asks the broker', () => {
   beforeEach(() => {
     vi.mocked(stateApi.getThingsInState).mockReset().mockResolvedValue(answered([{ Id: 'b1', Name: 'BLD-1' }]));
     vi.mocked(rangeApi.getAll).mockReset().mockResolvedValue(noRanges);
+    vi.mocked(apiClient.post).mockReset().mockResolvedValue({ reservoirs: 3 });
+  });
+
+  // A table and the figure beside it read the same list from the same service, and a service
+  // answers each by walking what it holds — so asking twice a refresh doubles that walk for one
+  // answer. The question is the endpoint and what is sent to it, never the path picked out of the
+  // answer: two widgets reading different parts of one reply are still one question.
+  it('asks a service one question once, however many widgets ask it', async () => {
+    const reads = brokerModelReads();
+
+    const answers = await Promise.all([
+      reads.fromService('/api/endpoints/reservoirs', { scope: 'site1' }),
+      reads.fromService('/api/endpoints/reservoirs', { scope: 'site1' }),
+    ]);
+
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+    expect(answers[1]).toEqual({ reservoirs: 3 });
+  });
+
+  it('asks again when the same service is sent a different body', async () => {
+    const reads = brokerModelReads();
+
+    await Promise.all([
+      reads.fromService('/api/endpoints/reservoirs', { scope: 'site1' }),
+      reads.fromService('/api/endpoints/reservoirs', { scope: null }),
+    ]);
+
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks again once an answer has landed, so a press through the same port is never answered by an earlier one', async () => {
+    const reads = brokerModelReads();
+
+    await reads.fromService('/api/endpoints/readings', { view: 'book' });
+    await reads.fromService('/api/endpoints/readings', { view: 'book' });
+
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops a refused service read rather than sharing it', async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error('service unreachable'));
+    const reads = brokerModelReads();
+
+    await expect(reads.fromService('/api/endpoints/reservoirs', {})).rejects.toThrow();
+    expect(await reads.fromService('/api/endpoints/reservoirs', {})).toEqual({ reservoirs: 3 });
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
   });
 
   it('asks once for a state however many widgets want it', async () => {

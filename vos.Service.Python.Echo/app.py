@@ -118,18 +118,6 @@ async def register_with_mycelium() -> bool:
         return res.is_success
 
 
-async def deregister_from_mycelium() -> None:
-    try:
-        token = await _get_token()
-        async with httpx.AsyncClient(timeout=5, verify=False) as client:
-            await client.delete(
-                f"{config.mycelium_url}/api/mycelium/services/{handler_id}",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-    except Exception as exc:  # best-effort; never block shutdown
-        print(f"deregister failed: {exc}", file=sys.stderr)
-
-
 # Write kinds — Facts, Observations, Sediment. docs/SERVICE_CONTRACT.md § "Writing data back".
 # The optional `client` lets tests inject an httpx.AsyncClient with a MockTransport.
 
@@ -263,7 +251,6 @@ async def lifespan(_: FastAPI):
     except Exception as exc:
         print(f"registration failed: {exc}", file=sys.stderr)
     yield
-    await deregister_from_mycelium()
 
 
 app = FastAPI(title="VillageOS Python Microservice", lifespan=lifespan)

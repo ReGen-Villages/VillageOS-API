@@ -25,6 +25,20 @@ export const nl: PartialResources = {
     properties: 'Eigenschappen',
     logs: 'Logboeken',
   },
+  table: {
+    downloadAsCsv: 'Downloaden als CSV',
+  },
+  statement: {
+    live: 'Live',
+    notLive: 'Niet live',
+    reading: 'Model wordt gelezen…',
+    things_one: '{{count}} Ding',
+    things_other: '{{count}} Dingen',
+    relationships_one: '{{count}} relatie',
+    relationships_other: '{{count}} relaties',
+    lastMoved: 'Laatst bewogen {{at}}',
+    nothingYet: 'Nog niets bewogen',
+  },
   theme: {
     switchTo: 'Schakel naar {{mode}} modus',
     light: 'lichte',

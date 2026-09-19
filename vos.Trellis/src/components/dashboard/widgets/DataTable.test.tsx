@@ -7,6 +7,9 @@ import { installResizeObserverDouble } from '../../../testResizeObserver';
 vi.mock('../../../hooks/useDashboard', () => ({
   useBinding: () => ({ loading: false, error: false, value: null }),
 }));
+vi.mock('../../../utils/logDownload', () => ({ triggerDownload: vi.fn() }));
+
+import { triggerDownload } from '../../../utils/logDownload';
 
 const { DataTable } = await import('./DataTable');
 
@@ -25,12 +28,14 @@ function renderTable({
   sortKey,
   sortDir,
   query,
+  title,
 }: {
   visibleRows?: number;
   rowCount?: number;
   sortKey?: string;
   sortDir?: 'asc' | 'desc';
   query?: string;
+  title?: string;
 }) {
   const rows: Row[] = Array.from({ length: rowCount }, (_, i) => ({
     id: `location-${i}`,
@@ -46,6 +51,8 @@ function renderTable({
       sortKey={sortKey}
       sortDir={sortDir}
       query={query}
+      title={title}
+      searchKeys={query === undefined ? undefined : ['name']}
     />,
   );
   return container.querySelector('.overflow-x-auto') as HTMLElement;
@@ -231,5 +238,18 @@ describe('DataTable row window (Bug 6583)', () => {
 
     expect(rowNames(scroller)).toHaveLength(12);
     expect(spacerHeights(scroller)).toEqual([]);
+  });
+});
+
+describe('DataTable download', () => {
+  it('offers the rows as the table shows them: sorted and under the search, named after the table', async () => {
+    const scroller = renderTable({ rowCount: 12, sortKey: 'units', sortDir: 'desc', query: 'Location 1', title: 'Water stored' });
+
+    fireEvent.click(scroller.parentElement!.querySelector('button[data-download]')!);
+
+    expect(triggerDownload).toHaveBeenCalledTimes(1);
+    const [blob, fileName] = vi.mocked(triggerDownload).mock.calls[0];
+    expect(fileName).toBe('water-stored.csv');
+    expect(await blob.text()).toBe('Location,Units\r\nLocation 11,11\r\nLocation 10,10\r\nLocation 1,1\r\n');
   });
 });

@@ -274,6 +274,7 @@ export function useModelData(): void {
       // after the last full load. The debounced applyBatch coalesces the high rate into one write
       // per window.
       on('PropertyChanged', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
+      on('PropertyObserved', (...args) => onThingProperty(args, { deleted: false, value: args[2] })),
       on('PropertyDeleted', (...args) => onThingProperty(args, { deleted: true })),
       on('RelationshipPropertyChanged', (...args) => onRelationshipProperty(args, { deleted: false, value: args[2] })),
       on('RelationshipPropertyDeleted', (...args) => onRelationshipProperty(args, { deleted: true })),
@@ -283,14 +284,17 @@ export function useModelData(): void {
       // again rather than reconciled — which also re-answers with the new model's snapshot.
       on('ModelChanged', () => resubscribe()),
       on('ModelCleared', () => useModelStore.getState().clear()),
-      // Kept only while the store holds a narrowed page's set: the events stream carries every
-      // Thing's state changes, and a page reading across the whole model draws none of them, so
-      // keeping them there would grow with the model for no reader.
+      // The narrowed page's set is kept only while the store holds one: the events stream carries
+      // every Thing's state changes, and a page reading across the whole model draws none of them,
+      // so keeping them there would grow with the model for no reader. The stream says what is held
+      // after the change and never which state was left, so a figure counting a state nobody
+      // entered waits for the page's cadence to see it empty.
       on('StatesChanged', (data) => {
-        useUiStore.getState().bumpStatesVersion();
-        const change = holdsNarrowedSet ? stateChange(data) : undefined;
-        if (change) { pending.thingStates.set(change.id, change.states); schedule(); }
+        const change = stateChange(data);
+        useUiStore.getState().statesMoved(change?.states ?? []);
+        if (holdsNarrowedSet && change) { pending.thingStates.set(change.id, change.states); schedule(); }
       }),
+      on('RelationshipStatesChanged', (data) => useUiStore.getState().statesMoved(stateChange(data)?.states ?? [])),
     ];
     return () => {
       if (timer) clearTimeout(timer);

@@ -17,6 +17,7 @@ export function brokerModelReads(): ModelReads {
   const states = new Map<string, Promise<ThingsInStateResponse>>();
   const ranges = new Map<string, Promise<ThingRangesResponse | null>>();
   const reductions = new Map<string, Promise<TemporalReduceResponse>>();
+  const services = new Map<string, Promise<unknown>>();
 
   return {
     // The question is the request, not the state name: two widgets narrowing one state differently
@@ -57,6 +58,17 @@ export function brokerModelReads(): ModelReads {
       return request;
     },
 
-    fromService: (endpoint, body) => apiClient.post<unknown>(endpoint, body),
+    // Shared only while in flight, unlike a state read: a widget that writes travels through this
+    // same port, and a press answered from an earlier press's reply would record nothing and say
+    // it had. Widgets of one refresh ask together, so their one question is still asked once.
+    fromService(endpoint, body) {
+      const question = `${endpoint} ${JSON.stringify(body)}`;
+      const inFlight = services.get(question);
+      if (inFlight) return inFlight;
+      const request = apiClient.post<unknown>(endpoint, body);
+      services.set(question, request);
+      request.then(() => services.delete(question), () => services.delete(question));
+      return request;
+    },
   };
 }
