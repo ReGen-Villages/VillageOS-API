@@ -2417,4 +2417,33 @@ describe('history reads the platform reduction over a property series', () => {
 
     expect(temporalApi.reduce).toHaveBeenCalledTimes(1);
   });
+
+  // A threshold or a band's bound is the model's — a setpoint the study declares, a bound a class
+  // Thing carries — so a step may bind it rather than write the number, and the question the platform
+  // is asked carries the number the model holds.
+  it('resolves a bound parameter to the number the model holds before it asks', async () => {
+    const degreeDays: Binding = {
+      kind: 'history', property: 'temperature', windowSeconds: A_YEAR,
+      steps: [
+        { fold: 'day', function: 'Average' },
+        { fold: 'monthOfYear', function: 'SumAbove', threshold: { kind: 'property', thing: '$scope', property: 'coolingSetpoint' } },
+      ],
+    };
+
+    await resolveBinding(degreeDays, siteCtx('site1', { coolingSetpoint: 18 }));
+
+    expect(vi.mocked(temporalApi.reduce).mock.calls[0][0].steps).toEqual([
+      { fold: 'day', function: 'Average' }, { fold: 'monthOfYear', function: 'SumAbove', threshold: 18 },
+    ]);
+  });
+
+  it('answers nothing rather than asking with nought where a bound parameter resolves to nothing', async () => {
+    const share: Binding = {
+      kind: 'history', property: 'temperature', windowSeconds: A_YEAR,
+      steps: [{ fold: 'all', function: 'ShareWithin', from: { kind: 'property', thing: '$scope', property: 'comfortLow' } }],
+    };
+
+    expect(await resolveBinding(share, siteCtx('site1'))).toBeNull();
+    expect(temporalApi.reduce).not.toHaveBeenCalled();
+  });
 });

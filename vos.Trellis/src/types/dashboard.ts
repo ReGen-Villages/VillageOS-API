@@ -9,7 +9,7 @@
  * Every domain word lives in the model's spec — see the discovery + resolver in
  * `src/api/dashboardApi.ts`.
  */
-import type { HistoryStep, OriginKind } from './vos';
+import type { HistoryFold, HistoryFunction, OriginKind } from './vos';
 
 /** The archetype a model-resident dashboard config Thing must be `is`-linked to. */
 export const DASHBOARD_ARCHETYPE = 'Dashboard';
@@ -47,6 +47,19 @@ export type NumberFormat =
  * selected in the page's scope switcher, or is averaged across all compare
  * entities when "All" is selected.
  */
+/** A step of a history reduction as the spec writes it. A parameter — a percentile, a band's bound, a
+ *  threshold — is a number, or a binding onto the model's own value (a setpoint the study declares,
+ *  a bound a class Thing carries) resolved to the number before the platform is asked. */
+export type BoundNumber = number | Binding;
+export interface HistoryStepBinding {
+  fold: HistoryFold;
+  function: HistoryFunction;
+  percentile?: BoundNumber;
+  from?: BoundNumber;
+  to?: BoundNumber;
+  threshold?: BoundNumber;
+}
+
 export type Binding =
   | { kind: 'const'; value: number }
   /** Count of Things currently in a derived State, asked of the platform as a number so a figure of
@@ -243,7 +256,7 @@ export type Binding =
    *
    *  Costs one request per distinct question per refresh: the same question from several widgets is
    *  asked once. The platform walks the property's retained samples once per question. */
-  | { kind: 'history'; property: string; windowSeconds: number; steps: HistoryStep[] };
+  | { kind: 'history'; property: string; windowSeconds: number; steps: HistoryStepBinding[] };
 
 /**
  * A column of a row-producing binding (`thingList`, `stateList`, `compareEntities`) derived per
@@ -663,7 +676,8 @@ export interface HeatmapWidget {
  *  with `ShareWithin` between the class's bounds, answering a fraction. */
 export interface StackedSharesClass {
   label: string;
-  colour: string;
+  /** The colour as written, or bound to the class Thing's own — so the model colours its classes. */
+  colour: string | Binding;
   share: Binding;
 }
 

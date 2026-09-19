@@ -18,6 +18,7 @@ import type {
   VosRelationship,
   TemporalAggregateQuery,
   DerivedDefinition,
+  HistoryStep,
 } from '../types/vos';
 import {
   DASHBOARD_ARCHETYPE,
@@ -34,6 +35,7 @@ import {
   type ScopeEntity,
   type ScopeRef,
   type PropertyFilter,
+  type HistoryStepBinding,
 } from '../types/dashboard';
 import type { ModelReads } from './modelReads';
 import type { StateNarrowing } from './stateQuery';
@@ -953,18 +955,40 @@ async function resolveHistory(
   if (!ctx.scopeId) return null;
   const entity = ctx.idx.byId.get(ctx.scopeId);
   const offset = entity ? nullableNumber(effectiveProperties(entity, ctx.idx)[UTC_OFFSET_PROPERTY]) : null;
+  const steps = await resolveSteps(binding.steps, ctx);
+  if (!steps) return null;
   try {
     const answer = await ctx.reads.reduce({
       thingId: ctx.scopeId,
       property: binding.property,
       windowSeconds: binding.windowSeconds,
       ...(offset !== null ? { utcOffsetSeconds: offset } : {}),
-      steps: binding.steps,
+      steps,
     });
     return answer.Groups.map((group) => ({ key: group.Key, value: group.Value }));
   } catch {
     return null;
   }
+}
+
+const STEP_PARAMETERS = ['percentile', 'from', 'to', 'threshold'] as const;
+
+/** The steps with every bound parameter resolved to its number. A parameter the model answers nothing
+ *  for is a question with no answer, not one asked with nought: the whole binding resolves to nothing. */
+async function resolveSteps(steps: HistoryStepBinding[], ctx: ResolveContext): Promise<HistoryStep[] | null> {
+  const resolved: HistoryStep[] = [];
+  for (const step of steps) {
+    const numeric: HistoryStep = { fold: step.fold, function: step.function };
+    for (const name of STEP_PARAMETERS) {
+      const given = step[name];
+      if (given === undefined) continue;
+      const value = typeof given === 'number' ? given : asNumber(await resolveBinding(given, ctx));
+      if (value === null) return null;
+      numeric[name] = value;
+    }
+    resolved.push(numeric);
+  }
+  return resolved;
 }
 
 // ---- coercion helpers for widgets --------------------------------------

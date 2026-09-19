@@ -110,6 +110,26 @@ describe('the stacked percentage bar', () => {
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(13);
   });
 
+  // The classes are the model's Things, so a class may bind its colour to the Thing's own rather than
+  // write one into the spec; a colour the model does not answer leaves the class out rather than
+  // painting it in one the model never gave.
+  it('paints a class in the colour the model answers, and leaves out one the model gives no colour', () => {
+    const coloured: Binding = { kind: 'property', thing: 'No thermal stress', property: 'colour' };
+    const uncoloured: Binding = { kind: 'property', thing: 'Slight cold stress', property: 'colour' };
+    values.set(JSON.stringify(coloured), '#B7E4C7');
+    const { container } = draw({
+      ...widget,
+      classes: [
+        { label: 'no stress', colour: coloured, share: widget.classes[1].share },
+        { label: 'slight cold', colour: uncoloured, share: widget.classes[0].share },
+      ],
+    });
+
+    const january = container.querySelector('[data-month="1"]')!;
+    expect([...january.querySelectorAll('rect[data-class]')].map((segment) => segment.getAttribute('fill'))).toEqual(['#B7E4C7']);
+    expect(screen.queryByText('slight cold')).toBeNull();
+  });
+
   it('leaves out a month no class was answered for, and a class the platform answered nothing for', () => {
     const { container } = draw({
       ...widget,
