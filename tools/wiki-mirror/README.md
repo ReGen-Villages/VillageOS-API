@@ -7,7 +7,7 @@ GitHub.
 
 The Azure DevOps project wiki is canonical. The GitHub wiki is a generated
 mirror — **do not edit it directly**; edits are overwritten on the next
-main build.
+`develop` build.
 
 ## What it does
 

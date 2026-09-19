@@ -8,6 +8,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useDashboards } from '../../hooks/useDashboard';
 import { makeSpecTranslator } from '../../api/dashboardLocalization';
 import { SessionControls } from './SessionControls';
+import { ModelStatement } from './ModelStatement';
 
 /** The route the model's own dashboards live under. Its entry stands in for them while the model
  *  publishes none, and is replaced by one entry per dashboard once it does. */
@@ -81,7 +82,8 @@ export function Sidebar() {
           ),
         )}
       </nav>
-      <div className="p-2 border-t border-zinc-200 dark:border-zinc-700">
+      <div className="p-2 border-t border-zinc-200 dark:border-zinc-700 space-y-1">
+        <ModelStatement isCollapsed={isCollapsed} />
         <SessionControls isCollapsed={isCollapsed} />
       </div>
     </aside>

@@ -23,6 +23,13 @@ describe('subscriptionForSpec', () => {
 
   it('asks to keep following the types it names, as the navigation does', () => {
     expect(subscriptionForSpec(specWith({}), null).includeLaterMatches).toBe(true);
+  });
+
+  // A reading is written as an observation, which the platform delivers only to a subscription
+  // that asked; the navigation reads no readings and asks for none.
+  it('asks for observations, so a figure bound to a reading moves without a reload', () => {
+    expect(subscriptionForSpec(specWith({}), null).includeObservations).toBe(true);
+    expect(NAVIGATION_AND_SETTINGS.includeObservations).toBeUndefined();
     expect(NAVIGATION_AND_SETTINGS.includeLaterMatches).toBe(true);
   });
 
