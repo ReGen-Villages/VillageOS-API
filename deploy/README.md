@@ -28,8 +28,8 @@ What each side does:
 
 | Side | What it configures |
 |---|---|
-| The Cloudflare account that holds the domain | One tunnel; one public hostname per host — `app.example.org` and `intake.example.org` — each pointing at where that host is served on the machine; optionally a sign-in gate (Cloudflare Access) in front of the main host, so only listed email addresses reach the GUI's own login. [TUNNEL.md](TUNNEL.md) walks the account holder through it. |
-| The machine | Runs the connector with the token the account side hands over, and the services on loopback as above. The connector is started and stopped with the services; the token is kept in the operating system's credential store, never in a file or on a command line. |
+| The Cloudflare account that holds the domain | Authorises the machine once, in the browser, against the domain's zone; hosts the public pages on a static site; optionally a sign-in gate (Cloudflare Access) in front of the main host, so only listed email addresses reach the GUI's own login. [TUNNEL.md](TUNNEL.md) walks the account holder through it. |
+| The machine | Creates the tunnel under that authorisation and writes its own routing — one public hostname per host, `app.example.org` and `intake.example.org`, each to where that host is served on loopback — and the hostnames' DNS records. The connector is started and stopped with the services; the tunnel's credentials are written by `cloudflared` under the serving user's home, never on a command line. |
 
 Where the public hostname points depends on what runs:
 
