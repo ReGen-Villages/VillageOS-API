@@ -1,6 +1,6 @@
 # VillageOS managed microservice — Go example
 
-A complete, runnable VillageOS handler written in **Go using only the standard library** (no third-party modules). It demonstrates the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the four required endpoints, inbound JWT validation, and graceful deregistration.
+A complete, runnable VillageOS handler written in **Go using only the standard library** (no third-party modules). It demonstrates the full managed-microservice contract documented in [docs/SERVICE_AUTHORING.md](../docs/SERVICE_AUTHORING.md): startup registration, the four required endpoints, inbound JWT validation, and graceful shutdown.
 
 This is the Go analogue of the canonical C# [`vos.Service.CSharp.Echo`](../vos.Service.CSharp.Echo) example — an **echo handler**: `/handle` acknowledges the relationship and reflects the payload back. Replace the body of `handleRelationship` in `main.go` with your predicate logic.
 
@@ -55,7 +55,7 @@ Both come from the environment and are never flags. A command line is readable b
 
 - **Registration** — `register()` POSTs to `/api/mycelium/register` with `{handlerId, serviceName, endpointUrl, startCommand, stopEndpoint, healthEndpoint}` after obtaining a bearer token.
 - **JWT validation** — `verifyES256()` refuses any header naming an algorithm other than ES256, checks the elliptic-curve signature against `base64decode(VerificationKey)`, then checks issuer, this service's own recipient name, and expiry with 30s clock skew — the same parameters as `ServiceTokenValidator` on the .NET side.
-- **Deregistration** — `deregister()` sends `DELETE /api/mycelium/services/{handlerId}` on SIGINT/SIGTERM and on `/shutdown`. The broker refuses that route to a service token (it is admin-only) and removes the registration through its liveness monitor instead, so the call is logged as failed and does no harm; a handler of your own can leave it out.
+- **Shutdown** — `shutdown()` stops the listener on SIGINT/SIGTERM and on `/shutdown`. It does not deregister: `DELETE /api/mycelium/services/{handlerId}` is admin-only, and the broker's liveness monitor removes a registration whose service stops answering.
 
 ## Build / verify
 

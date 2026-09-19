@@ -3,7 +3,7 @@
 Run with:  pytest
 
 Covers the four contract endpoints and the inbound JWT validation.
-Registration/deregistration are mocked so the tests never touch the network.
+Registration is mocked so the tests never touch the network.
 """
 
 import base64
@@ -28,9 +28,8 @@ from app import app
 @pytest.fixture
 def client():
     with patch("app.register_with_mycelium", new=AsyncMock(return_value=True)):
-        with patch("app.deregister_from_mycelium", new=AsyncMock()):
-            with TestClient(app) as c:
-                yield c
+        with TestClient(app) as c:
+            yield c
 
 
 THIS_HANDLER = "python-echo-handler"
@@ -118,6 +117,16 @@ def test_shutdown(client):
     res = client.post("/shutdown")
     assert res.status_code == 200
     assert "Shutting down" in res.json()["message"]
+
+
+# The deregistration route is admin-only; the broker's liveness monitor removes a registration whose service stops answering.
+def test_shutdown_does_not_ask_the_broker_to_withdraw():
+    with patch("app.register_with_mycelium", new=AsyncMock(return_value=True)), \
+         patch("app._get_token", new=AsyncMock(return_value="tok")), \
+         patch("httpx.AsyncClient.delete", new=AsyncMock()) as delete:
+        with TestClient(app):
+            pass
+    assert delete.await_count == 0, "a service cannot deregister itself, so shutdown must not try"
 
 
 def test_handle_rejects_missing_token_when_auth_enabled(client, signing):

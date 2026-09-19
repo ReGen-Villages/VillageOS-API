@@ -9,7 +9,7 @@
 // `is` is NOT an external predicate — Mycelium handles `is` inheritance
 // in-process and never dispatches it. Register for a custom predicate instead.
 
-import { createServer, IncomingMessage, ServerResponse } from "node:http";
+import { createServer, IncomingMessage, Server, ServerResponse } from "node:http";
 import { createPublicKey, randomUUID, verify, type KeyObject } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
@@ -92,18 +92,6 @@ async function register(cfg: Config): Promise<void> {
     }),
   });
   if (!res.ok) throw new Error(`register returned ${res.status}`);
-}
-
-async function deregister(cfg: Config): Promise<void> {
-  try {
-    const token = await getToken(cfg);
-    await fetch(`${cfg.myceliumUrl}/api/mycelium/services/${handlerId}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-  } catch (err) {
-    console.error("deregister failed:", err);
-  }
 }
 
 // Write kinds — Facts, Observations, Sediment. docs/SERVICE_CONTRACT.md § "Writing data back".
@@ -421,7 +409,7 @@ function main(): void {
     if (method === "POST" && url === "/shutdown") {
       if (!authorized(req, cfg, key)) return sendJson(res, 401, { error: "unauthorized" });
       sendJson(res, 200, { message: `Shutting down ${SERVICE_NAME} microservice` });
-      setTimeout(() => void shutdown(cfg, server), 300);
+      setTimeout(() => void shutdown(server).then(() => process.exit(0)), 300);
       return;
     }
     sendJson(res, 404, { error: "not found" });
@@ -433,15 +421,14 @@ function main(): void {
       .catch((err) => console.error("registration failed:", err));
   });
 
-  const onSignal = () => void shutdown(cfg, server);
+  const onSignal = () => void shutdown(server).then(() => process.exit(0));
   process.on("SIGINT", onSignal);
   process.on("SIGTERM", onSignal);
 }
 
-async function shutdown(cfg: Config, server: ReturnType<typeof createServer>): Promise<void> {
+export async function shutdown(server: Server): Promise<void> {
   console.log(`shutting down — processed ${requestsProcessed} request(s)`);
-  await deregister(cfg);
-  server.close(() => process.exit(0));
+  await new Promise<void>((resolve) => server.close(() => resolve()));
 }
 
 // Only boot the server when run directly, so tests can import the pure helpers.
