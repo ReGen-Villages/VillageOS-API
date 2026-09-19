@@ -129,6 +129,14 @@ describe('a state count opens to the Things it counted', () => {
     expect(breakdown?.terms).toMatchObject({ state: 'flooded', archetype: 'Catchment', within: 'North ridge' });
   });
 
+  it('asks the list read with the exclusion the count used, so the rows are the rows counted', async () => {
+    reads.thingsInState.mockResolvedValue({ StateName: 'submitted', Things: [{ Id: 'catchment-1', Name: 'CATCH-1' }] });
+
+    await breakdownOf({ kind: 'stateCount', state: 'submitted', excludeState: 'reviewed' }, context());
+
+    expect(reads.thingsInState).toHaveBeenCalledWith('submitted', expect.objectContaining({ notIn: ['reviewed'] }));
+  });
+
   it('carries the properties a counted Thing holds when the page holds the Thing', async () => {
     reads.thingsInState.mockResolvedValue({ StateName: 'flooded', Things: [{ Id: 'catchment-1', Name: 'CATCH-1' }] });
 

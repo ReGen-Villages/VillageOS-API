@@ -23,7 +23,8 @@
     { "doc": "docs/FORAGE.md", "page": "/Services/Forage" },
     { "doc": "docs/METABOLISM.md", "page": "/Services/Metabolism" },
     { "doc": "docs/MODELBRIDGE.md", "page": "/Services/ModelBridge" },
-    { "doc": "deploy/README.md", "page": "/Deployment" }
+    { "doc": "deploy/README.md", "page": "/Deployment" },
+    { "doc": "deploy/TUNNEL.md", "page": "/Deployment/Tunnel" }
   ],
   "excluded": [
     { "doc": "docs/SERVICE_HOST_ROADMAP.md", "why": "Planned work, not reference material. Plans change faster than the wiki should." },
