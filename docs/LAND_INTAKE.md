@@ -303,6 +303,12 @@ comes first, and the report comes before the questions.
   the service is shown beside the file in the service's own words. What the model holds is listed
   below with each file's description, read back through the service when the report opens, so a
   person who returns sees what they shared before.
+- **The closing view is the land itself.** *See it on the land* opens the parcel on the imagery the
+  model declares (the `Satellite` source, whose tiles come through the intake service's own route,
+  so no page holds the provider's address), with the sections the submitted page declares as tabs —
+  location, water, nutrition, housing, infrastructure and overview — in a sheet along the bottom,
+  each drawing its own figures. The opening map is a globe that flattens as the map closes in, the
+  library's own blend; see [TRELLIS.md](TRELLIS.md#a-section-drawn-as-a-tile).
 
 What the two approaches share is deliberately everything that matters: one submission document, one
 composing path, one verification exchange, one dashboard. What differs is only the order the person

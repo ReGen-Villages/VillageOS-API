@@ -929,6 +929,11 @@ export const de: PartialResources = {
       listTitle: 'Von Ihnen geteilte Dateien',
       noDescription: 'keine Beschreibung',
     },
+    overview: {
+      open: 'Auf dem Land ansehen',
+      close: 'Zurück zum Bericht',
+      title: 'Das Land, Reiter für Reiter',
+    },
     facts: {
       area: 'Fläche',
       hectares: '{{value}} Hektar',

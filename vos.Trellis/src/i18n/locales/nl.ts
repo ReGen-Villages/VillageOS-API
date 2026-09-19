@@ -929,6 +929,11 @@ export const nl: PartialResources = {
       listTitle: 'Bestanden die u heeft gedeeld',
       noDescription: 'geen beschrijving',
     },
+    overview: {
+      open: 'Bekijk het op de grond',
+      close: 'Terug naar het rapport',
+      title: 'De grond, tabblad voor tabblad',
+    },
     facts: {
       area: 'Oppervlakte',
       hectares: '{{value}} hectare',

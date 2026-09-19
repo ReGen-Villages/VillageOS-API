@@ -27,6 +27,8 @@ import { useBinding, useResolveContext } from '../hooks/useDashboard';
 import { useStandalonePageDocument } from '../hooks/useStandalonePageDocument';
 import { fromHectares, withShareSet, wholePercentages } from '../intake/submissionDraft';
 import { findingsFrom, type Findings } from '../publicFindings/answeredFindings';
+import { OverviewView } from './OverviewView';
+import { tabSections } from './overviewState';
 import { SurveysStep } from './SurveysStep';
 import type { SharedSurvey } from './sharedSurveys';
 import type { DashboardSection, KpiWidget } from '../types/dashboard';
@@ -848,7 +850,10 @@ function Drawn({
     .filter((section) => section.facts)
     .flatMap((section) => section.widgets)
     .filter((widget): widget is KpiWidget => widget.type === 'kpi');
-  const listed = spec.sections.filter((section: DashboardSection) => !section.facts && section.theme === undefined);
+  const listed = spec.sections.filter(
+    (section: DashboardSection) => !section.facts && section.theme === undefined && section.tab === undefined);
+  const tabs = tabSections(spec);
+  const [overviewOpen, setOverviewOpen] = useState(false);
 
   return (
     <div ref={measure}>
@@ -865,6 +870,26 @@ function Drawn({
             whenEmpty={<p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">{t('explore.emptyView')}</p>}
           />
         </div>
+      )}
+      {tabs.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setOverviewOpen(true)}
+          className="mt-4 px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          {t('explore.overview.open')}
+        </button>
+      )}
+      {overviewOpen && (
+        <OverviewView
+          tabs={tabs}
+          ctx={ctx}
+          sources={options?.basemapSources ?? []}
+          centre={state.position ?? { latitude: WORLD.latitude, longitude: WORLD.longitude }}
+          zoom={PLOT_ZOOM}
+          boundary={state.boundary}
+          onClose={() => setOverviewOpen(false)}
+        />
       )}
     </div>
   );

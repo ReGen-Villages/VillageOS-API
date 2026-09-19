@@ -180,6 +180,29 @@ describe('what the form draws itself with', () => {
     expect(options.basemapSources.map((source) => source.name)).toEqual(['Streets']);
   });
 
+  // A source whose tile address is a path is the intake service's own route to imagery it proxies — the
+  // public pages are served from a site of their own, so the path is the service's, not the page's.
+  it('resolves a tile address that is a path against the intake service', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          allocationCategories: [],
+          basemapSources: [
+            { id: 'src-1', name: 'Satellite', attribution: 'Example imagery', tileUrl: '/basemaps/satellite-tiles/{z}/{x}/{y}' },
+            { id: 'src-2', name: 'Streets', attribution: 'Example', styleUrl: 'https://example.test/s.json' },
+          ],
+        }),
+    });
+
+    const options = await intakeApi.formOptions();
+
+    expect(options.basemapSources.map((source) => source.kind === 'raster' ? source.tileUrl : source.styleUrl)).toEqual([
+      'http://localhost:6200/basemaps/satellite-tiles/{z}/{x}/{y}',
+      'https://example.test/s.json',
+    ]);
+  });
+
   it('carries the themes the model declares, and none where the service names none', async () => {
     fetchMock.mockResolvedValue({
       ok: true,

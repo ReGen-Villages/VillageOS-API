@@ -1176,7 +1176,7 @@ their own entries and their own configuration in `vite.public.config.ts`:
 |---|---|---|---|
 | Submission form | `src/publicForm/main.tsx` | `index.html` | The wizard somebody with land fills in |
 | Findings | `src/publicFindings/main.tsx` | `findings.html` | What the analysis made of a submission already sent |
-| Explore | `src/explore/main.tsx` | `explore.html` | The plot-first way in, beside the wizard: map first with the facts about the land beside it, the report as themed tiles before the questions, dials that re-post the same submission, and the surveys asked for after the report — see [LAND_INTAKE.md §4](LAND_INTAKE.md#the-plot-first-page) and [A section drawn as a tile](#a-section-drawn-as-a-tile) |
+| Explore | `src/explore/main.tsx` | `explore.html` | The plot-first way in, beside the wizard: map first with the facts about the land beside it, the report as themed tiles before the questions, dials that re-post the same submission, the surveys asked for after the report, and the closing view over the land — see [LAND_INTAKE.md §4](LAND_INTAKE.md#the-plot-first-page) and [A section drawn as a tile](#a-section-drawn-as-a-tile) |
 
 ```
 VITE_INTAKE_URL=https://intake.example.org npm run build:public
@@ -2770,8 +2770,17 @@ line in place of a tick, which is where the source's name goes once the model re
 leaves the section out of the report beneath. The page draws three cards of its own from what it
 knows without asking: the area (with the register's credit, or *drawn by hand*), the coordinates (with
 how the pin was placed), and the reference once the submission is accepted. A `facts` section should
-therefore carry only what the page cannot know for itself. A spec naming neither `theme` nor
-`facts` renders exactly as it did.
+therefore carry only what the page cannot know for itself.
+
+**The tabs over the land.** A section may instead carry `tab`, a word of the spec's own naming it as
+a tab of the closing view. Once the report is up, *See it on the land* opens the parcel on the
+imagery the model declares — the first source drawing a tile pyramid, which is how imagery is served,
+with the map's own layer switch still there and the reader's layer handed back on closing — and a
+sheet along the bottom with every `tab` section as a tab, in spec order, the first open. Each tab
+draws its section through the same widgets as the report, so `layout` and `widths` apply inside a
+tab as they do in the list, and a `tab` section is left out of the report beneath. The section's
+`title` is what the tab reads, so it is translated with the rest of the spec. A spec naming no
+`theme`, `facts` or `tab` renders exactly as it did.
 
 ---
 

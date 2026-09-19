@@ -927,6 +927,11 @@ export const en = {
       listTitle: 'Files you have shared',
       noDescription: 'no description',
     },
+    overview: {
+      open: 'See it on the land',
+      close: 'Back to the report',
+      title: 'The land, tab by tab',
+    },
     facts: {
       area: 'Area',
       hectares: '{{value}} hectares',

@@ -1079,6 +1079,11 @@ export const ar: PartialResources & ArabicPlurals = {
       listTitle: "الملفات التي شاركتها",
       noDescription: "بلا وصف",
     },
+    overview: {
+      open: "شاهدها على الأرض",
+      close: "العودة إلى التقرير",
+      title: "الأرض، تبويبًا تبويبًا",
+    },
     facts: {
       area: "المساحة",
       hectares: "{{value}} هكتار",
