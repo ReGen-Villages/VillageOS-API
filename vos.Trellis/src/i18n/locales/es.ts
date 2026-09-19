@@ -281,6 +281,16 @@ export const es: PartialResources = {
       lastDays_one: 'último día',
       lastDays_other: 'últimos {{count}} días',
     },
+    divergingBar: {
+      above: 'por encima de {{threshold}}',
+      below: 'por debajo de {{threshold}}',
+    },
+    heatmap: {
+      sunrise: 'Amanecer',
+      sunset: 'Atardecer',
+      warmest: 'Máximo {{value}} el {{when}}',
+      coldest: 'Mínimo {{value}} el {{when}}',
+    },
     rangeBar: {
       recordedHigh: 'Máxima registrada',
       designHigh: 'Máxima de diseño',

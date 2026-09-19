@@ -14,6 +14,9 @@ import { ExceptionBar } from './ExceptionBar';
 import { DataTable } from './DataTable';
 import { RangeBar } from './RangeBar';
 import { LineSeries } from './LineSeries';
+import { Heatmap } from './Heatmap';
+import { StackedShares } from './StackedShares';
+import { DivergingBar } from './DivergingBar';
 import { SearchBox } from './SearchBox';
 import { WidgetCard } from './WidgetCard';
 
@@ -56,6 +59,12 @@ export function WidgetRenderer({
       return <RangeBar widget={widget} ctx={ctx} />;
     case 'lineSeries':
       return <LineSeries widget={widget} ctx={ctx} />;
+    case 'heatmap':
+      return <Heatmap widget={widget} ctx={ctx} />;
+    case 'stackedShares':
+      return <StackedShares widget={widget} ctx={ctx} />;
+    case 'divergingBar':
+      return <DivergingBar widget={widget} ctx={ctx} />;
     default:
       return <UnknownWidget reason={{ unknownType: (widget as { type?: unknown }).type }} />;
   }

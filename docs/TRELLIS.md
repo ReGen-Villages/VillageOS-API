@@ -1150,7 +1150,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations/{dashboard}` | `OperationsPage` | The dashboards a model declares, one address and one sidebar entry per `Dashboard` Thing — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Each is drawn from its `spec` by a generic binding resolver over the state, thing and temporal APIs, live over the stream; the widget kinds are KPI, funnel, bullet, gantt, table, leaderboard, verdict, working, exception bar, range bar and line series. The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. How a binding reads a value, how a state answer is narrowed, what a row carries and what the Thing detail window shows are in [§21](#21-dashboard-internals), under [How a binding reads a value](#how-a-binding-reads-a-value) and after. |
+| `/operations/{dashboard}` | `OperationsPage` | The dashboards a model declares, one address and one sidebar entry per `Dashboard` Thing — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Each is drawn from its `spec` by a generic binding resolver over the state, thing and temporal APIs, live over the stream; the widget kinds are KPI, funnel, bullet, gantt, table, leaderboard, verdict, working, exception bar, range bar, line series, heatmap, stacked shares and diverging bar. The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. How a binding reads a value, how a state answer is narrowed, what a row carries and what the Thing detail window shows are in [§21](#21-dashboard-internals), under [How a binding reads a value](#how-a-binding-reads-a-value) and after. |
 | `/compose` | `ComposerPage` | A table composed from a kind's own declarations, drawn by the dashboard's table and kept as a `Dashboard` Thing — see [7.5 Compose](#75-compose--a-table-from-a-kinds-own-declarations). |
 | `/intake` | `IntakeWizardPage` | The land-intake wizard (#6016): project, contact, location, size and programme, and parcel, posted to the intake service as one document once the address on it has been verified: pressing **Send a code** asks the service to send one to the contact's email address, and the submission goes when that code is entered. The code is never part of the draft. The draft is written to browser storage on every keystroke, keyed by the model, so a closed tab loses nothing, and it is cleared once the submission is in the model. The area is stored in hectares whatever unit it is typed in; an area that is not a figure is left out rather than sent as zero. The programme categories are the Things under the archetype marked `__IsAllocationCategoryArchetype` — the same vocabulary the intake service resolves a submitted word against — so the wizard cannot offer a term that is then refused, and the shares always describe the whole parcel. Coordinates are read out of a pasted map link by `src/utils/mapLink.ts`, which refuses a pair that could not be a point on Earth and names a shortened link as one to open by hand; once both are given the location step shows the site on the shared map module (#6014). The parcel step draws the boundary on that same map (#6015) — a draft square of the stated area or corners placed by hand — with the drawn area measured on the sphere by `src/utils/parcelGeometry.ts` and compared with the stated area. Offered only where `VITE_INTAKE_URL` is set. The wizard itself is `src/intake/IntakeWizard.tsx`, which the public submission form renders too, so a field added to one appears in the other; pure logic in `src/intake/submissionDraft.ts` and `src/pages/modelVocabulary.ts`. |
 | `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
@@ -1915,6 +1915,102 @@ Every series shares one scale: two measures that need two scales are two charts.
 The chart is one focusable mark: the pointer, or the arrow keys once it has focus, move a crosshair
 to the nearest group and the tooltip reads every series at it; Home and End reach the ends. The
 table twin lists every group.
+
+### The heatmap
+
+`heatmap` draws every hour of every day of the year as one cell coloured by value — the `history`
+binding folded by `hourOfDay,dayOfYear` — with the sunrise and sunset curves over it where the spec
+binds where the place is.
+
+```json
+{ "type": "heatmap", "title": "Daily temperature", "unit": "°C", "format": "decimal1",
+  "value": { "kind": "history", "property": "temperature", "windowSeconds": 315360000,
+             "steps": [ { "fold": "hourOfDay,dayOfYear", "function": "Average" } ] },
+  "sun": { "latitude":  { "kind": "property", "thing": "$scope", "property": "latitude" },
+           "longitude": { "kind": "property", "thing": "$scope", "property": "longitude" },
+           "utcOffsetSeconds": { "kind": "property", "thing": "$scope", "property": "utcOffsetSeconds" } } }
+```
+
+**Why a canvas.** The grid is 8,784 cells, and an SVG rectangle each would put that many nodes in
+the document — the rest of the page, several times over — and lay them out on every re-render. The
+cells are painted on a canvas instead: one full paint measured at about a millisecond, repeated only
+when the answer, the width or the theme changes, and never on hover. Everything with words stays in
+an SVG over it — the hour and month axes, the two curves, the outline of the cell under the pointer —
+so it scales with the text and follows the theme's tokens. The canvas cannot read a token, so the
+surface is watched for the theme class and the grid repainted when it changes.
+
+**The ramp is one hue**, pale at the floor and deep at the ceiling, from the chart palette's steps —
+a scale legend beneath says which value each end is. The dark surface takes fewer steps at the deep
+end so the darkest cell still stands off the card. `floor` and `ceiling` fix the scale; absent, it
+spans the data exactly, with no air, because the palest cell should be the coldest hour rather than
+a value nothing reached.
+
+**The curves are computed from the model's own figures**: the latitude and longitude the spec binds
+and the offset the hours were folded in (`sun.utcOffsetSeconds`, universal time when left unbound),
+by the low-precision expansion of the sun's position, good to a few minutes. No coordinates bound, no curves.
+
+The pointer or the arrow keys walk the grid a cell at a time, with a tooltip naming the day, the hour
+and the value; the chart's accessible name carries the warmest and coldest hours. The table twin the
+other charts carry is left out here on purpose — thousands of hidden rows would cost what the canvas
+saved — and the keyboard walk and the extremes are what stand in for it.
+
+### The stacked shares
+
+`stackedShares` draws twelve bars, one a month, each stacked from the shares of the classes the spec
+lists — the thermal-stress distribution across the year, one class per stress band.
+
+```json
+{ "type": "stackedShares", "title": "Thermal stress",
+  "classes": [
+    { "label": "Strong cold stress", "colour": "#38bdf8",
+      "share": { "kind": "history", "property": "apparentTemperature", "windowSeconds": 315360000,
+                 "steps": [ { "fold": "monthOfYear", "function": "ShareWithin", "to": -13 } ] } },
+    { "label": "No thermal stress", "colour": "#65a30d",
+      "share": { "kind": "history", "property": "apparentTemperature", "windowSeconds": 315360000,
+                 "steps": [ { "fold": "monthOfYear", "function": "ShareWithin", "from": 9, "to": 26 } ] } },
+    … one entry per class Thing, its bounds and colour read off the model … ] }
+```
+
+Each class's `share` is a `history` binding folded by `monthOfYear` with `ShareWithin` between the
+class's bounds, answering a fraction per month; the classes are the model's Things, so the spec
+carries their labels, colours and bounds and the widget knows no band of its own. A bar stacks the
+classes in the order listed, the first at the bottom, so one class can be followed across the year;
+the axis reads in whole percentages. **The widget scales nothing to a hundred**: the shares are the
+platform's answers, and classes that do not sum to one draw a bar that stops short, which is what a
+reading no class covers looks like. A class the platform answered nothing for is left out of the
+bars and the legend; a month no class was answered for is left out.
+
+The card carries what every chart widget does — the window read off the bindings, a tooltip with
+every class of the bar under the pointer or the keyboard focus, read top down as the bar stacks, a
+legend, and the visually hidden table twin of every month.
+
+### The diverging bar
+
+`divergingBar` draws twelve months, each one bar rising above a line and one falling below it, on one
+scale — the cooling and heating degree days, with the setpoints the model states in the legend.
+
+```json
+{ "type": "divergingBar", "title": "Degree days", "unit": "°C·d", "format": "integer",
+  "up":   { "label": "Cooling",
+            "value": { "kind": "history", "property": "temperatureCelsius", "windowSeconds": 31536000,
+                       "steps": [ { "fold": "day", "function": "Average" }, { "fold": "monthOfYear", "function": "SumAbove", "threshold": 18 } ] },
+            "threshold": { "kind": "property", "thing": "$scope", "property": "coolingSetpointCelsius" } },
+  "down": { "label": "Heating",
+            "value": { "kind": "history", "property": "temperatureCelsius", "windowSeconds": 31536000,
+                       "steps": [ { "fold": "day", "function": "Average" }, { "fold": "monthOfYear", "function": "SumBelow", "threshold": 10 } ] },
+            "threshold": { "kind": "property", "thing": "$scope", "property": "heatingSetpointCelsius" } } }
+```
+
+Each side's `value` is a `history` binding folded by `monthOfYear`; the up side takes the warm tone
+and the down side the cool one, and both are drawn on one scale so the taller figure is the taller
+bar whichever side it is on. A side's `threshold` binds the number the figures were counted against
+to the model's own value, so the legend reads "Cooling · above 18" from what the study holds rather
+than from a number written into the spec; a side with no threshold bound is named alone. A month
+neither side was answered for is left out.
+
+The card carries what every chart widget does — the window read off the bindings, a tooltip with
+both figures of the month under the pointer or the keyboard focus, a legend, and the visually hidden
+table twin of every month.
 
 ### A word this build cannot answer
 

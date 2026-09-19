@@ -10,6 +10,9 @@ import type {
   VerdictWidget,
   RangeBarWidget,
   LineSeriesWidget,
+  HeatmapWidget,
+  StackedSharesWidget,
+  DivergingBarWidget,
 } from '../types/dashboard';
 
 /** A spec exercising every widget type plus a detail card. The base strings are
@@ -400,5 +403,94 @@ describe('localizeSpec over a lineSeries widget', () => {
     expect(localized.hint).toBe('mensual');
     expect(localized.unit).toBe('milímetros');
     expect(localized.series[0].label).toBe('Este año');
+  });
+});
+
+describe('localizeSpec over a heatmap widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'heatmap',
+              title: 'Sun',
+              hint: 'hour by day',
+              unit: 'watts',
+              value: { kind: 'const', value: 1 },
+            } satisfies HeatmapWidget] }],
+    translations: {
+      es: {
+          'Sun': 'Sol',
+          'hour by day': 'hora por día',
+          'watts': 'vatios',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as HeatmapWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Sol');
+    expect(localized.hint).toBe('hora por día');
+    expect(localized.unit).toBe('vatios');
+  });
+});
+
+describe('localizeSpec over a stackedShares widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'stackedShares',
+              title: 'Cover',
+              hint: 'by month',
+              classes: [{ label: 'Trees', colour: 'Trees', share: { kind: 'const', value: 1 } }],
+            } satisfies StackedSharesWidget] }],
+    translations: {
+      es: {
+          'Cover': 'Cubierta',
+          'by month': 'por mes',
+          'Trees': 'Árboles',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as StackedSharesWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Cubierta');
+    expect(localized.hint).toBe('por mes');
+    expect(localized.classes[0].label).toBe('Árboles');
+  });
+
+  it('never rewrites a value that is not wording, even when a translation entry matches it', () => {
+    expect(localized.classes[0].colour).toBe('Trees');
+  });
+});
+
+describe('localizeSpec over a divergingBar widget', () => {
+  const spec: DashboardSpec = {
+    title: 'Analysis',
+    sections: [{ widgets: [{
+              type: 'divergingBar',
+              title: 'Balance',
+              hint: 'by month',
+              unit: 'litres',
+              up: { label: 'Gain', value: { kind: 'const', value: 1 } },
+              down: { label: 'Loss', value: { kind: 'const', value: 1 } },
+            } satisfies DivergingBarWidget] }],
+    translations: {
+      es: {
+          'Balance': 'Balance hídrico',
+          'by month': 'por mes',
+          'litres': 'litros',
+          'Gain': 'Ganancia',
+          'Loss': 'Pérdida',
+      },
+    },
+  };
+  const localized = localizeSpec(spec, 'es').sections[0].widgets[0] as DivergingBarWidget;
+
+  it('translates the wording the widget shows', () => {
+    expect(localized.title).toBe('Balance hídrico');
+    expect(localized.hint).toBe('por mes');
+    expect(localized.unit).toBe('litros');
+    expect(localized.up.label).toBe('Ganancia');
+    expect(localized.down.label).toBe('Pérdida');
   });
 });

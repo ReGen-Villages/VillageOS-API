@@ -387,6 +387,16 @@ export const ar: PartialResources & ArabicPlurals = {
       lastDays_many: "آخر {{count}} يومًا",
       lastDays_other: "آخر {{count}} يوم",
     },
+    divergingBar: {
+      above: "فوق {{threshold}}",
+      below: "تحت {{threshold}}",
+    },
+    heatmap: {
+      sunrise: "شروق الشمس",
+      sunset: "غروب الشمس",
+      warmest: "الأعلى {{value}} في {{when}}",
+      coldest: "الأدنى {{value}} في {{when}}",
+    },
     rangeBar: {
       recordedHigh: "أعلى قيمة مسجّلة",
       designHigh: "الحد الأعلى التصميمي",

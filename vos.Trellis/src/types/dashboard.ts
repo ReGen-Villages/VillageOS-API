@@ -632,6 +632,75 @@ export interface LineSeriesWidget {
   ceiling?: number;
 }
 
+/** Where the chart stands on Earth and in what clock, so it can draw when the sun rises and sets:
+ *  each a binding onto the model's own figures. The offset is the one the platform folded the hours
+ *  in; left unbound, the curves are drawn in universal time as the platform folds by default. */
+export interface SunPosition {
+  latitude: Binding;
+  longitude: Binding;
+  utcOffsetSeconds?: Binding;
+}
+
+/** Every hour of every day of the year as one cell coloured by value — a `history` binding folded
+ *  by `hourOfDay,dayOfYear` — painted on a canvas because the grid is thousands of cells, with the
+ *  sunrise and sunset curves over it where the spec binds the coordinates. The ramp is one hue,
+ *  light at the floor and dark at the ceiling, with a scale legend; `floor` and `ceiling` fix it,
+ *  absent it fits the data. */
+export interface HeatmapWidget {
+  type: 'heatmap';
+  title?: string;
+  hint?: string;
+  value: Binding;
+  sun?: SunPosition;
+  format?: NumberFormat;
+  unit?: string;
+  floor?: number;
+  ceiling?: number;
+}
+
+/** One class of a stacked share chart: what it is called, the colour the model gives it, and the
+ *  binding whose groups are its share of each month — a `history` binding folded by `monthOfYear`
+ *  with `ShareWithin` between the class's bounds, answering a fraction. */
+export interface StackedSharesClass {
+  label: string;
+  colour: string;
+  share: Binding;
+}
+
+/** Twelve bars, one a month, each stacked from the classes' shares in the order listed, the first at
+ *  the bottom — the thermal-stress distribution across the year. The shares are the model's answers
+ *  and the colours the model's; the widget scales nothing to a hundred, so classes that do not sum
+ *  to one draw a bar that does not reach the top. A class the platform answered nothing for is left
+ *  out, and so is a month no class was answered for. */
+export interface StackedSharesWidget {
+  type: 'stackedShares';
+  title?: string;
+  hint?: string;
+  classes: StackedSharesClass[];
+}
+
+/** One direction of a diverging bar: what it is called, the binding whose groups are its monthly
+ *  figures — a `history` binding folded by `monthOfYear` — and the threshold the figures were counted
+ *  against, bound to the model's own value so the legend names the number the model holds. */
+export interface DivergingBarSide {
+  label: string;
+  value: Binding;
+  threshold?: Binding;
+}
+
+/** Twelve months, each one bar rising above a line and one falling below it, on one scale — the
+ *  cooling and heating degree days. The up side takes the warm tone, the down side the cool one. A
+ *  month neither side was answered for is left out. */
+export interface DivergingBarWidget {
+  type: 'divergingBar';
+  title?: string;
+  hint?: string;
+  up: DivergingBarSide;
+  down: DivergingBarSide;
+  format?: NumberFormat;
+  unit?: string;
+}
+
 export type Widget =
   | KpiWidget
   | FunnelWidget
@@ -643,7 +712,10 @@ export type Widget =
   | WorkingWidget
   | ExceptionWidget
   | RangeBarWidget
-  | LineSeriesWidget;
+  | LineSeriesWidget
+  | HeatmapWidget
+  | StackedSharesWidget
+  | DivergingBarWidget;
 
 export interface DashboardSection {
   title?: string;

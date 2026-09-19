@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Binding } from '../../../types/dashboard';
-import { groupsByKey, monthNames, windowOf } from './historySeries';
+import { dayOfYearLabel, groupsByKey, monthNames, monthStarts, windowOf } from './historySeries';
 
 const A_DAY = 86_400;
 const A_YEAR = 365 * A_DAY;
@@ -44,5 +44,17 @@ describe('month names', () => {
     expect(names[0]).toBe('Jan');
     expect(names[11]).toBe('Dec');
     expect(monthNames('de')[2]).toMatch(/^Mär/);
+  });
+});
+
+describe('a day of the year', () => {
+  it('is named as a date without a year, in the reader\'s language', () => {
+    expect(dayOfYearLabel(1, 'en')).toMatch(/Jan 1|1 Jan/);
+    expect(dayOfYearLabel(366, 'en')).toMatch(/Dec 31|31 Dec/);
+    expect(dayOfYearLabel(60, 'de')).toMatch(/29\. Feb/);
+  });
+
+  it('knows where each month begins', () => {
+    expect(monthStarts()).toEqual([1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336]);
   });
 });

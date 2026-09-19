@@ -279,6 +279,16 @@ export const en = {
       lastDays_one: 'last day',
       lastDays_other: 'last {{count}} days',
     },
+    divergingBar: {
+      above: 'above {{threshold}}',
+      below: 'below {{threshold}}',
+    },
+    heatmap: {
+      sunrise: 'Sunrise',
+      sunset: 'Sunset',
+      warmest: 'Highest {{value}} on {{when}}',
+      coldest: 'Lowest {{value}} on {{when}}',
+    },
     rangeBar: {
       recordedHigh: 'Recorded high',
       designHigh: 'Design high',
