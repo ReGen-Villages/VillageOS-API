@@ -715,6 +715,27 @@ export interface DivergingBarWidget {
   unit?: string;
 }
 
+/** One series of a small-multiples panel: what it is called, the binding whose groups are its figure
+ *  per month and hour — a `history` binding folded by `monthOfYear,hourOfDay` — and how it is written. */
+export interface SmallMultiplesSeries {
+  label: string;
+  value: Binding;
+  unit?: string;
+  format?: NumberFormat;
+}
+
+/** Twelve monthly panels, each a bar an hour on one scale and a line through the hours on another —
+ *  the humidity and the temperature through the day — with a band the model states drawn behind the
+ *  line on the line's scale. A month neither series was answered for is left out. */
+export interface SmallMultiplesWidget {
+  type: 'smallMultiples';
+  title?: string;
+  hint?: string;
+  bars: SmallMultiplesSeries;
+  line: SmallMultiplesSeries;
+  band?: RangeBand;
+}
+
 /** A value a person supplies before pressing — typed, or chosen by name from the Things a binding
  *  lists. Sent to the endpoint under `key`: as a number where `kind` is 'number', as the names
  *  chosen where it is 'multichoice', as text otherwise, and not at all where an optional value was
@@ -818,6 +839,7 @@ export type Widget =
   | HeatmapWidget
   | StackedSharesWidget
   | DivergingBarWidget
+  | SmallMultiplesWidget
   | ActionWidget
   | FormWidget;
 

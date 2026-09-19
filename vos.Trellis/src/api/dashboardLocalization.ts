@@ -28,6 +28,7 @@ import type {
   LineSeriesWidget,
   RangeBarWidget,
   RelationSpec,
+  SmallMultiplesWidget,
   StackedSharesWidget,
   TableColumn,
   TableWidget,
@@ -221,6 +222,17 @@ function localizeWidget(widget: Widget, tr: SpecTranslator): Widget {
         unit: tr(widget.unit),
         up: { ...widget.up, label: tr(widget.up.label) },
         down: { ...widget.down, label: tr(widget.down.label) },
+      };
+      return w;
+    }
+    case 'smallMultiples': {
+      const w: SmallMultiplesWidget = {
+        ...widget,
+        title: tr(widget.title),
+        hint: tr(widget.hint),
+        bars: { ...widget.bars, label: tr(widget.bars.label), unit: tr(widget.bars.unit) },
+        line: { ...widget.line, label: tr(widget.line.label), unit: tr(widget.line.unit) },
+        band: widget.band ? { ...widget.band, label: tr(widget.band.label) } : undefined,
       };
       return w;
     }

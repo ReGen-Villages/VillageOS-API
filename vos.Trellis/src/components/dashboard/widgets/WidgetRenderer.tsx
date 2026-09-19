@@ -19,6 +19,7 @@ import { LineSeries } from './LineSeries';
 import { Heatmap } from './Heatmap';
 import { StackedShares } from './StackedShares';
 import { DivergingBar } from './DivergingBar';
+import { SmallMultiples } from './SmallMultiples';
 import { SearchBox } from './SearchBox';
 import { WidgetCard } from './WidgetCard';
 
@@ -67,6 +68,8 @@ export function WidgetRenderer({
       return <StackedShares widget={widget} ctx={ctx} />;
     case 'divergingBar':
       return <DivergingBar widget={widget} ctx={ctx} />;
+    case 'smallMultiples':
+      return <SmallMultiples widget={widget} ctx={ctx} />;
     case 'action':
       return <ActionList widget={widget} ctx={ctx} />;
     case 'form':

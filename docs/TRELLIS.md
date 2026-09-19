@@ -1150,7 +1150,7 @@ All routes are nested under `AppLayout` which provides the sidebar + main conten
 | Route | Page | Description |
 |-------|------|-------------|
 | `/` | `DashboardPage` | Model stats, services (with daemon state), activity feed (default landing page) |
-| `/operations/{dashboard}` | `OperationsPage` | The dashboards a model declares, one address and one sidebar entry per `Dashboard` Thing — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Each is drawn from its `spec` by a generic binding resolver over the state, thing and temporal APIs, live over the stream; the widget kinds are KPI, funnel, bullet, gantt, table, leaderboard, verdict, working, exception bar, range bar, line series, heatmap, stacked shares and diverging bar. The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. How a binding reads a value, how a state answer is narrowed, what a row carries and what the Thing detail window shows are in [§21](#21-dashboard-internals), under [How a binding reads a value](#how-a-binding-reads-a-value) and after. |
+| `/operations/{dashboard}` | `OperationsPage` | The dashboards a model declares, one address and one sidebar entry per `Dashboard` Thing — see [A model's dashboards in the navigation](#a-models-dashboards-in-the-navigation). Each is drawn from its `spec` by a generic binding resolver over the state, thing and temporal APIs, live over the stream; the widget kinds are KPI, funnel, bullet, gantt, table, leaderboard, verdict, working, exception bar, range bar, line series, heatmap, stacked shares, diverging bar and small multiples. The GUI stays domain-agnostic — a model with no `Dashboard` config shows guidance. How a binding reads a value, how a state answer is narrowed, what a row carries and what the Thing detail window shows are in [§21](#21-dashboard-internals), under [How a binding reads a value](#how-a-binding-reads-a-value) and after. |
 | `/compose` | `ComposerPage` | A table composed from a kind's own declarations, drawn by the dashboard's table and kept as a `Dashboard` Thing — see [7.5 Compose](#75-compose--a-table-from-a-kinds-own-declarations). |
 | `/intake` | `IntakeWizardPage` | The land-intake wizard (#6016): project, contact, location, size and programme, and parcel, posted to the intake service as one document once the address on it has been verified: pressing **Send a code** asks the service to send one to the contact's email address, and the submission goes when that code is entered. The code is never part of the draft. The draft is written to browser storage on every keystroke, keyed by the model, so a closed tab loses nothing, and it is cleared once the submission is in the model. The area is stored in hectares whatever unit it is typed in; an area that is not a figure is left out rather than sent as zero. The programme categories are the Things under the archetype marked `__IsAllocationCategoryArchetype` — the same vocabulary the intake service resolves a submitted word against — so the wizard cannot offer a term that is then refused, and the shares always describe the whole parcel. Coordinates are read out of a pasted map link by `src/utils/mapLink.ts`, which refuses a pair that could not be a point on Earth and names a shortened link as one to open by hand; once both are given the location step shows the site on the shared map module (#6014). The parcel step draws the boundary on that same map (#6015) — a draft square of the stated area or corners placed by hand — with the drawn area measured on the sphere by `src/utils/parcelGeometry.ts` and compared with the stated area. Offered only where `VITE_INTAKE_URL` is set. The wizard itself is `src/intake/IntakeWizard.tsx`, which the public submission form renders too, so a field added to one appears in the other; pure logic in `src/intake/submissionDraft.ts` and `src/pages/modelVocabulary.ts`. |
 | `/submissions` | `SubmissionReviewPage` | What has arrived in this model and what a reviewer decides about it — the client half of the promotion story (#6621), mirroring `submissions list`, `submissions reject` and `submissions promote` in Taproot — `submissions dispose` is a retention pass and has no page. Reads the model itself (things, relationships, and server-resolved effective properties) rather than through the app shell's load, which a model may narrow to the properties it declares its pages are drawn with. Holds no archetype and no predicate name: a submission is whatever asserts an edge through the predicate the model marks with `__IsProposedSitePredicate`, the dispositions are the Things under the archetype marked `__IsSubmissionDispositionArchetype`, and a decision is written through the predicate marked `__IsSubmissionDispositionPredicate`. **Reject** relates the submission to whichever disposition names a period after which a submission goes; **Promote** copies the site the submission proposes — never the record of the arrival — into a project model built from a template, then relates the submission to the disposition naming no period. What travels with the site is chosen from the predicates the model actually asserts through. Promoting twice produces one project, because the broker derives the project model's identifier from the source model and the site; the page shows the server's answer rather than disabling the button. Pure reading logic in `src/pages/submissionReview.ts`, whose test reads `vos.Taproot/SubmissionsCommandHandler.cs` so the page and the command line cannot come to answer the same model differently. |
@@ -2022,6 +2022,36 @@ neither side was answered for is left out.
 The card carries what every chart widget does — the window read off the bindings, a tooltip with
 both figures of the month under the pointer or the keyboard focus, a legend, and the visually hidden
 table twin of every month.
+
+### The small multiples
+
+`smallMultiples` draws twelve monthly panels, each a bar an hour on one scale and a line through the
+hours on another, with a band the model states behind the line — the humidity and the temperature
+through the day, drawn correctly on two axes.
+
+```json
+{ "type": "smallMultiples", "title": "Humidity and temperature through the day",
+  "bars": { "label": "Relative humidity", "unit": "%", "format": "integer",
+            "value": { "kind": "history", "property": "relativeHumidityPercent", "windowSeconds": 315360000,
+                       "steps": [ { "fold": "monthOfYear,hourOfDay", "function": "Average" } ] } },
+  "line": { "label": "Temperature", "unit": "°C", "format": "decimal1",
+            "value": { "kind": "history", "property": "temperatureCelsius", "windowSeconds": 315360000,
+                       "steps": [ { "fold": "monthOfYear,hourOfDay", "function": "Average" } ] } },
+  "band": { "label": "Comfort band", "colour": "#9ca3af",
+            "from": { "kind": "related", "via": [ { "predicate": "studies", "direction": "in" } ], "property": "comfortLowCelsius" },
+            "to":   { "kind": "related", "via": [ { "predicate": "studies", "direction": "in" } ], "property": "comfortHighCelsius" } } }
+```
+
+Both series are `history` bindings folded by `monthOfYear,hourOfDay`, keyed `"month,hour"`. **Each
+series has its own scale, and each scale is shared across the twelve panels**: the bars fill a panel
+from nought to their highest figure anywhere, the line spans its own figures and the band's bounds,
+so a humidity and a temperature each read against an axis of their own and a month with more of a
+figure shows more of it. The band is drawn on the line's scale between the bounds the model states.
+A month neither series was answered for is left out.
+
+The pointer follows the bars; a focused panel walks its hours with the arrow keys, Home and End;
+a tooltip names the hour and both figures. The card carries the window, a legend naming both series
+and the band, and the visually hidden table twin of every hour of every month.
 
 ### A word this build cannot answer
 
