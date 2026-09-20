@@ -74,6 +74,13 @@ public sealed class TheEngine : IAsyncLifetime
         return identifier;
     }
 
+    /// <summary>An edge, written the way the engine takes one, for the same reason as a Thing.</summary>
+    public async Task RelateAsync(Guid subjectId, Guid predicateId, Guid targetId)
+    {
+        var related = await Admin.PostAsJsonAsync("/api/relationships", new { subjectId, predicateId, targetId });
+        related.EnsureSuccessStatusCode();
+    }
+
     /// <summary>The same, for a Thing the model may already hold. A host lives for a whole test class,
     /// so an arrangement every case in it needs is written by whichever case runs first.</summary>
     public async Task<Guid> DeclareOnceAsync(

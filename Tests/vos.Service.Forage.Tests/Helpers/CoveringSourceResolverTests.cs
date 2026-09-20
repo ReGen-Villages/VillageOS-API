@@ -860,6 +860,26 @@ public class CoveringSourceResolverTests
     }
 
     [Fact]
+    public void SelectorFor_ReachesTheVariablesASourceProvidesThroughTheMarkedPredicateAndAsksForThePredicateAlone()
+    {
+        // The variables are composed from the edges a source holds through the marked predicate, read out
+        // of the snapshot, so both have to arrive: the variables by a traversal over the flag rather than
+        // a name the model chose, and the predicate by its mark, since a traversal never brings the Thing
+        // it was followed through. Without either every live read left the placeholder unfilled (Bug #7192).
+        var selector = CoveringSourceResolver.SelectorFor(Guid.NewGuid());
+        var flags = selector.Traverse!.Select(rule => rule.PredicateFlag).ToList();
+        var predicates = selector.Traverse!.Select(rule => rule.Predicate).ToList();
+
+        flags.IndexOf(CoveringSourceResolver.ProvidedVariablePredicateFlag)
+            .Should().BeGreaterThan(predicates.IndexOf(CoveringSourceResolver.CoversPredicate),
+                "the sources join the set through covers, and a rule applied before its starting points exist finds nothing");
+        selector.Traverse!.Single(rule => rule.PredicateFlag == CoveringSourceResolver.ProvidedVariablePredicateFlag)
+            .Predicate.Should().BeEmpty("the broker refuses a rule naming a predicate both ways");
+        selector.MarkedArchetypes.Should().Contain(CoveringSourceResolver.ProvidedVariablePredicateFlag);
+        selector.MarkedTypes.Should().NotContain(CoveringSourceResolver.ProvidedVariablePredicateFlag);
+    }
+
+    [Fact]
     public void SelectorFor_WalksWhatHoldsASubjectBeforeWhatAddressesIt()
     {
         // Same composition rule as isIn before covers: what a source resolves onto joins the set
