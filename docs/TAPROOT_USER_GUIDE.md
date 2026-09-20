@@ -67,9 +67,17 @@ cd vos.Taproot
 dotnet run
 ```
 
-**Expected output:**
+**Expected output** — the console as it printed:
 
 ```text
+ __     ___ _ _                   ___  ____
+ \ \   / (_) | | __ _  __ _  ___ / _ \/ ___|
+  \ \ / /| | | |/ _` |/ _` |/ _ \ | | \___ \
+   \ V / | | | | (_| | (_| |  __/ |_| |___) |
+    \_/  |_|_|_|\__,_|\__, |\___|\___/|____/
+                      |___/
+              C L I
+
 VillageOS CLI - Connected to Mycelium at https://localhost:7243
 Type 'help' to see available commands.
 Successfully authenticated with Mycelium.
@@ -154,6 +162,125 @@ production** — it disables protection against man-in-the-middle attacks.
 
 ### Quick Reference
 
+`help` prints the whole reference below, as the console printed it here:
+
+```text
+> help
+Available commands:
+
+Basic Operations:
+  create thing <name>                         - Create a new thing
+  create property <thing> <name> <type> <val> - Add a property to a thing
+  create rel-property <relId> <name> <type> <val> - Add a property to a relationship
+  create relation <subj> <pred> <target>      - Add a relationship
+  retype <thing> <new-archetype>              - Repoint a Thing's is-edge to a different archetype
+  rename <thing> <new-name>                   - Rename a Thing in place, keeping its Id and edges
+  delete thing <thing>                        - Delete a thing
+  delete relationship <id>                    - Delete a relationship by ID
+  delete property <thing> <name>              - Delete a property from a thing
+  delete rel-property <relId> <name>          - Delete a property from a relationship
+  set <thing> <name> <value>                  - Set a property value
+
+Querying:
+  get thing <thing>                           - Get a thing
+  find thing <pattern>                        - Find things by name pattern
+  find relationships <thing>                  - Find all relationships for a thing
+  list things                                 - List all things
+  list relations                              - List all relationships
+  list predicates                             - List all predicates
+  list services                               - List all registered services (with daemon state)
+
+Advanced Queries:
+  query property <name> <value>               - Find things with a property value
+  query predicate <name>                      - Find relationships by predicate
+  query stats                                 - Show model statistics
+
+Temporal Queries:
+  temporal snapshot [timestamp]               - Get model snapshot at a point in time
+  temporal at <thing> <timestamp>             - Get thing state at a specific time
+  temporal history <thing> <prop> [start] [end] - Show property change history
+  temporal mutations [target] [start] [end]   - Show property mutations
+    - mutations                               Show all mutations across the model
+    - mutations model                         Same as above
+    - mutations <name>                        Show mutations for a thing by name or ID
+    - mutations thing <name>                  Show mutations for a thing
+    - mutations rel <id>                      Show mutations for a relationship
+
+Expected Ranges & States:
+  range create <thing> <name> <criteria>      - Create an expected range
+  range list <thing>                          - List all ranges for a thing
+  range get <thing> <name>                    - Get a specific range
+  range delete <thing> <name>                 - Delete a range
+  range validate <criteria>                   - Validate criteria syntax
+  state <thing>                               - Get current states for a thing
+  engines [ranges|rollups]                    - Reactive-engine totals; drill in to per-reactor detail
+  snapshots                                   - What snapshot reads cost against the writers
+  state query <state-name>                    - Find things in a state
+
+File Operations:
+  serialize [file]                            - Serialize model to JSON
+  seed [file]                                 - Alias for serialize
+  deserialize <file>                          - Deserialize model from JSON file
+  plant <file> [mode] [options]               - Load seed and set property modes
+    Modes: CurrentOnly, RingBuffer, Sampled, FullHistory
+    Options: --ringbuffer=N, --samplerate=N
+  apply <file.json>                           - Upsert a fragment (Things + Relationships) into the live model
+  ingest <file.ifc> [--new] [--url=<url>]     - Upload an IFC to the Xylem service to build/merge the model
+  pwd                                         - Show current directory
+  cd <path>                                   - Change current directory
+
+Microservices:
+  start service <handler>                     - Start a registered microservice
+  stop service <handler>                      - Stop a running microservice
+
+Configuration:
+  config mode                                 - Show property mode configuration
+  config mode <ModeName>                      - Set default property mode
+  config mode get <thing> <prop>              - Get property mode
+  config mode set <thing> <prop> <ModeName>   - Set property mode
+
+Seed Management:
+  seeds status                                - Show seed loading status
+  seeds list                                  - List available library seeds
+  seeds load <name>                           - Load a library seed by name
+  seeds save <name>                           - Save current model as a library seed
+  seeds reload                                - Reload seeds from disk
+
+Model Management:
+  model list                                  - List available models
+  model switch <id|name>                      - Switch to a different model
+  clear model                                 - Clear all things and relationships
+
+Mycelium:
+  mycelium status                               - Show Mycelium seed status
+  mycelium endpoints                            - List registered endpoint services
+
+Submissions:
+  submissions list                            - What has arrived, and its state
+  submissions reject <submission>             - Move one to a disposable state
+  submissions promote <submission> <template> <predicates> <project name>
+                                              - Copy one into a project model of its own
+
+User Management:
+  user list                                   - Every account, its role and the models it may enter
+  user create <username> <role> [<model name>] - Add an account; prompts for its first password
+  user grant|revoke <username> <model name>   - Let an account enter a model, or take one off it
+  user role <username> <admin|editor|viewer>  - Change an account's role
+  user reset-password <username>              - Set a password the person must then change
+  user delete <username>                      - Remove an account
+  user change-password <userId>               - Change your own password
+
+Other:
+  shutdown                                    - Shut down Mycelium
+  help                                        - Show this help
+  exit                                        - Exit the console
+
+Note: <thing>, <subj>, <pred>, <target>, <handler> can be a GUID or a unique name.
+
+Output Options (can be added to most commands):
+  --showguids, -g                             - Show GUIDs in addition to names
+```
+
 | Command | Description |
 |---------|-------------|
 | `help` | Show available commands |
@@ -210,13 +337,26 @@ production** — it disables protection against man-in-the-middle attacks.
 | `model list` / `model switch <id\|name>` | The models Mycelium holds, and which one this session works in |
 | `config mode [ModeName]` / `config mode get <thing> <property>` / `config mode set <thing> <property> <ModeName>` | Property retention: show or set the default, read or set one property's |
 | `mycelium status` / `mycelium endpoints` | Seed loading status; the registered endpoint services |
-| `user change-password <user-guid>` | Change an account's password, prompting for it |
+| `user list` | Every account, its role, the models it may enter, whether its password must change, and when it was created |
+| `user create <username> <role> [<model name>]` | Add an account, prompting for its first password, which the person must change at first sign-in |
+| `user grant <username> <model name>` / `user revoke <username> <model name>` | Let an account enter a model, or take one off it; the model's name is the rest of the line |
+| `user role <username> <admin\|editor\|viewer>` | Change an account's role |
+| `user reset-password <username>` | Set a password the person must then change, prompting for it |
+| `user delete <username>` | Remove an account |
+| `user change-password <user-guid>` | Change your own password, prompting for it |
 | `pwd` | Show current directory |
 | `cd <path>` | Change directory |
 
 **Note:** Where `<thing>`, `<subj>`, `<pred>`, or `<target>` appears, you can use either a GUID or a unique name. Names are case-insensitive. If a name is ambiguous (multiple things have the same name), you must use the GUID.
 
 **Note:** The review commands — `list`, `reject` and `promote` — have a page of their own in Trellis, [Reviewing what has arrived](TRELLIS.md#88-reviewing-what-has-arrived). It reads the same model the same way and calls the same two actions, so a staging model can be worked from a browser or from here. `submissions dispose` has no page: the retention pass is run from here.
+
+**As the console printed it** — on a model that takes no submissions:
+
+```text
+> submissions list
+No submissions in this model.
+```
 
 ### Output Options
 
@@ -370,6 +510,21 @@ Set carbonLevel = 45 on Forest (3fa85f64-5717-4562-b3fc-2c963f66afa6)
 
 ### Finding Things
 
+**As the console printed it** — a search over the village seed:
+
+```text
+> find thing Community
+Found 8 thing(s) matching 'Community':
+  CommunitySolarField
+  CommunityBattery-2
+  CommunityCompost-2
+  CommunityFoodForest
+  CommunityCenter
+  CommunityBattery-1
+  CommunityBuilding
+  CommunityCompost-1
+```
+
 ```bash
 # Find by name pattern (case-insensitive)
 > find thing forest
@@ -457,6 +612,22 @@ All three parts (Subject, Predicate, Target) are Things. The Predicate defines t
 ```bash
 > create thing part_of
 Created thing: part_of (id: 9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d)
+```
+
+
+**As the console printed it** — a Thing made, related, listed and removed again:
+
+```text
+> create thing Orchard-Test
+Created Thing: Orchard-Test
+> create relation Orchard-Test feeds CommunityCenter
+Created Relationship: Orchard-Test --[feeds]--> CommunityCenter
+> find relationships Orchard-Test
+Relationships for thing 'Orchard-Test':
+  As Subject (1):
+    Orchard-Test --[feeds]--> CommunityCenter
+> delete thing Orchard-Test
+Deleted thing Orchard-Test
 ```
 
 **Step 2: Create the relationship using names:**
@@ -565,6 +736,26 @@ Model Statistics:
 ```
 
 ### Temporal Queries
+
+**As the console printed it** — one Thing's mutations after two changes to a property:
+
+```text
+> temporal mutations CommunityCenter
+{
+  "ObjectId": "8bae0512-37ad-4ee1-b33c-4753c8710a5d",
+  "ObjectName": "CommunityCenter",
+  "StartTime": "0001-01-01T00:00:00",
+  "EndTime": "9999-12-31T23:59:59.9999999",
+  "Mutations": [
+    {
+      "Timestamp": "2026-09-20T12:16:48.691831Z",
+      "PropertyName": "capacity_people",
+      "OldValue": "220",
+      "NewValue": "240"
+    }
+  ]
+}
+```
 
 The CLI provides commands to query the temporal state of the model—viewing data as it existed at specific points in time.
 
@@ -694,6 +885,42 @@ Examples:
 Expected ranges are named predicates that describe conditions on a thing's properties. When a range's criteria evaluates to true, the thing is considered to be "in that state". This enables emergent state tracking based on property values.
 
 ### Creating Ranges
+
+**As the console printed it** — a range declared and the Thing's states read back:
+
+```text
+> range create Orchard-Test enough-trees trees>=100
+{
+  "Name": "enough-trees",
+  "Criteria": "trees\u003E=100",
+  "IsInherited": false,
+  "InheritedFromId": null,
+  "ActiveBindings": 0,
+  "Bindings": [],
+  "Comparisons": [
+    {
+      "PropertyName": "trees",
+      "Operator": "\u003E=",
+      "Value": 100
+    }
+  ]
+}
+> state Orchard-Test
+{
+  "ObjectId": "0d976760-c8e9-453e-be02-6410f487c8a6",
+  "ObjectName": "Orchard-Test",
+  "CurrentStates": [],
+  "RangeEvaluations": [
+    {
+      "RangeName": "enough-trees",
+      "IsActive": false,
+      "Criteria": "trees\u003E=100",
+      "Error": null
+    }
+  ],
+  "OutOfBoundsCount": 0
+}
+```
 
 Create an expected range on a thing with the `range create` command:
 
@@ -1212,6 +1439,31 @@ Model saved to /tmp/backup.json
 
 ### Seeds on disk
 
+**As the console printed it** — the library, the reactive engines and the services, on a Mycelium holding three models:
+
+```text
+> seeds list
+Library seeds:
+  {"name":"MarthasVineyard.seed.json","sizeMb":34.8}
+  {"name":"PipelinePlayground.seed.json","sizeMb":0.1}
+  {"name":"village.seed.json","sizeMb":2.4}
+> engines
+Reactive engines — Regenerative Village — Ecosystem Model
+  Range evaluation        2924 ranges      3999 edges      3,5 MB
+  Reactive computation       0 roll-ups       0 members    0 B
+  Total est. memory     3,5 MB
+
+Drill in: engines ranges | engines rollups
+> list services
+Microservices (2):
+  balancesEnergy [Running]
+    Endpoint: http://localhost:5610
+    Health: Healthy
+  EnergyBalance [Stopped]
+    Endpoint: http://localhost:5610
+    Health: Healthy
+```
+
 Mycelium loads its models from the seed files in its seeds directory at startup. The `seeds` commands
 work with that directory:
 
@@ -1228,11 +1480,33 @@ the model registers, each with its routing label and address.
 
 ### Switching model
 
+**As the console printed it** — the models held:
+
+```text
+> model list
+Available models:
+  PipelinePlayground (905abcab-913a-5941-a3e8-a24570de383a)
+  MarthasVineyard (8e9bafbd-07b8-5a0c-9997-cac2e8ccba9e)
+  Regenerative Village — Ecosystem Model (373be6a2-997e-4f5f-bad5-d3a9e1560a71)
+```
+
 A session works in one model. `model list` shows every model Mycelium holds, and `model switch`
 moves the session to another by identifier or name — the same re-scoping the GUI's **Switch Model**
 does.
 
 ### Property retention
+
+**As the console printed it** — the retention defaults:
+
+```text
+> config mode
+Property Mode Configuration:
+  Default Mode:     FullHistory
+  Ring Buffer Size: 100
+  Sample Rate:      100
+
+Available modes: FullHistory, RingBuffer, Sampled, CurrentOnly
+```
 
 Every property keeps its history under a retention mode: `CurrentOnly`, `RingBuffer` (the last N
 values), `Sampled` (one value in N) or `FullHistory`. The default applies to every property that
@@ -1250,10 +1524,56 @@ step.
 
 ### Accounts
 
-`user change-password <user-guid>` changes an account's password; the command prompts for the current
+An account holds one role — `admin`, `editor` or `viewer` — and enters only the models it has been
+granted; an administrator enters every model and needs no grant. Every `user` command but
+`change-password` goes through the platform's administration route, `POST /api/auth/administration`,
+the same door the console's Accounts page uses, so the command line and the console say and refuse
+the same things; a refusal is written in the route's own words.
+
+- `user list` — every account, its role, the models it may enter, whether its password must change,
+  and when it was created.
+- `user create <username> <role> [<model name>]` — adds an account, prompting for its first password;
+  the person must choose a new one at their first sign-in. A model's name is the rest of the line,
+  spaces and all.
+- `user grant <username> <model name>` and `user revoke <username> <model name>` — let an account
+  enter a model, or take one off it.
+- `user role <username> <admin|editor|viewer>` — changes the role.
+- `user reset-password <username>` — prompts for a password the person must then change.
+- `user delete <username>` — removes the account. Nothing acts on the caller's own account.
+
+`user change-password <user-guid>` changes your own password; the command prompts for the current
 and the new password rather than taking them on the command line, so neither is left in the shell's
-history. Creating and deleting accounts and keys is done through the REST API by an administrator
-(see the Field Guide's route table, on the VillageOS repository's wiki).
+history. API keys are still made and revoked through the REST API by an administrator (see the Field
+Guide's route table, on the VillageOS repository's wiki).
+
+**As the console printed it** — an account added, granted a second model, promoted, and removed; a refusal in the route's words:
+
+```text
+> user list
+Account              Role     May enter                                Password                     Created
+admin                admin    every model                              set                          2026-09-20
+ada                  editor   Regenerative Village — Ecosystem Model   must change at next sign-in  2026-09-20
+bo                   editor   Regenerative Village — Ecosystem Model, MarthasVineyard must change at next sign-in  2026-09-20
+> user create bo viewer Regenerative Village — Ecosystem Model
+First password: viewer-first
+Added bo as viewer; they must choose a password at their first sign-in
+> user grant bo MarthasVineyard
+bo may now enter MarthasVineyard
+> user role bo editor
+bo is now editor
+> user list
+Account              Role     May enter                                Password                     Created
+admin                admin    every model                              set                          2026-09-20
+ada                  editor   Regenerative Village — Ecosystem Model   must change at next sign-in  2026-09-20
+bo                   editor   Regenerative Village — Ecosystem Model, MarthasVineyard must change at next sign-in  2026-09-20
+> user revoke bo MarthasVineyard
+bo may no longer enter MarthasVineyard
+> user delete nobody
+Error: 404 Not Found: {"error":"There is no account named nobody"}
+> user delete bo
+Deleted bo
+```
+
 
 ## Testing
 
