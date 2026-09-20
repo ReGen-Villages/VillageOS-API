@@ -27,6 +27,7 @@ class FakeMycelium:
     def __init__(self):
         self.things, self.rels, self.facts, self.balances, self.order = {}, [], [], {}, []
         self.observations, self.deleted, self.fragments = [], [], []
+        self.posts, self.answers = [], {}
         self._lock = threading.Lock()
 
     def create_typed_thing(self, name, properties=None, thing_id=None):
@@ -83,6 +84,11 @@ class FakeMycelium:
         with self._lock:
             self.deleted.append(thing_id)
             self.things.pop(thing_id, None)
+
+    def post(self, path, body=None, headers=None, address=None):
+        with self._lock:
+            self.posts.append({"address": address, "path": path, "body": body, "headers": headers})
+            return self.answers.get(path, {})
 
     def load_model(self, document):
         with self._lock:
@@ -275,29 +281,30 @@ class TheStreamAddressCarriesAStreamToken(unittest.TestCase):
         self.assertIn("lastEventId=7", url)
 
 
+def _scripted_requests(responses):
+    """Drive urlopen from a scripted list of (status, payload) and record every request.
+    status None means a normal 200 returning payload."""
+    calls = []
+
+    def fake_urlopen(req, timeout=None, **kwargs):
+        calls.append({
+            "url": req.full_url,
+            "headers": {k.lower(): v for k, v in req.header_items()},
+        })
+        status, payload = responses.pop(0)
+        if status is not None:
+            raise urllib.error.HTTPError(req.full_url, status, "err", {}, io.BytesIO(b"denied"))
+        return _Response(json.dumps(payload).encode())
+
+    return calls, fake_urlopen
+
+
 class ExpiredTokenIsReminted(unittest.TestCase):
     """A cached JWT expires mid-run, so a long scenario would die with 401 on its first write
     past the token's TTL. An authenticated 401 re-mints once from the API key and retries."""
 
-    def _client_with(self, responses):
-        """Drive urlopen from a scripted list of (status, payload) and record every request.
-        status None means a normal 200 returning payload."""
-        calls = []
-
-        def fake_urlopen(req, timeout=None, **kwargs):
-            calls.append({
-                "url": req.full_url,
-                "headers": {k.lower(): v for k, v in req.header_items()},
-            })
-            status, payload = responses.pop(0)
-            if status is not None:
-                raise urllib.error.HTTPError(req.full_url, status, "err", {}, io.BytesIO(b"denied"))
-            return _Response(json.dumps(payload).encode())
-
-        return calls, fake_urlopen
-
     def test_401_remints_the_token_and_retries_once(self):
-        calls, fake = self._client_with([
+        calls, fake = _scripted_requests([
             (None, {"token": "first-jwt"}),      # initial mint
             (401, None),                         # the cached token has expired
             (None, {"token": "second-jwt"}),     # re-mint
@@ -314,7 +321,7 @@ class ExpiredTokenIsReminted(unittest.TestCase):
         self.assertEqual(writes[1]["headers"].get("authorization"), "Bearer second-jwt")
 
     def test_a_second_401_surfaces_rather_than_looping(self):
-        calls, fake = self._client_with([
+        calls, fake = _scripted_requests([
             (None, {"token": "first-jwt"}),
             (401, None),
             (None, {"token": "second-jwt"}),
@@ -328,7 +335,7 @@ class ExpiredTokenIsReminted(unittest.TestCase):
         self.assertEqual(len([c for c in calls if "/api/things" in c["url"]]), 2)
 
     def test_401_without_an_api_key_is_not_retried(self):
-        calls, fake = self._client_with([(401, None)])
+        calls, fake = _scripted_requests([(401, None)])
         with _urlopen_replaced_by(fake):
             client = M.MyceliumClient("http://h", token="ready-jwt", environment={})
             with self.assertRaises(RuntimeError):
@@ -635,6 +642,165 @@ class SetupCarriesWhatTheBatchCannotHold(unittest.TestCase):
                 S.Action(0, 0, "setup", "set_fact",
                          {"thing_id": "T", "prop": "code", "value": "x"}, "code"),
             ])
+
+
+class TheClientPostsBeyondTheWriteApi(unittest.TestCase):
+    """`post` reaches any route on the client's own host or another's. The bearer rides only to
+    the client's own address: a service served beside the broker is never handed the broker's
+    credential, and a timeline that needs one there puts it in the headers it carries."""
+
+    def _post(self, client, **arguments):
+        captured, fake = _capture_request({"ticket": "T-1"})
+        with _urlopen_replaced_by(fake):
+            answer = client.post("/submissions/ticket", {"code": "1234"}, **arguments)
+        return captured, answer
+
+    def test_a_post_to_the_client_own_address_carries_the_bearer(self):
+        captured, answer = self._post(M.MyceliumClient("http://h", token="the-bearer", environment={}))
+
+        self.assertEqual(captured["url"], "http://h/submissions/ticket")
+        self.assertEqual(captured["headers"].get("authorization"), "Bearer the-bearer")
+        self.assertEqual(json.loads(captured["body"]), {"code": "1234"})
+        self.assertEqual(answer, {"ticket": "T-1"})
+
+    def test_a_post_to_another_address_carries_no_bearer(self):
+        captured, _ = self._post(M.MyceliumClient("http://h", token="the-bearer", environment={}),
+                                 address="http://intake:5101/",
+                                 headers={"X-Submission-Ticket": "T-0"})
+
+        self.assertEqual(captured["url"], "http://intake:5101/submissions/ticket")
+        self.assertNotIn("authorization", captured["headers"])
+        self.assertEqual(captured["headers"].get("x-submission-ticket"), "T-0")
+
+    def test_the_client_own_address_written_with_a_trailing_slash_is_still_its_own(self):
+        captured, _ = self._post(M.MyceliumClient("http://h", token="the-bearer", environment={}),
+                                 address="http://h/")
+
+        self.assertEqual(captured["headers"].get("authorization"), "Bearer the-bearer")
+
+    def test_a_401_on_the_client_own_address_is_reminted_and_tried_again(self):
+        calls, fake = _scripted_requests([
+            (None, {"token": "first-jwt"}),
+            (401, None),
+            (None, {"token": "second-jwt"}),
+            (None, {"token": "scoped-jwt"}),
+        ])
+        with _urlopen_replaced_by(fake):
+            client = M.MyceliumClient("http://h", api_key="KEY-123", environment={})
+            answer = client.post("/api/auth/switch-model", {"modelId": "m-1"})
+
+        self.assertEqual(answer, {"token": "scoped-jwt"})
+        posts = [c for c in calls if "/api/auth/switch-model" in c["url"]]
+        self.assertEqual([c["headers"].get("authorization") for c in posts],
+                         ["Bearer first-jwt", "Bearer second-jwt"])
+
+
+class AnHttpPostReachesItsRoute(unittest.TestCase):
+    """An `http_post` action goes through the client like every other write, its answer is kept
+    under the action's key, and a later action reads a value from it by declaring the read."""
+
+    INTAKE = "http://intake:5101"
+
+    def _intake_steps(self):
+        return [
+            S.Action(0, 0, "submitter", "http_post",
+                     {"address": self.INTAKE, "path": "/submissions/verification",
+                      "body": {"emailAddress": "a@example.test"}}, "verify a"),
+            S.Action(1, 1, "submitter", "http_post",
+                     {"address": self.INTAKE, "path": "/submissions/ticket",
+                      "body": {"emailAddress": "a@example.test", "code": "1234"}}, "ticket a"),
+            S.Action(2, 2, "submitter", "http_post",
+                     {"address": self.INTAKE, "path": "/submissions",
+                      "headers": {"X-Submission-Ticket": "{{ticket}}"},
+                      "body": {"site": {"name": "site a"}},
+                      "reads": {"ticket": {"from": "ticket a", "field": "ticket"}}}, "submit a"),
+            S.Action(3, 3, "submitter", "http_post",
+                     {"address": self.INTAKE, "path": "/submissions/{{reference}}/documents",
+                      "body": {"note": "for {{reference}}", "ticket": "{{ticket}}",
+                               "pages": [{"of": "{{reference}}"}, 2]},
+                      "reads": {"reference": {"from": "submit a", "field": "reference"},
+                                "ticket": {"from": "ticket a", "field": "ticket"}}}, "document a"),
+        ]
+
+    def _played(self, actions):
+        client = FakeMycelium()
+        client.answers["/submissions/ticket"] = {"ticket": "T-1", "validForSeconds": 900}
+        client.answers["/submissions"] = {"reference": "R-7"}
+        S.Simulator(client, **_fast()).run(actions)
+        return client
+
+    def test_the_post_reaches_the_client_with_its_address_path_body_and_headers(self):
+        client = self._played(self._intake_steps()[:1])
+
+        self.assertEqual(client.posts, [{"address": self.INTAKE, "path": "/submissions/verification",
+                                         "body": {"emailAddress": "a@example.test"}, "headers": None}])
+
+    def test_a_later_action_reads_a_field_of_the_answer_into_a_header_a_path_and_a_body(self):
+        client = self._played(self._intake_steps())
+
+        submission, document = client.posts[2], client.posts[3]
+        self.assertEqual(submission["headers"], {"X-Submission-Ticket": "T-1"})
+        self.assertEqual(document["path"], "/submissions/R-7/documents")
+        self.assertEqual(document["body"], {"note": "for R-7", "ticket": "T-1",
+                                            "pages": [{"of": "R-7"}, 2]})
+
+    def test_the_answer_is_kept_under_the_action_key(self):
+        client = FakeMycelium()
+        client.answers["/submissions/ticket"] = {"ticket": "T-1"}
+        simulator = S.Simulator(client, **_fast())
+        simulator.run(self._intake_steps()[:2])
+
+        self.assertEqual(simulator.answers["ticket a"], {"ticket": "T-1"})
+        self.assertEqual(simulator.stats["http_post"], 2)
+
+    def test_a_read_of_a_key_no_post_answered_is_refused_naming_the_key(self):
+        submission = self._intake_steps()[2]
+
+        with self.assertRaises(RuntimeError) as refused:
+            S.Simulator(FakeMycelium(), **_fast()).run([submission])
+
+        self.assertIn("ticket a", str(refused.exception))
+        self.assertIn("action #0", str(refused.exception))
+
+    def test_a_read_of_a_field_the_answer_does_not_hold_is_refused_naming_the_field(self):
+        client = FakeMycelium()
+        client.answers["/submissions/ticket"] = {"validForSeconds": 900}
+
+        with self.assertRaises(RuntimeError) as refused:
+            S.Simulator(client, **_fast()).run(self._intake_steps()[1:3])
+
+        self.assertIn("ticket", str(refused.exception))
+
+    def test_a_placeholder_naming_nothing_declared_is_refused(self):
+        submission = self._intake_steps()[2]
+        submission.args["reads"] = {}
+
+        with self.assertRaises(RuntimeError) as refused:
+            S.Simulator(FakeMycelium(), **_fast()).run([submission])
+
+        self.assertIn("{{ticket}}", str(refused.exception))
+
+    def test_a_refused_post_is_reported_by_index(self):
+        class RefusingMycelium(FakeMycelium):
+            def post(self, path, body=None, headers=None, address=None):
+                raise RuntimeError(f"POST {path} -> 404 ")
+
+        actions = self._intake_steps()[:2]
+        actions.insert(0, S.Action(0, 0, "setup", "create_thing", {"name": "A", "thing_id": "A"}, "A"))
+
+        with self.assertRaises(RuntimeError) as refused:
+            S.Simulator(RefusingMycelium(), **_fast()).run(actions)
+
+        self.assertIn("action #1 [0s] http_post verify a", str(refused.exception))
+        self.assertIn("POST /submissions/verification -> 404", str(refused.exception))
+
+    def test_a_dry_run_posts_nothing_and_counts_the_action(self):
+        client = FakeMycelium()
+        simulator = S.Simulator(client, **_fast(dry_run=True))
+        simulator.run(self._intake_steps())
+
+        self.assertEqual(client.posts, [])
+        self.assertEqual(simulator.stats["dry_run"], 4)
 
 
 if __name__ == "__main__":
