@@ -2630,6 +2630,14 @@ change through the model: load a seed, confirm every Thing and relationship draw
 Thing and a relationship, create a Thing from the command line and watch it appear without a reload,
 cluster by `is`, open a member's inherited properties, and switch seeds.
 
+A claim about how much the console asks of the platform — one read per completed request, a fetch
+for every Thing the stream already delivered — is settled by counting, and only a tab can count.
+`npm run count-requests -- --url <console> --page / --seconds 60 --out counts.json` signs in, opens
+the page, watches, and writes how many requests the tab made per route (identifiers taken out, so a
+hundred Things read one by one count as one route a hundred times) and how many stream events it
+handled per kind. Point it at a broker that serves the built console, or at `npm run dev`; a scenario
+runs it during a play and keeps the file with its readings.
+
 ---
 
 ## Appendix A — Glossary
