@@ -29,9 +29,10 @@ function open(selection: DesignSelection, specification: DashboardSpecification 
 describe('the page', () => {
   it('writes its title, subtitle and cadence', () => {
     const { edited } = open({ on: 'page' });
-    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Springs by flow' } });
-    fireEvent.change(screen.getByLabelText('Subtitle'), { target: { value: 'sampled hourly' } });
-    fireEvent.change(screen.getByLabelText('Refresh every (seconds)'), { target: { value: '30' } });
+    for (const [label, value] of [['Title', 'Springs by flow'], ['Subtitle', 'sampled hourly'], ['Refresh every (seconds)', '30']]) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+      fireEvent.blur(screen.getByLabelText(label));
+    }
     expect(edited()).toMatchObject({ title: 'Springs by flow', subtitle: 'sampled hourly', refreshSeconds: 30 });
   });
 });
@@ -40,6 +41,7 @@ describe('a section', () => {
   it('writes its hint and cannot move earlier from the top', () => {
     const { edited } = open({ on: 'section', section: 0 });
     fireEvent.change(screen.getByLabelText('Hint'), { target: { value: 'litres a second' } });
+    fireEvent.blur(screen.getByLabelText('Hint'));
     expect(edited().sections[0].hint).toBe('litres a second');
     expect(screen.getByRole('button', { name: 'Earlier' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Later' })).toBeEnabled();

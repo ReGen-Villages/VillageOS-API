@@ -61,11 +61,10 @@ export function BindingEditor({
 
   return (
     <Field title={label}>
-      {({ id, describedBy }) => (
+      {({ id }) => (
         <>
           <select
             id={id}
-            aria-describedby={describedBy}
             value={value?.kind ?? ''}
             onChange={(event) => onChange(event.target.value ? ({ kind: event.target.value } as Binding) : undefined)}
             className="mt-1 w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2 py-1 text-sm text-zinc-900 dark:text-zinc-100"

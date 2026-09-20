@@ -175,11 +175,10 @@ function JsonField({ label, value, onChange }: { label: string; value: unknown; 
   const [invalid, setInvalid] = useState(false);
   return (
     <Field title={label}>
-      {({ id, describedBy }) => (
+      {({ id }) => (
         <>
           <textarea
             id={id}
-            aria-describedby={describedBy}
             value={text}
             rows={4}
             onChange={(event) => setText(event.target.value)}

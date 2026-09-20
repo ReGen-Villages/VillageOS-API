@@ -16,7 +16,7 @@ import { useEndpoints } from '../hooks/useEndpoints';
 import { DEFAULT_SIZE } from '../utils/gridLayout';
 import { emptyWidget, nextPlacement } from '../utils/designSpec';
 import { readyToKeep } from '../utils/rowProperties';
-import { checkDesign, refusalsIn, type DesignCheckContext } from '../utils/designFindings';
+import { checkDesign, type DesignCheckContext } from '../utils/designFindings';
 import { offersFor } from '../components/design/designOffers';
 import type { BindingContext } from '../components/design/bindingContext';
 import { withPlacements, withSectionAdded, withWidgetAdded } from '../utils/designEdits';
@@ -129,7 +129,7 @@ function DesignWorkbench({ opened, started, pages }: { opened?: DesignablePage; 
     () => checkDesign(specification, keepsInPlace ? source.name : trimmed || specification.title, checkContext),
     [specification, keepsInPlace, source.name, trimmed, checkContext],
   );
-  const refused = refusalsIn(findings).length > 0;
+  const refused = findings.some((finding) => finding.severity === 'refusal');
 
   const sectionForNew = () => (selection && selection.on !== 'page' && selection.on !== 'translations' ? selection.section : 0);
 

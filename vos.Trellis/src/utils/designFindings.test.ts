@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Binding, DashboardSpecification, Widget } from '../types/dashboard';
-import { checkDesign, refusalsIn, type DesignCheckContext, type DesignFindingCode } from './designFindings';
+import { checkDesign, type DesignCheckContext, type DesignFindingCode } from './designFindings';
 
 /** A catchment: springs (flow, a long note) and reservoirs (capacity), springs feed reservoirs. */
 const context: DesignCheckContext = {
@@ -59,7 +59,7 @@ describe('a widget', () => {
   it('warns about a property the kind does not declare, since a computed value answers to a name the declarations do not list', () => {
     const found = codes(page(figure('a', { kind: 'property', thing: '$scope', property: 'depth' })));
     expect(found).toContain('warning:namesAnUnknownProperty:depth');
-    expect(refusalsIn(checkDesign(page(figure('a', { kind: 'property', thing: '$scope', property: 'depth' })), 'Springs', context))).toEqual([]);
+    expect(found.filter((each) => each.startsWith('refusal'))).toEqual([]);
   });
 
   it('holds a table to a row cap, to a sort key a column carries, and to search keys a row carries', () => {

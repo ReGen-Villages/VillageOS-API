@@ -53,7 +53,7 @@ export const dashboardPages = {
     return id;
   },
 
-  /** Writes a page's spec over the one it carries. The Thing keeps its name, so the address the
+  /** Writes a page's specification over the one it carries. The Thing keeps its name, so the address the
    *  sidebar links to stays. */
   async write(id: string, specification: DashboardSpecification): Promise<void> {
     await thingApi.setProperty(id, DASHBOARD_SPECIFICATION_PROPERTY, SPECIFICATION_TYPE, asTheDiscoveryReadsIt(specification));

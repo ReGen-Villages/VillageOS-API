@@ -311,7 +311,7 @@ function localizeWith(specification: DashboardSpecification, tr: SpecificationTr
   };
 }
 
-/** Return a copy of the spec with every display string rendered in the active locale. */
+/** A copy of the specification with every display string rendered in the active locale. */
 export function localizeSpecification(specification: DashboardSpecification, locale: string): DashboardSpecification {
   if (!translationsFor(specification, locale)) return specification;
   return localizeWith(specification, makeSpecificationTranslator(specification, locale));

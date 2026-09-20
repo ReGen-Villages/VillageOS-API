@@ -199,7 +199,3 @@ export function checkDesign(specification: DashboardSpecification, name: string,
   });
   return findings;
 }
-
-export function refusalsIn(findings: DesignFinding[]): DesignFinding[] {
-  return findings.filter((finding) => finding.severity === 'refusal');
-}

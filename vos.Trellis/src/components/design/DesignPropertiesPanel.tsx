@@ -8,6 +8,7 @@ import type { BindingContext } from './bindingContext';
 import { FieldControl } from './FieldControls';
 import { DetailEditor } from './DetailEditor';
 import { OfferedField } from './OfferedField';
+import { ChoiceField, NumberField, TextField } from './DesignFields';
 import { withKey } from './fieldSupport';
 import {
   type DesignSelection,
@@ -28,9 +29,6 @@ interface Props {
   onSelect: (selection: DesignSelection | null) => void;
 }
 
-const fieldClass =
-  'w-full rounded border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-white';
-const labelClass = 'block text-[11px] uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-1';
 const buttonClass =
   'inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 hover:text-zinc-900 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100';
 
@@ -71,32 +69,11 @@ function PageFields({ specification, context, onEdit }: { specification: Dashboa
     });
   return (
     <>
-      <label className="block">
-        <span className={labelClass}>{t('design.properties.title')}</span>
-        <input className={fieldClass} value={specification.title} onChange={(event) => onEdit((held) => withPageWritten(held, { title: event.target.value }))} />
-      </label>
-      <label className="block">
-        <span className={labelClass}>{t('design.properties.subtitle')}</span>
-        <input className={fieldClass} value={specification.subtitle ?? ''} onChange={(event) => onEdit((held) => withPageWritten(held, { subtitle: event.target.value }))} />
-      </label>
-      <label className="block">
-        <span className={labelClass}>{t('design.properties.refreshSeconds')}</span>
-        <input
-          className={fieldClass}
-          type="number"
-          min={0}
-          value={specification.refreshSeconds ?? 0}
-          onChange={(event) => onEdit((held) => withPageWritten(held, { refreshSeconds: Number(event.target.value) }))}
-        />
-      </label>
-      <label className="block">
-        <span className={labelClass}>{t('design.properties.icon')}</span>
-        <input className={fieldClass} value={specification.icon ?? ''} onChange={(event) => onEdit((held) => withPageWritten(held, { icon: event.target.value }))} />
-      </label>
-      <label className="block">
-        <span className={labelClass}>{t('design.properties.compareLabel')}</span>
-        <input className={fieldClass} value={specification.compare?.label ?? ''} onChange={(event) => compare({ label: event.target.value.trim() })} />
-      </label>
+      <TextField label={t('design.properties.title')} value={specification.title} onCommit={(title) => { if (title.trim()) onEdit((held) => withPageWritten(held, { title: title.trim() })); }} />
+      <TextField label={t('design.properties.subtitle')} value={specification.subtitle ?? ''} onCommit={(subtitle) => onEdit((held) => withPageWritten(held, { subtitle }))} />
+      <NumberField label={t('design.properties.refreshSeconds')} value={specification.refreshSeconds} onCommit={(seconds) => onEdit((held) => withPageWritten(held, { refreshSeconds: seconds ?? 0 }))} />
+      <TextField label={t('design.properties.icon')} value={specification.icon ?? ''} mono onCommit={(icon) => onEdit((held) => withPageWritten(held, { icon }))} />
+      <TextField label={t('design.properties.compareLabel')} value={specification.compare?.label ?? ''} onCommit={(label) => compare({ label: label.trim() })} />
       <OfferedField label={t('design.properties.compareArchetype')} value={specification.compare?.archetype ?? ''} mono offered={context.offers.kinds.map((value) => ({ value }))} onCommit={(archetype) => compare({ archetype: archetype.trim() })} />
       <DetailEditor label={t('design.properties.detail')} value={specification.detail} context={context} kind={specification.compare?.archetype} onChange={(detail) => onEdit((held) => withKey(held as unknown as Record<string, unknown>, 'detail', detail) as unknown as DashboardSpecification)} />
     </>
@@ -112,14 +89,8 @@ function SectionFields({ specification, section, onEdit, onSelect }: { specifica
   };
   return (
     <>
-      <label className="block">
-        <span className={labelClass}>{t('design.properties.title')}</span>
-        <input className={fieldClass} value={held.title ?? ''} onChange={(event) => onEdit((current) => withSectionWritten(current, section, { title: event.target.value }))} />
-      </label>
-      <label className="block">
-        <span className={labelClass}>{t('design.properties.hint')}</span>
-        <input className={fieldClass} value={held.hint ?? ''} onChange={(event) => onEdit((current) => withSectionWritten(current, section, { hint: event.target.value }))} />
-      </label>
+      <TextField label={t('design.properties.title')} value={held.title ?? ''} onCommit={(title) => onEdit((current) => withSectionWritten(current, section, { title }))} />
+      <TextField label={t('design.properties.hint')} value={held.hint ?? ''} onCommit={(hint) => onEdit((current) => withSectionWritten(current, section, { hint }))} />
       <div className="flex flex-wrap gap-2">
         <button type="button" className={buttonClass} disabled={section === 0} onClick={() => move('earlier')}>
           <ArrowUp size={12} />
@@ -198,16 +169,13 @@ function WidgetFields({
         />
       ))}
       {specification.sections.length > 1 && (
-        <label className="block">
-          <span className={labelClass}>{t('design.properties.inSection')}</span>
-          <select className={fieldClass} value={section} onChange={(event) => moveTo(Number(event.target.value))}>
-            {specification.sections.map((candidate, index) => (
-              <option key={index} value={index}>
-                {candidate.title ?? t('design.canvas.untitledSection')}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ChoiceField
+          label={t('design.properties.inSection')}
+          value={String(section)}
+          options={specification.sections.map((_, index) => String(index))}
+          emptyLabel=""
+          onCommit={(chosen) => { if (chosen) moveTo(Number(chosen)); }}
+        />
       )}
       <button
         type="button"
