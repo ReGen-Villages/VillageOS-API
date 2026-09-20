@@ -46,6 +46,23 @@ public class CommandHandlerTests
         Assert.Contains("seed", output);
         Assert.Contains("help", output);
         Assert.Contains("exit", output);
+        Assert.Contains("logs tail", output);
+        Assert.Contains("logs follow", output);
+        Assert.Contains("logs download", output);
+    }
+
+    [Fact]
+    public async Task HandleCommandAsync_Logs_IsDispatchedToTheLogsHandler()
+    {
+        var writer = new StringWriter();
+        var handler = CreateHandler(new StringReader(""), writer);
+        _myceliumMock.Setup(c => c.GetLogTailAsync(null, null))
+            .ReturnsAsync(JsonDocument.Parse("{\"file\":\"mycelium.log\",\"lines\":[\"a line\"]}").RootElement);
+
+        await handler.HandleCommandAsync("logs", "tail");
+
+        Assert.DoesNotContain("Unknown command", writer.ToString());
+        Assert.Contains("a line", writer.ToString());
     }
 
     [Fact]
