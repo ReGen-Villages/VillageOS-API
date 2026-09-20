@@ -943,11 +943,13 @@ plain `"string"`).
 In addition to relationship-service daemons (invoked when relationships are
 created), Mycelium supports **endpoint services** — custom HTTP
 microservices that expose their own API endpoints through
-`POST /api/endpoints/{subdomain}`. They are auto-discovered from seed data
-(things with an `EndpointSubdomain` property), share the same managed daemon
-lifecycle as relationship services, and act as pass-through proxies — Mycelium
-forwards request bodies as-is to the service's `/handle` endpoint. Mycelium
-also exposes per-subdomain request metrics (count, avg response time, errors).
+`POST /api/endpoints/{subdomain}`. They are found at seed load as connections
+whose trigger is `http`, each carrying the `Subdomain` it is reached at, share
+the same managed daemon lifecycle as relationship services, and act as
+pass-through proxies — Mycelium forwards request bodies as-is to the service's
+`/handle` endpoint. Mycelium also exposes per-subdomain request metrics (count,
+avg response time, errors), and a connection may carry
+`AcceptsAnonymousCallers` to admit a caller with no credential.
 
 Full implementation details: the *Services* chapter of the Field Guide on the
 VillageOS repository's wiki.
