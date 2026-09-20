@@ -49,6 +49,26 @@ public class CommandHandlerTests
         Assert.Contains("logs tail", output);
         Assert.Contains("logs follow", output);
         Assert.Contains("logs download", output);
+        Assert.Contains("events watch", output);
+    }
+
+    [Fact]
+    public async Task HandleCommandAsync_Events_IsDispatchedToTheEventsHandler()
+    {
+        var writer = new StringWriter();
+        var handler = CreateHandler(new StringReader(""), writer);
+        _myceliumMock.Setup(c => c.WatchEventsAsync(It.IsAny<CancellationToken>())).Returns(OneEvent());
+
+        await handler.HandleCommandAsync("events", "watch --for=1");
+
+        Assert.DoesNotContain("Unknown command", writer.ToString());
+        Assert.Contains("ThingCreated", writer.ToString());
+    }
+
+    private static async IAsyncEnumerable<ServerSentEvent> OneEvent()
+    {
+        await Task.Yield();
+        yield return new ServerSentEvent("ThingCreated", "{}");
     }
 
     [Fact]
