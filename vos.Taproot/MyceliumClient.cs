@@ -278,6 +278,22 @@ public class MyceliumClient
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
+    public virtual async Task<JsonElement> GetRelationshipRangesAsync(Guid id)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/relationships/{id}/ranges");
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    public virtual async Task<JsonElement> GetRelationshipStatesAsync(Guid id)
+    {
+        await SetAuthHeaderAsync();
+        var response = await _httpClient.GetAsync($"{_myceliumUrl}/api/relationships/{id}/states");
+        await EnsureSuccessCarryingTheReasonAsync(response);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     public virtual async Task<JsonElement> CreateRelationshipAsync(Guid subjectId, Guid predicateId, Guid targetId)
     {
         await SetAuthHeaderAsync();

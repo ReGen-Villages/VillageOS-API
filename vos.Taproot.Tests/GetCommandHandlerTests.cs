@@ -100,10 +100,38 @@ public class GetCommandHandlerTests
     }
 
     [Fact]
-    public async Task GetRelationship_ShowsNotAvailableMessage()
+    public async Task GetRelationship_PrintsTheRelationshipAsJson()
+    {
+        var relationshipId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetRelationshipAsync(relationshipId))
+            .ReturnsAsync(JsonDocument.Parse($"{{\"Id\":\"{relationshipId}\",\"Properties\":{{\"since\":\"2026\"}}}}").RootElement);
+
+        await ExecuteHandler($"relationship {relationshipId}");
+
+        var output = _writer.ToString();
+        Assert.Contains($"\"Id\": \"{relationshipId}\"", output);
+        Assert.Contains("\"since\": \"2026\"", output);
+        Assert.DoesNotContain("not available", output);
+    }
+
+    [Fact]
+    public async Task GetRelationship_WhenNotFound_SaysSo()
+    {
+        var relationshipId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.GetRelationshipAsync(relationshipId)).ReturnsAsync((JsonElement?)null);
+
+        await ExecuteHandler($"relationship {relationshipId}");
+
+        Assert.Contains($"Relationship {relationshipId} not found", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task GetRelationship_WithNoIdOrANameInstead_ShowsUsage()
     {
         await ExecuteHandler("relationship");
+        await ExecuteHandler("relationship not-an-id");
 
-        Assert.Contains("not available in remote mode", _writer.ToString());
+        Assert.Contains("Usage: get relationship <id>", _writer.ToString());
+        _myceliumMock.Verify(b => b.GetRelationshipAsync(It.IsAny<Guid>()), Times.Never);
     }
 }
