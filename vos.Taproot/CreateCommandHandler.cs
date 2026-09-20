@@ -68,7 +68,7 @@ namespace vos.Taproot
         {
             if (tok.Length < 4)
             {
-                _writer.WriteLine("Usage: create property <thingNameOrId> <name> <clrType> <value> [--showguids]");
+                _writer.WriteLine("Usage: create property <thingNameOrId> <name> <type> <value> [--showguids]");
                 return;
             }
 
@@ -84,7 +84,7 @@ namespace vos.Taproot
             var type = tok[2];
             var value = tok[3];
 
-            await _mycelium.SetPropertyAsync(thingId, name, type, value);
+            await _mycelium.AddPropertyAsync(thingId, name, type, value);
 
             // Resolve thing name for display
             var thingName = await _resolver.ResolveNameAsync(thingId);

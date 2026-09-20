@@ -1108,8 +1108,63 @@ public class MyceliumClientTests
         await client.SetPropertyAsync(thingId, "color", "System.String", "red");
 
         capturedBody!.Value.GetProperty("Name").GetString().Should().Be("color");
-        capturedBody.Value.GetProperty("Type").GetString().Should().Be("System.String");
+        capturedBody.Value.GetProperty("Type").GetString().Should().Be("vos.String", "the platform accepts only its own type names");
         capturedBody.Value.GetProperty("Value").GetString().Should().Be("red");
+    }
+
+    // Regression (#7167): adding a property is POST on the same path; PUT answers 404 for one the
+    // Thing does not hold yet, and the short type names the guide lists were sent unmapped.
+    [Fact]
+    public async Task AddPropertyAsync_PostsTheTypedValueUnderThePlatformsTypeName()
+    {
+        var thingId = Guid.NewGuid();
+        JsonElement? capturedBody = null;
+        HttpRequestMessage? captured = null;
+        var (client, _) = NewClient(req =>
+        {
+            if (req.RequestUri!.AbsolutePath == "/api/auth/token") return TokenResponse(ServiceToken);
+            captured = req;
+            capturedBody = ReadJsonBody(req);
+            return JsonResponse("{}");
+        });
+
+        await client.AddPropertyAsync(thingId, "trees", "int", "120");
+
+        captured!.Method.Should().Be(HttpMethod.Post);
+        captured.RequestUri!.AbsolutePath.Should().Be($"/api/things/{thingId}/properties");
+        capturedBody!.Value.GetProperty("Name").GetString().Should().Be("trees");
+        capturedBody.Value.GetProperty("Type").GetString().Should().Be("vos.Integer");
+        capturedBody.Value.GetProperty("Value").GetString().Should().Be("120");
+    }
+
+    [Fact]
+    public async Task AddPropertyAsync_OnRefusal_ThrowsCarryingTheRoutesReason()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.Conflict)
+            {
+                Content = new StringContent("{\"error\":\"Property already exists on the thing: trees\"}")
+            });
+
+        var act = async () => await client.AddPropertyAsync(Guid.NewGuid(), "trees", "int", "120");
+
+        await act.Should().ThrowAsync<HttpRequestException>().WithMessage("*already exists on the thing: trees*");
+    }
+
+    [Fact]
+    public async Task SetPropertyAsync_OnRefusal_ThrowsCarryingTheRoutesReason()
+    {
+        var (client, _) = NewClient(req => req.RequestUri!.AbsolutePath == "/api/auth/token"
+            ? TokenResponse(ServiceToken)
+            : new HttpResponseMessage(HttpStatusCode.NotFound)
+            {
+                Content = new StringContent("{\"error\":\"Property does not exist on the thing.\"}")
+            });
+
+        var act = async () => await client.SetPropertyAsync(Guid.NewGuid(), "trees", "int", "120");
+
+        await act.Should().ThrowAsync<HttpRequestException>().WithMessage("*does not exist on the thing*");
     }
 
     [Fact]

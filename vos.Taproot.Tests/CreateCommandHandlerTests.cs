@@ -117,17 +117,20 @@ public class CreateCommandHandlerTests
         Assert.Contains("Usage:", _writer.ToString());
     }
 
+    // Regression (#7167): adding went through the set-existing request, which answers 404 for a
+    // property the Thing does not hold yet.
     [Fact]
-    public async Task CreateProperty_ValidArgs_AddsProperty()
+    public async Task CreateProperty_ValidArgs_AddsThePropertyRatherThanSettingAnExistingOne()
     {
         var thingId = Guid.NewGuid();
         var json = JsonSerializer.Deserialize<JsonElement>("{}");
-        _myceliumMock.Setup(b => b.SetPropertyAsync(thingId, "TestProp", "System.String", "TestValue")).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.AddPropertyAsync(thingId, "trees", "int", "120")).ReturnsAsync(json);
 
-        var handler = new CreateCommandHandler($"property {thingId} TestProp System.String TestValue", _writer, _myceliumMock.Object);
+        var handler = new CreateCommandHandler($"property {thingId} trees int 120", _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
 
-        _myceliumMock.Verify(b => b.SetPropertyAsync(thingId, "TestProp", "System.String", "TestValue"), Times.Once);
+        _myceliumMock.Verify(b => b.AddPropertyAsync(thingId, "trees", "int", "120"), Times.Once);
+        _myceliumMock.Verify(b => b.SetPropertyAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>()), Times.Never);
         Assert.Contains("Added property", _writer.ToString());
     }
 
@@ -139,13 +142,27 @@ public class CreateCommandHandlerTests
         _myceliumMock.Setup(b => b.GetAllThingsAsync()).ReturnsAsync(things);
 
         var json = JsonSerializer.Deserialize<JsonElement>("{}");
-        _myceliumMock.Setup(b => b.SetPropertyAsync(thingId, "TestProp", "System.String", "TestValue")).ReturnsAsync(json);
+        _myceliumMock.Setup(b => b.AddPropertyAsync(thingId, "TestProp", "string", "TestValue")).ReturnsAsync(json);
 
-        var handler = new CreateCommandHandler("property MyThing TestProp System.String TestValue", _writer, _myceliumMock.Object);
+        var handler = new CreateCommandHandler("property MyThing TestProp string TestValue", _writer, _myceliumMock.Object);
         await handler.ExecuteAsync();
 
-        _myceliumMock.Verify(b => b.SetPropertyAsync(thingId, "TestProp", "System.String", "TestValue"), Times.Once);
+        _myceliumMock.Verify(b => b.AddPropertyAsync(thingId, "TestProp", "string", "TestValue"), Times.Once);
         Assert.Contains("Added property", _writer.ToString());
+    }
+
+    [Fact]
+    public async Task CreateProperty_WhenThePlatformRefuses_WritesItsReason()
+    {
+        var thingId = Guid.NewGuid();
+        _myceliumMock.Setup(b => b.AddPropertyAsync(thingId, "trees", "banana", "120"))
+            .ThrowsAsync(new HttpRequestException("400 Bad Request: {\"error\":\"Invalid type specified.\"}"));
+
+        var handler = new CreateCommandHandler($"property {thingId} trees banana 120", _writer, _myceliumMock.Object);
+        await handler.ExecuteAsync();
+
+        Assert.Contains("Error:", _writer.ToString());
+        Assert.Contains("Invalid type specified", _writer.ToString());
     }
 
     [Fact]
