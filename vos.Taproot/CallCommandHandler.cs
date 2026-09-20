@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace vos.Taproot;
 
 // `call endpoint <subdomain> <json>` and `call service <handler> <json>`: post a body through the
@@ -21,7 +19,7 @@ public class CallCommandHandler : CommandHandlerWithOutputOptions
         }
 
         var body = parts[2].Trim();
-        if (!IsJson(body))
+        if (!CommandParser.IsJson(body))
         {
             _writer.WriteLine("Error: the body is not JSON. Nothing was sent.");
             return;
@@ -32,7 +30,7 @@ public class CallCommandHandler : CommandHandlerWithOutputOptions
             switch (parts[0].ToLowerInvariant())
             {
                 case "endpoint":
-                    WriteAnswer(await _mycelium.PostToEndpointAsync(parts[1], body));
+                    CommandParser.WriteJsonOrText(_writer, await _mycelium.PostToEndpointAsync(parts[1], body));
                     break;
                 case "service":
                     await RequestServiceAsync(parts[1], body);
@@ -60,28 +58,7 @@ public class CallCommandHandler : CommandHandlerWithOutputOptions
             return;
         }
 
-        WriteAnswer(await _mycelium.RequestServiceAsync(handlerId, body));
-    }
-
-    private void WriteAnswer(string answer)
-    {
-        if (IsJson(answer))
-            CommandParser.WriteFormattedJson(_writer, JsonDocument.Parse(answer).RootElement);
-        else
-            _writer.WriteLine(answer);
-    }
-
-    private static bool IsJson(string text)
-    {
-        try
-        {
-            JsonDocument.Parse(text).Dispose();
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
+        CommandParser.WriteJsonOrText(_writer, await _mycelium.RequestServiceAsync(handlerId, body));
     }
 
     private void ShowUsage()

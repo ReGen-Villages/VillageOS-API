@@ -720,7 +720,7 @@ public class SubmissionsCommandHandlerTests
     [Fact]
     public void The_things_are_held_by_identifier_rather_than_searched_for()
     {
-        var byIdentifier = SubmissionsCommandHandler.ByIdentifier(Json(new[]
+        var byIdentifier = ModelReading.ByIdentifier(Json(new[]
         {
             Thing(SubmissionId, "Willow Bend Submission"),
             Thing(SiteId, "Willow Bend"),
@@ -735,7 +735,7 @@ public class SubmissionsCommandHandlerTests
     [Fact]
     public void A_repeated_identifier_answers_with_the_first_thing_under_it()
     {
-        var byIdentifier = SubmissionsCommandHandler.ByIdentifier(Json(new[]
+        var byIdentifier = ModelReading.ByIdentifier(Json(new[]
         {
             Thing(SiteId, "the one the search found"),
             Thing(SiteId, "the one behind it"),
