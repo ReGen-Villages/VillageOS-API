@@ -101,7 +101,7 @@ public class MyceliumClient
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync(
             $"{_myceliumUrl}/api/logs/tail{Query(("lines", lines?.ToString()), ("service", service))}");
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
@@ -110,7 +110,7 @@ public class MyceliumClient
         await SetAuthHeaderAsync();
         var response = await _httpClient.GetAsync(
             $"{_myceliumUrl}/api/logs/download{Query(("service", service))}", HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         var fileName = response.Content.Headers.ContentDisposition?.FileNameStar
             ?? response.Content.Headers.ContentDisposition?.FileName?.Trim('"')
             ?? (service is null ? "mycelium.log" : $"{service}.log");
@@ -132,7 +132,7 @@ public class MyceliumClient
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         using var response = await _streamClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessCarryingTheReasonAsync(response);
         await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new StreamReader(body);
         await foreach (var received in ServerSentEvents.ReadAsync(reader, cancellationToken))
@@ -149,15 +149,7 @@ public class MyceliumClient
     }
 
     private static string BuildTimeRangeQuery(DateTime? startTime, DateTime? endTime)
-    {
-        var queryParams = new List<string>();
-        if (startTime.HasValue)
-            queryParams.Add($"startTime={startTime.Value:O}");
-        if (endTime.HasValue)
-            queryParams.Add($"endTime={endTime.Value:O}");
-
-        return queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
-    }
+        => Query(("startTime", startTime?.ToString("O")), ("endTime", endTime?.ToString("O")));
 
     public virtual async Task<JsonElement> GetAllThingsAsync()
     {
