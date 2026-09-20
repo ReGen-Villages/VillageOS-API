@@ -954,6 +954,8 @@ value read from the model, transformed and written back.
 ### 41. Building one on the canvas
 The **Pipelines** page in the console is the editor.
 
+![The Pipelines page with a saved pipeline loaded: the boundary and the service palette on the left, the nodes wired on the canvas, the parameters along the top](assets/trellis-pipelines.png)
+
 - **The palette** lists every connection in the model that can be dispatched. Clicking one drops a
   node bound to it; its typed ports come from the service it binds. **Input** and **Output**
   buttons drop boundary nodes: an Input's ports are filled from the run's parameters, and the value
@@ -1045,13 +1047,22 @@ npm run dev
 
 Open `http://localhost:5173`. Sign in as `admin` with the password the server wrote to
 `bootstrap-credentials.txt` in its data directory on its first start — or the one
-`VOS_ADMIN_PASSWORD` held then. There is no default password. If more than one model is loaded you
-choose one after signing in. A developer may put a key in `VITE_API_KEY` in a local settings file
-for automatic sign-in.
+`VOS_ADMIN_PASSWORD` held then. There is no default password. A developer may put a key in
+`VITE_API_KEY` in a local settings file for automatic sign-in.
+
+![The sign-in form: username, password and the ReGen mark above them](assets/trellis-sign-in.png)
+
+The sign-in and password pages have one look whichever theme the rest of the console is in. With
+several models loaded, they are offered by name after sign-in; an account enters only the models it
+has been granted, and an administrator every one (chapter 54).
+
+![Choosing a model after sign-in: the loaded models listed by name](assets/trellis-choose-a-model.png)
 
 The console keeps your session alive by renewing its pass in the background before it expires. An
-account flagged to change its password is shown the change form first and nothing else until it
-has.
+account flagged to change its password — one an administrator created, or added or reset from the
+Accounts page — is shown the change form first and nothing else until it has.
+
+![The password change form shown after sign-in when a change is required](assets/trellis-change-password.png)
 
 **The pages.** The left rail lists them; it collapses to icons with the chevron at its top.
 
@@ -1059,7 +1070,7 @@ has.
 | --- | --- |
 | **Dashboard** | What the model holds, what the two engines are carrying, which services are registered and healthy, and a live feed of what is happening |
 | **Operations**, and the model's own pages | Every page the model publishes, one rail entry each with the icon its description names, in the reader's language; a model that publishes none shows one Operations entry saying so |
-| The pages the platform declares | Listed before the model's own, for the signed-in account: an administrator sees an **Accounts** page to create accounts, set roles, grant models and reset passwords |
+| **Accounts** | The page the platform declares for administrators: who may sign in and which models each account may enter (chapter 54). Listed only to an administrator, before the model's own pages |
 | **Compose** | A table built from what the model declares for a kind — its properties, its links and its states — kept as a page of the model's own |
 | **Land intake** | The five-step wizard that describes a piece of land, shown where an intake service is configured |
 | **Submissions** | What has arrived, and what a reviewer decides about it |
@@ -1070,24 +1081,39 @@ has.
 | **Things**, **Properties** | Search the whole model by name, or by property name |
 | **Logs** | The server's log, live |
 
+![The same page with the sidebar collapsed to its icon strip](assets/trellis-sidebar-collapsed.png)
+
 The rail's footer holds what is the same on every page: the light or dark **theme**, **Switch
-Model**, **Log Out**, and the **language**.
+Model**, **Log Out**, and the **language**. Above the controls a model statement says whether the
+stream is live, how many Things and relationships the model holds (*Reading the model…* until it
+is loaded), and when the newest event arrived (*Nothing has moved yet* before one). Collapsed, only
+the live mark stays, with the statement as its tooltip.
+
+The theme toggle switches the whole console between day and night. Every other picture in this guide
+is taken in day mode; here is the Dashboard in both.
+
+![The Dashboard in day mode](assets/trellis-dashboard.png)
+
+![The Dashboard in night mode, after the theme toggle](assets/trellis-dashboard-night.png)
 
 **Switching and saving models.** Switch Model opens the seed library: every seed file in the
-server's seeds directory, searchable and sortable by name and size. Choosing one replaces the loaded
-model — the server clears what it holds, loads the seed, and the console re-scopes your session to
-the new model; the graph resets and draws it. At the bottom of the same picker, type a name and
+server's seeds directory, searchable and sortable by name and size. Choosing one replaces the model
+the session is on — the server clears what it holds, loads the seed, and the console re-scopes your
+session to the new model; the graph resets and draws it. To move to a model that is already loaded,
+sign out and choose it after signing in again. At the bottom of the same picker, type a name and
 click **Save** to write the current model to the library; it appears in the list at once.
 
 **A first model.** The console starts with an empty model. Put a seed file in the server's seeds
 directory before starting it, or load one from the command line (`deserialize` in Taproot,
-chapter 65), then open **Graph**. The shipped village seed is the one to learn
+chapter 67), then open **Graph**. The shipped village seed is the one to learn
 on: it has kinds several levels deep, energy, water, biodiversity and transport relationships, and
 building geometry for the 3D views.
 
 ### 47. The graph page
 The Graph page draws every Thing as a node and every relationship as an arrow, laid out by a force
 simulation: Things with many relationships drift to the centre and leaf Things to the edge.
+
+![The Graph page on the village seed: the force-directed layout, the search bar top left, the predicate and type filters on the right and the toolbar bottom left](assets/trellis-graph.png)
 
 **What you see.**
 
@@ -1128,6 +1154,8 @@ pencil: rename it in place, and the Thing keeps its identifier and every relatio
 opens on **Ranges**, with **Properties** and **Relationships** beside it, and **3D** for a Thing
 with geometry.
 
+![A node selected: the community centre's detail panel opens on its Ranges tab](assets/trellis-graph-node-selected.png)
+
 | Tab | What it shows |
 | --- | --- |
 | **Ranges** | The states the Thing currently holds as coloured badges; its own ranges with their criteria and whether each holds; the ranges it inherits, grouped by the kind that supplies them, each name a link to that kind; the ranges on every relationship it sits on; and, per binding, how far a value sits from its bounds. **Add Range** creates one from a name and a criterion; each own range has a delete control; an inherited range is removed from the kind that declares it. The tab holds a still picture of the world while you read it, so a stream of state changes does not shuffle the panel under you; the refresh control takes a fresh one |
@@ -1135,13 +1163,21 @@ with geometry.
 | **Relationships** | What points at the Thing and what it points to, each name a link. A chevron opens a relationship's own values for editing; an icon opens the relationship's own panel. In editing mode a row at the bottom of each list adds a relationship from a predicate and a Thing, and a **retype** row repoints the Thing's `is` to another kind in one step |
 | **3D** | An auto-rotating view of the element. Drag to orbit, scroll to zoom. A container with no geometry of its own — a building, a storey — shows what it contains, coloured by element class |
 
+![The Properties tab in edit mode: each own value in a field with a delete control, an add-property row beneath, the inherited groups below](assets/trellis-graph-properties-edit.png)
+
+![The Relationships tab: outgoing and incoming relationships, each expandable](assets/trellis-graph-relationships.png)
+
 **Click an arrow** for the relationship's panel: its subject, predicate and target as links, its own
 values with editing, its ranges and states, and a delete control.
+
+![An edge selected: subject, predicate and target as links, the Ranges and Properties tabs beneath](assets/trellis-graph-edge-selected.png)
 
 **Right-click a node** for a menu: view details, expand its relationships, show or hide the logical
 Things under it, view it in 3D, copy its identifier, and delete it after a confirmation. Right-click
 the background for the predicate menu (chapter 50). Click the empty background to
 deselect everything and close every panel and menu.
+
+![The context menu on a node, with the node's edges labelled while the pointer rests on it](assets/trellis-graph-context-menu.png)
 
 ### 49. Searching
 **On the graph page.** Type in the search bar and every Thing whose name contains the text stays
@@ -1152,6 +1188,8 @@ both ends match. The match count appears beside the bar. Three toggles change th
 separated by commas highlight all of them and their neighbourhoods at once — the way to see what two
 homes share. Clearing the bar restores the graph.
 
+![A search for one name: everything else dims or hides, and the count reads "1 found"](assets/trellis-graph-search.png)
+
 **The Things page** finds Things by name without drawing the graph, which matters on a large
 model. Results update as you type and are ranked: an exact match first, then names that begin with
 the text, then names that contain it, then Things whose identifier contains it. Each result shows
@@ -1159,10 +1197,14 @@ the name (a link that opens the Thing on the graph), its kind, a few of its own 
 many properties and relationships it has. The first hundred are shown, with a control for the next
 hundred, and the whole result set can be copied or downloaded as a table.
 
+![The Things page: a search for "Community" listing each match with its type, a property or two, and its counts](assets/trellis-things.png)
+
 **The Properties page** searches by property name across every Thing and relationship — for when
 you know a value exists but not which Things carry it. Results are grouped by property name, each
 row naming the owner, whether the value is inherited and from where, and the current value; a row's
 **history** control shows every past value.
+
+![The Properties page: a search by property name, each holder listed with the value it holds](assets/trellis-properties.png)
 
 | To find | Use |
 | --- | --- |
@@ -1174,7 +1216,13 @@ row naming the owner, whether the value is inherited and from where, and the cur
 ### 50. Clustering by predicate
 Right-click the graph background and a radial menu lists every predicate in the model, ordered by
 how many relationships use it, each with its colour and count. Click one to cluster on it; click
-several to cluster on several.
+several to cluster on several. The choice is the same one the **Filter by Predicate** panel on the
+right makes: the predicate's entry there follows the menu, and its count of hidden relationships says
+how many left the view.
+
+![The radial predicate menu on the village seed, one entry per predicate with its colour and count](assets/trellis-graph-predicate-menu.png)
+
+![After choosing a predicate in the menu: its relationships leave the view and the filter panel shows it unticked](assets/trellis-graph-predicate-hidden.png)
 
 With `is` active, every kind gathers its members around it at full brightness, the predicates
 shrink to dots, unclustered Things dim, and the `is` arrows appear. A large cluster starts folded
@@ -1189,7 +1237,9 @@ relationships, and a control to clear clustering.
 There are two 3D views, with different gestures.
 
 **The Model page** draws the whole building model at once, from the render file the importer wrote
-beside the seed.
+beside the seed; a model loaded without one says how to make it.
+
+![The Model page on a building-model site: the type filter on the left, the village in the viewer, 3D and plan views and the section slider top right](assets/trellis-model.png)
 
 | Gesture | Action |
 | --- | --- |
@@ -1209,7 +1259,7 @@ marker. What the map draws comes from the model: it declares the basemaps it off
 names each as a button when there is more than one. A model that declares terrain draws the ground
 in relief, raises the buildings its basemap carries, and lets the camera tilt to the horizon; a
 control shows where north lies as the map turns. A model that declares no basemap says so in place of
-the map. Chapter 93 says how a model declares one.
+the map. Chapter 95 says how a model declares one.
 
 **The 3D tab** on a Thing's panel shows one element, auto-rotating: drag to orbit, scroll to zoom.
 Panning is deliberately off, so the element never drifts out of frame.
@@ -1239,7 +1289,9 @@ and a **Delete** control that removes the connection from the model after a conf
 from Stop, which only ends the process.
 
 **Activity feed.** Every change to the model, live: a Thing created, a relationship created, a
-property changed, a service called, each in its own colour. The feed keeps the most recent two
+property changed, a service called, each in its own colour. A *property observed* is a reading
+delivered to a subscription that asked for readings — a published page asks, the navigation does
+not — so the feed shows one only while such a page is open. The feed keeps the most recent two
 hundred. **Pause** freezes it and counts what arrives meanwhile; **Play** shows them. Chips at the
 top show or hide the Model, Things, Relationships, Properties and Services categories. The panel
 collapses and resizes, and remembers its height.
@@ -1267,6 +1319,8 @@ can show. As a reader:
   the platform dispatched on it with how each dispatch ended. The timeline says how far back it
   reaches; an empty one reads as *not retained*, never as *never happened*.
 
+![A model's operations dashboard: verdicts, figures, and how each figure was worked out](assets/trellis-operations-dashboard.png)
+
 A page refreshes its trailing-window figures on the cadence it declares, and every figure that
 depends on a derived state re-reads the moment that state moves.
 
@@ -1281,7 +1335,35 @@ removed, and a seeded one cannot. **A moment in time** reads the same table as t
 instant — with no state column, because a state at an instant is not something the platform
 answers.
 
-### 54. Creating and changing data
+![Compose: a kind chosen on the left, a link and a state picked as columns, the table drawn on the right](assets/trellis-compose.png)
+
+### 54. The Accounts page
+**Accounts** is neither a page the console ships nor one a model publishes: the platform declares it,
+as a page description, to an administrator, and the console draws it exactly as it draws a model's
+own pages. Anyone who is not an administrator sees no such entry.
+
+![The Accounts page: every account, a form that adds one, and the acts that grant, revoke, change a role, reset a password and delete](assets/trellis-accounts.png)
+
+Every read and write on it goes to the platform's administration route. An account added or reset
+here signs in with the password typed and must then choose its own. An account holds one role and
+enters only the models it is granted; an administrator enters every model and needs no grant.
+Nothing on the page acts on the administrator's own account. The same acts are the `user` commands
+in Taproot (chapter 68), through the same route, so the two say and refuse the
+same things.
+
+### 55. Time and the log
+**Temporal** reads the model's past: property changes across the model or for one Thing, the model
+as it stood at an instant, one property's history, and which Things held a state. Each tab takes a
+time range and asks the platform's temporal reads (chapter 30).
+
+![The Temporal page: the Mutations tab, a time range and the changes it found](assets/trellis-temporal.png)
+
+**Logs** tails the server's log as it is written, with a pause, a snapshot, and the whole file to
+download.
+
+![The Logs page streaming the server's log](assets/trellis-logs.png)
+
+### 56. Creating and changing data
 Everything is done in place on the graph page.
 
 | To | Do |
@@ -1304,7 +1386,9 @@ Taproot, or the save control in the seed library.
 Whole-model operations — export, import, clear — are the command line's (chapter
 65).
 
-### 55. Land intake, from either end
+### 57. Land intake, from either end
+![The land-intake wizard on its first step, the steps across the top](assets/trellis-land-intake.png)
+
 **From the console**, the Land intake page walks five steps: project, contact, location, size and
 programme, parcel. You can move between any step already visited, and progress is written to browser
 storage on every keystroke, keyed by the model, so closing the tab loses nothing; a posted
@@ -1339,10 +1423,13 @@ afterwards can open a **findings page** to read what the platform worked out abo
 model's own dashboard, with every personal detail withheld — share survey files, and open the parcel
 on the satellite imagery the model declares with the report's sections as tabs along the bottom.
 
-### 56. Reviewing what has arrived
+### 58. Reviewing what has arrived
 The **Submissions** page lists what has arrived in this model: when, what it proposes, and what
 has been decided about it — **Waiting** for no decision. Decided rows leave the queue; **Show
-decided** brings them back.
+decided** brings them back. On a model that takes no submissions the page says so rather than
+listing nothing.
+
+![The Submissions page on a model that takes no submissions: it says so rather than listing nothing](assets/trellis-submissions.png)
 
 - **Reject** relates the submission to the disposition that names a retention period, and records
   when the decision was made. The row leaves the queue and stays gone, because the decision is in
@@ -1361,7 +1448,7 @@ has run is `submissions dispose`, a retention pass with no page.
 The page finds all of this by the marks the model puts on its own vocabulary, never by name. A model
 marking none says so in place of the list.
 
-### 57. Keyboard and mouse reference
+### 59. Keyboard and mouse reference
 | Input | Action |
 | --- | --- |
 | Scroll | Zoom, centred on the pointer |
@@ -1380,13 +1467,13 @@ Two habits pay off. Start with the whole graph, then cluster by one predicate at
 display settings, so a model whose graph settles too tightly or too loosely is tuned there rather
 than in the console.
 
-### 58. Taproot, the command line
+### 60. Taproot, the command line
 Taproot is an interactive shell with command history and line editing, running against a Mycelium
 over its request interface. It needs a key, read from the `VOS_API_KEY` environment variable and
 never from the command line: a command line is readable by every program on the host for as long
 as the shell runs, and the shell writes it to its history file, while a key keeps working until
 somebody revokes it. The first start wrote a key to `bootstrap-credentials.txt`; an administrator
-creates more (chapter 72).
+creates more (chapter 74).
 
 ```bash
 export VOS_API_KEY=vos_ak_...
@@ -1395,6 +1482,13 @@ dotnet run
 ```
 
 ```text
+ __     ___ _ _                   ___  ____
+ \ \   / (_) | | __ _  __ _  ___ / _ \/ ___|
+  \ \ / /| | | |/ _` |/ _` |/ _ \ | | \___ \
+   \ V / | | | | (_| | (_| |  __/ |_| |___) |
+    \_/  |_|_|_|\__,_|\__, |\___|\___/|____/
+                      |___/
+              C L I
 VillageOS CLI - Connected to Mycelium at https://localhost:7243
 Type 'help' to see available commands.
 Successfully authenticated with Mycelium.
@@ -1409,18 +1503,19 @@ Successfully authenticated with Mycelium.
 | A development server's self-signed certificate | `VOS_INSECURE_TLS=true` — never in production |
 
 The key is exchanged for a short-lived pass, renewed on its own. Up and Down recall earlier commands.
-`help` lists the commands; `exit` leaves.
+`help` prints the whole reference, grouped as the next chapter groups it; `exit` leaves.
 
 **Naming a Thing.** Wherever a Thing is named you may give its identifier or its name,
 case-insensitively. A name shared by two Things is refused with both identifiers listed. Add
 `--showguids` (or `-g`) anywhere in a command to print identifiers beside names. Timestamps are
 written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 
-### 59. The commands
+### 61. The commands
 | Command | What it does |
 | --- | --- |
 | `create thing <name>` | Create a Thing |
 | `create property <thing> <name> <type> <value>` | Add a property; the types are `string`, `int`, `long`, `double`, `float`, `decimal`, `bool`, `datetime`, `guid` |
+| `create rel-property <relationship id> <name> <type> <value>`, `delete rel-property <relationship id> <name>` | Add or remove a property on a relationship |
 | `create relation <subject> <predicate> <target>` | Create a relationship |
 | `rename <thing> <new name>` | Rename in place, keeping the identifier and every relationship; the name may contain spaces |
 | `retype <thing> <kind>` | Repoint a Thing's `is` to another kind |
@@ -1454,12 +1549,17 @@ written `2026-01-15T12:30:00Z`, in universal time, or as `now`.
 | `config mode [Mode]`, `config mode get <thing> <property>`, `config mode set <thing> <property> <Mode>` | Retention: the default, and one property's |
 | `mycelium status`, `mycelium endpoints` | Startup progress; the request connections the model registers |
 | `submissions list`, `submissions reject <id>`, `submissions promote <id> <template> <predicates> <name>`, `submissions dispose <predicates>` | Review, and the retention pass |
-| `user list`, `user create <username> <role> [<model>]`, `user grant <username> <model>`, `user revoke <username> <model>`, `user role <username> <role>`, `user reset-password <username>`, `user delete <username>` | Administer accounts: list them with their roles and the models each may enter; add one (its first password prompted for); let an account enter a model, or take one off it; change a role; set a password the person must then change; remove one |
+| `user list` | Every account, its role, the models it may enter, whether its password must change, and when it was created |
+| `user create <username> <role> [<model name>]` | Add an account, prompting for its first password, which the person must change at first sign-in |
+| `user grant <username> <model name>`, `user revoke <username> <model name>` | Let an account enter a model, or take one off it; the model's name is the rest of the line |
+| `user role <username> <admin\|editor\|viewer>` | Change an account's role |
+| `user reset-password <username>` | Set a password the person must then change, prompting for it |
+| `user delete <username>` | Remove an account |
 | `user change-password <user id>` | Change your own password, prompted for, never on the command line |
 | `clear model`, `shutdown` | Remove every Thing and relationship; stop the server and every service |
 | `pwd`, `cd <path>` | The working directory files are read from and written to |
 
-### 60. Things, properties and relationships from the shell
+### 62. Things, properties and relationships from the shell
 ```text
 > create thing Forest
 Created Thing: Forest
@@ -1476,10 +1576,21 @@ Created Thing: Forest
 
 > set Forest carbonLevel 35
 Set carbonLevel = 35 on Forest
+```
 
-> find thing for
-Found 1 thing(s) matching 'for':
-  Forest
+A search over the village seed, as the console printed it:
+
+```text
+> find thing Community
+Found 8 thing(s) matching 'Community':
+  CommunitySolarField
+  CommunityBattery-2
+  CommunityCompost-2
+  CommunityFoodForest
+  CommunityCenter
+  CommunityBattery-1
+  CommunityBuilding
+  CommunityCompost-1
 ```
 
 A relationship joins a subject to a target through a predicate, and the predicate is a Thing you
@@ -1503,10 +1614,25 @@ Predicates (1):
   part_of (used in 1 relationship(s))
 ```
 
+A Thing made, related, listed and removed again, as the console printed it:
+
+```text
+> create thing Orchard-Test
+Created Thing: Orchard-Test
+> create relation Orchard-Test feeds CommunityCenter
+Created Relationship: Orchard-Test --[feeds]--> CommunityCenter
+> find relationships Orchard-Test
+Relationships for thing 'Orchard-Test':
+  As Subject (1):
+    Orchard-Test --[feeds]--> CommunityCenter
+> delete thing Orchard-Test
+Deleted thing Orchard-Test
+```
+
 `query property biomeType Temperate` lists every Thing with that value; `query stats` gives the
 model's counts and the relationships per predicate.
 
-### 61. Time from the shell
+### 63. Time from the shell
 ```text
 > temporal snapshot 2026-01-15T12:00:00Z        # the whole model as it stood
 > temporal at Forest 2026-01-15T12:00:00Z       # one Thing, with its relationships then
@@ -1523,9 +1649,22 @@ model's counts and the relationships per predicate.
 
 `temporal mutations` on its own covers the whole model; `rel <id>` asks about a relationship.
 Naming no window asks about everything still kept. A property that keeps only its current value has
-no history to answer with.
+no history to answer with. One Thing's changes after a property was edited, as the console printed
+it:
 
-### 62. Ranges and states from the shell
+```text
+> temporal mutations CommunityCenter
+{
+  "ObjectId": "8bae0512-37ad-4ee1-b33c-4753c8710a5d",
+  "ObjectName": "CommunityCenter",
+  "Mutations": [
+    { "Timestamp": "2026-09-20T12:16:48.691831Z", "PropertyName": "capacity_people",
+      "OldValue": "220", "NewValue": "240" }
+  ]
+}
+```
+
+### 64. Ranges and states from the shell
 ```text
 > range create Sensor overheating "temp > 100"
 > range create Sensor nominal "temp >= 20 AND temp <= 80" --property temp --bounds-min 20 --bounds-max 80
@@ -1543,6 +1682,26 @@ Invalid criteria: Parse error at position 5: Unexpected character '>'
 > state query overheating
 ```
 
+A range declared and the Thing's states read back, as the console printed it — the answer carries
+the comparison the criterion makes, which is what a page's verdict sentence reads its target from:
+
+```text
+> range create Orchard-Test enough-trees trees>=100
+{
+  "Name": "enough-trees",
+  "Criteria": "trees>=100",
+  "IsInherited": false,
+  "Bindings": [],
+  "Comparisons": [ { "PropertyName": "trees", "Operator": ">=", "Value": 100 } ]
+}
+> state Orchard-Test
+{
+  "ObjectName": "Orchard-Test",
+  "CurrentStates": [],
+  "RangeEvaluations": [ { "RangeName": "enough-trees", "IsActive": false, "Criteria": "trees>=100" } ]
+}
+```
+
 A range on a kind is inherited by every member and appears under **InheritedRanges** in
 `range list`, named with the kind that supplies it. Chapter 24 has the language; two habits from it
 matter here. Write `MATCHES` patterns with a dot for the decimal point, because a number is turned
@@ -1555,16 +1714,18 @@ give the unanswered case a range of its own, because every other comparison read
 > range create "Site Study" EnergyNotAssessed "pctOfConsumption IS UNKNOWN"
 ```
 
-### 63. The engines and the cost of reading
+### 65. The engines and the cost of reading
 `engines` shows what the two engines carry for the current model — counting only; reading it
 evaluates nothing:
 
 ```text
 > engines
-Reactive engines — MarthasVineyard
-  Range evaluation          14 ranges        41 edges      20.4 KB
-  Reactive computation       6 roll-ups      52 members     6.3 KB
-  Total est. memory     26.7 KB
+Reactive engines — Regenerative Village — Ecosystem Model
+  Range evaluation        2924 ranges      3999 edges      3,5 MB
+  Reactive computation       0 roll-ups       0 members    0 B
+  Total est. memory     3,5 MB
+
+Drill in: engines ranges | engines rollups
 ```
 
 `engines ranges` lists each range with its owner, what it watches and its footprint; `engines
@@ -1577,19 +1738,19 @@ how many had to be taken again because a writer changed the model's structure mi
 many gave up and took the lock. The totals run from the server's start and are not per model, so
 measuring one run means reading before and after it.
 
-### 64. Services from the shell
+### 66. Services from the shell
 ```text
 > list services
 Microservices (2):
-  Metabolism [Running]
-    Endpoint: https://localhost:5100
+  balancesEnergy [Running]
+    Endpoint: http://localhost:5610
     Health: Healthy
-  PythonHandler [Stopped]
-    Endpoint: https://localhost:5200
-    Health: Unknown
+  EnergyBalance [Stopped]
+    Endpoint: http://localhost:5610
+    Health: Healthy
 
-> start service Metabolism
-> stop service Metabolism
+> start service EnergyBalance
+> stop service EnergyBalance
 ```
 
 `list handlers` shows every connection bound to a service with the executable, run mode and trigger
@@ -1599,7 +1760,7 @@ health check fails three times. `stop service` ends a process the server started
 started elsewhere to stop. `shutdown` stops the server and every service, and the shell loses its
 connection.
 
-### 65. Import, export, fragments and building models
+### 67. Import, export, fragments and building models
 ```text
 > serialize backup                # writes backup.json; the .json is added when missing
 > deserialize mymodel.json        # replaces the model
@@ -1620,31 +1781,63 @@ properties and its overrides keyed by the kind each overrides; loading one resto
 without re-running any service. `ingest` uploads a building model to the Xylem service, merging by
 default and replacing with `--new`. `pwd` and `cd` say where files are read and written.
 
-### 66. Seeds, models, retention and accounts from the shell
+### 68. Seeds, models, retention and accounts from the shell
 ```text
 > seeds list                 # the seed files in the server's seeds directory
+Library seeds:
+  {"name":"MarthasVineyard.seed.json","sizeMb":34.8}
+  {"name":"PipelinePlayground.seed.json","sizeMb":0.1}
+  {"name":"village.seed.json","sizeMb":2.4}
 > seeds status               # how far the startup load has got
 > seeds load village         # replace the current model with that seed
 > seeds save backup          # write the current model there as backup.seed.json
 > seeds reload               # discard the current model and load the directory again
 > model list                 # every model the server holds
-> model switch Village       # move this session to another
+Available models:
+  PipelinePlayground (905abcab-913a-5941-a3e8-a24570de383a)
+  MarthasVineyard (8e9bafbd-07b8-5a0c-9997-cac2e8ccba9e)
+  Regenerative Village — Ecosystem Model (373be6a2-997e-4f5f-bad5-d3a9e1560a71)
+> model switch MarthasVineyard
 > config mode                # the default retention, its ring-buffer size and sample rate
+Property Mode Configuration:
+  Default Mode:     FullHistory
+  Ring Buffer Size: 100
+  Sample Rate:      100
 > config mode RingBuffer --ringbuffer=100
 > config mode set Home-1 temperature Sampled --samplerate=10
-> user list                  # every account, its role and the models it may enter
-> user create ana editor Alder Hollow
-> user grant ana Willow Bend
-> user role ana admin
-> user reset-password ana    # a password the person must then change
-> user change-password <user id>
 ```
 
-Accounts are administered from the shell by an administrator; every password is prompted for
-rather than taken on the command line, so none is left in the shell's history. Keys are created and
-revoked over the request interface.
+**Accounts.** An account holds one role — `admin`, `editor` or `viewer` — and enters only the
+models it has been granted; an administrator enters every model and needs no grant. Every `user`
+command but `change-password` goes through the platform's administration route, the same door the
+console's Accounts page uses (chapter 54), so the command line and the console
+say and refuse the same things, and a refusal is written in the route's own words. Every password is
+prompted for rather than taken on the command line, so none is left in the shell's history. Nothing
+acts on the caller's own account except `change-password`. Keys are still created and revoked over
+the request interface. An account added, granted a second model, promoted and removed, with a
+refusal, as the console printed it:
 
-### 67. Measuring the platform itself
+```text
+> user create bo viewer Regenerative Village — Ecosystem Model
+First password: viewer-first
+Added bo as viewer; they must choose a password at their first sign-in
+> user grant bo MarthasVineyard
+bo may now enter MarthasVineyard
+> user role bo editor
+bo is now editor
+> user list
+Account   Role     May enter                                                Password                     Created
+admin     admin    every model                                              set                          2026-09-20
+bo        editor   Regenerative Village — Ecosystem Model, MarthasVineyard  must change at next sign-in  2026-09-20
+> user revoke bo MarthasVineyard
+bo may no longer enter MarthasVineyard
+> user delete nobody
+Error: 404 Not Found: {"error":"There is no account named nobody"}
+> user delete bo
+Deleted bo
+```
+
+### 69. Measuring the platform itself
 The platform can measure what it costs — processor, memory, request timing, what each engine holds
 — as Observations on Things a model marks measurable, shown on a page any model can install by
 applying one fragment. Because a reading is an ordinary property value, history, retention,
@@ -1652,7 +1845,9 @@ thresholds and totals come free. Sampling is off until a deployment turns it on,
 without it writes one line saying so; that line is what to search the log for when the page is
 empty.
 
-### 68. When something looks wrong
+![The Platform performance page, drawn from the platform's own samples](assets/trellis-platform-performance.png)
+
+### 70. When something looks wrong
 | What you see | Where to look |
 | --- | --- |
 | Every request is refused as unavailable | The server is still rebuilding from its record or loading seeds; the console shows the progress, and `seeds status` reports it |
@@ -1668,7 +1863,7 @@ empty.
 | A service reads *Unreachable* | Its health check failed three times. Check the service's own log in the server's data directory, that its port answers, and its executable path |
 | A dashboard figure reads *absent* | Nothing has written that property yet, or the page names something the model does not hold; the page says which |
 | A balance reads *not assessed* | Its input is unknown. Look for the service or discovery run that should have written it |
-| The seed will not load | Run the validator (chapter 74): it names every problem in one pass |
+| The seed will not load | Run the validator (chapter 76): it names every problem in one pass |
 | A range never activates | `range validate` the criterion; check the property values and the relationships the path walks. A criterion over a property nothing can supply answers false forever |
 | "Unexpected token at position …" | A slip in a criterion: a missing quote, or a missing `AND` between two comparisons |
 | "Cannot delete inherited range" | Delete it from the kind that declares it |
@@ -1683,7 +1878,7 @@ identifier that matches a line in the server's log.
 
 *For the person who installs, configures and operates the platform.*
 
-### 69. Two ways to get it
+### 71. Two ways to get it
 **From a release archive.** A build of the private repository publishes one archive holding the
 server with the console already built in, the simulator, and the in-process test host. It needs
 only the .NET runtime:
@@ -1697,7 +1892,7 @@ Seeds__Directory=/path/to/seeds VOS_ADMIN_PASSWORD=... dotnet vos.Mycelium.dll -
 **From source.** Clone the two repositories side by side; the shipped seeds reach the services by
 a path that climbs out of one repository into the other.
 
-### 70. What you need
+### 72. What you need
 | Requirement | Needed for |
 | --- | --- |
 | The .NET 10 software development kit | The server, the tools, the command line and the C# services |
@@ -1707,7 +1902,7 @@ a path that climbs out of one repository into the other.
 | Go, Rust | Only the example services written in those languages |
 | Google Chrome | Only for rendering a guide to a printable document |
 
-### 71. Build from source
+### 73. Build from source
 ```bash
 # The server and its tools
 cd VillageOS
@@ -1734,7 +1929,7 @@ address with a message saying how to build it. During console development skip t
 `npm run dev` in `vos.Trellis`, which serves the console on port 5173 and passes requests through
 to the server.
 
-### 72. The first start
+### 74. The first start
 ```bash
 cd VillageOS/vos.Mycelium
 VOS_ADMIN_PASSWORD='choose-one' VOS_MASTER_KEY="$(openssl rand -base64 32)" dotnet run
@@ -1759,7 +1954,7 @@ it finds in its persistence directory, loads every seed file in the seeds direct
 marks itself ready. On a blank system there is nothing to rebuild and, until you add one, nothing
 to load. Stop it with `Ctrl+C`, or with the shutdown route, which stops every service first.
 
-### 73. Giving it a model
+### 75. Giving it a model
 ![What happens the first time a seed loads](assets/field-guide-seed-load.svg)
 
 Four ways, all reaching the same loader:
@@ -1779,7 +1974,7 @@ newest checkpoint, replays the record above it, and skips the seed file. Nothing
 file matters any more; editing it changes nothing. To reload a changed seed, move the model's data
 aside first.
 
-### 74. Making a seed
+### 76. Making a seed
 | Way | Use it when |
 | --- | --- |
 | **By hand** (chapter 19) | The model is small, or you are learning what a seed is |
@@ -1814,7 +2009,7 @@ Exporting from a design tool: export in the IFC4 Reference View with base quanti
 and type information included. Low coverage in the result almost always means an export setting
 left off.
 
-### 75. Services in a deployment
+### 77. Services in a deployment
 The server launches a service as a child process when something first needs it, or at load when
 the service is marked to start automatically. The executable path is stated once on the service
 kind as a template with a placeholder for the program's name, and each prototype supplies only its
@@ -1822,7 +2017,7 @@ name; a deployed layout changes that one value and nothing else. Every launched 
 the local machine and is reachable only through the server. On shutdown the server stops every
 service it started and asks every other known service to stop, and reports any that did not.
 
-### 76. Serving it to people
+### 78. Serving it to people
 ![A deployment: one proxy hears the internet; everything else answers only on the machine itself](assets/field-guide-deployment.svg)
 
 **One host, one proxy.** The reference deployment puts a reverse proxy in front: one hostname
@@ -1855,7 +2050,7 @@ network — serves the same hostnames through a tunnel: a small connector progra
 connection to a tunnel provider, requests for the hostnames come down that connection, and nothing
 on the router is opened. The deployment guide beside this one walks the account holder through it.
 
-### 77. What is on disk, and what to protect
+### 79. What is on disk, and what to protect
 | What | Why it matters |
 | --- | --- |
 | The data directory: the account store, the signing key, the first-start credentials, one log per launched service | Every account and every key that can be trusted |
@@ -1866,14 +2061,14 @@ on the router is opened. The deployment guide beside this one walks the account 
 Back up the data directory, the persistence directory and the master key. The seed file is an
 initial import only.
 
-### 78. Hosting the real server in a test
+### 80. Hosting the real server in a test
 The release carries a test host that starts the real server inside a test process — real routes,
 the real engines, real inheritance, real write rules — in milliseconds, over no network, so a
 consumer tests against the platform rather than an imitation that encodes what its author believed.
 One import wires a test project to it; the host loads a seed you name, creates its own
 administrator account, and launches nothing.
 
-### 79. An operating checklist
+### 81. An operating checklist
 - [ ] Both repositories cloned side by side and built, or the release archive unpacked; the console built in
 - [ ] `VOS_ADMIN_PASSWORD` and `VOS_MASTER_KEY` set; the first-start credentials file secured and deleted
 - [ ] The seeds directory holds the models to serve, and `templates/` the templates to create from
@@ -1890,7 +2085,7 @@ administrator account, and launches nothing.
 *For engineers working on Trellis, and for anyone authoring the pages a model publishes. Denser by
 design; the page-authoring contract is here in full.*
 
-### 80. What it is built with
+### 82. What it is built with
 Trellis is a single-page web application written in TypeScript on React. The graph is drawn with a
 WebGL renderer over a directed multigraph — the same pair of Things may be joined by several
 relationships — laid out by a force simulation running in a web worker so the page never stalls
@@ -1908,7 +2103,7 @@ stays disabled). Intake has its own address rather than the server's forwarding 
 that route resolves where to forward from data in the model, so anything the model named would be
 within reach of whoever could call it.
 
-### 81. How the code is organised
+### 83. How the code is organised
 One directory, one job; tests sit beside the code they test.
 
 ```text
@@ -1936,7 +2131,7 @@ vos.Trellis/
                                    model viewer, map, auth, common
 ```
 
-### 82. Drawing the graph
+### 84. Drawing the graph
 The model is loaded once — the Things, narrowed to the properties the model's display settings say
 its pages are drawn with, and the relationships — into the model store, and the stream keeps that
 store current. The graph mapper turns the store into the renderer's graph:
@@ -1970,11 +2165,11 @@ The display settings live on the `GUI_Settings` Thing every seed carries: the la
 the predicate colours (a map from predicate name to colour), the classifying property, the flash
 effects on a live change, the decimal precisions, and which properties a load sends.
 
-### 83. The pages and their addresses
+### 85. The pages and their addresses
 | Address | Page |
 | --- | --- |
 | `/` | The Dashboard page |
-| `/operations/{page}` | A page the model publishes, one address each — the page's name run together, accents folded, falling back to its identifier where two names collide; `/operations` alone settles on the first |
+| `/operations/{page}` | A page the model publishes, one address each — the page's name run together, accents folded, falling back to its identifier where two names collide — and, before them, the pages the platform declares for the signed-in account, read once per account on sign-in and drawn by the same renderer; `/operations` alone settles on the first |
 | `/compose` | Compose |
 | `/intake` | The land-intake wizard |
 | `/submissions` | The review page |
@@ -1996,7 +2191,7 @@ model cannot answer (state membership, a Thing's ranges, the two temporal reduct
 are asked of a small interface the application answers from the server and the public pages answer
 from the document they were handed, through the intake service under the page's ticket.
 
-### 84. Reading properties in the client
+### 86. Reading properties in the client
 The model store holds each Thing's **own** properties and its **stored overrides** — the shape the
 list read returns — and not the inherited defaults a Thing never overrode; those are resolved on the
 server.
@@ -2022,7 +2217,7 @@ property *reports* arrives over the network and is narrowed against that set bef
 property outside it is refused naming the type rather than sent for an opaque rejection. An edit
 sends the type the platform reports for the property; nothing infers a type from the typed text.
 
-### 85. Live updates
+### 87. Live updates
 Two streams. The **object stream** carries changes to one subscription's membership, resumable
 from the last sequence applied; the **events stream** carries operational events with no resume.
 A browser cannot set a header on a stream, so both carry a short-lived **stream pass** in the
@@ -2035,6 +2230,7 @@ that is not a stream — because an address is recorded in logs and history wher
 | `ThingEntered`, `RelationshipEntered` | A Thing a later `is` typed into a followed kind, and the edges it already held | Object stream |
 | `ThingLeft`, `RelationshipLeft`, `ThingDeleted`, `RelationshipDeleted` | The identifier | Object stream |
 | `PropertyChanged`, `PropertyDeleted`, and the relationship pair | The name, and the value | Object stream |
+| `PropertyObserved` | A reading, delivered to a subscription that asked for readings | Object stream |
 | `StatesChanged`, `RelationshipStatesChanged` | The whole set of states the Thing now holds, never a difference | Events stream |
 | `ModelChanged`, `ModelCleared` | | Events stream |
 | `ServiceHealthChanged`, `DaemonStatusChanged`, `ServiceRequestCompleted`, `EndpointServiceRequestCompleted` | The service, its status, the timing | Events stream |
@@ -2049,7 +2245,8 @@ editor, the temporal page and the Dashboard read across the model and ask for th
 published page asks for what its description implies: the compare entities, the kinds its lists
 draw, the Things it names, the selected entity, and one traversal rule per relationship its bindings
 walk — asked for in the order the walk takes them, because the platform applies each rule to what
-was selected before it. Two platform rules shape this: only the kinds a narrowed subscription names
+was selected before it — and it asks for readings too, so a figure bound to a reading moves without a
+reload, each series held to the platform's cadence. Two platform rules shape this: only the kinds a narrowed subscription names
 keep matching Things created later, so the ids, names and walks are refreshed by asking again; and a
 derived value's change is announced but never replayed after a reconnect, so a reconnect re-reads.
 
@@ -2074,7 +2271,7 @@ The Dashboard page refetches its service registry once per two-second window whe
 arrives, the first event claiming the window and the rest absorbed, so it keeps reading while a
 simulation keeps completing requests.
 
-### 86. The console and the command line
+### 88. The console and the command line
 Almost every command has an equivalent on the graph page; where one has none, the table says why.
 
 | Command | In the console |
@@ -2102,7 +2299,7 @@ Almost every command has an equivalent on the graph page; where one has none, th
 A test reads every `submissions` subcommand off the command line's own handler and checks this
 table names it, so a command added on one branch cannot leave the table quietly incomplete.
 
-### 87. Authoring a page: the description and its navigation
+### 89. Authoring a page: the description and its navigation
 A page is a `Dashboard` Thing whose `spec` property holds a description in JSON: a title, an
 optional subtitle and icon, an optional compare block, sections of widgets, an optional detail
 block, and optional translations. The console discovers every such Thing, parses each once, and
@@ -2122,10 +2319,10 @@ same widgets.
 
 The widget kinds: a **kpi** figure with a unit, a target and a small trace; **funnel**, **bullet**,
 **gantt**, **table**, **leaderboard**; **verdict** and **working** (chapter
-90); an **exception bar**; the six chart widgets (chapter 89); and the
-two widgets that write (chapter 91). A section may name a **theme** the model
+90); an **exception bar**; the six chart widgets (chapter 91); and the
+two widgets that write (chapter 93). A section may name a **theme** the model
 declares and be drawn as a tile, carry `facts: true` to be drawn beside the map, or name a `tab` of
-the closing view (chapter 92).
+the closing view (chapter 94).
 
 **When a description is wrong**, the reader gets something to act on rather than a blank page: a
 `spec` that is not readable is still listed under the Thing's name and says so when opened; a
@@ -2143,13 +2340,21 @@ is refused; presentation lives on the widget, so a label or footnote this build 
 ignored and gives a plainer card, never a wrong number. The table of fields each kind reads is a
 mapping over the binding union, so a kind added and left out of it fails the build.
 
+**Navigation.** Where the rail shows a single **Operations** entry for a model that publishes no
+page and the platform declares none, a model that publishes some gets one entry each in its place,
+ordered by name. The pages the platform declares for the signed-in account come first — they are
+the same whichever model a session opens, and a page that moved when the model changed would be one
+a reader loses — and the platform lists such a page only to the accounts it is for.
+
 **Tables.** A `table` given `visibleRows` scrolls under a pinned header and renders only the rows
 in view, so what a table puts in the page stops growing with the row count and a roster binding
-needs no cap; sorting and searching still run over every row. Every section column and every card
-declares a minimum width of zero, so a wide table scrolls inside its card rather than pushing the
-page off the screen.
+needs no cap; sorting and searching still run over every row. Every table carries a **Download as
+CSV** control beside its footnote, writing the rows as shown — the drawn columns in their order,
+labels first, numbers as numbers, in the current sort and under the current search — to a file
+named after the table. Every section column and every card declares a minimum width of zero, so a
+wide table scrolls inside its card rather than pushing the page off the screen.
 
-### 88. How a binding reads a value
+### 90. How a binding reads a value
 A binding says where a widget's value comes from. Every binding reads **effective properties** —
 own values plus inherited overrides, own winning — so a widget reads what a Thing inherits from its
 kind. A binding that wants a number takes one only from a value that *is* a number, or a yes-or-no
@@ -2171,9 +2376,17 @@ nothing.
 | `stateCount`, `stateList` | How many Things hold a state, and which; narrowed by archetype, scope, an excluded state and a cap, all sent on the request so the server answers the question asked | One request per distinct question per refresh, shared across every widget asking it |
 | `thingList` | Every Thing of an archetype whatever state it is in, ordered by name | Nothing: the loaded model |
 | `related`, `stateOf` | What an edge says; which of several states a Thing holds | Nothing |
-| `timeseries`, `latest`, `history` | The two temporal reductions (chapter 89) | One request per distinct question per refresh |
+| `timeseries`, `latest`, `history` | The two temporal reductions (chapter 91) | One request per distinct question per refresh |
 | `verdict`, `working`, `origin` | A judged value as a sentence; a figure's formula and inputs; where a figure came from | One range read per judged Thing; nothing; nothing |
-| `service` | A model-side service's answer | One request per row |
+| `service` | A model-side service's answer | One request per distinct question per refresh, shared while in flight and never replayed once settled, because the writing widgets post through the same port and a press answered from an earlier reply would record nothing and say it had |
+
+**When a figure is asked again.** A figure read from the loaded model — `const`, `property`,
+`aggregate`, `thingList`, a walk naming no state — resolves again when the model index is rebuilt.
+A figure the platform answers — `stateCount`, `stateList`, `stateOf`, `verdict`, `timeseries`,
+`latest`, `service`, `history`, a `ratio` with either side among these, a walk step naming a state,
+a computed column doing any of these — resolves again when a state change names a state it reads, on
+the description's `refreshSeconds`, on a model reload, and after a press one of the page's writing
+widgets took; not on a property change. A page stating no cadence keeps the live event as its beat.
 
 **Which Things.** Archetype membership is resolved through the whole `is` chain and counts members
 only — a kind declared as a kind never appears as a row, even before it has members. A `stateCount`
@@ -2203,7 +2416,7 @@ and a status cell has to be single-valued.
         "value": { "kind": "stateOf", "states": ["blocked", "charging", "idle"] } } ] } }
 ```
 
-### 89. Series and charts
+### 91. Series and charts
 **`timeseries`** is the bucketed reduction: the members of an archetype folded into fixed time
 buckets across a trailing window, with `happenedAt` naming the property each member carries its
 instant on and `property` the value reduced (absent for a count). A window one bucket wide is a
@@ -2253,7 +2466,7 @@ table twin so nothing a chart shows can only be seen.
 | `divergingBar` | Twelve months, `up` rising and `down` falling from one line on one scale — cooling and heating degree days — each side's `threshold` bound to the model's value for the legend |
 | `smallMultiples` | Twelve monthly panels, each `bars` by hour on one scale and a `line` through the hours on another, with a `band` behind the line; each scale shared across the panels |
 
-### 90. Verdicts, levers, origins and working
+### 92. Verdicts, levers, origins and working
 **A judged value as a sentence.** The `verdict` widget lists rows, each with a `verdicts` binding
 naming the states a balance can hold and a wording for each. The target comes from the range that
 judges the value — a range written as criteria reports the comparison it makes, and the binding
@@ -2318,7 +2531,7 @@ binding's shape says the model derived the figure, and opens to the same narrowe
 its rows: the Things a count counted, the members an aggregate reduced with each one's contribution,
 both sides of a ratio, the buckets a window folded. Nothing is resolved until a reader opens it.
 
-### 91. The widgets that write, and translation
+### 93. The widgets that write, and translation
 Two widgets write, both to the door the description names under the console's session — a service
 endpoint by its name through the server's forwarding route, or, written as a path beginning with
 `/`, a route on the platform itself: **`action`** decides about a row it lists — a choice names either the
@@ -2328,10 +2541,12 @@ name from a roster, and a row marked `repeatable` can be pressed again, with the
 press shown beside it — and **`form`** records something nothing on the page lists yet, with typed
 or chosen fields and an optional preview act. What is sent is stated purely: a number as a number, a multiple choice as the
 names chosen, an optional field left empty not at all, no field naming an actor. A refusal is
-shown in the endpoint's own words. The platform's own administration routes take these bodies, which
-is what the Accounts page posts to; no shipped service endpoint does yet, and one a model registers
-has to accept `{ view | reason, record, …asked }` or `{ view, …fields }` and answer `{ said }` or
-`{ error }`.
+shown in the endpoint's own words. A press the door took starts a new generation of platform reads,
+so a table on the same page shows what the press changed — a write the platform records outside the
+model, an account, announces nothing on the stream. The platform's own administration route,
+`POST /api/auth/administration`, takes these bodies for its Accounts page; no shipped service
+endpoint does yet, and one a model registers has to accept `{ view | reason, record, …asked }` or
+`{ view, …fields }` and answer `{ said }` or `{ error }`.
 
 **Translating a description.** Author in one base language, then add a top-level `translations`
 map from language code to base string to translated string, keyed by language rather than region
@@ -2344,7 +2559,7 @@ state names, archetypes, property names, predicate names, row keys, colours, for
 Thing's own name — so a translation can never corrupt what a binding resolves; and resolved row data
 is model content, shown in the model's own language.
 
-### 92. Tiles, and what a page is sent
+### 94. Tiles, and what a page is sent
 A section may name a **theme** the model declares — a Thing under the archetype marked as a theme,
 carrying `colour`, `icon` and `order` — and a page that draws themes then draws the section as a
 tile: its kpi widgets as the summary shown while the tile is hovered or focused, every other widget
@@ -2363,7 +2578,7 @@ Thing the description never mentions is not sent, and a binding over it resolves
 of two steps is asked for as one path, because the second edge applied to the scope entity would
 reach nothing.
 
-### 93. The map and its basemap sources
+### 95. The map and its basemap sources
 The console ships the map; the model supplies what it draws. No provider address, tile-server name
 or attribution text appears in the console, so changing a deployment's imagery is a model edit.
 
@@ -2393,7 +2608,7 @@ only, because each repaints the map. The map library is chunked on its own and l
 mounts, and its tile worker is named in the source so the bundler emits it; unnamed, no tile is ever
 parsed and nothing says so.
 
-### 94. Verifying a change
+### 96. Verifying a change
 `npm run dev` serves the console; `npm run lint`, `npm test` and `npm run build` (which
 type-checks) are what the build runs, and a failure in any of them fails it. `npm run
 test:integration` needs a running server and checks what only one can answer — today, that the
