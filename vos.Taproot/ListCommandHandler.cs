@@ -345,6 +345,43 @@ namespace vos.Taproot
             _writer.WriteLine($"  {serviceDisplay} [{status}]");
             _writer.WriteLine($"    Endpoint: {endpointUrl}");
             _writer.WriteLine($"    Health: {healthStatus}");
+            WriteRequestStatistics(service);
+            if (isRunning)
+                WriteProcess(service);
+            var failures = service.GetIntOrDefault("ConsecutiveFailures");
+            if (failures > 0)
+                _writer.WriteLine($"    Failures: {failures}");
+        }
+
+        // A field the platform did not send is left out rather than shown as a placeholder.
+        private void WriteRequestStatistics(JsonElement service)
+        {
+            if (!service.HasObjectProperty("Stats"))
+                return;
+
+            var stats = service.GetProperty("Stats");
+            var forwarded = stats.GetIntOrDefault("RequestsForwarded");
+            var line = $"    Requests: {forwarded}";
+            if (forwarded > 0)
+            {
+                var average = stats.TryGetProperty("AverageResponseMilliseconds", out var found) && found.ValueKind == JsonValueKind.Number
+                    ? found.GetDouble()
+                    : 0;
+                line += $", average {Math.Round(average)} ms, {stats.GetIntOrDefault("ErrorCount")} error(s)";
+            }
+            if (stats.GetNullableDateTime("LastRequestUtc") is { } lastRequest)
+                line += $", last {lastRequest:yyyy-MM-ddTHH:mm:ssZ}";
+            _writer.WriteLine(line);
+        }
+
+        private void WriteProcess(JsonElement service)
+        {
+            var parts = new List<string> { service.GetNullableInt("ProcessId")?.ToString() ?? "running" };
+            if (service.GetBoolOrDefault("IsExternal"))
+                parts.Add("external");
+            if (service.GetNullableDateTime("LastContactTime") is { } lastContact)
+                parts.Add($"last contact {lastContact:yyyy-MM-ddTHH:mm:ssZ}");
+            _writer.WriteLine($"    Process: {string.Join(", ", parts)}");
         }
 
         private static string ResolveDisplayName(string serviceName, string handlerId, Dictionary<string, string> nameMap)
