@@ -14,7 +14,6 @@ public sealed record FragmentThing(Guid Id, string Name, IReadOnlyDictionary<str
 // re-posted submission finds its own relationships rather than adding second copies of them.
 public sealed record FragmentRelationship(string Name, Guid Subject, Guid Predicate, Guid Target);
 
-// A property value with the type it is written as.
 public sealed record TypedValue
 {
     [JsonPropertyName("typeInfo")]

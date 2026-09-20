@@ -3,7 +3,7 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.WaterReserve.Services;
 
-// The WaterReserve analysis as a pipeline node (Plane B / D), and the only form left: population +
+// The WaterReserve analysis as a pipeline node, and the only form left: population +
 // per-capita rate + stored volume in; emergency reserve, days-of-supply, and % annual consumption out.
 // A site analysis works all four out for itself, so nothing dispatches this to a study any more
 // — a pipeline run supplies the three inputs on wired ports and takes the answer back.

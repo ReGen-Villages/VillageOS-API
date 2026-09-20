@@ -7,7 +7,6 @@ namespace vos.Service.Intake.Services;
 // archetype a document `is`, the predicate a project shares it through, and `is` itself.
 public sealed record SharedDocumentDeclarations(Guid Archetype, string ArchetypeName, Guid Predicate, string PredicateName, Guid Is);
 
-// One file a submission holds, as the model holds it.
 public sealed record SharedDocumentListing(
     Guid Id, string FileName, string? Description, string? ContentType, long? SizeBytes, string? SharedAt);
 

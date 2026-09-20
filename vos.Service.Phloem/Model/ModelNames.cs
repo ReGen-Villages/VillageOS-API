@@ -6,12 +6,10 @@ namespace vos.Service.Phloem.Model;
 // flag its archetype carries, in PipelineArchetypes.
 public static class ModelNames
 {
-    // Built-in generic predicates
     public const string Is = "is";
     public const string Has = "has";
     public const string Of = "of";
 
-    // Properties
     public const string Subdomain = "Subdomain";
     public const string Direction = "direction";
     public const string PortType = "type";

@@ -25,7 +25,6 @@ public sealed record ResolvedArchetypes(
     Guid Site, Guid SiteStudy, Guid Parcel, Guid Project, Guid Contact, Guid ProgrammeAllocation,
     Guid HazardAssessment, Guid SubmittedSource, Guid Submission);
 
-// One term a model declares, under the name it declared it with.
 public sealed record DeclaredTerm(string Name, Guid Id);
 
 // One demand on the water a site harvests, and where in the queue it stands. An archetype rather

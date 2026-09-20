@@ -163,7 +163,7 @@ function routeKeys(names: string[]): string[] {
   return discoverDashboards(things, relationships).map((d) => d.routeKey);
 }
 
-describe('dashboard order and addresses (Story 6582)', () => {
+describe('dashboard order and addresses', () => {
   it('orders dashboards by name, whatever order the archetype walk answered in', () => {
     const { things, relationships } = dashboardModel(['Reserves', 'Arrays', 'Springs']);
 
@@ -2351,7 +2351,7 @@ describe('the newest point of a series', () => {
 });
 
 // The history reduction is the platform's, over one property's observation series on the page's own
-// scope entity; the client folds nothing (Feature 7038, platform Task 7043).
+// scope entity; the client folds nothing.
 describe('history reads the platform reduction over a property series', () => {
   const UTC_OFFSET_PROPERTY = 'utcOffsetSeconds';
 

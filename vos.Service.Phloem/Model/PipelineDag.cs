@@ -16,7 +16,6 @@ public sealed record DagPort(string PortName, string Direction, string Type, boo
 // dispatch.
 public enum DagNodeKind { Service, Input, Output }
 
-// A resolved DAG node: identity, the Connection subdomain Phloem forwards to, static params, and ports.
 public sealed class DagNode
 {
     public Guid NodeId { get; init; }
@@ -52,7 +51,6 @@ public sealed class DagNode
 // Transform is a JSONata expression that reshapes the extracted value before placement.
 public sealed record DagWire(Guid FromNodeId, string FromPort, Guid ToNodeId, string ToPort, string FromPath = "", string ToPath = "", string Transform = "");
 
-// The resolved pipeline DAG ready to validate and execute.
 public sealed class PipelineDag
 {
     public Guid PipelineId { get; init; }
@@ -62,6 +60,5 @@ public sealed class PipelineDag
 
     public DagNode? Node(Guid id) => Nodes.FirstOrDefault(n => n.NodeId == id);
 
-    // Wires feeding into the given node (its incoming relationships).
     public IEnumerable<DagWire> WiresInto(Guid nodeId) => Wires.Where(w => w.ToNodeId == nodeId);
 }

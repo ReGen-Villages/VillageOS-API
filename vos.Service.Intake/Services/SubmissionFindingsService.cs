@@ -4,7 +4,6 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Services;
 
-// The broker's answer as it gave it, and the address the ticket was renewed for.
 public sealed record ReducedForSubmitter(int Status, string Body, string Address);
 
 // What the platform worked out about one submitter's land, answered to the submitter and to nobody else.

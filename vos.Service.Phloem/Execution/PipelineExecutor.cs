@@ -176,7 +176,6 @@ public sealed class PipelineExecutor
         }
         catch (Exception ex)
         {
-            // A wire's JSONata transform failed at run time (bad shape / runtime error) — fail the node clearly.
             return new NodeRunResult(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, $"Wire transform failed: {ex.Message}");
         }
 
@@ -349,7 +348,6 @@ public sealed class PipelineExecutor
     private static NodeRunResult Failure(DagNode node, string error) =>
         new(node.NodeId, node.Name, RunStatus.Failed, NoOutputs, error);
 
-    // Look up a run-param by key — the spawn's params object.
     private static bool TryGetParam(JsonElement runParams, string key, out JsonElement value)
     {
         if (runParams.ValueKind == JsonValueKind.Object && runParams.TryGetProperty(key, out value))

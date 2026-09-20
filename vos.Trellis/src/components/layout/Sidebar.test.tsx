@@ -42,7 +42,7 @@ function hrefOf(label: string): string | null {
   return screen.getByRole('link', { name: label }).getAttribute('href');
 }
 
-describe('Sidebar (Story 6582)', () => {
+describe('Sidebar', () => {
   beforeEach(() => {
     useModelStore.setState({ things: [], relationships: [], loaded: true });
     usePlatformPagesStore.setState({ pages: [], loadedFor: null });

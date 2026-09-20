@@ -24,7 +24,6 @@ public sealed class SelectorDemo
         return result;
     }
 
-    // Every Thing of type plus its depth-1 predicate neighbours.
     public static SubscriptionSelector SliceByTypeAndTraverse(string type, string predicate) => new()
     {
         Types = new List<string> { type },

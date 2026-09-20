@@ -4,7 +4,6 @@ using vos.Service.Intake.Models;
 
 namespace vos.Service.Intake.Services;
 
-// A posted document read into a submission and held to what a submission may contain.
 public static class SubmissionReader
 {
     // A field this service does not write is refused rather than ignored. Silently dropping part of a

@@ -2,7 +2,6 @@ using vos.Service.Shared.Subscriptions;
 
 namespace vos.Service.Intake.Services;
 
-// A read of the model that lasts one call.
 internal static class ScopedRead
 {
     // Subscribe, read, release. A release that fails must not lose a read that succeeded, and

@@ -196,7 +196,7 @@ describe('OperationsPage', () => {
   });
 });
 
-describe('OperationsPage addressing (Story 6582)', () => {
+describe('OperationsPage addressing', () => {
   const ROSTER_SPEC = { title: 'Roster', sections: [{ title: 'Rows', widgets: [] }] };
 
   beforeEach(() => {
@@ -233,7 +233,7 @@ describe('OperationsPage addressing (Story 6582)', () => {
   });
 });
 
-describe('OperationsPage section widths (Bug 6671)', () => {
+describe('OperationsPage section widths', () => {
   const WIDTH_SPEC = {
     title: 'Widths',
     sections: [

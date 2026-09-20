@@ -127,8 +127,6 @@ public sealed class MyceliumGateway : MyceliumClientBase, IMyceliumGateway
         return new NodeDispatchResult((int)response.StatusCode, body);
     }
 
-    // --- helpers ---
-
     private async Task<PipelineGraph> LoadSnapshotAsync(object selector, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var client = await CreateAuthenticatedClientAsync(timeout);

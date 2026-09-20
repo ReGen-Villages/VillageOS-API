@@ -2,7 +2,6 @@ using System.Text.Json;
 
 namespace vos.Service.Phloem.Execution;
 
-// How a spawn reached Phloem.
 public enum SpawnKind
 {
     // http endpoint-forward: { pipelineId, params } — synchronous spawn-and-wait.

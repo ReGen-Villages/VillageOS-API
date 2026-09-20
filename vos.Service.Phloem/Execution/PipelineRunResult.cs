@@ -2,7 +2,6 @@ using System.Text.Json;
 
 namespace vos.Service.Phloem.Execution;
 
-// Terminal status of a run or a node.
 public static class RunStatus
 {
     public const string Running = "running";
@@ -13,7 +12,6 @@ public static class RunStatus
     public const string Partial = "partial";
 }
 
-// The outcome of a single node in a run.
 public sealed record NodeRunResult(
     Guid NodeId,
     string Name,

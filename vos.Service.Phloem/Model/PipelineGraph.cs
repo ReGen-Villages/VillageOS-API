@@ -2,7 +2,6 @@ using System.Text.Json;
 
 namespace vos.Service.Phloem.Model;
 
-// A Thing in the loaded pipeline subgraph: identity, name, and unwrapped property values.
 public sealed class GraphThing
 {
     public Guid Id { get; init; }
@@ -21,7 +20,6 @@ public sealed class GraphThing
         Properties.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.True;
 }
 
-// A relationship: subject –predicate→ target, with unwrapped relationship property values.
 public sealed class GraphRelationship
 {
     public Guid Id { get; init; }

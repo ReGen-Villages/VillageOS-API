@@ -3,7 +3,6 @@ using vos.Service.Shared;
 
 namespace vos.Service.Phloem.Execution;
 
-// The result of validating a DAG: a topological order when valid, or the reasons it isn't.
 public sealed record DagValidationResult(bool IsValid, IReadOnlyList<Guid> Order, IReadOnlyList<string> Errors)
 {
     public static DagValidationResult Invalid(IReadOnlyList<string> errors) =>
@@ -68,8 +67,6 @@ public static class DagValidator
         || string.Equals(inType, "any", StringComparison.OrdinalIgnoreCase)
         || string.Equals(outType, inType, StringComparison.OrdinalIgnoreCase);
 
-    // Kahn topological sort. Returns the ordered node ids; any nodes left unscheduled (in a cycle)
-    // are returned via cyclic.
     public static IReadOnlyList<Guid> TopoSort(PipelineDag dag, out IReadOnlyList<Guid> cyclic)
     {
         var indeg = dag.Nodes.ToDictionary(n => n.NodeId, _ => 0);

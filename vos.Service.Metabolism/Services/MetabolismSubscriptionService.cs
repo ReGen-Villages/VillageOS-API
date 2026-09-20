@@ -7,7 +7,7 @@ namespace vos.Service.Metabolism.Services;
 // streams relationship-property changes into the engine, and keeps the subscription's
 // membership in step with the engine's simulations — adding a relationship on Register and
 // removing it on Cancel. An open stream is also the
-// service's liveness signal to Mycelium).
+// service's liveness signal to Mycelium.
 public sealed class MetabolismSubscriptionService : IHostedService
 {
     private static readonly int[] Backoff = { 0, 1000, 2000, 5000, 10000 };
@@ -58,7 +58,6 @@ public sealed class MetabolismSubscriptionService : IHostedService
 
     private async Task RunAsync(CancellationToken ct)
     {
-        // Subscribe (empty closure — membership grows as simulations register) with retry.
         SubscribeResult? sub = null;
         for (var attempt = 0; !ct.IsCancellationRequested; attempt++)
         {

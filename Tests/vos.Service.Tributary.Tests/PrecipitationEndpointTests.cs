@@ -7,7 +7,7 @@ using Xunit;
 
 namespace vos.Service.Tributary.Tests;
 
-// Plane A of the Water slice: a precipitation endpoint reshapes an Open-Meteo response into a
+// The Water slice's source: a precipitation endpoint reshapes an Open-Meteo response into a
 // reading Tributary ingests as an observation on the Site — precipitation (mm) at an observed time. The
 // generic fetch + ingest is Tributary's; this pins the source-specific reshape that lands real rainfall
 // onto the Site, feeding the reserve/storage the WaterReserve node consumes.

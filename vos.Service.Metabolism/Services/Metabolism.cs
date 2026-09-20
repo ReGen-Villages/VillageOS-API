@@ -6,7 +6,6 @@ using System.Globalization;
 
 namespace vos.Service.Metabolism.Services;
 
-// Manages continuous simulation loops for registered resource relationships.
 public class Metabolism
 {
     private readonly ConcurrentDictionary<string, SimulationEntry> _simulations = new();
@@ -30,7 +29,6 @@ public class Metabolism
     // Raised when a simulation is cancelled — the coordinator drops it from membership.
     public event Action<string>? RelationshipCancelled;
 
-    // Public registration (from /handle): registers + announces the relationship for SSE membership.
     public SimulationEntry Register(SimulationConfig config)
     {
         var entry = RegisterCore(config);
@@ -42,7 +40,6 @@ public class Metabolism
     // UpdateProperty doesn't re-trigger an AddObjects on every property change.
     private SimulationEntry RegisterCore(SimulationConfig config)
     {
-        // Cancel existing simulation for same relationship if re-registered
         if (_simulations.TryRemove(config.RelationshipId, out var existing))
         {
             existing.Cts.Cancel();
@@ -138,7 +135,6 @@ public class Metabolism
         _logger.LogInformation("Simulation {RelId}: completed after {Ticks} ticks", config.RelationshipId, entry.TickCount);
     }
 
-    // Update a single property on a running simulation, restarting the loop with the new config.
     public virtual void UpdateProperty(string relationshipId, string propertyName, object? newValue)
     {
         // Lock so rapid sequential changes (e.g. quantity then frequencySeconds) don't race —
@@ -148,7 +144,6 @@ public class Metabolism
             if (!_simulations.TryGetValue(relationshipId, out var entry))
                 return;
 
-            // SSE delivers values as JsonElement — unwrap to native types
             var value = JsonValueUnwrapper.Unwrap(newValue);
 
             var old = entry.Config;

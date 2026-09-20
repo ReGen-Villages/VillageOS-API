@@ -7,7 +7,7 @@ using Xunit;
 
 namespace vos.Service.Tributary.Tests;
 
-// Plane A of the Energy slice: a solar-resource endpoint reshapes an Open-Meteo response into a
+// The Energy slice's source: a solar-resource endpoint reshapes an Open-Meteo response into a
 // reading Tributary ingests as a shortwave-radiation observation on the Site. That resource (annualized to
 // GTI) and the PV area — rolled up reactively over the classified SolarArray is-relationships (AggregateBounds Sum) — are the two inputs the EnergyBalance node multiplies into solar generation.
 public class SolarResourceEndpointTests

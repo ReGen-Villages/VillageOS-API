@@ -133,7 +133,7 @@ public static class SubmissionFragmentComposer
         // indistinguishable from a model holding no source at all, and reports neither a resolved source
         // nor an unresolved one. The root is enough for a source that covers everything. Narrower Places
         // are not minted from the submitted country: that is an open set nobody enumerates, `country` is
-        // optional, and a term the model does not hold would have to be refused (Task 6684).
+        // optional, and a term the model does not hold would have to be refused.
         Relate(siteThing,
             new PredicateIdentity(
                 vocabulary.PlaceNesting.Predicate.Name, vocabulary.PlaceNesting.Predicate.Id, Minted: false),

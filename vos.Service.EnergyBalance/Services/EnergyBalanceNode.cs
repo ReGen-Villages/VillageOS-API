@@ -3,8 +3,8 @@ using vos.Service.Shared.DagNode;
 
 namespace vos.Service.EnergyBalance.Services;
 
-// The EnergyBalance analysis as a pipeline node (Plane B / D).
-// pctOfConsumption is what the Plane-C "EnergyNetPositive" range (>= 100%) judges.
+// The EnergyBalance analysis as a pipeline node.
+// pctOfConsumption is what the "EnergyNetPositive" range (>= 100%) judges.
 public sealed class EnergyBalanceNode : DagNodeService
 {
     public EnergyBalanceNode(IHttpClientFactory httpClientFactory, ILogger<EnergyBalanceNode> logger,

@@ -4,7 +4,6 @@ namespace vos.Service.Intake.Models;
 // hangs off nothing and writes nothing.
 public sealed record ParcelAsked(double? Latitude, double? Longitude);
 
-// What somebody typed while looking for their land.
 public sealed record PlacesAsked(string? Query);
 
 // The legal parcel a register holds at a position: its boundary as named pairs, and whose

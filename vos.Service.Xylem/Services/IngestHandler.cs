@@ -40,7 +40,6 @@ public class IngestHandler
         if (!File.Exists(ifcPath))
             return IngestResult.Failed("Uploaded IFC file not found.");
 
-        // A new-model ingest replaces the current model: clear it first, then ingest into the empty model.
         if (mode == IngestMode.NewModel)
         {
             var clearError = await _preparer.ClearModelAsync(ct);

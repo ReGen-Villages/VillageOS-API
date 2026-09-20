@@ -1,6 +1,5 @@
 namespace vos.Service.Intake.Services;
 
-// What the store kept of one file: the key it is kept under and how many bytes it holds.
 public sealed record StoredDocument(string StoredAs, long SizeBytes);
 
 // The bytes of the files submitters share, kept under one folder keyed by submission — the model holds
@@ -23,7 +22,6 @@ public sealed class DocumentStore(string directory)
         return new StoredDocument(storedAs, file.Length);
     }
 
-    // The submissions whose files are kept, read off the folders.
     public IReadOnlyList<string> SubmissionsHeld() =>
         System.IO.Directory.Exists(Directory)
             ? [.. System.IO.Directory.EnumerateDirectories(Directory).Select(Path.GetFileName).OfType<string>()]
