@@ -230,10 +230,11 @@ namespace vos.Taproot
                 return;
             }
 
+            var idToName = await _resolver.GetGuidToNameMapAsync();
             var predicateCounts = new Dictionary<string, int>();
             foreach (var rel in relationships.EnumerateArray())
             {
-                var name = rel.GetStringOrDefault("Name", "unknown");
+                var name = QueryCommandHandler.PredicateNameOf(rel, idToName);
                 predicateCounts[name] = predicateCounts.GetValueOrDefault(name) + 1;
             }
 
