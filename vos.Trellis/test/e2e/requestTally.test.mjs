@@ -52,3 +52,12 @@ describe('what is not the platform', () => {
     });
   });
 });
+
+describe('a count of events handled', () => {
+  it('is added by kind rather than replayed one at a time', () => {
+    const tally = new Tally();
+    tally.streamEvent('ThingCreated', 3);
+    tally.streamEvent('ThingCreated');
+    expect(tally.report().streamEvents).toEqual({ ThingCreated: 4 });
+  });
+});

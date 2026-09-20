@@ -17,47 +17,20 @@
 import fs from 'node:fs';
 import puppeteer from 'puppeteer';
 import { Tally } from './requestTally.mjs';
+import { countStreamEvents, parse } from './tab.mjs';
 
 const chosen = parse(process.argv.slice(2));
 const USERNAME = process.env.VOS_E2E_USERNAME || 'admin';
 const PASSWORD = process.env.VOS_E2E_PASSWORD || 'admin';
-
-function parse(argv) {
-  const values = { url: 'http://localhost:5173', page: '/', model: null, seconds: 60, until: null, out: null, headful: false };
-  for (let i = 0; i < argv.length; i++) {
-    const name = argv[i].replace(/^--/, '');
-    if (name === 'headful') values.headful = true;
-    else if (name in values) values[name] = argv[++i];
-    else throw new Error(`unknown argument: ${argv[i]}`);
-  }
-  values.seconds = Number(values.seconds);
-  return values;
-}
-
-// Counts the stream events the page handles, by kind: every listener the console registers on an
-// EventSource is wrapped so that an event it handles is counted under the kind it was registered
-// for. Installed before the page's own scripts, since the streams open on sign-in.
-function countStreamEvents() {
-  window.__streamEvents = {};
-  const register = EventSource.prototype.addEventListener;
-  EventSource.prototype.addEventListener = function (kind, listener, options) {
-    const counted = function (event) {
-      window.__streamEvents[kind] = (window.__streamEvents[kind] ?? 0) + 1;
-      return listener.call(this, event);
-    };
-    return register.call(this, kind, counted, options);
-  };
-}
 
 async function signIn(page) {
   await page.goto(chosen.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForSelector('#username', { timeout: 10000 });
   await page.type('#username', USERNAME);
   await page.type('#password', PASSWORD);
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 15000 }).catch(() => {}),
-    page.click('button[type=submit]'),
-  ]);
+  await page.click('button[type=submit]');
+  // Signing in never navigates; the form leaves the page, for the console or for the model picker.
+  await page.waitForSelector('#username', { hidden: true, timeout: 15000 });
   if (chosen.model) {
     const picked = await page.evaluate((name) => {
       const button = [...document.querySelectorAll('button')].find((b) => b.textContent.includes(name));
@@ -102,8 +75,7 @@ async function main() {
     const endedBecause = await watch();
 
     const handled = await page.evaluate(() => window.__streamEvents);
-    for (const [kind, count] of Object.entries(handled ?? {}))
-      for (let i = 0; i < count; i++) tally.streamEvent(kind);
+    for (const [kind, count] of Object.entries(handled ?? {})) tally.streamEvent(kind, count);
 
     const report = {
       url: chosen.url,

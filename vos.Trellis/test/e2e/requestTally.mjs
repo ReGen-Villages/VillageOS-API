@@ -42,8 +42,8 @@ export class Tally {
     this.requests[route] = (this.requests[route] ?? 0) + 1;
   }
 
-  streamEvent(kind) {
-    this.streamEvents[kind] = (this.streamEvents[kind] ?? 0) + 1;
+  streamEvent(kind, count = 1) {
+    this.streamEvents[kind] = (this.streamEvents[kind] ?? 0) + count;
   }
 
   report() {
